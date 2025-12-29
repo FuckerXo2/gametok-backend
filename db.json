@@ -1,0 +1,31 @@
+{
+  "games": [
+    {
+      "id": "stack-ball",
+      "name": "Stack Ball",
+      "description": "Hold to smash through platforms 🔥",
+      "icon": "🎱",
+      "color": "#667eea",
+      "gameUrl": "https://gametok-games.pages.dev/stack-ball/",
+      "thumbnailUrl": null,
+      "playCount": 0,
+      "likeCount": 0,
+      "createdAt": "2025-12-27T00:00:00.000Z"
+    },
+    {
+      "id": "fruit-slicer",
+      "name": "Fruit Slicer",
+      "description": "Swipe to slice fruits! Avoid bombs 💣",
+      "icon": "🍉",
+      "color": "#ff6b6b",
+      "gameUrl": "https://gametok-games.pages.dev/fruit-slicer/",
+      "thumbnailUrl": null,
+      "playCount": 0,
+      "likeCount": 0,
+      "createdAt": "2025-12-27T00:00:00.000Z"
+    }
+  ],
+  "users": [],
+  "scores": [],
+  "likes": []
+}
