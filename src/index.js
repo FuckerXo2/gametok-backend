@@ -173,29 +173,55 @@ app.get('/api/games/:id', async (req, res) => {
 
 // POST /api/games - Add a new game
 app.post('/api/games', async (req, res) => {
-  const { name, description, icon, color, game_url, thumbnail_url } = req.body;
+  const { id, name, description, icon, color } = req.body;
   
-  if (!name || !game_url) {
-    return res.status(400).json({ error: 'Name and game_url are required' });
+  if (!id || !name) {
+    return res.status(400).json({ error: 'id and name are required' });
+  }
+  
+  await db.read();
+  
+  // Check if game ID already exists
+  if (db.data.games.find(g => g.id === id)) {
+    return res.status(400).json({ error: 'Game with this ID already exists' });
   }
   
   const game = {
-    id: uuidv4(),
+    id,
     name,
     description: description || '',
     icon: icon || '🎮',
     color: color || '#667eea',
-    game_url,
-    thumbnail_url: thumbnail_url || null,
-    play_count: 0,
-    like_count: 0,
-    created_at: new Date().toISOString()
+    plays: 0,
+    likes: 0,
+    createdAt: new Date().toISOString()
   };
   
   db.data.games.push(game);
   await db.write();
   
   res.json({ game, message: 'Game added successfully' });
+});
+
+// PUT /api/games/:id - Update a game
+app.put('/api/games/:id', async (req, res) => {
+  const { name, description, icon, color } = req.body;
+  
+  await db.read();
+  const game = db.data.games.find(g => g.id === req.params.id);
+  
+  if (!game) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+  
+  if (name) game.name = name;
+  if (description !== undefined) game.description = description;
+  if (icon) game.icon = icon;
+  if (color) game.color = color;
+  
+  await db.write();
+  
+  res.json({ game, message: 'Game updated successfully' });
 });
 
 // POST /api/games/:id/play - Record a play
@@ -981,10 +1007,8 @@ const seedDatabase = async () => {
   await db.read();
   
   if (db.data.games.length === 0) {
-    console.log('🌱 Seeding database with test games...');
+    console.log('🌱 Seeding database with initial games...');
     
-    // Games will be loaded from hosted URLs
-    // For now, using placeholder - replace with your actual hosted URLs
     const testGames = [
       {
         id: 'stack-ball',
@@ -992,59 +1016,19 @@ const seedDatabase = async () => {
         description: 'Hold to smash through platforms 🔥',
         icon: '🎱',
         color: '#667eea',
-        game_url: 'HOSTED_URL/stack-ball/',
-        thumbnail_url: null,
-        play_count: 0,
-        like_count: 0,
-        created_at: new Date().toISOString()
+        plays: 0,
+        likes: 0,
+        createdAt: new Date().toISOString()
       },
       {
-        id: 'helix-jump',
-        name: 'Helix Jump',
-        description: 'Rotate and drop through gaps',
-        icon: '🌀',
-        color: '#FFD93D',
-        game_url: 'HOSTED_URL/helix-jump/',
-        thumbnail_url: null,
-        play_count: 0,
-        like_count: 0,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'gravity-flip',
-        name: 'Gravity Flip',
-        description: 'Tap to flip gravity, dodge obstacles',
-        icon: '🔄',
-        color: '#6C5CE7',
-        game_url: 'HOSTED_URL/gravity-flip/',
-        thumbnail_url: null,
-        play_count: 0,
-        like_count: 0,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'color-match',
-        name: 'Color Match',
-        description: 'Match colors fast! Speed increases',
-        icon: '🎨',
-        color: '#E17055',
-        game_url: 'HOSTED_URL/color-match/',
-        thumbnail_url: null,
-        play_count: 0,
-        like_count: 0,
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'orbit',
-        name: 'Orbit',
-        description: 'Tap to switch direction, collect stars',
-        icon: '🌙',
-        color: '#0984E3',
-        game_url: 'HOSTED_URL/orbit/',
-        thumbnail_url: null,
-        play_count: 0,
-        like_count: 0,
-        created_at: new Date().toISOString()
+        id: 'fruit-slicer',
+        name: 'Fruit Slicer',
+        description: 'Swipe to slice fruits! Avoid bombs 💣',
+        icon: '🍉',
+        color: '#ff6b6b',
+        plays: 0,
+        likes: 0,
+        createdAt: new Date().toISOString()
       }
     ];
     
