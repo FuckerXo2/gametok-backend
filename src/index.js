@@ -865,6 +865,115 @@ app.post('/api/messages/:id/read', async (req, res) => {
 });
 
 // ============================================
+// COMMENTS ENDPOINTS
+// ============================================
+
+// GET /api/comments/:gameId - Get comments for a game
+app.get('/api/comments/:gameId', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  
+  await db.read();
+  
+  const comments = (db.data.comments || [])
+    .filter(c => c.gameId === req.params.gameId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, limit)
+    .map(c => {
+      const user = db.data.users.find(u => u.id === c.userId);
+      return {
+        id: c.id,
+        text: c.text,
+        userId: c.userId,
+        username: user?.username || 'Unknown',
+        displayName: user?.displayName || user?.username || 'Unknown',
+        avatar: user?.avatar || '😊',
+        likes: c.likes || 0,
+        createdAt: c.createdAt
+      };
+    });
+  
+  res.json({ comments, total: comments.length });
+});
+
+// POST /api/comments - Add a comment
+app.post('/api/comments', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const { gameId, text } = req.body;
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  if (!gameId || !text || !text.trim()) {
+    return res.status(400).json({ error: 'gameId and text are required' });
+  }
+  
+  await db.read();
+  
+  const user = db.data.users.find(u => u.token === token);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const comment = {
+    id: uuidv4(),
+    gameId,
+    userId: user.id,
+    text: text.trim(),
+    likes: 0,
+    createdAt: new Date().toISOString()
+  };
+  
+  if (!db.data.comments) db.data.comments = [];
+  db.data.comments.push(comment);
+  await db.write();
+  
+  res.json({
+    comment: {
+      id: comment.id,
+      text: comment.text,
+      userId: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      avatar: user.avatar || '😊',
+      likes: 0,
+      createdAt: comment.createdAt
+    }
+  });
+});
+
+// DELETE /api/comments/:id - Delete a comment
+app.delete('/api/comments/:id', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  await db.read();
+  
+  const user = db.data.users.find(u => u.token === token);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const commentIndex = (db.data.comments || []).findIndex(c => c.id === req.params.id);
+  if (commentIndex === -1) {
+    return res.status(404).json({ error: 'Comment not found' });
+  }
+  
+  const comment = db.data.comments[commentIndex];
+  if (comment.userId !== user.id) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  
+  db.data.comments.splice(commentIndex, 1);
+  await db.write();
+  
+  res.json({ success: true });
+});
+
+// ============================================
 // SEED DATA
 // ============================================
 

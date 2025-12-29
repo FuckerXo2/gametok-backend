@@ -13,7 +13,8 @@ const defaultData = {
   scores: [],
   likes: [],
   messages: [],
-  conversations: []
+  conversations: [],
+  comments: []
 };
 
 // Setup database
