@@ -141,6 +141,61 @@ app.post('/api/auth/logout', async (req, res) => {
   res.json({ success: true });
 });
 
+// DELETE /api/auth/delete-account - Delete user account
+app.delete('/api/auth/delete-account', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  await db.read();
+  
+  const userIndex = db.data.users.findIndex(u => u.token === token);
+  if (userIndex === -1) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const user = db.data.users[userIndex];
+  const userId = user.id;
+  
+  // Remove user
+  db.data.users.splice(userIndex, 1);
+  
+  // Remove user's scores
+  db.data.scores = db.data.scores.filter(s => s.userId !== userId);
+  
+  // Remove user's likes
+  db.data.likes = db.data.likes.filter(l => l.userId !== userId);
+  
+  // Remove user's comments
+  if (db.data.comments) {
+    db.data.comments = db.data.comments.filter(c => c.userId !== userId);
+  }
+  
+  // Remove user's messages
+  if (db.data.messages) {
+    db.data.messages = db.data.messages.filter(m => m.senderId !== userId);
+  }
+  
+  // Remove user's conversations
+  if (db.data.conversations) {
+    db.data.conversations = db.data.conversations.filter(
+      c => !c.participants.includes(userId)
+    );
+  }
+  
+  // Remove user from followers/following lists
+  db.data.users.forEach(u => {
+    if (u.followers) u.followers = u.followers.filter(id => id !== userId);
+    if (u.following) u.following = u.following.filter(id => id !== userId);
+  });
+  
+  await db.write();
+  
+  res.json({ success: true, message: 'Account deleted' });
+});
+
 // ============================================
 // GAMES ENDPOINTS
 // ============================================
