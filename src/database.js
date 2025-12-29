@@ -11,7 +11,9 @@ const defaultData = {
   games: [],
   users: [],
   scores: [],
-  likes: []
+  likes: [],
+  messages: [],
+  conversations: []
 };
 
 // Setup database

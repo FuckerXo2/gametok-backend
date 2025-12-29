@@ -649,6 +649,222 @@ app.get('/api/feed/activity', async (req, res) => {
 });
 
 // ============================================
+// MESSAGES / CHAT ENDPOINTS
+// ============================================
+
+// GET /api/conversations - Get user's conversations
+app.get('/api/conversations', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  await db.read();
+  
+  const user = db.data.users.find(u => u.token === token);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  // Get conversations where user is a participant
+  const conversations = (db.data.conversations || [])
+    .filter(c => c.participants.includes(user.id))
+    .map(c => {
+      const otherUserId = c.participants.find(p => p !== user.id);
+      const otherUser = db.data.users.find(u => u.id === otherUserId);
+      const lastMessage = (db.data.messages || [])
+        .filter(m => m.conversationId === c.id)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+      
+      return {
+        id: c.id,
+        user: {
+          id: otherUser?.id,
+          username: otherUser?.username,
+          displayName: otherUser?.displayName,
+          avatar: otherUser?.avatar
+        },
+        lastMessage: lastMessage ? {
+          text: lastMessage.text,
+          createdAt: lastMessage.createdAt,
+          isRead: lastMessage.readBy?.includes(user.id) || lastMessage.senderId === user.id
+        } : null,
+        streak: c.streak || 0,
+        updatedAt: c.updatedAt
+      };
+    })
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  
+  res.json({ conversations });
+});
+
+// GET /api/conversations/:userId - Get or create conversation with user
+app.get('/api/conversations/:userId', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  await db.read();
+  
+  const user = db.data.users.find(u => u.token === token);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const otherUser = db.data.users.find(u => u.id === req.params.userId);
+  if (!otherUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  // Find existing conversation
+  let conversation = (db.data.conversations || []).find(c => 
+    c.participants.includes(user.id) && c.participants.includes(otherUser.id)
+  );
+  
+  // Create if doesn't exist
+  if (!conversation) {
+    conversation = {
+      id: uuidv4(),
+      participants: [user.id, otherUser.id],
+      streak: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    if (!db.data.conversations) db.data.conversations = [];
+    db.data.conversations.push(conversation);
+    await db.write();
+  }
+  
+  // Get messages
+  const messages = (db.data.messages || [])
+    .filter(m => m.conversationId === conversation.id)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .map(m => ({
+      id: m.id,
+      text: m.text,
+      senderId: m.senderId,
+      isMe: m.senderId === user.id,
+      createdAt: m.createdAt
+    }));
+  
+  res.json({
+    conversation: {
+      id: conversation.id,
+      user: {
+        id: otherUser.id,
+        username: otherUser.username,
+        displayName: otherUser.displayName,
+        avatar: otherUser.avatar
+      },
+      streak: conversation.streak
+    },
+    messages
+  });
+});
+
+// POST /api/messages - Send a message
+app.post('/api/messages', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const { conversationId, recipientId, text } = req.body;
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  if (!text || (!conversationId && !recipientId)) {
+    return res.status(400).json({ error: 'text and (conversationId or recipientId) required' });
+  }
+  
+  await db.read();
+  
+  const user = db.data.users.find(u => u.token === token);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  let conversation;
+  
+  if (conversationId) {
+    conversation = (db.data.conversations || []).find(c => c.id === conversationId);
+  } else {
+    // Find or create conversation with recipient
+    conversation = (db.data.conversations || []).find(c => 
+      c.participants.includes(user.id) && c.participants.includes(recipientId)
+    );
+    
+    if (!conversation) {
+      conversation = {
+        id: uuidv4(),
+        participants: [user.id, recipientId],
+        streak: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      if (!db.data.conversations) db.data.conversations = [];
+      db.data.conversations.push(conversation);
+    }
+  }
+  
+  if (!conversation) {
+    return res.status(404).json({ error: 'Conversation not found' });
+  }
+  
+  const message = {
+    id: uuidv4(),
+    conversationId: conversation.id,
+    senderId: user.id,
+    text,
+    readBy: [user.id],
+    createdAt: new Date().toISOString()
+  };
+  
+  if (!db.data.messages) db.data.messages = [];
+  db.data.messages.push(message);
+  
+  // Update conversation timestamp
+  conversation.updatedAt = new Date().toISOString();
+  
+  await db.write();
+  
+  res.json({
+    message: {
+      id: message.id,
+      text: message.text,
+      senderId: message.senderId,
+      isMe: true,
+      createdAt: message.createdAt
+    }
+  });
+});
+
+// POST /api/messages/:id/read - Mark message as read
+app.post('/api/messages/:id/read', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  await db.read();
+  
+  const user = db.data.users.find(u => u.token === token);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const message = (db.data.messages || []).find(m => m.id === req.params.id);
+  if (message && !message.readBy.includes(user.id)) {
+    message.readBy.push(user.id);
+    await db.write();
+  }
+  
+  res.json({ success: true });
+});
+
+// ============================================
 // SEED DATA
 // ============================================
 
@@ -773,6 +989,12 @@ app.listen(PORT, () => {
   
   FEED
     GET    /api/feed/activity       Friends activity
+  
+  MESSAGES
+    GET    /api/conversations       Get conversations
+    GET    /api/conversations/:userId Get/create chat
+    POST   /api/messages            Send message
+    POST   /api/messages/:id/read   Mark as read
   ──────────────────────────────────────────
   `);
 });
