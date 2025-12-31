@@ -1064,33 +1064,36 @@ const seedDatabase = async () => {
   if (db.data.games.length === 0) {
     console.log('🌱 Seeding database with initial games...');
     
-    const testGames = [
-      {
-        id: 'stack-ball',
-        name: 'Stack Ball',
-        description: 'Hold to smash through platforms 🔥',
-        icon: '🎱',
-        color: '#667eea',
-        plays: 0,
-        likes: 0,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'fruit-slicer',
-        name: 'Fruit Slicer',
-        description: 'Swipe to slice fruits! Avoid bombs 💣',
-        icon: '🍉',
-        color: '#ff6b6b',
-        plays: 0,
-        likes: 0,
-        createdAt: new Date().toISOString()
-      }
+    const allGames = [
+      { id: 'pacman', name: 'Pac-Man', description: 'Eat dots, avoid ghosts! Classic arcade action 👻', icon: '🟡', color: '#FFFF00' },
+      { id: 'fruit-slicer', name: 'Fruit Slicer', description: 'Swipe to slice fruits! Avoid bombs 💣', icon: '🍉', color: '#ff6b6b' },
+      { id: 'piano-tiles', name: 'Piano Tiles', description: 'Tap the black tiles! Dont miss or tap white.', icon: '🎹', color: '#1a1a2e' },
+      { id: '2048', name: '2048', description: 'Swipe to merge tiles! Reach 2048 to win.', icon: '🔢', color: '#edc22e' },
+      { id: 'snake', name: 'Snake', description: 'Classic snake! Swipe to move, eat food, grow longer.', icon: '🐍', color: '#4a7c59' },
+      { id: 'flappy-bird', name: 'Flappy Bird', description: 'Tap to flap! Avoid the pipes.', icon: '🐦', color: '#70c5ce' },
+      { id: 'breakout', name: 'Breakout', description: 'Classic brick breaker! Drag paddle, destroy all bricks.', icon: '🧱', color: '#e74c3c' },
+      { id: 'crossy-road', name: 'Crossy Road', description: 'Tap to hop! Cross roads and rivers safely.', icon: '🐔', color: '#8bc34a' },
+      { id: 'snake-io', name: 'Snake.io', description: 'Grow your snake! Eat orbs and avoid other snakes.', icon: '🐍', color: '#00d4ff' },
+      { id: 'block-blast', name: 'Block Blast', description: 'Match and blast blocks! Clear the board.', icon: '🟦', color: '#3498db' },
+      { id: 'basketball', name: 'Basketball', description: 'Swipe to shoot hoops! Build your streak.', icon: '🏀', color: '#f39c12' },
+      { id: 'doodle-jump', name: 'Doodle Jump', description: 'Jump up platforms! Tilt or drag to move.', icon: '🐸', color: '#8bc34a' },
+      { id: 'pong', name: 'Pong', description: 'Classic paddle game! Drag to move, beat the AI.', icon: '🏓', color: '#00d4ff' },
+      { id: 'ball-bounce', name: 'Ball Bounce', description: 'Tap to bounce on colorful platforms!', icon: '🏀', color: '#ff5722' },
+      { id: 'geometry-dash', name: 'Geometry Dash', description: 'Tap to jump! Avoid spikes and obstacles.', icon: '⬛', color: '#00d4ff' },
+      { id: 'color-match', name: 'Color Match', description: 'Tap the color that matches the word!', icon: '🎨', color: '#f39c12' },
+      { id: 'golf-putt', name: 'Golf Putt', description: 'Drag to aim and putt! Complete 9 holes.', icon: '⛳', color: '#2ecc71' },
+      { id: 'endless-runner', name: 'Endless Runner', description: 'Swipe to jump and slide! Collect coins!', icon: '🏃', color: '#ff6b6b' }
     ];
     
-    db.data.games = testGames;
-    await db.write();
+    db.data.games = allGames.map(g => ({
+      ...g,
+      plays: 0,
+      likes: 0,
+      createdAt: new Date().toISOString()
+    }));
     
-    console.log(`✅ Seeded ${testGames.length} games`);
+    await db.write();
+    console.log(`✅ Seeded ${allGames.length} games`);
   }
 };
 
