@@ -15,12 +15,52 @@ const ROOM_STATES = {
 };
 
 // Game types and their configs
+// scoreCompetition: true means both players play same game, highest score wins
 const GAME_CONFIGS = {
+  // Turn-based games
   'tic-tac-toe': { minPlayers: 2, maxPlayers: 2, turnBased: true },
   'connect4': { minPlayers: 2, maxPlayers: 2, turnBased: true },
   'chess': { minPlayers: 2, maxPlayers: 2, turnBased: true },
-  'pong': { minPlayers: 2, maxPlayers: 2, turnBased: false },
   'rock-paper-scissors': { minPlayers: 2, maxPlayers: 2, turnBased: true },
+  
+  // Real-time games
+  'pong': { minPlayers: 2, maxPlayers: 2, turnBased: false, realtime: true },
+  
+  // Score competition games - ANY game can be played this way
+  'tetris': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 120 },
+  '2048': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 180 },
+  'snake': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'flappy-bird': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'pacman': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'fruit-slicer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
+  'piano-tiles': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'doodle-jump': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'geometry-dash': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'endless-runner': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'crossy-road': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'breakout': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'ball-bounce': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'whack-a-mole': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 30 },
+  'aim-trainer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 30 },
+  'reaction-time': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'color-match': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
+  'memory-match': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'tap-tap-dash': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'number-tap': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 30 },
+  'bubble-pop': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
+  'simon-says': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'basketball': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
+  'golf-putt': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'snake-io': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'asteroids': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'space-invaders': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'missile-game': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'hexgl': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'racer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'run3': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'clumsy-bird': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'hextris': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
+  'tower-game': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
 };
 
 export function initMultiplayer(server, db) {
@@ -280,6 +320,66 @@ export function initMultiplayer(server, db) {
       handleLeaveRoom(socket, io);
     });
 
+    // ============================================
+    // SCORE COMPETITION EVENTS
+    // ============================================
+
+    // Update score during score competition
+    socket.on('competition:score', ({ score }) => {
+      if (!socket.currentRoom) return;
+      
+      const room = gameRooms.get(socket.currentRoom);
+      if (!room || room.state !== ROOM_STATES.PLAYING) return;
+      if (!room.config.scoreCompetition) return;
+
+      // Update player's score
+      room.gameState.scores[socket.userId] = score;
+      
+      // Broadcast to opponent
+      socket.to(socket.currentRoom).emit('competition:opponentScore', {
+        score,
+        playerId: socket.userId,
+      });
+    });
+
+    // Player finished their game
+    socket.on('competition:finished', ({ finalScore }) => {
+      if (!socket.currentRoom) return;
+      
+      const room = gameRooms.get(socket.currentRoom);
+      if (!room || room.state !== ROOM_STATES.PLAYING) return;
+      if (!room.config.scoreCompetition) return;
+
+      room.gameState.scores[socket.userId] = finalScore;
+      room.gameState.finished[socket.userId] = true;
+
+      // Notify opponent
+      socket.to(socket.currentRoom).emit('competition:opponentFinished', {
+        score: finalScore,
+        playerId: socket.userId,
+      });
+
+      // Check if both players finished
+      const allFinished = room.players.every(p => room.gameState.finished[p.id]);
+      if (allFinished) {
+        // Determine winner
+        const scores = room.gameState.scores;
+        const [p1, p2] = room.players;
+        let winner = null;
+        
+        if (scores[p1.id] > scores[p2.id]) winner = p1.id;
+        else if (scores[p2.id] > scores[p1.id]) winner = p2.id;
+        // else it's a draw, winner stays null
+
+        room.state = ROOM_STATES.FINISHED;
+        
+        io.to(socket.currentRoom).emit('game:over', {
+          winner,
+          reason: winner ? 'win' : 'draw',
+          finalScores: scores,
+        });
+      }
+    });
 
     // Invite friend to game
     socket.on('invite:send', ({ friendId, gameId }) => {
@@ -350,15 +450,17 @@ export function initMultiplayer(server, db) {
   // Helper: Start the game
   function startGame(room, io) {
     room.state = ROOM_STATES.PLAYING;
-    room.gameState = initializeGameState(room.gameId, room.players);
-    room.currentTurn = room.players[0].id; // First player starts
+    room.gameState = initializeGameState(room.gameId, room.players, room.config);
+    room.currentTurn = room.config.scoreCompetition ? null : room.players[0].id;
 
-    console.log(`[MP] Game started in room ${room.id}`);
+    console.log(`[MP] Game started in room ${room.id} (${room.config.scoreCompetition ? 'score competition' : 'turn-based'})`);
     
     io.to(room.id).emit('game:start', {
       room: sanitizeRoom(room),
       gameState: room.gameState,
       currentTurn: room.currentTurn,
+      isScoreCompetition: room.config.scoreCompetition || false,
+      timeLimit: room.config.timeLimit || null,
     });
   }
 
@@ -372,6 +474,8 @@ export function initMultiplayer(server, db) {
       state: room.state,
       isPrivate: room.isPrivate,
       maxPlayers: room.config.maxPlayers,
+      isScoreCompetition: room.config.scoreCompetition || false,
+      timeLimit: room.config.timeLimit || null,
     };
   }
 
@@ -384,7 +488,17 @@ export function initMultiplayer(server, db) {
 // ============================================
 
 // Initialize game state based on game type
-function initializeGameState(gameId, players) {
+function initializeGameState(gameId, players, config) {
+  // Score competition games
+  if (config?.scoreCompetition) {
+    return {
+      scores: { [players[0].id]: 0, [players[1].id]: 0 },
+      finished: { [players[0].id]: false, [players[1].id]: false },
+      timeLimit: config.timeLimit || null,
+      startTime: Date.now(),
+    };
+  }
+
   switch (gameId) {
     case 'tic-tac-toe':
       return {
@@ -400,7 +514,7 @@ function initializeGameState(gameId, players) {
     
     case 'rock-paper-scissors':
       return {
-        choices: {}, // { odId: 'rock' | 'paper' | 'scissors' }
+        choices: {},
         round: 1,
         scores: { [players[0].id]: 0, [players[1].id]: 0 },
         maxRounds: 3,
@@ -408,7 +522,6 @@ function initializeGameState(gameId, players) {
     
     case 'chess':
       return {
-        // FEN notation for starting position
         fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
         colors: { [players[0].id]: 'white', [players[1].id]: 'black' },
         moves: [],
