@@ -1,0 +1,104 @@
+// PostgreSQL Database Connection
+import pg from 'pg';
+
+const { Pool } = pg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// Initialize database tables
+export const initDB = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        display_name VARCHAR(100),
+        avatar TEXT,
+        bio TEXT DEFAULT '',
+        total_score INTEGER DEFAULT 0,
+        games_played INTEGER DEFAULT 0,
+        token VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS followers (
+        follower_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        following_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (follower_id, following_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS games (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        icon VARCHAR(10),
+        color VARCHAR(20),
+        thumbnail TEXT,
+        category VARCHAR(50),
+        plays INTEGER DEFAULT 0,
+        like_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS scores (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        score INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS likes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, game_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS conversations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        participant1_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        participant2_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        streak INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+        sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        read_by UUID[] DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS comments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        likes INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
+      CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
+      CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+    `);
+    console.log('✅ Database tables initialized');
+  } finally {
+    client.release();
+  }
+};
+
+export default pool;
