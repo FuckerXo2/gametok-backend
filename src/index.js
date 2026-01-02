@@ -208,6 +208,17 @@ app.delete('/api/auth/delete-account', async (req, res) => {
 // GAMES ENDPOINTS
 // ============================================
 
+// POST /api/admin/reseed - Force reseed games (admin only)
+app.post('/api/admin/reseed', async (req, res) => {
+  try {
+    await seedDatabase(true);
+    await db.read();
+    res.json({ success: true, message: 'Database reseeded', gamesCount: db.data.games.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reseed' });
+  }
+});
+
 // GET /api/games - Get games for the feed
 app.get('/api/games', async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
@@ -1070,32 +1081,65 @@ app.delete('/api/comments/:id', async (req, res) => {
 // SEED DATA
 // ============================================
 
-const seedDatabase = async () => {
+const seedDatabase = async (force = false) => {
   await db.read();
   
-  if (db.data.games.length === 0) {
-    console.log('🌱 Seeding database with initial games...');
+  const allGames = [
+    // Arcade
+    { id: 'pacman', name: 'Pac-Man', description: 'Eat dots, avoid ghosts! Classic arcade action 👻', icon: '🟡', color: '#FFFF00', category: 'arcade' },
+    { id: 'tetris', name: 'Tetris', description: 'Stack falling blocks! Clear lines to score.', icon: '🧱', color: '#00d4ff', category: 'puzzle' },
+    { id: '2048', name: '2048', description: 'Swipe to merge tiles! Reach 2048 to win.', icon: '🔢', color: '#edc22e', category: 'puzzle' },
+    { id: 'flappy-bird', name: 'Flappy Bird', description: 'Tap to flap! Avoid the pipes.', icon: '🐦', color: '#70c5ce', category: 'casual' },
+    { id: 'fruit-slicer', name: 'Fruit Slicer', description: 'Swipe to slice fruits! Avoid bombs 💣', icon: '🍉', color: '#ff6b6b', category: 'action' },
+    { id: 'piano-tiles', name: 'Piano Tiles', description: 'Tap the black tiles! Dont miss or tap white.', icon: '🎹', color: '#1a1a2e', category: 'arcade' },
+    { id: 'breakout', name: 'Breakout', description: 'Classic brick breaker! Drag paddle, destroy all bricks.', icon: '🧱', color: '#e74c3c', category: 'arcade' },
+    { id: 'crossy-road', name: 'Crossy Road', description: 'Tap to hop! Cross roads and rivers safely.', icon: '🐔', color: '#8bc34a', category: 'casual' },
+    { id: 'snake-io', name: 'Snake.io', description: 'Grow your snake! Eat orbs and avoid others.', icon: '🐍', color: '#00d4ff', category: 'arcade' },
+    { id: 'doodle-jump', name: 'Doodle Jump', description: 'Jump up platforms! Tilt or drag to move.', icon: '🐸', color: '#8bc34a', category: 'casual' },
+    { id: 'geometry-dash', name: 'Geometry Dash', description: 'Tap to jump! Avoid spikes and obstacles.', icon: '⬛', color: '#00d4ff', category: 'action' },
+    { id: 'endless-runner', name: 'Endless Runner', description: 'Swipe to jump and slide! Collect coins!', icon: '🏃', color: '#ff6b6b', category: 'action' },
     
-    const allGames = [
-      { id: 'pacman', name: 'Pac-Man', description: 'Eat dots, avoid ghosts! Classic arcade action 👻', icon: '🟡', color: '#FFFF00' },
-      { id: 'fruit-slicer', name: 'Fruit Slicer', description: 'Swipe to slice fruits! Avoid bombs 💣', icon: '🍉', color: '#ff6b6b' },
-      { id: 'piano-tiles', name: 'Piano Tiles', description: 'Tap the black tiles! Dont miss or tap white.', icon: '🎹', color: '#1a1a2e' },
-      { id: '2048', name: '2048', description: 'Swipe to merge tiles! Reach 2048 to win.', icon: '🔢', color: '#edc22e' },
-      { id: 'snake', name: 'Snake', description: 'Classic snake! Swipe to move, eat food, grow longer.', icon: '🐍', color: '#4a7c59' },
-      { id: 'flappy-bird', name: 'Flappy Bird', description: 'Tap to flap! Avoid the pipes.', icon: '🐦', color: '#70c5ce' },
-      { id: 'breakout', name: 'Breakout', description: 'Classic brick breaker! Drag paddle, destroy all bricks.', icon: '🧱', color: '#e74c3c' },
-      { id: 'crossy-road', name: 'Crossy Road', description: 'Tap to hop! Cross roads and rivers safely.', icon: '🐔', color: '#8bc34a' },
-      { id: 'snake-io', name: 'Snake.io', description: 'Grow your snake! Eat orbs and avoid other snakes.', icon: '🐍', color: '#00d4ff' },
-      { id: 'block-blast', name: 'Block Blast', description: 'Match and blast blocks! Clear the board.', icon: '🟦', color: '#3498db' },
-      { id: 'basketball', name: 'Basketball', description: 'Swipe to shoot hoops! Build your streak.', icon: '🏀', color: '#f39c12' },
-      { id: 'doodle-jump', name: 'Doodle Jump', description: 'Jump up platforms! Tilt or drag to move.', icon: '🐸', color: '#8bc34a' },
-      { id: 'pong', name: 'Pong', description: 'Classic paddle game! Drag to move, beat the AI.', icon: '🏓', color: '#00d4ff' },
-      { id: 'ball-bounce', name: 'Ball Bounce', description: 'Tap to bounce on colorful platforms!', icon: '🏀', color: '#ff5722' },
-      { id: 'geometry-dash', name: 'Geometry Dash', description: 'Tap to jump! Avoid spikes and obstacles.', icon: '⬛', color: '#00d4ff' },
-      { id: 'color-match', name: 'Color Match', description: 'Tap the color that matches the word!', icon: '🎨', color: '#f39c12' },
-      { id: 'golf-putt', name: 'Golf Putt', description: 'Drag to aim and putt! Complete 9 holes.', icon: '⛳', color: '#2ecc71' },
-      { id: 'endless-runner', name: 'Endless Runner', description: 'Swipe to jump and slide! Collect coins!', icon: '🏃', color: '#ff6b6b' }
-    ];
+    // Strategy/Puzzle
+    { id: 'tic-tac-toe', name: 'Tic Tac Toe', description: 'Classic X and O! Play against AI or friends.', icon: '⭕', color: '#9b59b6', category: 'strategy' },
+    { id: 'connect4', name: 'Connect 4', description: 'Drop discs to connect four in a row!', icon: '🔴', color: '#e74c3c', category: 'strategy' },
+    { id: 'chess', name: 'Chess', description: 'The ultimate strategy game. Checkmate to win!', icon: '♟️', color: '#2c3e50', category: 'strategy' },
+    { id: 'memory-match', name: 'Memory Match', description: 'Flip cards and find matching pairs!', icon: '🃏', color: '#9b59b6', category: 'puzzle' },
+    
+    // Action/Reflex
+    { id: 'whack-a-mole', name: 'Whack-a-Mole', description: 'Tap the moles before they hide!', icon: '🐹', color: '#8b4513', category: 'action' },
+    { id: 'aim-trainer', name: 'Aim Trainer', description: 'Test your reflexes! Tap targets fast.', icon: '🎯', color: '#e74c3c', category: 'action' },
+    { id: 'reaction-time', name: 'Reaction Time', description: 'How fast can you react? Test yourself!', icon: '⚡', color: '#f1c40f', category: 'action' },
+    { id: 'color-match', name: 'Color Match', description: 'Tap the color that matches the word!', icon: '🎨', color: '#f39c12', category: 'puzzle' },
+    { id: 'tap-tap-dash', name: 'Tap Tap Dash', description: 'Tap to turn! Stay on the path.', icon: '👆', color: '#3498db', category: 'action' },
+    { id: 'number-tap', name: 'Number Tap', description: 'Tap numbers in order! How fast can you go?', icon: '🔢', color: '#1abc9c', category: 'puzzle' },
+    { id: 'bubble-pop', name: 'Bubble Pop', description: 'Pop bubbles before they escape!', icon: '🫧', color: '#00bcd4', category: 'casual' },
+    { id: 'simon-says', name: 'Simon Says', description: 'Remember the pattern! Repeat the sequence.', icon: '🔴', color: '#e91e63', category: 'puzzle' },
+    
+    // Sports
+    { id: 'basketball', name: 'Basketball', description: 'Swipe to shoot hoops! Build your streak.', icon: '🏀', color: '#f39c12', category: 'sports' },
+    { id: 'golf-putt', name: 'Golf Putt', description: 'Drag to aim and putt! Complete 9 holes.', icon: '⛳', color: '#2ecc71', category: 'sports' },
+    { id: 'pong', name: 'Pong', description: 'Classic paddle game! Drag to move, beat the AI.', icon: '🏓', color: '#00d4ff', category: 'retro' },
+    { id: 'ball-bounce', name: 'Ball Bounce', description: 'Tap to bounce on colorful platforms!', icon: '🏀', color: '#ff5722', category: 'casual' },
+    
+    // Retro/Space
+    { id: 'asteroids', name: 'Asteroids', description: 'Blast asteroids in space! Classic arcade.', icon: '☄️', color: '#2c3e50', category: 'retro' },
+    { id: 'space-invaders', name: 'Space Invaders', description: 'Defend Earth from alien invasion!', icon: '👾', color: '#1a1a2e', category: 'retro' },
+    { id: 'missile-game', name: 'Missile Command', description: 'Protect cities from incoming missiles!', icon: '🚀', color: '#c0392b', category: 'retro' },
+    
+    // Racing
+    { id: 'hexgl', name: 'HexGL', description: 'Futuristic racing at insane speeds!', icon: '🏎️', color: '#00d4ff', category: 'racing' },
+    { id: 'racer', name: 'Racer', description: 'Dodge traffic on the highway!', icon: '🚗', color: '#e74c3c', category: 'racing' },
+    
+    // Misc
+    { id: 'rock-paper-scissors', name: 'Rock Paper Scissors', description: 'Classic hand game! Best of 3 wins.', icon: '✊', color: '#9b59b6', category: 'casual' },
+    { id: 'clumsy-bird', name: 'Clumsy Bird', description: 'Another flappy adventure! Tap to fly.', icon: '🐤', color: '#f1c40f', category: 'casual' },
+    { id: 'hextris', name: 'Hextris', description: 'Hexagonal Tetris! Rotate and match colors.', icon: '⬡', color: '#9b59b6', category: 'puzzle' },
+    { id: 'tower-game', name: 'Tower Stack', description: 'Stack blocks to build the tallest tower!', icon: '🏗️', color: '#3498db', category: 'casual' },
+    { id: 'run3', name: 'Run 3', description: 'Run through space tunnels! Avoid holes.', icon: '🏃', color: '#2c3e50', category: 'action' },
+  ];
+  
+  if (force || db.data.games.length === 0 || db.data.games.length < allGames.length) {
+    console.log('🌱 Seeding database with games...');
     
     db.data.games = allGames.map(g => ({
       ...g,
