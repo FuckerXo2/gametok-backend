@@ -1132,7 +1132,6 @@ const seedDatabase = async (force = false) => {
     { id: 'golf-putt', name: 'Golf Putt', description: 'Drag to aim and putt!', icon: '⛳', color: '#2ecc71', category: 'sports' },
     { id: 'pong', name: 'Pong', description: 'Classic paddle game!', icon: '🏓', color: '#00d4ff', category: 'retro' },
     { id: 'ball-bounce', name: 'Ball Bounce', description: 'Bounce on platforms!', icon: '🏀', color: '#ff5722', category: 'casual' },
-    { id: 'skifree', name: 'SkiFree', description: 'Classic skiing game! Avoid the yeti!', icon: '⛷️', color: '#ecf0f1', category: 'sports' },
     { id: 'bounceback', name: 'Bounce Back', description: 'Bounce your way to victory!', icon: '🔵', color: '#3498db', category: 'casual' },
     
     // Retro/Space
@@ -1140,12 +1139,10 @@ const seedDatabase = async (force = false) => {
     { id: 'space-invaders', name: 'Space Invaders', description: 'Defend Earth from aliens!', icon: '👾', color: '#1a1a2e', category: 'retro' },
     { id: 'missile-game', name: 'Missile Command', description: 'Protect cities from missiles!', icon: '🚀', color: '#c0392b', category: 'retro' },
     { id: 'space-crusade', name: 'Space Crusade', description: 'Epic space battle adventure!', icon: '🚀', color: '#2c3e50', category: 'action' },
-    { id: 'spacehuggers', name: 'Space Huggers', description: 'Hug aliens in space!', icon: '👽', color: '#9b59b6', category: 'action' },
     { id: 'asciispace', name: 'ASCII Space', description: 'Retro ASCII space shooter!', icon: '🚀', color: '#1a1a2e', category: 'retro' },
     { id: 'hyperspace', name: 'Hyperspace', description: 'Navigate through hyperspace!', icon: '✨', color: '#9b59b6', category: 'action' },
     
     // Racing
-    { id: 'hexgl', name: 'HexGL', description: 'Futuristic racing at insane speeds!', icon: '🏎️', color: '#00d4ff', category: 'racing' },
     { id: 'racer', name: 'Racer', description: 'Dodge traffic on the highway!', icon: '🚗', color: '#e74c3c', category: 'racing' },
     { id: 'run3', name: 'Run 3', description: 'Run through space tunnels!', icon: '🏃', color: '#2c3e50', category: 'action' },
     
@@ -1155,7 +1152,6 @@ const seedDatabase = async (force = false) => {
     { id: 'rock-paper-scissors', name: 'Rock Paper Scissors', description: 'Classic hand game!', icon: '✊', color: '#9b59b6', category: 'casual' },
     
     // Adventure/Action
-    { id: 'dead-valley', name: 'Dead Valley', description: 'Survive the zombie apocalypse!', icon: '🧟', color: '#27ae60', category: 'action' },
     { id: 'retrohaunt', name: 'Retro Haunt', description: 'Retro horror experience!', icon: '👻', color: '#9b59b6', category: 'action' },
     
     // Misc/Unique
@@ -1171,7 +1167,6 @@ const seedDatabase = async (force = false) => {
     { id: 'breaklock', name: 'Breaklock', description: 'Break the lock puzzle!', icon: '🔓', color: '#f39c12', category: 'puzzle' },
     { id: 'ns-shaft', name: 'NS-Shaft', description: 'Fall down the shaft!', icon: '⬇️', color: '#e74c3c', category: 'action' },
     { id: 'packabunchas', name: 'Packabunchas', description: 'Pack the bunchas!', icon: '📦', color: '#9b59b6', category: 'puzzle' },
-    { id: 'ninjavsevilcorp', name: 'Ninja vs Evil Corp', description: 'Ninja stealth action!', icon: '🥷', color: '#2c3e50', category: 'action' },
     { id: 'captaincallisto', name: 'Captain Callisto', description: 'Space captain adventure!', icon: '👨‍🚀', color: '#3498db', category: 'action' },
     { id: 'blackholesquare', name: 'Black Hole Square', description: 'Escape the black hole!', icon: '🕳️', color: '#2c3e50', category: 'puzzle' },
     { id: 'chromaincident', name: 'Chroma Incident', description: 'Color-based puzzle action!', icon: '🌈', color: '#9b59b6', category: 'puzzle' },
@@ -1180,10 +1175,7 @@ const seedDatabase = async (force = false) => {
     { id: 'factoryballsforever', name: 'Factory Balls', description: 'Paint balls in the factory!', icon: '🏭', color: '#f39c12', category: 'puzzle' },
     { id: 'sleepingbeauty', name: 'Sleeping Beauty', description: 'Wake the sleeping beauty!', icon: '👸', color: '#e91e63', category: 'puzzle' },
     { id: 'themazeofspacegoblins', name: 'Space Goblins Maze', description: 'Navigate the goblin maze!', icon: '👺', color: '#27ae60', category: 'puzzle' },
-    { id: 'underrun', name: 'Underrun', description: 'Run under obstacles!', icon: '🏃', color: '#e74c3c', category: 'action' },
-    { id: 'backcountry', name: 'Backcountry', description: 'Explore the backcountry!', icon: '🏔️', color: '#27ae60', category: 'action' },
-    { id: '3dcity', name: '3D City', description: 'Build your 3D city!', icon: '🏙️', color: '#3498db', category: 'strategy' },
-    { id: 'xx142-b2exe', name: 'XX142-B2.EXE', description: 'Mysterious executable game!', icon: '💾', color: '#2c3e50', category: 'action' },
+
   ];
   
   if (force || db.data.games.length === 0 || db.data.games.length < allGames.length) {
