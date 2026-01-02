@@ -29,7 +29,6 @@ const GAME_CONFIGS = {
   // Score competition games - ANY game can be played this way
   'tetris': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 120 },
   '2048': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 180 },
-  'snake': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'flappy-bird': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'pacman': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'fruit-slicer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
