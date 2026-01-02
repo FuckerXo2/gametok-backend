@@ -3,10 +3,18 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import { createServer } from 'http';
 import db from './database.js';
+import { initMultiplayer } from './multiplayer.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Create HTTP server for both Express and Socket.io
+const server = createServer(app);
+
+// Initialize multiplayer WebSocket server
+const io = initMultiplayer(server, db);
 
 // Middleware
 app.use(cors());
@@ -1107,9 +1115,10 @@ const seedDatabase = async () => {
 
 await seedDatabase();
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`
   🎮 GameTok API running on http://localhost:${PORT}
+  🔌 WebSocket multiplayer server active
   
   Endpoints:
   ──────────────────────────────────────────
@@ -1150,6 +1159,16 @@ app.listen(PORT, () => {
     GET    /api/conversations/:userId Get/create chat
     POST   /api/messages            Send message
     POST   /api/messages/:id/read   Mark as read
+
+  MULTIPLAYER (WebSocket)
+    auth                            Authenticate socket
+    room:create                     Create game room
+    room:join                       Join room by code
+    room:leave                      Leave current room
+    room:ready                      Toggle ready status
+    game:move                       Make a move
+    matchmaking:find                Find random opponent
+    invite:send                     Invite friend to game
   ──────────────────────────────────────────
   `);
 });
