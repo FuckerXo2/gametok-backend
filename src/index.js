@@ -228,7 +228,7 @@ app.get('/api/games/:id', async (req, res) => {
 
 // POST /api/games - Add a new game
 app.post('/api/games', async (req, res) => {
-  const { id, name, description, icon, color } = req.body;
+  const { id, name, description, icon, color, thumbnail, category } = req.body;
   
   if (!id || !name) {
     return res.status(400).json({ error: 'id and name are required' });
@@ -245,8 +245,10 @@ app.post('/api/games', async (req, res) => {
     id,
     name,
     description: description || '',
-    icon: icon || '🎮',
+    icon: icon || 'G',
     color: color || '#667eea',
+    thumbnail: thumbnail || null,
+    category: category || 'arcade',
     plays: 0,
     likes: 0,
     createdAt: new Date().toISOString()
@@ -260,7 +262,7 @@ app.post('/api/games', async (req, res) => {
 
 // PUT /api/games/:id - Update a game
 app.put('/api/games/:id', async (req, res) => {
-  const { name, description, icon, color } = req.body;
+  const { name, description, icon, color, thumbnail, category } = req.body;
   
   await db.read();
   const game = db.data.games.find(g => g.id === req.params.id);
@@ -273,6 +275,8 @@ app.put('/api/games/:id', async (req, res) => {
   if (description !== undefined) game.description = description;
   if (icon) game.icon = icon;
   if (color) game.color = color;
+  if (thumbnail !== undefined) game.thumbnail = thumbnail;
+  if (category) game.category = category;
   
   await db.write();
   
