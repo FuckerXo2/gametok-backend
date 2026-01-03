@@ -640,7 +640,6 @@ const seedGames = async () => {
     { id: 'snake-io', name: 'Snake.io', description: 'Grow your snake!', icon: '🐍', color: '#00d4ff', category: 'arcade' },
     { id: 'piano-tiles', name: 'Piano Tiles', description: 'Tap black tiles!', icon: '🎹', color: '#1a1a2e', category: 'arcade' },
     { id: 'tower-blocks-3d', name: 'Tower Blocks 3D', description: '3D block stacking!', icon: '🧱', color: '#3498db', category: 'arcade' },
-    { id: 'stack-tower-3d', name: 'Stack Tower 3D', description: '3D tower builder!', icon: '🏗️', color: '#9b59b6', category: 'arcade' },
     
     // Casual
     { id: 'flappy-bird', name: 'Flappy Bird', description: 'Tap to flap!', icon: '🐦', color: '#70c5ce', category: 'casual' },
