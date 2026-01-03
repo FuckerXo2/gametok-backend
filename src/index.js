@@ -674,8 +674,8 @@ const seedGames = async () => {
     { id: 'asteroids', name: 'Asteroids', description: 'Blast asteroids!', icon: '☄️', color: '#2c3e50', category: 'retro' },
     { id: 'space-invaders', name: 'Space Invaders', description: 'Defend Earth!', icon: '👾', color: '#1a1a2e', category: 'retro' },
     
-    // Racing
-    { id: 'racer', name: 'Racer', description: 'Dodge traffic!', icon: '🚗', color: '#e74c3c', category: 'racing' },
+    // Racing - removed, was trash
+    
   ];
 
   for (const g of games) {
