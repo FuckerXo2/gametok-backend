@@ -667,12 +667,10 @@ const seedGames = async () => {
     // Strategy
     { id: 'connect4', name: 'Connect 4', description: 'Connect four in a row!', icon: '🔴', color: '#e74c3c', category: 'strategy' },
     { id: 'tic-tac-toe', name: 'Tic Tac Toe', description: 'X and O!', icon: '⭕', color: '#9b59b6', category: 'strategy' },
-    { id: 'chess', name: 'Chess', description: 'Strategy game!', icon: '♟️', color: '#2c3e50', category: 'strategy' },
     
     // Retro
     { id: 'pong', name: 'Pong', description: 'Classic paddle!', icon: '🏓', color: '#00d4ff', category: 'retro' },
     { id: 'asteroids', name: 'Asteroids', description: 'Blast asteroids!', icon: '☄️', color: '#2c3e50', category: 'retro' },
-    { id: 'space-invaders', name: 'Space Invaders', description: 'Defend Earth!', icon: '👾', color: '#1a1a2e', category: 'retro' },
     
     // Racing - removed, was trash
     
