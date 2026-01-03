@@ -710,6 +710,7 @@ const seedMoreGames = async () => {
     { id: 'themazeofspacegoblins', name: 'Space Goblins Maze', description: 'Navigate maze!', icon: '👺', color: '#27ae60', category: 'puzzle' },
     { id: 'tower-blocks-3d', name: 'Tower Blocks 3D', description: '3D block stacking!', icon: '🧱', color: '#3498db', category: 'arcade' },
     { id: 'stack-tower-3d', name: 'Stack Tower 3D', description: '3D tower builder!', icon: '🏗️', color: '#9b59b6', category: 'arcade' },
+    { id: 'basketball-3d', name: 'Basketball 3D', description: 'Swipe to shoot hoops!', icon: '🏀', color: '#ff6600', category: 'sports' },
   ];
 
   for (const g of moreGames) {
