@@ -657,7 +657,6 @@ const seedGames = async () => {
     { id: 'whack-a-mole', name: 'Whack-a-Mole', description: 'Tap the moles!', icon: '🐹', color: '#8b4513', category: 'action' },
     { id: 'aim-trainer', name: 'Aim Trainer', description: 'Test reflexes!', icon: '🎯', color: '#e74c3c', category: 'action' },
     { id: 'tap-tap-dash', name: 'Tap Tap Dash', description: 'Tap to turn!', icon: '👆', color: '#3498db', category: 'action' },
-    { id: 'tap-tap-blue', name: 'Tap Tap Blue', description: 'Tap blue only!', icon: '🔵', color: '#3498db', category: 'action' },
     
     // Sports
     { id: 'basketball', name: 'Basketball', description: 'Shoot hoops!', icon: '🏀', color: '#f39c12', category: 'sports' },
