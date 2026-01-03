@@ -708,6 +708,8 @@ const seedMoreGames = async () => {
     { id: 'factoryballsforever', name: 'Factory Balls', description: 'Paint balls!', icon: '🏭', color: '#f39c12', category: 'puzzle' },
     { id: 'sleepingbeauty', name: 'Sleeping Beauty', description: 'Wake her!', icon: '👸', color: '#e91e63', category: 'puzzle' },
     { id: 'themazeofspacegoblins', name: 'Space Goblins Maze', description: 'Navigate maze!', icon: '👺', color: '#27ae60', category: 'puzzle' },
+    { id: 'tower-blocks-3d', name: 'Tower Blocks 3D', description: '3D block stacking!', icon: '🧱', color: '#3498db', category: 'arcade' },
+    { id: 'stack-tower-3d', name: 'Stack Tower 3D', description: '3D tower builder!', icon: '🏗️', color: '#9b59b6', category: 'arcade' },
   ];
 
   for (const g of moreGames) {
