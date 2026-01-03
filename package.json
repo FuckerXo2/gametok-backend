@@ -1,6 +1,6 @@
 {
   "name": "gametok-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "GameTok API backend",
   "main": "src/index.js",
   "scripts": {
