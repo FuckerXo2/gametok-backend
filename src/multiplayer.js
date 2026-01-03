@@ -56,7 +56,6 @@ const GAME_CONFIGS = {
   'missile-game': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'hexgl': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'racer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'run3': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'clumsy-bird': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'hextris': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
   'tower-game': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },

@@ -138,6 +138,20 @@ app.post('/api/admin/reseed', async (req, res) => {
   }
 });
 
+// Delete a game from database
+app.delete('/api/admin/games/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM games WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    res.json({ success: true, deleted: req.params.id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to delete game' });
+  }
+});
+
 app.get('/api/games', async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const offset = parseInt(req.query.offset) || 0;
@@ -671,11 +685,9 @@ const seedMoreGames = async () => {
     { id: 'asciispace', name: 'ASCII Space', description: 'Retro shooter!', icon: '🚀', color: '#1a1a2e', category: 'retro' },
     { id: 'hyperspace', name: 'Hyperspace', description: 'Navigate space!', icon: '✨', color: '#9b59b6', category: 'action' },
     { id: 'racer', name: 'Racer', description: 'Dodge traffic!', icon: '🚗', color: '#e74c3c', category: 'racing' },
-    { id: 'run3', name: 'Run 3', description: 'Run in tunnels!', icon: '🏃', color: '#2c3e50', category: 'action' },
     { id: 'tic-tac-toe', name: 'Tic Tac Toe', description: 'X and O!', icon: '⭕', color: '#9b59b6', category: 'strategy' },
     { id: 'chess', name: 'Chess', description: 'Strategy game!', icon: '♟️', color: '#2c3e50', category: 'strategy' },
     { id: 'rock-paper-scissors', name: 'Rock Paper Scissors', description: 'Classic game!', icon: '✊', color: '#9b59b6', category: 'casual' },
-    { id: 'retrohaunt', name: 'Retro Haunt', description: 'Retro horror!', icon: '👻', color: '#9b59b6', category: 'action' },
     { id: 'tower-game', name: 'Tower Stack', description: 'Stack blocks!', icon: '🏗️', color: '#3498db', category: 'casual' },
     { id: 'towermaster', name: 'Tower Master', description: 'Build towers!', icon: '🗼', color: '#f39c12', category: 'casual' },
     { id: 'dental-defender', name: 'Dental Defender', description: 'Protect teeth!', icon: '🦷', color: '#ecf0f1', category: 'action' },
