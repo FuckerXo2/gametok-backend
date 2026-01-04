@@ -295,6 +295,34 @@ app.get('/api/users/search/:query', async (req, res) => {
   }
 });
 
+app.get('/api/users/:id/followers', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.avatar FROM users u
+       JOIN followers f ON u.id = f.follower_id
+       WHERE f.following_id = $1`,
+      [req.params.id]
+    );
+    res.json(result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })));
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/users/:id/following', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.avatar FROM users u
+       JOIN followers f ON u.id = f.following_id
+       WHERE f.follower_id = $1`,
+      [req.params.id]
+    );
+    res.json(result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })));
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 // ============================================
 // SCORES ENDPOINTS
