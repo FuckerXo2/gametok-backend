@@ -466,11 +466,41 @@ app.get('/api/conversations/:userId', async (req, res) => {
       [conv.rows[0].id]
     );
 
+    // Parse game shares and fetch game data
+    const messagesWithGameData = await Promise.all(messages.rows.map(async (m) => {
+      const gameMatch = m.text?.match(/\[GAME:([^\]]+)\]/);
+      let gameShare = null;
+      
+      if (gameMatch) {
+        const gameResult = await pool.query('SELECT * FROM games WHERE id = $1', [gameMatch[1]]);
+        if (gameResult.rows.length > 0) {
+          const game = gameResult.rows[0];
+          gameShare = {
+            id: game.id,
+            name: game.name,
+            icon: game.icon,
+            color: game.color,
+            thumbnail: game.thumbnail,
+            description: game.description
+          };
+        }
+      }
+      
+      return { 
+        id: m.id, 
+        text: m.text, 
+        senderId: m.sender_id, 
+        isMe: m.sender_id === userId, 
+        createdAt: m.created_at,
+        gameShare
+      };
+    }));
+
     const otherUser = await pool.query('SELECT id, username, display_name, avatar FROM users WHERE id = $1', [otherUserId]);
 
     res.json({
       conversation: { id: conv.rows[0].id, user: otherUser.rows[0], streak: conv.rows[0].streak },
-      messages: messages.rows.map(m => ({ id: m.id, text: m.text, senderId: m.sender_id, isMe: m.sender_id === userId, createdAt: m.created_at }))
+      messages: messagesWithGameData
     });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -479,9 +509,9 @@ app.get('/api/conversations/:userId', async (req, res) => {
 
 app.post('/api/messages', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  const { conversationId, recipientId, text } = req.body;
+  const { conversationId, recipientId, text, gameShare } = req.body;
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  if (!text) return res.status(400).json({ error: 'text required' });
+  if (!text && !gameShare) return res.status(400).json({ error: 'text or gameShare required' });
 
   try {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
@@ -501,13 +531,43 @@ app.post('/api/messages', async (req, res) => {
       convId = conv.rows[0].id;
     }
 
+    // If it's a game share, fetch game data and include it
+    let messageText = text || '';
+    let gameData = null;
+    
+    if (gameShare?.gameId) {
+      const gameResult = await pool.query('SELECT * FROM games WHERE id = $1', [gameShare.gameId]);
+      if (gameResult.rows.length > 0) {
+        const game = gameResult.rows[0];
+        gameData = {
+          id: game.id,
+          name: game.name,
+          icon: game.icon,
+          color: game.color,
+          thumbnail: game.thumbnail,
+          description: game.description
+        };
+        // Store game share marker in text for backwards compatibility
+        messageText = `[GAME:${game.id}] ${messageText || `Check out ${game.name}!`}`;
+      }
+    }
+
     const result = await pool.query(
       'INSERT INTO messages (conversation_id, sender_id, text, read_by) VALUES ($1, $2, $3, $4) RETURNING *',
-      [convId, userId, text, [userId]]
+      [convId, userId, messageText, [userId]]
     );
     await pool.query('UPDATE conversations SET updated_at = NOW() WHERE id = $1', [convId]);
 
-    res.json({ message: { id: result.rows[0].id, text: result.rows[0].text, senderId: userId, isMe: true, createdAt: result.rows[0].created_at } });
+    res.json({ 
+      message: { 
+        id: result.rows[0].id, 
+        text: result.rows[0].text, 
+        senderId: userId, 
+        isMe: true, 
+        createdAt: result.rows[0].created_at,
+        gameShare: gameData
+      } 
+    });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
