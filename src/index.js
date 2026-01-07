@@ -15,6 +15,55 @@ const io = initMultiplayer(server, null); // We'll update multiplayer later
 app.use(cors());
 app.use(express.json());
 
+// Landing page
+app.get('/', (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameTOK - Swipe. Play. Compete.</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%); min-height: 100vh; color: #fff; }
+        .container { max-width: 600px; margin: 0 auto; padding: 60px 24px; text-align: center; }
+        .logo { width: 120px; height: 120px; background: linear-gradient(135deg, #FF6B6B, #FF8E53, #FFC107); border-radius: 28px; margin: 0 auto 32px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 800; box-shadow: 0 20px 60px rgba(255, 142, 83, 0.3); }
+        h1 { font-size: 42px; font-weight: 800; margin-bottom: 16px; background: linear-gradient(135deg, #FF6B6B, #FF8E53, #FFC107); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .tagline { font-size: 20px; color: #888; margin-bottom: 48px; }
+        .features { text-align: left; margin-bottom: 48px; }
+        .feature { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid #222; }
+        .feature-icon { font-size: 28px; margin-right: 16px; }
+        .feature-text h3 { font-size: 16px; margin-bottom: 4px; }
+        .feature-text p { font-size: 14px; color: #666; }
+        .support { background: #111; border-radius: 16px; padding: 32px; margin-top: 32px; }
+        .support h2 { font-size: 20px; margin-bottom: 16px; }
+        .support p { color: #888; font-size: 14px; margin-bottom: 16px; }
+        .support a { color: #FF8E53; text-decoration: none; }
+        .footer { margin-top: 48px; color: #444; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">G</div>
+        <h1>GameTOK</h1>
+        <p class="tagline">Swipe. Play. Compete.</p>
+        <div class="features">
+            <div class="feature"><span class="feature-icon">👆</span><div class="feature-text"><h3>Swipe to Discover</h3><p>Find your next favorite game with a simple swipe</p></div></div>
+            <div class="feature"><span class="feature-icon">🎮</span><div class="feature-text"><h3>Instant Play</h3><p>No downloads, no waiting. Just tap and play</p></div></div>
+            <div class="feature"><span class="feature-icon">🏆</span><div class="feature-text"><h3>Compete & Climb</h3><p>Challenge friends and top the leaderboards</p></div></div>
+            <div class="feature"><span class="feature-icon">🔥</span><div class="feature-text"><h3>New Games Weekly</h3><p>Fresh content added regularly</p></div></div>
+        </div>
+        <div class="support" id="support">
+            <h2>Need Help?</h2>
+            <p>For support, bug reports, or feedback:</p>
+            <p><a href="mailto:gametokapp@gmail.com">gametokapp@gmail.com</a></p>
+        </div>
+        <div class="footer"><p>© 2026 GameTOK. All rights reserved.</p></div>
+    </div>
+</body>
+</html>`);
+});
+
 const hashPassword = (password) => crypto.createHash('sha256').update(password).digest('hex');
 const generateToken = () => crypto.randomBytes(32).toString('hex');
 
