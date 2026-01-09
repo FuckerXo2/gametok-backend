@@ -809,6 +809,31 @@ app.get('/api/feed/activity', async (req, res) => {
   }
 });
 
+// Global activity - recent scores from anyone (for when you have no friends)
+app.get('/api/feed/global', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT s.*, u.username, u.display_name, u.avatar, g.name as game_name, g.icon as game_icon
+       FROM scores s
+       JOIN users u ON s.user_id = u.id
+       JOIN games g ON s.game_id = g.id
+       WHERE s.user_id IS NOT NULL
+       ORDER BY s.created_at DESC LIMIT 20`
+    );
+
+    res.json({
+      activity: result.rows.map(r => ({
+        type: 'score', id: r.id,
+        user: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.avatar },
+        game: { id: r.game_id, name: r.game_name, icon: r.game_icon },
+        score: r.score, createdAt: r.created_at
+      }))
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 // ============================================
 // SEED GAMES
