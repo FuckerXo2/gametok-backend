@@ -811,14 +811,26 @@ app.get('/api/feed/activity', async (req, res) => {
 
 // Global activity - recent scores from anyone (for when you have no friends)
 app.get('/api/feed/global', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
   try {
+    // Get current user ID to exclude them
+    let excludeUserId = null;
+    if (token) {
+      const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+      if (userResult.rows.length > 0) {
+        excludeUserId = userResult.rows[0].id;
+      }
+    }
+    
     const result = await pool.query(
       `SELECT s.*, u.username, u.display_name, u.avatar, g.name as game_name, g.icon as game_icon
        FROM scores s
        JOIN users u ON s.user_id = u.id
        JOIN games g ON s.game_id = g.id
-       WHERE s.user_id IS NOT NULL
-       ORDER BY s.created_at DESC LIMIT 20`
+       WHERE s.user_id IS NOT NULL ${excludeUserId ? 'AND s.user_id != $1' : ''}
+       ORDER BY s.created_at DESC LIMIT 20`,
+      excludeUserId ? [excludeUserId] : []
     );
 
     res.json({
