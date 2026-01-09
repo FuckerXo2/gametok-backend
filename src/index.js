@@ -372,16 +372,44 @@ app.get('/api/users/:id/followers', async (req, res) => {
 app.get('/api/users/:id/pending-requests', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.username, u.display_name, u.avatar FROM users u
+      `SELECT u.id, u.username, u.display_name, u.avatar, f.created_at,
+       CASE WHEN EXISTS (
+         SELECT 1 FROM followers f2 
+         WHERE f2.follower_id = $1 AND f2.following_id = u.id
+       ) THEN true ELSE false END as is_mutual
+       FROM users u
        JOIN followers f ON u.id = f.follower_id
+       WHERE f.following_id = $1
+       AND f.created_at > NOW() - INTERVAL '3 days'
+       ORDER BY f.created_at DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows.map(r => ({ 
+      id: r.id, 
+      username: r.username, 
+      displayName: r.display_name, 
+      avatar: r.avatar,
+      isMutual: r.is_mutual,
+      createdAt: r.created_at
+    })));
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get count of pending (not yet mutual) requests - for badge
+app.get('/api/users/:id/pending-count', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) FROM followers f
        WHERE f.following_id = $1
        AND NOT EXISTS (
          SELECT 1 FROM followers f2 
-         WHERE f2.follower_id = $1 AND f2.following_id = u.id
+         WHERE f2.follower_id = $1 AND f2.following_id = f.follower_id
        )`,
       [req.params.id]
     );
-    res.json(result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })));
+    res.json({ count: parseInt(result.rows[0].count) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
