@@ -368,6 +368,25 @@ app.get('/api/users/:id/followers', async (req, res) => {
   }
 });
 
+// Get pending friend requests (people who follow you but you don't follow back)
+app.get('/api/users/:id/pending-requests', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.avatar FROM users u
+       JOIN followers f ON u.id = f.follower_id
+       WHERE f.following_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM followers f2 
+         WHERE f2.follower_id = $1 AND f2.following_id = u.id
+       )`,
+      [req.params.id]
+    );
+    res.json(result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })));
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/users/:id/following', async (req, res) => {
   try {
     const result = await pool.query(
