@@ -319,13 +319,23 @@ app.post('/api/users/:id/follow', async (req, res) => {
       [followerId, followingId]
     );
 
+    let following = false;
     if (existing.rows.length > 0) {
       await pool.query('DELETE FROM followers WHERE follower_id = $1 AND following_id = $2', [followerId, followingId]);
-      res.json({ following: false });
+      following = false;
     } else {
       await pool.query('INSERT INTO followers (follower_id, following_id) VALUES ($1, $2)', [followerId, followingId]);
-      res.json({ following: true });
+      following = true;
     }
+    
+    // Check if they follow us back (mutual)
+    const theyFollowUs = await pool.query(
+      'SELECT * FROM followers WHERE follower_id = $1 AND following_id = $2',
+      [followingId, followerId]
+    );
+    const isMutual = following && theyFollowUs.rows.length > 0;
+    
+    res.json({ following, isMutual });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
