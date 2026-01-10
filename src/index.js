@@ -600,22 +600,36 @@ app.get('/api/conversations/:userId', async (req, res) => {
       [conv.rows[0].id]
     );
 
-    // Parse game shares and fetch game data
+    // Parse game shares and challenges, fetch game data
     const messagesWithGameData = await Promise.all(messages.rows.map(async (m) => {
       const gameMatch = m.text?.match(/\[GAME:([^\]]+)\]/);
+      const challengeMatch = m.text?.match(/\[CHALLENGE:([^\]]+)\]/);
       let gameShare = null;
       
-      if (gameMatch) {
-        const gameResult = await pool.query('SELECT * FROM games WHERE id = $1', [gameMatch[1]]);
+      const gameId = challengeMatch ? challengeMatch[1] : (gameMatch ? gameMatch[1] : null);
+      const isChallenge = !!challengeMatch;
+      
+      if (gameId) {
+        const gameResult = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
         if (gameResult.rows.length > 0) {
           const game = gameResult.rows[0];
+          
+          // Get challenger info
+          const challengerResult = await pool.query('SELECT username FROM users WHERE id = $1', [m.sender_id]);
+          const challengerName = challengerResult.rows[0]?.username;
+          
           gameShare = {
             id: game.id,
             name: game.name,
             icon: game.icon,
             color: game.color,
             thumbnail: game.thumbnail,
-            description: game.description
+            description: game.description,
+            isChallenge: isChallenge,
+            challengerId: isChallenge ? m.sender_id : null,
+            challengerName: isChallenge ? challengerName : null,
+            challengerScore: null, // TODO: fetch from scores table
+            challengeStatus: isChallenge ? 'pending' : null,
           };
         }
       }
@@ -648,9 +662,10 @@ app.post('/api/messages', async (req, res) => {
   if (!text && !gameShare) return res.status(400).json({ error: 'text or gameShare required' });
 
   try {
-    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    const userResult = await pool.query('SELECT id, username FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
+    const username = userResult.rows[0].username;
 
     let convId = conversationId;
     if (!convId && recipientId) {
@@ -673,16 +688,23 @@ app.post('/api/messages', async (req, res) => {
       const gameResult = await pool.query('SELECT * FROM games WHERE id = $1', [gameShare.gameId]);
       if (gameResult.rows.length > 0) {
         const game = gameResult.rows[0];
+        const isChallenge = gameShare.isChallenge || false;
         gameData = {
           id: game.id,
           name: game.name,
           icon: game.icon,
           color: game.color,
           thumbnail: game.thumbnail,
-          description: game.description
+          description: game.description,
+          isChallenge: isChallenge,
+          challengerId: isChallenge ? userId : null,
+          challengerName: isChallenge ? username : null,
+          challengerScore: null,
+          challengeStatus: isChallenge ? 'pending' : null,
         };
         // Store game share marker in text for backwards compatibility
-        messageText = `[GAME:${game.id}] ${messageText || `Check out ${game.name}!`}`;
+        const prefix = isChallenge ? '[CHALLENGE:' : '[GAME:';
+        messageText = `${prefix}${game.id}] ${messageText || (isChallenge ? `${username} challenged you to ${game.name}!` : `Check out ${game.name}!`)}`;
       }
     }
 
@@ -703,6 +725,7 @@ app.post('/api/messages', async (req, res) => {
       } 
     });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: 'Server error' });
   }
 });
