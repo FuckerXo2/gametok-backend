@@ -889,7 +889,6 @@ const seedGames = async () => {
     { id: 'number-tap', name: 'Number Tap', description: 'Tap in order!', icon: '🔢', color: '#1abc9c', category: 'puzzle' },
     
     // Arcade
-    { id: 'pacman', name: 'Pac-Man', description: 'Eat dots, avoid ghosts!', icon: '🟡', color: '#FFFF00', category: 'arcade' },
     { id: 'breakout', name: 'Breakout', description: 'Break the bricks!', icon: '🧱', color: '#e74c3c', category: 'arcade' },
     { id: 'snake-io', name: 'Snake.io', description: 'Grow your snake!', icon: '🐍', color: '#00d4ff', category: 'arcade' },
     { id: 'piano-tiles', name: 'Piano Tiles', description: 'Tap black tiles!', icon: '🎹', color: '#1a1a2e', category: 'arcade' },
@@ -901,7 +900,6 @@ const seedGames = async () => {
     { id: 'crossy-road', name: 'Crossy Road', description: 'Cross safely!', icon: '🐔', color: '#8bc34a', category: 'casual' },
     { id: 'bubble-pop', name: 'Bubble Pop', description: 'Pop bubbles!', icon: '🫧', color: '#00bcd4', category: 'casual' },
     { id: 'ball-bounce', name: 'Ball Bounce', description: 'Bounce!', icon: '🏀', color: '#ff5722', category: 'casual' },
-    { id: 'tower-game', name: 'Tower Stack', description: 'Stack blocks!', icon: '🏗️', color: '#3498db', category: 'casual' },
     { id: 'towermaster', name: 'Tower Master', description: 'Build towers!', icon: '🗼', color: '#f39c12', category: 'casual' },
     { id: 'rock-paper-scissors', name: 'Rock Paper Scissors', description: 'Classic game!', icon: '✊', color: '#9b59b6', category: 'casual' },
     
@@ -922,10 +920,12 @@ const seedGames = async () => {
     
     // Retro
     { id: 'pong', name: 'Pong', description: 'Classic paddle!', icon: '🏓', color: '#00d4ff', category: 'retro' },
-    { id: 'asteroids', name: 'Asteroids', description: 'Blast asteroids!', icon: '☄️', color: '#2c3e50', category: 'retro' },
     
-    // Racing - removed, was trash
-    
+    // Action - Tomb of the Mask levels
+    { id: 'tomb-of-mask-1', name: 'Tomb of Mask Lv.1', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    { id: 'tomb-of-mask-2', name: 'Tomb of Mask Lv.2', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    { id: 'tomb-of-mask-3', name: 'Tomb of Mask Lv.3', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    { id: 'tomb-of-mask-4', name: 'Tomb of Mask Lv.4', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
   ];
 
   for (const g of games) {
