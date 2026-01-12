@@ -875,6 +875,8 @@ app.get('/api/feed/global', async (req, res) => {
 // ============================================
 
 const seedGames = async () => {
+  // This is the SINGLE SOURCE OF TRUTH for games
+  // Games not in this list will be DELETED from the database
   const games = [
     // Puzzle
     { id: '2048', name: '2048', description: 'Swipe to merge tiles!', icon: '🔢', color: '#edc22e', category: 'puzzle' },
@@ -928,13 +930,29 @@ const seedGames = async () => {
     { id: 'tomb-of-mask-4', name: 'Tomb of Mask Lv.4', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
   ];
 
+  // First, delete any games NOT in our list
+  const gameIds = games.map(g => g.id);
+  await pool.query(
+    `DELETE FROM games WHERE id != ALL($1::text[])`,
+    [gameIds]
+  );
+
+  // Then upsert all games (insert or update)
   for (const g of games) {
     await pool.query(
       `INSERT INTO games (id, name, description, icon, color, category) 
-       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       ON CONFLICT (id) DO UPDATE SET 
+         name = EXCLUDED.name,
+         description = EXCLUDED.description,
+         icon = EXCLUDED.icon,
+         color = EXCLUDED.color,
+         category = EXCLUDED.category`,
       [g.id, g.name, g.description, g.icon, g.color, g.category]
     );
   }
+  
+  console.log(`[Seed] Synced ${games.length} games (removed games not in list)`);
 };
 
 // ============================================
