@@ -17,13 +17,16 @@ export const initDB = async () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         username VARCHAR(50) UNIQUE NOT NULL,
         email VARCHAR(255) UNIQUE,
-        password VARCHAR(255) NOT NULL,
+        password VARCHAR(255),
         display_name VARCHAR(100),
         avatar TEXT,
         bio TEXT DEFAULT '',
         total_score INTEGER DEFAULT 0,
         games_played INTEGER DEFAULT 0,
         token VARCHAR(255),
+        oauth_provider VARCHAR(20),
+        oauth_id VARCHAR(255),
+        email_verified BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       );
 
@@ -42,6 +45,7 @@ export const initDB = async () => {
         color VARCHAR(20),
         thumbnail TEXT,
         category VARCHAR(50),
+        embed_url TEXT,
         plays INTEGER DEFAULT 0,
         like_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW()
@@ -94,6 +98,27 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
       CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+      
+      -- Add OAuth columns if they don't exist (migration)
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'oauth_provider') THEN
+          ALTER TABLE users ADD COLUMN oauth_provider VARCHAR(20);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'oauth_id') THEN
+          ALTER TABLE users ADD COLUMN oauth_id VARCHAR(255);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'email_verified') THEN
+          ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'embed_url') THEN
+          ALTER TABLE games ADD COLUMN embed_url TEXT;
+        END IF;
+        -- Make password nullable for OAuth users
+        ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+      EXCEPTION WHEN OTHERS THEN
+        NULL;
+      END $$;
     `);
     console.log('✅ Database tables initialized');
   } finally {

@@ -102,7 +102,7 @@ app.post('/api/auth/login', async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+    const result = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1)', [username]);
     const user = result.rows[0];
     
     if (!user || user.password !== hashPassword(password)) {
@@ -116,6 +116,81 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({ user: formatUser(user), token });
   } catch (e) {
     console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// OAuth endpoint for Apple/Google Sign-In
+app.post('/api/auth/oauth', async (req, res) => {
+  const { provider, identityToken, idToken, email, fullName, user: oauthUser } = req.body;
+  
+  if (!provider) return res.status(400).json({ error: 'Provider required' });
+
+  try {
+    let userEmail = email;
+    let userName = null;
+    let oauthId = null;
+
+    if (provider === 'apple') {
+      // Apple Sign-In
+      oauthId = oauthUser; // Apple user ID
+      if (fullName) {
+        userName = [fullName.givenName, fullName.familyName].filter(Boolean).join(' ');
+      }
+    } else if (provider === 'google') {
+      // Google Sign-In
+      oauthId = oauthUser?.id;
+      userEmail = oauthUser?.email;
+      userName = oauthUser?.name;
+    }
+
+    if (!oauthId) return res.status(400).json({ error: 'Invalid OAuth data' });
+
+    // Check if user exists with this OAuth ID
+    let result = await pool.query(
+      'SELECT * FROM users WHERE oauth_provider = $1 AND oauth_id = $2',
+      [provider, oauthId]
+    );
+
+    let user;
+    const token = generateToken();
+
+    if (result.rows.length > 0) {
+      // Existing user - update token
+      user = result.rows[0];
+      await pool.query('UPDATE users SET token = $1 WHERE id = $2', [token, user.id]);
+    } else {
+      // Check if email already exists
+      if (userEmail) {
+        result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [userEmail]);
+        if (result.rows.length > 0) {
+          // Link OAuth to existing account
+          user = result.rows[0];
+          await pool.query(
+            'UPDATE users SET oauth_provider = $1, oauth_id = $2, token = $3 WHERE id = $4',
+            [provider, oauthId, token, user.id]
+          );
+        }
+      }
+
+      if (!user) {
+        // Create new user
+        const username = userEmail 
+          ? userEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(Math.random() * 1000)
+          : `user${Date.now()}`;
+        
+        result = await pool.query(
+          `INSERT INTO users (username, email, display_name, oauth_provider, oauth_id, token) 
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+          [username, userEmail, userName || username, provider, oauthId, token]
+        );
+        user = result.rows[0];
+      }
+    }
+
+    res.json({ user: formatUser(user), token });
+  } catch (e) {
+    console.error('OAuth error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -242,6 +317,7 @@ function formatGame(row) {
     color: row.color,
     thumbnail: row.thumbnail,
     category: row.category,
+    embedUrl: row.embed_url,
     plays: row.plays,
     likes: row.like_count,
     createdAt: row.created_at
@@ -923,11 +999,25 @@ const seedGames = async () => {
     // Retro
     { id: 'pong', name: 'Pong', description: 'Classic paddle!', icon: '🏓', color: '#00d4ff', category: 'retro' },
     
-    // Action - Tomb of the Mask levels
+    // Action - Tomb of the Mask levels (self-hosted)
     { id: 'tomb-of-mask-1', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     { id: 'tomb-of-mask-2', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     { id: 'tomb-of-mask-3', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     { id: 'tomb-of-mask-4', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    
+    // GameDistribution Embeds (external)
+    { id: 'gd-jump-dash', name: 'Jump Dash', description: 'Jump and dash!', icon: '🏃', color: '#FF6B6B', category: 'action', 
+      embedUrl: 'https://html5.gamedistribution.com/212dcfed3c2b4568b0069fcc346ad421/' },
+    { id: 'gd-dolphin-dash', name: 'Dolphin Dash', description: 'Swim and dash!', icon: '🐬', color: '#00bcd4', category: 'casual', 
+      embedUrl: 'https://html5.gamedistribution.com/03be85ef64034d6cb94956ae8511f2bc/' },
+    { id: 'gd-color-water-sort', name: 'Color Water Sort', description: 'Sort the colors!', icon: '🧪', color: '#9b59b6', category: 'puzzle', 
+      embedUrl: 'https://html5.gamedistribution.com/0ea7b7e7316a47c38ac5c98ddd42ec4a/' },
+    { id: 'gd-bbq-run', name: 'BBQ Run', description: 'Run and collect!', icon: '🍖', color: '#ff5722', category: 'casual', 
+      embedUrl: 'https://html5.gamedistribution.com/c14f396115af4d4f8a2aeca01ecb6dc4/' },
+    { id: 'gd-obby-rainbow-tower', name: 'Obby Rainbow Tower', description: 'Climb the tower!', icon: '🌈', color: '#e91e63', category: 'action', 
+      embedUrl: 'https://html5.gamedistribution.com/57de0fa8b9fb4df783e7eb8248ac5e5a/' },
+    { id: 'gd-magic-tiles', name: 'Magic Tiles', description: 'Tap the tiles!', icon: '🎹', color: '#1a1a2e', category: 'arcade', 
+      embedUrl: 'https://html5.gamedistribution.com/58deefb8f63943dcbc5093070b9b5777/' },
   ];
 
   // First, delete any games NOT in our list
@@ -940,15 +1030,16 @@ const seedGames = async () => {
   // Then upsert all games (insert or update)
   for (const g of games) {
     await pool.query(
-      `INSERT INTO games (id, name, description, icon, color, category) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
+      `INSERT INTO games (id, name, description, icon, color, category, embed_url) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        ON CONFLICT (id) DO UPDATE SET 
          name = EXCLUDED.name,
          description = EXCLUDED.description,
          icon = EXCLUDED.icon,
          color = EXCLUDED.color,
-         category = EXCLUDED.category`,
-      [g.id, g.name, g.description, g.icon, g.color, g.category]
+         category = EXCLUDED.category,
+         embed_url = EXCLUDED.embed_url`,
+      [g.id, g.name, g.description, g.icon, g.color, g.category, g.embedUrl || null]
     );
   }
   
