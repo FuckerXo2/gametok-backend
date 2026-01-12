@@ -1021,6 +1021,9 @@ const seedGames = async () => {
     // GameMonetize test
     { id: 'gm-test-game', name: 'GameMonetize Test', description: 'Testing embed!', icon: '🎮', color: '#FF6B6B', category: 'arcade', 
       embedUrl: 'https://html5.gamemonetize.co/rex0qifhxf6n3jluvsgqkr84t7rp9260/' },
+    // Stack Fall 3D test
+    { id: 'gd-stack-fall-3d', name: 'Stack Fall 3D', description: 'Smash through platforms!', icon: '🔴', color: '#e74c3c', category: 'arcade', 
+      embedUrl: 'https://html5.gamedistribution.com/6116970bc6c24849846a0d61d27c2b08/' },
   ];
 
   // First, delete any games NOT in our list
