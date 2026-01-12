@@ -1018,6 +1018,9 @@ const seedGames = async () => {
       embedUrl: 'https://html5.gamedistribution.com/57de0fa8b9fb4df783e7eb8248ac5e5a/' },
     { id: 'gd-magic-tiles', name: 'Magic Tiles', description: 'Tap the tiles!', icon: '🎹', color: '#1a1a2e', category: 'arcade', 
       embedUrl: 'https://html5.gamedistribution.com/58deefb8f63943dcbc5093070b9b5777/' },
+    // GameMonetize test
+    { id: 'gm-test-game', name: 'GameMonetize Test', description: 'Testing embed!', icon: '🎮', color: '#FF6B6B', category: 'arcade', 
+      embedUrl: 'https://html5.gamemonetize.co/rex0qifhxf6n3jluvsgqkr84t7rp9260/' },
   ];
 
   // First, delete any games NOT in our list
