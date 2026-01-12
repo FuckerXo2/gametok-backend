@@ -924,10 +924,10 @@ const seedGames = async () => {
     { id: 'pong', name: 'Pong', description: 'Classic paddle!', icon: '🏓', color: '#00d4ff', category: 'retro' },
     
     // Action - Tomb of the Mask levels
-    { id: 'tomb-of-mask-1', name: 'Tomb of Mask Lv.1', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
-    { id: 'tomb-of-mask-2', name: 'Tomb of Mask Lv.2', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
-    { id: 'tomb-of-mask-3', name: 'Tomb of Mask Lv.3', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
-    { id: 'tomb-of-mask-4', name: 'Tomb of Mask Lv.4', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    { id: 'tomb-of-mask-1', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    { id: 'tomb-of-mask-2', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    { id: 'tomb-of-mask-3', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
+    { id: 'tomb-of-mask-4', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
   ];
 
   // First, delete any games NOT in our list
