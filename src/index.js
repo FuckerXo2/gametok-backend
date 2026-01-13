@@ -1006,7 +1006,7 @@ const seedGames = async () => {
     { id: 'tomb-of-mask-4', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     
     // GameMonetize Embeds (these actually work!)
-    { id: 'gm-test-game', name: 'Stack Ball', description: 'Smash through platforms!', icon: '🔴', color: '#FF6B6B', category: 'arcade', 
+    { id: 'gm-test-game', name: 'Stack Run', description: 'Smash through platforms!', icon: '🔴', color: '#FF6B6B', category: 'arcade', 
       embedUrl: 'https://html5.gamemonetize.co/rex0qifhxf6n3jluvsgqkr84t7rp9260/' },
     { id: 'gm-phone-evolution', name: 'Phone Evolution', description: 'Evolve your phone!', icon: '📱', color: '#4CAF50', category: 'casual', 
       embedUrl: 'https://html5.gamemonetize.co/v1phpjsgnw87qulbci0gzlxzxxvla41t/' },
