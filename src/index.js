@@ -276,6 +276,81 @@ app.delete('/api/admin/games/:id', async (req, res) => {
   }
 });
 
+// Add a new game
+app.post('/api/admin/games', async (req, res) => {
+  try {
+    const { id, name, description, icon, color, category, embedUrl, thumbnail } = req.body;
+    if (!id || !name) {
+      return res.status(400).json({ error: 'id and name are required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO games (id, name, description, icon, color, category, embed_url, thumbnail) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+       ON CONFLICT (id) DO UPDATE SET 
+         name = EXCLUDED.name,
+         description = EXCLUDED.description,
+         icon = EXCLUDED.icon,
+         color = EXCLUDED.color,
+         category = EXCLUDED.category,
+         embed_url = EXCLUDED.embed_url,
+         thumbnail = EXCLUDED.thumbnail
+       RETURNING *`,
+      [id, name, description || '', icon || '🎮', color || '#FF6B6B', category || 'arcade', embedUrl || null, thumbnail || null]
+    );
+    res.json({ success: true, game: formatGame(result.rows[0]) });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to add game' });
+  }
+});
+
+// Update a game
+app.patch('/api/admin/games/:id', async (req, res) => {
+  try {
+    const { name, description, icon, color, category, embedUrl, thumbnail, enabled } = req.body;
+    const updates = [];
+    const values = [];
+    let idx = 1;
+    
+    if (name !== undefined) { updates.push(`name = $${idx++}`); values.push(name); }
+    if (description !== undefined) { updates.push(`description = $${idx++}`); values.push(description); }
+    if (icon !== undefined) { updates.push(`icon = $${idx++}`); values.push(icon); }
+    if (color !== undefined) { updates.push(`color = $${idx++}`); values.push(color); }
+    if (category !== undefined) { updates.push(`category = $${idx++}`); values.push(category); }
+    if (embedUrl !== undefined) { updates.push(`embed_url = $${idx++}`); values.push(embedUrl); }
+    if (thumbnail !== undefined) { updates.push(`thumbnail = $${idx++}`); values.push(thumbnail); }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    values.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE games SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    res.json({ success: true, game: formatGame(result.rows[0]) });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update game' });
+  }
+});
+
+// Get all games for admin (not randomized)
+app.get('/api/admin/games', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM games ORDER BY created_at DESC');
+    res.json({ games: result.rows.map(formatGame) });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch games' });
+  }
+});
+
 app.get('/api/games', async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const offset = parseInt(req.query.offset) || 0;
