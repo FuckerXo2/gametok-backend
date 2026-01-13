@@ -1005,25 +1005,11 @@ const seedGames = async () => {
     { id: 'tomb-of-mask-3', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     { id: 'tomb-of-mask-4', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     
-    // GameDistribution Embeds (external)
-    { id: 'gd-jump-dash', name: 'Jump Dash', description: 'Jump and dash!', icon: '🏃', color: '#FF6B6B', category: 'action', 
-      embedUrl: 'https://html5.gamedistribution.com/212dcfed3c2b4568b0069fcc346ad421/' },
-    { id: 'gd-dolphin-dash', name: 'Dolphin Dash', description: 'Swim and dash!', icon: '🐬', color: '#00bcd4', category: 'casual', 
-      embedUrl: 'https://html5.gamedistribution.com/03be85ef64034d6cb94956ae8511f2bc/' },
-    { id: 'gd-color-water-sort', name: 'Color Water Sort', description: 'Sort the colors!', icon: '🧪', color: '#9b59b6', category: 'puzzle', 
-      embedUrl: 'https://html5.gamedistribution.com/0ea7b7e7316a47c38ac5c98ddd42ec4a/' },
-    { id: 'gd-bbq-run', name: 'BBQ Run', description: 'Run and collect!', icon: '🍖', color: '#ff5722', category: 'casual', 
-      embedUrl: 'https://html5.gamedistribution.com/c14f396115af4d4f8a2aeca01ecb6dc4/' },
-    { id: 'gd-obby-rainbow-tower', name: 'Obby Rainbow Tower', description: 'Climb the tower!', icon: '🌈', color: '#e91e63', category: 'action', 
-      embedUrl: 'https://html5.gamedistribution.com/57de0fa8b9fb4df783e7eb8248ac5e5a/' },
-    { id: 'gd-magic-tiles', name: 'Magic Tiles', description: 'Tap the tiles!', icon: '🎹', color: '#1a1a2e', category: 'arcade', 
-      embedUrl: 'https://html5.gamedistribution.com/58deefb8f63943dcbc5093070b9b5777/' },
-    // GameMonetize test
-    { id: 'gm-test-game', name: 'GameMonetize Test', description: 'Testing embed!', icon: '🎮', color: '#FF6B6B', category: 'arcade', 
+    // GameMonetize Embeds (these actually work!)
+    { id: 'gm-test-game', name: 'Stack Ball', description: 'Smash through platforms!', icon: '🔴', color: '#FF6B6B', category: 'arcade', 
       embedUrl: 'https://html5.gamemonetize.co/rex0qifhxf6n3jluvsgqkr84t7rp9260/' },
-    // Stack Fall 3D test
-    { id: 'gd-stack-fall-3d', name: 'Stack Fall 3D', description: 'Smash through platforms!', icon: '🔴', color: '#e74c3c', category: 'arcade', 
-      embedUrl: 'https://html5.gamedistribution.com/6116970bc6c24849846a0d61d27c2b08/' },
+    { id: 'gm-phone-evolution', name: 'Phone Evolution', description: 'Evolve your phone!', icon: '📱', color: '#4CAF50', category: 'casual', 
+      embedUrl: 'https://html5.gamemonetize.co/v1phpjsgnw87qulbci0gzlxzxxvla41t/' },
   ];
 
   // First, delete any games NOT in our list
