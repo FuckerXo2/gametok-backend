@@ -1143,7 +1143,8 @@ const seedGames = async () => {
 
 const start = async () => {
   await initDB();
-  await seedGames();
+  // Don't auto-seed on startup - use admin panel to manage games
+  // await seedGames();
   
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
