@@ -68,6 +68,30 @@ const hashPassword = (password) => crypto.createHash('sha256').update(password).
 const generateToken = () => crypto.randomBytes(32).toString('hex');
 
 // ============================================
+// REMOTE CONFIG - Change app behavior without updates
+// ============================================
+const APP_CONFIG = {
+  adFrequency: 3,           // Show ad every X games scrolled
+  minAppVersion: '1.0.0',   // Minimum supported version
+  maintenanceMode: false,   // Kill switch for the app
+  featuredGameId: null,     // Pin a game to top of feed
+};
+
+app.get('/api/config', (req, res) => {
+  res.json(APP_CONFIG);
+});
+
+// Admin endpoint to update config
+app.patch('/api/admin/config', (req, res) => {
+  const { adFrequency, minAppVersion, maintenanceMode, featuredGameId } = req.body;
+  if (adFrequency !== undefined) APP_CONFIG.adFrequency = adFrequency;
+  if (minAppVersion !== undefined) APP_CONFIG.minAppVersion = minAppVersion;
+  if (maintenanceMode !== undefined) APP_CONFIG.maintenanceMode = maintenanceMode;
+  if (featuredGameId !== undefined) APP_CONFIG.featuredGameId = featuredGameId;
+  res.json({ success: true, config: APP_CONFIG });
+});
+
+// ============================================
 // AUTH ENDPOINTS
 // ============================================
 
