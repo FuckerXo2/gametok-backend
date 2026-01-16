@@ -94,10 +94,34 @@ export const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
+      -- User reports table for flagging objectionable content
+      CREATE TABLE IF NOT EXISTS reports (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        reporter_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        reported_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        reason VARCHAR(100) NOT NULL,
+        details TEXT,
+        content_type VARCHAR(50), -- 'profile', 'message', 'comment'
+        content_id UUID,
+        status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'reviewed', 'actioned', 'dismissed'
+        created_at TIMESTAMP DEFAULT NOW(),
+        reviewed_at TIMESTAMP
+      );
+
+      -- Blocked users table
+      CREATE TABLE IF NOT EXISTS blocked_users (
+        blocker_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        blocked_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (blocker_id, blocked_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
       CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+      CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(blocker_id);
       
       -- Add OAuth columns if they don't exist (migration)
       DO $$ 

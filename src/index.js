@@ -1046,6 +1046,205 @@ app.get('/api/feed/global', async (req, res) => {
 
 
 // ============================================
+// REPORT & BLOCK ENDPOINTS (Apple Guideline 1.2)
+// ============================================
+
+// Report a user for objectionable content
+app.post('/api/users/:id/report', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const { reason, details, contentType, contentId } = req.body;
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  if (!reason) return res.status(400).json({ error: 'Reason required' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const reporterId = userResult.rows[0].id;
+    const reportedUserId = req.params.id;
+
+    if (reporterId === reportedUserId) {
+      return res.status(400).json({ error: 'Cannot report yourself' });
+    }
+
+    // Check if user exists
+    const targetUser = await pool.query('SELECT id FROM users WHERE id = $1', [reportedUserId]);
+    if (targetUser.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Create report
+    const result = await pool.query(
+      `INSERT INTO reports (reporter_id, reported_user_id, reason, details, content_type, content_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [reporterId, reportedUserId, reason, details || null, contentType || null, contentId || null]
+    );
+
+    res.json({ success: true, reportId: result.rows[0].id });
+  } catch (e) {
+    console.error('Report error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Block a user
+app.post('/api/users/:id/block', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const blockerId = userResult.rows[0].id;
+    const blockedId = req.params.id;
+
+    if (blockerId === blockedId) {
+      return res.status(400).json({ error: 'Cannot block yourself' });
+    }
+
+    // Check if user exists
+    const targetUser = await pool.query('SELECT id FROM users WHERE id = $1', [blockedId]);
+    if (targetUser.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Block user (upsert to avoid duplicates)
+    await pool.query(
+      `INSERT INTO blocked_users (blocker_id, blocked_id)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [blockerId, blockedId]
+    );
+
+    // Also unfollow them both ways
+    await pool.query('DELETE FROM followers WHERE follower_id = $1 AND following_id = $2', [blockerId, blockedId]);
+    await pool.query('DELETE FROM followers WHERE follower_id = $1 AND following_id = $2', [blockedId, blockerId]);
+
+    res.json({ success: true, blocked: true });
+  } catch (e) {
+    console.error('Block error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Unblock a user
+app.delete('/api/users/:id/block', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const blockerId = userResult.rows[0].id;
+    const blockedId = req.params.id;
+
+    await pool.query(
+      'DELETE FROM blocked_users WHERE blocker_id = $1 AND blocked_id = $2',
+      [blockerId, blockedId]
+    );
+
+    res.json({ success: true, blocked: false });
+  } catch (e) {
+    console.error('Unblock error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get list of blocked users
+app.get('/api/users/blocked', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.avatar, b.created_at as blocked_at
+       FROM users u
+       JOIN blocked_users b ON u.id = b.blocked_id
+       WHERE b.blocker_id = $1
+       ORDER BY b.created_at DESC`,
+      [userId]
+    );
+
+    res.json({
+      blockedUsers: result.rows.map(r => ({
+        id: r.id,
+        username: r.username,
+        displayName: r.display_name,
+        avatar: r.avatar,
+        blockedAt: r.blocked_at
+      }))
+    });
+  } catch (e) {
+    console.error('Get blocked users error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Check if a user is blocked
+app.get('/api/users/:id/blocked', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    const targetId = req.params.id;
+
+    const result = await pool.query(
+      'SELECT 1 FROM blocked_users WHERE blocker_id = $1 AND blocked_id = $2',
+      [userId, targetId]
+    );
+
+    res.json({ blocked: result.rows.length > 0 });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: Get all pending reports
+app.get('/api/admin/reports', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.*, 
+        reporter.username as reporter_username,
+        reported.username as reported_username
+       FROM reports r
+       JOIN users reporter ON r.reporter_id = reporter.id
+       JOIN users reported ON r.reported_user_id = reported.id
+       WHERE r.status = 'pending'
+       ORDER BY r.created_at DESC`
+    );
+    res.json({ reports: result.rows });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: Action a report
+app.patch('/api/admin/reports/:id', async (req, res) => {
+  const { status } = req.body; // 'reviewed', 'actioned', 'dismissed'
+  if (!['reviewed', 'actioned', 'dismissed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE reports SET status = $1, reviewed_at = NOW() WHERE id = $2 RETURNING *`,
+      [status, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    res.json({ success: true, report: result.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
 // SEED GAMES
 // ============================================
 
