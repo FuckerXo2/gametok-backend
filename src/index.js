@@ -408,6 +408,61 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
   }
 });
 
+// Delete all landscape GameMonetize games (re-fetch from API to check dimensions)
+app.post('/api/admin/delete-landscape-games', async (req, res) => {
+  try {
+    // Get all GameMonetize games from our database
+    const dbGames = await pool.query("SELECT id FROM games WHERE id LIKE 'gm-%'");
+    const gmIds = dbGames.rows.map(r => r.id.replace('gm-', ''));
+    
+    if (gmIds.length === 0) {
+      return res.json({ success: true, deleted: 0, message: 'No GameMonetize games found' });
+    }
+    
+    // Fetch game data from GameMonetize to get dimensions
+    const feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=5000`;
+    const response = await fetch(feedUrl);
+    const allGames = await response.json();
+    
+    // Create a map of game ID -> dimensions
+    const gameMap = {};
+    for (const game of allGames) {
+      gameMap[game.id] = {
+        width: parseInt(game.width) || 800,
+        height: parseInt(game.height) || 600
+      };
+    }
+    
+    // Find landscape games (width >= height)
+    const landscapeIds = [];
+    for (const gmId of gmIds) {
+      const dims = gameMap[gmId];
+      if (dims && dims.width >= dims.height) {
+        landscapeIds.push(`gm-${gmId}`);
+      }
+    }
+    
+    if (landscapeIds.length === 0) {
+      return res.json({ success: true, deleted: 0, message: 'No landscape games found' });
+    }
+    
+    // Delete landscape games
+    const placeholders = landscapeIds.map((_, i) => `$${i + 1}`).join(',');
+    await pool.query(`DELETE FROM games WHERE id IN (${placeholders})`, landscapeIds);
+    
+    const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+    
+    res.json({ 
+      success: true, 
+      deleted: landscapeIds.length,
+      remaining: parseInt(totalResult.rows[0].count)
+    });
+  } catch (e) {
+    console.error('Delete landscape error:', e);
+    res.status(500).json({ error: 'Failed to delete landscape games: ' + e.message });
+  }
+});
+
 // Delete a game from database
 app.delete('/api/admin/games/:id', async (req, res) => {
   try {
