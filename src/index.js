@@ -288,11 +288,11 @@ app.post('/api/admin/reseed', async (req, res) => {
 
 // Bulk import games from GameMonetize
 app.post('/api/admin/import-gamemonetize', async (req, res) => {
-  const { count = 100, category } = req.body;
+  const { count = 100, category, portraitOnly = false } = req.body;
   
   try {
     // GameMonetize's category filter doesn't work reliably, so we fetch more and filter ourselves
-    const fetchCount = category ? Math.min(count * 10, 5000) : Math.min(count, 5000);
+    const fetchCount = (category || portraitOnly) ? Math.min(count * 20, 5000) : Math.min(count, 5000);
     const feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${fetchCount}`;
     
     console.log(`Fetching games from: ${feedUrl}`);
@@ -309,11 +309,22 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
     if (category) {
       const categoryLower = category.toLowerCase();
       games = games.filter(g => g.category && g.category.toLowerCase() === categoryLower);
-      games = games.slice(0, count); // Limit to requested count
-      
-      if (games.length === 0) {
-        return res.status(400).json({ error: `No games found in category "${category}"` });
-      }
+    }
+    
+    // Filter portrait-only games (height > width) for vertical phone screens
+    if (portraitOnly) {
+      games = games.filter(g => {
+        const width = parseInt(g.width) || 800;
+        const height = parseInt(g.height) || 600;
+        return height > width; // Portrait = taller than wide
+      });
+      console.log(`After portrait filter: ${games.length} games`);
+    }
+    
+    games = games.slice(0, count); // Limit to requested count
+    
+    if (games.length === 0) {
+      return res.status(400).json({ error: 'No games found matching filters (try disabling portrait-only)' });
     }
     
     console.log(`Found ${games.length} games, importing...`);
