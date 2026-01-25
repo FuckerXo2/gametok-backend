@@ -291,18 +291,29 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
   const { count = 100, category } = req.body;
   
   try {
-    // Build GameMonetize feed URL
-    let feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${Math.min(count, 5000)}`;
-    if (category) feedUrl += `&category=${category}`;
+    // GameMonetize's category filter doesn't work reliably, so we fetch more and filter ourselves
+    const fetchCount = category ? Math.min(count * 10, 5000) : Math.min(count, 5000);
+    const feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${fetchCount}`;
     
     console.log(`Fetching games from: ${feedUrl}`);
     
     // Fetch games from GameMonetize
     const response = await fetch(feedUrl);
-    const games = await response.json();
+    let games = await response.json();
     
     if (!Array.isArray(games) || games.length === 0) {
       return res.status(400).json({ error: 'No games found from GameMonetize' });
+    }
+    
+    // Filter by category if specified (case-insensitive)
+    if (category) {
+      const categoryLower = category.toLowerCase();
+      games = games.filter(g => g.category && g.category.toLowerCase() === categoryLower);
+      games = games.slice(0, count); // Limit to requested count
+      
+      if (games.length === 0) {
+        return res.status(400).json({ error: `No games found in category "${category}"` });
+      }
     }
     
     console.log(`Found ${games.length} games, importing...`);
