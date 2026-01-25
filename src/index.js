@@ -286,9 +286,31 @@ app.post('/api/admin/reseed', async (req, res) => {
   }
 });
 
+// Helper function to get file size from URL via HEAD request
+async function getFileSizeFromUrl(url) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    const response = await fetch(url, { 
+      method: 'HEAD',
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      return parseInt(contentLength, 10);
+    }
+    return null; // Unknown size
+  } catch (e) {
+    return null; // Failed to get size
+  }
+}
+
 // Bulk import games from GameMonetize
 app.post('/api/admin/import-gamemonetize', async (req, res) => {
-  const { count = 100, category, portraitOnly = false } = req.body;
+  const { count = 100, category, portraitOnly = false, maxSizeMB = 0 } = req.body;
   
   try {
     // GameMonetize's category filter doesn't work reliably, so we fetch more and filter ourselves
@@ -325,6 +347,39 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
     
     if (games.length === 0) {
       return res.status(400).json({ error: 'No games found matching filters (try disabling portrait-only)' });
+    }
+    
+    // Filter by size if maxSizeMB is specified
+    const maxSizeBytes = maxSizeMB > 0 ? maxSizeMB * 1024 * 1024 : 0;
+    let skippedForSize = 0;
+    
+    if (maxSizeBytes > 0) {
+      console.log(`Checking game sizes (max ${maxSizeMB}MB)... This may take a while.`);
+      const filteredGames = [];
+      
+      for (const game of games) {
+        if (game.url) {
+          const size = await getFileSizeFromUrl(game.url);
+          if (size === null) {
+            // Unknown size - include it (can't verify)
+            filteredGames.push(game);
+          } else if (size <= maxSizeBytes) {
+            filteredGames.push(game);
+          } else {
+            skippedForSize++;
+            console.log(`Skipped ${game.title}: ${(size / 1024 / 1024).toFixed(1)}MB > ${maxSizeMB}MB`);
+          }
+        } else {
+          filteredGames.push(game);
+        }
+      }
+      
+      games = filteredGames;
+      console.log(`After size filter: ${games.length} games (${skippedForSize} skipped for being too large)`);
+    }
+    
+    if (games.length === 0) {
+      return res.status(400).json({ error: `No games found under ${maxSizeMB}MB (${skippedForSize} were too large)` });
     }
     
     console.log(`Found ${games.length} games, importing...`);
@@ -400,11 +455,65 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
       success: true, 
       imported, 
       skipped,
+      skippedForSize: skippedForSize || 0,
       totalGames: parseInt(totalResult.rows[0].count)
     });
   } catch (e) {
     console.error('Import error:', e);
     res.status(500).json({ error: 'Failed to import games: ' + e.message });
+  }
+});
+
+// Delete all landscape GameMonetize games (re-fetch from API to check dimensions)
+app.post('/api/admin/delete-large-games', async (req, res) => {
+  const { maxSizeMB = 10 } = req.body;
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  
+  try {
+    // Get all GameMonetize games from our database
+    const dbGames = await pool.query("SELECT id, embed_url FROM games WHERE id LIKE 'gm-%'");
+    
+    if (dbGames.rows.length === 0) {
+      return res.json({ success: true, deleted: 0, checked: 0, remaining: 0, message: 'No GameMonetize games found' });
+    }
+    
+    console.log(`Checking sizes of ${dbGames.rows.length} games (max ${maxSizeMB}MB)...`);
+    
+    const largeGameIds = [];
+    let checked = 0;
+    
+    for (const game of dbGames.rows) {
+      if (game.embed_url) {
+        const size = await getFileSizeFromUrl(game.embed_url);
+        checked++;
+        
+        if (size !== null && size > maxSizeBytes) {
+          largeGameIds.push(game.id);
+          console.log(`Large game: ${game.id} - ${(size / 1024 / 1024).toFixed(1)}MB`);
+        }
+      }
+    }
+    
+    if (largeGameIds.length === 0) {
+      const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+      return res.json({ success: true, deleted: 0, checked, remaining: parseInt(totalResult.rows[0].count), message: 'No large games found' });
+    }
+    
+    // Delete large games
+    const placeholders = largeGameIds.map((_, i) => `$${i + 1}`).join(',');
+    await pool.query(`DELETE FROM games WHERE id IN (${placeholders})`, largeGameIds);
+    
+    const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+    
+    res.json({ 
+      success: true, 
+      deleted: largeGameIds.length,
+      checked,
+      remaining: parseInt(totalResult.rows[0].count)
+    });
+  } catch (e) {
+    console.error('Delete large games error:', e);
+    res.status(500).json({ error: 'Failed to delete large games: ' + e.message });
   }
 });
 
