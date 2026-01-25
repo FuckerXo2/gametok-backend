@@ -465,46 +465,53 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
 });
 
 
-// Delete all large GameMonetize games (re-fetch from API to check file sizes)
+// Delete all large GameMonetize games (actually download and check file sizes)
 app.post('/api/admin/delete-large-games', async (req, res) => {
   const { maxSizeMB = 10 } = req.body;
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
   
   try {
     // Get all GameMonetize games from our database
-    const dbGames = await pool.query("SELECT id FROM games WHERE id LIKE 'gm-%'");
-    const gmIds = dbGames.rows.map(r => r.id.replace('gm-', ''));
+    const dbGames = await pool.query("SELECT id, embed_url FROM games WHERE id LIKE 'gm-%'");
     
-    if (gmIds.length === 0) {
+    if (dbGames.rows.length === 0) {
       return res.json({ success: true, deleted: 0, checked: 0, remaining: 0, message: 'No GameMonetize games found' });
     }
     
-    // Fetch game data from GameMonetize to get file sizes
-    const feedUrl = 'https://gamemonetize.com/feed.php?format=0&type=mobile&num=5000';
-    const response = await fetch(feedUrl);
-    const allGames = await response.json();
+    console.log('Checking sizes of ' + dbGames.rows.length + ' games (max ' + maxSizeMB + 'MB)...');
+    console.log('This will download each game to check size - may take a while...');
     
-    // Create a map of game ID -> file size (GameMonetize provides 'size' in KB)
-    const sizeMap = {};
-    for (const game of allGames) {
-      // GameMonetize API returns size in KB as a string like "1234"
-      const sizeKB = parseInt(game.size) || 0;
-      sizeMap[game.id] = sizeKB;
-    }
-    
-    console.log('Checking sizes of ' + gmIds.length + ' games (max ' + maxSizeMB + 'MB)...');
-    
-    // Find games that are too large
-    const maxSizeKB = maxSizeMB * 1024;
     const largeGameIds = [];
     let checked = 0;
     
-    for (const gmId of gmIds) {
-      const sizeKB = sizeMap[gmId];
-      if (sizeKB !== undefined) {
-        checked++;
-        if (sizeKB > maxSizeKB) {
-          largeGameIds.push('gm-' + gmId);
-          console.log('Large game: gm-' + gmId + ' - ' + (sizeKB / 1024).toFixed(1) + 'MB');
+    for (const game of dbGames.rows) {
+      if (game.embed_url) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+          
+          // Actually fetch the game to get real size
+          const response = await fetch(game.embed_url, {
+            signal: controller.signal
+          });
+          clearTimeout(timeout);
+          
+          if (response.ok) {
+            // Get the response as array buffer to measure actual size
+            const buffer = await response.arrayBuffer();
+            const sizeBytes = buffer.byteLength;
+            checked++;
+            
+            if (sizeBytes > maxSizeBytes) {
+              largeGameIds.push(game.id);
+              console.log('Large game: ' + game.id + ' - ' + (sizeBytes / 1024 / 1024).toFixed(1) + 'MB');
+            } else {
+              console.log('OK: ' + game.id + ' - ' + (sizeBytes / 1024 / 1024).toFixed(1) + 'MB');
+            }
+          }
+        } catch (e) {
+          console.log('Failed to check ' + game.id + ': ' + e.message);
+          checked++;
         }
       }
     }
@@ -514,7 +521,7 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
       return res.json({ success: true, deleted: 0, checked, remaining: parseInt(totalResult.rows[0].count), message: 'No games found over ' + maxSizeMB + 'MB' });
     }
     
-    // Delete large games one by one to avoid SQL issues
+    // Delete large games one by one
     for (const gameId of largeGameIds) {
       await pool.query('DELETE FROM games WHERE id = $1', [gameId]);
     }
