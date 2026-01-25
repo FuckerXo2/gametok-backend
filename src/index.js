@@ -286,6 +286,106 @@ app.post('/api/admin/reseed', async (req, res) => {
   }
 });
 
+// Bulk import games from GameMonetize
+app.post('/api/admin/import-gamemonetize', async (req, res) => {
+  const { count = 100, category } = req.body;
+  
+  try {
+    // Build GameMonetize feed URL
+    let feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${Math.min(count, 5000)}`;
+    if (category) feedUrl += `&category=${category}`;
+    
+    console.log(`Fetching games from: ${feedUrl}`);
+    
+    // Fetch games from GameMonetize
+    const response = await fetch(feedUrl);
+    const games = await response.json();
+    
+    if (!Array.isArray(games) || games.length === 0) {
+      return res.status(400).json({ error: 'No games found from GameMonetize' });
+    }
+    
+    console.log(`Found ${games.length} games, importing...`);
+    
+    let imported = 0;
+    let skipped = 0;
+    
+    for (const game of games) {
+      try {
+        // Generate a unique ID from GameMonetize ID
+        const gameId = `gm-${game.id}`;
+        
+        // Map category to emoji icon
+        const categoryIcons = {
+          'Arcade': '🕹️',
+          'Puzzle': '🧩',
+          'Racing': '🏎️',
+          'Sports': '⚽',
+          'Action': '💥',
+          'Adventure': '🗺️',
+          'Strategy': '♟️',
+          'Hypercasual': '🎯',
+          'Girls': '👗',
+          'Boys': '🎮',
+          'Shooting': '🔫',
+          'Multiplayer': '👥',
+        };
+        
+        const icon = categoryIcons[game.category] || '🎮';
+        
+        // Generate a color based on category
+        const categoryColors = {
+          'Arcade': '#FF6B6B',
+          'Puzzle': '#4ECDC4',
+          'Racing': '#FFE66D',
+          'Sports': '#95E1D3',
+          'Action': '#F38181',
+          'Adventure': '#AA96DA',
+          'Strategy': '#6C5CE7',
+          'Hypercasual': '#FD79A8',
+          'Girls': '#FF85A2',
+          'Boys': '#74B9FF',
+          'Shooting': '#E17055',
+          'Multiplayer': '#00B894',
+        };
+        
+        const color = categoryColors[game.category] || '#FF6B6B';
+        
+        await pool.query(
+          `INSERT INTO games (id, name, description, icon, color, category, embed_url, thumbnail) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+           ON CONFLICT (id) DO NOTHING`,
+          [
+            gameId,
+            game.title,
+            game.description || '',
+            icon,
+            color,
+            (game.category || 'arcade').toLowerCase(),
+            game.url,
+            game.thumb
+          ]
+        );
+        imported++;
+      } catch (e) {
+        skipped++;
+      }
+    }
+    
+    const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+    
+    res.json({ 
+      success: true, 
+      imported, 
+      skipped,
+      totalGames: parseInt(totalResult.rows[0].count)
+    });
+  } catch (e) {
+    console.error('Import error:', e);
+    res.status(500).json({ error: 'Failed to import games: ' + e.message });
+  }
+});
+
 // Delete a game from database
 app.delete('/api/admin/games/:id', async (req, res) => {
   try {
