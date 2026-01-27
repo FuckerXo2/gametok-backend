@@ -980,15 +980,50 @@ app.post('/api/likes', async (req, res) => {
 
     const existing = await pool.query('SELECT * FROM likes WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
     
+    let newLikeCount;
     if (existing.rows.length > 0) {
       await pool.query('DELETE FROM likes WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
-      await pool.query('UPDATE games SET like_count = like_count - 1 WHERE id = $1', [gameId]);
-      res.json({ liked: false });
+      const result = await pool.query('UPDATE games SET like_count = like_count - 1 WHERE id = $1 RETURNING like_count', [gameId]);
+      newLikeCount = result.rows[0]?.like_count || 0;
+      res.json({ liked: false, likeCount: newLikeCount });
     } else {
       await pool.query('INSERT INTO likes (user_id, game_id) VALUES ($1, $2)', [userId, gameId]);
-      await pool.query('UPDATE games SET like_count = like_count + 1 WHERE id = $1', [gameId]);
-      res.json({ liked: true });
+      const result = await pool.query('UPDATE games SET like_count = like_count + 1 WHERE id = $1 RETURNING like_count', [gameId]);
+      newLikeCount = result.rows[0]?.like_count || 0;
+      res.json({ liked: true, likeCount: newLikeCount });
     }
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Check which games the current user has liked (batch)
+app.post('/api/likes/check', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const { gameIds } = req.body;
+  
+  if (!gameIds || !Array.isArray(gameIds)) {
+    return res.status(400).json({ error: 'gameIds array required' });
+  }
+
+  try {
+    // If not authenticated, return empty (no likes)
+    if (!token) {
+      return res.json({ likedGameIds: [] });
+    }
+    
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) {
+      return res.json({ likedGameIds: [] });
+    }
+    
+    const userId = userResult.rows[0].id;
+    const result = await pool.query(
+      'SELECT game_id FROM likes WHERE user_id = $1 AND game_id = ANY($2)',
+      [userId, gameIds]
+    );
+    
+    res.json({ likedGameIds: result.rows.map(r => r.game_id) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
