@@ -86,19 +86,34 @@ async function main() {
       console.log(`  ✅ ${sizeMB}MB`);
     }
     
-    // Report size to API with progress tracking
-    try {
-      await fetch(`${API}/api/games/${game.id}/size`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          sizeBytes,
-          gameName: game.name,
-          totalGames: games.length
-        })
-      });
-    } catch (e) {
-      console.log(`  Failed to report size: ${e.message}`);
+    // Report size to API with progress tracking (with retry)
+    let reported = false;
+    for (let retry = 0; retry < 3 && !reported; retry++) {
+      try {
+        const response = await fetch(`${API}/api/games/${game.id}/size`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            sizeBytes,
+            gameName: game.name,
+            totalGames: games.length
+          })
+        });
+        
+        if (response.ok) {
+          reported = true;
+        } else {
+          console.log(`  Failed to report size (attempt ${retry + 1}): ${response.status}`);
+          if (retry < 2) await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
+        }
+      } catch (e) {
+        console.log(`  Failed to report size (attempt ${retry + 1}): ${e.message}`);
+        if (retry < 2) await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
+      }
+    }
+    
+    if (!reported) {
+      console.log(`  ⚠️ Could not report size after 3 attempts`);
     }
   }
   
