@@ -127,6 +127,15 @@ export const initDB = async () => {
         updated_at TIMESTAMP DEFAULT NOW(),
         CHECK (id = 1)
       );
+      
+      -- Saved games table (separate from likes)
+      CREATE TABLE IF NOT EXISTS saved_games (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, game_id)
+      );
 
       CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
@@ -134,6 +143,7 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
       CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(blocker_id);
+      CREATE INDEX IF NOT EXISTS idx_saved_games_user ON saved_games(user_id);
       
       -- Insert initial scan progress row
       INSERT INTO scan_progress (id) VALUES (1) ON CONFLICT (id) DO NOTHING;

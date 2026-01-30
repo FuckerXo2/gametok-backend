@@ -1192,6 +1192,84 @@ app.get('/api/likes/user/:userId', async (req, res) => {
 
 
 // ============================================
+// SAVED GAMES ENDPOINTS
+// ============================================
+
+// Save/unsave a game (toggle bookmark)
+app.post('/api/saved-games', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const { gameId } = req.body;
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  if (!gameId) return res.status(400).json({ error: 'gameId required' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+
+    const existing = await pool.query('SELECT * FROM saved_games WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
+    
+    if (existing.rows.length > 0) {
+      await pool.query('DELETE FROM saved_games WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
+      res.json({ saved: false });
+    } else {
+      await pool.query('INSERT INTO saved_games (user_id, game_id) VALUES ($1, $2)', [userId, gameId]);
+      res.json({ saved: true });
+    }
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Check which games the current user has saved (batch)
+app.post('/api/saved-games/check', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const { gameIds } = req.body;
+  
+  if (!gameIds || !Array.isArray(gameIds)) {
+    return res.status(400).json({ error: 'gameIds array required' });
+  }
+
+  try {
+    if (!token) {
+      return res.json({ savedGameIds: [] });
+    }
+    
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) {
+      return res.json({ savedGameIds: [] });
+    }
+    
+    const userId = userResult.rows[0].id;
+    const result = await pool.query(
+      'SELECT game_id FROM saved_games WHERE user_id = $1 AND game_id = ANY($2)',
+      [userId, gameIds]
+    );
+    
+    res.json({ savedGameIds: result.rows.map(r => r.game_id) });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all saved games for a user
+app.get('/api/saved-games/user/:userId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT g.*, s.created_at as saved_at FROM games g 
+       JOIN saved_games s ON g.id = s.game_id 
+       WHERE s.user_id = $1 
+       ORDER BY s.created_at DESC`,
+      [req.params.userId]
+    );
+    res.json({ games: result.rows.map(formatGame) });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+// ============================================
 // MESSAGES ENDPOINTS
 // ============================================
 
