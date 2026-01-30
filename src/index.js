@@ -513,6 +513,97 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
   }
 });
 
+// Trigger GitHub Action to scan game sizes
+app.post('/api/admin/trigger-size-scan', async (req, res) => {
+  try {
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    const GITHUB_REPO = 'FuckerXo2/gametok-backend';
+    
+    if (!GITHUB_TOKEN) {
+      return res.status(500).json({ error: 'GitHub token not configured' });
+    }
+    
+    // Trigger the workflow
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/dispatches`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'main' })
+      }
+    );
+    
+    if (response.status === 204) {
+      res.json({ success: true, message: 'Game size scan triggered successfully' });
+    } else {
+      const error = await response.text();
+      res.status(500).json({ error: 'Failed to trigger scan: ' + error });
+    }
+  } catch (e) {
+    console.error('Trigger scan error:', e);
+    res.status(500).json({ error: 'Failed to trigger scan: ' + e.message });
+  }
+});
+
+// Check GitHub Action workflow status
+app.get('/api/admin/scan-status', async (req, res) => {
+  try {
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    const GITHUB_REPO = 'FuckerXo2/gametok-backend';
+    
+    if (!GITHUB_TOKEN) {
+      return res.json({ status: 'unknown', error: 'GitHub token not configured' });
+    }
+    
+    // Get latest workflow runs for scan-game-sizes.yml
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/runs?per_page=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      return res.json({ status: 'unknown', error: 'Failed to fetch workflow status' });
+    }
+    
+    const data = await response.json();
+    
+    if (!data.workflow_runs || data.workflow_runs.length === 0) {
+      return res.json({ status: 'none', message: 'No workflow runs found' });
+    }
+    
+    const latestRun = data.workflow_runs[0];
+    
+    // Map GitHub status to our status
+    let status = 'unknown';
+    if (latestRun.status === 'queued' || latestRun.status === 'in_progress') {
+      status = 'in_progress';
+    } else if (latestRun.status === 'completed') {
+      status = latestRun.conclusion === 'success' ? 'completed' : 'failed';
+    }
+    
+    res.json({
+      status,
+      runId: latestRun.id,
+      createdAt: latestRun.created_at,
+      updatedAt: latestRun.updated_at,
+      conclusion: latestRun.conclusion,
+      htmlUrl: latestRun.html_url
+    });
+  } catch (e) {
+    console.error('Check scan status error:', e);
+    res.json({ status: 'unknown', error: e.message });
+  }
+});
+
 // Delete all landscape GameMonetize games (re-fetch from API to check dimensions)
 app.post('/api/admin/delete-landscape-games', async (req, res) => {
   try {
