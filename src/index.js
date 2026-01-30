@@ -513,15 +513,6 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
   }
 });
 
-// In-memory scan progress tracking
-let scanProgress = {
-  isScanning: false,
-  scannedGames: 0,
-  totalGames: 0,
-  currentGame: null,
-  startedAt: null
-};
-
 // Trigger GitHub Action to scan game sizes
 app.post('/api/admin/trigger-size-scan', async (req, res) => {
   try {
@@ -532,14 +523,17 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
       return res.status(500).json({ error: 'GitHub token not configured' });
     }
     
-    // Reset progress
-    scanProgress = {
-      isScanning: true,
-      scannedGames: 0,
-      totalGames: 0,
-      currentGame: null,
-      startedAt: new Date().toISOString()
-    };
+    // Reset progress in database
+    await pool.query(
+      `UPDATE scan_progress SET 
+        is_scanning = TRUE,
+        scanned_games = 0,
+        total_games = 0,
+        current_game = NULL,
+        started_at = NOW(),
+        updated_at = NOW()
+       WHERE id = 1`
+    );
     
     // Trigger the workflow
     const response = await fetch(
@@ -559,12 +553,12 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
       res.json({ success: true, message: 'Game size scan triggered successfully' });
     } else {
       const error = await response.text();
-      scanProgress.isScanning = false;
+      await pool.query('UPDATE scan_progress SET is_scanning = FALSE WHERE id = 1');
       res.status(500).json({ error: 'Failed to trigger scan: ' + error });
     }
   } catch (e) {
     console.error('Trigger scan error:', e);
-    scanProgress.isScanning = false;
+    await pool.query('UPDATE scan_progress SET is_scanning = FALSE WHERE id = 1');
     res.status(500).json({ error: 'Failed to trigger scan: ' + e.message });
   }
 });
@@ -579,6 +573,10 @@ app.get('/api/admin/scan-status', async (req, res) => {
       return res.json({ status: 'unknown', error: 'GitHub token not configured' });
     }
     
+    // Get scan progress from database
+    const progressResult = await pool.query('SELECT * FROM scan_progress WHERE id = 1');
+    const progress = progressResult.rows[0] || { is_scanning: false, scanned_games: 0, total_games: 0, current_game: null };
+    
     // Get latest workflow runs for scan-game-sizes.yml
     const response = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/runs?per_page=1`,
@@ -591,13 +589,25 @@ app.get('/api/admin/scan-status', async (req, res) => {
     );
     
     if (!response.ok) {
-      return res.json({ status: 'unknown', error: 'Failed to fetch workflow status' });
+      return res.json({ 
+        status: 'unknown', 
+        error: 'Failed to fetch workflow status',
+        scannedGames: progress.scanned_games,
+        totalGames: progress.total_games,
+        currentGame: progress.current_game
+      });
     }
     
     const data = await response.json();
     
     if (!data.workflow_runs || data.workflow_runs.length === 0) {
-      return res.json({ status: 'none', message: 'No workflow runs found' });
+      return res.json({ 
+        status: 'none', 
+        message: 'No workflow runs found',
+        scannedGames: progress.scanned_games,
+        totalGames: progress.total_games,
+        currentGame: progress.current_game
+      });
     }
     
     const latestRun = data.workflow_runs[0];
@@ -608,9 +618,9 @@ app.get('/api/admin/scan-status', async (req, res) => {
       status = 'in_progress';
     } else if (latestRun.status === 'completed') {
       status = latestRun.conclusion === 'success' ? 'completed' : 'failed';
-      // Mark scan as complete
-      if (scanProgress.isScanning) {
-        scanProgress.isScanning = false;
+      // Mark scan as complete in database
+      if (progress.is_scanning) {
+        await pool.query('UPDATE scan_progress SET is_scanning = FALSE, updated_at = NOW() WHERE id = 1');
       }
     }
     
@@ -621,9 +631,9 @@ app.get('/api/admin/scan-status', async (req, res) => {
       updatedAt: latestRun.updated_at,
       conclusion: latestRun.conclusion,
       htmlUrl: latestRun.html_url,
-      scannedGames: scanProgress.scannedGames,
-      totalGames: scanProgress.totalGames,
-      currentGame: scanProgress.currentGame
+      scannedGames: progress.scanned_games,
+      totalGames: progress.total_games,
+      currentGame: progress.current_game
     });
   } catch (e) {
     console.error('Check scan status error:', e);
@@ -818,10 +828,16 @@ app.post('/api/games/:id/size', async (req, res) => {
     await pool.query('UPDATE games SET file_size = $1 WHERE id = $2', [sizeBytes, req.params.id]);
     
     // Update scan progress if this is from the scanner
-    if (totalGames && scanProgress.isScanning) {
-      scanProgress.scannedGames++;
-      scanProgress.totalGames = totalGames;
-      scanProgress.currentGame = gameName || req.params.id;
+    if (totalGames) {
+      await pool.query(
+        `UPDATE scan_progress SET 
+          scanned_games = scanned_games + 1,
+          total_games = $1,
+          current_game = $2,
+          updated_at = NOW()
+         WHERE id = 1`,
+        [totalGames, gameName || req.params.id]
+      );
     }
     
     res.json({ success: true });

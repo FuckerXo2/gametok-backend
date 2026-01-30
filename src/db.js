@@ -115,6 +115,18 @@ export const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW(),
         PRIMARY KEY (blocker_id, blocked_id)
       );
+      
+      -- Scan progress table for tracking game size scans
+      CREATE TABLE IF NOT EXISTS scan_progress (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        is_scanning BOOLEAN DEFAULT FALSE,
+        scanned_games INTEGER DEFAULT 0,
+        total_games INTEGER DEFAULT 0,
+        current_game VARCHAR(255),
+        started_at TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CHECK (id = 1)
+      );
 
       CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
@@ -122,6 +134,9 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
       CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(blocker_id);
+      
+      -- Insert initial scan progress row
+      INSERT INTO scan_progress (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
       
       -- Add OAuth columns if they don't exist (migration)
       DO $$ 
