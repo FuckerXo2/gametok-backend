@@ -5,7 +5,7 @@
 import puppeteer from 'puppeteer';
 
 const API = 'https://gametok-backend-production.up.railway.app';
-const MAX_SIZE_MB = 10;
+const MAX_SIZE_MB = 8;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
 async function getGames() {
