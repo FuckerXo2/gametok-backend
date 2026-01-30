@@ -86,12 +86,16 @@ async function main() {
       console.log(`  ✅ ${sizeMB}MB`);
     }
     
-    // Report size to API
+    // Report size to API with progress tracking
     try {
       await fetch(`${API}/api/games/${game.id}/size`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sizeBytes })
+        body: JSON.stringify({ 
+          sizeBytes,
+          gameName: game.name,
+          totalGames: games.length
+        })
       });
     } catch (e) {
       console.log(`  Failed to report size: ${e.message}`);

@@ -513,6 +513,15 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
   }
 });
 
+// In-memory scan progress tracking
+let scanProgress = {
+  isScanning: false,
+  scannedGames: 0,
+  totalGames: 0,
+  currentGame: null,
+  startedAt: null
+};
+
 // Trigger GitHub Action to scan game sizes
 app.post('/api/admin/trigger-size-scan', async (req, res) => {
   try {
@@ -522,6 +531,15 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
     if (!GITHUB_TOKEN) {
       return res.status(500).json({ error: 'GitHub token not configured' });
     }
+    
+    // Reset progress
+    scanProgress = {
+      isScanning: true,
+      scannedGames: 0,
+      totalGames: 0,
+      currentGame: null,
+      startedAt: new Date().toISOString()
+    };
     
     // Trigger the workflow
     const response = await fetch(
@@ -541,10 +559,12 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
       res.json({ success: true, message: 'Game size scan triggered successfully' });
     } else {
       const error = await response.text();
+      scanProgress.isScanning = false;
       res.status(500).json({ error: 'Failed to trigger scan: ' + error });
     }
   } catch (e) {
     console.error('Trigger scan error:', e);
+    scanProgress.isScanning = false;
     res.status(500).json({ error: 'Failed to trigger scan: ' + e.message });
   }
 });
@@ -588,6 +608,10 @@ app.get('/api/admin/scan-status', async (req, res) => {
       status = 'in_progress';
     } else if (latestRun.status === 'completed') {
       status = latestRun.conclusion === 'success' ? 'completed' : 'failed';
+      // Mark scan as complete
+      if (scanProgress.isScanning) {
+        scanProgress.isScanning = false;
+      }
     }
     
     res.json({
@@ -596,7 +620,10 @@ app.get('/api/admin/scan-status', async (req, res) => {
       createdAt: latestRun.created_at,
       updatedAt: latestRun.updated_at,
       conclusion: latestRun.conclusion,
-      htmlUrl: latestRun.html_url
+      htmlUrl: latestRun.html_url,
+      scannedGames: scanProgress.scannedGames,
+      totalGames: scanProgress.totalGames,
+      currentGame: scanProgress.currentGame
     });
   } catch (e) {
     console.error('Check scan status error:', e);
@@ -780,15 +807,23 @@ app.post('/api/games/:id/play', async (req, res) => {
   }
 });
 
-// Report game file size (called from app when game loads)
+// Report game file size (called from app when game loads OR from scanner)
 app.post('/api/games/:id/size', async (req, res) => {
-  const { sizeBytes } = req.body;
+  const { sizeBytes, gameName, totalGames } = req.body;
   if (!sizeBytes || typeof sizeBytes !== 'number') {
     return res.status(400).json({ error: 'sizeBytes required' });
   }
   
   try {
     await pool.query('UPDATE games SET file_size = $1 WHERE id = $2', [sizeBytes, req.params.id]);
+    
+    // Update scan progress if this is from the scanner
+    if (totalGames && scanProgress.isScanning) {
+      scanProgress.scannedGames++;
+      scanProgress.totalGames = totalGames;
+      scanProgress.currentGame = gameName || req.params.id;
+    }
+    
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
