@@ -523,6 +523,9 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
       return res.status(500).json({ error: 'GitHub token not configured' });
     }
     
+    // Ensure scan_progress row exists
+    await pool.query('INSERT INTO scan_progress (id) VALUES (1) ON CONFLICT (id) DO NOTHING');
+    
     // Reset progress in database
     await pool.query(
       `UPDATE scan_progress SET 
@@ -558,7 +561,11 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
     }
   } catch (e) {
     console.error('Trigger scan error:', e);
-    await pool.query('UPDATE scan_progress SET is_scanning = FALSE WHERE id = 1');
+    try {
+      await pool.query('UPDATE scan_progress SET is_scanning = FALSE WHERE id = 1');
+    } catch (e2) {
+      console.error('Failed to update scan progress:', e2);
+    }
     res.status(500).json({ error: 'Failed to trigger scan: ' + e.message });
   }
 });
