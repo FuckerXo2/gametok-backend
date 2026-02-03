@@ -177,6 +177,7 @@ app.post('/api/auth/oauth', async (req, res) => {
     );
 
     let user;
+    let isNewUser = false;
     const token = generateToken();
 
     if (result.rows.length > 0) {
@@ -198,7 +199,8 @@ app.post('/api/auth/oauth', async (req, res) => {
       }
 
       if (!user) {
-        // Create new user
+        // Create new user - mark as new so frontend shows onboarding
+        isNewUser = true;
         const username = userEmail 
           ? userEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(Math.random() * 1000)
           : `user${Date.now()}`;
@@ -212,7 +214,7 @@ app.post('/api/auth/oauth', async (req, res) => {
       }
     }
 
-    res.json({ user: formatUser(user), token });
+    res.json({ user: formatUser(user), token, isNewUser });
   } catch (e) {
     console.error('OAuth error:', e);
     res.status(500).json({ error: 'Server error' });
