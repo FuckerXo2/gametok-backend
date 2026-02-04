@@ -312,7 +312,7 @@ async function getFileSizeFromUrl(url) {
 
 // Bulk import games from GameMonetize
 app.post('/api/admin/import-gamemonetize', async (req, res) => {
-  const { count = 100, category, portraitOnly = false, maxSizeMB = 0, company, requireDeveloper = true } = req.body;
+  const { count = 100, category, portraitOnly = false, maxSizeMB = 0, company, requireDeveloper = false } = req.body;
   
   try {
     // GameMonetize's category filter doesn't work reliably, so we fetch more and filter ourselves
