@@ -668,6 +668,16 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
   }
 });
 
+// Reset scan status (stop showing scanning in admin)
+app.post('/api/admin/reset-scan', async (req, res) => {
+  try {
+    await pool.query('UPDATE scan_progress SET is_scanning = FALSE, updated_at = NOW() WHERE id = 1');
+    res.json({ success: true, message: 'Scan status reset' });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to reset scan: ' + e.message });
+  }
+});
+
 // Check GitHub Action workflow status
 app.get('/api/admin/scan-status', async (req, res) => {
   try {
