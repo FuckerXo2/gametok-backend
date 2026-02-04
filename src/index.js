@@ -457,7 +457,7 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
             (game.category || 'arcade').toLowerCase(),
             game.url,
             game.thumb,
-            game.company || null
+            company || game.company || null  // Use the filter company if specified, otherwise API company
           ]
         );
         imported++;
