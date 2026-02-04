@@ -48,6 +48,7 @@ export const initDB = async () => {
         embed_url TEXT,
         plays INTEGER DEFAULT 0,
         like_count INTEGER DEFAULT 0,
+        save_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW()
       );
 

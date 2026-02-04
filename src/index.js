@@ -867,6 +867,7 @@ function formatGame(row) {
     embedUrl: row.embed_url,
     plays: row.plays,
     likes: row.like_count,
+    saves: row.save_count || 0,
     fileSize: row.file_size,
     createdAt: row.created_at
   };
@@ -1213,12 +1214,17 @@ app.post('/api/saved-games', async (req, res) => {
     
     if (existing.rows.length > 0) {
       await pool.query('DELETE FROM saved_games WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
-      res.json({ saved: false });
+      await pool.query('UPDATE games SET save_count = GREATEST(0, save_count - 1) WHERE id = $1', [gameId]);
+      const countResult = await pool.query('SELECT save_count FROM games WHERE id = $1', [gameId]);
+      res.json({ saved: false, saveCount: countResult.rows[0]?.save_count || 0 });
     } else {
       await pool.query('INSERT INTO saved_games (user_id, game_id) VALUES ($1, $2)', [userId, gameId]);
-      res.json({ saved: true });
+      await pool.query('UPDATE games SET save_count = save_count + 1 WHERE id = $1', [gameId]);
+      const countResult = await pool.query('SELECT save_count FROM games WHERE id = $1', [gameId]);
+      res.json({ saved: true, saveCount: countResult.rows[0]?.save_count || 0 });
     }
   } catch (e) {
+    console.error('Save game error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
