@@ -1473,20 +1473,39 @@ app.post('/api/messages', async (req, res) => {
 // ============================================
 
 app.get('/api/comments/:gameId', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  let userId = null;
+  
+  // Get current user if authenticated
+  if (token) {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length > 0) userId = userResult.rows[0].id;
+  }
+
   try {
-    const result = await pool.query(
-      `SELECT c.*, u.username, u.display_name, u.avatar FROM comments c
-       JOIN users u ON c.user_id = u.id WHERE c.game_id = $1
-       ORDER BY c.created_at DESC LIMIT 50`,
-      [req.params.gameId]
-    );
+    // Get comments, excluding blocked users
+    let query = `
+      SELECT c.*, u.username, u.display_name, u.avatar,
+        ${userId ? `EXISTS(SELECT 1 FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_id = $2) as liked` : 'false as liked'}
+      FROM comments c
+      JOIN users u ON c.user_id = u.id
+      WHERE c.game_id = $1
+      ${userId ? `AND c.user_id NOT IN (SELECT blocked_id FROM blocked_users WHERE blocker_id = $2)` : ''}
+      ORDER BY c.created_at DESC LIMIT 50
+    `;
+    
+    const result = await pool.query(query, userId ? [req.params.gameId, userId] : [req.params.gameId]);
+    
     res.json({
       comments: result.rows.map(r => ({
         id: r.id, text: r.text, userId: r.user_id, username: r.username,
-        displayName: r.display_name, avatar: r.avatar, likes: r.likes, createdAt: r.created_at
-      }))
+        displayName: r.display_name, avatarUrl: r.avatar, likes: r.likes, 
+        liked: r.liked, createdAt: r.created_at
+      })),
+      total: result.rows.length
     });
   } catch (e) {
+    console.error('Get comments error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1528,6 +1547,142 @@ app.delete('/api/comments/:id', async (req, res) => {
 
     await pool.query('DELETE FROM comments WHERE id = $1 AND user_id = $2', [req.params.id, userResult.rows[0].id]);
     res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Like/unlike a comment
+app.post('/api/comments/:id/like', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    const commentId = req.params.id;
+
+    // Check if already liked
+    const existing = await pool.query(
+      'SELECT 1 FROM comment_likes WHERE user_id = $1 AND comment_id = $2',
+      [userId, commentId]
+    );
+
+    if (existing.rows.length > 0) {
+      // Unlike
+      await pool.query('DELETE FROM comment_likes WHERE user_id = $1 AND comment_id = $2', [userId, commentId]);
+      await pool.query('UPDATE comments SET likes = likes - 1 WHERE id = $1', [commentId]);
+      res.json({ liked: false });
+    } else {
+      // Like
+      await pool.query('INSERT INTO comment_likes (user_id, comment_id) VALUES ($1, $2)', [userId, commentId]);
+      await pool.query('UPDATE comments SET likes = likes + 1 WHERE id = $1', [commentId]);
+      res.json({ liked: true });
+    }
+  } catch (e) {
+    console.error('Comment like error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Report a user or content
+app.post('/api/report', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId, reason, details, contentType, contentId } = req.body;
+  if (!userId || !reason) return res.status(400).json({ error: 'userId and reason required' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const reporterId = userResult.rows[0].id;
+
+    // Can't report yourself
+    if (reporterId === userId) return res.status(400).json({ error: 'Cannot report yourself' });
+
+    await pool.query(
+      `INSERT INTO reports (reporter_id, reported_user_id, reason, details, content_type, content_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [reporterId, userId, reason, details || null, contentType || null, contentId || null]
+    );
+
+    res.json({ success: true, message: 'Report submitted' });
+  } catch (e) {
+    console.error('Report error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Block a user
+app.post('/api/block', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const blockerId = userResult.rows[0].id;
+
+    // Can't block yourself
+    if (blockerId === userId) return res.status(400).json({ error: 'Cannot block yourself' });
+
+    await pool.query(
+      `INSERT INTO blocked_users (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [blockerId, userId]
+    );
+
+    // Also unfollow each other
+    await pool.query('DELETE FROM followers WHERE follower_id = $1 AND following_id = $2', [blockerId, userId]);
+    await pool.query('DELETE FROM followers WHERE follower_id = $1 AND following_id = $2', [userId, blockerId]);
+
+    res.json({ success: true, message: 'User blocked' });
+  } catch (e) {
+    console.error('Block error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Unblock a user
+app.delete('/api/block/:userId', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+
+    await pool.query(
+      'DELETE FROM blocked_users WHERE blocker_id = $1 AND blocked_id = $2',
+      [userResult.rows[0].id, req.params.userId]
+    );
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get blocked users list
+app.get('/api/blocked', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.avatar FROM blocked_users b
+       JOIN users u ON b.blocked_id = u.id WHERE b.blocker_id = $1`,
+      [userResult.rows[0].id]
+    );
+
+    res.json({ blockedUsers: result.rows });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }

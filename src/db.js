@@ -94,6 +94,13 @@ export const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS comment_likes (
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (user_id, comment_id)
+      );
+
       -- User reports table for flagging objectionable content
       CREATE TABLE IF NOT EXISTS reports (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
