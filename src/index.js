@@ -567,6 +567,50 @@ app.post('/api/admin/delete-no-developer', async (req, res) => {
   }
 });
 
+// Delete all games by a specific developer
+app.post('/api/admin/delete-by-developer', async (req, res) => {
+  const { developer } = req.body;
+  
+  if (!developer) {
+    return res.status(400).json({ error: 'Developer name is required' });
+  }
+  
+  try {
+    // Find games by this developer (case-insensitive)
+    const games = await pool.query(
+      "SELECT id FROM games WHERE LOWER(developer) = LOWER($1)",
+      [developer]
+    );
+    
+    if (games.rows.length === 0) {
+      const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+      return res.json({ 
+        success: true, 
+        deleted: 0, 
+        remaining: parseInt(totalResult.rows[0].count),
+        message: `No games found from developer "${developer}"`
+      });
+    }
+    
+    // Delete games by developer
+    await pool.query(
+      "DELETE FROM games WHERE LOWER(developer) = LOWER($1)",
+      [developer]
+    );
+    
+    const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+    
+    res.json({ 
+      success: true, 
+      deleted: games.rows.length,
+      remaining: parseInt(totalResult.rows[0].count)
+    });
+  } catch (e) {
+    console.error('Delete by developer error:', e);
+    res.status(500).json({ error: 'Failed to delete games: ' + e.message });
+  }
+});
+
 // Trigger GitHub Action to scan game sizes
 app.post('/api/admin/trigger-size-scan', async (req, res) => {
   try {
