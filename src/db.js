@@ -177,6 +177,9 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'save_count') THEN
           ALTER TABLE games ADD COLUMN save_count INTEGER DEFAULT 0;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'developer') THEN
+          ALTER TABLE games ADD COLUMN developer VARCHAR(255);
+        END IF;
         -- Make password nullable for OAuth users
         ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
       EXCEPTION WHEN OTHERS THEN

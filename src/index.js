@@ -312,12 +312,17 @@ async function getFileSizeFromUrl(url) {
 
 // Bulk import games from GameMonetize
 app.post('/api/admin/import-gamemonetize', async (req, res) => {
-  const { count = 100, category, portraitOnly = false, maxSizeMB = 0 } = req.body;
+  const { count = 100, category, portraitOnly = false, maxSizeMB = 0, company, requireDeveloper = true } = req.body;
   
   try {
     // GameMonetize's category filter doesn't work reliably, so we fetch more and filter ourselves
     const fetchCount = (category || portraitOnly) ? Math.min(count * 20, 5000) : Math.min(count, 5000);
-    const feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${fetchCount}`;
+    let feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${fetchCount}`;
+    
+    // Add company filter if specified (developer filter)
+    if (company) {
+      feedUrl += `&company=${encodeURIComponent(company)}`;
+    }
     
     console.log(`Fetching games from: ${feedUrl}`);
     
@@ -327,6 +332,15 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
     
     if (!Array.isArray(games) || games.length === 0) {
       return res.status(400).json({ error: 'No games found from GameMonetize' });
+    }
+    
+    // Filter out games without a developer if requireDeveloper is true
+    let skippedNoDeveloper = 0;
+    if (requireDeveloper) {
+      const beforeCount = games.length;
+      games = games.filter(g => g.company && g.company.trim() !== '');
+      skippedNoDeveloper = beforeCount - games.length;
+      console.log(`After developer filter: ${games.length} games (${skippedNoDeveloper} had no developer)`);
     }
     
     // Filter by category if specified (case-insensitive)
@@ -348,7 +362,7 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
     games = games.slice(0, count); // Limit to requested count
     
     if (games.length === 0) {
-      return res.status(400).json({ error: 'No games found matching filters (try disabling portrait-only)' });
+      return res.status(400).json({ error: 'No games found matching filters (most games have no developer listed)' });
     }
     
     // Filter by size if maxSizeMB is specified
@@ -431,8 +445,8 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
         const color = categoryColors[game.category] || '#FF6B6B';
         
         await pool.query(
-          `INSERT INTO games (id, name, description, icon, color, category, embed_url, thumbnail) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+          `INSERT INTO games (id, name, description, icon, color, category, embed_url, thumbnail, developer) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
            ON CONFLICT (id) DO NOTHING`,
           [
             gameId,
@@ -442,7 +456,8 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
             color,
             (game.category || 'arcade').toLowerCase(),
             game.url,
-            game.thumb
+            game.thumb,
+            game.company || null
           ]
         );
         imported++;
@@ -458,6 +473,7 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
       imported, 
       skipped,
       skippedForSize: skippedForSize || 0,
+      skippedNoDeveloper: skippedNoDeveloper || 0,
       totalGames: parseInt(totalResult.rows[0].count)
     });
   } catch (e) {
@@ -512,6 +528,42 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
   } catch (e) {
     console.error('Delete large games error:', e);
     res.status(500).json({ error: 'Failed to delete large games: ' + e.message });
+  }
+});
+
+// Delete all GameMonetize games without a known developer
+app.post('/api/admin/delete-no-developer', async (req, res) => {
+  try {
+    // Find GameMonetize games without a developer
+    const noDeveloperGames = await pool.query(
+      "SELECT id FROM games WHERE id LIKE 'gm-%' AND (developer IS NULL OR developer = '')"
+    );
+    
+    if (noDeveloperGames.rows.length === 0) {
+      const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+      return res.json({ 
+        success: true, 
+        deleted: 0, 
+        remaining: parseInt(totalResult.rows[0].count),
+        message: 'No games found without a developer'
+      });
+    }
+    
+    // Delete games without developer
+    const deleteResult = await pool.query(
+      "DELETE FROM games WHERE id LIKE 'gm-%' AND (developer IS NULL OR developer = '')"
+    );
+    
+    const totalResult = await pool.query('SELECT COUNT(*) FROM games');
+    
+    res.json({ 
+      success: true, 
+      deleted: noDeveloperGames.rows.length,
+      remaining: parseInt(totalResult.rows[0].count)
+    });
+  } catch (e) {
+    console.error('Delete no-developer games error:', e);
+    res.status(500).json({ error: 'Failed to delete games: ' + e.message });
   }
 });
 
