@@ -668,9 +668,84 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
   }
 });
 
-// Reset scan status (stop showing scanning in admin)
+// Reset scan status AND cancel GitHub workflow
 app.post('/api/admin/reset-scan', async (req, res) => {
   try {
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    const GITHUB_REPO = 'FuckerXo2/gametok-backend';
+    
+    let workflowCancelled = false;
+    
+    // Try to cancel any running GitHub workflow
+    if (GITHUB_TOKEN) {
+      try {
+        // Get the latest running workflow
+        const runsResponse = await fetch(
+          `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/runs?status=in_progress&per_page=5`,
+          {
+            headers: {
+              'Authorization': `Bearer ${GITHUB_TOKEN}`,
+              'Accept': 'application/vnd.github+json',
+            }
+          }
+        );
+        
+        if (runsResponse.ok) {
+          const runsData = await runsResponse.json();
+          
+          // Cancel all in-progress runs
+          for (const run of (runsData.workflow_runs || [])) {
+            console.log(`Cancelling workflow run ${run.id}...`);
+            const cancelResponse = await fetch(
+              `https://api.github.com/repos/${GITHUB_REPO}/actions/runs/${run.id}/cancel`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                  'Accept': 'application/vnd.github+json',
+                }
+              }
+            );
+            if (cancelResponse.status === 202) {
+              workflowCancelled = true;
+              console.log(`Workflow run ${run.id} cancelled`);
+            }
+          }
+          
+          // Also check for queued runs
+          const queuedResponse = await fetch(
+            `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/runs?status=queued&per_page=5`,
+            {
+              headers: {
+                'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github+json',
+              }
+            }
+          );
+          
+          if (queuedResponse.ok) {
+            const queuedData = await queuedResponse.json();
+            for (const run of (queuedData.workflow_runs || [])) {
+              console.log(`Cancelling queued workflow run ${run.id}...`);
+              await fetch(
+                `https://api.github.com/repos/${GITHUB_REPO}/actions/runs/${run.id}/cancel`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                    'Accept': 'application/vnd.github+json',
+                  }
+                }
+              );
+            }
+          }
+        }
+      } catch (ghError) {
+        console.error('Failed to cancel GitHub workflow:', ghError);
+      }
+    }
+    
+    // Reset database status
     await pool.query(`
       UPDATE scan_progress SET 
         is_scanning = FALSE, 
@@ -680,7 +755,12 @@ app.post('/api/admin/reset-scan', async (req, res) => {
         updated_at = NOW() 
       WHERE id = 1
     `);
-    res.json({ success: true, message: 'Scan status reset' });
+    
+    res.json({ 
+      success: true, 
+      message: workflowCancelled ? 'Scan cancelled and status reset' : 'Scan status reset (no running workflow found)',
+      workflowCancelled
+    });
   } catch (e) {
     res.status(500).json({ error: 'Failed to reset scan: ' + e.message });
   }
