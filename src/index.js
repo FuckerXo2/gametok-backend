@@ -1206,6 +1206,16 @@ app.post('/api/users/:id/follow', async (req, res) => {
     } else {
       await pool.query('INSERT INTO followers (follower_id, following_id) VALUES ($1, $2)', [followerId, followingId]);
       following = true;
+      
+      // Update challenge progress for follow_users
+      await pool.query(`
+        UPDATE user_challenges 
+        SET progress = progress + 1, 
+            completed = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+            completed_at = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+        WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+          AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'follow_users')
+      `, [followerId]);
     }
     
     // Check if they follow us back (mutual)
@@ -1397,6 +1407,17 @@ app.post('/api/likes', async (req, res) => {
       await pool.query('INSERT INTO likes (user_id, game_id) VALUES ($1, $2)', [userId, gameId]);
       const result = await pool.query('UPDATE games SET like_count = like_count + 1 WHERE id = $1 RETURNING like_count', [gameId]);
       newLikeCount = result.rows[0]?.like_count || 0;
+      
+      // Update challenge progress for like_games
+      await pool.query(`
+        UPDATE user_challenges 
+        SET progress = progress + 1, 
+            completed = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+            completed_at = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+        WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+          AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'like_games')
+      `, [userId]);
+      
       res.json({ liked: true, likeCount: newLikeCount });
     }
   } catch (e) {
@@ -1476,6 +1497,17 @@ app.post('/api/saved-games', async (req, res) => {
       await pool.query('INSERT INTO saved_games (user_id, game_id) VALUES ($1, $2)', [userId, gameId]);
       await pool.query('UPDATE games SET save_count = save_count + 1 WHERE id = $1', [gameId]);
       const countResult = await pool.query('SELECT save_count FROM games WHERE id = $1', [gameId]);
+      
+      // Update challenge progress for save_games
+      await pool.query(`
+        UPDATE user_challenges 
+        SET progress = progress + 1, 
+            completed = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+            completed_at = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+        WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+          AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'save_games')
+      `, [userId]);
+      
       res.json({ saved: true, saveCount: countResult.rows[0]?.save_count || 0 });
     }
   } catch (e) {
@@ -1703,6 +1735,16 @@ app.post('/api/messages', async (req, res) => {
         // Store game share marker in text for backwards compatibility
         const prefix = isChallenge ? '[CHALLENGE:' : '[GAME:';
         messageText = `${prefix}${game.id}] ${messageText || (isChallenge ? `${username} challenged you to ${game.name}!` : `Check out ${game.name}!`)}`;
+        
+        // Update challenge progress for share_game
+        await pool.query(`
+          UPDATE user_challenges 
+          SET progress = progress + 1, 
+              completed = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+              completed_at = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+          WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+            AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'share_game')
+        `, [userId]);
       }
     }
 
@@ -1786,6 +1828,17 @@ app.post('/api/comments', async (req, res) => {
       'INSERT INTO comments (game_id, user_id, text) VALUES ($1, $2, $3) RETURNING *',
       [gameId, user.id, text.trim()]
     );
+    
+    // Update challenge progress for post_comments
+    await pool.query(`
+      UPDATE user_challenges 
+      SET progress = progress + 1, 
+          completed = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+          completed_at = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+      WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+        AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'post_comments')
+    `, [user.id]);
+    
     res.json({
       comment: {
         id: result.rows[0].id, text: result.rows[0].text, userId: user.id,
