@@ -414,3 +414,31 @@ export const runGamificationMigrations = async () => {
     client.release();
   }
 };
+
+// Game leaderboard table - tracks points per user per game
+export const runLeaderboardMigration = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS game_leaderboard (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        points INTEGER DEFAULT 0,
+        play_time INTEGER DEFAULT 0,
+        last_played TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, game_id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_game_leaderboard_game ON game_leaderboard(game_id);
+      CREATE INDEX IF NOT EXISTS idx_game_leaderboard_points ON game_leaderboard(game_id, points DESC);
+      CREATE INDEX IF NOT EXISTS idx_game_leaderboard_user ON game_leaderboard(user_id);
+    `);
+    console.log('✅ Game leaderboard table ready');
+  } catch (e) {
+    console.log('Leaderboard migration error:', e.message);
+  } finally {
+    client.release();
+  }
+};

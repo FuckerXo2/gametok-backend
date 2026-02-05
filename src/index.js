@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { createServer } from 'http';
-import pool, { initDB, runMigrations, runGamificationMigrations } from './db.js';
+import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration } from './db.js';
 import { initMultiplayer } from './multiplayer.js';
 
 const app = express();
@@ -2584,11 +2584,23 @@ app.post('/api/gamification/game-played', async (req, res) => {
     const multiplier = getStreakMultiplier(streakResult.rows[0]?.current_streak || 0);
     
     // Points = 1 point per 5 seconds of play time (matching the live counter)
-    // This ensures the server awards the same amount the user saw ticking up
     const basePoints = playTimeSeconds ? Math.floor(playTimeSeconds / 5) : 0;
-    
     const points = Math.floor(basePoints * multiplier);
     await awardPoints(userId, points, 'game_played', `Played game`, { gameId, playTimeSeconds });
+    
+    // Update per-game leaderboard
+    if (points > 0) {
+      await pool.query(`
+        INSERT INTO game_leaderboard (user_id, game_id, points, play_time, last_played)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (user_id, game_id) 
+        DO UPDATE SET 
+          points = game_leaderboard.points + $3,
+          play_time = game_leaderboard.play_time + $4,
+          last_played = NOW(),
+          updated_at = NOW()
+      `, [userId, gameId, points, playTimeSeconds || 0]);
+    }
     
     // Award XP (1 XP per 10 seconds)
     const baseXp = playTimeSeconds ? Math.floor(playTimeSeconds / 10) : 0;
@@ -2940,6 +2952,80 @@ app.get('/api/gamification/leaderboard', async (req, res) => {
   }
 });
 
+// Per-game leaderboard - top users by points for a specific game
+app.get('/api/gamification/leaderboard/:gameId', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    // Get game info
+    const gameResult = await pool.query('SELECT id, name FROM games WHERE id = $1', [gameId]);
+    const game = gameResult.rows[0];
+    
+    // Get leaderboard
+    const result = await pool.query(`
+      SELECT 
+        gl.user_id,
+        gl.points,
+        gl.play_time,
+        gl.last_played,
+        u.username,
+        u.display_name,
+        u.avatar
+      FROM game_leaderboard gl
+      JOIN users u ON gl.user_id = u.id
+      WHERE gl.game_id = $1
+      ORDER BY gl.points DESC
+      LIMIT $2
+    `, [gameId, limit]);
+    
+    const leaderboard = result.rows.map((row, index) => ({
+      rank: index + 1,
+      userId: row.user_id,
+      username: row.username,
+      displayName: row.display_name,
+      avatar: row.avatar,
+      points: row.points,
+      playTime: row.play_time,
+      lastPlayed: row.last_played,
+    }));
+    
+    // Get current user's rank if authenticated
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    let userRank = null;
+    if (token) {
+      const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+      if (userResult.rows.length > 0) {
+        const userId = userResult.rows[0].id;
+        const rankResult = await pool.query(`
+          SELECT COUNT(*) + 1 as rank, 
+                 (SELECT points FROM game_leaderboard WHERE user_id = $1 AND game_id = $2) as points
+          FROM game_leaderboard 
+          WHERE game_id = $2 AND points > COALESCE((SELECT points FROM game_leaderboard WHERE user_id = $1 AND game_id = $2), 0)
+        `, [userId, gameId]);
+        
+        const userPoints = await pool.query('SELECT points FROM game_leaderboard WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
+        if (userPoints.rows.length > 0) {
+          userRank = {
+            rank: parseInt(rankResult.rows[0].rank),
+            points: userPoints.rows[0].points
+          };
+        }
+      }
+    }
+    
+    res.json({ 
+      game: game || { id: gameId, name: gameId },
+      leaderboard,
+      userRank,
+      totalPlayers: leaderboard.length
+    });
+  } catch (e) {
+    console.error('Game leaderboard error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ============================================
 // SEED GAMES
 // ============================================
@@ -3040,6 +3126,7 @@ const start = async () => {
   await initDB();
   await runMigrations();
   await runGamificationMigrations();
+  await runLeaderboardMigration();
   // Don't auto-seed on startup - use admin panel to manage games
   // await seedGames();
   
