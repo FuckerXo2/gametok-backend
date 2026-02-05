@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { createServer } from 'http';
-import pool, { initDB, runMigrations } from './db.js';
+import pool, { initDB, runMigrations, runGamificationMigrations } from './db.js';
 import { initMultiplayer } from './multiplayer.js';
 
 const app = express();
@@ -2223,6 +2223,670 @@ app.patch('/api/admin/reports/:id', async (req, res) => {
 });
 
 // ============================================
+// GAMIFICATION ENDPOINTS
+// ============================================
+
+// XP required for each level (exponential curve)
+const XP_PER_LEVEL = (level) => Math.floor(100 * Math.pow(1.5, level - 1));
+
+// Calculate level from XP
+const calculateLevel = (xp) => {
+  let level = 1;
+  let totalXpNeeded = 0;
+  while (totalXpNeeded + XP_PER_LEVEL(level) <= xp) {
+    totalXpNeeded += XP_PER_LEVEL(level);
+    level++;
+  }
+  return { level, currentXp: xp - totalXpNeeded, xpForNextLevel: XP_PER_LEVEL(level) };
+};
+
+// Streak multiplier based on streak length
+const getStreakMultiplier = (streak) => {
+  if (streak >= 365) return 10;
+  if (streak >= 100) return 5;
+  if (streak >= 30) return 3;
+  if (streak >= 7) return 2;
+  if (streak >= 3) return 1.5;
+  return 1;
+};
+
+// Daily login bonus based on streak
+const getDailyBonus = (streak) => {
+  const baseBonus = 50;
+  const multiplier = getStreakMultiplier(streak);
+  return Math.floor(baseBonus * multiplier);
+};
+
+// Helper to ensure user has gamification records
+const ensureUserGamification = async (userId) => {
+  await pool.query(`
+    INSERT INTO user_points (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
+    INSERT INTO user_streaks (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
+    INSERT INTO user_levels (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
+  `, [userId]);
+};
+
+// Helper to award points and XP
+const awardPoints = async (userId, amount, type, description, metadata = {}) => {
+  await ensureUserGamification(userId);
+  
+  // Add points
+  await pool.query(`
+    UPDATE user_points 
+    SET balance = balance + $1, lifetime_earned = lifetime_earned + $1, updated_at = NOW()
+    WHERE user_id = $2
+  `, [amount, userId]);
+  
+  // Log transaction
+  await pool.query(`
+    INSERT INTO points_transactions (user_id, amount, type, description, metadata)
+    VALUES ($1, $2, $3, $4, $5)
+  `, [userId, amount, type, description, JSON.stringify(metadata)]);
+  
+  return amount;
+};
+
+const awardXP = async (userId, amount) => {
+  await ensureUserGamification(userId);
+  
+  // Add XP
+  const result = await pool.query(`
+    UPDATE user_levels 
+    SET xp = xp + $1, updated_at = NOW()
+    WHERE user_id = $2
+    RETURNING xp
+  `, [amount, userId]);
+  
+  const newXp = result.rows[0].xp;
+  const { level } = calculateLevel(newXp);
+  
+  // Update level if changed
+  await pool.query(`
+    UPDATE user_levels SET level = $1 WHERE user_id = $2 AND level != $1
+  `, [level, userId]);
+  
+  return { xp: newXp, level };
+};
+
+// Check and unlock achievements
+const checkAchievements = async (userId) => {
+  const unlocked = [];
+  
+  // Get user stats
+  const userResult = await pool.query('SELECT games_played FROM users WHERE id = $1', [userId]);
+  const user = userResult.rows[0];
+  
+  const pointsResult = await pool.query('SELECT lifetime_earned FROM user_points WHERE user_id = $1', [userId]);
+  const points = pointsResult.rows[0] || { lifetime_earned: 0 };
+  
+  const streakResult = await pool.query('SELECT current_streak, longest_streak FROM user_streaks WHERE user_id = $1', [userId]);
+  const streak = streakResult.rows[0] || { current_streak: 0, longest_streak: 0 };
+  
+  const levelResult = await pool.query('SELECT level FROM user_levels WHERE user_id = $1', [userId]);
+  const levelData = levelResult.rows[0] || { level: 1 };
+  
+  const savesResult = await pool.query('SELECT COUNT(*) FROM saved_games WHERE user_id = $1', [userId]);
+  const saves = parseInt(savesResult.rows[0].count);
+  
+  const followersResult = await pool.query('SELECT COUNT(*) FROM followers WHERE following_id = $1', [userId]);
+  const followers = parseInt(followersResult.rows[0].count);
+  
+  const likesGivenResult = await pool.query('SELECT COUNT(*) FROM likes WHERE user_id = $1', [userId]);
+  const likesGiven = parseInt(likesGivenResult.rows[0].count);
+  
+  // Get all achievements user hasn't unlocked yet
+  const achievements = await pool.query(`
+    SELECT a.* FROM achievements a
+    WHERE a.id NOT IN (SELECT achievement_id FROM user_achievements WHERE user_id = $1)
+  `, [userId]);
+  
+  for (const achievement of achievements.rows) {
+    let shouldUnlock = false;
+    
+    switch (achievement.type) {
+      case 'games_played':
+        shouldUnlock = user.games_played >= achievement.threshold;
+        break;
+      case 'streak':
+        shouldUnlock = Math.max(streak.current_streak, streak.longest_streak) >= achievement.threshold;
+        break;
+      case 'level':
+        shouldUnlock = levelData.level >= achievement.threshold;
+        break;
+      case 'saves':
+        shouldUnlock = saves >= achievement.threshold;
+        break;
+      case 'followers':
+        shouldUnlock = followers >= achievement.threshold;
+        break;
+      case 'likes_given':
+        shouldUnlock = likesGiven >= achievement.threshold;
+        break;
+      case 'lifetime_points':
+        shouldUnlock = points.lifetime_earned >= achievement.threshold;
+        break;
+    }
+    
+    if (shouldUnlock) {
+      await pool.query(`
+        INSERT INTO user_achievements (user_id, achievement_id) VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+      `, [userId, achievement.id]);
+      
+      // Award achievement rewards
+      if (achievement.reward_points > 0) {
+        await awardPoints(userId, achievement.reward_points, 'achievement', `Unlocked: ${achievement.name}`);
+      }
+      if (achievement.reward_xp > 0) {
+        await awardXP(userId, achievement.reward_xp);
+      }
+      
+      unlocked.push(achievement);
+    }
+  }
+  
+  return unlocked;
+};
+
+// Get user's gamification stats
+app.get('/api/gamification/stats', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    await ensureUserGamification(userId);
+    
+    // Get all stats
+    const pointsResult = await pool.query('SELECT * FROM user_points WHERE user_id = $1', [userId]);
+    const streakResult = await pool.query('SELECT * FROM user_streaks WHERE user_id = $1', [userId]);
+    const levelResult = await pool.query('SELECT * FROM user_levels WHERE user_id = $1', [userId]);
+    
+    const points = pointsResult.rows[0];
+    const streak = streakResult.rows[0];
+    const level = levelResult.rows[0];
+    
+    const levelInfo = calculateLevel(level.xp);
+    
+    res.json({
+      points: {
+        balance: points.balance,
+        lifetimeEarned: points.lifetime_earned
+      },
+      streak: {
+        current: streak.current_streak,
+        longest: streak.longest_streak,
+        lastClaimDate: streak.last_claim_date,
+        multiplier: getStreakMultiplier(streak.current_streak)
+      },
+      level: {
+        current: levelInfo.level,
+        xp: level.xp,
+        currentXp: levelInfo.currentXp,
+        xpForNextLevel: levelInfo.xpForNextLevel,
+        progress: levelInfo.currentXp / levelInfo.xpForNextLevel
+      }
+    });
+  } catch (e) {
+    console.error('Gamification stats error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Claim daily login bonus
+app.post('/api/gamification/daily-claim', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    await ensureUserGamification(userId);
+    
+    // Get current streak info
+    const streakResult = await pool.query('SELECT * FROM user_streaks WHERE user_id = $1', [userId]);
+    const streak = streakResult.rows[0];
+    
+    const today = new Date().toISOString().split('T')[0];
+    const lastClaim = streak.last_claim_date ? new Date(streak.last_claim_date).toISOString().split('T')[0] : null;
+    
+    // Check if already claimed today
+    if (lastClaim === today) {
+      return res.status(400).json({ error: 'Already claimed today', alreadyClaimed: true });
+    }
+    
+    // Calculate new streak
+    let newStreak = 1;
+    if (lastClaim) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      
+      if (lastClaim === yesterdayStr) {
+        // Consecutive day - increment streak
+        newStreak = streak.current_streak + 1;
+      }
+      // Otherwise streak resets to 1
+    }
+    
+    const longestStreak = Math.max(newStreak, streak.longest_streak);
+    
+    // Update streak
+    await pool.query(`
+      UPDATE user_streaks 
+      SET current_streak = $1, longest_streak = $2, last_claim_date = $3, updated_at = NOW()
+      WHERE user_id = $4
+    `, [newStreak, longestStreak, today, userId]);
+    
+    // Award daily bonus
+    const bonus = getDailyBonus(newStreak);
+    await awardPoints(userId, bonus, 'daily_login', `Day ${newStreak} login bonus`);
+    
+    // Award XP for logging in
+    const xpBonus = 10 * getStreakMultiplier(newStreak);
+    await awardXP(userId, Math.floor(xpBonus));
+    
+    // Check for streak achievements
+    const unlockedAchievements = await checkAchievements(userId);
+    
+    res.json({
+      success: true,
+      pointsEarned: bonus,
+      xpEarned: Math.floor(xpBonus),
+      streak: {
+        current: newStreak,
+        longest: longestStreak,
+        multiplier: getStreakMultiplier(newStreak)
+      },
+      unlockedAchievements
+    });
+  } catch (e) {
+    console.error('Daily claim error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Award points for playing a game
+app.post('/api/gamification/game-played', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  
+  const { gameId, playTimeSeconds } = req.body;
+  if (!gameId) return res.status(400).json({ error: 'Game ID required' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    await ensureUserGamification(userId);
+    
+    // Get streak multiplier
+    const streakResult = await pool.query('SELECT current_streak FROM user_streaks WHERE user_id = $1', [userId]);
+    const multiplier = getStreakMultiplier(streakResult.rows[0]?.current_streak || 0);
+    
+    // Base points for playing (5 points per game, more for longer play)
+    let basePoints = 5;
+    if (playTimeSeconds && playTimeSeconds > 60) {
+      basePoints += Math.min(Math.floor(playTimeSeconds / 60), 10); // Up to 10 extra points for play time
+    }
+    
+    const points = Math.floor(basePoints * multiplier);
+    await awardPoints(userId, points, 'game_played', `Played game`, { gameId, playTimeSeconds });
+    
+    // Award XP
+    const xp = Math.floor(5 * multiplier);
+    await awardXP(userId, xp);
+    
+    // Update games_played count
+    await pool.query('UPDATE users SET games_played = games_played + 1 WHERE id = $1', [userId]);
+    
+    // Update challenge progress for play_games type
+    await pool.query(`
+      UPDATE user_challenges 
+      SET progress = progress + 1, 
+          completed = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+          completed_at = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+      WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+        AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'play_games')
+    `, [userId]);
+    
+    // Update play_time challenges (convert seconds to minutes)
+    if (playTimeSeconds) {
+      const minutes = Math.floor(playTimeSeconds / 60);
+      await pool.query(`
+        UPDATE user_challenges 
+        SET progress = progress + $1, 
+            completed = CASE WHEN progress + $1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+            completed_at = CASE WHEN progress + $1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+        WHERE user_id = $2 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+          AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'play_time')
+      `, [minutes, userId]);
+    }
+    
+    // Check achievements
+    const unlockedAchievements = await checkAchievements(userId);
+    
+    res.json({
+      success: true,
+      pointsEarned: points,
+      xpEarned: xp,
+      multiplier,
+      unlockedAchievements
+    });
+  } catch (e) {
+    console.error('Game played error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get daily challenges for user
+app.get('/api/gamification/challenges', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    // Check if user has challenges assigned for today
+    const existingChallenges = await pool.query(`
+      SELECT uc.*, dc.title, dc.description, dc.type, dc.target, dc.reward_points, dc.reward_xp, dc.icon
+      FROM user_challenges uc
+      JOIN daily_challenges dc ON uc.challenge_id = dc.id
+      WHERE uc.user_id = $1 AND uc.assigned_date = CURRENT_DATE
+    `, [userId]);
+    
+    if (existingChallenges.rows.length > 0) {
+      return res.json({ challenges: existingChallenges.rows });
+    }
+    
+    // Assign 3 random challenges for today
+    const availableChallenges = await pool.query(`
+      SELECT * FROM daily_challenges WHERE active = TRUE ORDER BY RANDOM() LIMIT 3
+    `);
+    
+    for (const challenge of availableChallenges.rows) {
+      await pool.query(`
+        INSERT INTO user_challenges (user_id, challenge_id, assigned_date)
+        VALUES ($1, $2, CURRENT_DATE)
+        ON CONFLICT DO NOTHING
+      `, [userId, challenge.id]);
+    }
+    
+    // Fetch the assigned challenges
+    const challenges = await pool.query(`
+      SELECT uc.*, dc.title, dc.description, dc.type, dc.target, dc.reward_points, dc.reward_xp, dc.icon
+      FROM user_challenges uc
+      JOIN daily_challenges dc ON uc.challenge_id = dc.id
+      WHERE uc.user_id = $1 AND uc.assigned_date = CURRENT_DATE
+    `, [userId]);
+    
+    res.json({ challenges: challenges.rows });
+  } catch (e) {
+    console.error('Challenges error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Claim challenge reward
+app.post('/api/gamification/challenges/:id/claim', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    // Get the challenge
+    const challengeResult = await pool.query(`
+      SELECT uc.*, dc.title, dc.reward_points, dc.reward_xp
+      FROM user_challenges uc
+      JOIN daily_challenges dc ON uc.challenge_id = dc.id
+      WHERE uc.id = $1 AND uc.user_id = $2
+    `, [req.params.id, userId]);
+    
+    if (challengeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Challenge not found' });
+    }
+    
+    const challenge = challengeResult.rows[0];
+    
+    if (!challenge.completed) {
+      return res.status(400).json({ error: 'Challenge not completed yet' });
+    }
+    
+    if (challenge.claimed) {
+      return res.status(400).json({ error: 'Already claimed' });
+    }
+    
+    // Mark as claimed
+    await pool.query('UPDATE user_challenges SET claimed = TRUE WHERE id = $1', [req.params.id]);
+    
+    // Award rewards
+    await awardPoints(userId, challenge.reward_points, 'challenge', `Completed: ${challenge.title}`);
+    await awardXP(userId, challenge.reward_xp);
+    
+    res.json({
+      success: true,
+      pointsEarned: challenge.reward_points,
+      xpEarned: challenge.reward_xp
+    });
+  } catch (e) {
+    console.error('Claim challenge error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get achievements
+app.get('/api/gamification/achievements', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    // Get all achievements with unlock status
+    const achievements = await pool.query(`
+      SELECT a.*, 
+        CASE WHEN ua.user_id IS NOT NULL THEN TRUE ELSE FALSE END as unlocked,
+        ua.unlocked_at
+      FROM achievements a
+      LEFT JOIN user_achievements ua ON a.id = ua.achievement_id AND ua.user_id = $1
+      ORDER BY a.threshold ASC
+    `, [userId]);
+    
+    res.json({ achievements: achievements.rows });
+  } catch (e) {
+    console.error('Achievements error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get rewards shop
+app.get('/api/gamification/rewards', async (req, res) => {
+  try {
+    const rewards = await pool.query(`
+      SELECT * FROM rewards WHERE active = TRUE ORDER BY cost ASC
+    `);
+    
+    res.json({ rewards: rewards.rows });
+  } catch (e) {
+    console.error('Rewards error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Claim a reward
+app.post('/api/gamification/rewards/:id/claim', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    await ensureUserGamification(userId);
+    
+    // Get the reward
+    const rewardResult = await pool.query('SELECT * FROM rewards WHERE id = $1 AND active = TRUE', [req.params.id]);
+    if (rewardResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Reward not found' });
+    }
+    
+    const reward = rewardResult.rows[0];
+    
+    // Check stock
+    if (reward.stock !== null && reward.stock <= 0) {
+      return res.status(400).json({ error: 'Out of stock' });
+    }
+    
+    // Check user balance
+    const pointsResult = await pool.query('SELECT balance FROM user_points WHERE user_id = $1', [userId]);
+    const balance = pointsResult.rows[0]?.balance || 0;
+    
+    if (balance < reward.cost) {
+      return res.status(400).json({ error: 'Not enough points', required: reward.cost, balance });
+    }
+    
+    // Deduct points
+    await pool.query('UPDATE user_points SET balance = balance - $1 WHERE user_id = $2', [reward.cost, userId]);
+    
+    // Log transaction (negative amount)
+    await pool.query(`
+      INSERT INTO points_transactions (user_id, amount, type, description, metadata)
+      VALUES ($1, $2, 'reward_claim', $3, $4)
+    `, [userId, -reward.cost, `Claimed: ${reward.name}`, JSON.stringify({ rewardId: reward.id })]);
+    
+    // Reduce stock if applicable
+    if (reward.stock !== null) {
+      await pool.query('UPDATE rewards SET stock = stock - 1 WHERE id = $1', [reward.id]);
+    }
+    
+    // Create user_reward record
+    await pool.query(`
+      INSERT INTO user_rewards (user_id, reward_id) VALUES ($1, $2)
+    `, [userId, reward.id]);
+    
+    res.json({
+      success: true,
+      reward: reward.name,
+      pointsSpent: reward.cost,
+      newBalance: balance - reward.cost
+    });
+  } catch (e) {
+    console.error('Claim reward error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get user's claimed rewards
+app.get('/api/gamification/my-rewards', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    const rewards = await pool.query(`
+      SELECT ur.*, r.name, r.description, r.image_url, r.category
+      FROM user_rewards ur
+      JOIN rewards r ON ur.reward_id = r.id
+      WHERE ur.user_id = $1
+      ORDER BY ur.claimed_at DESC
+    `, [userId]);
+    
+    res.json({ rewards: rewards.rows });
+  } catch (e) {
+    console.error('My rewards error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get points transaction history
+app.get('/api/gamification/transactions', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const transactions = await pool.query(`
+      SELECT * FROM points_transactions 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT $2
+    `, [userId, limit]);
+    
+    res.json({ transactions: transactions.rows });
+  } catch (e) {
+    console.error('Transactions error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Leaderboard - top users by points
+app.get('/api/gamification/leaderboard', async (req, res) => {
+  try {
+    const type = req.query.type || 'points'; // 'points', 'level', 'streak'
+    const limit = parseInt(req.query.limit) || 50;
+    
+    let query;
+    switch (type) {
+      case 'level':
+        query = `
+          SELECT u.id, u.username, u.display_name, u.avatar, ul.level, ul.xp
+          FROM users u
+          JOIN user_levels ul ON u.id = ul.user_id
+          ORDER BY ul.level DESC, ul.xp DESC
+          LIMIT $1
+        `;
+        break;
+      case 'streak':
+        query = `
+          SELECT u.id, u.username, u.display_name, u.avatar, us.current_streak, us.longest_streak
+          FROM users u
+          JOIN user_streaks us ON u.id = us.user_id
+          ORDER BY us.longest_streak DESC, us.current_streak DESC
+          LIMIT $1
+        `;
+        break;
+      default: // points
+        query = `
+          SELECT u.id, u.username, u.display_name, u.avatar, up.lifetime_earned as points
+          FROM users u
+          JOIN user_points up ON u.id = up.user_id
+          ORDER BY up.lifetime_earned DESC
+          LIMIT $1
+        `;
+    }
+    
+    const result = await pool.query(query, [limit]);
+    
+    res.json({ leaderboard: result.rows, type });
+  } catch (e) {
+    console.error('Leaderboard error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
 // SEED GAMES
 // ============================================
 
@@ -2321,6 +2985,7 @@ const seedGames = async () => {
 const start = async () => {
   await initDB();
   await runMigrations();
+  await runGamificationMigrations();
   // Don't auto-seed on startup - use admin panel to manage games
   // await seedGames();
   

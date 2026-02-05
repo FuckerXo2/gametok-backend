@@ -217,3 +217,200 @@ export const runMigrations = async () => {
     client.release();
   }
 };
+
+// Gamification tables
+export const runGamificationMigrations = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      -- User points and currency
+      CREATE TABLE IF NOT EXISTS user_points (
+        user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        balance INTEGER DEFAULT 0,
+        lifetime_earned INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- User streaks (daily login)
+      CREATE TABLE IF NOT EXISTS user_streaks (
+        user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        current_streak INTEGER DEFAULT 0,
+        longest_streak INTEGER DEFAULT 0,
+        last_claim_date DATE,
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- User levels and XP
+      CREATE TABLE IF NOT EXISTS user_levels (
+        user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        xp INTEGER DEFAULT 0,
+        level INTEGER DEFAULT 1,
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- Points transaction history
+      CREATE TABLE IF NOT EXISTS points_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        amount INTEGER NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        description TEXT,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- Daily challenges (rotating)
+      CREATE TABLE IF NOT EXISTS daily_challenges (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        type VARCHAR(50) NOT NULL,
+        target INTEGER NOT NULL,
+        reward_points INTEGER NOT NULL,
+        reward_xp INTEGER DEFAULT 0,
+        icon VARCHAR(50),
+        active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- User challenge progress
+      CREATE TABLE IF NOT EXISTS user_challenges (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        challenge_id UUID REFERENCES daily_challenges(id) ON DELETE CASCADE,
+        progress INTEGER DEFAULT 0,
+        completed BOOLEAN DEFAULT FALSE,
+        claimed BOOLEAN DEFAULT FALSE,
+        assigned_date DATE DEFAULT CURRENT_DATE,
+        completed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, challenge_id, assigned_date)
+      );
+      
+      -- Rewards shop items
+      CREATE TABLE IF NOT EXISTS rewards (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        image_url TEXT,
+        cost INTEGER NOT NULL,
+        category VARCHAR(50),
+        stock INTEGER,
+        active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- User claimed rewards
+      CREATE TABLE IF NOT EXISTS user_rewards (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        reward_id UUID REFERENCES rewards(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        claimed_at TIMESTAMP DEFAULT NOW(),
+        fulfilled_at TIMESTAMP
+      );
+      
+      -- Achievements/Badges
+      CREATE TABLE IF NOT EXISTS achievements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        icon VARCHAR(50),
+        type VARCHAR(50) NOT NULL,
+        threshold INTEGER NOT NULL,
+        reward_points INTEGER DEFAULT 0,
+        reward_xp INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      -- User unlocked achievements
+      CREATE TABLE IF NOT EXISTS user_achievements (
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        achievement_id UUID REFERENCES achievements(id) ON DELETE CASCADE,
+        unlocked_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (user_id, achievement_id)
+      );
+      
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_points_transactions_user ON points_transactions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_points_transactions_type ON points_transactions(type);
+      CREATE INDEX IF NOT EXISTS idx_user_challenges_user ON user_challenges(user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_challenges_date ON user_challenges(assigned_date);
+      CREATE INDEX IF NOT EXISTS idx_user_rewards_user ON user_rewards(user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
+    `);
+    console.log('✅ Gamification tables ready');
+    
+    // Seed default challenges if none exist
+    const challengeCount = await client.query('SELECT COUNT(*) FROM daily_challenges');
+    if (parseInt(challengeCount.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO daily_challenges (title, description, type, target, reward_points, reward_xp, icon) VALUES
+        ('Game Explorer', 'Play 3 different games', 'play_games', 3, 50, 25, '🎮'),
+        ('Dedicated Gamer', 'Play games for 10 minutes', 'play_time', 10, 75, 40, '⏱️'),
+        ('Social Butterfly', 'Like 5 games', 'like_games', 5, 30, 15, '❤️'),
+        ('Bookworm', 'Save 2 games to your collection', 'save_games', 2, 40, 20, '📚'),
+        ('Chatterbox', 'Leave 3 comments', 'post_comments', 3, 60, 30, '💬'),
+        ('High Scorer', 'Beat your high score in any game', 'beat_highscore', 1, 100, 50, '🏆'),
+        ('Marathon Runner', 'Play games for 30 minutes', 'play_time', 30, 150, 75, '🏃'),
+        ('Game Hopper', 'Play 5 different games', 'play_games', 5, 80, 40, '🦘'),
+        ('Friendly Face', 'Follow 2 new players', 'follow_users', 2, 50, 25, '👋'),
+        ('Sharing is Caring', 'Share a game with friends', 'share_game', 1, 40, 20, '📤')
+      `);
+      console.log('✅ Default challenges seeded');
+    }
+    
+    // Seed default achievements if none exist
+    const achievementCount = await client.query('SELECT COUNT(*) FROM achievements');
+    if (parseInt(achievementCount.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO achievements (name, description, icon, type, threshold, reward_points, reward_xp) VALUES
+        ('First Steps', 'Play your first game', '👶', 'games_played', 1, 10, 5),
+        ('Getting Started', 'Play 10 games', '🎮', 'games_played', 10, 50, 25),
+        ('Gamer', 'Play 50 games', '🕹️', 'games_played', 50, 200, 100),
+        ('Hardcore Gamer', 'Play 100 games', '🔥', 'games_played', 100, 500, 250),
+        ('Legend', 'Play 500 games', '👑', 'games_played', 500, 2000, 1000),
+        ('On Fire', 'Reach a 7-day streak', '🔥', 'streak', 7, 100, 50),
+        ('Unstoppable', 'Reach a 30-day streak', '💪', 'streak', 30, 500, 250),
+        ('Dedicated', 'Reach a 100-day streak', '⭐', 'streak', 100, 2000, 1000),
+        ('Rising Star', 'Reach level 5', '⭐', 'level', 5, 100, 50),
+        ('Pro Player', 'Reach level 10', '🌟', 'level', 10, 300, 150),
+        ('Elite', 'Reach level 25', '💎', 'level', 25, 1000, 500),
+        ('Master', 'Reach level 50', '🏆', 'level', 50, 5000, 2500),
+        ('Collector', 'Save 10 games', '📚', 'saves', 10, 50, 25),
+        ('Curator', 'Save 50 games', '🗃️', 'saves', 50, 200, 100),
+        ('Social Star', 'Get 100 followers', '⭐', 'followers', 100, 500, 250),
+        ('Influencer', 'Get 1000 followers', '🌟', 'followers', 1000, 2000, 1000),
+        ('Generous', 'Like 100 games', '❤️', 'likes_given', 100, 100, 50),
+        ('Supporter', 'Like 500 games', '💖', 'likes_given', 500, 500, 250),
+        ('Wealthy', 'Earn 10,000 lifetime points', '💰', 'lifetime_points', 10000, 500, 250),
+        ('Rich', 'Earn 100,000 lifetime points', '💎', 'lifetime_points', 100000, 5000, 2500)
+      `);
+      console.log('✅ Default achievements seeded');
+    }
+    
+    // Seed some aspirational rewards
+    const rewardCount = await client.query('SELECT COUNT(*) FROM rewards');
+    if (parseInt(rewardCount.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO rewards (name, description, cost, category, stock) VALUES
+        ('Custom Username Color', 'Stand out with a colored username', 500, 'cosmetic', NULL),
+        ('Profile Badge: OG', 'Show you were here early', 1000, 'badge', NULL),
+        ('Profile Badge: VIP', 'Exclusive VIP status badge', 5000, 'badge', NULL),
+        ('Ad-Free Hour', 'Play without ads for 1 hour', 200, 'boost', NULL),
+        ('2x Points Boost (1 day)', 'Double points for 24 hours', 1000, 'boost', NULL),
+        ('$5 Gift Card', 'Amazon/Apple/Google gift card', 50000, 'giftcard', 10),
+        ('$10 Gift Card', 'Amazon/Apple/Google gift card', 90000, 'giftcard', 5),
+        ('$25 Gift Card', 'Amazon/Apple/Google gift card', 200000, 'giftcard', 2),
+        ('GameTOK Merch', 'Exclusive GameTOK t-shirt', 75000, 'merch', 20),
+        ('Early Access', 'Get new games before everyone else', 10000, 'perk', NULL)
+      `);
+      console.log('✅ Default rewards seeded');
+    }
+    
+  } catch (e) {
+    console.log('Gamification migration error:', e.message);
+  } finally {
+    client.release();
+  }
+};
