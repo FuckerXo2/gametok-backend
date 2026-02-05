@@ -2401,11 +2401,9 @@ const getDailyBonus = (streak) => {
 
 // Helper to ensure user has gamification records
 const ensureUserGamification = async (userId) => {
-  await pool.query(`
-    INSERT INTO user_points (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
-    INSERT INTO user_streaks (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
-    INSERT INTO user_levels (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;
-  `, [userId]);
+  await pool.query('INSERT INTO user_points (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+  await pool.query('INSERT INTO user_streaks (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+  await pool.query('INSERT INTO user_levels (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
 };
 
 // Helper to award points and XP
