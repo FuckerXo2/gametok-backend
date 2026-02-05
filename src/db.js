@@ -193,3 +193,27 @@ export const initDB = async () => {
 };
 
 export default pool;
+
+// Run additional migrations for game_progress table
+export const runMigrations = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS game_progress (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        storage_data JSONB DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, game_id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_game_progress_user_game ON game_progress(user_id, game_id);
+    `);
+    console.log('✅ Game progress table ready');
+  } catch (e) {
+    console.log('Game progress migration:', e.message);
+  } finally {
+    client.release();
+  }
+};

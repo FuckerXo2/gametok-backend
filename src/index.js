@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { createServer } from 'http';
-import pool, { initDB } from './db.js';
+import pool, { initDB, runMigrations } from './db.js';
 import { initMultiplayer } from './multiplayer.js';
 
 const app = express();
@@ -1045,6 +1045,67 @@ app.post('/api/games/:id/size', async (req, res) => {
     
     res.json({ success: true });
   } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
+// GAME PROGRESS / CLOUD SAVES
+// ============================================
+
+// Get game progress for a user
+app.get('/api/games/:gameId/progress', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    
+    const userId = userResult.rows[0].id;
+    const result = await pool.query(
+      'SELECT storage_data FROM game_progress WHERE user_id = $1 AND game_id = $2',
+      [userId, req.params.gameId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ storageData: {} });
+    }
+    
+    res.json({ storageData: result.rows[0].storage_data || {} });
+  } catch (e) {
+    console.error('Get game progress error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Save game progress for a user
+app.post('/api/games/:gameId/progress', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  
+  const { storageData } = req.body;
+  if (!storageData || typeof storageData !== 'object') {
+    return res.status(400).json({ error: 'storageData object required' });
+  }
+  
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    
+    const userId = userResult.rows[0].id;
+    
+    // Upsert the progress
+    await pool.query(`
+      INSERT INTO game_progress (user_id, game_id, storage_data, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (user_id, game_id) 
+      DO UPDATE SET storage_data = $3, updated_at = NOW()
+    `, [userId, req.params.gameId, JSON.stringify(storageData)]);
+    
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Save game progress error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -2259,6 +2320,7 @@ const seedGames = async () => {
 
 const start = async () => {
   await initDB();
+  await runMigrations();
   // Don't auto-seed on startup - use admin panel to manage games
   // await seedGames();
   
