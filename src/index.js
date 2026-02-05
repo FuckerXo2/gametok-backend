@@ -2794,9 +2794,9 @@ app.get('/api/gamification/challenges', async (req, res) => {
       return res.json({ challenges: existingChallenges.rows });
     }
     
-    // Assign 3 random challenges for today
+    // Assign all daily challenges for today
     const availableChallenges = await pool.query(`
-      SELECT * FROM daily_challenges WHERE active = TRUE ORDER BY RANDOM() LIMIT 3
+      SELECT * FROM daily_challenges WHERE active = TRUE
     `);
     
     for (const challenge of availableChallenges.rows) {

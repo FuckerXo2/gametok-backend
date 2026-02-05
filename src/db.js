@@ -342,23 +342,16 @@ export const runGamificationMigrations = async () => {
     console.log('✅ Gamification tables ready');
     
     // Seed default challenges if none exist
-    const challengeCount = await client.query('SELECT COUNT(*) FROM daily_challenges');
-    if (parseInt(challengeCount.rows[0].count) === 0) {
-      await client.query(`
-        INSERT INTO daily_challenges (title, description, type, target, reward_points, reward_xp, icon) VALUES
-        ('Game Explorer', 'Play 3 different games', 'play_games', 3, 50, 25, '🎮'),
-        ('Dedicated Gamer', 'Play games for 10 minutes', 'play_time', 10, 75, 40, '⏱️'),
-        ('Social Butterfly', 'Like 5 games', 'like_games', 5, 30, 15, '❤️'),
-        ('Bookworm', 'Save 2 games to your collection', 'save_games', 2, 40, 20, '📚'),
-        ('Chatterbox', 'Leave 3 comments', 'post_comments', 3, 60, 30, '💬'),
-        ('High Scorer', 'Beat your high score in any game', 'beat_highscore', 1, 100, 50, '🏆'),
-        ('Marathon Runner', 'Play games for 30 minutes', 'play_time', 30, 150, 75, '🏃'),
-        ('Game Hopper', 'Play 5 different games', 'play_games', 5, 80, 40, '🦘'),
-        ('Friendly Face', 'Follow 2 new players', 'follow_users', 2, 50, 25, '👋'),
-        ('Sharing is Caring', 'Share a game with friends', 'share_game', 1, 40, 20, '📤')
-      `);
-      console.log('✅ Default challenges seeded');
-    }
+    // Clear and re-seed daily challenges with simple ones
+    await client.query('DELETE FROM user_challenges');
+    await client.query('DELETE FROM daily_challenges');
+    await client.query(`
+      INSERT INTO daily_challenges (title, description, type, target, reward_points, reward_xp, icon) VALUES
+      ('Play 3 Games', 'Play 3 different games', 'play_games', 3, 50, 0, '🎮'),
+      ('Play 10 Minutes', 'Play games for 10 minutes', 'play_time', 10, 75, 0, '⏱️'),
+      ('Like 5 Games', 'Like 5 games you enjoy', 'like_games', 5, 30, 0, '❤️')
+    `);
+    console.log('✅ Daily challenges seeded');
     
     // Seed default achievements if none exist
     const achievementCount = await client.query('SELECT COUNT(*) FROM achievements');
