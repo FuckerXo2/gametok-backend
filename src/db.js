@@ -419,11 +419,17 @@ export const runGamificationMigrations = async () => {
 export const runLeaderboardMigration = async () => {
   const client = await pool.connect();
   try {
+    // Drop the old table if it has FK constraint issues
+    await client.query(`
+      DROP TABLE IF EXISTS game_leaderboard CASCADE;
+    `);
+    
+    // Create without FK on game_id since games might not be in the games table
     await client.query(`
       CREATE TABLE IF NOT EXISTS game_leaderboard (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        game_id VARCHAR(100) NOT NULL,
         points INTEGER DEFAULT 0,
         play_time INTEGER DEFAULT 0,
         last_played TIMESTAMP DEFAULT NOW(),

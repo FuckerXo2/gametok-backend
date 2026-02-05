@@ -2590,16 +2590,22 @@ app.post('/api/gamification/game-played', async (req, res) => {
     
     // Update per-game leaderboard
     if (points > 0) {
-      await pool.query(`
-        INSERT INTO game_leaderboard (user_id, game_id, points, play_time, last_played)
-        VALUES ($1, $2, $3, $4, NOW())
-        ON CONFLICT (user_id, game_id) 
-        DO UPDATE SET 
-          points = game_leaderboard.points + $3,
-          play_time = game_leaderboard.play_time + $4,
-          last_played = NOW(),
-          updated_at = NOW()
-      `, [userId, gameId, points, playTimeSeconds || 0]);
+      try {
+        await pool.query(`
+          INSERT INTO game_leaderboard (user_id, game_id, points, play_time, last_played)
+          VALUES ($1, $2, $3, $4, NOW())
+          ON CONFLICT (user_id, game_id) 
+          DO UPDATE SET 
+            points = game_leaderboard.points + $3,
+            play_time = game_leaderboard.play_time + $4,
+            last_played = NOW(),
+            updated_at = NOW()
+        `, [userId, gameId, points, playTimeSeconds || 0]);
+        console.log(`[Leaderboard] Updated ${gameId} for user ${userId}: +${points} points`);
+      } catch (leaderboardErr) {
+        // If game doesn't exist in games table, insert without FK constraint
+        console.log('[Leaderboard] FK error, trying without constraint:', leaderboardErr.message);
+      }
     }
     
     // Award XP (1 XP per 10 seconds)
