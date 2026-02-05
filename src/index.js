@@ -2603,8 +2603,36 @@ app.post('/api/gamification/game-played', async (req, res) => {
         `, [userId, gameId, points, playTimeSeconds || 0]);
         console.log(`[Leaderboard] Updated ${gameId} for user ${userId}: +${points} points`);
       } catch (leaderboardErr) {
-        // If game doesn't exist in games table, insert without FK constraint
-        console.log('[Leaderboard] FK error, trying without constraint:', leaderboardErr.message);
+        console.error('[Leaderboard] Insert failed:', leaderboardErr.message);
+        // Table might not exist yet, try to create it
+        try {
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_leaderboard (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+              game_id VARCHAR(100) NOT NULL,
+              points INTEGER DEFAULT 0,
+              play_time INTEGER DEFAULT 0,
+              last_played TIMESTAMP DEFAULT NOW(),
+              updated_at TIMESTAMP DEFAULT NOW(),
+              UNIQUE(user_id, game_id)
+            )
+          `);
+          // Retry the insert
+          await pool.query(`
+            INSERT INTO game_leaderboard (user_id, game_id, points, play_time, last_played)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (user_id, game_id) 
+            DO UPDATE SET 
+              points = game_leaderboard.points + $3,
+              play_time = game_leaderboard.play_time + $4,
+              last_played = NOW(),
+              updated_at = NOW()
+          `, [userId, gameId, points, playTimeSeconds || 0]);
+          console.log(`[Leaderboard] Created table and inserted for ${gameId}`);
+        } catch (retryErr) {
+          console.error('[Leaderboard] Retry also failed:', retryErr.message);
+        }
       }
     }
     
