@@ -2583,18 +2583,19 @@ app.post('/api/gamification/game-played', async (req, res) => {
     const streakResult = await pool.query('SELECT current_streak FROM user_streaks WHERE user_id = $1', [userId]);
     const multiplier = getStreakMultiplier(streakResult.rows[0]?.current_streak || 0);
     
-    // Base points for playing (5 points per game, more for longer play)
-    let basePoints = 5;
-    if (playTimeSeconds && playTimeSeconds > 60) {
-      basePoints += Math.min(Math.floor(playTimeSeconds / 60), 10); // Up to 10 extra points for play time
-    }
+    // Points = 1 point per 5 seconds of play time (matching the live counter)
+    // This ensures the server awards the same amount the user saw ticking up
+    const basePoints = playTimeSeconds ? Math.floor(playTimeSeconds / 5) : 0;
     
     const points = Math.floor(basePoints * multiplier);
     await awardPoints(userId, points, 'game_played', `Played game`, { gameId, playTimeSeconds });
     
-    // Award XP
-    const xp = Math.floor(5 * multiplier);
-    await awardXP(userId, xp);
+    // Award XP (1 XP per 10 seconds)
+    const baseXp = playTimeSeconds ? Math.floor(playTimeSeconds / 10) : 0;
+    const xp = Math.floor(baseXp * multiplier);
+    if (xp > 0) {
+      await awardXP(userId, xp);
+    }
     
     // Update games_played count
     await pool.query('UPDATE users SET games_played = games_played + 1 WHERE id = $1', [userId]);
