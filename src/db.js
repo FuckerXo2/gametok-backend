@@ -415,6 +415,28 @@ export const runGamificationMigrations = async () => {
   }
 };
 
+// Deleted games tracking - prevents re-importing games that were deleted
+export const runDeletedGamesMigration = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS deleted_games (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255),
+        reason VARCHAR(100),
+        deleted_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_deleted_games_reason ON deleted_games(reason);
+    `);
+    console.log('✅ Deleted games tracking table ready');
+  } catch (e) {
+    console.log('Deleted games migration error:', e.message);
+  } finally {
+    client.release();
+  }
+};
+
 // Game leaderboard table - tracks points per user per game
 export const runLeaderboardMigration = async () => {
   const client = await pool.connect();

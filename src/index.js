@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { createServer } from 'http';
-import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration } from './db.js';
+import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration, runDeletedGamesMigration } from './db.js';
 import { initMultiplayer } from './multiplayer.js';
 
 const app = express();
@@ -315,6 +315,11 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
   const { count = 100, category, portraitOnly = false, maxSizeMB = 0, company, requireDeveloper = false } = req.body;
   
   try {
+    // Get list of previously deleted games to skip
+    const deletedGamesResult = await pool.query('SELECT id FROM deleted_games');
+    const deletedGameIds = new Set(deletedGamesResult.rows.map(r => r.id));
+    console.log(`Found ${deletedGameIds.size} previously deleted games to skip`);
+    
     // GameMonetize's category filter doesn't work reliably, so we fetch more and filter ourselves
     const fetchCount = (category || portraitOnly) ? Math.min(count * 20, 5000) : Math.min(count, 5000);
     let feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${fetchCount}`;
@@ -333,6 +338,19 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
     if (!Array.isArray(games) || games.length === 0) {
       return res.status(400).json({ error: 'No games found from GameMonetize' });
     }
+    
+    // Filter out previously deleted games FIRST
+    let skippedDeleted = 0;
+    const beforeDeletedFilter = games.length;
+    games = games.filter(g => {
+      const gameId = `gm-${g.id}`;
+      if (deletedGameIds.has(gameId)) {
+        skippedDeleted++;
+        return false;
+      }
+      return true;
+    });
+    console.log(`After deleted filter: ${games.length} games (${skippedDeleted} were previously deleted)`);
     
     // Filter out games without a developer if requireDeveloper is true
     let skippedNoDeveloper = 0;
@@ -474,6 +492,7 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
       skipped,
       skippedForSize: skippedForSize || 0,
       skippedNoDeveloper: skippedNoDeveloper || 0,
+      skippedDeleted: skippedDeleted || 0,
       totalGames: parseInt(totalResult.rows[0].count)
     });
   } catch (e) {
@@ -491,7 +510,7 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
   try {
     // Find games with known file_size that exceed the limit
     const largeGames = await pool.query(
-      "SELECT id, file_size FROM games WHERE file_size > $1",
+      "SELECT id, name, file_size FROM games WHERE file_size > $1",
       [maxSizeBytes]
     );
     
@@ -511,9 +530,14 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
       });
     }
     
-    // Delete large games
+    // Delete large games and track them
     for (const game of largeGames.rows) {
       console.log('Deleting large game: ' + game.id + ' - ' + (game.file_size / 1024 / 1024).toFixed(1) + 'MB');
+      // Track in deleted_games so we don't re-import
+      await pool.query(
+        'INSERT INTO deleted_games (id, name, reason) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
+        [game.id, game.name, 'too_large']
+      );
       await pool.query('DELETE FROM games WHERE id = $1', [game.id]);
     }
     
@@ -536,7 +560,7 @@ app.post('/api/admin/delete-no-developer', async (req, res) => {
   try {
     // Find GameMonetize games without a developer
     const noDeveloperGames = await pool.query(
-      "SELECT id FROM games WHERE id LIKE 'gm-%' AND (developer IS NULL OR developer = '')"
+      "SELECT id, name FROM games WHERE id LIKE 'gm-%' AND (developer IS NULL OR developer = '')"
     );
     
     if (noDeveloperGames.rows.length === 0) {
@@ -547,6 +571,14 @@ app.post('/api/admin/delete-no-developer', async (req, res) => {
         remaining: parseInt(totalResult.rows[0].count),
         message: 'No games found without a developer'
       });
+    }
+    
+    // Track deleted games so we don't re-import them
+    for (const game of noDeveloperGames.rows) {
+      await pool.query(
+        'INSERT INTO deleted_games (id, name, reason) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
+        [game.id, game.name, 'no_developer']
+      );
     }
     
     // Delete games without developer
@@ -578,7 +610,7 @@ app.post('/api/admin/delete-by-developer', async (req, res) => {
   try {
     // Find games by this developer (case-insensitive)
     const games = await pool.query(
-      "SELECT id FROM games WHERE LOWER(developer) = LOWER($1)",
+      "SELECT id, name FROM games WHERE LOWER(developer) = LOWER($1)",
       [developer]
     );
     
@@ -590,6 +622,14 @@ app.post('/api/admin/delete-by-developer', async (req, res) => {
         remaining: parseInt(totalResult.rows[0].count),
         message: `No games found from developer "${developer}"`
       });
+    }
+    
+    // Track deleted games so we don't re-import them
+    for (const game of games.rows) {
+      await pool.query(
+        'INSERT INTO deleted_games (id, name, reason) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
+        [game.id, game.name, `bad_developer:${developer}`]
+      );
     }
     
     // Delete games by developer
@@ -608,6 +648,55 @@ app.post('/api/admin/delete-by-developer', async (req, res) => {
   } catch (e) {
     console.error('Delete by developer error:', e);
     res.status(500).json({ error: 'Failed to delete games: ' + e.message });
+  }
+});
+
+// Get list of deleted games (for admin panel)
+app.get('/api/admin/deleted-games', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, reason, deleted_at FROM deleted_games ORDER BY deleted_at DESC LIMIT 500'
+    );
+    
+    // Group by reason
+    const byReason = {};
+    for (const game of result.rows) {
+      const reason = game.reason || 'unknown';
+      if (!byReason[reason]) byReason[reason] = 0;
+      byReason[reason]++;
+    }
+    
+    res.json({
+      total: result.rows.length,
+      byReason,
+      games: result.rows
+    });
+  } catch (e) {
+    console.error('Get deleted games error:', e);
+    res.status(500).json({ error: 'Failed to get deleted games: ' + e.message });
+  }
+});
+
+// Clear deleted games list (allows re-importing)
+app.post('/api/admin/clear-deleted-games', async (req, res) => {
+  const { reason } = req.body; // Optional: only clear specific reason
+  
+  try {
+    let result;
+    if (reason) {
+      result = await pool.query('DELETE FROM deleted_games WHERE reason = $1', [reason]);
+    } else {
+      result = await pool.query('DELETE FROM deleted_games');
+    }
+    
+    res.json({
+      success: true,
+      cleared: result.rowCount,
+      message: reason ? `Cleared ${result.rowCount} games with reason "${reason}"` : `Cleared all ${result.rowCount} deleted games`
+    });
+  } catch (e) {
+    console.error('Clear deleted games error:', e);
+    res.status(500).json({ error: 'Failed to clear deleted games: ' + e.message });
   }
 });
 
@@ -3161,6 +3250,7 @@ const start = async () => {
   await runMigrations();
   await runGamificationMigrations();
   await runLeaderboardMigration();
+  await runDeletedGamesMigration();
   // Don't auto-seed on startup - use admin panel to manage games
   // await seedGames();
   
