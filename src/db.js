@@ -419,28 +419,45 @@ export const runGamificationMigrations = async () => {
 export const runLeaderboardMigration = async () => {
   const client = await pool.connect();
   try {
-    // Drop the old table if it has FK constraint issues
-    await client.query(`
-      DROP TABLE IF EXISTS game_leaderboard CASCADE;
+    // First check if table exists and has the FK constraint issue
+    const tableCheck = await client.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'game_leaderboard'
+      );
     `);
     
-    // Create without FK on game_id since games might not be in the games table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS game_leaderboard (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-        game_id VARCHAR(100) NOT NULL,
-        points INTEGER DEFAULT 0,
-        play_time INTEGER DEFAULT 0,
-        last_played TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, game_id)
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_game_leaderboard_game ON game_leaderboard(game_id);
-      CREATE INDEX IF NOT EXISTS idx_game_leaderboard_points ON game_leaderboard(game_id, points DESC);
-      CREATE INDEX IF NOT EXISTS idx_game_leaderboard_user ON game_leaderboard(user_id);
-    `);
+    if (tableCheck.rows[0].exists) {
+      // Try to drop the FK constraint if it exists
+      try {
+        await client.query(`
+          ALTER TABLE game_leaderboard DROP CONSTRAINT IF EXISTS game_leaderboard_game_id_fkey;
+        `);
+        console.log('✅ Dropped FK constraint on game_leaderboard');
+      } catch (e) {
+        console.log('No FK constraint to drop or already dropped');
+      }
+    } else {
+      // Create the table fresh without FK on game_id
+      await client.query(`
+        CREATE TABLE game_leaderboard (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          game_id VARCHAR(100) NOT NULL,
+          points INTEGER DEFAULT 0,
+          play_time INTEGER DEFAULT 0,
+          last_played TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(user_id, game_id)
+        );
+        
+        CREATE INDEX idx_game_leaderboard_game ON game_leaderboard(game_id);
+        CREATE INDEX idx_game_leaderboard_points ON game_leaderboard(game_id, points DESC);
+        CREATE INDEX idx_game_leaderboard_user ON game_leaderboard(user_id);
+      `);
+      console.log('✅ Created game_leaderboard table');
+    }
+    
     console.log('✅ Game leaderboard table ready');
   } catch (e) {
     console.log('Leaderboard migration error:', e.message);
