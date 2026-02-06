@@ -408,6 +408,33 @@ export const runGamificationMigrations = async () => {
   }
 };
 
+// Coin economy config
+export const runCoinConfigMigration = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS coin_config (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        coins_per_usd INTEGER DEFAULT 1000,
+        earn_rate_per_second DECIMAL(10,4) DEFAULT 0.2,
+        min_withdrawal_usd DECIMAL(10,2) DEFAULT 10.00,
+        withdrawal_fee_percent INTEGER DEFAULT 15,
+        payouts_enabled BOOLEAN DEFAULT FALSE,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT single_row CHECK (id = 1)
+      );
+      
+      -- Insert default config if not exists
+      INSERT INTO coin_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+    `);
+    console.log('✅ Coin config table ready');
+  } catch (e) {
+    console.log('Coin config migration error:', e.message);
+  } finally {
+    client.release();
+  }
+};
+
 // Deleted games tracking - prevents re-importing games that were deleted
 export const runDeletedGamesMigration = async () => {
   const client = await pool.connect();

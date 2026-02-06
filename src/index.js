@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { createServer } from 'http';
-import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration, runDeletedGamesMigration } from './db.js';
+import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration, runDeletedGamesMigration, runCoinConfigMigration } from './db.js';
 import { initMultiplayer } from './multiplayer.js';
 
 const app = express();
@@ -697,6 +697,95 @@ app.post('/api/admin/clear-deleted-games', async (req, res) => {
   } catch (e) {
     console.error('Clear deleted games error:', e);
     res.status(500).json({ error: 'Failed to clear deleted games: ' + e.message });
+  }
+});
+
+// Get coin economy config
+app.get('/api/admin/coin-config', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM coin_config WHERE id = 1');
+    const config = result.rows[0] || {
+      coins_per_usd: 1000,
+      earn_rate_per_second: 0.2,
+      min_withdrawal_usd: 10,
+      withdrawal_fee_percent: 15,
+      payouts_enabled: false
+    };
+    
+    res.json({
+      coinsPerUsd: config.coins_per_usd,
+      earnRatePerSecond: parseFloat(config.earn_rate_per_second),
+      minWithdrawalUsd: parseFloat(config.min_withdrawal_usd),
+      withdrawalFeePercent: config.withdrawal_fee_percent,
+      payoutsEnabled: config.payouts_enabled,
+      // Calculated values
+      coinsPerHour: parseFloat(config.earn_rate_per_second) * 3600,
+      usdPerHour: (parseFloat(config.earn_rate_per_second) * 3600) / config.coins_per_usd
+    });
+  } catch (e) {
+    console.error('Get coin config error:', e);
+    res.status(500).json({ error: 'Failed to get coin config' });
+  }
+});
+
+// Update coin economy config
+app.post('/api/admin/coin-config', async (req, res) => {
+  const { coinsPerUsd, earnRatePerSecond, minWithdrawalUsd, withdrawalFeePercent, payoutsEnabled } = req.body;
+  
+  try {
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (coinsPerUsd !== undefined) {
+      updates.push(`coins_per_usd = $${paramIndex++}`);
+      values.push(coinsPerUsd);
+    }
+    if (earnRatePerSecond !== undefined) {
+      updates.push(`earn_rate_per_second = $${paramIndex++}`);
+      values.push(earnRatePerSecond);
+    }
+    if (minWithdrawalUsd !== undefined) {
+      updates.push(`min_withdrawal_usd = $${paramIndex++}`);
+      values.push(minWithdrawalUsd);
+    }
+    if (withdrawalFeePercent !== undefined) {
+      updates.push(`withdrawal_fee_percent = $${paramIndex++}`);
+      values.push(withdrawalFeePercent);
+    }
+    if (payoutsEnabled !== undefined) {
+      updates.push(`payouts_enabled = $${paramIndex++}`);
+      values.push(payoutsEnabled);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    updates.push('updated_at = NOW()');
+    
+    await pool.query(
+      `UPDATE coin_config SET ${updates.join(', ')} WHERE id = 1`,
+      values
+    );
+    
+    // Return updated config
+    const result = await pool.query('SELECT * FROM coin_config WHERE id = 1');
+    const config = result.rows[0];
+    
+    res.json({
+      success: true,
+      config: {
+        coinsPerUsd: config.coins_per_usd,
+        earnRatePerSecond: parseFloat(config.earn_rate_per_second),
+        minWithdrawalUsd: parseFloat(config.min_withdrawal_usd),
+        withdrawalFeePercent: config.withdrawal_fee_percent,
+        payoutsEnabled: config.payouts_enabled
+      }
+    });
+  } catch (e) {
+    console.error('Update coin config error:', e);
+    res.status(500).json({ error: 'Failed to update coin config' });
   }
 });
 
@@ -2544,17 +2633,22 @@ app.get('/api/gamification/stats', async (req, res) => {
     const pointsResult = await pool.query('SELECT * FROM user_points WHERE user_id = $1', [userId]);
     const streakResult = await pool.query('SELECT * FROM user_streaks WHERE user_id = $1', [userId]);
     const levelResult = await pool.query('SELECT * FROM user_levels WHERE user_id = $1', [userId]);
+    const configResult = await pool.query('SELECT * FROM coin_config WHERE id = 1');
     
     const points = pointsResult.rows[0];
     const streak = streakResult.rows[0];
     const level = levelResult.rows[0];
+    const coinConfig = configResult.rows[0] || { coins_per_usd: 1000, payouts_enabled: false };
     
     const levelInfo = calculateLevel(level.xp);
+    const usdValue = points.balance / coinConfig.coins_per_usd;
     
     res.json({
       points: {
         balance: points.balance,
-        lifetimeEarned: points.lifetime_earned
+        lifetimeEarned: points.lifetime_earned,
+        usdValue: parseFloat(usdValue.toFixed(2)),
+        coinsPerUsd: coinConfig.coins_per_usd
       },
       streak: {
         current: streak.current_streak,
@@ -2568,6 +2662,12 @@ app.get('/api/gamification/stats', async (req, res) => {
         currentXp: levelInfo.currentXp,
         xpForNextLevel: levelInfo.xpForNextLevel,
         progress: levelInfo.currentXp / levelInfo.xpForNextLevel
+      },
+      coinConfig: {
+        coinsPerUsd: coinConfig.coins_per_usd,
+        payoutsEnabled: coinConfig.payouts_enabled,
+        minWithdrawalUsd: parseFloat(coinConfig.min_withdrawal_usd || 10),
+        withdrawalFeePercent: coinConfig.withdrawal_fee_percent || 15
       }
     });
   } catch (e) {
@@ -3249,6 +3349,7 @@ const start = async () => {
   await runGamificationMigrations();
   await runLeaderboardMigration();
   await runDeletedGamesMigration();
+  await runCoinConfigMigration();
   // Don't auto-seed on startup - use admin panel to manage games
   // await seedGames();
   
