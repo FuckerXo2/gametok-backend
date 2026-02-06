@@ -424,9 +424,9 @@ export const runCoinConfigMigration = async () => {
         CONSTRAINT single_row CHECK (id = 1)
       );
       
-      -- Insert default config if not exists, or update to correct rate
+      -- Insert or force update to correct rate
       INSERT INTO coin_config (id, coins_per_usd) VALUES (1, 100000) 
-      ON CONFLICT (id) DO UPDATE SET coins_per_usd = 100000 WHERE coin_config.coins_per_usd = 1000;
+      ON CONFLICT (id) DO UPDATE SET coins_per_usd = 100000;
     `);
     console.log('✅ Coin config table ready');
   } catch (e) {
