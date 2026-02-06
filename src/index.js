@@ -705,7 +705,7 @@ app.get('/api/admin/coin-config', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM coin_config WHERE id = 1');
     const config = result.rows[0] || {
-      coins_per_usd: 1000,
+      coins_per_usd: 100000,
       earn_rate_per_second: 0.2,
       min_withdrawal_usd: 10,
       withdrawal_fee_percent: 15,

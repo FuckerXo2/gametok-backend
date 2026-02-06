@@ -415,7 +415,7 @@ export const runCoinConfigMigration = async () => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS coin_config (
         id INTEGER PRIMARY KEY DEFAULT 1,
-        coins_per_usd INTEGER DEFAULT 1000,
+        coins_per_usd INTEGER DEFAULT 100000,
         earn_rate_per_second DECIMAL(10,4) DEFAULT 0.2,
         min_withdrawal_usd DECIMAL(10,2) DEFAULT 10.00,
         withdrawal_fee_percent INTEGER DEFAULT 15,
@@ -424,8 +424,9 @@ export const runCoinConfigMigration = async () => {
         CONSTRAINT single_row CHECK (id = 1)
       );
       
-      -- Insert default config if not exists
-      INSERT INTO coin_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+      -- Insert default config if not exists, or update to correct rate
+      INSERT INTO coin_config (id, coins_per_usd) VALUES (1, 100000) 
+      ON CONFLICT (id) DO UPDATE SET coins_per_usd = 100000 WHERE coin_config.coins_per_usd = 1000;
     `);
     console.log('✅ Coin config table ready');
   } catch (e) {
