@@ -14,8 +14,8 @@ const HEAVY_EXTENSIONS = ['.wasm', '.data', '.unityweb', '.bundle', '.assets'];
 async function getGames() {
   const res = await fetch(`${API}/api/admin/games`);
   const data = await res.json();
-  // Only scan games that don't have a file_size yet
-  return data.games.filter(g => g.id.startsWith('gm-') && g.embedUrl && !g.fileSize);
+  // Scan all GameMonetize games with embed URLs
+  return data.games.filter(g => g.id.startsWith('gm-') && g.embedUrl);
 }
 
 async function measureGameSize(browser, game) {
