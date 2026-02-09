@@ -1179,6 +1179,33 @@ app.get('/api/games', async (req, res) => {
   }
 });
 
+// Search games - searches full database
+app.get('/api/games/search', async (req, res) => {
+  const query = req.query.q || '';
+  const limit = parseInt(req.query.limit) || 50;
+  
+  if (!query || query.length < 2) {
+    return res.json({ games: [], total: 0 });
+  }
+
+  try {
+    const searchPattern = `%${query.toLowerCase()}%`;
+    const result = await pool.query(
+      `SELECT * FROM games 
+       WHERE LOWER(name) LIKE $1 OR LOWER(category) LIKE $1 OR LOWER(description) LIKE $1
+       ORDER BY 
+         CASE WHEN LOWER(name) LIKE $2 THEN 0 ELSE 1 END,
+         plays DESC
+       LIMIT $3`,
+      [searchPattern, `${query.toLowerCase()}%`, limit]
+    );
+    res.json({ games: result.rows.map(formatGame), total: result.rows.length });
+  } catch (e) {
+    console.error('Search error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/games/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM games WHERE id = $1', [req.params.id]);
