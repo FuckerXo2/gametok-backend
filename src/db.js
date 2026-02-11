@@ -508,3 +508,38 @@ export const runLeaderboardMigration = async () => {
     client.release();
   }
 };
+
+// Stories table - 24h expiring stories
+export const runStoriesMigration = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS stories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        media_url TEXT NOT NULL,
+        media_type VARCHAR(20) DEFAULT 'image',
+        caption TEXT,
+        views INTEGER DEFAULT 0,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS story_views (
+        story_id UUID REFERENCES stories(id) ON DELETE CASCADE,
+        viewer_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        viewed_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (story_id, viewer_id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id);
+      CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_story_views_story ON story_views(story_id);
+    `);
+    console.log('✅ Stories tables ready');
+  } catch (e) {
+    console.log('Stories migration error:', e.message);
+  } finally {
+    client.release();
+  }
+};

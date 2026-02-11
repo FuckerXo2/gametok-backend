@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { createServer } from 'http';
-import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration, runDeletedGamesMigration, runCoinConfigMigration } from './db.js';
+import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration, runDeletedGamesMigration, runCoinConfigMigration, runStoriesMigration } from './db.js';
 import { initMultiplayer } from './multiplayer.js';
 
 const app = express();
@@ -3367,6 +3367,159 @@ const seedGames = async () => {
 };
 
 // ============================================
+// STORIES ENDPOINTS
+// ============================================
+
+// Get stories from users you follow (and your own)
+app.get('/api/stories', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    // Get stories from people you follow + your own, not expired
+    const result = await pool.query(`
+      SELECT s.*, u.username, u.display_name, u.avatar,
+             EXISTS(SELECT 1 FROM story_views WHERE story_id = s.id AND viewer_id = $1) as viewed
+      FROM stories s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.expires_at > NOW()
+        AND (s.user_id = $1 OR s.user_id IN (SELECT following_id FROM followers WHERE follower_id = $1))
+      ORDER BY 
+        CASE WHEN s.user_id = $1 THEN 0 ELSE 1 END,
+        s.created_at DESC
+    `, [userId]);
+    
+    // Group by user
+    const storiesByUser = {};
+    result.rows.forEach(story => {
+      if (!storiesByUser[story.user_id]) {
+        storiesByUser[story.user_id] = {
+          user: {
+            id: story.user_id,
+            username: story.username,
+            displayName: story.display_name,
+            avatar: story.avatar,
+          },
+          stories: [],
+          hasUnviewed: false,
+        };
+      }
+      storiesByUser[story.user_id].stories.push({
+        id: story.id,
+        mediaUrl: story.media_url,
+        mediaType: story.media_type,
+        caption: story.caption,
+        views: story.views,
+        viewed: story.viewed,
+        createdAt: story.created_at,
+        expiresAt: story.expires_at,
+      });
+      if (!story.viewed) {
+        storiesByUser[story.user_id].hasUnviewed = true;
+      }
+    });
+    
+    res.json({ stories: Object.values(storiesByUser) });
+  } catch (e) {
+    console.error('Get stories error:', e);
+    res.status(500).json({ error: 'Failed to get stories' });
+  }
+});
+
+// Create a story
+app.post('/api/stories', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { mediaUrl, mediaType = 'image', caption } = req.body;
+  if (!mediaUrl) return res.status(400).json({ error: 'Media URL required' });
+  
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    // Stories expire after 24 hours
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    
+    const result = await pool.query(
+      `INSERT INTO stories (user_id, media_url, media_type, caption, expires_at)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [userId, mediaUrl, mediaType, caption, expiresAt]
+    );
+    
+    res.json({ story: result.rows[0] });
+  } catch (e) {
+    console.error('Create story error:', e);
+    res.status(500).json({ error: 'Failed to create story' });
+  }
+});
+
+// View a story (mark as viewed)
+app.post('/api/stories/:storyId/view', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { storyId } = req.params;
+  
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const viewerId = userResult.rows[0].id;
+    
+    // Record view
+    await pool.query(
+      `INSERT INTO story_views (story_id, viewer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [storyId, viewerId]
+    );
+    
+    // Increment view count
+    await pool.query(
+      `UPDATE stories SET views = views + 1 WHERE id = $1`,
+      [storyId]
+    );
+    
+    res.json({ success: true });
+  } catch (e) {
+    console.error('View story error:', e);
+    res.status(500).json({ error: 'Failed to record view' });
+  }
+});
+
+// Delete a story (own only)
+app.delete('/api/stories/:storyId', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { storyId } = req.params;
+  
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+    
+    const result = await pool.query(
+      `DELETE FROM stories WHERE id = $1 AND user_id = $2 RETURNING id`,
+      [storyId, userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Story not found or not yours' });
+    }
+    
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Delete story error:', e);
+    res.status(500).json({ error: 'Failed to delete story' });
+  }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 
@@ -3377,6 +3530,7 @@ const start = async () => {
   await runLeaderboardMigration();
   await runDeletedGamesMigration();
   await runCoinConfigMigration();
+  await runStoriesMigration();
   // Don't auto-seed on startup - use admin panel to manage games
   // await seedGames();
   
