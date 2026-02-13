@@ -3520,6 +3520,118 @@ app.delete('/api/stories/:storyId', async (req, res) => {
 });
 
 // ============================================
+// GAME PROXY - Fetch game content with ads stripped
+// ============================================
+
+// Ad domains to strip from proxied content
+const PROXY_AD_DOMAINS = [
+  'imasdk.googleapis.com', 'pagead2.googlesyndication.com', 'doubleclick.net',
+  'googlesyndication.com', 'googleadservices.com', 'googleads.g.doubleclick.net',
+  'googletagmanager.com', 'google-analytics.com', 'adinplay.com', 'gamedistribution.com',
+  'gdsdk.com', 'adcolony.com', 'unityads.unity3d.com', 'applovin.com', 'chartboost.com',
+  'vungle.com', 'ironsrc.com', 'tapjoy.com', 'facebook.net', 'amazon-adsystem.com',
+  'criteo.com', 'outbrain.com', 'taboola.com', 'hotjar.com', 'mixpanel.com',
+  'segment.com', 'amplitude.com', 'branch.io', 'adjust.com', 'appsflyer.com',
+  'onetrust.com', 'cookielaw.org', 'quantcast.com',
+];
+
+// Proxy endpoint - fetches game HTML and strips ad scripts
+app.get('/api/proxy/game', async (req, res) => {
+  const { url } = req.query;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL required' });
+  }
+  
+  try {
+    // Fetch the game page
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+    
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch game' });
+    }
+    
+    let html = await response.text();
+    
+    // Strip ad-related script tags
+    PROXY_AD_DOMAINS.forEach(domain => {
+      // Remove script tags with src containing ad domain
+      const scriptRegex = new RegExp(`<script[^>]*src=["'][^"']*${domain.replace(/\./g, '\\.')}[^"']*["'][^>]*>.*?</script>`, 'gi');
+      html = html.replace(scriptRegex, '<!-- ad script removed -->');
+      
+      // Remove inline scripts that reference ad domains
+      const inlineRegex = new RegExp(`<script[^>]*>[^<]*${domain.replace(/\./g, '\\.')}[^<]*</script>`, 'gi');
+      html = html.replace(inlineRegex, '<!-- ad script removed -->');
+    });
+    
+    // Remove common ad container divs
+    const adDivPatterns = [
+      /<div[^>]*(?:id|class)=["'][^"']*(?:ad-container|ads-container|advertisement|preroll|interstitial|gdsdk)[^"']*["'][^>]*>.*?<\/div>/gi,
+      /<iframe[^>]*src=["'][^"']*(?:doubleclick|googlesyndication|imasdk)[^"']*["'][^>]*>.*?<\/iframe>/gi,
+    ];
+    
+    adDivPatterns.forEach(pattern => {
+      html = html.replace(pattern, '<!-- ad element removed -->');
+    });
+    
+    // Inject our ad blocker script at the start of head
+    const adBlockerScript = `
+<script>
+// GameTOK Ad Blocker - Injected by proxy
+(function() {
+  window.google = window.google || {};
+  window.google.ima = {
+    AdDisplayContainer: function() { this.initialize = function(){}; },
+    AdsLoader: function() { this.addEventListener = function(){}; this.requestAds = function(){}; },
+    AdsManager: function() { this.addEventListener = function(){}; this.init = function(){}; this.start = function(){}; },
+    AdsManagerLoadedEvent: { Type: { ADS_MANAGER_LOADED: 'adsManagerLoaded' } },
+    AdErrorEvent: { Type: { AD_ERROR: 'adError' } },
+    AdEvent: { Type: { CONTENT_PAUSE_REQUESTED: 'contentPauseRequested', CONTENT_RESUME_REQUESTED: 'contentResumeRequested', ALL_ADS_COMPLETED: 'allAdsCompleted' } },
+    AdsRenderingSettings: function(){},
+    AdsRequest: function(){},
+    ViewMode: { NORMAL: 'normal' },
+    settings: { setVpaidMode: function(){}, setLocale: function(){} }
+  };
+  window.sdk = window.gdsdk = {
+    showBanner: () => Promise.resolve(),
+    hideBanner: () => Promise.resolve(),
+    showAd: (t, cb) => { cb?.adFinished?.(); cb?.onComplete?.(); return Promise.resolve(); },
+    showRewardedAd: (cb) => { cb?.adFinished?.(); cb?.onReward?.(); return Promise.resolve(); },
+    preloadAd: (cb) => { cb?.(); return Promise.resolve(); },
+  };
+  // Block ad network requests
+  const origFetch = window.fetch;
+  const adDomains = ${JSON.stringify(PROXY_AD_DOMAINS)};
+  window.fetch = function(url) {
+    if (typeof url === 'string' && adDomains.some(d => url.includes(d))) {
+      return Promise.resolve(new Response('', { status: 200 }));
+    }
+    return origFetch.apply(this, arguments);
+  };
+})();
+</script>
+`;
+    
+    // Inject at start of head
+    html = html.replace(/<head[^>]*>/i, `$&${adBlockerScript}`);
+    
+    // Set appropriate headers
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    res.send(html);
+    
+  } catch (e) {
+    console.error('Proxy error:', e);
+    res.status(500).json({ error: 'Proxy failed' });
+  }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 
