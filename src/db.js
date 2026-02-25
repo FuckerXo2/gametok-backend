@@ -145,6 +145,16 @@ export const initDB = async () => {
         UNIQUE(user_id, game_id)
       );
 
+      CREATE TABLE IF NOT EXISTS push_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL,
+        device_type VARCHAR(20),
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_used_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, token)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
       CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
@@ -152,6 +162,7 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
       CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(blocker_id);
       CREATE INDEX IF NOT EXISTS idx_saved_games_user ON saved_games(user_id);
+      CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
       
       -- Insert initial scan progress row
       INSERT INTO scan_progress (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
@@ -415,7 +426,7 @@ export const runCoinConfigMigration = async () => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS coin_config (
         id INTEGER PRIMARY KEY DEFAULT 1,
-        coins_per_usd INTEGER DEFAULT 100000,
+        coins_per_usd INTEGER DEFAULT 5667,
         earn_rate_per_second DECIMAL(10,4) DEFAULT 0.2,
         min_withdrawal_usd DECIMAL(10,2) DEFAULT 10.00,
         withdrawal_fee_percent INTEGER DEFAULT 15,
@@ -425,8 +436,8 @@ export const runCoinConfigMigration = async () => {
       );
       
       -- Insert or force update to correct rate
-      INSERT INTO coin_config (id, coins_per_usd) VALUES (1, 100000) 
-      ON CONFLICT (id) DO UPDATE SET coins_per_usd = 100000;
+      INSERT INTO coin_config (id, coins_per_usd) VALUES (1, 5667) 
+      ON CONFLICT (id) DO UPDATE SET coins_per_usd = 5667;
     `);
     console.log('✅ Coin config table ready');
   } catch (e) {
@@ -539,6 +550,129 @@ export const runStoriesMigration = async () => {
     console.log('✅ Stories tables ready');
   } catch (e) {
     console.log('Stories migration error:', e.message);
+  } finally {
+    client.release();
+  }
+};
+
+
+// ============================================
+// PUSH NOTIFICATIONS
+// ============================================
+
+export const savePushToken = async (userId, token, deviceType = 'mobile') => {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO push_tokens (user_id, token, device_type, last_used_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, token) 
+       DO UPDATE SET last_used_at = NOW()`,
+      [userId, token, deviceType]
+    );
+    return { success: true };
+  } finally {
+    client.release();
+  }
+};
+
+export const removePushToken = async (userId, token = null) => {
+  const client = await pool.connect();
+  try {
+    if (token) {
+      // Remove specific token
+      await client.query(
+        'DELETE FROM push_tokens WHERE user_id = $1 AND token = $2',
+        [userId, token]
+      );
+    } else {
+      // Remove all tokens for user (logout)
+      await client.query(
+        'DELETE FROM push_tokens WHERE user_id = $1',
+        [userId]
+      );
+    }
+    return { success: true };
+  } finally {
+    client.release();
+  }
+};
+
+export const getPushTokens = async (userIds) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT DISTINCT token FROM push_tokens WHERE user_id = ANY($1::uuid[])',
+      [userIds]
+    );
+    return result.rows.map(row => row.token);
+  } finally {
+    client.release();
+  }
+};
+
+export const getInactiveUsers = async (daysInactive = 3) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT u.id, u.username, u.display_name,
+              EXTRACT(DAY FROM NOW() - MAX(s.created_at)) as days_inactive
+       FROM users u
+       LEFT JOIN scores s ON u.id = s.user_id
+       WHERE u.id IN (SELECT DISTINCT user_id FROM push_tokens)
+       GROUP BY u.id
+       HAVING MAX(s.created_at) < NOW() - INTERVAL '${daysInactive} days'
+          OR MAX(s.created_at) IS NULL`,
+      []
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+};
+
+export const getUsersWithPendingRewards = async () => {
+  const client = await pool.connect();
+  try {
+    // Users who haven't claimed today's reward
+    const result = await client.query(
+      `SELECT u.id, u.username, 100 as reward_amount
+       FROM users u
+       WHERE u.id IN (SELECT DISTINCT user_id FROM push_tokens)
+         AND NOT EXISTS (
+           SELECT 1 FROM points_transactions pt
+           WHERE pt.user_id = u.id
+             AND pt.type = 'daily_reward'
+             AND pt.created_at::date = CURRENT_DATE
+         )
+       LIMIT 1000`,
+      []
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+};
+
+export const getUsersWithActiveFriends = async () => {
+  const client = await pool.connect();
+  try {
+    // Users whose friends played in the last hour
+    const result = await client.query(
+      `SELECT u.id, u.username,
+              ARRAY_AGG(DISTINCT fu.display_name) as active_friend_names
+       FROM users u
+       INNER JOIN followers f ON u.id = f.follower_id
+       INNER JOIN users fu ON f.following_id = fu.id
+       INNER JOIN scores s ON fu.id = s.user_id
+       WHERE u.id IN (SELECT DISTINCT user_id FROM push_tokens)
+         AND s.created_at > NOW() - INTERVAL '1 hour'
+       GROUP BY u.id
+       HAVING COUNT(DISTINCT fu.id) > 0
+       LIMIT 100`,
+      []
+    );
+    return result.rows;
   } finally {
     client.release();
   }

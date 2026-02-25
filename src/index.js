@@ -97,7 +97,7 @@ app.patch('/api/admin/config', (req, res) => {
 
 app.post('/api/auth/signup', async (req, res) => {
   const { username, email, password, displayName } = req.body;
-  
+
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   if (username.length < 3 || username.length > 20) return res.status(400).json({ error: 'Username must be 3-20 chars' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be 6+ chars' });
@@ -112,7 +112,7 @@ app.post('/api/auth/signup', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [username, email || null, hashPassword(password), displayName || username, token]
     );
-    
+
     const user = result.rows[0];
     res.json({ user: formatUser(user), token });
   } catch (e) {
@@ -128,7 +128,7 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1)', [username]);
     const user = result.rows[0];
-    
+
     if (!user || user.password !== hashPassword(password)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -136,7 +136,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = generateToken();
     await pool.query('UPDATE users SET token = $1 WHERE id = $2', [token, user.id]);
     user.token = token;
-    
+
     res.json({ user: formatUser(user), token });
   } catch (e) {
     console.error(e);
@@ -147,7 +147,7 @@ app.post('/api/auth/login', async (req, res) => {
 // OAuth endpoint for Apple/Google Sign-In
 app.post('/api/auth/oauth', async (req, res) => {
   const { provider, identityToken, idToken, email, fullName, user: oauthUser } = req.body;
-  
+
   if (!provider) return res.status(400).json({ error: 'Provider required' });
 
   try {
@@ -201,10 +201,10 @@ app.post('/api/auth/oauth', async (req, res) => {
       if (!user) {
         // Create new user - mark as new so frontend shows onboarding
         isNewUser = true;
-        const username = userEmail 
+        const username = userEmail
           ? userEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(Math.random() * 1000)
           : `user${Date.now()}`;
-        
+
         result = await pool.query(
           `INSERT INTO users (username, email, display_name, oauth_provider, oauth_id, token) 
            VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
@@ -293,13 +293,13 @@ async function getFileSizeFromUrl(url) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-    
-    const response = await fetch(url, { 
+
+    const response = await fetch(url, {
       method: 'HEAD',
       signal: controller.signal
     });
     clearTimeout(timeout);
-    
+
     const contentLength = response.headers.get('content-length');
     if (contentLength) {
       return parseInt(contentLength, 10);
@@ -313,32 +313,32 @@ async function getFileSizeFromUrl(url) {
 // Bulk import games from GameMonetize
 app.post('/api/admin/import-gamemonetize', async (req, res) => {
   const { count = 100, category, portraitOnly = false, maxSizeMB = 0, company, requireDeveloper = false } = req.body;
-  
+
   try {
     // Get list of previously deleted games to skip
     const deletedGamesResult = await pool.query('SELECT id FROM deleted_games');
     const deletedGameIds = new Set(deletedGamesResult.rows.map(r => r.id));
     console.log(`Found ${deletedGameIds.size} previously deleted games to skip`);
-    
+
     // GameMonetize's category filter doesn't work reliably, so we fetch more and filter ourselves
     const fetchCount = (category || portraitOnly) ? Math.min(count * 20, 5000) : Math.min(count, 5000);
     let feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=${fetchCount}`;
-    
+
     // Add company filter if specified (developer filter)
     if (company) {
       feedUrl += `&company=${encodeURIComponent(company)}`;
     }
-    
+
     console.log(`Fetching games from: ${feedUrl}`);
-    
+
     // Fetch games from GameMonetize
     const response = await fetch(feedUrl);
     let games = await response.json();
-    
+
     if (!Array.isArray(games) || games.length === 0) {
       return res.status(400).json({ error: 'No games found from GameMonetize' });
     }
-    
+
     // Filter out previously deleted games FIRST
     let skippedDeleted = 0;
     const beforeDeletedFilter = games.length;
@@ -351,7 +351,7 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
       return true;
     });
     console.log(`After deleted filter: ${games.length} games (${skippedDeleted} were previously deleted)`);
-    
+
     // Filter out games without a developer if requireDeveloper is true
     let skippedNoDeveloper = 0;
     if (requireDeveloper) {
@@ -360,13 +360,13 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
       skippedNoDeveloper = beforeCount - games.length;
       console.log(`After developer filter: ${games.length} games (${skippedNoDeveloper} had no developer)`);
     }
-    
+
     // Filter by category if specified (case-insensitive)
     if (category) {
       const categoryLower = category.toLowerCase();
       games = games.filter(g => g.category && g.category.toLowerCase() === categoryLower);
     }
-    
+
     // Filter portrait-only games (height > width) for vertical phone screens
     if (portraitOnly) {
       games = games.filter(g => {
@@ -376,21 +376,21 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
       });
       console.log(`After portrait filter: ${games.length} games`);
     }
-    
+
     games = games.slice(0, count); // Limit to requested count
-    
+
     if (games.length === 0) {
       return res.status(400).json({ error: 'No games found matching filters (most games have no developer listed)' });
     }
-    
+
     // Filter by size if maxSizeMB is specified
     const maxSizeBytes = maxSizeMB > 0 ? maxSizeMB * 1024 * 1024 : 0;
     let skippedForSize = 0;
-    
+
     if (maxSizeBytes > 0) {
       console.log(`Checking game sizes (max ${maxSizeMB}MB)... This may take a while.`);
       const filteredGames = [];
-      
+
       for (const game of games) {
         if (game.url) {
           const size = await getFileSizeFromUrl(game.url);
@@ -407,25 +407,25 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
           filteredGames.push(game);
         }
       }
-      
+
       games = filteredGames;
       console.log(`After size filter: ${games.length} games (${skippedForSize} skipped for being too large)`);
     }
-    
+
     if (games.length === 0) {
       return res.status(400).json({ error: `No games found under ${maxSizeMB}MB (${skippedForSize} were too large)` });
     }
-    
+
     console.log(`Found ${games.length} games, importing...`);
-    
+
     let imported = 0;
     let skipped = 0;
-    
+
     for (const game of games) {
       try {
         // Generate a unique ID from GameMonetize ID
         const gameId = `gm-${game.id}`;
-        
+
         // Map category to emoji icon
         const categoryIcons = {
           'Arcade': '🕹️',
@@ -441,9 +441,9 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
           'Shooting': '🔫',
           'Multiplayer': '👥',
         };
-        
+
         const icon = categoryIcons[game.category] || '🎮';
-        
+
         // Generate a color based on category
         const categoryColors = {
           'Arcade': '#FF6B6B',
@@ -459,9 +459,9 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
           'Shooting': '#E17055',
           'Multiplayer': '#00B894',
         };
-        
+
         const color = categoryColors[game.category] || '#FF6B6B';
-        
+
         await pool.query(
           `INSERT INTO games (id, name, description, icon, color, category, embed_url, thumbnail, developer) 
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
@@ -483,12 +483,12 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
         skipped++;
       }
     }
-    
+
     const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-    
-    res.json({ 
-      success: true, 
-      imported, 
+
+    res.json({
+      success: true,
+      imported,
       skipped,
       skippedForSize: skippedForSize || 0,
       skippedNoDeveloper: skippedNoDeveloper || 0,
@@ -506,30 +506,30 @@ app.post('/api/admin/import-gamemonetize', async (req, res) => {
 app.post('/api/admin/delete-large-games', async (req, res) => {
   const { maxSizeMB = 10 } = req.body;
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
-  
+
   try {
     // Find games with known file_size that exceed the limit
     const largeGames = await pool.query(
       "SELECT id, name, file_size FROM games WHERE file_size > $1",
       [maxSizeBytes]
     );
-    
+
     // Also get count of games with unknown size
     const unknownSizeCount = await pool.query(
       "SELECT COUNT(*) FROM games WHERE file_size IS NULL AND id LIKE 'gm-%'"
     );
-    
+
     if (largeGames.rows.length === 0) {
       const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-      return res.json({ 
-        success: true, 
-        deleted: 0, 
+      return res.json({
+        success: true,
+        deleted: 0,
         remaining: parseInt(totalResult.rows[0].count),
         unknownSize: parseInt(unknownSizeCount.rows[0].count),
         message: 'No games found over ' + maxSizeMB + 'MB. ' + unknownSizeCount.rows[0].count + ' games have unknown size (need to be loaded in app first).'
       });
     }
-    
+
     // Delete large games and track them
     for (const game of largeGames.rows) {
       console.log('Deleting large game: ' + game.id + ' - ' + (game.file_size / 1024 / 1024).toFixed(1) + 'MB');
@@ -540,11 +540,11 @@ app.post('/api/admin/delete-large-games', async (req, res) => {
       );
       await pool.query('DELETE FROM games WHERE id = $1', [game.id]);
     }
-    
+
     const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       deleted: largeGames.rows.length,
       remaining: parseInt(totalResult.rows[0].count),
       unknownSize: parseInt(unknownSizeCount.rows[0].count)
@@ -562,17 +562,17 @@ app.post('/api/admin/delete-no-developer', async (req, res) => {
     const noDeveloperGames = await pool.query(
       "SELECT id, name FROM games WHERE id LIKE 'gm-%' AND (developer IS NULL OR developer = '')"
     );
-    
+
     if (noDeveloperGames.rows.length === 0) {
       const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-      return res.json({ 
-        success: true, 
-        deleted: 0, 
+      return res.json({
+        success: true,
+        deleted: 0,
         remaining: parseInt(totalResult.rows[0].count),
         message: 'No games found without a developer'
       });
     }
-    
+
     // Track deleted games so we don't re-import them
     for (const game of noDeveloperGames.rows) {
       await pool.query(
@@ -580,16 +580,16 @@ app.post('/api/admin/delete-no-developer', async (req, res) => {
         [game.id, game.name, 'no_developer']
       );
     }
-    
+
     // Delete games without developer
     const deleteResult = await pool.query(
       "DELETE FROM games WHERE id LIKE 'gm-%' AND (developer IS NULL OR developer = '')"
     );
-    
+
     const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       deleted: noDeveloperGames.rows.length,
       remaining: parseInt(totalResult.rows[0].count)
     });
@@ -602,28 +602,28 @@ app.post('/api/admin/delete-no-developer', async (req, res) => {
 // Delete all games by a specific developer
 app.post('/api/admin/delete-by-developer', async (req, res) => {
   const { developer } = req.body;
-  
+
   if (!developer) {
     return res.status(400).json({ error: 'Developer name is required' });
   }
-  
+
   try {
     // Find games by this developer (case-insensitive)
     const games = await pool.query(
       "SELECT id, name FROM games WHERE LOWER(developer) = LOWER($1)",
       [developer]
     );
-    
+
     if (games.rows.length === 0) {
       const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-      return res.json({ 
-        success: true, 
-        deleted: 0, 
+      return res.json({
+        success: true,
+        deleted: 0,
         remaining: parseInt(totalResult.rows[0].count),
         message: `No games found from developer "${developer}"`
       });
     }
-    
+
     // Track deleted games so we don't re-import them
     for (const game of games.rows) {
       await pool.query(
@@ -631,17 +631,17 @@ app.post('/api/admin/delete-by-developer', async (req, res) => {
         [game.id, game.name, `bad_developer:${developer}`]
       );
     }
-    
+
     // Delete games by developer
     await pool.query(
       "DELETE FROM games WHERE LOWER(developer) = LOWER($1)",
       [developer]
     );
-    
+
     const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       deleted: games.rows.length,
       remaining: parseInt(totalResult.rows[0].count)
     });
@@ -657,7 +657,7 @@ app.get('/api/admin/deleted-games', async (req, res) => {
     const result = await pool.query(
       'SELECT id, name, reason, deleted_at FROM deleted_games ORDER BY deleted_at DESC LIMIT 500'
     );
-    
+
     // Group by reason
     const byReason = {};
     for (const game of result.rows) {
@@ -665,7 +665,7 @@ app.get('/api/admin/deleted-games', async (req, res) => {
       if (!byReason[reason]) byReason[reason] = 0;
       byReason[reason]++;
     }
-    
+
     res.json({
       total: result.rows.length,
       byReason,
@@ -680,7 +680,7 @@ app.get('/api/admin/deleted-games', async (req, res) => {
 // Clear deleted games list (allows re-importing)
 app.post('/api/admin/clear-deleted-games', async (req, res) => {
   const { reason } = req.body; // Optional: only clear specific reason
-  
+
   try {
     let result;
     if (reason) {
@@ -688,7 +688,7 @@ app.post('/api/admin/clear-deleted-games', async (req, res) => {
     } else {
       result = await pool.query('DELETE FROM deleted_games');
     }
-    
+
     res.json({
       success: true,
       cleared: result.rowCount,
@@ -705,13 +705,13 @@ app.get('/api/admin/coin-config', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM coin_config WHERE id = 1');
     const config = result.rows[0] || {
-      coins_per_usd: 100000,
+      coins_per_usd: 5667,
       earn_rate_per_second: 0.2,
       min_withdrawal_usd: 10,
       withdrawal_fee_percent: 15,
       payouts_enabled: false
     };
-    
+
     res.json({
       coinsPerUsd: config.coins_per_usd,
       earnRatePerSecond: parseFloat(config.earn_rate_per_second),
@@ -731,12 +731,12 @@ app.get('/api/admin/coin-config', async (req, res) => {
 // Update coin economy config
 app.post('/api/admin/coin-config', async (req, res) => {
   const { coinsPerUsd, earnRatePerSecond, minWithdrawalUsd, withdrawalFeePercent, payoutsEnabled } = req.body;
-  
+
   try {
     const updates = [];
     const values = [];
     let paramIndex = 1;
-    
+
     if (coinsPerUsd !== undefined) {
       updates.push(`coins_per_usd = $${paramIndex++}`);
       values.push(coinsPerUsd);
@@ -757,22 +757,22 @@ app.post('/api/admin/coin-config', async (req, res) => {
       updates.push(`payouts_enabled = $${paramIndex++}`);
       values.push(payoutsEnabled);
     }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    
+
     updates.push('updated_at = NOW()');
-    
+
     await pool.query(
       `UPDATE coin_config SET ${updates.join(', ')} WHERE id = 1`,
       values
     );
-    
+
     // Return updated config
     const result = await pool.query('SELECT * FROM coin_config WHERE id = 1');
     const config = result.rows[0];
-    
+
     res.json({
       success: true,
       config: {
@@ -794,14 +794,14 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
   try {
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
     const GITHUB_REPO = 'FuckerXo2/gametok-backend';
-    
+
     if (!GITHUB_TOKEN) {
       return res.status(500).json({ error: 'GitHub token not configured' });
     }
-    
+
     // Ensure scan_progress row exists
     await pool.query('INSERT INTO scan_progress (id) VALUES (1) ON CONFLICT (id) DO NOTHING');
-    
+
     // Reset progress in database
     await pool.query(
       `UPDATE scan_progress SET 
@@ -813,7 +813,7 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
         updated_at = NOW()
        WHERE id = 1`
     );
-    
+
     // Trigger the workflow
     const response = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/dispatches`,
@@ -827,7 +827,7 @@ app.post('/api/admin/trigger-size-scan', async (req, res) => {
         body: JSON.stringify({ ref: 'main' })
       }
     );
-    
+
     if (response.status === 204) {
       res.json({ success: true, message: 'Game size scan triggered successfully' });
     } else {
@@ -851,9 +851,9 @@ app.post('/api/admin/reset-scan', async (req, res) => {
   try {
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
     const GITHUB_REPO = 'FuckerXo2/gametok-backend';
-    
+
     let workflowCancelled = false;
-    
+
     // Try to cancel any running GitHub workflow
     if (GITHUB_TOKEN) {
       try {
@@ -867,10 +867,10 @@ app.post('/api/admin/reset-scan', async (req, res) => {
             }
           }
         );
-        
+
         if (runsResponse.ok) {
           const runsData = await runsResponse.json();
-          
+
           // Cancel all in-progress runs
           for (const run of (runsData.workflow_runs || [])) {
             console.log(`Cancelling workflow run ${run.id}...`);
@@ -889,7 +889,7 @@ app.post('/api/admin/reset-scan', async (req, res) => {
               console.log(`Workflow run ${run.id} cancelled`);
             }
           }
-          
+
           // Also check for queued runs
           const queuedResponse = await fetch(
             `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/runs?status=queued&per_page=5`,
@@ -900,7 +900,7 @@ app.post('/api/admin/reset-scan', async (req, res) => {
               }
             }
           );
-          
+
           if (queuedResponse.ok) {
             const queuedData = await queuedResponse.json();
             for (const run of (queuedData.workflow_runs || [])) {
@@ -922,7 +922,7 @@ app.post('/api/admin/reset-scan', async (req, res) => {
         console.error('Failed to cancel GitHub workflow:', ghError);
       }
     }
-    
+
     // Reset database status
     await pool.query(`
       UPDATE scan_progress SET 
@@ -933,9 +933,9 @@ app.post('/api/admin/reset-scan', async (req, res) => {
         updated_at = NOW() 
       WHERE id = 1
     `);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: workflowCancelled ? 'Scan cancelled and status reset' : 'Scan status reset (no running workflow found)',
       workflowCancelled
     });
@@ -949,15 +949,15 @@ app.get('/api/admin/scan-status', async (req, res) => {
   try {
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
     const GITHUB_REPO = 'FuckerXo2/gametok-backend';
-    
+
     if (!GITHUB_TOKEN) {
       return res.json({ status: 'unknown', error: 'GitHub token not configured' });
     }
-    
+
     // Get scan progress from database
     const progressResult = await pool.query('SELECT * FROM scan_progress WHERE id = 1');
     const progress = progressResult.rows[0] || { is_scanning: false, scanned_games: 0, total_games: 0, current_game: null };
-    
+
     // Get latest workflow runs for scan-game-sizes.yml
     const response = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/scan-game-sizes.yml/runs?per_page=1`,
@@ -968,31 +968,31 @@ app.get('/api/admin/scan-status', async (req, res) => {
         }
       }
     );
-    
+
     if (!response.ok) {
-      return res.json({ 
-        status: 'unknown', 
+      return res.json({
+        status: 'unknown',
         error: 'Failed to fetch workflow status',
         scannedGames: progress.scanned_games,
         totalGames: progress.total_games,
         currentGame: progress.current_game
       });
     }
-    
+
     const data = await response.json();
-    
+
     if (!data.workflow_runs || data.workflow_runs.length === 0) {
-      return res.json({ 
-        status: 'none', 
+      return res.json({
+        status: 'none',
         message: 'No workflow runs found',
         scannedGames: progress.scanned_games,
         totalGames: progress.total_games,
         currentGame: progress.current_game
       });
     }
-    
+
     const latestRun = data.workflow_runs[0];
-    
+
     // Map GitHub status to our status
     let status = 'unknown';
     if (latestRun.status === 'queued' || latestRun.status === 'in_progress') {
@@ -1004,7 +1004,7 @@ app.get('/api/admin/scan-status', async (req, res) => {
         await pool.query('UPDATE scan_progress SET is_scanning = FALSE, updated_at = NOW() WHERE id = 1');
       }
     }
-    
+
     res.json({
       status,
       runId: latestRun.id,
@@ -1028,16 +1028,16 @@ app.post('/api/admin/delete-landscape-games', async (req, res) => {
     // Get all GameMonetize games from our database
     const dbGames = await pool.query("SELECT id FROM games WHERE id LIKE 'gm-%'");
     const gmIds = dbGames.rows.map(r => r.id.replace('gm-', ''));
-    
+
     if (gmIds.length === 0) {
       return res.json({ success: true, deleted: 0, message: 'No GameMonetize games found' });
     }
-    
+
     // Fetch game data from GameMonetize to get dimensions
     const feedUrl = `https://gamemonetize.com/feed.php?format=0&type=mobile&num=5000`;
     const response = await fetch(feedUrl);
     const allGames = await response.json();
-    
+
     // Create a map of game ID -> dimensions
     const gameMap = {};
     for (const game of allGames) {
@@ -1046,7 +1046,7 @@ app.post('/api/admin/delete-landscape-games', async (req, res) => {
         height: parseInt(game.height) || 600
       };
     }
-    
+
     // Find landscape games (width >= height)
     const landscapeIds = [];
     for (const gmId of gmIds) {
@@ -1055,19 +1055,19 @@ app.post('/api/admin/delete-landscape-games', async (req, res) => {
         landscapeIds.push(`gm-${gmId}`);
       }
     }
-    
+
     if (landscapeIds.length === 0) {
       return res.json({ success: true, deleted: 0, message: 'No landscape games found' });
     }
-    
+
     // Delete landscape games
     const placeholders = landscapeIds.map((_, i) => `$${i + 1}`).join(',');
     await pool.query(`DELETE FROM games WHERE id IN (${placeholders})`, landscapeIds);
-    
+
     const totalResult = await pool.query('SELECT COUNT(*) FROM games');
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       deleted: landscapeIds.length,
       remaining: parseInt(totalResult.rows[0].count)
     });
@@ -1126,7 +1126,7 @@ app.patch('/api/admin/games/:id', async (req, res) => {
     const updates = [];
     const values = [];
     let idx = 1;
-    
+
     if (name !== undefined) { updates.push(`name = $${idx++}`); values.push(name); }
     if (description !== undefined) { updates.push(`description = $${idx++}`); values.push(description); }
     if (icon !== undefined) { updates.push(`icon = $${idx++}`); values.push(icon); }
@@ -1134,17 +1134,17 @@ app.patch('/api/admin/games/:id', async (req, res) => {
     if (category !== undefined) { updates.push(`category = $${idx++}`); values.push(category); }
     if (embedUrl !== undefined) { updates.push(`embed_url = $${idx++}`); values.push(embedUrl); }
     if (thumbnail !== undefined) { updates.push(`thumbnail = $${idx++}`); values.push(thumbnail); }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    
+
     values.push(req.params.id);
     const result = await pool.query(
       `UPDATE games SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
       values
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Game not found' });
     }
@@ -1183,7 +1183,7 @@ app.get('/api/games', async (req, res) => {
 app.get('/api/games/search', async (req, res) => {
   const query = req.query.q || '';
   const limit = parseInt(req.query.limit) || 50;
-  
+
   if (!query || query.length < 2) {
     return res.json({ games: [], total: 0 });
   }
@@ -1231,10 +1231,10 @@ app.post('/api/games/:id/size', async (req, res) => {
   if (!sizeBytes || typeof sizeBytes !== 'number') {
     return res.status(400).json({ error: 'sizeBytes required' });
   }
-  
+
   try {
     await pool.query('UPDATE games SET file_size = $1 WHERE id = $2', [sizeBytes, req.params.id]);
-    
+
     // Update scan progress if this is from the scanner
     if (totalGames) {
       await pool.query(
@@ -1247,7 +1247,7 @@ app.post('/api/games/:id/size', async (req, res) => {
         [totalGames, gameName || req.params.id]
       );
     }
-    
+
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -1262,21 +1262,21 @@ app.post('/api/games/:id/size', async (req, res) => {
 app.get('/api/games/:gameId/progress', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  
+
   try {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-    
+
     const userId = userResult.rows[0].id;
     const result = await pool.query(
       'SELECT storage_data FROM game_progress WHERE user_id = $1 AND game_id = $2',
       [userId, req.params.gameId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.json({ storageData: {} });
     }
-    
+
     res.json({ storageData: result.rows[0].storage_data || {} });
   } catch (e) {
     console.error('Get game progress error:', e);
@@ -1288,18 +1288,18 @@ app.get('/api/games/:gameId/progress', async (req, res) => {
 app.post('/api/games/:gameId/progress', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  
+
   const { storageData } = req.body;
   if (!storageData || typeof storageData !== 'object') {
     return res.status(400).json({ error: 'storageData object required' });
   }
-  
+
   try {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-    
+
     const userId = userResult.rows[0].id;
-    
+
     // Upsert the progress
     await pool.query(`
       INSERT INTO game_progress (user_id, game_id, storage_data, updated_at)
@@ -1307,7 +1307,7 @@ app.post('/api/games/:gameId/progress', async (req, res) => {
       ON CONFLICT (user_id, game_id) 
       DO UPDATE SET storage_data = $3, updated_at = NOW()
     `, [userId, req.params.gameId, JSON.stringify(storageData)]);
-    
+
     res.json({ success: true });
   } catch (e) {
     console.error('Save game progress error:', e);
@@ -1341,15 +1341,15 @@ function formatGame(row) {
 app.get('/api/users/:id', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM users WHERE id = $1 OR username = $1', 
+      'SELECT * FROM users WHERE id = $1 OR username = $1',
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    
+
     const user = result.rows[0];
     const followers = await pool.query('SELECT COUNT(*) FROM followers WHERE following_id = $1', [user.id]);
     const following = await pool.query('SELECT COUNT(*) FROM followers WHERE follower_id = $1', [user.id]);
-    
+
     res.json({
       user: formatUser(user),
       stats: {
@@ -1393,10 +1393,10 @@ app.post('/api/users/:id/follow', async (req, res) => {
   try {
     const currentUser = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (currentUser.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-    
+
     const followerId = currentUser.rows[0].id;
     const followingId = req.params.id;
-    
+
     if (followerId === followingId) return res.status(400).json({ error: 'Cannot follow yourself' });
 
     const existing = await pool.query(
@@ -1411,7 +1411,10 @@ app.post('/api/users/:id/follow', async (req, res) => {
     } else {
       await pool.query('INSERT INTO followers (follower_id, following_id) VALUES ($1, $2)', [followerId, followingId]);
       following = true;
-      
+
+      // Send follow notification
+      notifications.notifyFollow(followerId, followingId).catch(e => console.log('[Notifications] Follow notify error:', e));
+
       // Update challenge progress for follow_users
       await pool.query(`
         UPDATE user_challenges 
@@ -1422,14 +1425,14 @@ app.post('/api/users/:id/follow', async (req, res) => {
           AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'follow_users')
       `, [followerId]);
     }
-    
+
     // Check if they follow us back (mutual)
     const theyFollowUs = await pool.query(
       'SELECT * FROM followers WHERE follower_id = $1 AND following_id = $2',
       [followingId, followerId]
     );
     const isMutual = following && theyFollowUs.rows.length > 0;
-    
+
     res.json({ following, isMutual });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -1479,10 +1482,10 @@ app.get('/api/users/:id/pending-requests', async (req, res) => {
        ORDER BY f.created_at DESC`,
       [req.params.id]
     );
-    res.json(result.rows.map(r => ({ 
-      id: r.id, 
-      username: r.username, 
-      displayName: r.display_name, 
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      username: r.username,
+      displayName: r.display_name,
       avatar: r.avatar,
       isMutual: r.is_mutual,
       createdAt: r.created_at
@@ -1568,7 +1571,7 @@ app.get('/api/scores/leaderboard/:gameId', async (req, res) => {
        ORDER BY s.user_id, s.score DESC`,
       [req.params.gameId]
     );
-    
+
     const sorted = result.rows.sort((a, b) => b.score - a.score).slice(0, limit);
     const leaderboard = sorted.map((r, i) => ({
       rank: i + 1,
@@ -1578,7 +1581,7 @@ app.get('/api/scores/leaderboard/:gameId', async (req, res) => {
       avatar: r.avatar,
       userId: r.user_id
     }));
-    
+
     res.json({ leaderboard });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -1601,7 +1604,7 @@ app.post('/api/likes', async (req, res) => {
     const userId = userResult.rows[0].id;
 
     const existing = await pool.query('SELECT * FROM likes WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
-    
+
     let newLikeCount;
     if (existing.rows.length > 0) {
       await pool.query('DELETE FROM likes WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
@@ -1612,7 +1615,7 @@ app.post('/api/likes', async (req, res) => {
       await pool.query('INSERT INTO likes (user_id, game_id) VALUES ($1, $2)', [userId, gameId]);
       const result = await pool.query('UPDATE games SET like_count = like_count + 1 WHERE id = $1 RETURNING like_count', [gameId]);
       newLikeCount = result.rows[0]?.like_count || 0;
-      
+
       // Update challenge progress for like_games
       await pool.query(`
         UPDATE user_challenges 
@@ -1622,7 +1625,7 @@ app.post('/api/likes', async (req, res) => {
         WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
           AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'like_games')
       `, [userId]);
-      
+
       res.json({ liked: true, likeCount: newLikeCount });
     }
   } catch (e) {
@@ -1634,7 +1637,7 @@ app.post('/api/likes', async (req, res) => {
 app.post('/api/likes/check', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const { gameIds } = req.body;
-  
+
   if (!gameIds || !Array.isArray(gameIds)) {
     return res.status(400).json({ error: 'gameIds array required' });
   }
@@ -1644,18 +1647,18 @@ app.post('/api/likes/check', async (req, res) => {
     if (!token) {
       return res.json({ likedGameIds: [] });
     }
-    
+
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) {
       return res.json({ likedGameIds: [] });
     }
-    
+
     const userId = userResult.rows[0].id;
     const result = await pool.query(
       'SELECT game_id FROM likes WHERE user_id = $1 AND game_id = ANY($2)',
       [userId, gameIds]
     );
-    
+
     res.json({ likedGameIds: result.rows.map(r => r.game_id) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -1692,7 +1695,7 @@ app.post('/api/saved-games', async (req, res) => {
     const userId = userResult.rows[0].id;
 
     const existing = await pool.query('SELECT * FROM saved_games WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
-    
+
     if (existing.rows.length > 0) {
       await pool.query('DELETE FROM saved_games WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
       await pool.query('UPDATE games SET save_count = GREATEST(0, save_count - 1) WHERE id = $1', [gameId]);
@@ -1702,7 +1705,7 @@ app.post('/api/saved-games', async (req, res) => {
       await pool.query('INSERT INTO saved_games (user_id, game_id) VALUES ($1, $2)', [userId, gameId]);
       await pool.query('UPDATE games SET save_count = save_count + 1 WHERE id = $1', [gameId]);
       const countResult = await pool.query('SELECT save_count FROM games WHERE id = $1', [gameId]);
-      
+
       // Update challenge progress for save_games
       await pool.query(`
         UPDATE user_challenges 
@@ -1712,7 +1715,7 @@ app.post('/api/saved-games', async (req, res) => {
         WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
           AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'save_games')
       `, [userId]);
-      
+
       res.json({ saved: true, saveCount: countResult.rows[0]?.save_count || 0 });
     }
   } catch (e) {
@@ -1725,7 +1728,7 @@ app.post('/api/saved-games', async (req, res) => {
 app.post('/api/saved-games/check', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const { gameIds } = req.body;
-  
+
   if (!gameIds || !Array.isArray(gameIds)) {
     return res.status(400).json({ error: 'gameIds array required' });
   }
@@ -1734,18 +1737,18 @@ app.post('/api/saved-games/check', async (req, res) => {
     if (!token) {
       return res.json({ savedGameIds: [] });
     }
-    
+
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) {
       return res.json({ savedGameIds: [] });
     }
-    
+
     const userId = userResult.rows[0].id;
     const result = await pool.query(
       'SELECT game_id FROM saved_games WHERE user_id = $1 AND game_id = ANY($2)',
       [userId, gameIds]
     );
-    
+
     res.json({ savedGameIds: result.rows.map(r => r.game_id) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -1840,19 +1843,19 @@ app.get('/api/conversations/:userId', async (req, res) => {
       const gameMatch = m.text?.match(/\[GAME:([^\]]+)\]/);
       const challengeMatch = m.text?.match(/\[CHALLENGE:([^\]]+)\]/);
       let gameShare = null;
-      
+
       const gameId = challengeMatch ? challengeMatch[1] : (gameMatch ? gameMatch[1] : null);
       const isChallenge = !!challengeMatch;
-      
+
       if (gameId) {
         const gameResult = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
         if (gameResult.rows.length > 0) {
           const game = gameResult.rows[0];
-          
+
           // Get challenger info
           const challengerResult = await pool.query('SELECT username FROM users WHERE id = $1', [m.sender_id]);
           const challengerName = challengerResult.rows[0]?.username;
-          
+
           gameShare = {
             id: game.id,
             name: game.name,
@@ -1868,12 +1871,12 @@ app.get('/api/conversations/:userId', async (req, res) => {
           };
         }
       }
-      
-      return { 
-        id: m.id, 
-        text: m.text, 
-        senderId: m.sender_id, 
-        isMe: m.sender_id === userId, 
+
+      return {
+        id: m.id,
+        text: m.text,
+        senderId: m.sender_id,
+        isMe: m.sender_id === userId,
         createdAt: m.created_at,
         gameShare
       };
@@ -1918,7 +1921,7 @@ app.post('/api/messages', async (req, res) => {
     // If it's a game share, fetch game data and include it
     let messageText = text || '';
     let gameData = null;
-    
+
     if (gameShare?.gameId) {
       const gameResult = await pool.query('SELECT * FROM games WHERE id = $1', [gameShare.gameId]);
       if (gameResult.rows.length > 0) {
@@ -1940,7 +1943,7 @@ app.post('/api/messages', async (req, res) => {
         // Store game share marker in text for backwards compatibility
         const prefix = isChallenge ? '[CHALLENGE:' : '[GAME:';
         messageText = `${prefix}${game.id}] ${messageText || (isChallenge ? `${username} challenged you to ${game.name}!` : `Check out ${game.name}!`)}`;
-        
+
         // Update challenge progress for share_game
         await pool.query(`
           UPDATE user_challenges 
@@ -1959,15 +1962,15 @@ app.post('/api/messages', async (req, res) => {
     );
     await pool.query('UPDATE conversations SET updated_at = NOW() WHERE id = $1', [convId]);
 
-    res.json({ 
-      message: { 
-        id: result.rows[0].id, 
-        text: result.rows[0].text, 
-        senderId: userId, 
-        isMe: true, 
+    res.json({
+      message: {
+        id: result.rows[0].id,
+        text: result.rows[0].text,
+        senderId: userId,
+        isMe: true,
         createdAt: result.rows[0].created_at,
         gameShare: gameData
-      } 
+      }
     });
   } catch (e) {
     console.error(e);
@@ -1983,7 +1986,7 @@ app.post('/api/messages', async (req, res) => {
 app.get('/api/comments/:gameId', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   let userId = null;
-  
+
   // Get current user if authenticated
   if (token) {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
@@ -2001,13 +2004,13 @@ app.get('/api/comments/:gameId', async (req, res) => {
       ${userId ? `AND c.user_id NOT IN (SELECT blocked_id FROM blocked_users WHERE blocker_id = $2)` : ''}
       ORDER BY c.created_at DESC LIMIT 50
     `;
-    
+
     const result = await pool.query(query, userId ? [req.params.gameId, userId] : [req.params.gameId]);
-    
+
     res.json({
       comments: result.rows.map(r => ({
         id: r.id, text: r.text, userId: r.user_id, username: r.username,
-        displayName: r.display_name, avatarUrl: r.avatar, likes: r.likes, 
+        displayName: r.display_name, avatarUrl: r.avatar, likes: r.likes,
         liked: r.liked, createdAt: r.created_at
       })),
       total: result.rows.length
@@ -2033,7 +2036,7 @@ app.post('/api/comments', async (req, res) => {
       'INSERT INTO comments (game_id, user_id, text) VALUES ($1, $2, $3) RETURNING *',
       [gameId, user.id, text.trim()]
     );
-    
+
     // Update challenge progress for post_comments
     await pool.query(`
       UPDATE user_challenges 
@@ -2043,7 +2046,7 @@ app.post('/api/comments', async (req, res) => {
       WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
         AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'post_comments')
     `, [user.id]);
-    
+
     res.json({
       comment: {
         id: result.rows[0].id, text: result.rows[0].text, userId: user.id,
@@ -2246,7 +2249,7 @@ app.get('/api/feed/activity', async (req, res) => {
 // Global activity - recent scores from anyone (for when you have no friends)
 app.get('/api/feed/global', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  
+
   try {
     // Get current user ID to exclude them
     let excludeUserId = null;
@@ -2256,7 +2259,7 @@ app.get('/api/feed/global', async (req, res) => {
         excludeUserId = userResult.rows[0].id;
       }
     }
-    
+
     const result = await pool.query(
       `SELECT s.*, u.username, u.display_name, u.avatar, g.name as game_name, g.icon as game_icon, g.thumbnail as game_thumbnail, g.color as game_color
        FROM scores s
@@ -2525,26 +2528,26 @@ const ensureUserGamification = async (userId) => {
 // Helper to award points and XP
 const awardPoints = async (userId, amount, type, description, metadata = {}) => {
   await ensureUserGamification(userId);
-  
+
   // Add points
   await pool.query(`
     UPDATE user_points 
     SET balance = balance + $1, lifetime_earned = lifetime_earned + $1, updated_at = NOW()
     WHERE user_id = $2
   `, [amount, userId]);
-  
+
   // Log transaction
   await pool.query(`
     INSERT INTO points_transactions (user_id, amount, type, description, metadata)
     VALUES ($1, $2, $3, $4, $5)
   `, [userId, amount, type, description, JSON.stringify(metadata)]);
-  
+
   return amount;
 };
 
 const awardXP = async (userId, amount) => {
   await ensureUserGamification(userId);
-  
+
   // Add XP
   const result = await pool.query(`
     UPDATE user_levels 
@@ -2552,53 +2555,53 @@ const awardXP = async (userId, amount) => {
     WHERE user_id = $2
     RETURNING xp
   `, [amount, userId]);
-  
+
   const newXp = result.rows[0].xp;
   const { level } = calculateLevel(newXp);
-  
+
   // Update level if changed
   await pool.query(`
     UPDATE user_levels SET level = $1 WHERE user_id = $2 AND level != $1
   `, [level, userId]);
-  
+
   return { xp: newXp, level };
 };
 
 // Check and unlock achievements
 const checkAchievements = async (userId) => {
   const unlocked = [];
-  
+
   // Get user stats
   const userResult = await pool.query('SELECT games_played FROM users WHERE id = $1', [userId]);
   const user = userResult.rows[0];
-  
+
   const pointsResult = await pool.query('SELECT lifetime_earned FROM user_points WHERE user_id = $1', [userId]);
   const points = pointsResult.rows[0] || { lifetime_earned: 0 };
-  
+
   const streakResult = await pool.query('SELECT current_streak, longest_streak FROM user_streaks WHERE user_id = $1', [userId]);
   const streak = streakResult.rows[0] || { current_streak: 0, longest_streak: 0 };
-  
+
   const levelResult = await pool.query('SELECT level FROM user_levels WHERE user_id = $1', [userId]);
   const levelData = levelResult.rows[0] || { level: 1 };
-  
+
   const savesResult = await pool.query('SELECT COUNT(*) FROM saved_games WHERE user_id = $1', [userId]);
   const saves = parseInt(savesResult.rows[0].count);
-  
+
   const followersResult = await pool.query('SELECT COUNT(*) FROM followers WHERE following_id = $1', [userId]);
   const followers = parseInt(followersResult.rows[0].count);
-  
+
   const likesGivenResult = await pool.query('SELECT COUNT(*) FROM likes WHERE user_id = $1', [userId]);
   const likesGiven = parseInt(likesGivenResult.rows[0].count);
-  
+
   // Get all achievements user hasn't unlocked yet
   const achievements = await pool.query(`
     SELECT a.* FROM achievements a
     WHERE a.id NOT IN (SELECT achievement_id FROM user_achievements WHERE user_id = $1)
   `, [userId]);
-  
+
   for (const achievement of achievements.rows) {
     let shouldUnlock = false;
-    
+
     switch (achievement.type) {
       case 'games_played':
         shouldUnlock = user.games_played >= achievement.threshold;
@@ -2622,13 +2625,13 @@ const checkAchievements = async (userId) => {
         shouldUnlock = points.lifetime_earned >= achievement.threshold;
         break;
     }
-    
+
     if (shouldUnlock) {
       await pool.query(`
         INSERT INTO user_achievements (user_id, achievement_id) VALUES ($1, $2)
         ON CONFLICT DO NOTHING
       `, [userId, achievement.id]);
-      
+
       // Award achievement rewards
       if (achievement.reward_points > 0) {
         await awardPoints(userId, achievement.reward_points, 'achievement', `Unlocked: ${achievement.name}`);
@@ -2636,11 +2639,11 @@ const checkAchievements = async (userId) => {
       if (achievement.reward_xp > 0) {
         await awardXP(userId, achievement.reward_xp);
       }
-      
+
       unlocked.push(achievement);
     }
   }
-  
+
   return unlocked;
 };
 
@@ -2653,28 +2656,28 @@ app.get('/api/gamification/stats', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     await ensureUserGamification(userId);
-    
+
     // Get all stats
     const pointsResult = await pool.query('SELECT * FROM user_points WHERE user_id = $1', [userId]);
     const streakResult = await pool.query('SELECT * FROM user_streaks WHERE user_id = $1', [userId]);
     const levelResult = await pool.query('SELECT * FROM user_levels WHERE user_id = $1', [userId]);
     const configResult = await pool.query('SELECT * FROM coin_config WHERE id = 1');
-    
+
     const points = pointsResult.rows[0];
     const streak = streakResult.rows[0];
     const level = levelResult.rows[0];
-    const coinConfig = configResult.rows[0] || { coins_per_usd: 1000, payouts_enabled: false };
-    
+    const coinConfig = configResult.rows[0] || { coins_per_usd: 5667, payouts_enabled: false };
+
     const levelInfo = calculateLevel(level.xp);
     const usdValue = points.balance / coinConfig.coins_per_usd;
-    
+
     res.json({
       points: {
         balance: points.balance,
         lifetimeEarned: points.lifetime_earned,
-        usdValue: parseFloat(usdValue.toFixed(2)),
+        usdValue: parseFloat(usdValue.toFixed(4)),
         coinsPerUsd: coinConfig.coins_per_usd
       },
       streak: {
@@ -2712,55 +2715,55 @@ app.post('/api/gamification/daily-claim', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     await ensureUserGamification(userId);
-    
+
     // Get current streak info
     const streakResult = await pool.query('SELECT * FROM user_streaks WHERE user_id = $1', [userId]);
     const streak = streakResult.rows[0];
-    
+
     const today = new Date().toISOString().split('T')[0];
     const lastClaim = streak.last_claim_date ? new Date(streak.last_claim_date).toISOString().split('T')[0] : null;
-    
+
     // Check if already claimed today
     if (lastClaim === today) {
       return res.status(400).json({ error: 'Already claimed today', alreadyClaimed: true });
     }
-    
+
     // Calculate new streak
     let newStreak = 1;
     if (lastClaim) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
-      
+
       if (lastClaim === yesterdayStr) {
         // Consecutive day - increment streak
         newStreak = streak.current_streak + 1;
       }
       // Otherwise streak resets to 1
     }
-    
+
     const longestStreak = Math.max(newStreak, streak.longest_streak);
-    
+
     // Update streak
     await pool.query(`
       UPDATE user_streaks 
       SET current_streak = $1, longest_streak = $2, last_claim_date = $3, updated_at = NOW()
       WHERE user_id = $4
     `, [newStreak, longestStreak, today, userId]);
-    
+
     // Award daily bonus
     const bonus = getDailyBonus(newStreak);
     await awardPoints(userId, bonus, 'daily_login', `Day ${newStreak} login bonus`);
-    
+
     // Award XP for logging in
     const xpBonus = 10 * getStreakMultiplier(newStreak);
     await awardXP(userId, Math.floor(xpBonus));
-    
+
     // Check for streak achievements
     const unlockedAchievements = await checkAchievements(userId);
-    
+
     res.json({
       success: true,
       pointsEarned: bonus,
@@ -2782,7 +2785,7 @@ app.post('/api/gamification/daily-claim', async (req, res) => {
 app.post('/api/gamification/game-played', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  
+
   const { gameId, playTimeSeconds } = req.body;
   if (!gameId) return res.status(400).json({ error: 'Game ID required' });
 
@@ -2790,18 +2793,18 @@ app.post('/api/gamification/game-played', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     await ensureUserGamification(userId);
-    
+
     // Get streak multiplier
     const streakResult = await pool.query('SELECT current_streak FROM user_streaks WHERE user_id = $1', [userId]);
     const multiplier = getStreakMultiplier(streakResult.rows[0]?.current_streak || 0);
-    
+
     // Points = 1 point per 5 seconds of play time (matching the live counter)
     const basePoints = playTimeSeconds ? Math.floor(playTimeSeconds / 5) : 0;
     const points = Math.floor(basePoints * multiplier);
     await awardPoints(userId, points, 'game_played', `Played game`, { gameId, playTimeSeconds });
-    
+
     // Update per-game leaderboard
     if (points > 0) {
       try {
@@ -2849,17 +2852,17 @@ app.post('/api/gamification/game-played', async (req, res) => {
         }
       }
     }
-    
+
     // Award XP (1 XP per 10 seconds)
     const baseXp = playTimeSeconds ? Math.floor(playTimeSeconds / 10) : 0;
     const xp = Math.floor(baseXp * multiplier);
     if (xp > 0) {
       await awardXP(userId, xp);
     }
-    
+
     // Update games_played count
     await pool.query('UPDATE users SET games_played = games_played + 1 WHERE id = $1', [userId]);
-    
+
     // Update challenge progress for play_games type
     await pool.query(`
       UPDATE user_challenges 
@@ -2869,7 +2872,7 @@ app.post('/api/gamification/game-played', async (req, res) => {
       WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
         AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'play_games')
     `, [userId]);
-    
+
     // Update play_time challenges (convert seconds to minutes)
     if (playTimeSeconds) {
       const minutes = Math.floor(playTimeSeconds / 60);
@@ -2882,10 +2885,10 @@ app.post('/api/gamification/game-played', async (req, res) => {
           AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'play_time')
       `, [minutes, userId]);
     }
-    
+
     // Check achievements
     const unlockedAchievements = await checkAchievements(userId);
-    
+
     res.json({
       success: true,
       pointsEarned: points,
@@ -2908,7 +2911,7 @@ app.get('/api/gamification/challenges', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     // Check if user has challenges assigned for today
     const existingChallenges = await pool.query(`
       SELECT uc.*, dc.title, dc.description, dc.type, dc.target, dc.reward_points, dc.reward_xp, dc.icon
@@ -2916,16 +2919,16 @@ app.get('/api/gamification/challenges', async (req, res) => {
       JOIN daily_challenges dc ON uc.challenge_id = dc.id
       WHERE uc.user_id = $1 AND uc.assigned_date = CURRENT_DATE
     `, [userId]);
-    
+
     if (existingChallenges.rows.length > 0) {
       return res.json({ challenges: existingChallenges.rows });
     }
-    
+
     // Assign all daily challenges for today
     const availableChallenges = await pool.query(`
       SELECT * FROM daily_challenges WHERE active = TRUE
     `);
-    
+
     for (const challenge of availableChallenges.rows) {
       await pool.query(`
         INSERT INTO user_challenges (user_id, challenge_id, assigned_date)
@@ -2933,7 +2936,7 @@ app.get('/api/gamification/challenges', async (req, res) => {
         ON CONFLICT DO NOTHING
       `, [userId, challenge.id]);
     }
-    
+
     // Fetch the assigned challenges
     const challenges = await pool.query(`
       SELECT uc.*, dc.title, dc.description, dc.type, dc.target, dc.reward_points, dc.reward_xp, dc.icon
@@ -2941,7 +2944,7 @@ app.get('/api/gamification/challenges', async (req, res) => {
       JOIN daily_challenges dc ON uc.challenge_id = dc.id
       WHERE uc.user_id = $1 AND uc.assigned_date = CURRENT_DATE
     `, [userId]);
-    
+
     res.json({ challenges: challenges.rows });
   } catch (e) {
     console.error('Challenges error:', e);
@@ -2958,7 +2961,7 @@ app.post('/api/gamification/challenges/:id/claim', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     // Get the challenge
     const challengeResult = await pool.query(`
       SELECT uc.*, dc.title, dc.reward_points, dc.reward_xp
@@ -2966,28 +2969,28 @@ app.post('/api/gamification/challenges/:id/claim', async (req, res) => {
       JOIN daily_challenges dc ON uc.challenge_id = dc.id
       WHERE uc.id = $1 AND uc.user_id = $2
     `, [req.params.id, userId]);
-    
+
     if (challengeResult.rows.length === 0) {
       return res.status(404).json({ error: 'Challenge not found' });
     }
-    
+
     const challenge = challengeResult.rows[0];
-    
+
     if (!challenge.completed) {
       return res.status(400).json({ error: 'Challenge not completed yet' });
     }
-    
+
     if (challenge.claimed) {
       return res.status(400).json({ error: 'Already claimed' });
     }
-    
+
     // Mark as claimed
     await pool.query('UPDATE user_challenges SET claimed = TRUE WHERE id = $1', [req.params.id]);
-    
+
     // Award rewards
     await awardPoints(userId, challenge.reward_points, 'challenge', `Completed: ${challenge.title}`);
     await awardXP(userId, challenge.reward_xp);
-    
+
     res.json({
       success: true,
       pointsEarned: challenge.reward_points,
@@ -3008,7 +3011,7 @@ app.get('/api/gamification/achievements', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     // Get all achievements with unlock status
     const achievements = await pool.query(`
       SELECT a.*, 
@@ -3018,7 +3021,7 @@ app.get('/api/gamification/achievements', async (req, res) => {
       LEFT JOIN user_achievements ua ON a.id = ua.achievement_id AND ua.user_id = $1
       ORDER BY a.threshold ASC
     `, [userId]);
-    
+
     res.json({ achievements: achievements.rows });
   } catch (e) {
     console.error('Achievements error:', e);
@@ -3032,7 +3035,7 @@ app.get('/api/gamification/rewards', async (req, res) => {
     const rewards = await pool.query(`
       SELECT * FROM rewards WHERE active = TRUE ORDER BY cost ASC
     `);
-    
+
     res.json({ rewards: rewards.rows });
   } catch (e) {
     console.error('Rewards error:', e);
@@ -3049,49 +3052,49 @@ app.post('/api/gamification/rewards/:id/claim', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     await ensureUserGamification(userId);
-    
+
     // Get the reward
     const rewardResult = await pool.query('SELECT * FROM rewards WHERE id = $1 AND active = TRUE', [req.params.id]);
     if (rewardResult.rows.length === 0) {
       return res.status(404).json({ error: 'Reward not found' });
     }
-    
+
     const reward = rewardResult.rows[0];
-    
+
     // Check stock
     if (reward.stock !== null && reward.stock <= 0) {
       return res.status(400).json({ error: 'Out of stock' });
     }
-    
+
     // Check user balance
     const pointsResult = await pool.query('SELECT balance FROM user_points WHERE user_id = $1', [userId]);
     const balance = pointsResult.rows[0]?.balance || 0;
-    
+
     if (balance < reward.cost) {
       return res.status(400).json({ error: 'Not enough points', required: reward.cost, balance });
     }
-    
+
     // Deduct points
     await pool.query('UPDATE user_points SET balance = balance - $1 WHERE user_id = $2', [reward.cost, userId]);
-    
+
     // Log transaction (negative amount)
     await pool.query(`
       INSERT INTO points_transactions (user_id, amount, type, description, metadata)
       VALUES ($1, $2, 'reward_claim', $3, $4)
     `, [userId, -reward.cost, `Claimed: ${reward.name}`, JSON.stringify({ rewardId: reward.id })]);
-    
+
     // Reduce stock if applicable
     if (reward.stock !== null) {
       await pool.query('UPDATE rewards SET stock = stock - 1 WHERE id = $1', [reward.id]);
     }
-    
+
     // Create user_reward record
     await pool.query(`
       INSERT INTO user_rewards (user_id, reward_id) VALUES ($1, $2)
     `, [userId, reward.id]);
-    
+
     res.json({
       success: true,
       reward: reward.name,
@@ -3113,7 +3116,7 @@ app.get('/api/gamification/my-rewards', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     const rewards = await pool.query(`
       SELECT ur.*, r.name, r.description, r.image_url, r.category
       FROM user_rewards ur
@@ -3121,7 +3124,7 @@ app.get('/api/gamification/my-rewards', async (req, res) => {
       WHERE ur.user_id = $1
       ORDER BY ur.claimed_at DESC
     `, [userId]);
-    
+
     res.json({ rewards: rewards.rows });
   } catch (e) {
     console.error('My rewards error:', e);
@@ -3138,16 +3141,16 @@ app.get('/api/gamification/transactions', async (req, res) => {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     const limit = parseInt(req.query.limit) || 50;
-    
+
     const transactions = await pool.query(`
       SELECT * FROM points_transactions 
       WHERE user_id = $1 
       ORDER BY created_at DESC 
       LIMIT $2
     `, [userId, limit]);
-    
+
     res.json({ transactions: transactions.rows });
   } catch (e) {
     console.error('Transactions error:', e);
@@ -3160,7 +3163,7 @@ app.get('/api/gamification/leaderboard', async (req, res) => {
   try {
     const type = req.query.type || 'points'; // 'points', 'level', 'streak'
     const limit = parseInt(req.query.limit) || 50;
-    
+
     let query;
     switch (type) {
       case 'level':
@@ -3190,9 +3193,9 @@ app.get('/api/gamification/leaderboard', async (req, res) => {
           LIMIT $1
         `;
     }
-    
+
     const result = await pool.query(query, [limit]);
-    
+
     res.json({ leaderboard: result.rows, type });
   } catch (e) {
     console.error('Leaderboard error:', e);
@@ -3205,11 +3208,11 @@ app.get('/api/gamification/leaderboard/:gameId', async (req, res) => {
   try {
     const { gameId } = req.params;
     const limit = parseInt(req.query.limit) || 50;
-    
+
     // Get game info
     const gameResult = await pool.query('SELECT id, name FROM games WHERE id = $1', [gameId]);
     const game = gameResult.rows[0];
-    
+
     // Get leaderboard
     const result = await pool.query(`
       SELECT 
@@ -3226,7 +3229,7 @@ app.get('/api/gamification/leaderboard/:gameId', async (req, res) => {
       ORDER BY gl.points DESC
       LIMIT $2
     `, [gameId, limit]);
-    
+
     const leaderboard = result.rows.map((row, index) => ({
       rank: index + 1,
       userId: row.user_id,
@@ -3237,7 +3240,7 @@ app.get('/api/gamification/leaderboard/:gameId', async (req, res) => {
       playTime: row.play_time,
       lastPlayed: row.last_played,
     }));
-    
+
     // Get current user's rank if authenticated
     const token = req.headers.authorization?.replace('Bearer ', '');
     let userRank = null;
@@ -3251,7 +3254,7 @@ app.get('/api/gamification/leaderboard/:gameId', async (req, res) => {
           FROM game_leaderboard 
           WHERE game_id = $2 AND points > COALESCE((SELECT points FROM game_leaderboard WHERE user_id = $1 AND game_id = $2), 0)
         `, [userId, gameId]);
-        
+
         const userPoints = await pool.query('SELECT points FROM game_leaderboard WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
         if (userPoints.rows.length > 0) {
           userRank = {
@@ -3261,8 +3264,8 @@ app.get('/api/gamification/leaderboard/:gameId', async (req, res) => {
         }
       }
     }
-    
-    res.json({ 
+
+    res.json({
       game: game || { id: gameId, name: gameId },
       leaderboard,
       userRank,
@@ -3293,13 +3296,13 @@ const seedGames = async () => {
     { id: 'color-match', name: 'Color Match', description: 'Match colors!', icon: '🎨', color: '#f39c12', category: 'puzzle' },
     { id: 'simon-says', name: 'Simon Says', description: 'Remember pattern!', icon: '🔴', color: '#e91e63', category: 'puzzle' },
     { id: 'number-tap', name: 'Number Tap', description: 'Tap in order!', icon: '🔢', color: '#1abc9c', category: 'puzzle' },
-    
+
     // Arcade
     { id: 'breakout', name: 'Breakout', description: 'Break the bricks!', icon: '🧱', color: '#e74c3c', category: 'arcade' },
     { id: 'snake-io', name: 'Snake.io', description: 'Grow your snake!', icon: '🐍', color: '#00d4ff', category: 'arcade' },
     { id: 'piano-tiles', name: 'Piano Tiles', description: 'Tap black tiles!', icon: '🎹', color: '#1a1a2e', category: 'arcade' },
     { id: 'tower-blocks-3d', name: 'Tower Blocks 3D', description: '3D block stacking!', icon: '🧱', color: '#3498db', category: 'arcade' },
-    
+
     // Casual
     { id: 'flappy-bird', name: 'Flappy Bird', description: 'Tap to flap!', icon: '🐦', color: '#70c5ce', category: 'casual' },
     { id: 'doodle-jump', name: 'Doodle Jump', description: 'Jump up!', icon: '🐸', color: '#8bc34a', category: 'casual' },
@@ -3308,36 +3311,40 @@ const seedGames = async () => {
     { id: 'ball-bounce', name: 'Ball Bounce', description: 'Bounce!', icon: '🏀', color: '#ff5722', category: 'casual' },
     { id: 'towermaster', name: 'Tower Master', description: 'Build towers!', icon: '🗼', color: '#f39c12', category: 'casual' },
     { id: 'rock-paper-scissors', name: 'Rock Paper Scissors', description: 'Classic game!', icon: '✊', color: '#9b59b6', category: 'casual' },
-    
+
     // Action
     { id: 'fruit-slicer', name: 'Fruit Slicer', description: 'Swipe to slice!', icon: '🍉', color: '#ff6b6b', category: 'action' },
     { id: 'geometry-dash', name: 'Geometry Dash', description: 'Tap to jump!', icon: '⬛', color: '#00d4ff', category: 'action' },
     { id: 'whack-a-mole', name: 'Whack-a-Mole', description: 'Tap the moles!', icon: '🐹', color: '#8b4513', category: 'action' },
     { id: 'aim-trainer', name: 'Aim Trainer', description: 'Test reflexes!', icon: '🎯', color: '#e74c3c', category: 'action' },
     { id: 'tap-tap-dash', name: 'Tap Tap Dash', description: 'Tap to turn!', icon: '👆', color: '#3498db', category: 'action' },
-    
+
     // Sports
     { id: 'basketball', name: 'Basketball', description: 'Shoot hoops!', icon: '🏀', color: '#f39c12', category: 'sports' },
     { id: 'basketball-3d', name: 'Basketball 3D', description: 'Swipe to shoot hoops!', icon: '🏀', color: '#ff6600', category: 'sports' },
-    
+
     // Strategy
     { id: 'connect4', name: 'Connect 4', description: 'Connect four in a row!', icon: '🔴', color: '#e74c3c', category: 'strategy' },
     { id: 'tic-tac-toe', name: 'Tic Tac Toe', description: 'X and O!', icon: '⭕', color: '#9b59b6', category: 'strategy' },
-    
+
     // Retro
     { id: 'pong', name: 'Pong', description: 'Classic paddle!', icon: '🏓', color: '#00d4ff', category: 'retro' },
-    
+
     // Action - Tomb of the Mask levels (self-hosted)
     { id: 'tomb-of-mask-1', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     { id: 'tomb-of-mask-2', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     { id: 'tomb-of-mask-3', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
     { id: 'tomb-of-mask-4', name: 'Tomb of the Mask', description: 'Swipe to escape!', icon: '💀', color: '#1a1a2e', category: 'action' },
-    
+
     // GameMonetize Embeds (these actually work!)
-    { id: 'gm-test-game', name: 'Stack Run', description: 'Smash through platforms!', icon: '🔴', color: '#FF6B6B', category: 'arcade', 
-      embedUrl: 'https://html5.gamemonetize.co/rex0qifhxf6n3jluvsgqkr84t7rp9260/' },
-    { id: 'gm-phone-evolution', name: 'Phone Evolution', description: 'Evolve your phone!', icon: '📱', color: '#4CAF50', category: 'casual', 
-      embedUrl: 'https://html5.gamemonetize.co/v1phpjsgnw87qulbci0gzlxzxxvla41t/' },
+    {
+      id: 'gm-test-game', name: 'Stack Run', description: 'Smash through platforms!', icon: '🔴', color: '#FF6B6B', category: 'arcade',
+      embedUrl: 'https://html5.gamemonetize.co/rex0qifhxf6n3jluvsgqkr84t7rp9260/'
+    },
+    {
+      id: 'gm-phone-evolution', name: 'Phone Evolution', description: 'Evolve your phone!', icon: '📱', color: '#4CAF50', category: 'casual',
+      embedUrl: 'https://html5.gamemonetize.co/v1phpjsgnw87qulbci0gzlxzxxvla41t/'
+    },
   ];
 
   // First, delete any games NOT in our list
@@ -3362,7 +3369,7 @@ const seedGames = async () => {
       [g.id, g.name, g.description, g.icon, g.color, g.category, g.embedUrl || null]
     );
   }
-  
+
   console.log(`[Seed] Synced ${games.length} games (removed games not in list)`);
 };
 
@@ -3374,12 +3381,12 @@ const seedGames = async () => {
 app.get('/api/stories', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   try {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     // Get stories from people you follow + your own, not expired
     const result = await pool.query(`
       SELECT s.*, u.username, u.display_name, u.avatar,
@@ -3392,7 +3399,7 @@ app.get('/api/stories', async (req, res) => {
         CASE WHEN s.user_id = $1 THEN 0 ELSE 1 END,
         s.created_at DESC
     `, [userId]);
-    
+
     // Group by user
     const storiesByUser = {};
     result.rows.forEach(story => {
@@ -3422,7 +3429,7 @@ app.get('/api/stories', async (req, res) => {
         storiesByUser[story.user_id].hasUnviewed = true;
       }
     });
-    
+
     res.json({ stories: Object.values(storiesByUser) });
   } catch (e) {
     console.error('Get stories error:', e);
@@ -3434,25 +3441,25 @@ app.get('/api/stories', async (req, res) => {
 app.post('/api/stories', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   const { mediaUrl, mediaType = 'image', caption } = req.body;
   if (!mediaUrl) return res.status(400).json({ error: 'Media URL required' });
-  
+
   try {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     // Stories expire after 24 hours
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    
+
     const result = await pool.query(
       `INSERT INTO stories (user_id, media_url, media_type, caption, expires_at)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
       [userId, mediaUrl, mediaType, caption, expiresAt]
     );
-    
+
     res.json({ story: result.rows[0] });
   } catch (e) {
     console.error('Create story error:', e);
@@ -3464,26 +3471,26 @@ app.post('/api/stories', async (req, res) => {
 app.post('/api/stories/:storyId/view', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   const { storyId } = req.params;
-  
+
   try {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const viewerId = userResult.rows[0].id;
-    
+
     // Record view
     await pool.query(
       `INSERT INTO story_views (story_id, viewer_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
       [storyId, viewerId]
     );
-    
+
     // Increment view count
     await pool.query(
       `UPDATE stories SET views = views + 1 WHERE id = $1`,
       [storyId]
     );
-    
+
     res.json({ success: true });
   } catch (e) {
     console.error('View story error:', e);
@@ -3495,23 +3502,23 @@ app.post('/api/stories/:storyId/view', async (req, res) => {
 app.delete('/api/stories/:storyId', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   const { storyId } = req.params;
-  
+
   try {
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
-    
+
     const result = await pool.query(
       `DELETE FROM stories WHERE id = $1 AND user_id = $2 RETURNING id`,
       [storyId, userId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Story not found or not yours' });
     }
-    
+
     res.json({ success: true });
   } catch (e) {
     console.error('Delete story error:', e);
@@ -3520,114 +3527,72 @@ app.delete('/api/stories/:storyId', async (req, res) => {
 });
 
 // ============================================
-// GAME PROXY - Fetch game content with ads stripped
+// PUSH NOTIFICATIONS
 // ============================================
 
-// Ad domains to strip from proxied content
-const PROXY_AD_DOMAINS = [
-  'imasdk.googleapis.com', 'pagead2.googlesyndication.com', 'doubleclick.net',
-  'googlesyndication.com', 'googleadservices.com', 'googleads.g.doubleclick.net',
-  'googletagmanager.com', 'google-analytics.com', 'adinplay.com', 'gamedistribution.com',
-  'gdsdk.com', 'adcolony.com', 'unityads.unity3d.com', 'applovin.com', 'chartboost.com',
-  'vungle.com', 'ironsrc.com', 'tapjoy.com', 'facebook.net', 'amazon-adsystem.com',
-  'criteo.com', 'outbrain.com', 'taboola.com', 'hotjar.com', 'mixpanel.com',
-  'segment.com', 'amplitude.com', 'branch.io', 'adjust.com', 'appsflyer.com',
-  'onetrust.com', 'cookielaw.org', 'quantcast.com',
-];
+import * as notifications from './notifications.js';
+import * as db from './db.js';
 
-// Proxy endpoint - fetches game HTML and strips ad scripts
-app.get('/api/proxy/game', async (req, res) => {
-  const { url } = req.query;
-  
-  if (!url) {
-    return res.status(400).json({ error: 'URL required' });
-  }
-  
+// Register push token
+app.post('/api/notifications/register', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { pushToken } = req.body;
+  if (!pushToken) return res.status(400).json({ error: 'Push token required' });
+
   try {
-    // Fetch the game page
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-    });
-    
-    if (!response.ok) {
-      return res.status(response.status).json({ error: 'Failed to fetch game' });
-    }
-    
-    let html = await response.text();
-    
-    // Strip ad-related script tags
-    PROXY_AD_DOMAINS.forEach(domain => {
-      // Remove script tags with src containing ad domain
-      const scriptRegex = new RegExp(`<script[^>]*src=["'][^"']*${domain.replace(/\./g, '\\.')}[^"']*["'][^>]*>.*?</script>`, 'gi');
-      html = html.replace(scriptRegex, '<!-- ad script removed -->');
-      
-      // Remove inline scripts that reference ad domains
-      const inlineRegex = new RegExp(`<script[^>]*>[^<]*${domain.replace(/\./g, '\\.')}[^<]*</script>`, 'gi');
-      html = html.replace(inlineRegex, '<!-- ad script removed -->');
-    });
-    
-    // Remove common ad container divs
-    const adDivPatterns = [
-      /<div[^>]*(?:id|class)=["'][^"']*(?:ad-container|ads-container|advertisement|preroll|interstitial|gdsdk)[^"']*["'][^>]*>.*?<\/div>/gi,
-      /<iframe[^>]*src=["'][^"']*(?:doubleclick|googlesyndication|imasdk)[^"']*["'][^>]*>.*?<\/iframe>/gi,
-    ];
-    
-    adDivPatterns.forEach(pattern => {
-      html = html.replace(pattern, '<!-- ad element removed -->');
-    });
-    
-    // Inject our ad blocker script at the start of head
-    const adBlockerScript = `
-<script>
-// GameTOK Ad Blocker - Injected by proxy
-(function() {
-  window.google = window.google || {};
-  window.google.ima = {
-    AdDisplayContainer: function() { this.initialize = function(){}; },
-    AdsLoader: function() { this.addEventListener = function(){}; this.requestAds = function(){}; },
-    AdsManager: function() { this.addEventListener = function(){}; this.init = function(){}; this.start = function(){}; },
-    AdsManagerLoadedEvent: { Type: { ADS_MANAGER_LOADED: 'adsManagerLoaded' } },
-    AdErrorEvent: { Type: { AD_ERROR: 'adError' } },
-    AdEvent: { Type: { CONTENT_PAUSE_REQUESTED: 'contentPauseRequested', CONTENT_RESUME_REQUESTED: 'contentResumeRequested', ALL_ADS_COMPLETED: 'allAdsCompleted' } },
-    AdsRenderingSettings: function(){},
-    AdsRequest: function(){},
-    ViewMode: { NORMAL: 'normal' },
-    settings: { setVpaidMode: function(){}, setLocale: function(){} }
-  };
-  window.sdk = window.gdsdk = {
-    showBanner: () => Promise.resolve(),
-    hideBanner: () => Promise.resolve(),
-    showAd: (t, cb) => { cb?.adFinished?.(); cb?.onComplete?.(); return Promise.resolve(); },
-    showRewardedAd: (cb) => { cb?.adFinished?.(); cb?.onReward?.(); return Promise.resolve(); },
-    preloadAd: (cb) => { cb?.(); return Promise.resolve(); },
-  };
-  // Block ad network requests
-  const origFetch = window.fetch;
-  const adDomains = ${JSON.stringify(PROXY_AD_DOMAINS)};
-  window.fetch = function(url) {
-    if (typeof url === 'string' && adDomains.some(d => url.includes(d))) {
-      return Promise.resolve(new Response('', { status: 200 }));
-    }
-    return origFetch.apply(this, arguments);
-  };
-})();
-</script>
-`;
-    
-    // Inject at start of head
-    html = html.replace(/<head[^>]*>/i, `$&${adBlockerScript}`);
-    
-    // Set appropriate headers
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
-    res.send(html);
-    
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+
+    await db.savePushToken(userId, pushToken);
+    res.json({ success: true });
   } catch (e) {
-    console.error('Proxy error:', e);
-    res.status(500).json({ error: 'Proxy failed' });
+    console.error('Register push token error:', e);
+    res.status(500).json({ error: 'Failed to register push token' });
+  }
+});
+
+// Unregister push token
+app.post('/api/notifications/unregister', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+
+    await db.removePushToken(userId);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Unregister push token error:', e);
+    res.status(500).json({ error: 'Failed to unregister push token' });
+  }
+});
+
+// Test notification (for debugging)
+app.post('/api/notifications/test', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+
+    await notifications.sendPushNotification(
+      [userId],
+      '🎮 Test Notification',
+      'If you see this, push notifications are working!',
+      { type: 'test' }
+    );
+
+    res.json({ success: true, message: 'Test notification sent' });
+  } catch (e) {
+    console.error('Test notification error:', e);
+    res.status(500).json({ error: 'Failed to send test notification' });
   }
 });
 
@@ -3645,7 +3610,7 @@ const start = async () => {
   await runStoriesMigration();
   // Don't auto-seed on startup - use admin panel to manage games
   // await seedGames();
-  
+
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
   });
