@@ -95,12 +95,12 @@ async function notifyFollow(followerId, followedUserId) {
     // Check if it's a follow-back (they already follow the follower)
     const { Pool } = require('pg');
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    
+
     const followBackCheck = await pool.query(
       'SELECT * FROM followers WHERE follower_id = $1 AND following_id = $2',
       [followedUserId, followerId]
     );
-    
+
     const isFollowBack = followBackCheck.rows.length > 0;
     const action = isFollowBack ? 'started following you back' : 'just followed you';
 
@@ -114,10 +114,7 @@ async function notifyFollow(followerId, followedUserId) {
     console.error('[Notifications] Follow notification error:', error);
   }
 }
-  } catch (error) {
-    console.error('[Notifications] Follow notification error:', error);
-  }
-}
+
 
 async function notifyMessage(senderId, recipientId, messagePreview) {
   try {
@@ -147,7 +144,7 @@ async function notifyScoreBeaten(gameId, beatenByUserId, originalUserId, newScor
       { title: '⚡ New High Score', body: `${beatenByUser.displayName || beatenByUser.username} just took your #1 spot with ${newScore}!` },
       { title: '💪 Game On!', body: `${beatenByUser.displayName || beatenByUser.username} beat you: ${newScore} points. Your move!` },
     ];
-    
+
     const message = messages[Math.floor(Math.random() * messages.length)];
 
     await sendPushNotification(
@@ -174,9 +171,9 @@ async function notifyNewGames(userIds, gameCount) {
       { title: '🚀 New Arrivals', body: `${gameCount} new games just landed. Don't miss out!` },
       { title: '🎯 Game Update', body: `${gameCount} new games added today. Time to play!` },
     ];
-    
+
     const message = messages[Math.floor(Math.random() * messages.length)];
-    
+
     await sendPushNotification(
       userIds,
       message.title,
@@ -192,7 +189,7 @@ async function notifyStreak(userId, streakDays) {
   try {
     const emojis = ['🔥', '💪', '⚡', '🌟', '🚀'];
     const emoji = emojis[Math.min(streakDays - 1, emojis.length - 1)];
-    
+
     await sendPushNotification(
       [userId],
       `${emoji} ${streakDays}-Day Streak!`,
