@@ -1,11 +1,13 @@
 // Push Notifications Service - All 4 Types
-const { Expo } = require('expo-server-sdk');
-const db = require('./db');
+import { Expo } from 'expo-server-sdk';
+import db from './db.js';
+import pg from 'pg';
 
+const { Pool } = pg;
 const expo = new Expo();
 
 // Send push notification to user(s)
-async function sendPushNotification(userIds, title, body, data = {}) {
+export async function sendPushNotification(userIds, title, body, data = {}) {
   try {
     // Get push tokens for users
     const tokens = await db.getPushTokens(userIds);
@@ -55,7 +57,7 @@ async function sendPushNotification(userIds, title, body, data = {}) {
 // TYPE 1: SOCIAL NOTIFICATIONS
 // ============================================
 
-async function notifyLike(gameId, likedByUserId, gameOwnerId) {
+export async function notifyLike(gameId, likedByUserId, gameOwnerId) {
   try {
     const likedByUser = await db.getUserById(likedByUserId);
     if (!likedByUser) return;
@@ -71,7 +73,7 @@ async function notifyLike(gameId, likedByUserId, gameOwnerId) {
   }
 }
 
-async function notifyComment(gameId, commentedByUserId, gameOwnerId, commentText) {
+export async function notifyComment(gameId, commentedByUserId, gameOwnerId, commentText) {
   try {
     const commentedByUser = await db.getUserById(commentedByUserId);
     if (!commentedByUser) return;
@@ -87,13 +89,12 @@ async function notifyComment(gameId, commentedByUserId, gameOwnerId, commentText
   }
 }
 
-async function notifyFollow(followerId, followedUserId) {
+export async function notifyFollow(followerId, followedUserId) {
   try {
     const follower = await db.getUserById(followerId);
     if (!follower) return;
 
     // Check if it's a follow-back (they already follow the follower)
-    const { Pool } = require('pg');
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
     const followBackCheck = await pool.query(
@@ -116,7 +117,7 @@ async function notifyFollow(followerId, followedUserId) {
 }
 
 
-async function notifyMessage(senderId, recipientId, messagePreview) {
+export async function notifyMessage(senderId, recipientId, messagePreview) {
   try {
     const sender = await db.getUserById(senderId);
     if (!sender) return;
@@ -132,7 +133,7 @@ async function notifyMessage(senderId, recipientId, messagePreview) {
   }
 }
 
-async function notifyScoreBeaten(gameId, beatenByUserId, originalUserId, newScore) {
+export async function notifyScoreBeaten(gameId, beatenByUserId, originalUserId, newScore) {
   try {
     const beatenByUser = await db.getUserById(beatenByUserId);
     if (!beatenByUser) return;
@@ -162,7 +163,7 @@ async function notifyScoreBeaten(gameId, beatenByUserId, originalUserId, newScor
 // TYPE 2: ENGAGEMENT NOTIFICATIONS
 // ============================================
 
-async function notifyNewGames(userIds, gameCount) {
+export async function notifyNewGames(userIds, gameCount) {
   try {
     const messages = [
       { title: '🎮 New Games Added!', body: `${gameCount} fresh games just dropped. Check them out now!` },
@@ -185,7 +186,7 @@ async function notifyNewGames(userIds, gameCount) {
   }
 }
 
-async function notifyStreak(userId, streakDays) {
+export async function notifyStreak(userId, streakDays) {
   try {
     const emojis = ['🔥', '💪', '⚡', '🌟', '🚀'];
     const emoji = emojis[Math.min(streakDays - 1, emojis.length - 1)];
@@ -201,7 +202,7 @@ async function notifyStreak(userId, streakDays) {
   }
 }
 
-async function notifyLeaderboardPosition(userId, gameId, position) {
+export async function notifyLeaderboardPosition(userId, gameId, position) {
   try {
     const messages = {
       1: { title: '🥇 You\'re #1!', body: 'You\'re at the top of the leaderboard!' },
@@ -225,7 +226,7 @@ async function notifyLeaderboardPosition(userId, gameId, position) {
   }
 }
 
-async function notifyDailyChallenge(userIds, challengeDescription) {
+export async function notifyDailyChallenge(userIds, challengeDescription) {
   try {
     await sendPushNotification(
       userIds,
@@ -242,7 +243,7 @@ async function notifyDailyChallenge(userIds, challengeDescription) {
 // TYPE 3: RE-ENGAGEMENT NOTIFICATIONS
 // ============================================
 
-async function notifyInactive(userId, daysInactive) {
+export async function notifyInactive(userId, daysInactive) {
   try {
     const messages = [
       { title: '😢 We miss you!', body: 'Come back and play your favorite games!' },
@@ -268,7 +269,7 @@ async function notifyInactive(userId, daysInactive) {
   }
 }
 
-async function notifyDailyReward(userId, rewardAmount) {
+export async function notifyDailyReward(userId, rewardAmount) {
   try {
     await sendPushNotification(
       [userId],
@@ -281,7 +282,7 @@ async function notifyDailyReward(userId, rewardAmount) {
   }
 }
 
-async function notifyFriendsPlaying(userId, friendNames) {
+export async function notifyFriendsPlaying(userId, friendNames) {
   try {
     const friendList = friendNames.slice(0, 3).join(', ');
     const others = friendNames.length > 3 ? ` and ${friendNames.length - 3} others` : '';
@@ -301,7 +302,7 @@ async function notifyFriendsPlaying(userId, friendNames) {
 // TYPE 4: FOMO NOTIFICATIONS
 // ============================================
 
-async function notifyLimitedTimeEvent(userIds, eventName, hoursLeft) {
+export async function notifyLimitedTimeEvent(userIds, eventName, hoursLeft) {
   try {
     await sendPushNotification(
       userIds,
@@ -314,7 +315,7 @@ async function notifyLimitedTimeEvent(userIds, eventName, hoursLeft) {
   }
 }
 
-async function notifyDoubleXP(userIds, minutesLeft) {
+export async function notifyDoubleXP(userIds, minutesLeft) {
   try {
     await sendPushNotification(
       userIds,
@@ -327,7 +328,7 @@ async function notifyDoubleXP(userIds, minutesLeft) {
   }
 }
 
-async function notifyTrendingGame(userIds, gameName, playerCount) {
+export async function notifyTrendingGame(userIds, gameName, playerCount) {
   try {
     await sendPushNotification(
       userIds,
@@ -340,7 +341,7 @@ async function notifyTrendingGame(userIds, gameName, playerCount) {
   }
 }
 
-async function notifyFriendAchievement(userId, friendName, achievementName) {
+export async function notifyFriendAchievement(userId, friendName, achievementName) {
   try {
     await sendPushNotification(
       [userId],
@@ -358,7 +359,7 @@ async function notifyFriendAchievement(userId, friendName, achievementName) {
 // ============================================
 
 // Run daily at 9 AM to notify inactive users
-async function sendDailyInactiveNotifications() {
+export async function sendDailyInactiveNotifications() {
   try {
     const inactiveUsers = await db.getInactiveUsers(3); // 3+ days inactive
     for (const user of inactiveUsers) {
@@ -372,7 +373,7 @@ async function sendDailyInactiveNotifications() {
 }
 
 // Run daily at 10 AM to notify about daily rewards
-async function sendDailyRewardNotifications() {
+export async function sendDailyRewardNotifications() {
   try {
     const users = await db.getUsersWithPendingRewards();
     for (const user of users) {
@@ -385,7 +386,7 @@ async function sendDailyRewardNotifications() {
 }
 
 // Run every hour to check for friends playing
-async function sendFriendsPlayingNotifications() {
+export async function sendFriendsPlayingNotifications() {
   try {
     const users = await db.getUsersWithActiveFriends();
     for (const user of users) {
@@ -396,31 +397,3 @@ async function sendFriendsPlayingNotifications() {
     console.error('[Notifications] Friends playing error:', error);
   }
 }
-
-module.exports = {
-  sendPushNotification,
-  // Social
-  notifyLike,
-  notifyComment,
-  notifyFollow,
-  notifyMessage,
-  notifyScoreBeaten,
-  // Engagement
-  notifyNewGames,
-  notifyStreak,
-  notifyLeaderboardPosition,
-  notifyDailyChallenge,
-  // Re-engagement
-  notifyInactive,
-  notifyDailyReward,
-  notifyFriendsPlaying,
-  // FOMO
-  notifyLimitedTimeEvent,
-  notifyDoubleXP,
-  notifyTrendingGame,
-  notifyFriendAchievement,
-  // Scheduled
-  sendDailyInactiveNotifications,
-  sendDailyRewardNotifications,
-  sendFriendsPlayingNotifications,
-};
