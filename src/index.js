@@ -2781,6 +2781,35 @@ app.post('/api/gamification/daily-claim', async (req, res) => {
   }
 });
 
+// Claim reward for watching an ad
+app.post('/api/gamification/ad-reward', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+
+    await ensureUserGamification(userId);
+
+    // Award 1000 points
+    await awardPoints(userId, 1000, 'ad_watch', 'Watched a rewarded ad');
+
+    // Check if this triggers any achievements
+    const unlockedAchievements = await checkAchievements(userId);
+
+    res.json({
+      success: true,
+      pointsEarned: 1000,
+      unlockedAchievements
+    });
+  } catch (e) {
+    console.error('Ad reward error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Award points for playing a game
 app.post('/api/gamification/game-played', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
