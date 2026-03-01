@@ -351,7 +351,7 @@ export const runGamificationMigrations = async () => {
       CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
     `);
     console.log('✅ Gamification tables ready');
-    
+
     // Seed default challenges if none exist
     // Clear and re-seed daily challenges with simple ones
     await client.query('DELETE FROM user_challenges');
@@ -363,7 +363,7 @@ export const runGamificationMigrations = async () => {
       ('Like 5 Games', 'Like 5 games you enjoy', 'like_games', 5, 30, 0, '❤️')
     `);
     console.log('✅ Daily challenges seeded');
-    
+
     // Seed default achievements if none exist
     const achievementCount = await client.query('SELECT COUNT(*) FROM achievements');
     if (parseInt(achievementCount.rows[0].count) === 0) {
@@ -392,7 +392,7 @@ export const runGamificationMigrations = async () => {
       `);
       console.log('✅ Default achievements seeded');
     }
-    
+
     // Seed some aspirational rewards
     const rewardCount = await client.query('SELECT COUNT(*) FROM rewards');
     if (parseInt(rewardCount.rows[0].count) === 0) {
@@ -411,7 +411,7 @@ export const runGamificationMigrations = async () => {
       `);
       console.log('✅ Default rewards seeded');
     }
-    
+
   } catch (e) {
     console.log('Gamification migration error:', e.message);
   } finally {
@@ -480,7 +480,7 @@ export const runLeaderboardMigration = async () => {
         WHERE table_name = 'game_leaderboard'
       );
     `);
-    
+
     if (tableCheck.rows[0].exists) {
       // Try to drop the FK constraint if it exists
       try {
@@ -511,7 +511,7 @@ export const runLeaderboardMigration = async () => {
       `);
       console.log('✅ Created game_leaderboard table');
     }
-    
+
     console.log('✅ Game leaderboard table ready');
   } catch (e) {
     console.log('Leaderboard migration error:', e.message);
@@ -611,19 +611,33 @@ export const getPushTokens = async (userIds) => {
   }
 };
 
-export const getInactiveUsers = async (daysInactive = 3) => {
+export const getInactiveUsers = async (hoursInactive = 2) => {
   const client = await pool.connect();
   try {
     const result = await client.query(
       `SELECT u.id, u.username, u.display_name,
-              EXTRACT(DAY FROM NOW() - MAX(s.created_at)) as days_inactive
+              EXTRACT(HOUR FROM NOW() - COALESCE(MAX(s.created_at), u.created_at)) as hours_inactive
        FROM users u
        LEFT JOIN scores s ON u.id = s.user_id
        WHERE u.id IN (SELECT DISTINCT user_id FROM push_tokens)
        GROUP BY u.id
-       HAVING MAX(s.created_at) < NOW() - INTERVAL '${daysInactive} days'
-          OR MAX(s.created_at) IS NULL`,
+       HAVING COALESCE(MAX(s.created_at), u.created_at) < NOW() - INTERVAL '${hoursInactive} hours'`,
       []
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
+};
+
+// Get ALL users who have push tokens registered (for blast notifications)
+export const getAllUsersWithTokens = async () => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT DISTINCT u.id, u.username, u.display_name
+       FROM users u
+       INNER JOIN push_tokens pt ON u.id = pt.user_id`
     );
     return result.rows;
   } finally {

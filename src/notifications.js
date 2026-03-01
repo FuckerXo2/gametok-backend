@@ -242,17 +242,19 @@ async function notifyDailyChallenge(userIds, challengeDescription) {
 // TYPE 3: RE-ENGAGEMENT NOTIFICATIONS
 // ============================================
 
-async function notifyInactive(userId, daysInactive) {
+async function notifyInactive(userId, hoursInactive) {
   try {
     const messages = [
-      { title: '😢 We miss you!', body: 'Come back and play your favorite games!' },
-      { title: '🎮 Your games are waiting', body: 'It\'s been a while! Jump back in.' },
-      { title: '👋 Hey stranger!', body: 'Your friends have been playing. Join them!' },
-      { title: '🌟 New games added', body: 'Check out what you\'ve been missing!' },
-      { title: '💔 Where did you go?', body: 'We saved your progress. Come back!' },
-      { title: '🎯 Ready to play?', body: 'Your favorite games miss you!' },
-      { title: '🔥 Don\'t lose your streak', body: 'Get back in the game before it\'s too late!' },
+      { title: '🎮 Your games miss you!', body: 'Hop back in — new games are waiting!' },
+      { title: '🔥 Don\'t break your streak!', body: 'Play now to keep your streak alive!' },
       { title: '⚡ Quick game?', body: 'Just 5 minutes. You know you want to!' },
+      { title: '🎯 Daily challenge is live!', body: 'Complete it before it expires for bonus coins!' },
+      { title: '💰 Free coins waiting!', body: 'Come back and claim your rewards!' },
+      { title: '🚀 You\'re falling behind!', body: 'Your friends are leveling up. Are you?' },
+      { title: '🎮 Bored?', body: 'We\'ve got the cure. Tap to play!' },
+      { title: '👀 Don\'t miss out!', body: 'New games just dropped. Check them out!' },
+      { title: '🏆 Leaderboard update!', body: 'See where you rank — you might be surprised!' },
+      { title: '🎁 Bonus reward inside!', body: 'Open the app to claim your surprise!' },
     ];
 
     const message = messages[Math.floor(Math.random() * messages.length)];
@@ -261,7 +263,7 @@ async function notifyInactive(userId, daysInactive) {
       [userId],
       message.title,
       message.body,
-      { type: 're-engagement', action: 'inactive', days: daysInactive }
+      { type: 're-engagement', action: 'inactive', hours: hoursInactive }
     );
   } catch (error) {
     console.error('[Notifications] Inactive notification error:', error);
@@ -357,17 +359,17 @@ async function notifyFriendAchievement(userId, friendName, achievementName) {
 // SCHEDULED NOTIFICATIONS (Cron Jobs)
 // ============================================
 
-// Run daily at 9 AM to notify inactive users
+// Run every 2 hours to re-engage users
 async function sendDailyInactiveNotifications() {
   try {
-    const inactiveUsers = await db.getInactiveUsers(3); // 3+ days inactive
+    const inactiveUsers = await db.getInactiveUsers(2); // 2+ hours inactive
+    console.log(`[Notifications] Found ${inactiveUsers.length} inactive users to ping`);
     for (const user of inactiveUsers) {
-      await notifyInactive(user.id, user.daysInactive);
-      // Space out notifications
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await notifyInactive(user.id, user.hours_inactive || 2);
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
   } catch (error) {
-    console.error('[Notifications] Daily inactive error:', error);
+    console.error('[Notifications] Re-engagement error:', error);
   }
 }
 
