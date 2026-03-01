@@ -1642,6 +1642,9 @@ app.post('/api/likes', async (req, res) => {
       `, [userId]);
 
       res.json({ liked: true, likeCount: newLikeCount });
+
+      // Send like notification to game creator (don't await, fire and forget)
+      notifications.notifyLike(gameId, userId, null).catch(e => console.log('[Notifications] Like notify error:', e));
     }
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -1977,6 +1980,17 @@ app.post('/api/messages', async (req, res) => {
     );
     await pool.query('UPDATE conversations SET updated_at = NOW() WHERE id = $1', [convId]);
 
+    // Send message notification to recipient
+    if (convId) {
+      const convResult = await pool.query('SELECT participant1_id, participant2_id FROM conversations WHERE id = $1', [convId]);
+      if (convResult.rows.length > 0) {
+        const conv = convResult.rows[0];
+        const recipId = conv.participant1_id === userId ? conv.participant2_id : conv.participant1_id;
+        const preview = (text || gameData?.name || 'Sent a message').substring(0, 50);
+        notifications.notifyMessage(userId, recipId, preview).catch(e => console.log('[Notifications] Message notify error:', e));
+      }
+    }
+
     res.json({
       message: {
         id: result.rows[0].id,
@@ -2069,6 +2083,9 @@ app.post('/api/comments', async (req, res) => {
         likes: 0, createdAt: result.rows[0].created_at
       }
     });
+
+    // Send comment notification (fire and forget)
+    notifications.notifyComment(gameId, user.id, null, text.trim()).catch(e => console.log('[Notifications] Comment notify error:', e));
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -3652,12 +3669,37 @@ const start = async () => {
   await runDeletedGamesMigration();
   await runCoinConfigMigration();
   await runStoriesMigration();
-  // Don't auto-seed on startup - use admin panel to manage games
-  // await seedGames();
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
   });
+
+  // ============================================
+  // SCHEDULED NOTIFICATIONS (every 2 hours)
+  // ============================================
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+  setInterval(async () => {
+    console.log('[Scheduler] Running re-engagement notifications...');
+    try {
+      await notifications.sendDailyInactiveNotifications();
+      await notifications.sendDailyRewardNotifications();
+      console.log('[Scheduler] Re-engagement notifications sent');
+    } catch (e) {
+      console.error('[Scheduler] Error:', e);
+    }
+  }, TWO_HOURS);
+
+  // Run once on startup after a 30s delay (let server settle)
+  setTimeout(async () => {
+    console.log('[Scheduler] Initial re-engagement check...');
+    try {
+      await notifications.sendDailyInactiveNotifications();
+      await notifications.sendDailyRewardNotifications();
+    } catch (e) {
+      console.error('[Scheduler] Initial run error:', e);
+    }
+  }, 30000);
 };
 
 start().catch(console.error);
