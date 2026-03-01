@@ -1350,13 +1350,28 @@ app.get('/api/users/:id', async (req, res) => {
     const followers = await pool.query('SELECT COUNT(*) FROM followers WHERE following_id = $1', [user.id]);
     const following = await pool.query('SELECT COUNT(*) FROM followers WHERE follower_id = $1', [user.id]);
 
+    // Get gamification data (level + streak)
+    let levelData = { level: 1, xp: 0 };
+    let streakData = { current_streak: 0 };
+    try {
+      const levelResult = await pool.query('SELECT level, xp FROM user_levels WHERE user_id = $1', [user.id]);
+      if (levelResult.rows.length > 0) levelData = levelResult.rows[0];
+      const streakResult = await pool.query('SELECT current_streak FROM user_streaks WHERE user_id = $1', [user.id]);
+      if (streakResult.rows.length > 0) streakData = streakResult.rows[0];
+    } catch (e) {
+      // Tables might not exist yet for this user, use defaults
+    }
+
     res.json({
       user: formatUser(user),
       stats: {
         followers: parseInt(followers.rows[0].count),
         following: parseInt(following.rows[0].count),
         gamesPlayed: user.games_played,
-        totalScore: user.total_score
+        totalScore: user.total_score,
+        level: levelData.level,
+        xp: levelData.xp,
+        streak: streakData.current_streak
       }
     });
   } catch (e) {
