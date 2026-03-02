@@ -1643,8 +1643,7 @@ app.post('/api/likes', async (req, res) => {
 
       res.json({ liked: true, likeCount: newLikeCount });
 
-      // Send like notification to game creator (don't await, fire and forget)
-      notifications.notifyLike(gameId, userId, null).catch(e => console.log('[Notifications] Like notify error:', e));
+      // Like notifications removed — games don't have owners to notify
     }
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -2084,8 +2083,22 @@ app.post('/api/comments', async (req, res) => {
       }
     });
 
-    // Send comment notification (fire and forget)
-    notifications.notifyComment(gameId, user.id, null, text.trim()).catch(e => console.log('[Notifications] Comment notify error:', e));
+    // Notify all other users who commented on this game (like Instagram thread notifications)
+    pool.query(
+      'SELECT DISTINCT user_id FROM comments WHERE game_id = $1 AND user_id != $2',
+      [gameId, user.id]
+    ).then(commentersResult => {
+      const otherCommenters = commentersResult.rows.map(r => r.user_id);
+      if (otherCommenters.length > 0) {
+        const displayName = user.display_name || user.username;
+        notifications.sendPushNotification(
+          otherCommenters,
+          '💬 New Comment',
+          `${displayName}: ${text.trim().substring(0, 50)}${text.trim().length > 50 ? '...' : ''}`,
+          { type: 'social', action: 'comment', gameId, userId: user.id }
+        ).catch(e => console.log('[Notifications] Comment notify error:', e));
+      }
+    }).catch(e => console.log('[Notifications] Comment query error:', e));
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
