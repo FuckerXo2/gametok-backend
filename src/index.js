@@ -3628,6 +3628,46 @@ app.post('/api/notifications/register', async (req, res) => {
   }
 });
 
+// Debug: Check push tokens in DB
+app.get('/api/notifications/debug', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT user_id, token, created_at FROM push_tokens ORDER BY created_at DESC LIMIT 20');
+    res.json({
+      totalTokens: result.rows.length,
+      tokens: result.rows.map(r => ({
+        userId: r.user_id,
+        token: r.token.substring(0, 30) + '...',
+        createdAt: r.created_at
+      }))
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Test: Send a test push notification to yourself
+app.post('/api/notifications/test', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const userResult = await pool.query('SELECT id, username FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const user = userResult.rows[0];
+
+    await notifications.sendPushNotification(
+      [user.id],
+      '🎮 GameTok',
+      'Push notifications are working! 🔔',
+      { type: 'test' }
+    );
+    res.json({ success: true, message: `Test notification sent to ${user.username}` });
+  } catch (e) {
+    console.error('Test notification error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Unregister push token
 app.post('/api/notifications/unregister', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
