@@ -193,6 +193,8 @@ export const initDB = async () => {
         END IF;
         -- Make password nullable for OAuth users
         ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+        -- Make username nullable for OAuth users (they pick it during onboarding)
+        ALTER TABLE users ALTER COLUMN username DROP NOT NULL;
       EXCEPTION WHEN OTHERS THEN
         NULL;
       END $$;

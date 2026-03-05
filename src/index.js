@@ -1378,19 +1378,28 @@ app.get('/api/users/:id', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  const { displayName, bio, avatar } = req.body;
+  const { displayName, bio, avatar, username } = req.body;
 
   try {
     const userCheck = await pool.query('SELECT * FROM users WHERE id = $1 AND token = $2', [req.params.id, token]);
     if (userCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized' });
 
+    // Validate if changing username
+    if (username !== undefined) {
+      if (username.length < 3 || username.length > 20) return res.status(400).json({ error: 'Username must be 3-20 chars' });
+      // Check if taken by someone else
+      const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2', [username, req.params.id]);
+      if (existing.rows.length > 0) return res.status(400).json({ error: 'Username taken' });
+    }
+
     const result = await pool.query(
       `UPDATE users SET 
         display_name = COALESCE($1, display_name),
         bio = COALESCE($2, bio),
-        avatar = COALESCE($3, avatar)
-       WHERE id = $4 RETURNING *`,
-      [displayName, bio, avatar, req.params.id]
+        avatar = COALESCE($3, avatar),
+        username = COALESCE($4, username)
+       WHERE id = $5 RETURNING *`,
+      [displayName, bio, avatar, username, req.params.id]
     );
     res.json({ user: formatUser(result.rows[0]) });
   } catch (e) {
