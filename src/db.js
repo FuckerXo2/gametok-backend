@@ -15,7 +15,7 @@ export const initDB = async () => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        username VARCHAR(50) UNIQUE NOT NULL,
+        username VARCHAR(50) UNIQUE,
         email VARCHAR(255) UNIQUE,
         password VARCHAR(255),
         display_name VARCHAR(100),

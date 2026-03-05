@@ -199,16 +199,13 @@ app.post('/api/auth/oauth', async (req, res) => {
       }
 
       if (!user) {
-        // Create new user - mark as new so frontend shows onboarding
+        // Create new user WITHOUT username - they must choose one in onboarding
         isNewUser = true;
-        const username = userEmail
-          ? userEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(Math.random() * 1000)
-          : `user${Date.now()}`;
 
         result = await pool.query(
           `INSERT INTO users (username, email, display_name, oauth_provider, oauth_id, token) 
            VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-          [username, userEmail, userName || username, provider, oauthId, token]
+          [null, userEmail, userName, provider, oauthId, token]
         );
         user = result.rows[0];
       }
