@@ -3716,6 +3716,27 @@ app.post('/api/notifications/test', async (req, res) => {
   }
 });
 
+// Admin: blast test notification to ALL registered devices
+app.post('/api/admin/test-push', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT DISTINCT user_id FROM push_tokens');
+    const userIds = result.rows.map(r => r.user_id);
+    if (userIds.length === 0) return res.json({ success: false, message: 'No push tokens registered' });
+
+    await notifications.sendPushNotification(
+      userIds,
+      '🎮 GameTOK',
+      'Push notifications are working! 🔔🎉',
+      { type: 'test' }
+    );
+
+    res.json({ success: true, message: `Test sent to ${userIds.length} users` });
+  } catch (e) {
+    console.error('Admin test push error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ============================================
 // START SERVER
 // ============================================
