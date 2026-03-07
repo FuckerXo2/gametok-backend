@@ -22,10 +22,10 @@ const GAME_CONFIGS = {
   'connect4': { minPlayers: 2, maxPlayers: 2, turnBased: true },
   'chess': { minPlayers: 2, maxPlayers: 2, turnBased: true },
   'rock-paper-scissors': { minPlayers: 2, maxPlayers: 2, turnBased: true },
-  
+
   // Real-time games
   'pong': { minPlayers: 2, maxPlayers: 2, turnBased: false, realtime: true },
-  
+
   // Score competition games - ANY game can be played this way
   'tetris': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 120 },
   '2048': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 180 },
@@ -81,6 +81,11 @@ export function initMultiplayer(server, db) {
         socket.userId = userId;
         console.log(`[MP] User authenticated: ${userId}`);
         socket.emit('auth:success', { userId });
+
+        // Broadcast that this user is online
+        io.emit('presence:user_joined', userId);
+        // Send current online users to this socket
+        socket.emit('presence:online_users', Array.from(playerSockets.keys()));
       }
     });
 
@@ -154,11 +159,11 @@ export function initMultiplayer(server, db) {
       socket.currentRoom = roomId;
 
       console.log(`[MP] User ${socket.userId} joined room ${roomId}`);
-      
+
       // Notify all players in room
-      io.to(roomId).emit('room:playerJoined', { 
+      io.to(roomId).emit('room:playerJoined', {
         room: sanitizeRoom(room),
-        playerId: socket.userId 
+        playerId: socket.userId
       });
     });
 
@@ -170,7 +175,7 @@ export function initMultiplayer(server, db) {
     // Player ready toggle
     socket.on('room:ready', ({ ready }) => {
       if (!socket.currentRoom) return;
-      
+
       const room = gameRooms.get(socket.currentRoom);
       if (!room) return;
 
@@ -182,7 +187,7 @@ export function initMultiplayer(server, db) {
         // Check if all players ready and room is full
         const allReady = room.players.every(p => p.ready);
         const roomFull = room.players.length >= room.config.minPlayers;
-        
+
         if (allReady && roomFull) {
           startGame(room, io);
         }
@@ -193,7 +198,7 @@ export function initMultiplayer(server, db) {
     // Game move (for turn-based games)
     socket.on('game:move', ({ move }) => {
       if (!socket.currentRoom) return;
-      
+
       const room = gameRooms.get(socket.currentRoom);
       if (!room || room.state !== ROOM_STATES.PLAYING) return;
 
@@ -205,10 +210,10 @@ export function initMultiplayer(server, db) {
 
       // Process the move based on game type
       const result = processGameMove(room, socket.userId, move);
-      
+
       if (result.valid) {
         room.gameState = result.newState;
-        
+
         // Switch turns for turn-based games
         if (room.config.turnBased) {
           const currentIndex = room.players.findIndex(p => p.id === socket.userId);
@@ -240,7 +245,7 @@ export function initMultiplayer(server, db) {
     // Real-time game update (for non-turn-based games like Pong)
     socket.on('game:update', ({ state }) => {
       if (!socket.currentRoom) return;
-      
+
       const room = gameRooms.get(socket.currentRoom);
       if (!room || room.state !== ROOM_STATES.PLAYING) return;
 
@@ -325,14 +330,14 @@ export function initMultiplayer(server, db) {
     // Update score during score competition
     socket.on('competition:score', ({ score }) => {
       if (!socket.currentRoom) return;
-      
+
       const room = gameRooms.get(socket.currentRoom);
       if (!room || room.state !== ROOM_STATES.PLAYING) return;
       if (!room.config.scoreCompetition) return;
 
       // Update player's score
       room.gameState.scores[socket.userId] = score;
-      
+
       // Broadcast to opponent
       socket.to(socket.currentRoom).emit('competition:opponentScore', {
         score,
@@ -343,7 +348,7 @@ export function initMultiplayer(server, db) {
     // Player finished their game
     socket.on('competition:finished', ({ finalScore }) => {
       if (!socket.currentRoom) return;
-      
+
       const room = gameRooms.get(socket.currentRoom);
       if (!room || room.state !== ROOM_STATES.PLAYING) return;
       if (!room.config.scoreCompetition) return;
@@ -364,13 +369,13 @@ export function initMultiplayer(server, db) {
         const scores = room.gameState.scores;
         const [p1, p2] = room.players;
         let winner = null;
-        
+
         if (scores[p1.id] > scores[p2.id]) winner = p1.id;
         else if (scores[p2.id] > scores[p1.id]) winner = p2.id;
         // else it's a draw, winner stays null
 
         room.state = ROOM_STATES.FINISHED;
-        
+
         io.to(socket.currentRoom).emit('game:over', {
           winner,
           reason: winner ? 'win' : 'draw',
@@ -394,14 +399,38 @@ export function initMultiplayer(server, db) {
       // Could also store invite in DB for offline users
     });
 
+    // ============================================
+    // DIRECT MESSAGING (CHAT) EVENTS
+    // ============================================
+    socket.on('chat:message', (data) => {
+      // data format: { to: 'userId', text: 'Hello', id: 'uuid', createdAt: timestamp, gameId: null }
+      const { to, text, id, createdAt, gameId } = data;
+      if (!socket.userId) return;
+
+      const receiverSocket = playerSockets.get(to);
+      if (receiverSocket) {
+        // Send directly to their socket
+        receiverSocket.emit('chat:receive', {
+          id,
+          senderId: socket.userId,
+          receiverId: to,
+          text,
+          createdAt,
+          gameId
+        });
+      }
+    });
+
     // Disconnect handling
     socket.on('disconnect', () => {
       console.log(`[MP] Client disconnected: ${socket.id}`);
       handleLeaveRoom(socket, io);
-      
+
       if (socket.userId) {
         playerSockets.delete(socket.userId);
         socketPlayers.delete(socket.id);
+        // Notify others
+        io.emit('presence:user_left', socket.userId);
       }
     });
   });
@@ -452,7 +481,7 @@ export function initMultiplayer(server, db) {
     room.currentTurn = room.config.scoreCompetition ? null : room.players[0].id;
 
     console.log(`[MP] Game started in room ${room.id} (${room.config.scoreCompetition ? 'score competition' : 'turn-based'})`);
-    
+
     io.to(room.id).emit('game:start', {
       room: sanitizeRoom(room),
       gameState: room.gameState,
@@ -503,13 +532,13 @@ function initializeGameState(gameId, players, config) {
         board: Array(9).fill(null), // 3x3 grid as flat array
         symbols: { [players[0].id]: 'X', [players[1].id]: 'O' },
       };
-    
+
     case 'connect4':
       return {
         board: Array(6).fill(null).map(() => Array(7).fill(null)), // 6 rows x 7 cols
         symbols: { [players[0].id]: 'red', [players[1].id]: 'yellow' },
       };
-    
+
     case 'rock-paper-scissors':
       return {
         choices: {},
@@ -517,14 +546,14 @@ function initializeGameState(gameId, players, config) {
         scores: { [players[0].id]: 0, [players[1].id]: 0 },
         maxRounds: 3,
       };
-    
+
     case 'chess':
       return {
         fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
         colors: { [players[0].id]: 'white', [players[1].id]: 'black' },
         moves: [],
       };
-    
+
     case 'pong':
       return {
         ball: { x: 0.5, y: 0.5, vx: 0.01, vy: 0.01 },
@@ -532,7 +561,7 @@ function initializeGameState(gameId, players, config) {
         scores: { [players[0].id]: 0, [players[1].id]: 0 },
         maxScore: 5,
       };
-    
+
     default:
       return {};
   }
@@ -545,13 +574,13 @@ function processGameMove(room, playerId, move) {
   switch (gameId) {
     case 'tic-tac-toe':
       return processTicTacToeMove(gameState, playerId, move, players);
-    
+
     case 'connect4':
       return processConnect4Move(gameState, playerId, move, players);
-    
+
     case 'rock-paper-scissors':
       return processRPSMove(gameState, playerId, move, players);
-    
+
     default:
       return { valid: true, newState: gameState };
   }
@@ -561,7 +590,7 @@ function processGameMove(room, playerId, move) {
 // Tic-Tac-Toe move processing
 function processTicTacToeMove(state, playerId, move, players) {
   const { position } = move; // 0-8
-  
+
   if (position < 0 || position > 8 || state.board[position] !== null) {
     return { valid: false, error: 'Invalid position' };
   }
@@ -604,7 +633,7 @@ function checkTicTacToeWinner(board) {
 // Connect4 move processing
 function processConnect4Move(state, playerId, move, players) {
   const { column } = move; // 0-6
-  
+
   if (column < 0 || column > 6) {
     return { valid: false, error: 'Invalid column' };
   }
@@ -651,7 +680,7 @@ function checkConnect4Winner(board, row, col, symbol) {
 
   for (const [dr, dc] of directions) {
     let count = 1;
-    
+
     // Check positive direction
     for (let i = 1; i < 4; i++) {
       const r = row + dr * i;
@@ -660,7 +689,7 @@ function checkConnect4Winner(board, row, col, symbol) {
         count++;
       } else break;
     }
-    
+
     // Check negative direction
     for (let i = 1; i < 4; i++) {
       const r = row - dr * i;
@@ -679,7 +708,7 @@ function checkConnect4Winner(board, row, col, symbol) {
 // Rock-Paper-Scissors move processing
 function processRPSMove(state, playerId, move, players) {
   const { choice } = move; // 'rock' | 'paper' | 'scissors'
-  
+
   if (!['rock', 'paper', 'scissors'].includes(choice)) {
     return { valid: false, error: 'Invalid choice' };
   }
@@ -719,7 +748,7 @@ function processRPSMove(state, playerId, move, players) {
     if (newState.round >= newState.maxRounds) {
       // Determine winner by score
       const winner = newState.scores[p1.id] > newState.scores[p2.id] ? p1.id :
-                     newState.scores[p2.id] > newState.scores[p1.id] ? p2.id : null;
+        newState.scores[p2.id] > newState.scores[p1.id] ? p2.id : null;
       return { valid: true, newState, gameOver: true, winner, reason: winner ? 'win' : 'draw' };
     }
 
