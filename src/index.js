@@ -1445,10 +1445,14 @@ app.get('/api/users/search/:query', async (req, res) => {
 
 app.get('/api/users/:id', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM users WHERE id = $1 OR username = $1',
-      [req.params.id]
-    );
+    const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(req.params.id);
+    let result;
+    if (isUUID) {
+      result = await pool.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+    } else {
+      result = await pool.query('SELECT * FROM users WHERE username = $1', [req.params.id]);
+    }
+
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const user = result.rows[0];
