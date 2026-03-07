@@ -1444,6 +1444,7 @@ app.get('/api/users/search/:query', async (req, res) => {
 });
 
 app.get('/api/users/:id', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
   try {
     const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(req.params.id);
     let result;
@@ -1459,6 +1460,29 @@ app.get('/api/users/:id', async (req, res) => {
     const followers = await pool.query('SELECT COUNT(*) FROM followers WHERE following_id = $1', [user.id]);
     const following = await pool.query('SELECT COUNT(*) FROM followers WHERE follower_id = $1', [user.id]);
 
+    // Check if the requesting user follows this profile
+    let isFollowing = false;
+    let isMutual = false;
+    if (token) {
+      const currentUserResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+      if (currentUserResult.rows.length > 0) {
+        const currentUserId = currentUserResult.rows[0].id;
+        const followCheck = await pool.query(
+          'SELECT 1 FROM followers WHERE follower_id = $1 AND following_id = $2',
+          [currentUserId, user.id]
+        );
+        isFollowing = followCheck.rows.length > 0;
+
+        if (isFollowing) {
+          const mutualCheck = await pool.query(
+            'SELECT 1 FROM followers WHERE follower_id = $1 AND following_id = $2',
+            [user.id, currentUserId]
+          );
+          isMutual = mutualCheck.rows.length > 0;
+        }
+      }
+    }
+
     // Get gamification data (level + streak)
     let levelData = { level: 1, xp: 0 };
     let streakData = { current_streak: 0 };
@@ -1473,6 +1497,8 @@ app.get('/api/users/:id', async (req, res) => {
 
     res.json({
       user: formatUser(user),
+      isFollowing,
+      isMutual,
       stats: {
         followers: parseInt(followers.rows[0].count),
         following: parseInt(following.rows[0].count),
@@ -1484,6 +1510,7 @@ app.get('/api/users/:id', async (req, res) => {
       }
     });
   } catch (e) {
+    console.error('Get user error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
