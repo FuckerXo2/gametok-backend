@@ -1369,6 +1369,35 @@ app.get('/api/users/blocked', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
 
+  try {
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+    const userId = userResult.rows[0].id;
+
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.avatar, b.created_at as blocked_at
+       FROM users u
+       JOIN blocked_users b ON u.id = b.blocked_id
+       WHERE b.blocker_id = $1
+       ORDER BY b.created_at DESC`,
+      [userId]
+    );
+
+    res.json({
+      blockedUsers: result.rows.map(r => ({
+        id: r.id,
+        username: r.username,
+        displayName: r.display_name,
+        avatar: r.avatar,
+        blockedAt: r.blocked_at
+      }))
+    });
+  } catch (e) {
+    console.error('Get blocked users error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/users/recommended', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   try {
@@ -1409,6 +1438,10 @@ app.get('/api/users/search/:query', async (req, res) => {
       [`%${req.params.query}%`]
     );
     res.json({ users: result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })) });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 app.get('/api/users/:id', async (req, res) => {
   try {
@@ -1530,12 +1563,6 @@ app.post('/api/users/:id/follow', async (req, res) => {
     const isMutual = following && theyFollowUs.rows.length > 0;
 
     res.json({ following, isMutual });
-  } catch (e) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -2502,37 +2529,6 @@ app.delete('/api/users/:id/block', async (req, res) => {
     res.json({ success: true, blocked: false });
   } catch (e) {
     console.error('Unblock error:', e);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-
-
-  try {
-    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-    const userId = userResult.rows[0].id;
-
-    const result = await pool.query(
-      `SELECT u.id, u.username, u.display_name, u.avatar, b.created_at as blocked_at
-       FROM users u
-       JOIN blocked_users b ON u.id = b.blocked_id
-       WHERE b.blocker_id = $1
-       ORDER BY b.created_at DESC`,
-      [userId]
-    );
-
-    res.json({
-      blockedUsers: result.rows.map(r => ({
-        id: r.id,
-        username: r.username,
-        displayName: r.display_name,
-        avatar: r.avatar,
-        blockedAt: r.blocked_at
-      }))
-    });
-  } catch (e) {
-    console.error('Get blocked users error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
