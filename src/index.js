@@ -1489,6 +1489,38 @@ app.post('/api/users/:id/follow', async (req, res) => {
   }
 });
 
+app.get('/api/users/recommended', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  try {
+    let currentUserId = null;
+    if (token) {
+      const uResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+      if (uResult.rows.length > 0) currentUserId = uResult.rows[0].id;
+    }
+
+    let query = `
+      SELECT id, username, display_name, avatar 
+      FROM users 
+      WHERE username IS NOT NULL
+    `;
+    const params = [];
+
+    if (currentUserId) {
+      query += ` AND id != $1 AND id NOT IN (SELECT following_id FROM followers WHERE follower_id = $1) `;
+      params.push(currentUserId);
+    }
+
+    query += ` ORDER BY RANDOM() LIMIT 50`;
+
+    const result = await pool.query(query, params);
+
+    res.json({ users: result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })) });
+  } catch (e) {
+    console.error('Recommended users error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/users/search/:query', async (req, res) => {
   try {
     const result = await pool.query(
