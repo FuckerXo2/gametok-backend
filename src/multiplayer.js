@@ -1,762 +1,703 @@
-// Multiplayer Game Server - Socket.io based real-time gaming
-import { Server } from 'socket.io';
-import { v4 as uuidv4 } from 'uuid';
-
-// In-memory storage for game rooms (use Redis in production)
-const gameRooms = new Map();
-const playerSockets = new Map(); // odId -> socket
-const socketPlayers = new Map(); // socket.id -> userId
-
-// Room states
-const ROOM_STATES = {
-  WAITING: 'waiting',
-  PLAYING: 'playing',
-  FINISHED: 'finished',
-};
-
-// Game types and their configs
-// scoreCompetition: true means both players play same game, highest score wins
-const GAME_CONFIGS = {
-  // Turn-based games
-  'tic-tac-toe': { minPlayers: 2, maxPlayers: 2, turnBased: true },
-  'connect4': { minPlayers: 2, maxPlayers: 2, turnBased: true },
-  'chess': { minPlayers: 2, maxPlayers: 2, turnBased: true },
-  'rock-paper-scissors': { minPlayers: 2, maxPlayers: 2, turnBased: true },
-
-  // Real-time games
-  'pong': { minPlayers: 2, maxPlayers: 2, turnBased: false, realtime: true },
-
-  // Score competition games - ANY game can be played this way
-  'tetris': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 120 },
-  '2048': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 180 },
-  'flappy-bird': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'pacman': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'fruit-slicer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
-  'piano-tiles': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'doodle-jump': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'geometry-dash': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'endless-runner': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'crossy-road': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'breakout': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'ball-bounce': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'whack-a-mole': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 30 },
-  'aim-trainer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 30 },
-  'reaction-time': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'color-match': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
-  'memory-match': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'tap-tap-dash': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'number-tap': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 30 },
-  'bubble-pop': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
-  'simon-says': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'basketball': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true, timeLimit: 60 },
-  'golf-putt': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'snake-io': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'asteroids': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'space-invaders': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'missile-game': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'hexgl': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'racer': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'clumsy-bird': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'hextris': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-  'tower-game': { minPlayers: 2, maxPlayers: 2, scoreCompetition: true },
-};
-
-export function initMultiplayer(server, db) {
-  const io = new Server(server, {
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST'],
-    },
-  });
-
-  io.on('connection', (socket) => {
-    console.log(`[MP] Client connected: ${socket.id}`);
-
-    // Authenticate user
-    socket.on('auth', ({ userId, token }) => {
-      // In production, verify token against database
-      if (userId) {
-        socketPlayers.set(socket.id, userId);
-        playerSockets.set(userId, socket);
-        socket.userId = userId;
-        console.log(`[MP] User authenticated: ${userId}`);
-        socket.emit('auth:success', { userId });
-
-        // Broadcast that this user is online
-        io.emit('presence:user_joined', userId);
-        // Send current online users to this socket
-        socket.emit('presence:online_users', Array.from(playerSockets.keys()));
-      }
-    });
-
-    // Create a new game room
-    socket.on('room:create', ({ gameId, isPrivate = true }) => {
-      if (!socket.userId) {
-        socket.emit('error', { message: 'Not authenticated' });
-        return;
-      }
-
-      const config = GAME_CONFIGS[gameId];
-      if (!config) {
-        socket.emit('error', { message: 'Invalid game type' });
-        return;
-      }
-
-      const roomId = uuidv4().slice(0, 8).toUpperCase();
-      const room = {
-        id: roomId,
-        gameId,
-        hostId: socket.userId,
-        players: [{ id: socket.userId, ready: false }],
-        state: ROOM_STATES.WAITING,
-        isPrivate,
-        gameState: null,
-        currentTurn: null,
-        config,
-        createdAt: Date.now(),
-      };
-
-      gameRooms.set(roomId, room);
-      socket.join(roomId);
-      socket.currentRoom = roomId;
-
-      console.log(`[MP] Room created: ${roomId} for game ${gameId}`);
-      socket.emit('room:created', { room: sanitizeRoom(room) });
-    });
-
-
-    // Join an existing room
-    socket.on('room:join', ({ roomId }) => {
-      if (!socket.userId) {
-        socket.emit('error', { message: 'Not authenticated' });
-        return;
-      }
-
-      const room = gameRooms.get(roomId);
-      if (!room) {
-        socket.emit('error', { message: 'Room not found' });
-        return;
-      }
-
-      if (room.state !== ROOM_STATES.WAITING) {
-        socket.emit('error', { message: 'Game already in progress' });
-        return;
-      }
-
-      if (room.players.length >= room.config.maxPlayers) {
-        socket.emit('error', { message: 'Room is full' });
-        return;
-      }
-
-      // Check if already in room
-      if (room.players.find(p => p.id === socket.userId)) {
-        socket.emit('error', { message: 'Already in this room' });
-        return;
-      }
-
-      room.players.push({ id: socket.userId, ready: false });
-      socket.join(roomId);
-      socket.currentRoom = roomId;
-
-      console.log(`[MP] User ${socket.userId} joined room ${roomId}`);
-
-      // Notify all players in room
-      io.to(roomId).emit('room:playerJoined', {
-        room: sanitizeRoom(room),
-        playerId: socket.userId
-      });
-    });
-
-    // Leave room
-    socket.on('room:leave', () => {
-      handleLeaveRoom(socket, io);
-    });
-
-    // Player ready toggle
-    socket.on('room:ready', ({ ready }) => {
-      if (!socket.currentRoom) return;
-
-      const room = gameRooms.get(socket.currentRoom);
-      if (!room) return;
-
-      const player = room.players.find(p => p.id === socket.userId);
-      if (player) {
-        player.ready = ready;
-        io.to(socket.currentRoom).emit('room:updated', { room: sanitizeRoom(room) });
-
-        // Check if all players ready and room is full
-        const allReady = room.players.every(p => p.ready);
-        const roomFull = room.players.length >= room.config.minPlayers;
-
-        if (allReady && roomFull) {
-          startGame(room, io);
-        }
-      }
-    });
-
-
-    // Game move (for turn-based games)
-    socket.on('game:move', ({ move }) => {
-      if (!socket.currentRoom) return;
-
-      const room = gameRooms.get(socket.currentRoom);
-      if (!room || room.state !== ROOM_STATES.PLAYING) return;
-
-      // Verify it's this player's turn (for turn-based games)
-      if (room.config.turnBased && room.currentTurn !== socket.userId) {
-        socket.emit('error', { message: 'Not your turn' });
-        return;
-      }
-
-      // Process the move based on game type
-      const result = processGameMove(room, socket.userId, move);
-
-      if (result.valid) {
-        room.gameState = result.newState;
-
-        // Switch turns for turn-based games
-        if (room.config.turnBased) {
-          const currentIndex = room.players.findIndex(p => p.id === socket.userId);
-          const nextIndex = (currentIndex + 1) % room.players.length;
-          room.currentTurn = room.players[nextIndex].id;
-        }
-
-        // Broadcast updated state
-        io.to(socket.currentRoom).emit('game:state', {
-          gameState: room.gameState,
-          currentTurn: room.currentTurn,
-          lastMove: { playerId: socket.userId, move },
-        });
-
-        // Check for game over
-        if (result.gameOver) {
-          room.state = ROOM_STATES.FINISHED;
-          io.to(socket.currentRoom).emit('game:over', {
-            winner: result.winner,
-            reason: result.reason,
-            finalState: room.gameState,
-          });
-        }
-      } else {
-        socket.emit('error', { message: result.error || 'Invalid move' });
-      }
-    });
-
-    // Real-time game update (for non-turn-based games like Pong)
-    socket.on('game:update', ({ state }) => {
-      if (!socket.currentRoom) return;
-
-      const room = gameRooms.get(socket.currentRoom);
-      if (!room || room.state !== ROOM_STATES.PLAYING) return;
-
-      // Broadcast to other players (not sender)
-      socket.to(socket.currentRoom).emit('game:peerUpdate', {
-        playerId: socket.userId,
-        state,
-      });
-    });
-
-    // Find random opponent (matchmaking)
-    socket.on('matchmaking:find', ({ gameId }) => {
-      if (!socket.userId) {
-        socket.emit('error', { message: 'Not authenticated' });
-        return;
-      }
-
-      // Look for existing waiting public room
-      for (const [roomId, room] of gameRooms) {
-        if (
-          room.gameId === gameId &&
-          !room.isPrivate &&
-          room.state === ROOM_STATES.WAITING &&
-          room.players.length < room.config.maxPlayers
-        ) {
-          // Join this room
-          room.players.push({ id: socket.userId, ready: true });
-          socket.join(roomId);
-          socket.currentRoom = roomId;
-
-          io.to(roomId).emit('room:playerJoined', {
-            room: sanitizeRoom(room),
-            playerId: socket.userId,
-          });
-
-          // Auto-start if room is full
-          if (room.players.length >= room.config.minPlayers) {
-            room.players.forEach(p => p.ready = true);
-            startGame(room, io);
-          }
-          return;
-        }
-      }
-
-      // No room found, create new public room
-      const config = GAME_CONFIGS[gameId];
-      if (!config) {
-        socket.emit('error', { message: 'Invalid game type' });
-        return;
-      }
-
-      const roomId = uuidv4().slice(0, 8).toUpperCase();
-      const room = {
-        id: roomId,
-        gameId,
-        hostId: socket.userId,
-        players: [{ id: socket.userId, ready: true }],
-        state: ROOM_STATES.WAITING,
-        isPrivate: false,
-        gameState: null,
-        currentTurn: null,
-        config,
-        createdAt: Date.now(),
-      };
-
-      gameRooms.set(roomId, room);
-      socket.join(roomId);
-      socket.currentRoom = roomId;
-
-      socket.emit('matchmaking:waiting', { room: sanitizeRoom(room) });
-    });
-
-    // Cancel matchmaking
-    socket.on('matchmaking:cancel', () => {
-      handleLeaveRoom(socket, io);
-    });
-
-    // ============================================
-    // SCORE COMPETITION EVENTS
-    // ============================================
-
-    // Update score during score competition
-    socket.on('competition:score', ({ score }) => {
-      if (!socket.currentRoom) return;
-
-      const room = gameRooms.get(socket.currentRoom);
-      if (!room || room.state !== ROOM_STATES.PLAYING) return;
-      if (!room.config.scoreCompetition) return;
-
-      // Update player's score
-      room.gameState.scores[socket.userId] = score;
-
-      // Broadcast to opponent
-      socket.to(socket.currentRoom).emit('competition:opponentScore', {
-        score,
-        playerId: socket.userId,
-      });
-    });
-
-    // Player finished their game
-    socket.on('competition:finished', ({ finalScore }) => {
-      if (!socket.currentRoom) return;
-
-      const room = gameRooms.get(socket.currentRoom);
-      if (!room || room.state !== ROOM_STATES.PLAYING) return;
-      if (!room.config.scoreCompetition) return;
-
-      room.gameState.scores[socket.userId] = finalScore;
-      room.gameState.finished[socket.userId] = true;
-
-      // Notify opponent
-      socket.to(socket.currentRoom).emit('competition:opponentFinished', {
-        score: finalScore,
-        playerId: socket.userId,
-      });
-
-      // Check if both players finished
-      const allFinished = room.players.every(p => room.gameState.finished[p.id]);
-      if (allFinished) {
-        // Determine winner
-        const scores = room.gameState.scores;
-        const [p1, p2] = room.players;
-        let winner = null;
-
-        if (scores[p1.id] > scores[p2.id]) winner = p1.id;
-        else if (scores[p2.id] > scores[p1.id]) winner = p2.id;
-        // else it's a draw, winner stays null
-
-        room.state = ROOM_STATES.FINISHED;
-
-        io.to(socket.currentRoom).emit('game:over', {
-          winner,
-          reason: winner ? 'win' : 'draw',
-          finalScores: scores,
-        });
-      }
-    });
-
-    // Invite friend to game
-    socket.on('invite:send', ({ friendId, gameId }) => {
-      if (!socket.userId) return;
-
-      const friendSocket = playerSockets.get(friendId);
-      if (friendSocket) {
-        friendSocket.emit('invite:received', {
-          fromUserId: socket.userId,
-          gameId,
-          roomId: socket.currentRoom,
-        });
-      }
-      // Could also store invite in DB for offline users
-    });
-
-    // ============================================
-    // DIRECT MESSAGING (CHAT) EVENTS
-    // ============================================
-    socket.on('chat:message', (data) => {
-      // data format: { to: 'userId', text: 'Hello', id: 'uuid', createdAt: timestamp, gameId: null }
-      const { to, text, id, createdAt, gameId } = data;
-      if (!socket.userId) return;
-
-      const receiverSocket = playerSockets.get(to);
-      if (receiverSocket) {
-        // Send directly to their socket
-        receiverSocket.emit('chat:receive', {
-          id,
-          senderId: socket.userId,
-          receiverId: to,
-          text,
-          createdAt,
-          gameId
-        });
-      }
-    });
-
-    // Disconnect handling
-    socket.on('disconnect', () => {
-      console.log(`[MP] Client disconnected: ${socket.id}`);
-      handleLeaveRoom(socket, io);
-
-      if (socket.userId) {
-        playerSockets.delete(socket.userId);
-        socketPlayers.delete(socket.id);
-        // Notify others
-        io.emit('presence:user_left', socket.userId);
-      }
-    });
-  });
-
-  // Helper: Handle player leaving room
-  function handleLeaveRoom(socket, io) {
-    if (!socket.currentRoom) return;
-
-    const room = gameRooms.get(socket.currentRoom);
-    if (!room) return;
-
-    const roomId = socket.currentRoom;
-    room.players = room.players.filter(p => p.id !== socket.userId);
-    socket.leave(roomId);
-    socket.currentRoom = null;
-
-    if (room.players.length === 0) {
-      // Delete empty room
-      gameRooms.delete(roomId);
-      console.log(`[MP] Room ${roomId} deleted (empty)`);
-    } else {
-      // Notify remaining players
-      io.to(roomId).emit('room:playerLeft', {
-        room: sanitizeRoom(room),
-        playerId: socket.userId,
-      });
-
-      // If game was in progress, end it
-      if (room.state === ROOM_STATES.PLAYING) {
-        room.state = ROOM_STATES.FINISHED;
-        io.to(roomId).emit('game:over', {
-          winner: room.players[0]?.id,
-          reason: 'opponent_left',
-        });
-      }
-
-      // Assign new host if needed
-      if (room.hostId === socket.userId && room.players.length > 0) {
-        room.hostId = room.players[0].id;
-      }
-    }
-  }
-
-  // Helper: Start the game
-  function startGame(room, io) {
-    room.state = ROOM_STATES.PLAYING;
-    room.gameState = initializeGameState(room.gameId, room.players, room.config);
-    room.currentTurn = room.config.scoreCompetition ? null : room.players[0].id;
-
-    console.log(`[MP] Game started in room ${room.id} (${room.config.scoreCompetition ? 'score competition' : 'turn-based'})`);
-
-    io.to(room.id).emit('game:start', {
-      room: sanitizeRoom(room),
-      gameState: room.gameState,
-      currentTurn: room.currentTurn,
-      isScoreCompetition: room.config.scoreCompetition || false,
-      timeLimit: room.config.timeLimit || null,
-    });
-  }
-
-  // Helper: Sanitize room data for client
-  function sanitizeRoom(room) {
-    return {
-      id: room.id,
-      gameId: room.gameId,
-      hostId: room.hostId,
-      players: room.players,
-      state: room.state,
-      isPrivate: room.isPrivate,
-      maxPlayers: room.config.maxPlayers,
-      isScoreCompetition: room.config.scoreCompetition || false,
-      timeLimit: room.config.timeLimit || null,
-    };
-  }
-
-  return io;
-}
-
+/**
+ * Multiplayer API Endpoints
+ * 
+ * Handles:
+ * - Matchmaking queue
+ * - Match creation and management
+ * - Game challenges
+ * - Match results and history
+ */
+
+import pool from './db.js';
 
 // ============================================
-// GAME-SPECIFIC LOGIC
+// MATCHMAKING QUEUE
 // ============================================
 
-// Initialize game state based on game type
-function initializeGameState(gameId, players, config) {
-  // Score competition games
-  if (config?.scoreCompetition) {
-    return {
-      scores: { [players[0].id]: 0, [players[1].id]: 0 },
-      finished: { [players[0].id]: false, [players[1].id]: false },
-      timeLimit: config.timeLimit || null,
-      startTime: Date.now(),
-    };
+/**
+ * Join matchmaking queue
+ */
+export const joinQueue = async (req, res) => {
+  const { matchType } = req.body; // '1v1' or '2v2'
+  const userId = req.user.id;
+
+  if (!['1v1', '2v2'].includes(matchType)) {
+    return res.status(400).json({ error: 'Invalid match type' });
   }
 
-  switch (gameId) {
-    case 'tic-tac-toe':
-      return {
-        board: Array(9).fill(null), // 3x3 grid as flat array
-        symbols: { [players[0].id]: 'X', [players[1].id]: 'O' },
-      };
+  const client = await pool.connect();
+  try {
+    // Check if user is already in queue
+    const existing = await client.query(
+      `SELECT id FROM matchmaking_queue 
+       WHERE user_id = $1 AND status = 'waiting'`,
+      [userId]
+    );
 
-    case 'connect4':
-      return {
-        board: Array(6).fill(null).map(() => Array(7).fill(null)), // 6 rows x 7 cols
-        symbols: { [players[0].id]: 'red', [players[1].id]: 'yellow' },
-      };
+    if (existing.rows.length > 0) {
+      return res.json({ 
+        queueId: existing.rows[0].id,
+        alreadyInQueue: true,
+        estimatedWait: 15 
+      });
+    }
 
-    case 'rock-paper-scissors':
-      return {
-        choices: {},
-        round: 1,
-        scores: { [players[0].id]: 0, [players[1].id]: 0 },
-        maxRounds: 3,
-      };
+    // Add to queue
+    const result = await client.query(
+      `INSERT INTO matchmaking_queue (user_id, match_type)
+       VALUES ($1, $2)
+       RETURNING id`,
+      [userId, matchType]
+    );
 
-    case 'chess':
-      return {
-        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-        colors: { [players[0].id]: 'white', [players[1].id]: 'black' },
-        moves: [],
-      };
+    // Try to find a match immediately
+    const match = await findMatch(client, userId, matchType);
 
-    case 'pong':
-      return {
-        ball: { x: 0.5, y: 0.5, vx: 0.01, vy: 0.01 },
-        paddles: { [players[0].id]: 0.5, [players[1].id]: 0.5 },
-        scores: { [players[0].id]: 0, [players[1].id]: 0 },
-        maxScore: 5,
-      };
+    if (match) {
+      return res.json({
+        queueId: result.rows[0].id,
+        matchFound: true,
+        matchId: match.matchId,
+        opponent: match.opponent
+      });
+    }
 
-    default:
-      return {};
+    res.json({
+      queueId: result.rows[0].id,
+      estimatedWait: 15,
+      matchFound: false
+    });
+  } catch (error) {
+    console.error('Join queue error:', error);
+    res.status(500).json({ error: 'Failed to join queue' });
+  } finally {
+    client.release();
   }
+};
+
+/**
+ * Leave matchmaking queue
+ */
+export const leaveQueue = async (req, res) => {
+  const { queueId } = req.body;
+  const userId = req.user.id;
+
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE matchmaking_queue 
+       SET status = 'cancelled'
+       WHERE id = $1 AND user_id = $2 AND status = 'waiting'`,
+      [queueId, userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Leave queue error:', error);
+    res.status(500).json({ error: 'Failed to leave queue' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Check queue status
+ */
+export const getQueueStatus = async (req, res) => {
+  const userId = req.user.id;
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT q.id, q.match_type, q.status, q.joined_at,
+              m.id as match_id
+       FROM matchmaking_queue q
+       LEFT JOIN match_participants mp ON mp.user_id = q.user_id
+       LEFT JOIN multiplayer_matches m ON m.id = mp.match_id AND m.status IN ('waiting', 'active')
+       WHERE q.user_id = $1 AND q.status = 'waiting'
+       ORDER BY q.joined_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ inQueue: false });
+    }
+
+    const queue = result.rows[0];
+    
+    if (queue.match_id) {
+      // Match found!
+      return res.json({
+        inQueue: true,
+        matchFound: true,
+        matchId: queue.match_id
+      });
+    }
+
+    res.json({
+      inQueue: true,
+      queueId: queue.id,
+      matchType: queue.match_type,
+      waitTime: Math.floor((Date.now() - new Date(queue.joined_at).getTime()) / 1000)
+    });
+  } catch (error) {
+    console.error('Queue status error:', error);
+    res.status(500).json({ error: 'Failed to get queue status' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Find a match for a user in queue
+ */
+async function findMatch(client, userId, matchType) {
+  // Find another user waiting in queue
+  const opponent = await client.query(
+    `SELECT q.user_id, u.username, u.display_name, u.avatar
+     FROM matchmaking_queue q
+     JOIN users u ON u.id = q.user_id
+     WHERE q.match_type = $1 
+       AND q.status = 'waiting'
+       AND q.user_id != $2
+     ORDER BY q.joined_at ASC
+     LIMIT 1`,
+    [matchType, userId]
+  );
+
+  if (opponent.rows.length === 0) {
+    return null;
+  }
+
+  const opponentData = opponent.rows[0];
+
+  // Create match
+  const match = await client.query(
+    `INSERT INTO multiplayer_matches (match_type, status)
+     VALUES ($1, 'waiting')
+     RETURNING id`,
+    [matchType]
+  );
+
+  const matchId = match.rows[0].id;
+
+  // Add both players to match
+  await client.query(
+    `INSERT INTO match_participants (match_id, user_id, team)
+     VALUES ($1, $2, 1), ($1, $3, 2)`,
+    [matchId, userId, opponentData.user_id]
+  );
+
+  // Update queue status
+  await client.query(
+    `UPDATE matchmaking_queue
+     SET status = 'matched', matched_at = NOW()
+     WHERE user_id IN ($1, $2) AND status = 'waiting'`,
+    [userId, opponentData.user_id]
+  );
+
+  return {
+    matchId,
+    opponent: {
+      id: opponentData.user_id,
+      username: opponentData.username,
+      displayName: opponentData.display_name,
+      avatar: opponentData.avatar
+    }
+  };
 }
 
-// Process a game move and return result
-function processGameMove(room, playerId, move) {
-  const { gameId, gameState, players } = room;
+// ============================================
+// MATCHES
+// ============================================
 
-  switch (gameId) {
-    case 'tic-tac-toe':
-      return processTicTacToeMove(gameState, playerId, move, players);
+/**
+ * Get active matches for user
+ */
+export const getActiveMatches = async (req, res) => {
+  const userId = req.user.id;
 
-    case 'connect4':
-      return processConnect4Move(gameState, playerId, move, players);
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT m.id, m.game_id, m.match_type, m.status, m.created_at,
+              json_agg(json_build_object(
+                'userId', u.id,
+                'username', u.username,
+                'displayName', u.display_name,
+                'avatar', u.avatar,
+                'team', mp.team,
+                'score', mp.score
+              )) as participants
+       FROM multiplayer_matches m
+       JOIN match_participants mp ON mp.match_id = m.id
+       JOIN users u ON u.id = mp.user_id
+       WHERE m.id IN (
+         SELECT match_id FROM match_participants WHERE user_id = $1
+       )
+       AND m.status IN ('waiting', 'active')
+       GROUP BY m.id
+       ORDER BY m.created_at DESC`,
+      [userId]
+    );
 
-    case 'rock-paper-scissors':
-      return processRPSMove(gameState, playerId, move, players);
-
-    default:
-      return { valid: true, newState: gameState };
+    res.json({ matches: result.rows });
+  } catch (error) {
+    console.error('Get active matches error:', error);
+    res.status(500).json({ error: 'Failed to get matches' });
+  } finally {
+    client.release();
   }
-}
+};
 
+/**
+ * Get match details
+ */
+export const getMatch = async (req, res) => {
+  const { matchId } = req.params;
+  const userId = req.user.id;
 
-// Tic-Tac-Toe move processing
-function processTicTacToeMove(state, playerId, move, players) {
-  const { position } = move; // 0-8
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT m.id, m.game_id, m.match_type, m.status, m.winner_team,
+              m.created_at, m.started_at, m.ended_at,
+              json_agg(json_build_object(
+                'userId', u.id,
+                'username', u.username,
+                'displayName', u.display_name,
+                'avatar', u.avatar,
+                'team', mp.team,
+                'score', mp.score,
+                'status', mp.status
+              )) as participants
+       FROM multiplayer_matches m
+       JOIN match_participants mp ON mp.match_id = m.id
+       JOIN users u ON u.id = mp.user_id
+       WHERE m.id = $1
+       GROUP BY m.id`,
+      [matchId]
+    );
 
-  if (position < 0 || position > 8 || state.board[position] !== null) {
-    return { valid: false, error: 'Invalid position' };
-  }
-
-  const newBoard = [...state.board];
-  newBoard[position] = state.symbols[playerId];
-
-  const newState = { ...state, board: newBoard };
-
-  // Check for winner
-  const winner = checkTicTacToeWinner(newBoard);
-  if (winner) {
-    const winnerId = Object.keys(state.symbols).find(id => state.symbols[id] === winner);
-    return { valid: true, newState, gameOver: true, winner: winnerId, reason: 'win' };
-  }
-
-  // Check for draw
-  if (newBoard.every(cell => cell !== null)) {
-    return { valid: true, newState, gameOver: true, winner: null, reason: 'draw' };
-  }
-
-  return { valid: true, newState };
-}
-
-function checkTicTacToeWinner(board) {
-  const lines = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-    [0, 3, 6], [1, 4, 7], [2, 5, 8], // cols
-    [0, 4, 8], [2, 4, 6], // diagonals
-  ];
-
-  for (const [a, b, c] of lines) {
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return board[a];
-    }
-  }
-  return null;
-}
-
-// Connect4 move processing
-function processConnect4Move(state, playerId, move, players) {
-  const { column } = move; // 0-6
-
-  if (column < 0 || column > 6) {
-    return { valid: false, error: 'Invalid column' };
-  }
-
-  // Find lowest empty row in column
-  let row = -1;
-  for (let r = 5; r >= 0; r--) {
-    if (state.board[r][column] === null) {
-      row = r;
-      break;
-    }
-  }
-
-  if (row === -1) {
-    return { valid: false, error: 'Column is full' };
-  }
-
-  const newBoard = state.board.map(r => [...r]);
-  newBoard[row][column] = state.symbols[playerId];
-
-  const newState = { ...state, board: newBoard };
-
-  // Check for winner
-  if (checkConnect4Winner(newBoard, row, column, state.symbols[playerId])) {
-    return { valid: true, newState, gameOver: true, winner: playerId, reason: 'win' };
-  }
-
-  // Check for draw (board full)
-  const isFull = newBoard[0].every(cell => cell !== null);
-  if (isFull) {
-    return { valid: true, newState, gameOver: true, winner: null, reason: 'draw' };
-  }
-
-  return { valid: true, newState };
-}
-
-function checkConnect4Winner(board, row, col, symbol) {
-  const directions = [
-    [0, 1],  // horizontal
-    [1, 0],  // vertical
-    [1, 1],  // diagonal down-right
-    [1, -1], // diagonal down-left
-  ];
-
-  for (const [dr, dc] of directions) {
-    let count = 1;
-
-    // Check positive direction
-    for (let i = 1; i < 4; i++) {
-      const r = row + dr * i;
-      const c = col + dc * i;
-      if (r >= 0 && r < 6 && c >= 0 && c < 7 && board[r][c] === symbol) {
-        count++;
-      } else break;
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Match not found' });
     }
 
-    // Check negative direction
-    for (let i = 1; i < 4; i++) {
-      const r = row - dr * i;
-      const c = col - dc * i;
-      if (r >= 0 && r < 6 && c >= 0 && c < 7 && board[r][c] === symbol) {
-        count++;
-      } else break;
+    // Check if user is in this match
+    const match = result.rows[0];
+    const isParticipant = match.participants.some(p => p.userId === userId);
+    
+    if (!isParticipant) {
+      return res.status(403).json({ error: 'Not authorized' });
     }
 
-    if (count >= 4) return true;
+    res.json({ match });
+  } catch (error) {
+    console.error('Get match error:', error);
+    res.status(500).json({ error: 'Failed to get match' });
+  } finally {
+    client.release();
   }
-  return false;
-}
+};
 
+/**
+ * Set game for match (after match found, players choose game)
+ */
+export const setMatchGame = async (req, res) => {
+  const { matchId } = req.params;
+  const { gameId } = req.body;
+  const userId = req.user.id;
 
-// Rock-Paper-Scissors move processing
-function processRPSMove(state, playerId, move, players) {
-  const { choice } = move; // 'rock' | 'paper' | 'scissors'
+  const client = await pool.connect();
+  try {
+    // Verify user is in match
+    const participant = await client.query(
+      `SELECT id FROM match_participants 
+       WHERE match_id = $1 AND user_id = $2`,
+      [matchId, userId]
+    );
 
-  if (!['rock', 'paper', 'scissors'].includes(choice)) {
-    return { valid: false, error: 'Invalid choice' };
+    if (participant.rows.length === 0) {
+      return res.status(403).json({ error: 'Not in this match' });
+    }
+
+    // Update match with game
+    await client.query(
+      `UPDATE multiplayer_matches
+       SET game_id = $1, status = 'active', started_at = NOW()
+       WHERE id = $2 AND status = 'waiting'`,
+      [gameId, matchId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Set match game error:', error);
+    res.status(500).json({ error: 'Failed to set game' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Update player score in match
+ */
+export const updateScore = async (req, res) => {
+  const { matchId } = req.params;
+  const { score } = req.body;
+  const userId = req.user.id;
+
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE match_participants
+       SET score = $1, status = 'playing'
+       WHERE match_id = $2 AND user_id = $3`,
+      [score, matchId, userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update score error:', error);
+    res.status(500).json({ error: 'Failed to update score' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Complete match and determine winner
+ */
+export const completeMatch = async (req, res) => {
+  const { matchId } = req.params;
+  const userId = req.user.id;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get match participants and scores
+    const participants = await client.query(
+      `SELECT mp.user_id, mp.team, mp.score, m.game_id, m.match_type
+       FROM match_participants mp
+       JOIN multiplayer_matches m ON m.id = mp.match_id
+       WHERE mp.match_id = $1`,
+      [matchId]
+    );
+
+    if (participants.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    // Calculate team scores
+    const team1Score = participants.rows
+      .filter(p => p.team === 1)
+      .reduce((sum, p) => sum + p.score, 0);
+    
+    const team2Score = participants.rows
+      .filter(p => p.team === 2)
+      .reduce((sum, p) => sum + p.score, 0);
+
+    const winnerTeam = team1Score > team2Score ? 1 : team2Score > team1Score ? 2 : null;
+
+    // Update match status
+    await client.query(
+      `UPDATE multiplayer_matches
+       SET status = 'completed', ended_at = NOW(), winner_team = $1
+       WHERE id = $2`,
+      [winnerTeam, matchId]
+    );
+
+    // Create match results for each player
+    const gameId = participants.rows[0].game_id;
+    const matchType = participants.rows[0].match_type;
+
+    for (const player of participants.rows) {
+      const opponent = participants.rows.find(p => p.user_id !== player.user_id);
+      const result = winnerTeam === null ? 'draw' : 
+                     player.team === winnerTeam ? 'win' : 'loss';
+      
+      const coinsEarned = result === 'win' ? 100 : result === 'draw' ? 50 : 25;
+      const xpEarned = result === 'win' ? 50 : result === 'draw' ? 25 : 10;
+
+      await client.query(
+        `INSERT INTO match_results 
+         (match_id, user_id, opponent_id, game_id, match_type, result, 
+          user_score, opponent_score, coins_earned, xp_earned)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [matchId, player.user_id, opponent?.user_id, gameId, matchType, result,
+         player.score, opponent?.score || 0, coinsEarned, xpEarned]
+      );
+
+      // Award coins and XP
+      await client.query(
+        `INSERT INTO user_points (user_id, balance, lifetime_earned)
+         VALUES ($1, $2, $2)
+         ON CONFLICT (user_id) DO UPDATE
+         SET balance = user_points.balance + $2,
+             lifetime_earned = user_points.lifetime_earned + $2`,
+        [player.user_id, coinsEarned]
+      );
+
+      await client.query(
+        `INSERT INTO user_levels (user_id, xp)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE
+         SET xp = user_levels.xp + $2`,
+        [player.user_id, xpEarned]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ 
+      success: true,
+      winnerTeam,
+      team1Score,
+      team2Score
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Complete match error:', error);
+    res.status(500).json({ error: 'Failed to complete match' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Get match history for user
+ */
+export const getMatchHistory = async (req, res) => {
+  const userId = req.user.id;
+  const limit = parseInt(req.query.limit) || 20;
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT mr.*, 
+              u.username as opponent_username,
+              u.display_name as opponent_display_name,
+              u.avatar as opponent_avatar,
+              g.name as game_name,
+              g.thumbnail as game_thumbnail
+       FROM match_results mr
+       LEFT JOIN users u ON u.id = mr.opponent_id
+       LEFT JOIN games g ON g.id = mr.game_id
+       WHERE mr.user_id = $1
+       ORDER BY mr.created_at DESC
+       LIMIT $2`,
+      [userId, limit]
+    );
+
+    res.json({ history: result.rows });
+  } catch (error) {
+    console.error('Get match history error:', error);
+    res.status(500).json({ error: 'Failed to get history' });
+  } finally {
+    client.release();
+  }
+};
+
+// ============================================
+// GAME CHALLENGES
+// ============================================
+
+/**
+ * Send challenge to friend
+ */
+export const sendChallenge = async (req, res) => {
+  const { toUserId, gameId, matchType, message } = req.body;
+  const fromUserId = req.user.id;
+
+  if (!['1v1', '2v2'].includes(matchType)) {
+    return res.status(400).json({ error: 'Invalid match type' });
   }
 
-  const newState = { ...state, choices: { ...state.choices, [playerId]: choice } };
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `INSERT INTO game_challenges (from_user_id, to_user_id, game_id, match_type, message)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [fromUserId, toUserId, gameId, matchType, message]
+    );
 
-  // Check if both players have made their choice
-  if (Object.keys(newState.choices).length === 2) {
-    const [p1, p2] = players;
-    const c1 = newState.choices[p1.id];
-    const c2 = newState.choices[p2.id];
-
-    let roundWinner = null;
-    if (c1 !== c2) {
-      if (
-        (c1 === 'rock' && c2 === 'scissors') ||
-        (c1 === 'paper' && c2 === 'rock') ||
-        (c1 === 'scissors' && c2 === 'paper')
-      ) {
-        roundWinner = p1.id;
-      } else {
-        roundWinner = p2.id;
-      }
-      newState.scores[roundWinner]++;
-    }
-
-    // Check if game is over
-    const maxScore = Math.ceil(newState.maxRounds / 2);
-    if (newState.scores[p1.id] >= maxScore) {
-      return { valid: true, newState, gameOver: true, winner: p1.id, reason: 'win' };
-    }
-    if (newState.scores[p2.id] >= maxScore) {
-      return { valid: true, newState, gameOver: true, winner: p2.id, reason: 'win' };
-    }
-
-    // Next round
-    if (newState.round >= newState.maxRounds) {
-      // Determine winner by score
-      const winner = newState.scores[p1.id] > newState.scores[p2.id] ? p1.id :
-        newState.scores[p2.id] > newState.scores[p1.id] ? p2.id : null;
-      return { valid: true, newState, gameOver: true, winner, reason: winner ? 'win' : 'draw' };
-    }
-
-    newState.round++;
-    newState.choices = {}; // Reset for next round
+    res.json({ 
+      success: true,
+      challengeId: result.rows[0].id
+    });
+  } catch (error) {
+    console.error('Send challenge error:', error);
+    res.status(500).json({ error: 'Failed to send challenge' });
+  } finally {
+    client.release();
   }
+};
 
-  return { valid: true, newState };
-}
+/**
+ * Accept challenge
+ */
+export const acceptChallenge = async (req, res) => {
+  const { challengeId } = req.params;
+  const userId = req.user.id;
 
-export { GAME_CONFIGS, ROOM_STATES };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get challenge
+    const challenge = await client.query(
+      `SELECT * FROM game_challenges
+       WHERE id = $1 AND to_user_id = $2 AND status = 'pending'`,
+      [challengeId, userId]
+    );
+
+    if (challenge.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Challenge not found or expired' });
+    }
+
+    const { from_user_id, game_id, match_type } = challenge.rows[0];
+
+    // Create match
+    const match = await client.query(
+      `INSERT INTO multiplayer_matches (game_id, match_type, status)
+       VALUES ($1, $2, 'active')
+       RETURNING id`,
+      [game_id, match_type]
+    );
+
+    const matchId = match.rows[0].id;
+
+    // Add participants
+    await client.query(
+      `INSERT INTO match_participants (match_id, user_id, team)
+       VALUES ($1, $2, 1), ($1, $3, 2)`,
+      [matchId, from_user_id, userId]
+    );
+
+    // Update challenge
+    await client.query(
+      `UPDATE game_challenges
+       SET status = 'accepted', match_id = $1, responded_at = NOW()
+       WHERE id = $2`,
+      [matchId, challengeId]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({ 
+      success: true,
+      matchId
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Accept challenge error:', error);
+    res.status(500).json({ error: 'Failed to accept challenge' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Decline challenge
+ */
+export const declineChallenge = async (req, res) => {
+  const { challengeId } = req.params;
+  const userId = req.user.id;
+
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE game_challenges
+       SET status = 'declined', responded_at = NOW()
+       WHERE id = $1 AND to_user_id = $2 AND status = 'pending'`,
+      [challengeId, userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Decline challenge error:', error);
+    res.status(500).json({ error: 'Failed to decline challenge' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Get received challenges
+ */
+export const getReceivedChallenges = async (req, res) => {
+  const userId = req.user.id;
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT c.*,
+              u.username as from_username,
+              u.display_name as from_display_name,
+              u.avatar as from_avatar,
+              g.name as game_name,
+              g.thumbnail as game_thumbnail
+       FROM game_challenges c
+       JOIN users u ON u.id = c.from_user_id
+       LEFT JOIN games g ON g.id = c.game_id
+       WHERE c.to_user_id = $1 
+         AND c.status = 'pending'
+         AND c.expires_at > NOW()
+       ORDER BY c.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ challenges: result.rows });
+  } catch (error) {
+    console.error('Get challenges error:', error);
+    res.status(500).json({ error: 'Failed to get challenges' });
+  } finally {
+    client.release();
+  }
+};
+
+// ============================================
+// CLEANUP TASKS
+// ============================================
+
+/**
+ * Expire old challenges (run periodically)
+ */
+export const expireOldChallenges = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE game_challenges
+       SET status = 'expired'
+       WHERE status = 'pending' AND expires_at < NOW()`
+    );
+  } catch (error) {
+    console.error('Expire challenges error:', error);
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Cancel abandoned matches (run periodically)
+ */
+export const cancelAbandonedMatches = async () => {
+  const client = await pool.connect();
+  try {
+    // Cancel matches that have been waiting for more than 5 minutes
+    await client.query(
+      `UPDATE multiplayer_matches
+       SET status = 'cancelled'
+       WHERE status = 'waiting' 
+         AND created_at < NOW() - INTERVAL '5 minutes'`
+    );
+  } catch (error) {
+    console.error('Cancel matches error:', error);
+  } finally {
+    client.release();
+  }
+};

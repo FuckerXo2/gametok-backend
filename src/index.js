@@ -4,13 +4,13 @@ import cors from 'cors';
 import crypto from 'crypto';
 import { createServer } from 'http';
 import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration, runDeletedGamesMigration, runCoinConfigMigration, runStoriesMigration } from './db.js';
-import { initMultiplayer } from './multiplayer.js';
+import { runMultiplayerMigration } from './migrations/multiplayer-tables.js';
+import { initializePkSocket } from './pk-socket.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const server = createServer(app);
-const io = initMultiplayer(server, null); // We'll update multiplayer later
 
 app.use(cors());
 app.use(express.json());
@@ -3830,6 +3830,51 @@ app.post('/api/admin/test-push', async (req, res) => {
 });
 
 // ============================================
+// MULTIPLAYER ENDPOINTS
+// ============================================
+
+import * as multiplayer from './multiplayer.js';
+
+// Authentication middleware for multiplayer endpoints
+const requireAuth = async (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE token = $1', [token]);
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    req.user = result.rows[0];
+    next();
+  } catch (e) {
+    console.error('Auth middleware error:', e);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+};
+
+// Matchmaking
+app.post('/api/multiplayer/queue/join', requireAuth, multiplayer.joinQueue);
+app.delete('/api/multiplayer/queue/leave', requireAuth, multiplayer.leaveQueue);
+app.get('/api/multiplayer/queue/status', requireAuth, multiplayer.getQueueStatus);
+
+// Matches
+app.get('/api/multiplayer/matches/active', requireAuth, multiplayer.getActiveMatches);
+app.get('/api/multiplayer/matches/:matchId', requireAuth, multiplayer.getMatch);
+app.post('/api/multiplayer/matches/:matchId/game', requireAuth, multiplayer.setMatchGame);
+app.post('/api/multiplayer/matches/:matchId/score', requireAuth, multiplayer.updateScore);
+app.post('/api/multiplayer/matches/:matchId/complete', requireAuth, multiplayer.completeMatch);
+app.get('/api/multiplayer/matches/history', requireAuth, multiplayer.getMatchHistory);
+
+// Challenges
+app.post('/api/multiplayer/challenges/send', requireAuth, multiplayer.sendChallenge);
+app.post('/api/multiplayer/challenges/:challengeId/accept', requireAuth, multiplayer.acceptChallenge);
+app.post('/api/multiplayer/challenges/:challengeId/decline', requireAuth, multiplayer.declineChallenge);
+app.get('/api/multiplayer/challenges/received', requireAuth, multiplayer.getReceivedChallenges);
+
+// ============================================
 // START SERVER
 // ============================================
 
@@ -3841,10 +3886,15 @@ const start = async () => {
   await runDeletedGamesMigration();
   await runCoinConfigMigration();
   await runStoriesMigration();
+  await runMultiplayerMigration();
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
   });
+
+  // Initialize Socket.io for PK Mode
+  initializePkSocket(server);
+  console.log('🔌 Socket.io initialized for PK Mode');
 
   // ============================================
   // SCHEDULED NOTIFICATIONS (every 2 hours)
