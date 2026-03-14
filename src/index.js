@@ -3957,7 +3957,7 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
-// Register push token
+// Register push token (authenticated users)
 app.post('/api/notifications/register', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
@@ -3971,9 +3971,42 @@ app.post('/api/notifications/register', async (req, res) => {
     const userId = userResult.rows[0].id;
 
     await db.savePushToken(userId, pushToken);
+
+    // If this token was previously anonymous, remove it from anonymous table
+    await pool.query('DELETE FROM anonymous_push_tokens WHERE token = $1', [pushToken]);
+
     res.json({ success: true });
   } catch (e) {
     console.error('Register push token error:', e);
+    res.status(500).json({ error: 'Failed to register push token' });
+  }
+});
+
+// Register push token for anonymous/non-authenticated users
+// This lets us send re-engagement notifications to users who haven't signed up
+app.post('/api/notifications/register-anonymous', async (req, res) => {
+  const { pushToken } = req.body;
+  if (!pushToken) return res.status(400).json({ error: 'Push token required' });
+
+  try {
+    // Check if this token is already linked to a real user
+    const existingUser = await pool.query('SELECT id FROM push_tokens WHERE token = $1', [pushToken]);
+    if (existingUser.rows.length > 0) {
+      // Already registered as authenticated user, no need to save anonymously
+      return res.json({ success: true, status: 'already_registered' });
+    }
+
+    // Save to anonymous tokens table
+    await pool.query(
+      `INSERT INTO anonymous_push_tokens (token, last_seen_at)
+       VALUES ($1, NOW())
+       ON CONFLICT (token) DO UPDATE SET last_seen_at = NOW()`,
+      [pushToken]
+    );
+
+    res.json({ success: true, status: 'anonymous_registered' });
+  } catch (e) {
+    console.error('Register anonymous push token error:', e);
     res.status(500).json({ error: 'Failed to register push token' });
   }
 });
@@ -4127,6 +4160,28 @@ app.post('/api/multiplayer/challenges/:challengeId/decline', requireAuth, multip
 app.get('/api/multiplayer/challenges/received', requireAuth, multiplayer.getReceivedChallenges);
 
 // ============================================
+// ANONYMOUS PUSH TOKENS MIGRATION
+// ============================================
+
+const runAnonymousTokensMigration = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS anonymous_push_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        token TEXT NOT NULL UNIQUE,
+        last_seen_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_anonymous_push_tokens_token ON anonymous_push_tokens(token);
+    `);
+    console.log('✅ Anonymous push tokens table ready');
+  } catch (e) {
+    console.log('Anonymous tokens migration error:', e.message);
+  }
+};
+
+// ============================================
 // START SERVER
 // ============================================
 
@@ -4139,6 +4194,7 @@ const start = async () => {
   await runCoinConfigMigration();
   await runStoriesMigration();
   await runMultiplayerMigration();
+  await runAnonymousTokensMigration();
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
@@ -4161,11 +4217,56 @@ const start = async () => {
   // ============================================
   const TWO_HOURS = 2 * 60 * 60 * 1000;
 
+  // Helper: send re-engagement to anonymous users (no account)
+  const sendAnonymousReEngagement = async () => {
+    try {
+      // Get anonymous tokens that haven't been seen in 24+ hours
+      const result = await pool.query(
+        `SELECT token FROM anonymous_push_tokens 
+         WHERE last_seen_at < NOW() - INTERVAL '24 hours'
+         LIMIT 100`
+      );
+      if (result.rows.length === 0) return;
+
+      const messages = [
+        { title: '🎮 Come back and play!', body: 'New games are waiting for you. Tap to play!' },
+        { title: '🔥 You\'re missing out!', body: 'Your friends are playing right now. Join them!' },
+        { title: '🎯 Quick game?', body: 'Just 5 minutes. You know you want to!' },
+        { title: '✨ New games just dropped!', body: 'Check out the latest games on GameTOK!' },
+        { title: '🏆 Can you beat the top score?', body: 'Challenge yourself. Tap to play!' },
+      ];
+      const msg = messages[Math.floor(Math.random() * messages.length)];
+
+      const expo = new (await import('expo-server-sdk')).Expo();
+      const pushMessages = result.rows
+        .filter(r => expo.constructor.isExpoPushToken(r.token))
+        .map(r => ({
+          to: r.token,
+          sound: 'default',
+          title: msg.title,
+          body: msg.body,
+          data: { type: 're-engagement', action: 'anonymous_inactive' },
+          badge: 1,
+        }));
+
+      if (pushMessages.length > 0) {
+        const chunks = expo.chunkPushNotifications(pushMessages);
+        for (const chunk of chunks) {
+          await expo.sendPushNotificationsAsync(chunk);
+        }
+        console.log(`[Scheduler] Sent re-engagement to ${pushMessages.length} anonymous users`);
+      }
+    } catch (e) {
+      console.error('[Scheduler] Anonymous re-engagement error:', e);
+    }
+  };
+
   setInterval(async () => {
     console.log('[Scheduler] Running re-engagement notifications...');
     try {
       await notifications.sendDailyInactiveNotifications();
       await notifications.sendDailyRewardNotifications();
+      await sendAnonymousReEngagement();
       console.log('[Scheduler] Re-engagement notifications sent');
     } catch (e) {
       console.error('[Scheduler] Error:', e);
@@ -4178,6 +4279,7 @@ const start = async () => {
     try {
       await notifications.sendDailyInactiveNotifications();
       await notifications.sendDailyRewardNotifications();
+      await sendAnonymousReEngagement();
     } catch (e) {
       console.error('[Scheduler] Initial run error:', e);
     }
