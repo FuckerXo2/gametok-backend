@@ -9,6 +9,7 @@ import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardM
 import { runMultiplayerMigration } from './migrations/multiplayer-tables.js';
 import { initializePkSocket } from './pk-socket.js';
 import { initializeLobbySocket } from './lobby-socket.js';
+import { initializeChatSocket } from './chat-socket.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -4150,6 +4151,10 @@ const start = async () => {
   // Initialize Lobby Socket for real-time game lobbies
   initializeLobbySocket(server);
   console.log('🎯 Lobby Socket initialized for multiplayer lobbies');
+
+  // Initialize Chat Socket for real-time messaging
+  initializeChatSocket(server);
+  console.log('💬 Chat Socket initialized for messaging');
 
   // ============================================
   // SCHEDULED NOTIFICATIONS (every 2 hours)
