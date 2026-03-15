@@ -12,7 +12,7 @@ async function updateUrls() {
     // Update embed URLs to use the Pages URL (which loads from R2)
     const result = await client.query(`
       UPDATE games 
-      SET embed_url = REPLACE(embed_url, '/openpigeon-games/', 'https://gametok-games.pages.dev/openpigeon-games/')
+      SET embed_url = REPLACE(embed_url, '/openpigeon-games/', 'https://games.gametok.co/openpigeon-games/')
       WHERE id LIKE 'openpigeon_%'
       RETURNING id, name, embed_url
     `);
