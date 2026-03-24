@@ -50,9 +50,9 @@ router.post('/dream', async (req, res) => {
 You MUST use the following Flawless Game Skeleton as your exact foundation. 
 DO NOT modify the physics collisions, overlaps, gravity, or bounds logic! 
 DO NOT DELETE the Groups (enemies/obstacles/projectiles) or the Time Events.
-ONLY MODIFY:
+ONLY MODIFY THE TEMPLATE LOCATIONS MARKED WITH "AI:":
 1. The 'backgroundColor' string.
-2. The visual 'this.add.rectangle' objects (Replace them with Sprites, SVG, Emojis, or Neon shapes matching the prompt).
+2. The visual 'this.add.rectangle' objects MUST be replaced with 'this.physics.add.sprite(x, y, "key")' using the official PNGs loaded in preload(). DO NOT LEAVE THE RECTANGLES!
 3. The Speed variables (e.g. enemySpeed, velocityY, delay) to change difficulty.
 4. The Juice (add intense Particles inside collision overlaps, Camera Shakes, Sound effects).
 5. The 'Score' tracking logic if needed.
@@ -93,23 +93,31 @@ ${templateInjection}
    Properly attach all custom functions, structural objects (player, enemies) to 'this' so they exist globally (e.g., this.triggerGameOver = () => {...}).
    FATAL ERROR PREVENTION: You MUST EXCLUSIVELY use ES6 Arrow Functions '() => {}' for ALL collision callbacks, timers, and input events! If you use standard 'function() {}', the 'this' context is lost and the game WILL spectacularly crash with "TypeError: this.something is not a function"!
 
-4. CAPTIVATING GRAPHICS (REAL ASSETS, SVG, NEON GEOMETRY):
-   Do NOT settle for boring visuals. You have 4 powerful choices to make it look breathtaking:
-   A) OFFICIAL PHASER ASSET LIBRARY (RECOMMENDED): Load real pngs/sprites inside preload() from the official examples CDN! 
-      - IMPORTANT: You MUST set 'this.load.crossOrigin = "anonymous";' first!
-      - Example Safe URLs: 
-        * 'https://labs.phaser.io/assets/sprites/ship.png'
-        * 'https://labs.phaser.io/assets/sprites/space-baddie.png'
-        * 'https://labs.phaser.io/assets/sprites/coin.png'
-        * 'https://labs.phaser.io/assets/sprites/bomb.png'
-        * 'https://labs.phaser.io/assets/particles/blue.png'
-        * 'https://labs.phaser.io/assets/skies/space3.png' (for backgrounds)
-   B) INLINE SVG DATA URIS (BEST CRISP SCALING): Generate crisp math-based SVG characters or items inline inside preload!
-      - this.load.svg('myArt', 'data:image/svg+xml;utf8,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">...</svg>');
-   C) NEON ABSTRACT GEOMETRY ("GEOMETRY WARS" LOOK): Draw ultra-slick cyberpunk graphics natively using 'this.add.graphics()' with massive strokes and intense neon hex colors.
-   D) BULLETPROOF EMOJIS: If you must use Emojis, you MUST specify the exact bulletproof font fallback or they render as black squares:
-      - this.add.text(x, y, '👾', { fontSize: '56px', fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif' }).setOrigin(0.5);
-
+4. BEAUTIFUL REAL GAME ASSETS (MUST USE ACTUAL IMAGES):
+   DO NOT use Emojis. DO NOT use abstract geometry. You MUST build visually modern, "normal" looking games by exclusively using gorgeous 2D sprites.
+   You have full access to these official Phaser image URLs. You MUST load them in preload() with 'this.load.crossOrigin = "anonymous";' and use them for players, enemies, and backgrounds:
+   
+   [Characters & Enemies]
+   - 'https://labs.phaser.io/assets/sprites/dude.png' (Classic hero)
+   - 'https://labs.phaser.io/assets/sprites/baddie.png' (Alien/Monster)
+   - 'https://labs.phaser.io/assets/sprites/slime.png' (Enemy slime)
+   - 'https://labs.phaser.io/assets/sprites/asteroids_ship.png' (Spaceship)
+   - 'https://labs.phaser.io/assets/sprites/car90.png' (Racecar)
+   
+   [Objects & Items]
+   - 'https://labs.phaser.io/assets/sprites/coin.png'
+   - 'https://labs.phaser.io/assets/sprites/bomb.png'
+   - 'https://labs.phaser.io/assets/sprites/mushroom2.png'
+   - 'https://labs.phaser.io/assets/sprites/platform.png' (For runner floors)
+   
+   [Backgrounds & FX]
+   - 'https://labs.phaser.io/assets/skies/sky4.png' (Bright daylight sky)
+   - 'https://labs.phaser.io/assets/skies/space3.png' (Deep space)
+   - 'https://labs.phaser.io/assets/materials/grass.png' (Green ground)
+   - 'https://labs.phaser.io/assets/particles/blue.png' (For particle emitters)
+   - 'https://labs.phaser.io/assets/particles/red.png'
+   
+   WARNING: You MUST use 'this.add.image()' or 'this.physics.add.sprite()' to render these remote URLs vividly!
 5. "THE JUICE" (ADAPTIVE POLISH & FEEL):
    Your game MUST feel incredibly addictive, polished, and satisfying instantly!
    - CAMERA SHAKE: Trigger 'this.cameras.main.shake(100, 0.02)' on major collisions, deaths, or huge impacts.
