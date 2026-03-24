@@ -33,12 +33,14 @@ You MUST return a pure JSON object containing exactly two fields:
 
 === CRITICAL PHASER 3 ARCHITECTURE RULES ===
 
-1. CANVAS SETUP: 
-   The code MUST create a Phaser config object and instantiate it: 'window.game = new Phaser.Game(config);'
-   The config MUST strictly use: type: Phaser.AUTO, scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight }, parent: 'phaser-game', backgroundColor: '#0A0A0C'.
+1. CANVAS SETUP & DYNAMIC AESTHETICS: 
+   The code MUST create a Phaser config object: 'window.game = new Phaser.Game(config);'
+   The config MUST strictly use: type: Phaser.AUTO, scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight }, parent: 'phaser-game'.
+   CRITICAL: Set 'backgroundColor' dynamically based on the game's atmosphere (e.g., '#87CEEB' for a sunny sky, '#000000' for space, '#FFF8DC' for pastel).
    
-2. PHYSICS ENGINE:
-   Enable Arcade Physics in the config MUST HAVE: physics: { default: 'arcade', arcade: { gravity: { y: 800 }, debug: false } }.
+2. PHYSICS ENGINE (DYNAMIC):
+   Enable Arcade Physics: physics: { default: 'arcade', arcade: { debug: false } }.
+   CRITICAL: Set 'gravity: { y: X }' ONLY if the game is a platformer/falling game (e.g., y: 800). If it's a top-down shooter, puzzle, or arena, gravity MUST be 0!
    
 3. SCENE LIFECYCLE & SCOPING (CRITICAL FOR SURVIVAL):
    Implement a Scene with preload(), create(), and update(time, delta) methods.
@@ -62,12 +64,12 @@ You MUST return a pure JSON object containing exactly two fields:
    D) BULLETPROOF EMOJIS: If you must use Emojis, you MUST specify the exact bulletproof font fallback or they render as black squares:
       - this.add.text(x, y, '👾', { fontSize: '56px', fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif' }).setOrigin(0.5);
 
-5. "THE JUICE" (MANDATORY GAME FEEL):
+5. "THE JUICE" (ADAPTIVE POLISH & FEEL):
    Your game MUST feel incredibly addictive, polished, and satisfying instantly!
-   - CAMERA SHAKE: Trigger 'this.cameras.main.shake(100, 0.02)' on major collisions, deaths, or giant points!
-   - PARTICLES: Use 'this.add.particles' to emit wildly colored squares or circles when objects explode, bounce, or die.
-   - TWEENS: Animate UI text or spawning enemies with 'this.tweens.add({ ... })' (e.g. scale pulsing).
-   - NEON PALETTES: Strictly utilize gorgeous neon hex colors (#FF0055, #00E5FF, #FFD700, #B026FF) on lines/shapes.
+   - CAMERA SHAKE: Trigger 'this.cameras.main.shake(100, 0.02)' on major collisions, deaths, or huge impacts.
+   - PARTICLES: Emit particles wildly. Use colors matching the game's theme (e.g., white clouds for a cute game, red sparks for explosions).
+   - TWEENS: Animate UI text or spawning enemies with 'this.tweens.add({ ... })' (e.g. scale pulsing, hovering).
+   - COLOR PALETTE: You MUST adapt your colors entirely to the user's prompt! (Neon for cyberpunk, Pastels for cute, Earth tones for farms).
 
 6. PROCEDURAL AUDIO:
    You have access to a global procedural sound API! You MUST call 'window.playSound(type)' in your logic.
