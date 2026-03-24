@@ -138,31 +138,12 @@ export function initializePkSocket(server) {
             [winnerTeam, matchId]
           );
 
-          // Distribute rewards
-          for (const participant of finishedParticipants) {
-            let coins = 25; // Participation reward
-            if (participant.user_id === winner.user_id) {
-              coins = 100; // Winner reward
-            }
-
-            await pool.query(
-              `INSERT INTO user_points (user_id, balance, lifetime_earned) 
-               VALUES ($1, $2, $2) 
-               ON CONFLICT (user_id) 
-               DO UPDATE SET balance = user_points.balance + EXCLUDED.balance, 
-                             lifetime_earned = user_points.lifetime_earned + EXCLUDED.lifetime_earned`,
-              [participant.user_id, coins]
-            );
-          }
+          // PK rewards system removed
 
           // Broadcast results
           io.to(`pk_${matchId}`).emit('pk:match_end', {
             winnerId: winner.user_id,
-            scores: finishedParticipants,
-            rewards: finishedParticipants.map(p => ({
-              userId: p.user_id,
-              coins: p.user_id === winner.user_id ? 100 : 25
-            }))
+            scores: finishedParticipants
           });
 
           // Clean up

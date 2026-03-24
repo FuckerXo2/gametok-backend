@@ -418,27 +418,7 @@ export const completeMatch = async (req, res) => {
       const result = winnerTeam === null ? 'draw' : 
                      player.team === winnerTeam ? 'win' : 'loss';
       
-      const coinsEarned = result === 'win' ? 100 : result === 'draw' ? 50 : 25;
-      const xpEarned = result === 'win' ? 50 : result === 'draw' ? 25 : 10;
-
-      await client.query(
-        `INSERT INTO match_results 
-         (match_id, user_id, opponent_id, game_id, match_type, result, 
-          user_score, opponent_score, coins_earned, xp_earned)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [matchId, player.user_id, opponent?.user_id, gameId, matchType, result,
-         player.score, opponent?.score || 0, coinsEarned, xpEarned]
-      );
-
-      // Award coins and XP
-      await client.query(
-        `INSERT INTO user_points (user_id, balance, lifetime_earned)
-         VALUES ($1, $2, $2)
-         ON CONFLICT (user_id) DO UPDATE
-         SET balance = user_points.balance + $2,
-             lifetime_earned = user_points.lifetime_earned + $2`,
-        [player.user_id, coinsEarned]
-      );
+      // Multiplayer rewards system removed
 
       await client.query(
         `INSERT INTO user_levels (user_id, xp)
