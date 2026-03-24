@@ -3,8 +3,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import pool from './db.js';
 
 const router = express.Router();
-// Mount Gemini API using existing env pipeline
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Hardcode the native API key bypass so we don't rely on your Railway Dashboard configuration natively!
+const API_KEY = process.env.GEMINI_API_KEY || "AIzaSyCkNV_ri84kFKTjm647FdAnAIkTVm-7XlE";
+const genAI = new GoogleGenerativeAI(API_KEY);
 
 // ============================================
 // 1. GENERATE & DRAFT AI GAME
