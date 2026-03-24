@@ -115,7 +115,7 @@ You must return a JSON object with two fields:
 
     } catch (error) {
         console.error("OVERLOAD:", error);
-        res.status(500).json({ error: "AI Generation Frame Failure" });
+        res.status(500).json({ error: "AI Engine Overload: " + (error.message || String(error)) });
     }
 });
 
