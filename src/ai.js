@@ -1,6 +1,7 @@
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import pool from './db.js';
+import { ASSET_CATALOG } from './assets.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -95,29 +96,12 @@ ${templateInjection}
 
 4. BEAUTIFUL REAL GAME ASSETS (MUST USE ACTUAL IMAGES):
    DO NOT use Emojis. DO NOT use abstract geometry. You MUST build visually modern, "normal" looking games by exclusively using gorgeous 2D sprites.
-   You have full access to these official Phaser image URLs. You MUST load them in preload() with 'this.load.crossOrigin = "anonymous";' and use them for players, enemies, and backgrounds:
+   You have full access to a Verified Global Asset Dictionary. You MUST pick items strictly from this JSON dictionary and use their exact URLs. You MUST load them in preload() with 'this.load.crossOrigin = "anonymous";' and use them for players, enemies, and backgrounds:
    
-   [Characters & Enemies]
-   - 'https://labs.phaser.io/assets/sprites/dude.png' (Classic hero)
-   - 'https://labs.phaser.io/assets/sprites/baddie.png' (Alien/Monster)
-   - 'https://labs.phaser.io/assets/sprites/slime.png' (Enemy slime)
-   - 'https://labs.phaser.io/assets/sprites/asteroids_ship.png' (Spaceship)
-   - 'https://labs.phaser.io/assets/sprites/car90.png' (Racecar)
+   [VERIFIED ASSET DICTIONARY]:
+   ${JSON.stringify(ASSET_CATALOG, null, 2)}
    
-   [Objects & Items]
-   - 'https://labs.phaser.io/assets/sprites/coin.png'
-   - 'https://labs.phaser.io/assets/sprites/bomb.png'
-   - 'https://labs.phaser.io/assets/sprites/mushroom2.png'
-   - 'https://labs.phaser.io/assets/sprites/platform.png' (For runner floors)
-   
-   [Backgrounds & FX]
-   - 'https://labs.phaser.io/assets/skies/sky4.png' (Bright daylight sky)
-   - 'https://labs.phaser.io/assets/skies/space3.png' (Deep space)
-   - 'https://labs.phaser.io/assets/materials/grass.png' (Green ground)
-   - 'https://labs.phaser.io/assets/particles/blue.png' (For particle emitters)
-   - 'https://labs.phaser.io/assets/particles/red.png'
-   
-   WARNING: You MUST use 'this.add.image()' or 'this.physics.add.sprite()' to render these remote URLs vividly!
+   WARNING: You MUST use 'this.add.image()' or 'this.physics.add.sprite()' to render these remote URLs vividly! Pick the ones that best match the Vibe of the user's prompt!
 5. "THE JUICE" (ADAPTIVE POLISH & FEEL):
    Your game MUST feel incredibly addictive, polished, and satisfying instantly!
    - CAMERA SHAKE: Trigger 'this.cameras.main.shake(100, 0.02)' on major collisions, deaths, or huge impacts.
