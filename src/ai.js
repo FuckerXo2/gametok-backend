@@ -88,7 +88,7 @@ You MUST return a pure JSON object containing exactly two fields:
             cleanCode = cleanCode.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
         }
 
-        // Ram Injection compiler: Bundle Phaser CDN + Procedural Audio + Generated Logic
+  // Ram Injection compiler: Bundle Phaser CDN + Procedural Audio + Generated Logic
         const previewHtml = `<!DOCTYPE html>
 <html>
 <head>
@@ -97,12 +97,24 @@ You MUST return a pure JSON object containing exactly two fields:
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         body { margin: 0; padding: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; }
-        canvas { display: block; touch-action: none; outline: none; }
+        #phaser-game { width: 100%; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        canvas { display: block; touch-action: none; outline: none; max-width: 100%; max-height: 100%; }
+        #error-overlay { display: none; position: absolute; z-index: 9999; background: rgba(20,0,0,0.9); color: #ff3366; padding: 20px; width: 100%; height: 100%; box-sizing: border-box; font-family: monospace; overflow-y: auto; text-align: left; }
     </style>
 </head>
 <body>
+    <div id="error-overlay"></div>
     <div id="phaser-game"></div>
+    
     <script>
+        // Catch ANY Syntax errors during script parsing or execution
+        window.onerror = function(msg, source, lineno, colno, error) {
+            var overlay = document.getElementById('error-overlay');
+            overlay.style.display = 'block';
+            overlay.innerHTML += "<h3>Engine Crash</h3><p>" + msg + "</p><p>Line: " + lineno + "</p><hr>";
+            return true;
+        };
+
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         window.playSound = function(type) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -129,12 +141,10 @@ You MUST return a pure JSON object containing exactly two fields:
                 osc.start(); osc.stop(audioCtx.currentTime + 0.1);
             }
         };
-
-        try {
-            ${cleanCode}
-        } catch(e) {
-            document.body.innerHTML = '<div style="color:#00e5ff; font-family:sans-serif; text-align:center; padding:20px;"><h3>Engine Render Failure</h3><p>' + e.message + '</p></div>';
-        }
+    </script>
+    <script>
+        // Generated Code Execution
+        ${cleanCode}
     </script>
 </body>
 </html>`;
