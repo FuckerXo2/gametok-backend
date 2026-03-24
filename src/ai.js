@@ -24,7 +24,7 @@ router.post('/dream', async (req, res) => {
         console.log(`🧠 AI Orchestrator running generation for User[${userId}] -> Concept: "${prompt}"`);
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-pro-preview", 
+            model: "gemini-1.5-pro-latest", 
             generationConfig: { responseMimeType: "application/json" }
         });
 
