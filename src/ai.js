@@ -1,6 +1,12 @@
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import pool from './db.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 // Mount Gemini API natively via the Railway dashboard environment variable
@@ -23,6 +29,46 @@ router.post('/dream', async (req, res) => {
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         console.log(`🧠 AI Orchestrator running generation for User[${userId}] -> Concept: "${prompt}"`);
 
+        // LIGHTNING FAST RAG CLASSIFICATION HEURISTIC
+        const p = prompt.toLowerCase();
+        let templateType = null;
+        if (p.includes('flap') || p.includes('fly through') || p.includes('gap') || p.includes('bird')) {
+            templateType = 'flappy';
+        } else if (p.includes('run') || p.includes('jump over') || p.includes('platform') || p.includes('obstacle') || p.includes('side scroll')) {
+            templateType = 'runner';
+        } else if (p.includes('shoot') || p.includes('survive') || p.includes('arena') || p.includes('defend') || p.includes('top down') || p.includes('spaceship')) {
+            templateType = 'arena';
+        }
+
+        let templateInjection = '';
+        if (templateType) {
+            try {
+                const templateCode = fs.readFileSync(path.join(__dirname, 'templates', `${templateType}.js`), 'utf-8');
+                templateInjection = `
+                
+=== 🚨 CRITICAL TEMPLATE OVERRIDE IN EFFECT 🚨 ===
+You MUST use the following Flawless Game Skeleton as your exact foundation. 
+DO NOT modify the physics collisions, overlaps, gravity, or bounds logic! 
+DO NOT DELETE the Groups (enemies/obstacles/projectiles) or the Time Events.
+ONLY MODIFY:
+1. The 'backgroundColor' string.
+2. The visual 'this.add.rectangle' objects (Replace them with Sprites, SVG, Emojis, or Neon shapes matching the prompt).
+3. The Speed variables (e.g. enemySpeed, velocityY, delay) to change difficulty.
+4. The Juice (add intense Particles inside collision overlaps, Camera Shakes, Sound effects).
+5. The 'Score' tracking logic if needed.
+
+HERE IS YOUR STARTING CODE TEMPLATE. MERGE YOUR VISUAL CHANGES DIRECTLY INTO THIS AND RETURN IT:
+\`\`\`javascript
+${templateCode}
+\`\`\`
+===================================================
+`;
+                console.log(`✅ RAG Pipeline Injected Template: [${templateType}]`);
+            } catch (err) {
+                console.warn(`Failed to inject template [${templateType}]:`, err.message);
+            }
+        }
+
         const systemInstruction = `
 You are a God-Tier Phaser 3 Game Developer architecting highly-addictive, "juicy" hyper-casual mobile games. 
 The user will provide a prompt describing a 2D web game.
@@ -30,7 +76,7 @@ The user will provide a prompt describing a 2D web game.
 You MUST return a pure JSON object containing exactly two fields:
 1. "title": A catchy, viral-sounding title for the game.
 2. "code": Raw, brutally efficient, standalone Javascript code that fully initializes and runs a Phaser 3 game inside the DOM element 'phaser-game'.
-
+${templateInjection}
 === CRITICAL PHASER 3 ARCHITECTURE RULES ===
 
 1. CANVAS SETUP & DYNAMIC AESTHETICS: 
