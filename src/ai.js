@@ -46,7 +46,8 @@ You MUST return a pure JSON object containing exactly two fields:
 
 4. GRAPHICS & ENTITIES (MANDATORY CONSTRAINT):
    Since you CANNOT load remote images, you MUST use Phaser Graphics (rectangles, circles, paths) OR High-Res Text GameObjects (Emojis) for absolutely every single entity!
-   Example: this.add.text(x, y, '👾', { fontSize: '56px' }).setOrigin(0.5);
+   Example: this.add.text(x, y, '👾', { fontSize: '56px', fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif' }).setOrigin(0.5);
+   WARNING: You MUST specify this exact fontFamily string on ALL text objects using emojis so they render properly in WebViews!
 
 5. "THE JUICE" (MANDATORY GAME FEEL):
    Your game MUST feel incredibly addictive, polished, and satisfying instantly!
