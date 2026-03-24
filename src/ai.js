@@ -44,10 +44,22 @@ You MUST return a pure JSON object containing exactly two fields:
    Implement a Scene with preload(), create(), and update(time, delta) methods.
    Properly scope all structural objects (player, enemies, score) to 'this' so they update correctly.
 
-4. GRAPHICS & ENTITIES (MANDATORY CONSTRAINT):
-   Since you CANNOT load remote images, you MUST use Phaser Graphics (rectangles, circles, paths) OR High-Res Text GameObjects (Emojis) for absolutely every single entity!
-   Example: this.add.text(x, y, '👾', { fontSize: '56px', fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif' }).setOrigin(0.5);
-   WARNING: You MUST specify this exact fontFamily string on ALL text objects using emojis so they render properly in WebViews!
+4. CAPTIVATING GRAPHICS (REAL ASSETS, SVG, NEON GEOMETRY):
+   Do NOT settle for boring visuals. You have 4 powerful choices to make it look breathtaking:
+   A) OFFICIAL PHASER ASSET LIBRARY (RECOMMENDED): Load real pngs/sprites inside preload() from the official examples CDN! 
+      - IMPORTANT: You MUST set 'this.load.crossOrigin = "anonymous";' first!
+      - Example Safe URLs: 
+        * 'https://labs.phaser.io/assets/sprites/ship.png'
+        * 'https://labs.phaser.io/assets/sprites/space-baddie.png'
+        * 'https://labs.phaser.io/assets/sprites/coin.png'
+        * 'https://labs.phaser.io/assets/sprites/bomb.png'
+        * 'https://labs.phaser.io/assets/particles/blue.png'
+        * 'https://labs.phaser.io/assets/skies/space3.png' (for backgrounds)
+   B) INLINE SVG DATA URIS (BEST CRISP SCALING): Generate crisp math-based SVG characters or items inline inside preload!
+      - this.load.svg('myArt', 'data:image/svg+xml;utf8,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">...</svg>');
+   C) NEON ABSTRACT GEOMETRY ("GEOMETRY WARS" LOOK): Draw ultra-slick cyberpunk graphics natively using 'this.add.graphics()' with massive strokes and intense neon hex colors.
+   D) BULLETPROOF EMOJIS: If you must use Emojis, you MUST specify the exact bulletproof font fallback or they render as black squares:
+      - this.add.text(x, y, '👾', { fontSize: '56px', fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif' }).setOrigin(0.5);
 
 5. "THE JUICE" (MANDATORY GAME FEEL):
    Your game MUST feel incredibly addictive, polished, and satisfying instantly!
