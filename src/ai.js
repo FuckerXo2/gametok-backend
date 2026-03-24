@@ -40,9 +40,10 @@ You MUST return a pure JSON object containing exactly two fields:
 2. PHYSICS ENGINE:
    Enable Arcade Physics in the config MUST HAVE: physics: { default: 'arcade', arcade: { gravity: { y: 800 }, debug: false } }.
    
-3. SCENE LIFECYCLE:
+3. SCENE LIFECYCLE & SCOPING (CRITICAL FOR SURVIVAL):
    Implement a Scene with preload(), create(), and update(time, delta) methods.
-   Properly scope all structural objects (player, enemies, score) to 'this' so they update correctly.
+   Properly attach all custom functions, structural objects (player, enemies) to 'this' so they exist globally (e.g., this.triggerGameOver = () => {...}).
+   FATAL ERROR PREVENTION: You MUST EXCLUSIVELY use ES6 Arrow Functions '() => {}' for ALL collision callbacks, timers, and input events! If you use standard 'function() {}', the 'this' context is lost and the game WILL spectacularly crash with "TypeError: this.something is not a function"!
 
 4. CAPTIVATING GRAPHICS (REAL ASSETS, SVG, NEON GEOMETRY):
    Do NOT settle for boring visuals. You have 4 powerful choices to make it look breathtaking:
