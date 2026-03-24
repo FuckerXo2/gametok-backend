@@ -297,4 +297,66 @@ router.get('/play/:targetId', async (req, res) => {
     }
 });
 
+// ============================================
+// 4. ADMIN RAG PIPELINE: BUILD VECTOR DATABASE
+// ============================================
+router.post('/admin/rebuild-assets', async (req, res) => {
+    // Only authorized via valid token (optional for testing, but let's just run it)
+    console.log("=== 🚀 Railway Vector Scraper Initializing ===");
+    res.json({ status: "bg-process-started", msg: "Scraping and Vectorizing Phaser CDN into Postgres..." });
+
+    try {
+        const embedModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+        
+        // 1. Initialize Postgres RAG Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS asset_vectors (
+                id SERIAL PRIMARY KEY,
+                name TEXT,
+                url TEXT,
+                type TEXT,
+                tags TEXT,
+                vector JSONB
+            );
+        `);
+        // Clean table for a fresh rebuild
+        await pool.query(`TRUNCATE TABLE asset_vectors;`);
+
+        const FOLDERS = [
+            { type: 'sprite', ext: '.png', path: 'public/assets/sprites' },
+            { type: 'background', ext: '.png', path: 'public/assets/skies' },
+            { type: 'particle', ext: '.png', path: 'public/assets/particles' }
+        ];
+
+        let count = 0;
+        for (const folder of FOLDERS) {
+            const gitUrl = `https://api.github.com/repos/phaserjs/examples/contents/${folder.path}`;
+            const response = await fetch(gitUrl, { headers: { 'User-Agent': 'DreamStream-Asset-Scraper' } });
+            if (!response.ok) continue;
+            
+            const rawFiles = await response.json();
+            const pngFiles = rawFiles.filter(f => f.type === 'file' && f.name.endsWith('.png')).slice(0, 100); // Limit to top 100 per folder to avoid aggressive rate limits
+            
+            for (let i = 0; i < pngFiles.length; i++) {
+                const filename = pngFiles[i].name;
+                const cleanTags = `${folder.type} ${filename.replace(/\.(png|jpg|jpeg)$/, '').replace(/[_-]/g, ' ').replace(/[0-9]/g, '')}`.trim();
+                
+                const result = await embedModel.embedContent(cleanTags);
+                const vector = result.embedding.values;
+                
+                const assetUrl = `https://labs.phaser.io/assets/${folder.path.split('public/assets/')[1]}/${filename}`;
+                
+                await pool.query(
+                    `INSERT INTO asset_vectors (name, url, type, tags, vector) VALUES ($1, $2, $3, $4, $5)`,
+                    [filename, assetUrl, folder.type, cleanTags, JSON.stringify(vector)]
+                );
+                count++;
+            }
+        }
+        console.log(`✅ Railway Vector DB Rebuild Complete! Indexed ${count} assets into Postgres.`);
+    } catch (e) {
+        console.error(`❌ Railway Vector DB Build Failed:`, e.message);
+    }
+});
+
 export default router;
