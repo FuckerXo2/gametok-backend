@@ -9,9 +9,22 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function cosineSimilarity(vecA, vecB) {
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+        dotProduct += vecA[i] * vecB[i];
+        normA += vecA[i] * vecA[i];
+        normB += vecB[i] * vecB[i];
+    }
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 const router = express.Router();
-// Mount Gemini API natively via the Railway dashboard environment variable
+// Mount Gemini APIs natively via the Railway dashboard environment variable
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const embedModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
 // ============================================
 // 1. GENERATE & DRAFT AI GAME
@@ -29,6 +42,53 @@ router.post('/dream', async (req, res) => {
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         console.log(`🧠 AI Orchestrator running generation for User[${userId}] -> Concept: "${prompt}"`);
+
+        // ============================================
+        // 🚀 PHASE 1: DYNAMIC VECTOR ASSET PIPELINE (RAG)
+        // ============================================
+        let dynamicAssetCatalog = {};
+        try {
+            console.log(`🔍 Vectorizing user prompt: "${prompt}"...`);
+            const promptEmbedResult = await embedModel.embedContent(prompt);
+            const promptVector = promptEmbedResult.embedding.values;
+
+            // Fetch all known assets from the Postgres Database vector table
+            const { rows } = await pool.query('SELECT name, url, type, tags, vector FROM asset_vectors');
+            
+            if (rows.length > 0) {
+                // Compute Cosine Similarity strictly in Node memory (takes <10ms for 500 items)
+                const scoredAssets = rows.map(row => {
+                    // Safe guard parse mechanism
+                    const vec = typeof row.vector === 'string' ? JSON.parse(row.vector) : row.vector; 
+                    return {
+                        name: row.name,
+                        url: row.url,
+                        type: row.type,
+                        score: cosineSimilarity(promptVector, vec)
+                    };
+                });
+
+                // Sort by highest match to the user's prompt
+                scoredAssets.sort((a, b) => b.score - a.score);
+                
+                // Grab the top 20 most semantically relevant graphical assets
+                const topAssets = scoredAssets.slice(0, 20);
+                
+                // Shape them for the AI Prompt 
+                dynamicAssetCatalog = {
+                    characters_and_items: topAssets.filter(t => t.type === 'sprite').map(a => a.url),
+                    backgrounds: topAssets.filter(t => t.type === 'background').map(a => a.url),
+                    particles: topAssets.filter(t => t.type === 'particle').map(a => a.url)
+                };
+                console.log("✅ Successfully dynamically retrieved Top 20 relevant assets using Semantic Math!");
+            } else {
+                console.warn("⚠️ Asset Vector Table is empty or building! Falling back to static V1 catalog.");
+                dynamicAssetCatalog = ASSET_CATALOG;
+            }
+        } catch (e) {
+            console.error("❌ Vector Pipeline Failed, falling back to static:", e.message);
+            dynamicAssetCatalog = ASSET_CATALOG;
+        }
 
         // LIGHTNING FAST RAG CLASSIFICATION HEURISTIC
         const p = prompt.toLowerCase();
@@ -96,10 +156,10 @@ ${templateInjection}
 
 4. BEAUTIFUL REAL GAME ASSETS (MUST USE ACTUAL IMAGES):
    DO NOT use Emojis. DO NOT use abstract geometry. You MUST build visually modern, "normal" looking games by exclusively using gorgeous 2D sprites.
-   You have full access to a Verified Global Asset Dictionary. You MUST pick items strictly from this JSON dictionary and use their exact URLs. You MUST load them in preload() with 'this.load.crossOrigin = "anonymous";' and use them for players, enemies, and backgrounds:
+   You have full access to a Verified Global Asset Dictionary containing ONLY the highly relevant URLs matching the user's vibe! You MUST pick items strictly from this JSON dictionary and use their exact URLs. You MUST load them in preload() with 'this.load.crossOrigin = "anonymous";' 
    
    [VERIFIED ASSET DICTIONARY]:
-   ${JSON.stringify(ASSET_CATALOG, null, 2)}
+   ${JSON.stringify(dynamicAssetCatalog, null, 2)}
    
    WARNING: You MUST use 'this.add.image()' or 'this.physics.add.sprite()' to render these remote URLs vividly! Pick the ones that best match the Vibe of the user's prompt!
 5. "THE JUICE" (ADAPTIVE POLISH & FEEL):
