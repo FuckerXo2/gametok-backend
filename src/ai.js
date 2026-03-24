@@ -1,10 +1,10 @@
 import express from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Anthropic from '@anthropic-ai/sdk';
 import pool from './db.js';
 
 const router = express.Router();
-// Mount Gemini API using existing env pipeline
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Mount Anthropic API natively via the Railway dashboard environment variable
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ============================================
 // 1. GENERATE & DRAFT AI GAME
@@ -22,11 +22,6 @@ router.post('/dream', async (req, res) => {
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         console.log(`🧠 AI Orchestrator running generation for User[${userId}] -> Concept: "${prompt}"`);
-
-        const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview", 
-            generationConfig: { responseMimeType: "application/json" }
-        });
 
         const systemInstruction = `
 You are a God-Tier Phaser 3 Game Developer architecting highly-addictive, "juicy" hyper-casual mobile games. 
@@ -75,8 +70,15 @@ You MUST return a pure JSON object containing exactly two fields:
    DO NOT wrap the returned JSON payload in markdown blocks (e.g., \`\`\`json). The response must be raw stringified JSON only.
 `;
 
-        const result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
-        const responseText = result.response.text();
+        // Blast the prompt into the Anthropic API
+        const response = await anthropic.messages.create({
+            model: "claude-4-6-opus-latest",
+            max_tokens: 8192,
+            system: systemInstruction,
+            messages: [{ role: "user", content: "User Prompt: " + prompt }]
+        });
+
+        const responseText = response.content[0].text;
         const json = JSON.parse(responseText);
         
         // Brutally scrub any rogue markdown blocks floating inside the JSON value
