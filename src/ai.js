@@ -51,6 +51,12 @@ You must return a JSON object with two fields:
         const result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
         const responseText = result.response.text();
         const json = JSON.parse(responseText);
+        
+        // Brutally scrub any rogue markdown blocks floating inside the JSON value
+        let cleanCode = json.code;
+        if(cleanCode.includes('```')) {
+            cleanCode = cleanCode.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
+        }
 
         // Ram Injection compiler: Bundle Phaser CDN + Procedural Audio + Generated Logic
         const previewHtml = `<!DOCTYPE html>
@@ -95,7 +101,7 @@ You must return a JSON object with two fields:
         };
 
         try {
-            \${json.code}
+            ${cleanCode}
         } catch(e) {
             document.body.innerHTML = '<div style="color:#00e5ff; font-family:sans-serif; text-align:center; padding:20px;"><h3>Engine Render Failure</h3><p>' + e.message + '</p></div>';
         }
@@ -107,7 +113,7 @@ You must return a JSON object with two fields:
         const dbRes = await pool.query(
             `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
              VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [userId, prompt, json.title, previewHtml, json.code, true]
+            [userId, prompt, json.title, previewHtml, cleanCode, true]
         );
 
         console.log(`✅ Database Draft Saved. ID: ${dbRes.rows[0].id}`);
