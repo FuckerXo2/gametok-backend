@@ -54,16 +54,29 @@ router.post('/dream', async (req, res) => {
                 console.log("=> Injecting FLAWLESS Runner Template");
             }
 
-            // === ART DIRECTOR AGENT (POLLINATIONS.AI PIPELINE) ===
-            console.log("🎨 Art Director Agent: Generating High-Res Assets...");
+            // === ART DIRECTOR AGENT (IMAGEN 3 PIPELINE) ===
+            console.log("🎨 Art Director: Generating High-Res Assets via Imagen 3...");
             const fetchImage = async (imgPrompt) => {
                 try {
-                    const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(imgPrompt) + "?width=512&height=512&nologo=true&seed=" + Math.floor(Math.random()*100000);
-                    const imgRes = await fetch(url);
-                    if (!imgRes.ok) { console.error("Pollinations API Error: " + imgRes.status); return null; }
-                    const arrayBuffer = await imgRes.arrayBuffer();
-                    const base64 = Buffer.from(arrayBuffer).toString('base64');
-                    return "data:image/jpeg;base64," + base64;
+                    const key = process.env.GEMINI_API_KEY;
+                    const url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=" + key;
+                    const payload = {
+                        "instances": [ { "prompt": imgPrompt } ],
+                        "parameters": { "sampleCount": 1 }
+                    };
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!res.ok) { console.error("Imagen API Error: " + res.status); return null; }
+                    
+                    const data = await res.json();
+                    if (data.predictions && data.predictions.length > 0) {
+                        return "data:image/jpeg;base64," + data.predictions[0].bytesBase64Encoded;
+                    }
+                    return null;
                 } catch(e) { console.error("Art failed:", e); return null; }
             };
 
