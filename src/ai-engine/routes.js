@@ -1,5 +1,11 @@
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import pool from '../db.js';
 import { getDynamicAssetCatalog } from './rag.js';
 import { buildOmniEnginePrompt } from './prompt.js';
@@ -33,8 +39,22 @@ router.post('/dream', async (req, res) => {
         }, 15000);
 
         try {
-            // Build Omni-Engine Prompt directly without RAG constraints
-            const systemInstruction = buildOmniEnginePrompt();
+            // === ZERO-SHOT TEMPLATE INJECTION ENGINE ===
+            let templateCode = "";
+            const pt = prompt.toLowerCase();
+            if (pt.match(/match|candy|bejeweled|puzzle|swap|grid/i)) {
+                templateCode = fs.readFileSync(path.join(__dirname, '../templates/match3.js'), 'utf8');
+                console.log("=> Injecting FLAWLESS Match-3 Template");
+            } else if (pt.match(/shoot|space|ship|laser|bullet/i)) {
+                templateCode = fs.readFileSync(path.join(__dirname, '../templates/shooter.js'), 'utf8');
+                console.log("=> Injecting FLAWLESS Shooter Template");
+            } else if (pt.match(/run|runner|flappy|jump|dash/i)) {
+                templateCode = fs.readFileSync(path.join(__dirname, '../templates/runner.js'), 'utf8');
+                console.log("=> Injecting FLAWLESS Runner Template");
+            }
+
+            // Build Omni-Engine Prompt with injected Gold Standard Template
+            const systemInstruction = buildOmniEnginePrompt(templateCode);
             
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
             
