@@ -33,11 +33,8 @@ router.post('/dream', async (req, res) => {
         }, 15000);
 
         try {
-            // 1. RAG Dynamic Asset Retrieval
-            const dynamicAssetCatalog = await getDynamicAssetCatalog(prompt);
-
-            // 2. Build Omni-Engine Prompt with asset catalog for theme inspiration
-            const systemInstruction = buildOmniEnginePrompt(dynamicAssetCatalog);
+            // Build Omni-Engine Prompt directly without RAG constraints
+            const systemInstruction = buildOmniEnginePrompt();
             
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
             
