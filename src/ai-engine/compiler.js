@@ -1,22 +1,8 @@
 export function compileGameHTML(json) {
-    let engineImports = '';
-    
-    if (json.engine === 'threejs') {
-        engineImports = `
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-            <script>
-                const _originalLoad = THREE.TextureLoader.prototype.load;
-                THREE.TextureLoader.prototype.load = function(url, onLoad, onProgress, onError) {
-                    this.setCrossOrigin('anonymous');
-                    return _originalLoad.call(this, url, onLoad, onProgress, onError);
-                };
-            </script>
-        `;
-    } else if (json.engine === 'phaser') {
-        engineImports = `
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
-        `;
-    }
+    // We now solely use Phaser 3. No need to branch engines based on JSON response.
+    const engineImports = `
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    `;
 
     // Inject the configuration block defined by the AI
     const configScript = json.config ? `<script>window.gameConfig = ${JSON.stringify(json.config)};</script>` : '';
@@ -43,9 +29,9 @@ export function compileGameHTML(json) {
     <script>
         window.onerror = function(msg, source, lineno, colno, error) {
             var overlay = document.getElementById('error-overlay');
-            if (msg === 'Script error.') msg = 'WebGL CORS Blocked or Texture Loader Crash. Check image origins.';
+            if (msg === 'Script error.') msg = 'Phaser Framework Image Domain Loader Crash. Check origin crossOrigin settings.';
             overlay.style.display = 'block';
-            overlay.innerHTML += "<h3>" + "${json.engine}".toUpperCase() + " Engine Crash</h3><p>" + msg + "</p><p>Line: " + lineno + "</p><hr>";
+            overlay.innerHTML += "<h3>Phaser Engine Script Error</h3><p>" + msg + "</p><p>Line: " + lineno + "</p><hr>";
             return true;
         };
 
@@ -63,7 +49,7 @@ export function compileGameHTML(json) {
         };
     </script>
     <script>
-// RAW GENERATED [${json.engine.toUpperCase()}] LOGIC
+// RAW GENERATED PHASER LOGIC
 ${json.code}
     </script>
 </body>
