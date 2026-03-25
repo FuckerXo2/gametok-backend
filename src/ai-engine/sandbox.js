@@ -33,8 +33,22 @@ export async function verifyGame(htmlString) {
 
         await page.setContent(htmlString, { waitUntil: 'load', timeout: 8000 });
         
-        // Wait 3000ms to let Phaser boot up and run initial loop
-        await new Promise(r => setTimeout(r, 3000));
+        // Wait briefly for boot
+        await new Promise(r => setTimeout(r, 1000));
+        
+        // Simulate aggressive interactive logic (pointer down, drag, pointer up) to trigger dormant interaction bugs
+        try {
+            await page.mouse.move(200, 200);
+            await page.mouse.down({ button: 'left' });
+            await new Promise(r => setTimeout(r, 1000)); // hold down for 1 second (tests long-press logic)
+            await page.mouse.up({ button: 'left' });
+            await page.mouse.click(300, 300); // test immediate click
+        } catch(mouseErr) {
+            console.log("Sandbox mouse interaction skipped:", mouseErr.message);
+        }
+
+        // Wait another 1 second to see if the interactions threw a delayed async error
+        await new Promise(r => setTimeout(r, 1000));
 
         await browser.close();
 

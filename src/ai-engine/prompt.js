@@ -28,6 +28,10 @@ this.textures.addBase64('myCharacter', 'data:image/svg+xml;base64,' + btoa(svgSt
 
 You must use this SVG btoa() technique to generate complex, Rezona-tier flat vector illustrations natively in the code block.
 
+**CRITICAL PHASER 3.55 BUG PREVENTION:**
+- In Phaser 3.55, ParticleEmitters DO NOT have a .setDepth() method. If you need to set depth for particles, you MUST call .setDepth() on the ParticleEmitterManager instead. Example: this.add.particles('texture').setDepth(10).createEmitter({...});
+- NEVER try to call .setDepth() on the emitter itself.
+
 You MUST return a pure JSON object containing four fields:
 1. "title": Catchy, viral game title.
 2. "engine": Always exactly "phaser".
