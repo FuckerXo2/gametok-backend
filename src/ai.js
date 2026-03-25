@@ -101,6 +101,11 @@ You ALWAYS have window.playSound('jump' | 'coin' | 'explosion' | 'shoot'). Use i
 - ALL controls MUST use Touch/Pointer events (e.g. window.addEventListener('pointerdown', ...)). If it's a runner, a tap makes them jump or dodge. 
 - If the player dies, you MUST build an on-screen "TAP TO PLAY AGAIN" text and manually reset the game variables inside your Javascript loop when tapped! NEVER use location.reload() or tell the user to 'refresh the page' or 'Press R'.
 
+=== ASSET & HITBOX SCALING RULES ===
+- NEVER use image dimensions (naturalWidth/naturalHeight) to calculate physics or collisions!
+- Define your entities with fixed, logical hitboxes (e.g., radius: 20 or w: 40, h: 40).
+- Scale the drawing of the image to perfectly fit your predefined static hitbox. This ensures the game physics never break regardless of the asset's original resolution.
+
 DO NOT wrap your JSON in markdown blocks. Return the pure stringified JSON.
 Ensure you always draw floors/grounds so characters don't fall infinitely.
 `;
