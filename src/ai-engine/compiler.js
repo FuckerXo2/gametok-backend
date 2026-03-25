@@ -1,6 +1,6 @@
 export function compileGameHTML(json) {
     const engineImports = `
-        <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+        <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
     `;
 
     const configScript = json.config ? `<script>window.gameConfig = ${JSON.stringify(json.config)};</script>` : '';
