@@ -1,7 +1,7 @@
 export function compileGameHTML(json) {
     // We now solely use Phaser 3. No need to branch engines based on JSON response.
     const engineImports = `
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+        <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     `;
 
     // Inject the configuration block defined by the AI
@@ -29,7 +29,6 @@ export function compileGameHTML(json) {
     <script>
         window.onerror = function(msg, source, lineno, colno, error) {
             var overlay = document.getElementById('error-overlay');
-            if (msg === 'Script error.') msg = 'Phaser Framework Image Domain Loader Crash. Check origin crossOrigin settings.';
             overlay.style.display = 'block';
             overlay.innerHTML += "<h3>Phaser Engine Script Error</h3><p>" + msg + "</p><p>Line: " + lineno + "</p><hr>";
             return true;

@@ -15,6 +15,7 @@ You MUST return a pure JSON object containing exactly FOUR fields:
 - Required config: type: Phaser.AUTO, width: window.innerWidth, height: window.innerHeight, parent: 'game-container'.
 - Enable Arcade Physics: physics: { default: 'arcade', arcade: { debug: false } }.
 - You MUST preload images inside preload(): this.load.crossOrigin = "anonymous"; this.load.image("name", "url");
+- You MUST ALWAYS use the provided dictionary images for characters, enemies, and items! DO NOT draw raw Graphics lines or neon vectors for main entities!
 - If building an endless runner, explicitly apply negative velocity (e.g., obj.setVelocityX(-200)) to spawned obstacles so they move perfectly!
 
 === CRITICAL MOBILE & TOUCH CONSTRAINTS ===
