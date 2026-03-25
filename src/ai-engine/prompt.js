@@ -14,8 +14,9 @@ You MUST return a pure JSON object containing exactly FOUR fields:
 - Write logic initializing: window.game = new Phaser.Game(config); 
 - Required config: type: Phaser.AUTO, width: window.innerWidth, height: window.innerHeight, parent: 'game-container'.
 - Enable Arcade Physics: physics: { default: 'arcade', arcade: { debug: false } }.
-- You MUST preload images inside preload(): this.load.crossOrigin = "anonymous"; this.load.image("name", "url");
-- You MUST ALWAYS use the provided dictionary images for characters, enemies, and items! DO NOT draw raw Graphics lines or neon vectors for main entities!
+- ASSETS: Prefer preloading dictionary images: this.load.crossOrigin="anonymous"; this.load.image("name", "url");
+- INVENTING ASSETS: If the dictionary lacks what you need, you CAN generate inline SVG data URIs! Example: this.load.image('key', 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" ...></svg>')). You can also use EMOJIS via this.add.text(x, y, '🚀', {fontSize:'40px'}).
+- FATAL CRASH WARNING: NEVER apply Arcade Physics (this.physics.add.existing) directly to a raw Phaser.GameObjects.Graphics object! It will instantly crash. Only apply physics to Sprites, Images, or Text objects!
 - If building an endless runner, explicitly apply negative velocity (e.g., obj.setVelocityX(-200)) to spawned obstacles so they move perfectly!
 
 === CRITICAL MOBILE & TOUCH CONSTRAINTS ===
