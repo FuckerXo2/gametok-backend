@@ -19,21 +19,19 @@ You MUST return a pure JSON object containing exactly FOUR fields:
 - FATAL CRASH WARNING: NEVER apply Arcade Physics (this.physics.add.existing) directly to a raw Phaser.GameObjects.Graphics object! It will instantly crash. Only apply physics to Sprites, Images, text, or rectangles!
 - If building an endless runner, explicitly apply negative velocity (e.g., obj.setVelocityX(-200)) to spawned obstacles so they move perfectly!
 
-=== CRITICAL: ASSET CREATION RULES ===
-- This game runs inside a mobile WebView. External image URLs may fail to load silently.
-- You MUST create ALL game visuals PROCEDURALLY using Phaser Graphics + generateTexture(). Do NOT use this.load.image() with any http/https URL. Do NOT use this.load.crossOrigin.
-- For SHAPES and OBJECTS: Use Phaser Graphics API to draw them procedurally:
-  var gfx = this.make.graphics({x:0,y:0});
-  gfx.fillStyle(0xFF0000); gfx.fillCircle(32,32,32);
-  gfx.generateTexture('redBall', 64, 64); gfx.destroy();
-- For COLORFUL GAME PIECES: Generate textures procedurally. Example for a gem:
-  var g = this.make.graphics({x:0,y:0});
-  g.fillStyle(0x00FF88); g.fillRoundedRect(4,4,56,56,12);
-  g.fillStyle(0xFFFFFF,0.3); g.fillRoundedRect(12,8,20,16,6);
-  g.generateTexture('greenGem', 64, 64); g.destroy();
-- For TEXT/LABELS: Use this.add.text(x, y, 'EMOJI or TEXT', {fontSize:'32px', fill:'#fff'}).
-- For BACKGROUNDS: Use this.cameras.main.setBackgroundColor('#hex') and/or draw gradient rectangles with Graphics.
-- You may reference the ASSET DICTIONARY below for inspiration on game themes, but generate ALL textures inline using the Graphics API approach above.
+=== ASSET LOADING RULES ===
+- PRELOADING: Use this.load.crossOrigin = "anonymous"; then this.load.image("key", "url"); with URLs from the ASSET DICTIONARY below.
+- You MUST handle load failures gracefully. In your preload(), add:
+  this.load.on('loaderror', function(file) { console.warn('Asset failed:', file.key); });
+- FALLBACK TEXTURES: After preloading, in create() always check if textures exist. If an asset fails to load, generate a fallback using Graphics:
+  if (!this.textures.exists('myKey')) {
+    var g = this.make.graphics({x:0,y:0});
+    g.fillStyle(0xFF4488); g.fillCircle(32,32,30);
+    g.generateTexture('myKey', 64, 64); g.destroy();
+  }
+- For game pieces (gems, blocks, tiles), you MAY also generate colorful procedural textures using Graphics + generateTexture() for variety.
+- For TEXT/LABELS: Use this.add.text(x, y, 'TEXT', {fontSize:'32px', fill:'#fff'}).
+- For BACKGROUNDS: Use this.cameras.main.setBackgroundColor('#hex') OR load a background from the dictionary.
 
 === CRITICAL VISIBILITY RULES ===
 - You MUST set a visible background color using this.cameras.main.setBackgroundColor() in create().
@@ -50,7 +48,7 @@ You MUST return a pure JSON object containing exactly FOUR fields:
 - Define your entities with fixed, logical hitboxes. Use 'body.setSize(w, h)' explicitly.
 - Scale the drawing of the image using '.setDisplaySize(w, h)' to perfectly fit your predefined static hitbox.
 
-[VERIFIED ASSET DICTIONARY (for theme inspiration only — generate all textures inline)]: ${JSON.stringify(dynamicAssetCatalog, null, 2)}
+[VERIFIED ASSET DICTIONARY]: ${JSON.stringify(dynamicAssetCatalog, null, 2)}
 
 [GLOBAL AUDIO API]: 
 You ALWAYS have window.playSound('jump' | 'coin' | 'explosion' | 'shoot'). Use it heavily!

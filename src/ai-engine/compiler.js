@@ -10,6 +10,7 @@ export function compileGameHTML(json) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval';">
     ${engineImports}
     <style>
         body { margin: 0; padding: 0; background: #1a1a2e; overflow: hidden; touch-action: none; font-family: sans-serif; }
