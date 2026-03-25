@@ -96,6 +96,11 @@ You MUST return a pure JSON object containing exactly THREE fields:
 [GLOBAL AUDIO API]: 
 You ALWAYS have window.playSound('jump' | 'coin' | 'explosion' | 'shoot'). Use it heavily!
 
+=== CRITICAL MOBILE & TOUCH CONSTRAINTS ===
+- You are building for a MOBILE APP WebView. There is NO keyboard and NO browser refresh button!
+- ALL controls MUST use Touch/Pointer events (e.g. window.addEventListener('pointerdown', ...)). If it's a runner, a tap makes them jump or dodge. 
+- If the player dies, you MUST build an on-screen "TAP TO PLAY AGAIN" text and manually reset the game variables inside your Javascript loop when tapped! NEVER use location.reload() or tell the user to 'refresh the page' or 'Press R'.
+
 DO NOT wrap your JSON in markdown blocks. Return the pure stringified JSON.
 Ensure you always draw floors/grounds so characters don't fall infinitely.
 `;
