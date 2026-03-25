@@ -10,6 +10,7 @@ import pool from '../db.js';
 import { getDynamicAssetCatalog } from './rag.js';
 import { buildOmniEnginePrompt } from './prompt.js';
 import { compileGameHTML } from './compiler.js';
+import { verifyGame } from './sandbox.js';
 
 const router = express.Router();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -76,43 +77,74 @@ router.post('/dream', async (req, res) => {
             
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
             
-            // Retry up to 3 times with exponential backoff
-            let result;
+            // === PUPPETEER AUTO-HEALING SANDBOX LOOP ===
+            let currentPrompt = [systemInstruction, "User Prompt: " + prompt];
+            let finalJson = null;
+            let previewHtml = "";
+            let generatedSuccessfully = false;
+
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
-                    break; // Success, exit loop
+                    const result = await model.generateContent(currentPrompt);
+                    const responseText = result.response.text();
+                    
+                    let parsedJson;
+                    try {
+                        parsedJson = JSON.parse(responseText);
+                    } catch (e) {
+                         const match = responseText.match(/\{[\s\S]*\}/);
+                         if (match) parsedJson = JSON.parse(match[0]);
+                         else throw new Error("Failed to parse AI JSON response.");
+                    }
+                    
+                    if (parsedJson.code && parsedJson.code.includes('```')) {
+                        parsedJson.code = parsedJson.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
+                    }
+
+                    previewHtml = compileGameHTML(parsedJson);
+
+                    // 🛑 SANDBOX VERIFICATION
+                    const testResult = await verifyGame(previewHtml);
+                    
+                    if (testResult.success) {
+                        finalJson = parsedJson;
+                        generatedSuccessfully = true;
+                        break; // Flawless payload, exit loop
+                    } else {
+                        console.log(`❌ Sandbox Crash on Attempt ${attempt}. Orchestrating Auto-Heal...`);
+                        currentPrompt = [
+                            systemInstruction,
+                            "User Prompt: " + prompt,
+                            "PREVIOUS GENERATED JSON:",
+                            JSON.stringify(parsedJson),
+                            "CRASH ERROR IN BROWSER SANDBOX: " + testResult.error,
+                            "You MUST fix the Javascript error above. Return the exact same JSON format, but with the 'code' string fully repaired so it does not crash."
+                        ];
+                    }
                 } catch (apiErr) {
-                    console.error(`⚠️ Gemini attempt ${attempt}/3 failed:`, apiErr.message);
-                    if (attempt === 3) throw apiErr; // Final attempt failed, propagate error
-                    // MUST delay without blocking event loop entirely.
-                    await new Promise(r => setTimeout(r, 1000 * attempt)); // Wait 1s, 2s, 3s
+                    console.error(`⚠️ Attempt ${attempt}/3 failed:`, apiErr.message);
+                    if (attempt === 3) throw apiErr;
+                    await new Promise(r => setTimeout(r, 1000 * attempt));
                 }
             }
-            
-            const responseText = result.response.text();
-            const json = JSON.parse(responseText);
-            
-            if (json.code.includes('```')) {
-                json.code = json.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
-            }
 
-            // 3. Compile HTML Payload
-            const previewHtml = compileGameHTML(json);
+            if (!generatedSuccessfully || !finalJson) {
+                throw new Error("Engine failed to resolve crash state after 3 Auto-Heal cycles.");
+            }
 
             // 4. Save to Database
             const dbRes = await pool.query(
                 `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
                  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-                [userId, prompt, json.title, previewHtml, json.code, true]
+                [userId, prompt, finalJson.title, previewHtml, finalJson.code, true]
             );
 
             clearInterval(heartbeat);
             res.write(JSON.stringify({ 
                 success: true, 
                 draftId: dbRes.rows[0].id, 
-                title: json.title, 
-                configParams: json.config, 
+                title: finalJson.title, 
+                configParams: finalJson.config, 
                 htmlPreview: previewHtml 
             }));
             res.end();
