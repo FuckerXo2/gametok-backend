@@ -15,9 +15,18 @@ Your ONLY job is to:
 ${codeTemplate || "// If empty, build from scratch using standard Phaser 3.55 architecture..."}
 \`\`\`
 
-=== AI ART ASSET INJECTION ===
+=== AI ART ASSET INJECTION & PROCEDURAL SVG RENDERING ===
 ${bgBase64 ? "BACKGROUND IMAGE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('bgImage', '" + bgBase64 + "');\\nAnd in create(), add it at the center: this.add.image(W/2, H/2, 'bgImage').setDisplaySize(W, H).setDepth(-100);" : "No background provided, draw procedurally."}
-${spriteBase64 ? "PLAYER SPRITE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('playerSprite', '" + spriteBase64 + "');\\nUse 'playerSprite' for the main character! CRITICAL: The sprite has a solid black background. To make it transparent, you MUST apply: sprite.setBlendMode(Phaser.BlendModes.SCREEN);" : "No sprite provided, draw procedurally."}
+${spriteBase64 ? "MAIN SPRITE IMAGE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('playerSprite', '" + spriteBase64 + "');\\nCRITICAL: The sprite has a solid black background. To make it transparent, you MUST apply: sprite.setBlendMode(Phaser.BlendModes.SCREEN);" : ""}
+
+**CRITICAL SVG RENDERING INSTRUCTION:**
+For ALL characters, enemies, items, and UI icons, you MUST write highly-detailed raw SVG markup strings (e.g. <circle>, <path>, <rect>) and instantly load them into Phaser memory during preload() or create() utilizing browser btoa() conversion. DO NOT use abstract Phaser.Graphics lines.
+
+Example Implementation:
+const svgString = \`<svg width="60" height="60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="30" cy="30" rx="20" ry="25" fill="#ED254E"/><path d="..." fill="#fff"/></svg>\`;
+this.textures.addBase64('myCharacter', 'data:image/svg+xml;base64,' + btoa(svgString));
+
+You must use this SVG btoa() technique to generate complex, Rezona-tier flat vector illustrations natively in the code block.
 
 You MUST return a pure JSON object containing four fields:
 1. "title": Catchy, viral game title.
