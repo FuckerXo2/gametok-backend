@@ -27,7 +27,7 @@ router.post('/dream', async (req, res) => {
         // 2. Build Omni-Engine Prompt with Rezona Live Config features
         const systemInstruction = buildOmniEnginePrompt(dynamicAssetCatalog);
         
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro", generationConfig: { responseMimeType: "application/json" }});
         
         // Retry up to 3 times with exponential backoff
         let result;
