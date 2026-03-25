@@ -16,8 +16,8 @@ ${codeTemplate || "// If empty, build from scratch using standard Phaser 3.55 ar
 \`\`\`
 
 === AI ART ASSET INJECTION & PROCEDURAL SVG RENDERING ===
-${bgBase64 ? "BACKGROUND IMAGE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('bgImage', '" + bgBase64 + "');\\nAnd in create(), add it at the center: this.add.image(W/2, H/2, 'bgImage').setDisplaySize(W, H).setDepth(-100);" : "No background provided, draw procedurally."}
-${spriteBase64 ? "MAIN SPRITE IMAGE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('playerSprite', '" + spriteBase64 + "');\\nCRITICAL: The sprite has a solid black background. To make it transparent, you MUST apply: sprite.setBlendMode(Phaser.BlendModes.SCREEN);" : ""}
+${bgBase64 ? "BACKGROUND IMAGE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('bgImage', window.EXTERNAL_ASSETS.bg);\\nAnd in create(), add it at the center: this.add.image(window.innerWidth/2, window.innerHeight/2, 'bgImage').setDisplaySize(window.innerWidth, window.innerHeight).setDepth(-100);" : "No background provided."}
+${spriteBase64 ? "MAIN SPRITE IMAGE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('playerSprite', window.EXTERNAL_ASSETS.sprite);\\nCRITICAL: The sprite has a solid black background. To make it transparent, you MUST apply: sprite.setBlendMode(Phaser.BlendModes.SCREEN);" : ""}
 
 **CRITICAL SVG RENDERING INSTRUCTION:**
 For ALL characters, enemies, items, and UI icons, you MUST write highly-detailed raw SVG markup strings (e.g. <circle>, <path>, <rect>) and instantly load them into Phaser memory during preload() or create() utilizing browser btoa() conversion. DO NOT use abstract Phaser.Graphics lines.

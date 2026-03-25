@@ -1,4 +1,4 @@
-export function compileGameHTML(json) {
+export function compileGameHTML(json, bgBase64, spriteBase64) {
     const configScript = json.config ? `<script>window.gameConfig = ${JSON.stringify(json.config)};</script>` : '';
 
     return `<!DOCTYPE html>
@@ -73,6 +73,12 @@ export function compileGameHTML(json) {
             overlay.style.display = 'block';
             overlay.innerHTML += "<h3>Game Error</h3><p>" + msg + "</p><p>Line: " + lineno + "</p><hr>";
             return true;
+        };
+
+        // ==== EXTERNAL ASSET INJECTION ====
+        window.EXTERNAL_ASSETS = {
+            bg: \`\${bgBase64 || ''}\`,
+            sprite: \`\${spriteBase64 || ''}\`
         };
 
         // Auto-hide loading screen once canvas appears

@@ -101,7 +101,7 @@ router.post('/dream', async (req, res) => {
                         parsedJson.code = parsedJson.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
                     }
 
-                    previewHtml = compileGameHTML(parsedJson);
+                    previewHtml = compileGameHTML(parsedJson, bgBase64, spriteBase64);
 
                     // 🛑 SANDBOX VERIFICATION
                     const testResult = await verifyGame(previewHtml);
