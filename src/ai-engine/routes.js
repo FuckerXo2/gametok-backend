@@ -21,54 +21,80 @@ router.post('/dream', async (req, res) => {
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         console.log(`🧠 [PEAK ARCHITECTURE] Orchestrator solving for User[${userId}] -> Concept: "${prompt}"`);
 
-        // 1. RAG Dynamic Asset Retrieval
-        const dynamicAssetCatalog = await getDynamicAssetCatalog(prompt);
-
-        // 2. Build Omni-Engine Prompt with Rezona Live Config features
-        const systemInstruction = buildOmniEnginePrompt(dynamicAssetCatalog);
-        
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro", generationConfig: { responseMimeType: "application/json" }});
-        
-        // Retry up to 3 times with exponential backoff
-        let result;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
-                break; // Success, exit loop
-            } catch (apiErr) {
-                console.error(`⚠️ Gemini attempt ${attempt}/3 failed:`, apiErr.message);
-                if (attempt === 3) throw apiErr; // Final attempt failed, propagate error
-                await new Promise(r => setTimeout(r, 1000 * attempt)); // Wait 1s, 2s, 3s
-            }
-        }
-        
-        const responseText = result.response.text();
-        const json = JSON.parse(responseText);
-        
-        if (json.code.includes('```')) {
-            json.code = json.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
-        }
-
-        // 3. Compile HTML Payload
-        const previewHtml = compileGameHTML(json);
-
-        // 4. Save to Database
-        const dbRes = await pool.query(
-            `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [userId, prompt, json.title, previewHtml, json.code, true]
-        );
-
-        res.json({ 
-            success: true, 
-            draftId: dbRes.rows[0].id, 
-            title: json.title, 
-            configParams: json.config, // Exposed to frontend for UI Sliders!
-            htmlPreview: previewHtml 
+        // Write headers immediately to start response and bypass initial proxy timeouts
+        res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Transfer-Encoding': 'chunked'
         });
-    } catch (error) {
-        console.error("AI GENERATION ERROR:", error);
-        res.status(500).json({ error: "AI Orchestrator Error: " + (error.message || String(error)) });
+
+        // Send a whitespace heartbeat every 15 seconds to keep the Railway connection alive
+        const heartbeat = setInterval(() => {
+            res.write(' ');
+        }, 15000);
+
+        try {
+            // 1. RAG Dynamic Asset Retrieval
+            const dynamicAssetCatalog = await getDynamicAssetCatalog(prompt);
+
+            // 2. Build Omni-Engine Prompt with Rezona Live Config features
+            const systemInstruction = buildOmniEnginePrompt(dynamicAssetCatalog);
+            
+            const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
+            
+            // Retry up to 3 times with exponential backoff
+            let result;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
+                    break; // Success, exit loop
+                } catch (apiErr) {
+                    console.error(`⚠️ Gemini attempt ${attempt}/3 failed:`, apiErr.message);
+                    if (attempt === 3) throw apiErr; // Final attempt failed, propagate error
+                    // MUST delay without blocking event loop entirely.
+                    await new Promise(r => setTimeout(r, 1000 * attempt)); // Wait 1s, 2s, 3s
+                }
+            }
+            
+            const responseText = result.response.text();
+            const json = JSON.parse(responseText);
+            
+            if (json.code.includes('```')) {
+                json.code = json.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
+            }
+
+            // 3. Compile HTML Payload
+            const previewHtml = compileGameHTML(json);
+
+            // 4. Save to Database
+            const dbRes = await pool.query(
+                `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                [userId, prompt, json.title, previewHtml, json.code, true]
+            );
+
+            clearInterval(heartbeat);
+            res.write(JSON.stringify({ 
+                success: true, 
+                draftId: dbRes.rows[0].id, 
+                title: json.title, 
+                configParams: json.config, 
+                htmlPreview: previewHtml 
+            }));
+            res.end();
+        } catch (error) {
+            clearInterval(heartbeat);
+            console.error("AI GENERATION ERROR:", error);
+            res.write(JSON.stringify({ error: "AI Orchestrator Error: " + (error.message || String(error)) }));
+            res.end();
+        }
+    } catch (outerError) {
+        console.error("OUTER GENERATION ERROR:", outerError);
+        if (!res.headersSent) {
+            res.status(500).json({ error: "System Error" });
+        } else {
+            res.write(JSON.stringify({ error: "System Error" }));
+            res.end();
+        }
     }
 });
 
