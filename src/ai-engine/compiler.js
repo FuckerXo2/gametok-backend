@@ -1,6 +1,5 @@
 export function compileGameHTML(json) {
     let engineImports = '';
-    let domContainers = '';
     
     if (json.engine === 'threejs') {
         engineImports = `
@@ -13,9 +12,10 @@ export function compileGameHTML(json) {
                 };
             </script>
         `;
-        domContainers = '<div id="three-container" style="width:100vw; height:100vh; display:block;"></div>';
-    } else {
-        domContainers = '<div id="game-container" style="width:100vw; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#1a1a2e;"></div>';
+    } else if (json.engine === 'phaser') {
+        engineImports = `
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+        `;
     }
 
     // Inject the configuration block defined by the AI
@@ -35,9 +35,9 @@ export function compileGameHTML(json) {
 </head>
 <body>
     <div id="error-overlay"></div>
-    ${domContainers}
+    <div id="game-container" style="width:100vw; height:100vh; display:block;"></div>
     
-    <!-- Rezona-Style Parametric Config -->
+    <!-- Rezona-Style Parametric Config Bridge -->
     ${configScript}
 
     <script>
