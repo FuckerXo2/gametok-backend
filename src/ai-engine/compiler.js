@@ -6,6 +6,8 @@ export function compileGameHTML(json) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval';">
+    <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none; background: #0a0a0f; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
@@ -22,6 +24,7 @@ export function compileGameHTML(json) {
         <div class="spinner"></div>
         <div style="font-size:14px;opacity:0.7;">Loading game...</div>
     </div>
+    <div id="game-container" style="width:100vw; height:100vh; display:block;"></div>
 
     ${configScript}
 
@@ -74,13 +77,6 @@ export function compileGameHTML(json) {
                 else if (type === 'match') { osc.type='sine'; osc.frequency.setValueAtTime(523,t); osc.frequency.setValueAtTime(659,t+0.08); osc.frequency.setValueAtTime(784,t+0.16); gain.gain.setValueAtTime(0.3,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.25); osc.start(t); osc.stop(t+0.25); }
                 else if (type === 'hit') { osc.type='triangle'; osc.frequency.setValueAtTime(200,t); osc.frequency.exponentialRampToValueAtTime(60,t+0.15); gain.gain.setValueAtTime(0.35,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.15); osc.start(t); osc.stop(t+0.15); }
             } catch(e) {}
-        };
-
-        // Utility: Create an Image from an inline SVG string
-        window.svgToImage = function(svgString) {
-            var img = new Image();
-            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
-            return img;
         };
     </script>
     <script>
