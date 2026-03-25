@@ -60,6 +60,7 @@ router.post('/dream', async (req, res) => {
                 try {
                     const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(imgPrompt) + "?width=512&height=512&nologo=true&seed=" + Math.floor(Math.random()*100000);
                     const imgRes = await fetch(url);
+                    if (!imgRes.ok) { console.error("Pollinations API Error: " + imgRes.status); return null; }
                     const arrayBuffer = await imgRes.arrayBuffer();
                     const base64 = Buffer.from(arrayBuffer).toString('base64');
                     return "data:image/jpeg;base64," + base64;
