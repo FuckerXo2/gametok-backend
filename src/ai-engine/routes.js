@@ -28,7 +28,20 @@ router.post('/dream', async (req, res) => {
         const systemInstruction = buildOmniEnginePrompt(dynamicAssetCatalog);
         
         const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
-        const result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
+        
+        // Retry up to 3 times with exponential backoff
+        let result;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
+                break; // Success, exit loop
+            } catch (apiErr) {
+                console.error(`⚠️ Gemini attempt ${attempt}/3 failed:`, apiErr.message);
+                if (attempt === 3) throw apiErr; // Final attempt failed, propagate error
+                await new Promise(r => setTimeout(r, 1000 * attempt)); // Wait 1s, 2s, 3s
+            }
+        }
+        
         const responseText = result.response.text();
         const json = JSON.parse(responseText);
         
