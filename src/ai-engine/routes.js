@@ -53,8 +53,26 @@ router.post('/dream', async (req, res) => {
                 console.log("=> Injecting FLAWLESS Runner Template");
             }
 
-            // Build Omni-Engine Prompt with injected Gold Standard Template
-            const systemInstruction = buildOmniEnginePrompt(templateCode);
+            // === ART DIRECTOR AGENT (POLLINATIONS.AI PIPELINE) ===
+            console.log("🎨 Art Director Agent: Generating High-Res Assets...");
+            const fetchImage = async (imgPrompt) => {
+                try {
+                    const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(imgPrompt) + "?width=512&height=512&nologo=true&seed=" + Math.floor(Math.random()*100000);
+                    const imgRes = await fetch(url);
+                    const arrayBuffer = await imgRes.arrayBuffer();
+                    const base64 = Buffer.from(arrayBuffer).toString('base64');
+                    return "data:image/jpeg;base64," + base64;
+                } catch(e) { console.error("Art failed:", e); return null; }
+            };
+
+            const [bgBase64, spriteBase64] = await Promise.all([
+                fetchImage(prompt + ", beautiful 2d mobile game background environment, vertical layout, digital art, no text"),
+                fetchImage(prompt + ", single isolated game character sprite, solid black background, vector art style, centered")
+            ]);
+            console.log("🎨 Art Director Agent: Base64 Payloads Secured.");
+
+            // Build Omni-Engine Prompt with injected Gold Standard Template and Art Assets
+            const systemInstruction = buildOmniEnginePrompt(templateCode, bgBase64, spriteBase64);
             
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
             

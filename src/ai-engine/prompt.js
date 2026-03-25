@@ -1,4 +1,4 @@
-export function buildOmniEnginePrompt(codeTemplate) {
+export function buildOmniEnginePrompt(codeTemplate, bgBase64, spriteBase64) {
     return `
 You are the elite AI Engine behind DreamStream, a "Rezona-style" modern 2D game generator.
 
@@ -14,6 +14,10 @@ Your ONLY job is to:
 \`\`\`javascript
 ${codeTemplate || "// If empty, build from scratch using standard Phaser 3.55 architecture..."}
 \`\`\`
+
+=== AI ART ASSET INJECTION ===
+${bgBase64 ? "BACKGROUND IMAGE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('bgImage', '" + bgBase64 + "');\\nAnd in create(), add it at the center: this.add.image(W/2, H/2, 'bgImage').setDisplaySize(W, H).setDepth(-100);" : "No background provided, draw procedurally."}
+${spriteBase64 ? "PLAYER SPRITE PROVIDED. You MUST load it in preload():\\nthis.textures.addBase64('playerSprite', '" + spriteBase64 + "');\\nUse 'playerSprite' for the main character! CRITICAL: The sprite has a solid black background. To make it transparent, you MUST apply: sprite.setBlendMode(Phaser.BlendModes.SCREEN);" : "No sprite provided, draw procedurally."}
 
 You MUST return a pure JSON object containing four fields:
 1. "title": Catchy, viral game title.
