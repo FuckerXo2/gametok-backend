@@ -54,37 +54,32 @@ router.post('/dream', async (req, res) => {
                 console.log("=> Injecting FLAWLESS Runner Template");
             }
 
-            // === ART DIRECTOR AGENT (IMAGEN 3 PIPELINE) ===
-            console.log("🎨 Art Director: Generating High-Res Assets via Imagen 3...");
+            // === ART DIRECTOR AGENT (NANO BANANA / GEMINI FLASH IMAGE) ===
+            console.log("🎨 Art Director: Generating Assets via Nano Banana...");
+            const imageModel = genAI.getGenerativeModel({ 
+                model: "gemini-2.0-flash-preview-image-generation",
+                generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
+            });
+            
             const fetchImage = async (imgPrompt) => {
                 try {
-                    const key = process.env.GEMINI_API_KEY;
-                    const url = "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=" + key;
-                    const payload = {
-                        "instances": [ { "prompt": imgPrompt } ],
-                        "parameters": { "sampleCount": 1 }
-                    };
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    if (!res.ok) { console.error("Imagen API Error: " + res.status); return null; }
-                    
-                    const data = await res.json();
-                    if (data.predictions && data.predictions.length > 0) {
-                        return "data:image/jpeg;base64," + data.predictions[0].bytesBase64Encoded;
+                    const result = await imageModel.generateContent(imgPrompt);
+                    const response = result.response;
+                    const parts = response.candidates[0].content.parts;
+                    for (const part of parts) {
+                        if (part.inlineData) {
+                            return "data:" + part.inlineData.mimeType + ";base64," + part.inlineData.data;
+                        }
                     }
                     return null;
-                } catch(e) { console.error("Art failed:", e); return null; }
+                } catch(e) { console.error("Art Director failed:", e.message); return null; }
             };
 
             const [bgBase64, spriteBase64] = await Promise.all([
-                fetchImage(prompt + ", beautiful 2d mobile game background environment, vertical layout, digital art, no text"),
-                fetchImage(prompt + ", single isolated game character sprite, solid black background, vector art style, centered")
+                fetchImage("Generate a beautiful 2D mobile game background scene for: " + prompt + ". Vertical portrait layout, digital art style, vibrant colors, no text or UI elements."),
+                fetchImage("Generate a single isolated 2D game character sprite for: " + prompt + ". The character should be centered on a transparent or solid color background, vector art style, clean lines.")
             ]);
-            console.log("🎨 Art Director Agent: Base64 Payloads Secured.");
+            console.log("🎨 Art Director: BG=" + (bgBase64 ? "OK" : "SKIP") + " Sprite=" + (spriteBase64 ? "OK" : "SKIP"));
 
             // Build Omni-Engine Prompt with injected Gold Standard Template and Art Assets
             const systemInstruction = buildOmniEnginePrompt(templateCode, bgBase64, spriteBase64);

@@ -12,7 +12,14 @@ Your ONLY job is to:
 
 [GOLD STANDARD TEMPLATE CODE]:
 \`\`\`javascript
-${codeTemplate || "// If empty, build from scratch using standard Phaser 3.55 architecture..."}
+${codeTemplate || `// NO TEMPLATE MATCHED. You must architect the ENTIRE Phaser 3.55 game from scratch.
+// MANDATORY STRUCTURE:
+// const config = { type: Phaser.AUTO, width: window.innerWidth, height: window.innerHeight, parent: 'game-container', backgroundColor: '#yourHex', physics: { default: 'arcade', arcade: { gravity: { y: 0 } } }, scene: { preload, create, update } };
+// window.game = new Phaser.Game(config);
+// function preload() { /* load plugins, addBase64 textures */ }
+// function create() { window.showUI(); window.updateScore(0); window.initLives(3); /* build all game objects using SVG btoa textures */ }
+// function update() { /* game loop logic */ }
+// CRITICAL: You MUST draw ALL characters/objects using detailed SVG strings converted with btoa(). The game MUST be visually rich and interactive on first load.`}
 \`\`\`
 
 === AI ART ASSET INJECTION & PROCEDURAL SVG RENDERING ===
