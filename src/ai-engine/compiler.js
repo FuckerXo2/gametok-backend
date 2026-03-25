@@ -8,7 +8,6 @@ export function compileGameHTML(json) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval';">
     <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
-    <script crossorigin="anonymous" src="https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexvirtualjoystickplugin.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;900&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }

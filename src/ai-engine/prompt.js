@@ -18,11 +18,14 @@ Do not draw score or lives using this.add.text. It looks blurry on mobile. Inste
 - On Game Over: call window.showGameOver(finalScore, () => { this.scene.restart(); window.updateScore(0); window.initLives(3); });
 
 2. VIRTUAL JOYSTICK FOR MOVEMENT (MANDATORY FOR SHOOTERS/ARCADE):
-We injected RexVirtualJoystickPlugin. If the game requires dragging/steering/moving a character:
+If the game requires dragging/steering/moving a character:
+- In preload(): 
+  this.load.plugin('rexvirtualjoystickplugin', 'https://cdn.jsdelivr.net/npm/phaser3-rex-plugins@1.1.39/dist/rexvirtualjoystickplugin.min.js', true);
 - In create(): 
-  this.joyStick = this.plugins.get('rexVirtualJoystickPlugin').add(this, {
+  this.joyStick = this.plugins.get('rexvirtualjoystickplugin').add(this, {
       x: window.innerWidth / 2, y: window.innerHeight - 100, radius: 60,
-      base: this.add.circle(0, 0, 60, 0x888888, 0.2), thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5)
+      base: this.add.circle(0, 0, 60, 0x888888, 0.2).setDepth(1000), 
+      thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5).setDepth(1000)
   });
 - In update(): var force = this.joyStick.force; var angle = this.joyStick.angle; // Apply to player velocity!
 
