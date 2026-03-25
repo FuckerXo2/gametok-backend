@@ -32,8 +32,8 @@ router.post('/dream', async (req, res) => {
         const responseText = result.response.text();
         const json = JSON.parse(responseText);
         
-        if (json.code.includes('\`\`\`')) {
-            json.code = json.code.replace(/\`\`\`(?:javascript|js)*\n?/gi, '').replace(/\`\`\`/g, '');
+        if (json.code.includes('```')) {
+            json.code = json.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
         }
 
         // 3. Compile HTML Payload
@@ -77,10 +77,10 @@ router.post('/publish/:draftId', async (req, res) => {
         if (userResult.rows.length === 0) return res.status(401).json({ error: 'Unauthorized' });
         const publishRes = await pool.query("UPDATE ai_games SET is_draft = false WHERE id = $1 AND user_id = $2 RETURNING *", [req.params.draftId, userResult.rows[0].id]);
         if (publishRes.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
-        const globalId = \`gm-ai-\${req.params.draftId.substring(0, 8)}\`;
+        const globalId = `gm-ai-${req.params.draftId.substring(0, 8)}`;
         await pool.query(
-            \`INSERT INTO games (id, name, description, icon, color, category, developer, embed_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING\`,
-            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userResult.rows[0].id, \`/api/ai/play/\${req.params.draftId}\`]
+            `INSERT INTO games (id, name, description, icon, color, category, developer, embed_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
+            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userResult.rows[0].id, `/api/ai/play/${req.params.draftId}`]
         );
         res.json({ success: true, gameId: globalId });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -99,24 +99,24 @@ router.post('/admin/rebuild-assets', async (req, res) => {
     res.json({ status: "bg-process-started", msg: "Scraping Omni-Engine assets into Postgres Vector DB..." });
     try {
         const embedModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
-        await pool.query(\`CREATE TABLE IF NOT EXISTS asset_vectors (id SERIAL PRIMARY KEY, name TEXT, url TEXT, type TEXT, tags TEXT, vector JSONB);\`);
-        await pool.query(\`TRUNCATE TABLE asset_vectors;\`);
+        await pool.query(`CREATE TABLE IF NOT EXISTS asset_vectors (id SERIAL PRIMARY KEY, name TEXT, url TEXT, type TEXT, tags TEXT, vector JSONB);`);
+        await pool.query(`TRUNCATE TABLE asset_vectors;`);
         const FOLDERS = [
             { type: 'sprite', ext: '.png', path: 'public/assets/sprites' },
             { type: 'background', ext: '.png', path: 'public/assets/skies' },
             { type: 'particle', ext: '.png', path: 'public/assets/particles' }
         ];
         for (const folder of FOLDERS) {
-            const response = await fetch(\`https://api.github.com/repos/phaserjs/examples/contents/\${folder.path}\`, { headers: { 'User-Agent': 'DreamStream-Asset-Scraper' } });
+            const response = await fetch(`https://api.github.com/repos/phaserjs/examples/contents/${folder.path}`, { headers: { 'User-Agent': 'DreamStream-Asset-Scraper' } });
             if (!response.ok) continue;
             const rawFiles = await response.json();
             const pngFiles = rawFiles.filter(f => f.type === 'file' && f.name.endsWith('.png')).slice(0, 100);
             for (let i = 0; i < pngFiles.length; i++) {
                 const filename = pngFiles[i].name;
-                const cleanTags = \`\${folder.type} \${filename.replace(/\\.(png|jpg|jpeg)$/, '').replace(/[_-]/g, ' ').replace(/[0-9]/g, '')}\`.trim();
+                const cleanTags = `${folder.type} ${filename.replace(/\.(png|jpg|jpeg)$/, '').replace(/[_-]/g, ' ').replace(/[0-9]/g, '')}`.trim();
                 const result = await embedModel.embedContent(cleanTags);
-                const assetUrl = \`https://labs.phaser.io/assets/\${folder.path.split('public/assets/')[1]}/\${filename}\`;
-                await pool.query(\`INSERT INTO asset_vectors (name, url, type, tags, vector) VALUES ($1, $2, $3, $4, $5)\`, [filename, assetUrl, folder.type, cleanTags, JSON.stringify(result.embedding.values)]);
+                const assetUrl = `https://labs.phaser.io/assets/${folder.path.split('public/assets/')[1]}/${filename}`;
+                await pool.query(`INSERT INTO asset_vectors (name, url, type, tags, vector) VALUES ($1, $2, $3, $4, $5)`, [filename, assetUrl, folder.type, cleanTags, JSON.stringify(result.embedding.values)]);
             }
         }
     } catch (e) { console.error(e); }
