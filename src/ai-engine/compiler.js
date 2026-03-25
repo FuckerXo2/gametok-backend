@@ -1,8 +1,4 @@
 export function compileGameHTML(json) {
-    const engineImports = `
-        <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
-    `;
-
     const configScript = json.config ? `<script>window.gameConfig = ${JSON.stringify(json.config)};</script>` : '';
 
     return `<!DOCTYPE html>
@@ -10,14 +6,13 @@ export function compileGameHTML(json) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval';">
-    ${engineImports}
     <style>
-        body { margin: 0; padding: 0; background: #1a1a2e; overflow: hidden; touch-action: none; font-family: sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none; background: #0a0a0f; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
         canvas { display: block; touch-action: none; outline: none; }
-        #error-overlay { display: none; position: fixed; z-index: 9999; background: rgba(20,0,0,0.95); color: #ff3366; padding: 20px; width: 100%; height: 100%; box-sizing: border-box; font-family: monospace; overflow-y: auto; text-align: left; }
-        #loading-screen { position: fixed; z-index: 8888; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a2e; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; font-family: sans-serif; }
-        #loading-screen .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.2); border-top-color: #a855f7; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+        #error-overlay { display: none; position: fixed; z-index: 9999; background: rgba(10,0,0,0.97); color: #ff3366; padding: 20px; width: 100%; height: 100%; box-sizing: border-box; font-family: monospace; overflow-y: auto; text-align: left; font-size: 13px; }
+        #loading-screen { position: fixed; z-index: 8888; top: 0; left: 0; width: 100%; height: 100%; background: #0a0a0f; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; }
+        #loading-screen .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.15); border-top-color: #a855f7; border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 14px; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
@@ -25,14 +20,13 @@ export function compileGameHTML(json) {
     <div id="error-overlay"></div>
     <div id="loading-screen">
         <div class="spinner"></div>
-        <div>Loading game...</div>
+        <div style="font-size:14px;opacity:0.7;">Loading game...</div>
     </div>
-    <div id="game-container" style="width:100vw; height:100vh; display:block;"></div>
-    
+
     ${configScript}
 
     <script>
-        // Error catching - covers both thrown errors AND silent Phaser crashes
+        // Global error handlers
         window.onerror = function(msg, source, lineno, colno, error) {
             document.getElementById('loading-screen').style.display = 'none';
             var overlay = document.getElementById('error-overlay');
@@ -47,38 +41,50 @@ export function compileGameHTML(json) {
             overlay.innerHTML += "<h3>Async Error</h3><p>" + (e.reason || e) + "</p><hr>";
         });
 
-        // Hide loading screen once Phaser creates a canvas OR after 5s timeout
+        // Auto-hide loading screen once canvas appears or after timeout
         var loadCheck = setInterval(function() {
-            var canvas = document.querySelector('canvas');
-            if (canvas) {
+            if (document.querySelector('canvas')) {
                 document.getElementById('loading-screen').style.display = 'none';
                 clearInterval(loadCheck);
             }
-        }, 200);
+        }, 150);
         setTimeout(function() {
             var ls = document.getElementById('loading-screen');
-            if (ls.style.display !== 'none') {
-                ls.innerHTML = '<div style="text-align:center; padding:20px;"><h2 style="color:#ff3366;">⚠️ Game failed to start</h2><p style="color:#aaa;">Tap Retry below to regenerate</p></div>';
+            if (ls && ls.style.display !== 'none') {
+                ls.innerHTML = '<div style="text-align:center;padding:20px;"><h2 style="color:#ff3366;">⚠️ Game failed to start</h2><p style="color:#aaa;font-size:14px;">Tap Retry below to regenerate</p></div>';
             }
             clearInterval(loadCheck);
-        }, 8000);
+        }, 6000);
 
         // Audio API
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var audioCtx = null;
         window.playSound = function(type) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            if(type === 'jump') { osc.type = 'sine'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1); gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); osc.start(); osc.stop(audioCtx.currentTime + 0.1); }
-            else if (type === 'coin') { osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.05); gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); osc.start(); osc.stop(audioCtx.currentTime + 0.1); }
-            else if (type === 'explosion') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.2); gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3); osc.start(); osc.stop(audioCtx.currentTime + 0.3); }
-            else if (type === 'shoot') { osc.type = 'square'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1); gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); osc.start(); osc.stop(audioCtx.currentTime + 0.1); }
+            try {
+                var osc = audioCtx.createOscillator();
+                var gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                var t = audioCtx.currentTime;
+                if (type === 'jump') { osc.type='sine'; osc.frequency.setValueAtTime(250,t); osc.frequency.exponentialRampToValueAtTime(500,t+0.12); gain.gain.setValueAtTime(0.4,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.12); osc.start(t); osc.stop(t+0.12); }
+                else if (type === 'coin') { osc.type='sine'; osc.frequency.setValueAtTime(880,t); osc.frequency.setValueAtTime(1320,t+0.06); gain.gain.setValueAtTime(0.25,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.12); osc.start(t); osc.stop(t+0.12); }
+                else if (type === 'explosion') { osc.type='sawtooth'; osc.frequency.setValueAtTime(120,t); osc.frequency.exponentialRampToValueAtTime(15,t+0.25); gain.gain.setValueAtTime(0.4,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.3); osc.start(t); osc.stop(t+0.3); }
+                else if (type === 'shoot') { osc.type='square'; osc.frequency.setValueAtTime(440,t); osc.frequency.exponentialRampToValueAtTime(120,t+0.08); gain.gain.setValueAtTime(0.25,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.08); osc.start(t); osc.stop(t+0.08); }
+                else if (type === 'match') { osc.type='sine'; osc.frequency.setValueAtTime(523,t); osc.frequency.setValueAtTime(659,t+0.08); osc.frequency.setValueAtTime(784,t+0.16); gain.gain.setValueAtTime(0.3,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.25); osc.start(t); osc.stop(t+0.25); }
+                else if (type === 'hit') { osc.type='triangle'; osc.frequency.setValueAtTime(200,t); osc.frequency.exponentialRampToValueAtTime(60,t+0.15); gain.gain.setValueAtTime(0.35,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.15); osc.start(t); osc.stop(t+0.15); }
+            } catch(e) {}
+        };
+
+        // Utility: Create an Image from an inline SVG string
+        window.svgToImage = function(svgString) {
+            var img = new Image();
+            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
+            return img;
         };
     </script>
     <script>
-// RAW GENERATED PHASER LOGIC
+// === GENERATED GAME CODE ===
 try {
 ${json.code}
 } catch(e) {
