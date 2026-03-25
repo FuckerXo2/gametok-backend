@@ -77,8 +77,8 @@ export function compileGameHTML(json, bgBase64, spriteBase64) {
 
         // ==== EXTERNAL ASSET INJECTION ====
         window.EXTERNAL_ASSETS = {
-            bg: \`\${bgBase64 || ''}\`,
-            sprite: \`\${spriteBase64 || ''}\`
+            bg: "${bgBase64 ? bgBase64.replace(/"/g, '\\"') : ''}",
+            sprite: "${spriteBase64 ? spriteBase64.replace(/"/g, '\\"') : ''}"
         };
 
         // Auto-hide loading screen once canvas appears
