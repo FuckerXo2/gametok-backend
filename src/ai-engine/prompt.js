@@ -12,11 +12,13 @@ You MUST return a pure JSON object containing exactly FOUR fields:
 === PHASER 3 CODING ARCHITECTURE RULES ===
 - You have global access to Phaser.
 - Write logic initializing: window.game = new Phaser.Game(config); 
-- Required config: type: Phaser.AUTO, width: window.innerWidth, height: window.innerHeight, parent: 'game-container'.
+- Required config: type: Phaser.AUTO, width: window.innerWidth, height: window.innerHeight, parent: 'game-container', backgroundColor: '#000000'.
 - Enable Arcade Physics: physics: { default: 'arcade', arcade: { debug: false } }.
 - ASSETS: Prefer preloading dictionary images: this.load.crossOrigin="anonymous"; this.load.image("name", "url");
 - INVENTING ASSETS: If the dictionary lacks what you need, you CAN generate inline SVG data URIs! Example: this.load.image('key', 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" ...></svg>')). You can also use EMOJIS via this.add.text(x, y, '🚀', {fontSize:'40px'}).
-- FATAL CRASH WARNING: NEVER apply Arcade Physics (this.physics.add.existing) directly to a raw Phaser.GameObjects.Graphics object! It will instantly crash. Only apply physics to Sprites, Images, or Text objects!
+- CRITICAL VISIBILITY RULE: You MUST explicitly fill the background (e.g., this.cameras.main.setBackgroundColor('#222222')) in your create() function. You MUST ensure game objects are placed WITHIN bounds (x between 0 and window.innerWidth, y between 0 and window.innerHeight).
+- CRITICAL SCENE RULE: Your config MUST properly link your scene(s) via the 'scene' property! Do not leave it blank.
+- FATAL CRASH WARNING: NEVER apply Arcade Physics (this.physics.add.existing) directly to a raw Phaser.GameObjects.Graphics object! It will instantly crash. Only apply physics to Sprites, Images, text, or rectangles!
 - If building an endless runner, explicitly apply negative velocity (e.g., obj.setVelocityX(-200)) to spawned obstacles so they move perfectly!
 
 === CRITICAL MOBILE & TOUCH CONSTRAINTS ===
