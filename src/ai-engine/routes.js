@@ -54,30 +54,56 @@ router.post('/dream', async (req, res) => {
                 console.log("=> Injecting FLAWLESS Runner Template");
             }
 
-            // === ART DIRECTOR AGENT (NANO BANANA / GEMINI FLASH IMAGE) ===
-            console.log("🎨 Art Director: Generating Assets via Nano Banana...");
-            const imageModel = genAI.getGenerativeModel({ 
-                model: "gemini-2.0-flash-preview-image-generation",
-                generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
-            });
+            // === ART DIRECTOR AGENT (AI HORDE - 100% FREE, NO API KEY) ===
+            console.log("🎨 Art Director: Generating Assets via AI Horde (Free)...");
             
             const fetchImage = async (imgPrompt) => {
                 try {
-                    const result = await imageModel.generateContent(imgPrompt);
-                    const response = result.response;
-                    const parts = response.candidates[0].content.parts;
-                    for (const part of parts) {
-                        if (part.inlineData) {
-                            return "data:" + part.inlineData.mimeType + ";base64," + part.inlineData.data;
-                        }
+                    // Step 1: Submit generation request
+                    const submitRes = await fetch("https://aihorde.net/api/v2/generate/async", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
+                        body: JSON.stringify({
+                            prompt: imgPrompt,
+                            params: { width: 512, height: 512, steps: 20 },
+                            nsfw: false,
+                            censor_nsfw: true,
+                            r2: true
+                        })
+                    });
+                    if (!submitRes.ok) { console.error("AI Horde submit error:", submitRes.status); return null; }
+                    const submitData = await submitRes.json();
+                    const jobId = submitData.id;
+                    if (!jobId) { console.error("AI Horde: No job ID received"); return null; }
+                    console.log("🎨 AI Horde Job:", jobId);
+
+                    // Step 2: Poll for completion (max 60 seconds)
+                    for (let i = 0; i < 20; i++) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + jobId);
+                        const checkData = await checkRes.json();
+                        if (checkData.done) break;
+                    }
+
+                    // Step 3: Retrieve the generated image
+                    const statusRes = await fetch("https://aihorde.net/api/v2/generate/status/" + jobId);
+                    const statusData = await statusRes.json();
+                    if (statusData.generations && statusData.generations.length > 0) {
+                        const imgUrl = statusData.generations[0].img;
+                        // Download image and convert to base64
+                        const imgRes = await fetch(imgUrl);
+                        if (!imgRes.ok) return null;
+                        const arrayBuffer = await imgRes.arrayBuffer();
+                        const base64 = Buffer.from(arrayBuffer).toString('base64');
+                        return "data:image/webp;base64," + base64;
                     }
                     return null;
                 } catch(e) { console.error("Art Director failed:", e.message); return null; }
             };
 
             const [bgBase64, spriteBase64] = await Promise.all([
-                fetchImage("Generate a beautiful 2D mobile game background scene for: " + prompt + ". Vertical portrait layout, digital art style, vibrant colors, no text or UI elements."),
-                fetchImage("Generate a single isolated 2D game character sprite for: " + prompt + ". The character should be centered on a transparent or solid color background, vector art style, clean lines.")
+                fetchImage(prompt + ", beautiful 2d mobile game background, vertical layout, digital art, vibrant colors, no text"),
+                fetchImage(prompt + ", single isolated game character sprite, centered, clean vector art, solid background")
             ]);
             console.log("🎨 Art Director: BG=" + (bgBase64 ? "OK" : "SKIP") + " Sprite=" + (spriteBase64 ? "OK" : "SKIP"));
 
