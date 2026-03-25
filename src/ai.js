@@ -100,7 +100,7 @@ DO NOT wrap your JSON in markdown blocks. Return the pure stringified JSON.
 Ensure you always draw floors/grounds so characters don't fall infinitely.
 `;
         
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro", generationConfig: { responseMimeType: "application/json" }});
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
         const result = await model.generateContent([systemInstruction, "User Prompt: " + prompt]);
         const responseText = result.response.text();
         const json = JSON.parse(responseText);
