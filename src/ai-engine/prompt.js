@@ -64,6 +64,8 @@ Every game must be UNIQUE to the user's prompt. Here are architecture patterns f
 MATCH-3 / PUZZLE (e.g. "Candy Crush"):
 - Grid-based board (7-9 columns, 9-12 rows). Each cell holds a gem/candy type (0-5).
 - Swap adjacent gems on swipe. Check for 3+ horizontal/vertical matches.
+- BUG PREVENTION: Always bounds-check your arrays! E.g. \`if (grid[r] && grid[r][c] === type)\` to prevent 'undefined is not an object' crashes on edge pieces.
+- Ensure the board is properly initialized (often a 2D array of rows and cols) before reading from it.
 - Remove matches with particle effects, drop gems down, refill from top, check cascading combos.
 - Score multiplier for chain combos. Show combo text ("2x COMBO!").
 
