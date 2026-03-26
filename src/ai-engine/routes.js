@@ -229,13 +229,25 @@ ASSET RULES:
                         else if (parsedJson.game && parsedJson.game.code) parsedJson = parsedJson.game;
                     }
 
+                    // Fallback: Claude sometimes refuses to put giant code blocks into a JSON string and outputs it as Markdown instead
+                    if (parsedJson && !parsedJson.code) {
+                        const textBlock = codeRes.content.find(c => c.type === 'text');
+                        if (textBlock && textBlock.text) {
+                            const codeMatch = textBlock.text.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+                            if (codeMatch && codeMatch[1]) parsedJson.code = codeMatch[1].trim();
+                        }
+                    }
+
                     if (!parsedJson || !parsedJson.code || String(parsedJson.code).trim() === '') {
                         console.log(`❌ Invalid JSON schema... Triggering Auto-Heal (missing 'code')`);
                         messages.push({ role: "assistant", content: codeRes.content });
                         const errorMsg = "CRITICAL: Your JSON output was missing the required 'code' property! Received keys: " + JSON.stringify(Object.keys(parsedJson||{}));
                         if (toolUse) messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: errorMsg }] });
                         else messages.push({ role: "user", content: errorMsg });
-                        lastSandboxError = "JSON missing code property";
+                        let debugOutput = "No text block";
+                        if (codeRes.content && codeRes.content[0] && codeRes.content[0].text) debugOutput = codeRes.content[0].text.substring(0, 200);
+                        else if (toolUse && toolUse.input) debugOutput = "ToolKeys: " + Object.keys(toolUse.input).join(',');
+                        lastSandboxError = "JSON missing code property. Debug: " + debugOutput;
                         continue;
                     }
                     

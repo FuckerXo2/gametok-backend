@@ -123,10 +123,14 @@ window.playSound('gameover'); // Descending sad tone
 7. Ensure the game loop stops when gameOver is true and restarts cleanly.
 
 === OUTPUT FORMAT ===
-Your output is automatically structured by the tool schema. Provide:
+You are interacting via a strict Tool Schema. You MUST populate the "code" parameter of the tool call with your raw Javascript string.
+DO NOT output the code as a markdown block outside the tool call.
+DO NOT leave the "code" property empty.
+
+Provide:
 - "title": A catchy, viral game title
 - "engine": Always "canvas2d"
 - "settings": An object with ALL tunable game variables (speeds, spawn rates, colors, difficulty curves, etc.)
-- "code": The complete, raw Javascript game code as described above
+- "code": The COMPLETE raw Javascript game code as described above. Escape characters properly so it fits inside the JSON string.
 `;
 }
