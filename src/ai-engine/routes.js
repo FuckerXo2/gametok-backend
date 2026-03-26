@@ -188,10 +188,12 @@ User Brief: "${enhancedPrompt.replace(/"/g, '\\"')}"`;
 
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    console.log(`🤖 Coder Agent (Claude 3.5): Generating Game Logic (Attempt ${attempt})...`);
+                    console.log(`🤖 Coder Agent (Claude Opus 4.6): Generating Game Logic (Attempt ${attempt})...`);
                     const codeRes = await anthropic.messages.create({
-                        model: "claude-3-5-sonnet-20241022",
-                        max_tokens: 8192,
+                        model: "claude-opus-4-6",
+                        max_tokens: 16000,
+                        thinking: { type: "adaptive" },
+                        effort: "high",
                         messages: messages
                     });
                     
