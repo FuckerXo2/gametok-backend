@@ -191,9 +191,7 @@ User Brief: "${enhancedPrompt.replace(/"/g, '\\"')}"`;
                     console.log(`🤖 Coder Agent (Claude Sonnet 4.6): Generating Game Logic (Attempt ${attempt})...`);
                     const codeRes = await anthropic.messages.create({
                         model: "claude-sonnet-4-6",
-                        max_tokens: 16000,
-                        thinking: { type: "adaptive" },
-                        effort: "high",
+                        max_tokens: 8192,
                         messages: messages
                     });
                     
