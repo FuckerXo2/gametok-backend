@@ -8,7 +8,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import pool from '../db.js';
-import { getDynamicAssetCatalog } from './rag.js';
 import { buildOmniEnginePrompt } from './prompt.js';
 import { compileGameHTML } from './compiler.js';
 import { verifyGame } from './sandbox.js';
@@ -58,109 +57,66 @@ router.post('/dream', async (req, res) => {
         try {
             const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
             
-            // === STEP 1: ROUTER AGENT (CLAUDE 3.5 HAIKU) ===
-            console.log("🧭 Router Agent: Classifying prompt...");
-            const routerSystemPrompt = `You are a game design classifier. Given a user's game idea:
-1. Pick the BEST matching template: "match3", "shooter", "runner", or "none" (if it doesn't fit any).
-2. Rewrite the casual prompt into a detailed, technical game design brief.`;
+            // === STEP 1: PLANNER AGENT (CLAUDE 3.5 HAIKU) ===
+            console.log("🧭 Planner Agent: Classifying prompt & building asset manifest...");
+            const plannerSystemPrompt = `You are a game design planner for a Canvas2D mobile game engine. Given a user's game idea, you must:
+1. Rewrite the casual prompt into a detailed, technical game design brief covering mechanics, controls, scoring, and visual style.
+2. Create an asset manifest for the AI image generator.
 
-            let templateCode = "";
-            let enhancedPrompt = prompt;
-            
-            try {
-                const routerRes = await anthropic.messages.create({
-                    model: "claude-3-5-haiku-20241022",
-                    max_tokens: 1000,
-                    system: routerSystemPrompt,
-                    messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
-                    tools: [{
-                        name: "classify_game",
-                        description: "Classify user game idea.",
-                        input_schema: {
-                            type: "object",
-                            properties: {
-                                template: { type: "string", enum: ["match3", "shooter", "runner", "none"] },
-                                technicalPrompt: { type: "string", description: "Detailed, technical game design brief rewrite." }
-                            },
-                            required: ["template", "technicalPrompt"]
-                        }
-                    }],
-                    tool_choice: { type: "tool", name: "classify_game" }
-                });
-                
-                const toolBlock = routerRes.content.find(c => c.type === 'tool_use');
-                const routerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(routerRes.content[0].text));
-                console.log("🧭 Router Agent Decision: template=" + routerJson.template);
-                
-                enhancedPrompt = routerJson.technicalPrompt || prompt;
-                
-                const templateMap = {
-                    "match3": '../templates/match3.js',
-                    "shooter": '../templates/shooter.js',
-                    "runner": '../templates/runner.js'
-                };
-                
-                if (routerJson.template && templateMap[routerJson.template]) {
-                    templateCode = fs.readFileSync(path.join(__dirname, templateMap[routerJson.template]), 'utf8');
-                    console.log("=> Injecting FLAWLESS " + routerJson.template + " Template");
-                }
-            } catch(e) {
-                console.error("Router failed, falling back to regex", e.message);
-                const pt = prompt.toLowerCase();
-                if (pt.match(/match|candy|bejeweled/i)) templateCode = fs.readFileSync(path.join(__dirname, '../templates/match3.js'), 'utf8');
-                else if (pt.match(/shoot|space/i)) templateCode = fs.readFileSync(path.join(__dirname, '../templates/shooter.js'), 'utf8');
-                else if (pt.match(/run|flappy/i)) templateCode = fs.readFileSync(path.join(__dirname, '../templates/runner.js'), 'utf8');
-            }
-
-            // === STEP 2: DIRECTOR AGENT (CLAUDE 3.5 SONNET) ===
-            console.log("🎬 Director Agent: Building Asset Manifest...");
-            const directorSystemPrompt = `You are a Game Art Director. Based on this technical brief, create an asset manifest.
-RULES: 
-- If the game requires high-fidelity graphics (chasing characters, detailed backgrounds), provide up to 5 image assets.
-- If the game is minimalistic, abstract, or purely geometric (e.g., Tetris, Pong), you MUST return an empty "assets" array []. The Coder will draw everything procedurally via SVG.
-- Character sprites MUST have a solid black background.
+ASSET RULES:
+- If the game needs detailed graphics (real characters, themed backgrounds), provide up to 5 image assets.
+- If the game is minimalistic, abstract, or geometric (e.g., Tetris, Pong, simple shapes), return an empty "assets" array []. The Coder will draw everything procedurally with Canvas2D.
+- Character sprites MUST request "solid black background" in their prompt.
 - Backgrounds MUST be vertical layout (512x768).`;
 
+            let enhancedPrompt = prompt;
             let manifest;
+            
             try {
-                const dirRes = await anthropic.messages.create({
-                    model: "claude-3-5-sonnet-20241022",
-                    max_tokens: 1500,
-                    system: directorSystemPrompt,
-                    messages: [{ role: "user", content: `User Brief: "${enhancedPrompt}"` }],
+                const plannerRes = await anthropic.messages.create({
+                    model: "claude-3-5-haiku-20241022",
+                    max_tokens: 2000,
+                    system: plannerSystemPrompt,
+                    messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
                     tools: [{
-                        name: "create_asset_manifest",
-                        description: "Create an asset manifest for the game.",
+                        name: "plan_game",
+                        description: "Classify game type, rewrite prompt, and create asset manifest.",
                         input_schema: {
                             type: "object",
                             properties: {
-                                mechanics: { type: "string", description: "Summary of mechanics and visual style" },
+                                technicalPrompt: { type: "string", description: "Detailed technical game design brief covering mechanics, controls, scoring, and visual style" },
+                                mechanics: { type: "string", description: "Short summary of core mechanics and visual style for the coder" },
                                 assets: {
                                     type: "array",
+                                    description: "Image assets to generate. Empty array [] if game is minimalist/geometric.",
                                     items: {
                                         type: "object",
                                         properties: {
                                             key: { type: "string", description: "Asset identifier key (e.g. 'bg', 'player')" },
-                                            prompt: { type: "string", description: "Prompt for the AI image generator. E.g. 'isolated character sprite, solid black background'" },
-                                            width: { type: "integer", description: "Width in pixels (e.g. 512)" },
-                                            height: { type: "integer", description: "Height in pixels (e.g. 768 or 512)" }
+                                            prompt: { type: "string", description: "Prompt for AI image generator" },
+                                            width: { type: "integer", description: "Width in pixels" },
+                                            height: { type: "integer", description: "Height in pixels" }
                                         },
                                         required: ["key", "prompt", "width", "height"]
                                     }
                                 }
                             },
-                            required: ["mechanics", "assets"]
+                            required: ["technicalPrompt", "mechanics", "assets"]
                         }
                     }],
-                    tool_choice: { type: "tool", name: "create_asset_manifest" }
+                    tool_choice: { type: "tool", name: "plan_game" }
                 });
                 
-                const toolBlock = dirRes.content.find(c => c.type === 'tool_use');
-                manifest = toolBlock ? toolBlock.input : JSON.parse(extractJson(dirRes.content[0].text));
+                const toolBlock = plannerRes.content.find(c => c.type === 'tool_use');
+                const plannerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(plannerRes.content[0].text));
+                console.log("🧭 Planner Decision: assets=" + (plannerJson.assets?.length || 0));
+                
+                enhancedPrompt = plannerJson.technicalPrompt || prompt;
+                manifest = { mechanics: plannerJson.mechanics || enhancedPrompt, assets: plannerJson.assets || [] };
             } catch(e) {
-                console.error("Director failed, falling back", e.message);
+                console.error("Planner failed, falling back", e.message);
                 manifest = {
-                    mechanics: enhancedPrompt,
+                    mechanics: prompt,
                     assets: [
                         { key: 'bg', prompt: prompt + " background, vertical mobile", width: 512, height: 768 },
                         { key: 'player', prompt: prompt + " sprite, isolated, solid black background", width: 512, height: 512 }
@@ -217,8 +173,8 @@ RULES:
             });
             console.log("🎨 Loaded Assets:", Object.keys(assetMap).join(', '));
 
-            // === STEP 4: CODER AGENT (CLAUDE SONNET 4.6) ===
-            const systemInstruction = buildOmniEnginePrompt(templateCode, assetMap, manifest);
+            // === STEP 3: CODER AGENT (CLAUDE SONNET 4.6) ===
+            const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
             
             let messages = [
                 { role: "user", content: "CREATE THIS GAME:\n" + prompt }
@@ -230,14 +186,14 @@ RULES:
 
             const coderTools = [{
                 name: "generate_game_code",
-                description: "Generate the complete Phaser game code and configuration.",
+                description: "Generate the complete Canvas2D game code and configuration.",
                 input_schema: {
                     type: "object",
                     properties: {
                         title: { type: "string", description: "Catchy, viral game title." },
-                        engine: { type: "string", description: "Always exactly 'phaser'" },
+                        engine: { type: "string", description: "Always exactly 'canvas2d'" },
                         settings: { type: "object", description: "A JSON object containing ALL tunable game variables" },
-                        code: { type: "string", description: "Raw Javascript executing the game" }
+                        code: { type: "string", description: "Raw Javascript Canvas2D game code" }
                     },
                     required: ["title", "engine", "settings", "code"]
                 }

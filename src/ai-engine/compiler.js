@@ -1,20 +1,16 @@
 export function compileGameHTML(json, assetMap) {
-    const configScript = json.config ? `<script>window.gameConfig = ${JSON.stringify(json.config)};</script>` : '';
-
     return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval';">
-    <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;900&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none; background: #0a0a0f; font-family: 'Outfit', -apple-system, sans-serif; }
         canvas { display: block; touch-action: none; outline: none; }
         
-        /* DOM UI OVERLAY - Crystal clear text instead of blurry canvas text */
+        /* DOM UI OVERLAY */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; overflow: hidden; display: none; }
         .hud-top { position: absolute; top: env(safe-area-inset-top, 40px); left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
         .score-pill { background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 12px 24px; border-radius: 30px; border: 2px solid rgba(255,255,255,0.1); }
@@ -41,9 +37,11 @@ export function compileGameHTML(json, assetMap) {
         <div class="spinner"></div>
         <div style="font-size:14px;opacity:0.7;font-weight:700;">BUILDING WORLD...</div>
     </div>
-    <div id="game-container" style="width:100vw; height:100vh; display:block;"></div>
 
-    <!-- REZONA STYLE UI OVERLAY -->
+    <!-- GAME CANVAS -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- UI OVERLAY -->
     <div id="ui-layer">
         <div class="hud-top">
             <div class="score-pill">
@@ -54,7 +52,7 @@ export function compileGameHTML(json, assetMap) {
         </div>
     </div>
 
-    <!-- REZONA STYLE GAME OVER UI -->
+    <!-- GAME OVER UI -->
     <div id="game-over-screen">
         <div id="game-over-title">GAME OVER</div>
         <button class="btn-restart" onclick="window.gameRestartCallback && window.gameRestartCallback()">
@@ -62,8 +60,6 @@ export function compileGameHTML(json, assetMap) {
             PLAY AGAIN
         </button>
     </div>
-
-    ${configScript}
 
     <script>
         // Global error handlers
@@ -75,61 +71,68 @@ export function compileGameHTML(json, assetMap) {
             return true;
         };
 
-        // ==== EXTERNAL ASSET INJECTION ====
+        // === CANVAS SETUP ===
+        var canvas = document.getElementById('game-canvas');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        canvas.style.width = '100vw';
+        canvas.style.height = '100vh';
+
+        // Hide loading screen once game starts
+        document.getElementById('loading-screen').style.display = 'none';
+
+        // === EXTERNAL ASSET INJECTION ===
         window.EXTERNAL_ASSETS = ${JSON.stringify(assetMap || {})};
 
-        // Auto-hide loading screen once canvas appears
-        var loadCheck = setInterval(function() {
-            if (document.querySelector('canvas')) {
-                document.getElementById('loading-screen').style.display = 'none';
-                clearInterval(loadCheck);
-            }
-        }, 150);
+        // === COLLISION DETECTION HELPER ===
+        window.collides = function(a, b) {
+            return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+        };
 
-        // ==== OPINIONATED FRAMEWORK UTILS ====
-        
+        // === DOM HUD UTILS ===
         window.showUI = function() { document.getElementById('ui-layer').style.display = 'block'; }
         window.hideUI = function() { document.getElementById('ui-layer').style.display = 'none'; }
         
         window.updateScore = function(val) {
             var el = document.getElementById('ui-score');
             el.innerText = val;
-            el.style.transform = 'scale(1.3)'; // Pop animation
-            setTimeout(() => el.style.transform = 'scale(1)', 150);
+            el.style.transform = 'scale(1.3)';
+            setTimeout(function() { el.style.transform = 'scale(1)'; }, 150);
         }
 
         window.initLives = function(maxLives) {
             var c = document.getElementById('ui-lives');
             c.innerHTML = '';
-            for(let i=0; i<maxLives; i++) {
+            for(var i=0; i<maxLives; i++) {
                 c.innerHTML += '<div class="life-icon" id="life-'+i+'"></div>';
             }
         }
 
         window.updateLives = function(currentLives, maxLives) {
-            for(let i=0; i<maxLives; i++) {
+            for(var i=0; i<maxLives; i++) {
                 var life = document.getElementById('life-'+i);
-                if (i >= currentLives) life.classList.add('lost');
-                else life.classList.remove('lost');
+                if (life) {
+                    if (i >= currentLives) life.classList.add('lost');
+                    else life.classList.remove('lost');
+                }
             }
         }
 
         window.showGameOver = function(score, onRestartFn) {
-            window.gameRestartCallback = () => {
+            window.gameRestartCallback = function() {
                 document.getElementById('game-over-screen').style.opacity = '0';
-                setTimeout(() => {
+                setTimeout(function() {
                     document.getElementById('game-over-screen').style.display = 'none';
                     if (onRestartFn) onRestartFn();
                 }, 300);
             };
             var go = document.getElementById('game-over-screen');
             go.style.display = 'flex';
-            // Trigger reflow for animation
             void go.offsetWidth; 
             go.style.opacity = '1';
         }
 
-        // Audio API
+        // === AUDIO API ===
         var audioCtx = null;
         window.playSound = function(type) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
