@@ -189,7 +189,7 @@ ASSET RULES:
                 try {
                     console.log(`🤖 Coder Agent (Claude Opus 4.6): Generating Game Logic (Attempt ${attempt})...`);
                     const codeRes = await anthropic.messages.create({
-                        model: "claude-opus-4.6",
+                        model: "claude-opus-4-6",
                         max_tokens: 4096,
                         system: systemInstruction,
                         messages: messages
