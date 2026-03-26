@@ -116,7 +116,8 @@ router.post('/dream', async (req, res) => {
             console.log("🎬 Director Agent: Building Asset Manifest...");
             const directorSystemPrompt = `You are a Game Art Director. Based on this technical brief, create an asset manifest.
 RULES: 
-- Provide AT LEAST 2 assets, MAXIMUM 5 assets.
+- If the game requires high-fidelity graphics (chasing characters, detailed backgrounds), provide up to 5 image assets.
+- If the game is minimalistic, abstract, or purely geometric (e.g., Tetris, Pong), you MUST return an empty "assets" array []. The Coder will draw everything procedurally via SVG.
 - Character sprites MUST have a solid black background.
 - Backgrounds MUST be vertical layout (512x768).`;
 
