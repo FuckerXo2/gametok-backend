@@ -187,9 +187,9 @@ ASSET RULES:
             let lastSandboxError = "Unknown error";
             for (let attempt = 1; attempt <= 1; attempt++) {
                 try {
-                    console.log(`🤖 Coder Agent (Claude 3 Opus): Generating Game Logic (Attempt ${attempt})...`);
+                    console.log(`🤖 Coder Agent (Claude Opus 4.6): Generating Game Logic (Attempt ${attempt})...`);
                     const codeRes = await anthropic.messages.create({
-                        model: "claude-3-opus-20240229",
+                        model: "claude-opus-4.6",
                         max_tokens: 4096,
                         system: systemInstruction,
                         messages: messages
