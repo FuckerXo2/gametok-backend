@@ -199,6 +199,7 @@ ASSET RULES:
                 }
             }];
 
+            let lastSandboxError = "Unknown error";
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     console.log(`🤖 Coder Agent (Claude Sonnet 4.6): Generating Game Logic (Attempt ${attempt})...`);
@@ -234,6 +235,7 @@ ASSET RULES:
                         const errorMsg = "CRITICAL: Your JSON output was missing the required 'code' property! Received keys: " + JSON.stringify(Object.keys(parsedJson||{}));
                         if (toolUse) messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: errorMsg }] });
                         else messages.push({ role: "user", content: errorMsg });
+                        lastSandboxError = "JSON missing code property";
                         continue;
                     }
                     
@@ -251,6 +253,7 @@ ASSET RULES:
                         break;
                     } else {
                         console.log(`❌ Sandbox Crash on Attempt ${attempt}. Orchestrating Auto-Heal...`);
+                        lastSandboxError = testResult.error;
                         
                         messages.push({
                             role: "assistant",
@@ -277,13 +280,14 @@ ASSET RULES:
                     }
                 } catch (apiErr) {
                     console.error(`⚠️ Attempt ${attempt}/3 failed:`, apiErr.message);
+                    lastSandboxError = `API Error: ${apiErr.message}`;
                     if (attempt === 3) throw apiErr;
                     await new Promise(r => setTimeout(r, 1000 * attempt));
                 }
             }
 
             if (!generatedSuccessfully || !finalJson) {
-                throw new Error("Engine failed to resolve crash state after 3 Auto-Heal cycles.");
+                throw new Error("Engine crashed 3 times. Last attempt error: " + lastSandboxError);
             }
 
             // 4. Save to Database
