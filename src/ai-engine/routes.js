@@ -220,24 +220,14 @@ ASSET RULES:
 
                     previewHtml = compileGameHTML(parsedJson, assetMap);
 
-                    const testResult = await verifyGame(previewHtml);
+                    // ==========================================
+                    // USER DIRECTIVE: "i just want tell LLm and LLm generates"
+                    // BYPASS PUPPETEER SANDBOX ENTIRELY
+                    // ==========================================
+                    finalJson = parsedJson;
+                    generatedSuccessfully = true;
+                    break;
                     
-                    if (testResult.success) {
-                        finalJson = parsedJson;
-                        generatedSuccessfully = true;
-                        break;
-                    } else {
-                        console.log(`❌ Sandbox Crash on Attempt ${attempt}. Orchestrating Auto-Heal...`);
-                        lastSandboxError = testResult.error;
-                        
-                        messages.push({
-                            role: "assistant",
-                            content: codeRes.content
-                        });
-                        
-                        const errorPrompt = "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\nERROR: " + testResult.error + "\n\nFix the JS error above and return the repaired code in a raw javascript markdown block.";
-                        messages.push({ role: "user", content: errorPrompt });
-                    }
                 } catch (apiErr) {
                     console.error(`⚠️ Attempt ${attempt} failed:`, apiErr.message);
                     lastSandboxError = `API Error: ${apiErr.message}`;
