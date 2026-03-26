@@ -1,4 +1,4 @@
-export function compileGameHTML(json, bgBase64, spriteBase64) {
+export function compileGameHTML(json, assetMap) {
     const configScript = json.config ? `<script>window.gameConfig = ${JSON.stringify(json.config)};</script>` : '';
 
     return `<!DOCTYPE html>
@@ -76,10 +76,7 @@ export function compileGameHTML(json, bgBase64, spriteBase64) {
         };
 
         // ==== EXTERNAL ASSET INJECTION ====
-        window.EXTERNAL_ASSETS = {
-            bg: "${bgBase64 ? bgBase64.replace(/"/g, '\\"') : ''}",
-            sprite: "${spriteBase64 ? spriteBase64.replace(/"/g, '\\"') : ''}"
-        };
+        window.EXTERNAL_ASSETS = ${JSON.stringify(assetMap || {})};
 
         // Auto-hide loading screen once canvas appears
         var loadCheck = setInterval(function() {

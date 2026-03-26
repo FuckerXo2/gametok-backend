@@ -1,4 +1,5 @@
 import express from 'express';
+import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
@@ -40,35 +41,110 @@ router.post('/dream', async (req, res) => {
         }, 15000);
 
         try {
-            // === NO TEMPLATES - ZERO SHOT FROM SCRATCH ===
+            const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+            
+            // === STEP 1: ROUTER AGENT (CLAUDE 3.5 HAIKU) ===
+            console.log("🧭 Router Agent: Classifying prompt...");
+            const routerPrompt = `You are a game design classifier. Given a user's game idea:
+1. Pick the BEST matching template: "match3", "shooter", "runner", or "none" (if it doesn't fit any).
+2. Rewrite the casual prompt into a detailed, technical game design brief.
+
+Return pure JSON: {"template": "match3"|"shooter"|"runner"|"none", "technicalPrompt": "...detailed rewrite..."}
+User prompt: "${prompt.replace(/"/g, '\\"')}"`;
+
             let templateCode = "";
             let enhancedPrompt = prompt;
-            console.log("🏁 AI is building the entire game from absolute scratch (No Templates).");
-
-            // === ART DIRECTOR AGENT (AI HORDE - 100% FREE, NO API KEY) ===
-            console.log("🎨 Art Director: Generating Assets via AI Horde (Free)...");
             
-            const fetchImage = async (imgPrompt) => {
+            try {
+                const routerRes = await anthropic.messages.create({
+                    model: "claude-3-5-haiku-20241022",
+                    max_tokens: 1000,
+                    messages: [{ role: "user", content: routerPrompt }]
+                });
+                
+                const txt = routerRes.content[0].text;
+                const match = txt.match(/\{[\s\S]*\}/);
+                const routerJson = JSON.parse(match ? match[0] : txt);
+                console.log("🧭 Router Agent Decision: template=" + routerJson.template);
+                
+                enhancedPrompt = routerJson.technicalPrompt || prompt;
+                
+                const templateMap = {
+                    "match3": '../templates/match3.js',
+                    "shooter": '../templates/shooter.js',
+                    "runner": '../templates/runner.js'
+                };
+                
+                if (routerJson.template && templateMap[routerJson.template]) {
+                    templateCode = fs.readFileSync(path.join(__dirname, templateMap[routerJson.template]), 'utf8');
+                    console.log("=> Injecting FLAWLESS " + routerJson.template + " Template");
+                }
+            } catch(e) {
+                console.error("Router failed, falling back to regex", e.message);
+                const pt = prompt.toLowerCase();
+                if (pt.match(/match|candy|bejeweled/i)) templateCode = fs.readFileSync(path.join(__dirname, '../templates/match3.js'), 'utf8');
+                else if (pt.match(/shoot|space/i)) templateCode = fs.readFileSync(path.join(__dirname, '../templates/shooter.js'), 'utf8');
+                else if (pt.match(/run|flappy/i)) templateCode = fs.readFileSync(path.join(__dirname, '../templates/runner.js'), 'utf8');
+            }
+
+            // === STEP 2: DIRECTOR AGENT (CLAUDE 3.5 SONNET) ===
+            console.log("🎬 Director Agent: Building Asset Manifest...");
+            const directorPrompt = `You are a Game Art Director. Based on this technical brief, create an asset manifest.
+Output pure JSON matching this schema:
+{
+    "mechanics": "Summary of mechanics and visual style...",
+    "assets": [
+        { "key": "bg", "prompt": "background image, vertical layout, digital art", "width": 512, "height": 768 },
+        { "key": "player", "prompt": "isolated character sprite, solid black background", "width": 512, "height": 512 }
+    ]
+}
+RULES: 
+- Provide AT LEAST 2 assets, MAXIMUM 5 assets.
+- Character sprites MUST have a solid black background.
+- Backgrounds MUST be vertical layout (512x768).
+
+User Brief: "${enhancedPrompt.replace(/"/g, '\\"')}"`;
+
+            let manifest;
+            try {
+                const dirRes = await anthropic.messages.create({
+                    model: "claude-3-5-sonnet-20241022",
+                    max_tokens: 1500,
+                    messages: [{ role: "user", content: directorPrompt }]
+                });
+                const txt = dirRes.content[0].text;
+                const match = txt.match(/\{[\s\S]*\}/);
+                manifest = JSON.parse(match ? match[0] : txt);
+            } catch(e) {
+                console.error("Director failed, falling back", e.message);
+                manifest = {
+                    mechanics: enhancedPrompt,
+                    assets: [
+                        { key: 'bg', prompt: prompt + " background, vertical mobile", width: 512, height: 768 },
+                        { key: 'player', prompt: prompt + " sprite, isolated, solid black background", width: 512, height: 512 }
+                    ]
+                };
+            }
+
+            // === STEP 3: ART DIRECTOR (AI HORDE) ===
+            console.log(`🎨 Art Director: Fetching ${manifest.assets.length} Assets in Parallel layer...`);
+            
+            const fetchImage = async (assetObj) => {
                 try {
-                    // Step 1: Submit generation request
                     const submitRes = await fetch("https://aihorde.net/api/v2/generate/async", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
                         body: JSON.stringify({
-                            prompt: imgPrompt,
-                            params: { width: 512, height: 512, steps: 20 },
-                            nsfw: false,
-                            censor_nsfw: true,
-                            r2: true
+                            prompt: assetObj.prompt,
+                            params: { width: assetObj.width, height: assetObj.height, steps: 20 },
+                            nsfw: false, censor_nsfw: true, r2: true
                         })
                     });
-                    if (!submitRes.ok) { console.error("AI Horde submit error:", submitRes.status); return null; }
+                    if (!submitRes.ok) return null;
                     const submitData = await submitRes.json();
                     const jobId = submitData.id;
-                    if (!jobId) { console.error("AI Horde: No job ID received"); return null; }
-                    console.log("🎨 AI Horde Job:", jobId);
+                    if (!jobId) return null;
 
-                    // Step 2: Poll for completion (max 60 seconds)
                     for (let i = 0; i < 20; i++) {
                         await new Promise(r => setTimeout(r, 3000));
                         const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + jobId);
@@ -76,12 +152,10 @@ router.post('/dream', async (req, res) => {
                         if (checkData.done) break;
                     }
 
-                    // Step 3: Retrieve the generated image
                     const statusRes = await fetch("https://aihorde.net/api/v2/generate/status/" + jobId);
                     const statusData = await statusRes.json();
                     if (statusData.generations && statusData.generations.length > 0) {
                         const imgUrl = statusData.generations[0].img;
-                        // Download image and convert to base64
                         const imgRes = await fetch(imgUrl);
                         if (!imgRes.ok) return null;
                         const arrayBuffer = await imgRes.arrayBuffer();
@@ -89,80 +163,69 @@ router.post('/dream', async (req, res) => {
                         return "data:image/webp;base64," + base64;
                     }
                     return null;
-                } catch(e) { console.error("Art Director failed:", e.message); return null; }
+                } catch(e) { console.error("Art Error:", e.message); return null; }
             };
 
-            const [bgBase64, spriteBase64] = await Promise.all([
-                fetchImage(prompt + ", beautiful 2d mobile game background, vertical layout, digital art, vibrant colors, no text"),
-                fetchImage(prompt + ", single isolated game character sprite, centered, clean vector art, solid background")
-            ]);
-            console.log("🎨 Art Director: BG=" + (bgBase64 ? "OK" : "SKIP") + " Sprite=" + (spriteBase64 ? "OK" : "SKIP"));
-
-            // Build Omni-Engine Prompt with injected Gold Standard Template and Art Assets
-            const systemInstruction = buildOmniEnginePrompt(templateCode, bgBase64, spriteBase64);
+            const assetPromises = manifest.assets.map(a => fetchImage(a));
+            const base64Results = await Promise.all(assetPromises);
             
-            // === PUPPETEER AUTO-HEALING SANDBOX LOOP (POWERED BY GROQ) ===
+            let assetMap = {};
+            manifest.assets.forEach((a, i) => {
+                if (base64Results[i]) assetMap[a.key] = base64Results[i];
+            });
+            console.log("🎨 Loaded Assets:", Object.keys(assetMap).join(', '));
+
+            // === STEP 4: CODER AGENT (CLAUDE 3.5 SONNET) ===
+            const systemInstruction = buildOmniEnginePrompt(templateCode, assetMap, manifest);
+            
             let messages = [
-                { role: "system", content: systemInstruction },
-                { role: "user", content: "Make this game: " + enhancedPrompt }
+                { role: "user", content: systemInstruction + "\n\nCREATE THIS GAME:\n" + prompt }
             ];
+            
             let finalJson = null;
             let previewHtml = "";
             let generatedSuccessfully = false;
 
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    console.log(`🤖 Coder Agent (Groq): Translating architecture to code (Attempt ${attempt})...`);
-                    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                        method: "POST",
-                        headers: {
-                            "Authorization": "Bearer " + process.env.GROQ_API_KEY,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            model: "llama-3.3-70b-versatile",
-                            messages: messages,
-                            response_format: { type: "json_object" },
-                            max_tokens: 8192
-                        })
+                    console.log(`🤖 Coder Agent (Claude 3.5): Generating Game Logic (Attempt ${attempt})...`);
+                    const codeRes = await anthropic.messages.create({
+                        model: "claude-3-5-sonnet-20241022",
+                        max_tokens: 8192,
+                        messages: messages
                     });
                     
-                    if (!res.ok) throw new Error("Groq API Error: " + res.status);
-                    const groqData = await res.json();
-                    const responseText = groqData.choices[0].message.content;
+                    const responseText = codeRes.content[0].text;
                     
-                    // Prevent memory blowout on subsequent heals
-                    if (messages.length > 2) messages.pop(); 
+                    if (messages.length > 1) messages.pop(); 
                     
                     let parsedJson;
                     try {
-                        parsedJson = JSON.parse(responseText);
-                    } catch (e) {
-                         const match = responseText.match(/\{[\s\S]*\}/);
-                         if (match) parsedJson = JSON.parse(match[0]);
-                         else throw new Error("Failed to parse AI JSON response.");
-                    }
+                        const match = responseText.match(/\{[\s\S]*\}/);
+                        parsedJson = JSON.parse(match ? match[0] : responseText);
+                    } catch (e) { throw new Error("Failed to parse Claude JSON response. Raw output: " + responseText.substring(0, 100)); }
                     
                     if (parsedJson.code && parsedJson.code.includes('```')) {
                         parsedJson.code = parsedJson.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
                     }
 
-                    previewHtml = compileGameHTML(parsedJson, bgBase64, spriteBase64);
+                    previewHtml = compileGameHTML(parsedJson, assetMap);
 
-                    // 🛑 SANDBOX VERIFICATION
                     const testResult = await verifyGame(previewHtml);
                     
                     if (testResult.success) {
                         finalJson = parsedJson;
                         generatedSuccessfully = true;
-                        break; // Flawless payload, exit loop
+                        break;
                     } else {
                         console.log(`❌ Sandbox Crash on Attempt ${attempt}. Orchestrating Auto-Heal...`);
                         messages.push({
+                            role: "assistant",
+                            content: responseText
+                        });
+                        messages.push({
                             role: "user",
-                            content: "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\n" +
-                                     "ERROR: " + testResult.error + "\n\n" +
-                                     "You MUST fix the Javascript error above. Return the exact same JSON format, but with the 'code' string fully repaired so it does not crash."
+                            content: "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\nERROR: " + testResult.error + "\n\nFix the JS error above and return the exact same JSON format with repaired code."
                         });
                     }
                 } catch (apiErr) {
@@ -188,7 +251,7 @@ router.post('/dream', async (req, res) => {
                 success: true, 
                 draftId: dbRes.rows[0].id, 
                 title: finalJson.title, 
-                configParams: finalJson.config, 
+                configParams: finalJson.settings, 
                 htmlPreview: previewHtml 
             }));
             res.end();
