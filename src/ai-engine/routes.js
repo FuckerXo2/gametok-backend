@@ -200,7 +200,7 @@ ASSET RULES:
             }];
 
             let lastSandboxError = "Unknown error";
-            for (let attempt = 1; attempt <= 3; attempt++) {
+            for (let attempt = 1; attempt <= 1; attempt++) {
                 try {
                     console.log(`🤖 Coder Agent (Claude Sonnet 4.6): Generating Game Logic (Attempt ${attempt})...`);
                     const codeRes = await anthropic.messages.create({
@@ -291,9 +291,9 @@ ASSET RULES:
                         }
                     }
                 } catch (apiErr) {
-                    console.error(`⚠️ Attempt ${attempt}/3 failed:`, apiErr.message);
+                    console.error(`⚠️ Attempt ${attempt} failed:`, apiErr.message);
                     lastSandboxError = `API Error: ${apiErr.message}`;
-                    if (attempt === 3) throw apiErr;
+                    if (attempt === 1) throw apiErr;
                     await new Promise(r => setTimeout(r, 1000 * attempt));
                 }
             }
