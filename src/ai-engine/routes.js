@@ -13,6 +13,21 @@ import { buildOmniEnginePrompt } from './prompt.js';
 import { compileGameHTML } from './compiler.js';
 import { verifyGame } from './sandbox.js';
 
+function extractJson(text) {
+    let jsonStart = text.indexOf('{');
+    if (text.includes('</thinking>')) {
+        const postThinkingStart = text.indexOf('{', text.indexOf('</thinking>'));
+        if (postThinkingStart !== -1) {
+            jsonStart = postThinkingStart;
+        }
+    }
+    const jsonEnd = text.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
+        return text.substring(jsonStart, jsonEnd + 1);
+    }
+    return text;
+}
+
 const router = express.Router();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -45,12 +60,9 @@ router.post('/dream', async (req, res) => {
             
             // === STEP 1: ROUTER AGENT (CLAUDE 3.5 HAIKU) ===
             console.log("🧭 Router Agent: Classifying prompt...");
-            const routerPrompt = `You are a game design classifier. Given a user's game idea:
+            const routerSystemPrompt = `You are a game design classifier. Given a user's game idea:
 1. Pick the BEST matching template: "match3", "shooter", "runner", or "none" (if it doesn't fit any).
-2. Rewrite the casual prompt into a detailed, technical game design brief.
-
-Return pure JSON: {"template": "match3"|"shooter"|"runner"|"none", "technicalPrompt": "...detailed rewrite..."}
-User prompt: "${prompt.replace(/"/g, '\\"')}"`;
+2. Rewrite the casual prompt into a detailed, technical game design brief.`;
 
             let templateCode = "";
             let enhancedPrompt = prompt;
@@ -59,12 +71,25 @@ User prompt: "${prompt.replace(/"/g, '\\"')}"`;
                 const routerRes = await anthropic.messages.create({
                     model: "claude-3-5-haiku-20241022",
                     max_tokens: 1000,
-                    messages: [{ role: "user", content: routerPrompt }]
+                    system: routerSystemPrompt,
+                    messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
+                    tools: [{
+                        name: "classify_game",
+                        description: "Classify user game idea.",
+                        input_schema: {
+                            type: "object",
+                            properties: {
+                                template: { type: "string", enum: ["match3", "shooter", "runner", "none"] },
+                                technicalPrompt: { type: "string", description: "Detailed, technical game design brief rewrite." }
+                            },
+                            required: ["template", "technicalPrompt"]
+                        }
+                    }],
+                    tool_choice: { type: "tool", name: "classify_game" }
                 });
                 
-                const txt = routerRes.content[0].text;
-                const match = txt.match(/\{[\s\S]*\}/);
-                const routerJson = JSON.parse(match ? match[0] : txt);
+                const toolBlock = routerRes.content.find(c => c.type === 'tool_use');
+                const routerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(routerRes.content[0].text));
                 console.log("🧭 Router Agent Decision: template=" + routerJson.template);
                 
                 enhancedPrompt = routerJson.technicalPrompt || prompt;
@@ -89,32 +114,48 @@ User prompt: "${prompt.replace(/"/g, '\\"')}"`;
 
             // === STEP 2: DIRECTOR AGENT (CLAUDE 3.5 SONNET) ===
             console.log("🎬 Director Agent: Building Asset Manifest...");
-            const directorPrompt = `You are a Game Art Director. Based on this technical brief, create an asset manifest.
-Output pure JSON matching this schema:
-{
-    "mechanics": "Summary of mechanics and visual style...",
-    "assets": [
-        { "key": "bg", "prompt": "background image, vertical layout, digital art", "width": 512, "height": 768 },
-        { "key": "player", "prompt": "isolated character sprite, solid black background", "width": 512, "height": 512 }
-    ]
-}
+            const directorSystemPrompt = `You are a Game Art Director. Based on this technical brief, create an asset manifest.
 RULES: 
 - Provide AT LEAST 2 assets, MAXIMUM 5 assets.
 - Character sprites MUST have a solid black background.
-- Backgrounds MUST be vertical layout (512x768).
-
-User Brief: "${enhancedPrompt.replace(/"/g, '\\"')}"`;
+- Backgrounds MUST be vertical layout (512x768).`;
 
             let manifest;
             try {
                 const dirRes = await anthropic.messages.create({
                     model: "claude-3-5-sonnet-20241022",
                     max_tokens: 1500,
-                    messages: [{ role: "user", content: directorPrompt }]
+                    system: directorSystemPrompt,
+                    messages: [{ role: "user", content: `User Brief: "${enhancedPrompt}"` }],
+                    tools: [{
+                        name: "create_asset_manifest",
+                        description: "Create an asset manifest for the game.",
+                        input_schema: {
+                            type: "object",
+                            properties: {
+                                mechanics: { type: "string", description: "Summary of mechanics and visual style" },
+                                assets: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            key: { type: "string", description: "Asset identifier key (e.g. 'bg', 'player')" },
+                                            prompt: { type: "string", description: "Prompt for the AI image generator. E.g. 'isolated character sprite, solid black background'" },
+                                            width: { type: "integer", description: "Width in pixels (e.g. 512)" },
+                                            height: { type: "integer", description: "Height in pixels (e.g. 768 or 512)" }
+                                        },
+                                        required: ["key", "prompt", "width", "height"]
+                                    }
+                                }
+                            },
+                            required: ["mechanics", "assets"]
+                        }
+                    }],
+                    tool_choice: { type: "tool", name: "create_asset_manifest" }
                 });
-                const txt = dirRes.content[0].text;
-                const match = txt.match(/\{[\s\S]*\}/);
-                manifest = JSON.parse(match ? match[0] : txt);
+                
+                const toolBlock = dirRes.content.find(c => c.type === 'tool_use');
+                manifest = toolBlock ? toolBlock.input : JSON.parse(extractJson(dirRes.content[0].text));
             } catch(e) {
                 console.error("Director failed, falling back", e.message);
                 manifest = {
@@ -175,16 +216,31 @@ User Brief: "${enhancedPrompt.replace(/"/g, '\\"')}"`;
             });
             console.log("🎨 Loaded Assets:", Object.keys(assetMap).join(', '));
 
-            // === STEP 4: CODER AGENT (CLAUDE 3.5 SONNET) ===
+            // === STEP 4: CODER AGENT (CLAUDE SONNET 4.6) ===
             const systemInstruction = buildOmniEnginePrompt(templateCode, assetMap, manifest);
             
             let messages = [
-                { role: "user", content: systemInstruction + "\n\nCREATE THIS GAME:\n" + prompt }
+                { role: "user", content: "CREATE THIS GAME:\n" + prompt }
             ];
             
             let finalJson = null;
             let previewHtml = "";
             let generatedSuccessfully = false;
+
+            const coderTools = [{
+                name: "generate_game_code",
+                description: "Generate the complete Phaser game code and configuration.",
+                input_schema: {
+                    type: "object",
+                    properties: {
+                        title: { type: "string", description: "Catchy, viral game title." },
+                        engine: { type: "string", description: "Always exactly 'phaser'" },
+                        settings: { type: "object", description: "A JSON object containing ALL tunable game variables" },
+                        code: { type: "string", description: "Raw Javascript executing the game" }
+                    },
+                    required: ["title", "engine", "settings", "code"]
+                }
+            }];
 
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
@@ -192,18 +248,19 @@ User Brief: "${enhancedPrompt.replace(/"/g, '\\"')}"`;
                     const codeRes = await anthropic.messages.create({
                         model: "claude-sonnet-4-6",
                         max_tokens: 8192,
-                        messages: messages
+                        system: systemInstruction,
+                        messages: messages,
+                        tools: coderTools,
+                        tool_choice: { type: "tool", name: "generate_game_code" }
                     });
                     
-                    const responseText = codeRes.content[0].text;
-                    
-                    if (messages.length > 1) messages.pop(); 
-                    
+                    const toolUse = codeRes.content.find(c => c.type === 'tool_use');
                     let parsedJson;
-                    try {
-                        const match = responseText.match(/\{[\s\S]*\}/);
-                        parsedJson = JSON.parse(match ? match[0] : responseText);
-                    } catch (e) { throw new Error("Failed to parse Claude JSON response. Raw output: " + responseText.substring(0, 100)); }
+                    if (toolUse) {
+                        parsedJson = toolUse.input;
+                    } else {
+                        parsedJson = JSON.parse(extractJson(codeRes.content[0].text));
+                    }
                     
                     if (parsedJson.code && parsedJson.code.includes('```')) {
                         parsedJson.code = parsedJson.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
@@ -219,14 +276,29 @@ User Brief: "${enhancedPrompt.replace(/"/g, '\\"')}"`;
                         break;
                     } else {
                         console.log(`❌ Sandbox Crash on Attempt ${attempt}. Orchestrating Auto-Heal...`);
+                        
                         messages.push({
                             role: "assistant",
-                            content: responseText
+                            content: codeRes.content
                         });
-                        messages.push({
-                            role: "user",
-                            content: "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\nERROR: " + testResult.error + "\n\nFix the JS error above and return the exact same JSON format with repaired code."
-                        });
+                        
+                        const errorPrompt = "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\nERROR: " + testResult.error + "\n\nFix the JS error above and return the repaired code using the exact same JSON format.";
+                        
+                        if (toolUse) {
+                            messages.push({
+                                role: "user",
+                                content: [{
+                                    type: "tool_result",
+                                    tool_use_id: toolUse.id,
+                                    content: errorPrompt
+                                }]
+                            });
+                        } else {
+                            messages.push({
+                                role: "user",
+                                content: errorPrompt
+                            });
+                        }
                     }
                 } catch (apiErr) {
                     console.error(`⚠️ Attempt ${attempt}/3 failed:`, apiErr.message);
