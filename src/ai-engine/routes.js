@@ -257,9 +257,27 @@ RULES:
                     const toolUse = codeRes.content.find(c => c.type === 'tool_use');
                     let parsedJson;
                     if (toolUse) {
-                        parsedJson = toolUse.input;
+                        parsedJson = typeof toolUse.input === 'string' ? JSON.parse(toolUse.input) : toolUse.input;
                     } else {
                         parsedJson = JSON.parse(extractJson(codeRes.content[0].text));
+                    }
+                    
+                    // Fallback normalizer for weird API proxy endpoints (like OpenRouter wrapper bugs)
+                    if (parsedJson && !parsedJson.code) {
+                        if (parsedJson.Code) parsedJson.code = parsedJson.Code;
+                        else if (parsedJson.raw_code) parsedJson.code = parsedJson.raw_code;
+                        else if (parsedJson.properties && parsedJson.properties.code) parsedJson = parsedJson.properties;
+                        else if (parsedJson.input && parsedJson.input.code) parsedJson = parsedJson.input;
+                        else if (parsedJson.game && parsedJson.game.code) parsedJson = parsedJson.game;
+                    }
+
+                    if (!parsedJson || !parsedJson.code || String(parsedJson.code).trim() === '') {
+                        console.log(`❌ Invalid JSON schema... Triggering Auto-Heal (missing 'code')`);
+                        messages.push({ role: "assistant", content: codeRes.content });
+                        const errorMsg = "CRITICAL: Your JSON output was missing the required 'code' property! Received keys: " + JSON.stringify(Object.keys(parsedJson||{}));
+                        if (toolUse) messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: errorMsg }] });
+                        else messages.push({ role: "user", content: errorMsg });
+                        continue;
                     }
                     
                     if (parsedJson.code && parsedJson.code.includes('```')) {
