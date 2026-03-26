@@ -40,19 +40,10 @@ router.post('/dream', async (req, res) => {
         }, 15000);
 
         try {
-            // === ZERO-SHOT TEMPLATE INJECTION ENGINE ===
+            // === NO TEMPLATES - ZERO SHOT FROM SCRATCH ===
             let templateCode = "";
-            const pt = prompt.toLowerCase();
-            if (pt.match(/match|candy|bejeweled|puzzle|swap|grid/i)) {
-                templateCode = fs.readFileSync(path.join(__dirname, '../templates/match3.js'), 'utf8');
-                console.log("=> Injecting FLAWLESS Match-3 Template");
-            } else if (pt.match(/shoot|space|ship|laser|bullet/i)) {
-                templateCode = fs.readFileSync(path.join(__dirname, '../templates/shooter.js'), 'utf8');
-                console.log("=> Injecting FLAWLESS Shooter Template");
-            } else if (pt.match(/run|runner|flappy|jump|dash/i)) {
-                templateCode = fs.readFileSync(path.join(__dirname, '../templates/runner.js'), 'utf8');
-                console.log("=> Injecting FLAWLESS Runner Template");
-            }
+            let enhancedPrompt = prompt;
+            console.log("🏁 AI is building the entire game from absolute scratch (No Templates).");
 
             // === ART DIRECTOR AGENT (AI HORDE - 100% FREE, NO API KEY) ===
             console.log("🎨 Art Director: Generating Assets via AI Horde (Free)...");
@@ -110,18 +101,38 @@ router.post('/dream', async (req, res) => {
             // Build Omni-Engine Prompt with injected Gold Standard Template and Art Assets
             const systemInstruction = buildOmniEnginePrompt(templateCode, bgBase64, spriteBase64);
             
-            const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview", generationConfig: { responseMimeType: "application/json" }});
-            
-            // === PUPPETEER AUTO-HEALING SANDBOX LOOP ===
-            let currentPrompt = [systemInstruction, "User Prompt: " + prompt];
+            // === PUPPETEER AUTO-HEALING SANDBOX LOOP (POWERED BY GROQ) ===
+            let messages = [
+                { role: "system", content: systemInstruction },
+                { role: "user", content: "Make this game: " + enhancedPrompt }
+            ];
             let finalJson = null;
             let previewHtml = "";
             let generatedSuccessfully = false;
 
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    const result = await model.generateContent(currentPrompt);
-                    const responseText = result.response.text();
+                    console.log(`🤖 Coder Agent (Groq): Translating architecture to code (Attempt ${attempt})...`);
+                    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": "Bearer " + process.env.GROQ_API_KEY,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            model: "llama-3.3-70b-versatile",
+                            messages: messages,
+                            response_format: { type: "json_object" },
+                            max_tokens: 8192
+                        })
+                    });
+                    
+                    if (!res.ok) throw new Error("Groq API Error: " + res.status);
+                    const groqData = await res.json();
+                    const responseText = groqData.choices[0].message.content;
+                    
+                    // Prevent memory blowout on subsequent heals
+                    if (messages.length > 2) messages.pop(); 
                     
                     let parsedJson;
                     try {
@@ -147,14 +158,12 @@ router.post('/dream', async (req, res) => {
                         break; // Flawless payload, exit loop
                     } else {
                         console.log(`❌ Sandbox Crash on Attempt ${attempt}. Orchestrating Auto-Heal...`);
-                        currentPrompt = [
-                            systemInstruction,
-                            "User Prompt: " + prompt,
-                            "PREVIOUS GENERATED JSON:",
-                            JSON.stringify(parsedJson),
-                            "CRASH ERROR IN BROWSER SANDBOX: " + testResult.error,
-                            "You MUST fix the Javascript error above. Return the exact same JSON format, but with the 'code' string fully repaired so it does not crash."
-                        ];
+                        messages.push({
+                            role: "user",
+                            content: "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\n" +
+                                     "ERROR: " + testResult.error + "\n\n" +
+                                     "You MUST fix the Javascript error above. Return the exact same JSON format, but with the 'code' string fully repaired so it does not crash."
+                        });
                     }
                 } catch (apiErr) {
                     console.error(`⚠️ Attempt ${attempt}/3 failed:`, apiErr.message);
