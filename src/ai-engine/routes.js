@@ -184,76 +184,39 @@ ASSET RULES:
             let previewHtml = "";
             let generatedSuccessfully = false;
 
-            const coderTools = [{
-                name: "generate_game_code",
-                description: "Generate the complete Canvas2D game code and configuration.",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        title: { type: "string", description: "Catchy, viral game title." },
-                        engine: { type: "string", description: "Always exactly 'canvas2d'" },
-                        settings: { type: "object", description: "A JSON object containing ALL tunable game variables" },
-                        code: { type: "string", description: "Raw Javascript Canvas2D game code" }
-                    },
-                    required: ["title", "engine", "settings", "code"]
-                }
-            }];
-
             let lastSandboxError = "Unknown error";
             for (let attempt = 1; attempt <= 1; attempt++) {
                 try {
-                    console.log(`🤖 Coder Agent (Claude Sonnet 4.6): Generating Game Logic (Attempt ${attempt})...`);
+                    console.log(`🤖 Coder Agent (Claude 3 Opus): Generating Game Logic (Attempt ${attempt})...`);
                     const codeRes = await anthropic.messages.create({
-                        model: "claude-sonnet-4-6",
-                        max_tokens: 8192,
+                        model: "claude-3-opus-20240229",
+                        max_tokens: 4096,
                         system: systemInstruction,
-                        messages: messages,
-                        tools: coderTools,
-                        tool_choice: { type: "tool", name: "generate_game_code" }
+                        messages: messages
                     });
                     
-                    const toolUse = codeRes.content.find(c => c.type === 'tool_use');
-                    let parsedJson;
-                    if (toolUse) {
-                        parsedJson = typeof toolUse.input === 'string' ? JSON.parse(toolUse.input) : toolUse.input;
-                    } else {
-                        parsedJson = JSON.parse(extractJson(codeRes.content[0].text));
-                    }
+                    const responseText = codeRes.content[0].text;
+                    const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+                    let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
                     
-                    // Fallback normalizer for weird API proxy endpoints (like OpenRouter wrapper bugs)
-                    if (parsedJson && !parsedJson.code) {
-                        if (parsedJson.Code) parsedJson.code = parsedJson.Code;
-                        else if (parsedJson.raw_code) parsedJson.code = parsedJson.raw_code;
-                        else if (parsedJson.properties && parsedJson.properties.code) parsedJson = parsedJson.properties;
-                        else if (parsedJson.input && parsedJson.input.code) parsedJson = parsedJson.input;
-                        else if (parsedJson.game && parsedJson.game.code) parsedJson = parsedJson.game;
+                    if (rawCode.includes('```')) {
+                        rawCode = rawCode.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
                     }
 
-                    // Fallback: Claude sometimes refuses to put giant code blocks into a JSON string and outputs it as Markdown instead
-                    if (parsedJson && !parsedJson.code) {
-                        const textBlock = codeRes.content.find(c => c.type === 'text');
-                        if (textBlock && textBlock.text) {
-                            const codeMatch = textBlock.text.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
-                            if (codeMatch && codeMatch[1]) parsedJson.code = codeMatch[1].trim();
-                        }
-                    }
-
-                    if (!parsedJson || !parsedJson.code || String(parsedJson.code).trim() === '') {
-                        console.log(`❌ Invalid JSON schema... Triggering Auto-Heal (missing 'code')`);
-                        messages.push({ role: "assistant", content: codeRes.content });
-                        const errorMsg = "CRITICAL: Your JSON output was missing the required 'code' property! Received keys: " + JSON.stringify(Object.keys(parsedJson||{}));
-                        if (toolUse) messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: errorMsg }] });
-                        else messages.push({ role: "user", content: errorMsg });
-                        let debugOutput = "No text block";
-                        if (codeRes.content && codeRes.content[0] && codeRes.content[0].text) debugOutput = codeRes.content[0].text.substring(0, 200);
-                        else if (toolUse && toolUse.input) debugOutput = "ToolKeys: " + Object.keys(toolUse.input).join(',');
-                        lastSandboxError = "JSON missing code property. Debug: " + debugOutput;
+                    if (!rawCode || rawCode.length < 50) {
+                        console.log(`❌ Invalid Raw Output... (missing code)`);
+                        messages.push({ role: "assistant", content: responseText });
+                        messages.push({ role: "user", content: "CRITICAL: You failed to output a javascript code block." });
+                        lastSandboxError = "AI failed to output Javascript markdown block.";
                         continue;
                     }
-                    
-                    if (parsedJson.code && parsedJson.code.includes('```')) {
-                        parsedJson.code = parsedJson.code.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
-                    }
+
+                    const parsedJson = {
+                        title: "DreamStream Game",
+                        engine: "canvas2d",
+                        settings: {},
+                        code: rawCode
+                    };
 
                     previewHtml = compileGameHTML(parsedJson, assetMap);
 
@@ -272,23 +235,8 @@ ASSET RULES:
                             content: codeRes.content
                         });
                         
-                        const errorPrompt = "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\nERROR: " + testResult.error + "\n\nFix the JS error above and return the repaired code using the exact same JSON format.";
-                        
-                        if (toolUse) {
-                            messages.push({
-                                role: "user",
-                                content: [{
-                                    type: "tool_result",
-                                    tool_use_id: toolUse.id,
-                                    content: errorPrompt
-                                }]
-                            });
-                        } else {
-                            messages.push({
-                                role: "user",
-                                content: errorPrompt
-                            });
-                        }
+                        const errorPrompt = "YOUR PREVIOUS CODE CRASHED THE BROWSER. \n\nERROR: " + testResult.error + "\n\nFix the JS error above and return the repaired code in a raw javascript markdown block.";
+                        messages.push({ role: "user", content: errorPrompt });
                     }
                 } catch (apiErr) {
                     console.error(`⚠️ Attempt ${attempt} failed:`, apiErr.message);
