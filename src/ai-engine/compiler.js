@@ -152,14 +152,7 @@ export function compileGameHTML(json, assetMap) {
     </script>
     <script>
 // === GENERATED GAME CODE ===
-try {
 ${json.code}
-} catch(e) {
-    document.getElementById('loading-screen').style.display = 'none';
-    var ov = document.getElementById('error-overlay');
-    ov.style.display = 'block';
-    ov.innerHTML = '<h3>Game Init Crash</h3><p>' + e.message + '</p><p>Stack: ' + (e.stack || 'N/A') + '</p>';
-}
     </script>
 </body>
 </html>`;
