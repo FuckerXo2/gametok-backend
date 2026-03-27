@@ -145,7 +145,7 @@ ASSET RULES:
         console.log(`🤖 Coder Agent Generating Game Logic...`);
         const codeRes = await anthropic.messages.create({
             model: "claude-opus-4-6", // Retaining user's Opus model alias
-            max_tokens: 4096,
+            max_tokens: 8192,
             system: systemInstruction,
             messages: messages
         });

@@ -123,7 +123,7 @@ window.playSound('gameover'); // Descending sad tone
 7. Ensure the game loop stops when gameOver is true and restarts cleanly.
 8. NEVER use try/catch blocks in your game code. The page already wraps your code in a global error handler.
 9. NEVER use classes or the 'class' keyword. Use plain functions and objects only.
-10. Keep your code UNDER 250 lines. Simpler games are more stable.
+10. Keep your code ABSOLUTELY UNDER 250 lines. You will run out of memory and the engine will CRASH if you write verbose/long logic. Simplify everything.
 
 === OUTPUT FORMAT ===
 You are writing RAW JAVASCRIPT inside a markdown block.
