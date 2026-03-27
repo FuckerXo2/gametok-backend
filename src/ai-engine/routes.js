@@ -43,10 +43,10 @@ async function executeDreamJob(jobId, prompt, userId) {
 2. Create an asset manifest for the AI image generator.
 
 ASSET RULES:
-- You MUST ALWAYS provide 3 to 5 high-quality image assets. NEVER return an empty array [].
-- ALWAYS include a highly detailed background image.
-- Character sprites MUST request "solid black background" in their prompt.
-- Backgrounds MUST be vertical layout (512x768).`;
+- SMART ART DIRECTOR: If the prompt involves living things, physical objects, locations, or organic characters (no matter how weird), you MUST generate 2 to 5 image assets. If the prompt is strictly a retro geometric game or simple physics (Pong, Tetris, bouncing lines), you MAY return an empty array [] for pure Canvas rendering.
+- 2D ENFORCEMENT: ALL requested images MUST strictly be 2D video game assets. You must append phrases like "2D flat vector game art, clean illustration, strictly 2D" or "2D 16-bit pixel art" to EVERY image prompt so the AI absolutely never creates mismatched 3D or photorealistic images.
+- ISOLATED SPRITES: Character/object sprites MUST request a "solid black background, isolated centered subject" so the engine can extract them.
+- BACKGROUNDS: MUST request "vertical mobile game background, 2D art" (512x768).`;
 
         let enhancedPrompt = prompt;
         let manifest;
