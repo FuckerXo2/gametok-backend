@@ -43,8 +43,8 @@ async function executeDreamJob(jobId, prompt, userId) {
 2. Create an asset manifest for the AI image generator.
 
 ASSET RULES:
-- If the game needs detailed graphics (real characters, themed backgrounds), provide up to 5 image assets.
-- If the game is minimalistic, abstract, or geometric (e.g., Tetris, Pong, simple shapes), return an empty "assets" array []. The Coder will draw everything procedurally with Canvas2D.
+- You MUST ALWAYS provide 3 to 5 high-quality image assets. NEVER return an empty array [].
+- ALWAYS include a highly detailed background image.
 - Character sprites MUST request "solid black background" in their prompt.
 - Backgrounds MUST be vertical layout (512x768).`;
 
@@ -112,7 +112,7 @@ ASSET RULES:
                 const job_Id = submitData.id;
                 if (!job_Id) return null;
 
-                for (let i = 0; i < 20; i++) {
+                for (let i = 0; i < 40; i++) { // Wait up to 120 seconds in the background
                     await new Promise(r => setTimeout(r, 3000));
                     const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + job_Id);
                     const checkData = await checkRes.json();
