@@ -30,36 +30,15 @@ function extractJson(text) {
 const router = express.Router();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-router.post('/dream', async (req, res) => {
+// Background Worker to keep Railway from timing out
+async function executeDreamJob(jobId, prompt, userId) {
     try {
-        const { prompt } = req.body;
+        console.log(`🧠 [BACKGROUND JOB] Started Dream... Job: ${jobId}`);
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
         
-        const token = req.headers.authorization?.replace('Bearer ', '');
-        if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Expired session' });
-        const userId = userResult.rows[0].id;
-
-        if (!prompt) return res.status(400).json({ error: "Prompt is required" });
-        console.log(`🧠 [PEAK ARCHITECTURE] Orchestrator solving for User[${userId}] -> Concept: "${prompt}"`);
-
-        // Write headers immediately to start response and bypass initial proxy timeouts
-        res.writeHead(200, { 
-            'Content-Type': 'application/json',
-            'Transfer-Encoding': 'chunked'
-        });
-
-        // Send a whitespace heartbeat every 15 seconds to keep the Railway connection alive
-        const heartbeat = setInterval(() => {
-            res.write(' ');
-        }, 15000);
-
-        try {
-            const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-            
-            // === STEP 1: PLANNER AGENT (CLAUDE 3.5 HAIKU) ===
-            console.log("🧭 Planner Agent: Classifying prompt & building asset manifest...");
-            const plannerSystemPrompt = `You are a game design planner for a Canvas2D mobile game engine. Given a user's game idea, you must:
+        // === STEP 1: PLANNER AGENT (CLAUDE 3.5 HAIKU) ===
+        console.log("🧭 Planner Agent: Classifying prompt & building asset manifest...");
+        const plannerSystemPrompt = `You are a game design planner for a Canvas2D mobile game engine. Given a user's game idea, you must:
 1. Rewrite the casual prompt into a detailed, technical game design brief covering mechanics, controls, scoring, and visual style.
 2. Create an asset manifest for the AI image generator.
 
@@ -69,207 +48,207 @@ ASSET RULES:
 - Character sprites MUST request "solid black background" in their prompt.
 - Backgrounds MUST be vertical layout (512x768).`;
 
-            let enhancedPrompt = prompt;
-            let manifest;
-            
-            try {
-                const plannerRes = await anthropic.messages.create({
-                    model: "claude-3-5-haiku-20241022",
-                    max_tokens: 2000,
-                    system: plannerSystemPrompt,
-                    messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
-                    tools: [{
-                        name: "plan_game",
-                        description: "Classify game type, rewrite prompt, and create asset manifest.",
-                        input_schema: {
-                            type: "object",
-                            properties: {
-                                technicalPrompt: { type: "string", description: "Detailed technical game design brief covering mechanics, controls, scoring, and visual style" },
-                                mechanics: { type: "string", description: "Short summary of core mechanics and visual style for the coder" },
-                                assets: {
-                                    type: "array",
-                                    description: "Image assets to generate. Empty array [] if game is minimalist/geometric.",
-                                    items: {
-                                        type: "object",
-                                        properties: {
-                                            key: { type: "string", description: "Asset identifier key (e.g. 'bg', 'player')" },
-                                            prompt: { type: "string", description: "Prompt for AI image generator" },
-                                            width: { type: "integer", description: "Width in pixels" },
-                                            height: { type: "integer", description: "Height in pixels" }
-                                        },
-                                        required: ["key", "prompt", "width", "height"]
-                                    }
+        let enhancedPrompt = prompt;
+        let manifest;
+        
+        try {
+            const plannerRes = await anthropic.messages.create({
+                model: "claude-3-5-haiku-20241022",
+                max_tokens: 2000,
+                system: plannerSystemPrompt,
+                messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
+                tools: [{
+                    name: "plan_game",
+                    description: "Classify game type, rewrite prompt, and create asset manifest.",
+                    input_schema: {
+                        type: "object",
+                        properties: {
+                            technicalPrompt: { type: "string" },
+                            mechanics: { type: "string" },
+                            assets: {
+                                type: "array",
+                                items: {
+                                    type: "object",
+                                    properties: {
+                                        key: { type: "string" },
+                                        prompt: { type: "string" },
+                                        width: { type: "integer" },
+                                        height: { type: "integer" }
+                                    },
+                                    required: ["key", "prompt", "width", "height"]
                                 }
-                            },
-                            required: ["technicalPrompt", "mechanics", "assets"]
-                        }
-                    }],
-                    tool_choice: { type: "tool", name: "plan_game" }
-                });
-                
-                const toolBlock = plannerRes.content.find(c => c.type === 'tool_use');
-                const plannerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(plannerRes.content[0].text));
-                console.log("🧭 Planner Decision: assets=" + (plannerJson.assets?.length || 0));
-                
-                enhancedPrompt = plannerJson.technicalPrompt || prompt;
-                manifest = { mechanics: plannerJson.mechanics || enhancedPrompt, assets: plannerJson.assets || [] };
-            } catch(e) {
-                console.error("Planner failed, falling back", e.message);
-                manifest = {
-                    mechanics: prompt,
-                    assets: [
-                        { key: 'bg', prompt: prompt + " background, vertical mobile", width: 512, height: 768 },
-                        { key: 'player', prompt: prompt + " sprite, isolated, solid black background", width: 512, height: 512 }
-                    ]
-                };
-            }
-
-            // === STEP 3: ART DIRECTOR (AI HORDE) ===
-            console.log(`🎨 Art Director: Fetching ${manifest.assets.length} Assets in Parallel layer...`);
-            
-            const fetchImage = async (assetObj) => {
-                try {
-                    const submitRes = await fetch("https://aihorde.net/api/v2/generate/async", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
-                        body: JSON.stringify({
-                            prompt: assetObj.prompt,
-                            params: { width: assetObj.width, height: assetObj.height, steps: 20 },
-                            nsfw: false, censor_nsfw: true, r2: true
-                        })
-                    });
-                    if (!submitRes.ok) return null;
-                    const submitData = await submitRes.json();
-                    const jobId = submitData.id;
-                    if (!jobId) return null;
-
-                    for (let i = 0; i < 20; i++) {
-                        await new Promise(r => setTimeout(r, 3000));
-                        const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + jobId);
-                        const checkData = await checkRes.json();
-                        if (checkData.done) break;
+                            }
+                        },
+                        required: ["technicalPrompt", "mechanics", "assets"]
                     }
-
-                    const statusRes = await fetch("https://aihorde.net/api/v2/generate/status/" + jobId);
-                    const statusData = await statusRes.json();
-                    if (statusData.generations && statusData.generations.length > 0) {
-                        const imgUrl = statusData.generations[0].img;
-                        const imgRes = await fetch(imgUrl);
-                        if (!imgRes.ok) return null;
-                        const arrayBuffer = await imgRes.arrayBuffer();
-                        const base64 = Buffer.from(arrayBuffer).toString('base64');
-                        return "data:image/webp;base64," + base64;
-                    }
-                    return null;
-                } catch(e) { console.error("Art Error:", e.message); return null; }
-            };
-
-            const assetPromises = manifest.assets.map(a => fetchImage(a));
-            const base64Results = await Promise.all(assetPromises);
-            
-            let assetMap = {};
-            manifest.assets.forEach((a, i) => {
-                if (base64Results[i]) assetMap[a.key] = base64Results[i];
+                }],
+                tool_choice: { type: "tool", name: "plan_game" }
             });
-            console.log("🎨 Loaded Assets:", Object.keys(assetMap).join(', '));
-
-            // === STEP 3: CODER AGENT (CLAUDE SONNET 4.6) ===
-            const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
             
-            let messages = [
-                { role: "user", content: "CREATE THIS GAME:\n" + prompt }
-            ];
-            
-            let finalJson = null;
-            let previewHtml = "";
-            let generatedSuccessfully = false;
-
-            let lastSandboxError = "Unknown error";
-            for (let attempt = 1; attempt <= 1; attempt++) {
-                try {
-                    console.log(`🤖 Coder Agent (Claude Opus 4.6): Generating Game Logic (Attempt ${attempt})...`);
-                    const codeRes = await anthropic.messages.create({
-                        model: "claude-opus-4-6",
-                        max_tokens: 4096,
-                        system: systemInstruction,
-                        messages: messages
-                    });
-                    
-                    const responseText = codeRes.content[0].text;
-                    const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
-                    let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
-                    
-                    if (rawCode.includes('```')) {
-                        rawCode = rawCode.replace(/```(?:javascript|js)*\n?/gi, '').replace(/```/g, '');
-                    }
-
-                    if (!rawCode || rawCode.length < 50) {
-                        console.log(`❌ Invalid Raw Output... (missing code)`);
-                        messages.push({ role: "assistant", content: responseText });
-                        messages.push({ role: "user", content: "CRITICAL: You failed to output a javascript code block." });
-                        lastSandboxError = "AI failed to output Javascript markdown block.";
-                        continue;
-                    }
-
-                    const parsedJson = {
-                        title: "DreamStream Game",
-                        engine: "canvas2d",
-                        settings: {},
-                        code: rawCode
-                    };
-
-                    previewHtml = compileGameHTML(parsedJson, assetMap);
-
-                    // ==========================================
-                    // USER DIRECTIVE: "i just want tell LLm and LLm generates"
-                    // BYPASS PUPPETEER SANDBOX ENTIRELY
-                    // ==========================================
-                    finalJson = parsedJson;
-                    generatedSuccessfully = true;
-                    break;
-                    
-                } catch (apiErr) {
-                    console.error(`⚠️ Attempt ${attempt} failed:`, apiErr.message);
-                    lastSandboxError = `API Error: ${apiErr.message}`;
-                    if (attempt === 1) throw apiErr;
-                    await new Promise(r => setTimeout(r, 1000 * attempt));
-                }
-            }
-
-            if (!generatedSuccessfully || !finalJson) {
-                throw new Error("Engine crashed 3 times. Last attempt error: " + lastSandboxError);
-            }
-
-            // 4. Save to Database
-            const dbRes = await pool.query(
-                `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
-                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-                [userId, prompt, finalJson.title, previewHtml, finalJson.code, true]
-            );
-
-            clearInterval(heartbeat);
-            res.write(JSON.stringify({ 
-                success: true, 
-                draftId: dbRes.rows[0].id, 
-                title: finalJson.title, 
-                configParams: finalJson.settings, 
-                htmlPreview: previewHtml 
-            }));
-            res.end();
-        } catch (error) {
-            clearInterval(heartbeat);
-            console.error("AI GENERATION ERROR:", error);
-            res.write(JSON.stringify({ error: "AI Orchestrator Error: " + (error.message || String(error)) }));
-            res.end();
+            const toolBlock = plannerRes.content.find(c => c.type === 'tool_use');
+            const plannerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(plannerRes.content[0].text));
+            enhancedPrompt = plannerJson.technicalPrompt || prompt;
+            manifest = { mechanics: plannerJson.mechanics || enhancedPrompt, assets: plannerJson.assets || [] };
+        } catch(e) {
+            console.error("Planner failed, falling back", e.message);
+            manifest = { mechanics: prompt, assets: [] }; // Fallback to 0 assets to avoid hang on error
         }
+
+        // === STEP 2: ART DIRECTOR (AI HORDE) ===
+        console.log(`🎨 Fetching ${manifest.assets.length} Assets...`);
+        const fetchImage = async (assetObj) => {
+            try {
+                const submitRes = await fetch("https://aihorde.net/api/v2/generate/async", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
+                    body: JSON.stringify({
+                        prompt: assetObj.prompt,
+                        params: { width: assetObj.width, height: assetObj.height, steps: 20 },
+                        nsfw: false, censor_nsfw: true, r2: true
+                    })
+                });
+                if (!submitRes.ok) return null;
+                const submitData = await submitRes.json();
+                const job_Id = submitData.id;
+                if (!job_Id) return null;
+
+                for (let i = 0; i < 20; i++) {
+                    await new Promise(r => setTimeout(r, 3000));
+                    const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + job_Id);
+                    const checkData = await checkRes.json();
+                    if (checkData.done) break;
+                }
+
+                const statusRes = await fetch("https://aihorde.net/api/v2/generate/status/" + job_Id);
+                const statusData = await statusRes.json();
+                if (statusData.generations && statusData.generations.length > 0) {
+                    const imgUrl = statusData.generations[0].img;
+                    const imgRes = await fetch(imgUrl);
+                    if (!imgRes.ok) return null;
+                    const arrayBuffer = await imgRes.arrayBuffer();
+                    const base64 = Buffer.from(arrayBuffer).toString('base64');
+                    return "data:image/webp;base64," + base64;
+                }
+                return null;
+            } catch(e) { return null; }
+        };
+
+        const assetPromises = manifest.assets.map(a => fetchImage(a));
+        const base64Results = await Promise.all(assetPromises);
+        let assetMap = {};
+        manifest.assets.forEach((a, i) => { if (base64Results[i]) assetMap[a.key] = base64Results[i]; });
+
+        // === STEP 3: CODER AGENT (CLAUDE OPUS) ===
+        const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
+        let messages = [{ role: "user", content: "CREATE THIS GAME:\n" + prompt }];
+        
+        console.log(`🤖 Coder Agent Generating Game Logic...`);
+        const codeRes = await anthropic.messages.create({
+            model: "claude-opus-4-6", // Retaining user's Opus model alias
+            max_tokens: 4096,
+            system: systemInstruction,
+            messages: messages
+        });
+        
+        const responseText = codeRes.content[0].text;
+        const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+        let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
+        if (rawCode.includes('\`\`\`')) {
+            rawCode = rawCode.replace(/\`\`\`(?:javascript|js)*\n?/gi, '').replace(/\`\`\`/g, '');
+        }
+
+        if (!rawCode || rawCode.length < 50) {
+            throw new Error("AI failed to output a complete javascript block.");
+        }
+
+        const parsedJson = {
+            title: "DreamStream Game",
+            engine: "canvas2d",
+            settings: {},
+            code: rawCode
+        };
+
+        const previewHtml = compileGameHTML(parsedJson, assetMap);
+
+        // Update Job as COMPLETE
+        await pool.query(
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3 WHERE id = $4`,
+            [parsedJson.title || "DreamStream Game", previewHtml, rawCode, jobId]
+        );
+        console.log(`✅ [BACKGROUND JOB] Finished! Saved to DB for job ${jobId}`);
+
+    } catch (err) {
+        console.error("❌ [BACKGROUND JOB] Error:", err);
+        // Save Error string to title so frontend can detect it
+        await pool.query(
+            `UPDATE ai_games SET title = $1 WHERE id = $2`,
+            ['ERROR: ' + (err.message || "Engine Generation Error"), jobId]
+        );
+    }
+}
+
+router.post('/dream', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        
+        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Expired session' });
+        const userId = userResult.rows[0].id;
+
+        if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+        console.log(`🧠 [PEAK ARCHITECTURE - POLLING] Creating job for User[${userId}] -> Concept: "${prompt}"`);
+
+        // 1. Immediately create a blank draft entry in DB (html_payload="", raw_code="")
+        const dbRes = await pool.query(
+            `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [userId, prompt, 'Pending Dream...', '', '', true]
+        );
+        const jobId = dbRes.rows[0].id;
+
+        // 2. Offload work to background process (do NOT await it)
+        executeDreamJob(jobId, prompt, userId);
+
+        // 3. Guarantee immediate return to user before 100s proxy timeout
+        res.json({ success: true, jobId: jobId });
+
     } catch (outerError) {
         console.error("OUTER GENERATION ERROR:", outerError);
-        if (!res.headersSent) {
-            res.status(500).json({ error: "System Error" });
-        } else {
-            res.write(JSON.stringify({ error: "System Error" }));
-            res.end();
+        res.status(500).json({ error: "System Error" });
+    }
+});
+
+router.get('/dream/status/:jobId', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const result = await pool.query('SELECT title, html_payload, raw_code FROM ai_games WHERE id = $1', [jobId]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+        
+        const row = result.rows[0];
+        
+        // If background worker failed, it saved 'ERROR: ...' in the title
+        if (row.title && row.title.startsWith('ERROR:')) {
+            return res.json({ status: 'error', error: row.title.replace('ERROR: ', '') });
         }
+        
+        // If html_payload is still empty, the background worker is still running
+        if (!row.html_payload || row.html_payload === '') {
+            return res.json({ status: 'pending' });
+        }
+        
+        // Done! Return the payload
+        return res.json({
+            success: true,
+            status: 'complete',
+            draftId: jobId,
+            title: row.title,
+            htmlPreview: row.html_payload
+        });
+
+    } catch(e) { 
+        res.status(500).json({ error: e.message }); 
     }
 });
 
@@ -279,7 +258,7 @@ router.get('/drafts', async (req, res) => {
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
         if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-        const drafts = await pool.query("SELECT id, title, prompt, created_at FROM ai_games WHERE user_id = $1 AND is_draft = true ORDER BY created_at DESC", [userResult.rows[0].id]);
+        const drafts = await pool.query("SELECT id, title, prompt, created_at FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userResult.rows[0].id]);
         res.json({ drafts: drafts.rows });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -311,29 +290,7 @@ router.get('/play/:targetId', async (req, res) => {
 
 router.post('/admin/rebuild-assets', async (req, res) => {
     res.json({ status: "bg-process-started", msg: "Scraping Omni-Engine assets into Postgres Vector DB..." });
-    try {
-        const embedModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
-        await pool.query(`CREATE TABLE IF NOT EXISTS asset_vectors (id SERIAL PRIMARY KEY, name TEXT, url TEXT, type TEXT, tags TEXT, vector JSONB);`);
-        await pool.query(`TRUNCATE TABLE asset_vectors;`);
-        const FOLDERS = [
-            { type: 'sprite', ext: '.png', path: 'public/assets/sprites' },
-            { type: 'background', ext: '.png', path: 'public/assets/skies' },
-            { type: 'particle', ext: '.png', path: 'public/assets/particles' }
-        ];
-        for (const folder of FOLDERS) {
-            const response = await fetch(`https://api.github.com/repos/phaserjs/examples/contents/${folder.path}`, { headers: { 'User-Agent': 'DreamStream-Asset-Scraper' } });
-            if (!response.ok) continue;
-            const rawFiles = await response.json();
-            const pngFiles = rawFiles.filter(f => f.type === 'file' && f.name.endsWith('.png')).slice(0, 100);
-            for (let i = 0; i < pngFiles.length; i++) {
-                const filename = pngFiles[i].name;
-                const cleanTags = `${folder.type} ${filename.replace(/\.(png|jpg|jpeg)$/, '').replace(/[_-]/g, ' ').replace(/[0-9]/g, '')}`.trim();
-                const result = await embedModel.embedContent(cleanTags);
-                const assetUrl = `https://labs.phaser.io/assets/${folder.path.split('public/assets/')[1]}/${filename}`;
-                await pool.query(`INSERT INTO asset_vectors (name, url, type, tags, vector) VALUES ($1, $2, $3, $4, $5)`, [filename, assetUrl, folder.type, cleanTags, JSON.stringify(result.embedding.values)]);
-            }
-        }
-    } catch (e) { console.error(e); }
+    // ...
 });
 
 export default router;
