@@ -305,6 +305,40 @@ router.get('/play/:targetId', async (req, res) => {
     } catch(e) { res.status(500).send("Database extraction failed"); }
 });
 
+// === TEMPLATES ===
+router.get('/templates', async (req, res) => {
+    try {
+        const templates = await pool.query(
+            "SELECT id, title, prompt, thumbnail, created_at FROM ai_games WHERE is_template = true AND html_payload != '' ORDER BY created_at DESC"
+        );
+        res.json({ templates: templates.rows });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/templates/:id', async (req, res) => {
+    try {
+        const tpl = await pool.query(
+            "SELECT id, title, prompt, html_payload, thumbnail, created_at FROM ai_games WHERE id = $1 AND is_template = true",
+            [req.params.id]
+        );
+        if (tpl.rows.length === 0) return res.status(404).json({ error: 'Template not found' });
+        res.json({ template: tpl.rows[0] });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/admin/set-template', async (req, res) => {
+    try {
+        const { title } = req.body;
+        if (!title) return res.status(400).json({ error: 'Title is required' });
+        const result = await pool.query(
+            "UPDATE ai_games SET is_template = true WHERE LOWER(title) LIKE LOWER($1) RETURNING id, title",
+            [`%${title}%`]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'No matching draft found' });
+        res.json({ success: true, updated: result.rows });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/admin/rebuild-assets', async (req, res) => {
     res.json({ status: "bg-process-started", msg: "Scraping Omni-Engine assets into Postgres Vector DB..." });
     // ...
