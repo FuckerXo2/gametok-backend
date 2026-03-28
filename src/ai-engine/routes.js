@@ -263,6 +263,18 @@ router.get('/drafts', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get('/drafts/:id', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Auth failed' });
+        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+        const draft = await pool.query("SELECT id, title, prompt, html_payload, created_at FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userResult.rows[0].id]);
+        if (draft.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
+        res.json({ draft: draft.rows[0] });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/publish/:draftId', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
