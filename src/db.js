@@ -206,6 +206,9 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'multiplayer_only') THEN
           ALTER TABLE games ADD COLUMN multiplayer_only BOOLEAN DEFAULT FALSE;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'thumbnail') THEN
+          ALTER TABLE ai_games ADD COLUMN thumbnail TEXT;
+        END IF;
         -- Make password nullable for OAuth users
         ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
         -- Make username nullable for OAuth users (they pick it during onboarding)

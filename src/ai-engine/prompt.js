@@ -26,10 +26,9 @@ var score = 0;
 var lives = 3;
 var gameOver = false;
 
-// Call the DOM UI system
-window.showUI();
-window.updateScore(0);
-window.initLives(3);
+// Initialize game state
+var score = 0;
+var lives = 3;
 
 // Game loop
 function gameLoop() {
@@ -59,12 +58,8 @@ DRAWING TECHNIQUES (use these to make visually rich games):
 
 Make visuals RICH — use gradients, shadows, rounded shapes, and multiple colors. Never draw plain boring rectangles as final art.
 
-=== DOM HUD API (MANDATORY — DO NOT DRAW HUD ON CANVAS) ===
-The page has a built-in DOM-based HUD. Use these global functions:
-- window.showUI(); — Show the HUD (call once at start)
-- window.updateScore(newScore); — Update score display with pop animation
-- window.initLives(maxLives); — Initialize life indicators
-- window.updateLives(currentLives, maxLives); — Update when life lost
+=== GAME OVER OVERLAY (MANDATORY) ===
+The page has a built-in DOM-based Game Over screen. Use this global function when the player dies or the game is finished:
 - window.showGameOver(finalScore, restartFn); — Show game over overlay with restart button
 
 Game Over example:
@@ -72,10 +67,14 @@ gameOver = true;
 window.showGameOver(score, function() {
     // Reset all game state
     score = 0; lives = 3; gameOver = false;
-    window.updateScore(0); window.initLives(3);
     // Reset objects...
     gameLoop();
 });
+
+=== IN-GAME HUD (OPTIONAL) ===
+If your game concept naturally requires a HUD (score, lives, timers, etc.), you must draw it YOURSELF directly onto the canvas using ctx.
+Make sure the style, fonts, and colors match the game's theme.
+If the game does not need a HUD (e.g. sandbox or free-play), do not draw one.
 
 === MOBILE INPUT (MANDATORY — THIS RUNS ON PHONES) ===
 NEVER use keyboard. ALWAYS use touch/pointer events on the canvas:

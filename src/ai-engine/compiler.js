@@ -10,15 +10,7 @@ export function compileGameHTML(json, assetMap) {
         html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none; background: #0a0a0f; font-family: 'Outfit', -apple-system, sans-serif; }
         canvas { display: block; touch-action: none; outline: none; }
         
-        /* DOM UI OVERLAY */
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; overflow: hidden; display: none; }
-        .hud-top { position: absolute; top: env(safe-area-inset-top, 40px); left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
-        .score-pill { background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 12px 24px; border-radius: 30px; border: 2px solid rgba(255,255,255,0.1); }
-        .score-label { font-size: 14px; font-weight: 700; color: #a855f7; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
-        .score-value { font-size: 32px; font-weight: 900; color: #fff; text-shadow: 0 2px 10px rgba(168, 85, 247, 0.5); }
-        .lives-container { display: flex; gap: 8px; }
-        .life-icon { width: 24px; height: 24px; background: #ff3366; border-radius: 50%; box-shadow: 0 0 15px rgba(255, 51, 102, 0.5); transition: all 0.3s ease; }
-        .life-icon.lost { background: rgba(255,255,255,0.1); box-shadow: none; transform: scale(0.8); }
+// No DOM UI required
         
         #game-over-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10,10,15,0.85); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 200; pointer-events: auto; opacity: 0; transition: opacity 0.5s ease; }
         #game-over-title { font-size: 48px; font-weight: 900; color: #fff; margin-bottom: 20px; text-shadow: 0 4px 20px rgba(0,0,0,0.5); background: linear-gradient(135deg, #FF3366, #FF9933); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -41,16 +33,7 @@ export function compileGameHTML(json, assetMap) {
     <!-- GAME CANVAS -->
     <canvas id="game-canvas"></canvas>
 
-    <!-- UI OVERLAY -->
-    <div id="ui-layer">
-        <div class="hud-top">
-            <div class="score-pill">
-                <div class="score-label">SCORE</div>
-                <div class="score-value" id="ui-score">0</div>
-            </div>
-            <div class="lives-container" id="ui-lives"></div>
-        </div>
-    </div>
+<!-- UI OVERLAY REMOVED FOR CUSTOM AI UI -->
 
     <!-- GAME OVER UI -->
     <div id="game-over-screen">
@@ -89,34 +72,7 @@ export function compileGameHTML(json, assetMap) {
             return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
         };
 
-        // === DOM HUD UTILS ===
-        window.showUI = function() { document.getElementById('ui-layer').style.display = 'block'; }
-        window.hideUI = function() { document.getElementById('ui-layer').style.display = 'none'; }
-        
-        window.updateScore = function(val) {
-            var el = document.getElementById('ui-score');
-            el.innerText = val;
-            el.style.transform = 'scale(1.3)';
-            setTimeout(function() { el.style.transform = 'scale(1)'; }, 150);
-        }
-
-        window.initLives = function(maxLives) {
-            var c = document.getElementById('ui-lives');
-            c.innerHTML = '';
-            for(var i=0; i<maxLives; i++) {
-                c.innerHTML += '<div class="life-icon" id="life-'+i+'"></div>';
-            }
-        }
-
-        window.updateLives = function(currentLives, maxLives) {
-            for(var i=0; i<maxLives; i++) {
-                var life = document.getElementById('life-'+i);
-                if (life) {
-                    if (i >= currentLives) life.classList.add('lost');
-                    else life.classList.remove('lost');
-                }
-            }
-        }
+        // === UI UTILS REMOVED ===
 
         window.showGameOver = function(score, onRestartFn) {
             window.gameRestartCallback = function() {

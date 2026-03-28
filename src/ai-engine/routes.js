@@ -170,10 +170,15 @@ ASSET RULES:
 
         const previewHtml = compileGameHTML(parsedJson, assetMap);
 
+        // Test in sandbox and capture screenshot
+        console.log(`📸 Taking screenshot for job ${jobId}...`);
+        const sandboxRes = await verifyGame(previewHtml);
+        const finalScreenshot = sandboxRes.screenshot || null;
+
         // Update Job as COMPLETE
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3 WHERE id = $4`,
-            [parsedJson.title || "DreamStream Game", previewHtml, rawCode, jobId]
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
+            [parsedJson.title || "DreamStream Game", previewHtml, rawCode, finalScreenshot, jobId]
         );
         console.log(`✅ [BACKGROUND JOB] Finished! Saved to DB for job ${jobId}`);
 
@@ -258,7 +263,7 @@ router.get('/drafts', async (req, res) => {
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
         if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-        const drafts = await pool.query("SELECT id, title, prompt, created_at FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userResult.rows[0].id]);
+        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userResult.rows[0].id]);
         res.json({ drafts: drafts.rows });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -284,8 +289,8 @@ router.post('/publish/:draftId', async (req, res) => {
         if (publishRes.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         const globalId = `gm-ai-${req.params.draftId.substring(0, 8)}`;
         await pool.query(
-            `INSERT INTO games (id, name, description, icon, color, category, developer, embed_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
-            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userResult.rows[0].id, `/api/ai/play/${req.params.draftId}`]
+            `INSERT INTO games (id, name, description, icon, color, category, developer, embed_url, thumbnail) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
+            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userResult.rows[0].id, `/api/ai/play/${req.params.draftId}`, publishRes.rows[0].thumbnail]
         );
         res.json({ success: true, gameId: globalId });
     } catch (e) { res.status(500).json({ error: e.message }); }

@@ -8,10 +8,10 @@ export async function verifyGame(htmlString) {
     try {
         console.log("🕵️  Sandbox: Booting Headless Environment...");
         browser = await puppeteer.launch({
-            headless: 'new',
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
         });
         const page = await browser.newPage();
+        await page.setViewport({ width: 390, height: 844 });
 
         // Intercept all console messages to catch crashes
         page.on('console', msg => {
@@ -50,13 +50,23 @@ export async function verifyGame(htmlString) {
         // Wait another 1 second to see if the interactions threw a delayed async error
         await new Promise(r => setTimeout(r, 1000));
 
+        let screenshotBase64 = null;
+        if (!hasError) {
+            try {
+                const buffer = await page.screenshot({ type: 'webp', quality: 50 });
+                screenshotBase64 = 'data:image/webp;base64,' + buffer.toString('base64');
+            } catch (err) {
+                console.log("Screenshot failed:", err.message);
+            }
+        }
+
         await browser.close();
 
         if (hasError) {
             return { success: false, error: errorMessage };
         } else {
             console.log("✅ Sandbox: Zero Crashes Detected. Game is stable!");
-            return { success: true };
+            return { success: true, screenshot: screenshotBase64 };
         }
     } catch (e) {
         if (browser) await browser.close();
