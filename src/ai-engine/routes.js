@@ -310,4 +310,20 @@ router.post('/admin/rebuild-assets', async (req, res) => {
     // ...
 });
 
+router.get('/admin/backfill-thumbnails', async (req, res) => {
+    try {
+        res.json({ status: "bg-process-started", msg: "Taking screenshots of all AI games in the background. Check your Railway logs for progress." });
+        
+        // Spawn the backfill script dynamically in the background so it doesn't block the request
+        const { exec } = await import('child_process');
+        exec('node scripts/backfill-thumbnails.js', (err, stdout, stderr) => {
+            if (err) console.error("Backfill failed:", err);
+            if (stdout) console.log("Backfill Log:", stdout);
+            if (stderr) console.error("Backfill Error:", stderr);
+        });
+    } catch(e) {
+        console.error("Backfill Trigger Error:", e);
+    }
+});
+
 export default router;
