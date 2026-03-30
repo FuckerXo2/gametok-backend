@@ -112,7 +112,7 @@ ASSET RULES:
                 const job_Id = submitData.id;
                 if (!job_Id) return null;
 
-                for (let i = 0; i < 40; i++) { // Wait up to 120 seconds in the background
+                for (let i = 0; i < 60; i++) { // Wait up to 180 seconds in the background
                     await new Promise(r => setTimeout(r, 3000));
                     const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + job_Id);
                     const checkData = await checkRes.json();
@@ -294,8 +294,8 @@ router.post('/generate-asset', async (req, res) => {
         const submitData = await submitRes.json();
         const job_Id = submitData.id;
         
-        // Wait up to ~60s inline
-        for (let i = 0; i < 20; i++) {
+        // Wait up to ~180s inline
+        for (let i = 0; i < 60; i++) {
             await new Promise(r => setTimeout(r, 3000));
             try {
                 const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + job_Id);
