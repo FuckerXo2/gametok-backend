@@ -98,38 +98,18 @@ ASSET RULES:
         console.log(`🎨 Fetching ${manifest.assets.length} Assets...`);
         const fetchImage = async (assetObj) => {
             try {
-                const submitRes = await fetch("https://aihorde.net/api/v2/generate/async", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
-                    body: JSON.stringify({
-                        prompt: assetObj.prompt,
-                        params: { width: assetObj.width, height: assetObj.height, steps: 20 },
-                        nsfw: false, censor_nsfw: true, r2: true
-                    })
-                });
-                if (!submitRes.ok) return null;
-                const submitData = await submitRes.json();
-                const job_Id = submitData.id;
-                if (!job_Id) return null;
-
-                for (let i = 0; i < 60; i++) { // Wait up to 180 seconds in the background
-                    await new Promise(r => setTimeout(r, 3000));
-                    const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + job_Id);
-                    const checkData = await checkRes.json();
-                    if (checkData.done) break;
-                }
-
-                const statusRes = await fetch("https://aihorde.net/api/v2/generate/status/" + job_Id);
-                const statusData = await statusRes.json();
-                if (statusData.generations && statusData.generations.length > 0) {
-                    const imgUrl = statusData.generations[0].img;
-                    const imgRes = await fetch(imgUrl);
-                    if (!imgRes.ok) return null;
-                    const arrayBuffer = await imgRes.arrayBuffer();
-                    const base64 = Buffer.from(arrayBuffer).toString('base64');
-                    return "data:image/webp;base64," + base64;
-                }
-                return null;
+                const safePrompt = encodeURIComponent(assetObj.prompt);
+                const w = assetObj.width || 512;
+                const h = assetObj.height || 512;
+                const seed = Math.floor(Math.random() * 1000000);
+                const url = `https://image.pollinations.ai/prompt/${safePrompt}?width=${w}&height=${h}&nologo=true&seed=${seed}`;
+                
+                const imgRes = await fetch(url);
+                if (!imgRes.ok) return null;
+                
+                const arrayBuffer = await imgRes.arrayBuffer();
+                const base64 = Buffer.from(arrayBuffer).toString('base64');
+                return "data:image/jpeg;base64," + base64;
             } catch(e) { return null; }
         };
 
@@ -280,40 +260,20 @@ router.post('/generate-asset', async (req, res) => {
         if (!prompt) return res.status(400).json({error: "prompt required"});
         
         console.log(`🎨 Manual Asset Request: "${prompt}"`);
-        const submitRes = await fetch("https://aihorde.net/api/v2/generate/async", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
-            body: JSON.stringify({
-                prompt: prompt,
-                params: { width: 512, height: 512, steps: 20 },
-                nsfw: false, censor_nsfw: true, r2: true
-            })
-        });
+        const safePrompt = encodeURIComponent(prompt);
+        const seed = Math.floor(Math.random() * 1000000);
+        const url = `https://image.pollinations.ai/prompt/${safePrompt}?width=512&height=512&nologo=true&seed=${seed}`;
         
-        if (!submitRes.ok) return res.status(500).json({ error: "Horde API down" });
-        const submitData = await submitRes.json();
-        const job_Id = submitData.id;
+        console.log(`🖼️ Fetching blazing fast image from Pollinations: ${prompt}`);
+        const imgRes = await fetch(url);
         
-        // Wait up to ~180s inline
-        for (let i = 0; i < 60; i++) {
-            await new Promise(r => setTimeout(r, 3000));
-            try {
-                const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + job_Id);
-                const checkData = await checkRes.json();
-                if (checkData.done) break;
-            } catch(e) {}
+        if (!imgRes.ok) {
+            return res.status(500).json({ error: "Failed to generate image. Try again." });
         }
-
-        const statusRes = await fetch("https://aihorde.net/api/v2/generate/status/" + job_Id);
-        const statusData = await statusRes.json();
-        if (statusData.generations && statusData.generations.length > 0) {
-            const imgUrl = statusData.generations[0].img;
-            const imgRes = await fetch(imgUrl);
-            const arrayBuffer = await imgRes.arrayBuffer();
-            const base64 = Buffer.from(arrayBuffer).toString('base64');
-            return res.json({ success: true, base64: "data:image/webp;base64," + base64 });
-        }
-        res.status(500).json({ error: "Failed to generate image in time. Try again." });
+        
+        const arrayBuffer = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        return res.json({ success: true, base64: "data:image/jpeg;base64," + base64 });
     } catch(e) {
         console.error("Asset Gen Error:", e);
         res.status(500).json({ error: "System Error" });
