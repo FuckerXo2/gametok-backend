@@ -192,6 +192,134 @@ ASSET RULES:
     }
 }
 
+async function executeEditJob(newJobId, parentDraftId, instructions, userId, newAsset) {
+    try {
+        console.log(`🚀 [EDIT JOB] Starting remix job ${newJobId} based on parent ${parentDraftId}`);
+        // 1. Fetch parent draft
+        const parentRes = await pool.query('SELECT raw_code, html_payload, title FROM ai_games WHERE id = $1', [parentDraftId]);
+        if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
+        
+        const parentDraft = parentRes.rows[0];
+        const oldCode = parentDraft.raw_code;
+        
+        // Extract existing assets if any so we don't lose the images
+        let assetMap = {};
+        const assetMatch = parentDraft.html_payload.match(/window\.EXTERNAL_ASSETS\s*=\s*(\{.*?\});/);
+        if (assetMatch) {
+            try { assetMap = JSON.parse(assetMatch[1]); } catch(e){}
+        }
+        
+        // Inject the newly generated user asset into the context
+        if (newAsset && newAsset.key && newAsset.base64) {
+            assetMap[newAsset.key] = newAsset.base64;
+            console.log(`Injecting new custom asset: ${newAsset.key}`);
+        }
+
+        // 2. Call Claude Coder directly to modify the code
+        console.log(`🤖 Coder Agent Editing Game Logic...`);
+        const systemInstruction = buildOmniEnginePrompt(assetMap, {}); // Reuse standard engine limits
+        
+        let messages = [
+            { 
+                role: "user", 
+                content: `You are a master game developer. Below is the existing HTML5 Canvas Javascript code for a game:\n\n\`\`\`javascript\n${oldCode}\n\`\`\`\n\nApply the following modifications/instructions requested by the user: "${instructions}".\n\nReturn the ENTIRE updated JavaScript code inside a single \`\`\`javascript block. Do not truncate or omit any unchanged parts. Preserve the existing variable structures.` 
+            }
+        ];
+
+        const codeRes = await anthropic.messages.create({
+            model: "claude-opus-4-6",
+            max_tokens: 8192,
+            system: systemInstruction,
+            messages: messages
+        });
+        
+        const responseText = codeRes.content[0].text;
+        const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+        let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
+        if (rawCode.includes('\`\`\`')) {
+            rawCode = rawCode.replace(/\`\`\`(?:javascript|js)*\n?/gi, '').replace(/\`\`\`/g, '');
+        }
+
+        if (!rawCode || rawCode.length < 50) {
+            throw new Error("AI failed to output a complete javascript block during edit.");
+        }
+
+        const parsedJson = {
+            title: parentDraft.title.startsWith("Remix of") ? parentDraft.title : "Remix of " + parentDraft.title,
+            engine: "canvas2d",
+            settings: {},
+            code: rawCode
+        };
+
+        const previewHtml = compileGameHTML(parsedJson, assetMap);
+
+        // Test in sandbox and capture screenshot
+        console.log(`📸 Taking screenshot for edit job ${newJobId}...`);
+        const sandboxRes = await verifyGame(previewHtml);
+        const finalScreenshot = sandboxRes.screenshot || null;
+
+        // Update Job as COMPLETE
+        await pool.query(
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
+            [parsedJson.title, previewHtml, rawCode, finalScreenshot, newJobId]
+        );
+        console.log(`✅ [EDIT JOB] Finished! Saved to DB for job ${newJobId}`);
+
+    } catch (err) {
+        console.error("❌ [EDIT JOB] Error:", err);
+        await pool.query(
+            `UPDATE ai_games SET title = $1 WHERE id = $2`,
+            ['ERROR: ' + (err.message || "Engine Edit Error"), newJobId]
+        );
+    }
+}
+
+router.post('/generate-asset', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        if (!prompt) return res.status(400).json({error: "prompt required"});
+        
+        console.log(`🎨 Manual Asset Request: "${prompt}"`);
+        const submitRes = await fetch("https://aihorde.net/api/v2/generate/async", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
+            body: JSON.stringify({
+                prompt: prompt,
+                params: { width: 512, height: 512, steps: 20 },
+                nsfw: false, censor_nsfw: true, r2: true
+            })
+        });
+        
+        if (!submitRes.ok) return res.status(500).json({ error: "Horde API down" });
+        const submitData = await submitRes.json();
+        const job_Id = submitData.id;
+        
+        // Wait up to ~60s inline
+        for (let i = 0; i < 20; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            try {
+                const checkRes = await fetch("https://aihorde.net/api/v2/generate/check/" + job_Id);
+                const checkData = await checkRes.json();
+                if (checkData.done) break;
+            } catch(e) {}
+        }
+
+        const statusRes = await fetch("https://aihorde.net/api/v2/generate/status/" + job_Id);
+        const statusData = await statusRes.json();
+        if (statusData.generations && statusData.generations.length > 0) {
+            const imgUrl = statusData.generations[0].img;
+            const imgRes = await fetch(imgUrl);
+            const arrayBuffer = await imgRes.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            return res.json({ success: true, base64: "data:image/webp;base64," + base64 });
+        }
+        res.status(500).json({ error: "Failed to generate image in time. Try again." });
+    } catch(e) {
+        console.error("Asset Gen Error:", e);
+        res.status(500).json({ error: "System Error" });
+    }
+});
+
 router.post('/dream', async (req, res) => {
     try {
         const { prompt } = req.body;
@@ -221,6 +349,40 @@ router.post('/dream', async (req, res) => {
 
     } catch (outerError) {
         console.error("OUTER GENERATION ERROR:", outerError);
+        res.status(500).json({ error: "System Error" });
+    }
+});
+
+router.post('/edit', async (req, res) => {
+    try {
+        const { draftId, instructions, newAsset } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        
+        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Expired session' });
+        const userId = userResult.rows[0].id;
+
+        if (!draftId || !instructions) return res.status(400).json({ error: "draftId and instructions are required" });
+        console.log(`🧠 [PEAK ARCHITECTURE - EDIT] Creating remix job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
+
+        // 1. Immediately create a blank draft entry in DB to store the NEW remixed version
+        const dbRes = await pool.query(
+            `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [userId, instructions, 'Pending Remix...', '', '', true]
+        );
+        const newJobId = dbRes.rows[0].id;
+
+        // 2. Offload work to background process (do NOT await it)
+        executeEditJob(newJobId, draftId, instructions, userId, newAsset);
+
+        // 3. Guarantee immediate return to user before timeout
+        // We reuse the same long-polling status endpoint, just feeding it the NEW jobId.
+        res.json({ success: true, jobId: newJobId });
+
+    } catch (outerError) {
+        console.error("OUTER EDIT ERROR:", outerError);
         res.status(500).json({ error: "System Error" });
     }
 });
