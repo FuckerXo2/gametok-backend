@@ -260,7 +260,8 @@ router.post('/generate-asset', async (req, res) => {
         if (!prompt) return res.status(400).json({error: "prompt required"});
         
         console.log(`🎨 Manual Asset Request: "${prompt}"`);
-        const safePrompt = encodeURIComponent(prompt);
+        const finalPrompt = `${prompt}, 2d casual mobile game asset graphic, vibrant, flat vector style, simple clean background`;
+        const safePrompt = encodeURIComponent(finalPrompt);
         const seed = Math.floor(Math.random() * 1000000);
         const url = `https://image.pollinations.ai/prompt/${safePrompt}?width=512&height=512&nologo=true&seed=${seed}`;
         
