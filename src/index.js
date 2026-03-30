@@ -11,6 +11,7 @@ import { initializePkSocket } from './pk-socket.js';
 import { initializeLobbySocket } from './lobby-socket.js';
 import { initializeChatSocket } from './chat-socket.js';
 import aiRouter from './ai.js';
+import communityAssetsRouter from './community-assets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +27,12 @@ app.use(express.urlencoded({ extended: true }));
 
 // 🔥 NATIVE AI PIPELINE MOUNT 🔥
 app.use('/api/ai', aiRouter);
+
+// 🔥 COMMUNITY ASSETS MOUNT 🔥
+app.use('/api/assets', communityAssetsRouter);
+
+// Serve static uploads for user-generated assets
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Serve static thumbnails
 app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thumbnails')));
