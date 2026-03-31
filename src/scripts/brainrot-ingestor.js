@@ -22,7 +22,7 @@ const pool = new Pool({
  * Downloads high user-engagement TikToks / YouTube Shorts directly into the server without API keys, 
  * bypassing watermarks and injects them seamlessly straight into the top of the UGC Hivemind feed.
  */
-const INGEST_URLS = [
+export const INGEST_URLS = [
     // Enter the raw URLs of the Top 5 Viral Meme Videos here for the daily run
     'https://www.youtube.com/shorts/RXZvVv0Nn1Q', // Example Short
     'https://www.youtube.com/shorts/V-cT70-lE5M'  // Example Short
@@ -51,7 +51,7 @@ async function getOrCreateSystemBot() {
     }
 }
 
-async function ingestViralMemes(urls) {
+export async function ingestViralMemes(urls) {
     console.log('[🧠 Brainrot Ingestor] Initializing pipeline sequence...');
     
     let botId;
@@ -118,7 +118,7 @@ async function ingestViralMemes(urls) {
     }
     
     console.log('\n[🧠 Brainrot Ingestor] Pipeline successfully terminated.');
-    process.exit(0);
+    // process.exit(0); // Removing exit so it doesn't kill the main server if run via cron
 }
 
 // Boot Sequence
