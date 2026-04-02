@@ -19,18 +19,20 @@ const ASSETS_JSON_PATH = path.join(UPLOAD_ROOT, 'community-assets.json');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Load existing assets from JSON or initialize empty array
-let communityAssets = [];
-if (fs.existsSync(ASSETS_JSON_PATH)) {
-  try {
-    communityAssets = JSON.parse(fs.readFileSync(ASSETS_JSON_PATH, 'utf-8'));
-  } catch (e) {
-    console.error('Failed to load community assets:', e);
+// Removed static cache, now read dynamically per request
+const getCommunityAssets = () => {
+  if (fs.existsSync(ASSETS_JSON_PATH)) {
+    try {
+      return JSON.parse(fs.readFileSync(ASSETS_JSON_PATH, 'utf-8'));
+    } catch (e) {
+      console.error('Failed to load community assets:', e);
+    }
   }
-}
+  return [];
+};
 
-const saveAssetsToDisk = () => {
-    fs.writeFileSync(ASSETS_JSON_PATH, JSON.stringify(communityAssets, null, 2));
+const saveAssetsToDisk = (assets) => {
+    fs.writeFileSync(ASSETS_JSON_PATH, JSON.stringify(assets, null, 2));
 };
 
 // Configure Multer storage
@@ -73,8 +75,9 @@ router.post('/upload', upload.single('file'), (req, res) => {
                  : `Use this media asset: ${fileUrl}`
     };
 
+    const communityAssets = getCommunityAssets();
     communityAssets.unshift(newAsset); // Add to beginning of array
-    saveAssetsToDisk();
+    saveAssetsToDisk(communityAssets);
 
     res.json({ success: true, asset: newAsset });
   } catch (error) {
@@ -83,9 +86,8 @@ router.post('/upload', upload.single('file'), (req, res) => {
   }
 });
 
-// GET /api/assets/trending
-// Returns the community pool filtered by type
 router.get('/trending', (req, res) => {
+  const communityAssets = getCommunityAssets();
   const type = req.query.type;
   if (!type) {
     return res.json({ success: true, assets: communityAssets });

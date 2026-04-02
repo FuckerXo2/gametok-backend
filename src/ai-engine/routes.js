@@ -265,16 +265,35 @@ router.post('/generate-asset', async (req, res) => {
         const seed = Math.floor(Math.random() * 1000000);
         const url = `https://image.pollinations.ai/prompt/${safePrompt}?width=512&height=512&nologo=true&seed=${seed}`;
         
-        console.log(`🖼️ Fetching blazing fast image from Pollinations: ${prompt}`);
-        const imgRes = await fetch(url);
+        console.log(`🖼️ Tracking blazing fast AI image from Pollinations: ${prompt}`);
         
+        // Let's verify it works
+        const imgRes = await fetch(url);
         if (!imgRes.ok) {
-            return res.status(500).json({ error: "Failed to generate image. Try again." });
+            return res.status(500).json({ error: "Failed to generate AI image. Try again." });
         }
         
-        const arrayBuffer = await imgRes.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString('base64');
-        return res.json({ success: true, base64: "data:image/jpeg;base64," + base64 });
+        // Push directly to the global community pool dynamically so it shares everywhere
+        const ASSETS_JSON_PATH = path.join(process.cwd(), 'public/uploads/community-assets.json');
+        let communityAssets = [];
+        if (fs.existsSync(ASSETS_JSON_PATH)) {
+            try { communityAssets = JSON.parse(fs.readFileSync(ASSETS_JSON_PATH, 'utf-8')); } catch (e) {}
+        }
+        
+        communityAssets.unshift({
+            id: `ai-${Date.now()}-${seed}`,
+            type: 'image',
+            url: url,
+            thumb: url,
+            title: `AI Generated: ${prompt}`,
+            label: prompt,
+            instruction: `Use this AI generated asset image: ${url}`
+        });
+        
+        fs.writeFileSync(ASSETS_JSON_PATH, JSON.stringify(communityAssets, null, 2));
+
+        // Return the pure remote URL instead of base64
+        return res.json({ success: true, imageUrl: url });
     } catch(e) {
         console.error("Asset Gen Error:", e);
         res.status(500).json({ error: "System Error" });
