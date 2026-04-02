@@ -502,4 +502,110 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
     }
 });
 
+// ========================================================
+// ⚗️ LABS: GEMMA 4 EXPERIMENTAL ENGINE (NVIDIA NIM)
+// ========================================================
+import OpenAI from 'openai';
+
+const nvidiaClient = new OpenAI({
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    apiKey: process.env.NVIDIA_API_KEY || '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',
+});
+
+async function executeLabsDreamJob(jobId, prompt, userId) {
+    try {
+        console.log(`⚗️ [LABS JOB] Started Gemma 4 Dream... Job: ${jobId}`);
+
+        // === STEP 1: SKIP PLANNER — Go direct to Gemma 4 for speed ===
+        // Gemma 4 31B is smart enough to handle everything in one shot
+        const systemInstruction = buildOmniEnginePrompt({}, { mechanics: prompt, assets: [] });
+        
+        console.log(`🧪 Gemma 4 31B generating game logic via NVIDIA NIM...`);
+        const codeRes = await nvidiaClient.chat.completions.create({
+            model: "google/gemma-4-31b-it",
+            messages: [
+                { role: "system", content: systemInstruction },
+                { role: "user", content: "CREATE THIS GAME:\n" + prompt }
+            ],
+            max_tokens: 8192,
+            temperature: 0.7,
+            top_p: 0.95,
+        });
+        
+        const responseText = codeRes.choices[0].message.content;
+        console.log(`⚗️ Gemma 4 response length: ${responseText.length} chars`);
+
+        const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+        let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
+        if (rawCode.includes('\`\`\`')) {
+            rawCode = rawCode.replace(/\`\`\`(?:javascript|js)*\n?/gi, '').replace(/\`\`\`/g, '');
+        }
+
+        if (!rawCode || rawCode.length < 50) {
+            throw new Error("Gemma 4 failed to output a complete javascript block.");
+        }
+
+        const parsedJson = {
+            title: "⚗️ Labs Game (Gemma 4)",
+            engine: "canvas2d",
+            settings: {},
+            code: rawCode
+        };
+
+        const previewHtml = compileGameHTML(parsedJson, {});
+
+        // Test in sandbox and capture screenshot
+        console.log(`📸 Taking screenshot for Labs job ${jobId}...`);
+        const sandboxRes = await verifyGame(previewHtml);
+        const finalScreenshot = sandboxRes.screenshot || null;
+
+        // Update Job as COMPLETE
+        await pool.query(
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
+            ["⚗️ " + (parsedJson.title || "Labs Game"), previewHtml, rawCode, finalScreenshot, jobId]
+        );
+        console.log(`✅ [LABS JOB] Gemma 4 finished! Saved to DB for job ${jobId}`);
+
+    } catch (err) {
+        console.error("❌ [LABS JOB] Gemma 4 Error:", err);
+        await pool.query(
+            `UPDATE ai_games SET title = $1 WHERE id = $2`,
+            ['ERROR: ' + (err.message || "Gemma 4 Labs Error"), jobId]
+        );
+    }
+}
+
+router.post('/dream-labs', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        
+        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Expired session' });
+        const userId = userResult.rows[0].id;
+
+        if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+        console.log(`⚗️ [LABS - GEMMA 4] Creating job for User[${userId}] -> Concept: "${prompt}"`);
+
+        // 1. Create blank draft entry in DB
+        const dbRes = await pool.query(
+            `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [userId, prompt, '⚗️ Labs: Cooking...', '', '', true]
+        );
+        const jobId = dbRes.rows[0].id;
+
+        // 2. Offload to background (same pattern as main engine)
+        executeLabsDreamJob(jobId, prompt, userId);
+
+        // 3. Immediate return
+        res.json({ success: true, jobId: jobId });
+
+    } catch (outerError) {
+        console.error("LABS GENERATION ERROR:", outerError);
+        res.status(500).json({ error: "Labs System Error" });
+    }
+});
+
 export default router;
