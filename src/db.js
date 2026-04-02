@@ -30,17 +30,6 @@ export const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
-      CREATE TABLE IF NOT EXISTS community_assets (
-        id SERIAL PRIMARY KEY,
-        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-        type VARCHAR(20) NOT NULL, -- 'video', 'sfx', 'bgm', 'image'
-        url TEXT NOT NULL,
-        thumbnail TEXT,
-        title VARCHAR(255),
-        usage_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
       CREATE TABLE IF NOT EXISTS followers (
         follower_id UUID REFERENCES users(id) ON DELETE CASCADE,
         following_id UUID REFERENCES users(id) ON DELETE CASCADE,

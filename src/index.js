@@ -11,9 +11,7 @@ import { initializePkSocket } from './pk-socket.js';
 import { initializeLobbySocket } from './lobby-socket.js';
 import { initializeChatSocket } from './chat-socket.js';
 import aiRouter from './ai.js';
-import communityAssetsRouter from './community-assets.js';
-import cron from 'node-cron';
-import { ingestViralMemes, INGEST_URLS } from './scripts/brainrot-ingestor.js';
+import assetsRouter from './assets-router.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,11 +28,9 @@ app.use(express.urlencoded({ extended: true }));
 // 🔥 NATIVE AI PIPELINE MOUNT 🔥
 app.use('/api/ai', aiRouter);
 
-// 🔥 COMMUNITY ASSETS MOUNT 🔥
-app.use('/api/assets', communityAssetsRouter);
-
-// Serve static uploads for user-generated assets
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Global Media & Assets Pool
+app.use('/api/assets', assetsRouter);
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // Serve static thumbnails
 app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thumbnails')));
@@ -3544,24 +3540,7 @@ const runAnonymousTokensMigration = async () => {
 // ============================================
 // START SERVER
 // ============================================
-// 🔥 CRON PIPELINE 🔥
-// Automatically schedule the Brainrot Ingestor to run every day at Midnight (Server Time)
-cron.schedule('0 0 * * *', async () => {
-    console.log('[CRON] Firing automated Brainrot UGC ingestion cycle...');
-    try {
-        await ingestViralMemes(INGEST_URLS);
-    } catch (e) {
-        console.error('[CRON] Background ingestion failed: ', e);
-    }
-});
 
-// Run once on startup asynchronously to seed the initial UGC library (Optional, good for demo)
-setTimeout(() => {
-    console.log('[STARTUP] Checking for fresh community assets...');
-    ingestViralMemes(INGEST_URLS).catch(console.error);
-}, 10000); // 10 seconds after boot
-
-// API server and game rooms
 const start = async () => {
   await initDB();
   await runMigrations();

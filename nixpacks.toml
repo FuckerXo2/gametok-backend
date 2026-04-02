@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["...", "nodejs", "yt-dlp", "ffmpeg"]
+nixPkgs = ["...", "nodejs"]
 aptPkgs = [
     "...",
     "fonts-liberation",
