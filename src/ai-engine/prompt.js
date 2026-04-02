@@ -39,6 +39,13 @@ MODE 3: CAMERA / HUD INTERACTIVE (For scanners, radar, AR filters like "Are You 
 === ASSETS ===
 ${assetInstructions || "If no AI images are provided, you MUST draw characters/UI yourself via Canvas math or beautiful DOM CSS."}
 
+=== USER ATTACHED MEDIA (EXTERNAL URLS) ===
+If the user's prompt provides direct URLs for media (like "[USER ATTACHED ASSETS] Asset (1): URL..."), YOU MUST use those URLs DIRECTLY in your code!
+- For Images: Load them directly via typical \`new Image()\`. IMPORTANT: You MUST set \`img.crossOrigin = "Anonymous"\` before setting \`img.src = ...\` to prevent Canvas CORS errors!
+- For Background Videos: Create a \`<video loop autoplay playsinline muted src="URL" style="...">\` DOM element and mount it behind or in front of the canvas dynamically.
+- For Custom Audio (BGM or SFX): Use the native \`new Audio("URL")\` API and configure \`.loop = true\` for BGM, then \`.play()\`.
+Do NOT hallucinate local paths (like './audio.mp3'). ONLY use the provided user URLs for these assets!
+
 === GAME OVER / RESTART PIPELINE ===
 The page has a built-in DOM-based Game Over overlay safely isolated on top.
 Call: window.showGameOver(finalScore, function() { /* your restart function here */ });
