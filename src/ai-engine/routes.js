@@ -518,8 +518,8 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         console.log(`🧪 [LABS JOB] Started Gemma 4 Dream... Job: ${jobId}`);
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
         
-        // === STEP 1: PLANNER AGENT (CLAUDE 3.5 HAIKU) ===
-        console.log("🧭 Labs Planner Agent: Classifying prompt & building asset manifest...");
+        // === STEP 1: PLANNER AGENT (GEMMA 4 31B) ===
+        console.log("🧭 Labs Planner Agent: Classifying prompt & building asset manifest using Gemma 4...");
         const plannerSystemPrompt = `You are a game design planner for a Canvas2D mobile game engine. Given a user's game idea, you must:
 1. Rewrite the casual prompt into a detailed, technical game design brief covering mechanics, controls, scoring, and visual style.
 2. Create an asset manifest for the AI image generator.
@@ -528,53 +528,36 @@ ASSET RULES:
 - SMART ART DIRECTOR: If the prompt involves living things, physical objects, locations, or organic characters (no matter how weird), you MUST generate 2 to 5 image assets. If the prompt is strictly a retro geometric game or simple physics (Pong, Tetris, bouncing lines), you MAY return an empty array [] for pure Canvas rendering.
 - 2D ENFORCEMENT: ALL requested images MUST strictly be 2D video game assets. You must append phrases like "2D flat vector game art, clean illustration, strictly 2D" or "2D 16-bit pixel art" to EVERY image prompt so the AI absolutely never creates mismatched 3D or photorealistic images.
 - ISOLATED SPRITES: Character/object sprites MUST request a "solid black background, isolated centered subject" so the engine can extract them.
-- BACKGROUNDS: MUST request "vertical mobile game background, 2D art" (512x768).`;
+- BACKGROUNDS: MUST request "vertical mobile game background, 2D art" (512x768).
+
+OUTPUT FORMAT:
+You MUST output a raw JSON object and nothing else. Ensure properties matching: { "technicalPrompt": "...", "mechanics": "...", "assets": [ { "key": "uniqueId", "prompt": "...", "width": 512, "height": 512 } ] }`;
 
         let enhancedPrompt = prompt;
         let manifest;
         
         try {
-            const plannerRes = await anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
-                max_tokens: 2000,
-                system: plannerSystemPrompt,
-                messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
-                tools: [{
-                    name: "plan_game",
-                    description: "Classify game type, rewrite prompt, and create asset manifest.",
-                    input_schema: {
-                        type: "object",
-                        properties: {
-                            technicalPrompt: { type: "string" },
-                            mechanics: { type: "string" },
-                            assets: {
-                                type: "array",
-                                items: {
-                                    type: "object",
-                                    properties: {
-                                        key: { type: "string" },
-                                        prompt: { type: "string" },
-                                        width: { type: "integer" },
-                                        height: { type: "integer" }
-                                    },
-                                    required: ["key", "prompt", "width", "height"]
-                                }
-                            }
-                        },
-                        required: ["technicalPrompt", "mechanics", "assets"]
-                    }
-                }],
-                tool_choice: { type: "tool", name: "plan_game" }
+            const plannerRes = await nvidiaClient.chat.completions.create({
+                model: "google/gemma-4-31b-it",
+                messages: [
+                    { role: "system", content: plannerSystemPrompt },
+                    { role: "user", content: `User prompt: "${prompt}"\n\nReturn pure JSON.` }
+                ],
+                max_tokens: 3000,
+                temperature: 0.5
             });
             
-            const toolBlock = plannerRes.content.find(c => c.type === 'tool_use');
-            const plannerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(plannerRes.content[0].text));
+            const rawOutput = plannerRes.choices[0].message.content;
+            console.log(`🧭 Planner output size: ${rawOutput.length} chars`);
+            const plannerJson = JSON.parse(extractJson(rawOutput));
+            
             enhancedPrompt = plannerJson.technicalPrompt || prompt;
             manifest = { mechanics: plannerJson.mechanics || enhancedPrompt, assets: plannerJson.assets || [] };
         } catch(e) {
             console.error("Labs Planner failed, falling back", e.message);
             manifest = { mechanics: prompt, assets: [] }; // Fallback
         }
+
 
         // === STEP 2: ART DIRECTOR (AI HORDE) ===
         console.log(`🎨 Labs fetching ${manifest.assets.length} Assets...`);
