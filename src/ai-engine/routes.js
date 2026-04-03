@@ -1,5 +1,6 @@
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
@@ -505,7 +506,7 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 // ========================================================
 // ⚗️ LABS: GEMMA 4 EXPERIMENTAL ENGINE (NVIDIA NIM)
 // ========================================================
-import OpenAI from 'openai';
+
 
 const nvidiaClient = new OpenAI({
     baseURL: 'https://integrate.api.nvidia.com/v1',
