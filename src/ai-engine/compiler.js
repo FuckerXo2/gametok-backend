@@ -90,21 +90,62 @@ export function compileGameHTML(json, assetMap) {
 
         // === AUDIO API ===
         var audioCtx = null;
-        window.playSound = function(type) {
+        function getAudioCtx() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        }
+        window.playSound = function(type) {
+            var ctx = getAudioCtx();
             try {
-                var osc = audioCtx.createOscillator();
-                var gain = audioCtx.createGain();
+                var osc = ctx.createOscillator();
+                var gain = ctx.createGain();
                 osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                var t = audioCtx.currentTime;
+                gain.connect(ctx.destination);
+                var t = ctx.currentTime;
                 if (type === 'jump') { osc.type='sine'; osc.frequency.setValueAtTime(400,t); osc.frequency.exponentialRampToValueAtTime(800,t+0.1); gain.gain.setValueAtTime(0.3,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.1); osc.start(t); osc.stop(t+0.1); }
                 else if (type === 'coin') { osc.type='sine'; osc.frequency.setValueAtTime(1200,t); osc.frequency.setValueAtTime(1600,t+0.05); gain.gain.setValueAtTime(0.2,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.15); osc.start(t); osc.stop(t+0.15); }
                 else if (type === 'hit') { osc.type='square'; osc.frequency.setValueAtTime(150,t); osc.frequency.exponentialRampToValueAtTime(50,t+0.2); gain.gain.setValueAtTime(0.4,t); gain.gain.exponentialRampToValueAtTime(0.01,t+0.2); osc.start(t); osc.stop(t+0.2); }
                 else if (type === 'gameover') { osc.type='sawtooth'; osc.frequency.setValueAtTime(200,t); osc.frequency.linearRampToValueAtTime(50,t+0.6); gain.gain.setValueAtTime(0.5,t); gain.gain.linearRampToValueAtTime(0.01,t+0.6); osc.start(t); osc.stop(t+0.6); }
             } catch(e) {}
         };
+
+        // === BACKGROUND MUSIC ENGINE ===
+        var bgmInterval = null;
+        window.startBGM = function(style) {
+            if (bgmInterval) return; // already playing
+            var ctx = getAudioCtx();
+            var masterGain = ctx.createGain();
+            masterGain.gain.value = 0.12;
+            masterGain.connect(ctx.destination);
+
+            var patterns = {
+                synthwave: { notes: [261,329,392,523,392,329,261,196], wave: 'triangle', tempo: 200 },
+                chiptune:  { notes: [523,659,784,659,523,392,523,659], wave: 'square', tempo: 150 },
+                chill:     { notes: [220,261,329,392,329,261,220,196], wave: 'sine', tempo: 280 },
+                dark:      { notes: [146,174,196,220,196,174,146,130], wave: 'sawtooth', tempo: 250 },
+                arcade:    { notes: [440,523,659,784,880,784,659,523], wave: 'square', tempo: 120 }
+            };
+            var p = patterns[style] || patterns.synthwave;
+            var step = 0;
+
+            bgmInterval = setInterval(function() {
+                try {
+                    var osc = ctx.createOscillator();
+                    var g = ctx.createGain();
+                    osc.type = p.wave;
+                    osc.frequency.value = p.notes[step % p.notes.length];
+                    g.gain.setValueAtTime(0.15, ctx.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + (p.tempo / 1000) * 0.9);
+                    osc.connect(g);
+                    g.connect(masterGain);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + (p.tempo / 1000));
+                    step++;
+                } catch(e) {}
+            }, p.tempo);
+        };
+        window.stopBGM = function() { if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; } };
     </script>
     <script>
 // === GENERATED GAME CODE ===
