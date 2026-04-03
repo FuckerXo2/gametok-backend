@@ -516,17 +516,97 @@ const nvidiaClient = new OpenAI({
 async function executeLabsDreamJob(jobId, prompt, userId) {
     try {
         console.log(`🧪 [LABS JOB] Started Gemma 4 Dream... Job: ${jobId}`);
-
-        // === STEP 1: SKIP PLANNER — Go direct to Gemma 4 for speed ===
-        // Gemma 4 31B is smart enough to handle everything in one shot
-        const systemInstruction = buildOmniEnginePrompt({}, { mechanics: prompt, assets: [] });
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
         
-        console.log(`🧪 Gemma 4 31B generating game logic via NVIDIA NIM...`);
+        // === STEP 1: PLANNER AGENT (CLAUDE 3.5 HAIKU) ===
+        console.log("🧭 Labs Planner Agent: Classifying prompt & building asset manifest...");
+        const plannerSystemPrompt = `You are a game design planner for a Canvas2D mobile game engine. Given a user's game idea, you must:
+1. Rewrite the casual prompt into a detailed, technical game design brief covering mechanics, controls, scoring, and visual style.
+2. Create an asset manifest for the AI image generator.
+
+ASSET RULES:
+- SMART ART DIRECTOR: If the prompt involves living things, physical objects, locations, or organic characters (no matter how weird), you MUST generate 2 to 5 image assets. If the prompt is strictly a retro geometric game or simple physics (Pong, Tetris, bouncing lines), you MAY return an empty array [] for pure Canvas rendering.
+- 2D ENFORCEMENT: ALL requested images MUST strictly be 2D video game assets. You must append phrases like "2D flat vector game art, clean illustration, strictly 2D" or "2D 16-bit pixel art" to EVERY image prompt so the AI absolutely never creates mismatched 3D or photorealistic images.
+- ISOLATED SPRITES: Character/object sprites MUST request a "solid black background, isolated centered subject" so the engine can extract them.
+- BACKGROUNDS: MUST request "vertical mobile game background, 2D art" (512x768).`;
+
+        let enhancedPrompt = prompt;
+        let manifest;
+        
+        try {
+            const plannerRes = await anthropic.messages.create({
+                model: "claude-3-5-haiku-20241022",
+                max_tokens: 2000,
+                system: plannerSystemPrompt,
+                messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
+                tools: [{
+                    name: "plan_game",
+                    description: "Classify game type, rewrite prompt, and create asset manifest.",
+                    input_schema: {
+                        type: "object",
+                        properties: {
+                            technicalPrompt: { type: "string" },
+                            mechanics: { type: "string" },
+                            assets: {
+                                type: "array",
+                                items: {
+                                    type: "object",
+                                    properties: {
+                                        key: { type: "string" },
+                                        prompt: { type: "string" },
+                                        width: { type: "integer" },
+                                        height: { type: "integer" }
+                                    },
+                                    required: ["key", "prompt", "width", "height"]
+                                }
+                            }
+                        },
+                        required: ["technicalPrompt", "mechanics", "assets"]
+                    }
+                }],
+                tool_choice: { type: "tool", name: "plan_game" }
+            });
+            
+            const toolBlock = plannerRes.content.find(c => c.type === 'tool_use');
+            const plannerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(plannerRes.content[0].text));
+            enhancedPrompt = plannerJson.technicalPrompt || prompt;
+            manifest = { mechanics: plannerJson.mechanics || enhancedPrompt, assets: plannerJson.assets || [] };
+        } catch(e) {
+            console.error("Labs Planner failed, falling back", e.message);
+            manifest = { mechanics: prompt, assets: [] }; // Fallback
+        }
+
+        // === STEP 2: ART DIRECTOR (AI HORDE) ===
+        console.log(`🎨 Labs fetching ${manifest.assets.length} Assets...`);
+        const fetchImage = async (assetObj) => {
+            try {
+                const safePrompt = encodeURIComponent(assetObj.prompt);
+                const w = assetObj.width || 512;
+                const h = assetObj.height || 512;
+                const seed = Math.floor(Math.random() * 1000000);
+                const url = `https://image.pollinations.ai/prompt/${safePrompt}?width=${w}&height=${h}&nologo=true&seed=${seed}`;
+                const imgRes = await fetch(url);
+                if (!imgRes.ok) return null;
+                const arrayBuffer = await imgRes.arrayBuffer();
+                const base64 = Buffer.from(arrayBuffer).toString('base64');
+                return "data:image/jpeg;base64," + base64;
+            } catch(e) { return null; }
+        };
+
+        const assetPromises = manifest.assets.map(a => fetchImage(a));
+        const base64Results = await Promise.all(assetPromises);
+        let assetMap = {};
+        manifest.assets.forEach((a, i) => { if (base64Results[i]) assetMap[a.key] = base64Results[i]; });
+
+        // === STEP 3: CODER AGENT (GEMMA 4) ===
+        const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
+        
+        console.log(`🧪 Gemma 4 31B Generating Game Logic with manifest...`);
         const codeRes = await nvidiaClient.chat.completions.create({
             model: "google/gemma-4-31b-it",
             messages: [
                 { role: "system", content: systemInstruction },
-                { role: "user", content: "CREATE THIS GAME:\n" + prompt }
+                { role: "user", content: "CREATE THIS GAME:\n" + enhancedPrompt }
             ],
             max_tokens: 8192,
             temperature: 0.7,
@@ -553,7 +633,7 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
             code: rawCode
         };
 
-        const previewHtml = compileGameHTML(parsedJson, {});
+        const previewHtml = compileGameHTML(parsedJson, assetMap);
 
         // Test in sandbox and capture screenshot
         console.log(`📸 Taking screenshot for Labs job ${jobId}...`);
