@@ -56,6 +56,9 @@ Call: window.showGameOver(finalScore, function() { /* your restart function here
 SFX: Call window.playSound(type); where type is 'jump', 'coin', 'hit', or 'gameover'.
 BGM: Call window.startBGM(style); to start looping background music. Styles: 'synthwave', 'chiptune', 'chill', 'dark', 'arcade'. Call window.stopBGM(); to stop. YOU MUST call startBGM() at the beginning of your game to create atmosphere! Choose the style that best fits the game mood.
 
+=== PHYSICS ENGINE (BUILT-IN) ===
+You have full access to Matter.js natively via the global `Matter` object. Use this for complex collisions, gravity, vector slicing, and ragdolls instead of writing raw math!
+
 === CRASH PREVENTION ===
 1. ALWAYS use 'var' for top-level global variables if using Mode 1, or wrap your DOM UI logic in an IIFE to avoid polluting global scope.
 2. If using Canvas, use requestAnimationFrame — NEVER setInterval.

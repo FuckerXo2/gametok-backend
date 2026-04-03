@@ -4,6 +4,7 @@ export function compileGameHTML(json, assetMap) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;900&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -86,7 +87,33 @@ export function compileGameHTML(json, assetMap) {
             go.style.display = 'flex';
             void go.offsetWidth; 
             go.style.opacity = '1';
-        }
+        }        // === PHYSICS ENGINE (Matter.js) ===
+        // Loaded globally via CDN so AI can use it without writing complex math
+        window.Matter = Matter;
+
+        // === DYNAMIC SPRITE TRANSPARENCY (Chroma Keying) ===
+        // Automatically turns AI-generated JPEGs (with black/white bg) into transparent sprites
+        window.makeTransparent = function(imgElement, tolerance = 30, colorToReplace = [0,0,0]) {
+            var c = document.createElement('canvas');
+            c.width = imgElement.width || imgElement.naturalWidth;
+            c.height = imgElement.height || imgElement.naturalHeight;
+            var ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(imgElement, 0, 0, c.width, c.height);
+            var imgData = ctx.getImageData(0, 0, c.width, c.height);
+            var data = imgData.data;
+            for (var i = 0; i < data.length; i += 4) {
+                var r = data[i], g = data[i+1], b = data[i+2];
+                // Check distance from target color
+                var dist = Math.sqrt(Math.pow(r - colorToReplace[0], 2) + Math.pow(g - colorToReplace[1], 2) + Math.pow(b - colorToReplace[2], 2));
+                if (dist < tolerance) {
+                    data[i+3] = 0; // Set alpha to 0 (transparent)
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+            var newImg = new Image();
+            newImg.src = c.toDataURL("image/png");
+            return newImg;
+        };
 
         // === AUDIO API ===
         var audioCtx = null;
