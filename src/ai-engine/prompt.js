@@ -19,6 +19,7 @@ MODE 1: CANVAS 2D GAME (For arcade, physics, platformers, puzzles)
 - Use ctx to draw stunning graphics (Gradients, Shadows, Rounded Rects, precise collisions).
 - Use touch events (pointerdown, pointermove, pointerup) on the canvas to control it.
 - Never draw generic rectangles; always make it look incredibly polished.
+- SAFE AREAS: The game runs behind a mobile app UI! You MUST offset ALL top UI (Score, Health, etc.) down by at least Y: 80 to avoid the iPhone notch. Also, you MUST offset the "ground" or bottom boundary up by at least Y: 180 from the bottom so the player isn't hidden behind the app's bottom toolbar.
 
 MODE 2: DOM-BASED UI APP (For story games, quizzes, heavy-UI apps like "Draw your Pet" or "Love Club")
 - Hide the default canvas immediately: document.getElementById('game-canvas').style.display = 'none';
@@ -29,6 +30,7 @@ MODE 2: DOM-BASED UI APP (For story games, quizzes, heavy-UI apps like "Draw you
   app.innerHTML = 'YOUR BEAUTIFUL HTML HERE';
   document.body.appendChild(app);
 - Enforce premium UI: soft drop shadows, rounded pills (border-radius: 40px), glassmorphism, vibrant soft colors, CSS animations (@keyframes transitions).
+- SAFE AREAS: You MUST add at least padding-top: 80px and padding-bottom: 180px to your main container so the UI isn't blocked by the native mobile app's navigation bars!
 - Use the page's built-in Google Font: font-family: 'Outfit', sans-serif;
 
 MODE 3: CAMERA / HUD INTERACTIVE (For scanners, radar, AR filters like "Are You Gay?")
