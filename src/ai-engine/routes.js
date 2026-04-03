@@ -1,5 +1,4 @@
 import express from 'express';
-import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
@@ -35,7 +34,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 async function executeDreamJob(jobId, prompt, userId) {
     try {
         console.log(`🧠 [BACKGROUND JOB] Started Dream... Job: ${jobId}`);
-        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        
         
         // === STEP 1: PLANNER AGENT (CLAUDE 3.5 HAIKU) ===
         console.log("🧭 Planner Agent: Classifying prompt & building asset manifest...");
@@ -53,41 +52,18 @@ ASSET RULES:
         let manifest;
         
         try {
-            const plannerRes = await anthropic.messages.create({
-                model: "claude-3-5-haiku-20241022",
-                max_tokens: 2000,
-                system: plannerSystemPrompt,
-                messages: [{ role: "user", content: `User prompt: "${prompt}"` }],
-                tools: [{
-                    name: "plan_game",
-                    description: "Classify game type, rewrite prompt, and create asset manifest.",
-                    input_schema: {
-                        type: "object",
-                        properties: {
-                            technicalPrompt: { type: "string" },
-                            mechanics: { type: "string" },
-                            assets: {
-                                type: "array",
-                                items: {
-                                    type: "object",
-                                    properties: {
-                                        key: { type: "string" },
-                                        prompt: { type: "string" },
-                                        width: { type: "integer" },
-                                        height: { type: "integer" }
-                                    },
-                                    required: ["key", "prompt", "width", "height"]
-                                }
-                            }
-                        },
-                        required: ["technicalPrompt", "mechanics", "assets"]
-                    }
-                }],
-                tool_choice: { type: "tool", name: "plan_game" }
+            const plannerRes = await nvidiaClient.chat.completions.create({
+                model: "google/gemma-4-31b-it",
+                messages: [
+                    { role: "system", content: plannerSystemPrompt },
+                    { role: "user", content: `User prompt: "${prompt}"\n\nReturn pure JSON.` }
+                ],
+                max_tokens: 3000,
+                temperature: 0.5
             });
             
-            const toolBlock = plannerRes.content.find(c => c.type === 'tool_use');
-            const plannerJson = toolBlock ? toolBlock.input : JSON.parse(extractJson(plannerRes.content[0].text));
+            const rawOutput = plannerRes.choices[0].message.content;
+            const plannerJson = JSON.parse(extractJson(rawOutput));
             enhancedPrompt = plannerJson.technicalPrompt || prompt;
             manifest = { mechanics: plannerJson.mechanics || enhancedPrompt, assets: plannerJson.assets || [] };
         } catch(e) {
@@ -131,14 +107,17 @@ ASSET RULES:
         let messages = [{ role: "user", content: "CREATE THIS GAME:\n" + prompt }];
         
         console.log(`🤖 Coder Agent Generating Game Logic...`);
-        const codeRes = await anthropic.messages.create({
-            model: "claude-opus-4-6", // Retaining user's Opus model alias
+        const codeRes = await nvidiaClient.chat.completions.create({
+            model: "google/gemma-4-31b-it",
+            messages: [
+                { role: "system", content: systemInstruction },
+                ...messages
+            ],
             max_tokens: 8192,
-            system: systemInstruction,
-            messages: messages
+            temperature: 0.7,
         });
         
-        const responseText = codeRes.content[0].text;
+        const responseText = codeRes.choices[0].message.content;
         const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
         let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
         if (rawCode.includes('\`\`\`')) {
@@ -214,14 +193,17 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
             }
         ];
 
-        const codeRes = await anthropic.messages.create({
-            model: "claude-opus-4-6",
+        const codeRes = await nvidiaClient.chat.completions.create({
+            model: "google/gemma-4-31b-it",
+            messages: [
+                { role: "system", content: systemInstruction },
+                ...messages
+            ],
             max_tokens: 8192,
-            system: systemInstruction,
-            messages: messages
+            temperature: 0.7,
         });
         
-        const responseText = codeRes.content[0].text;
+        const responseText = codeRes.choices[0].message.content;
         const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
         let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
         if (rawCode.includes('\`\`\`')) {
@@ -523,7 +505,7 @@ const nvidiaClient = new OpenAI({
 async function executeLabsDreamJob(jobId, prompt, userId) {
     try {
         console.log(`🧪 [LABS JOB] Started Gemma 4 Dream... Job: ${jobId}`);
-        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        
         
         // === STEP 1: PLANNER AGENT (GEMMA 4 31B) ===
         console.log("🧭 Labs Planner Agent: Classifying prompt & building asset manifest using Gemma 4...");
