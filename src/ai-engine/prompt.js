@@ -80,9 +80,31 @@ export function injectTemplate(templateId, config, assetMap) {
     
     globalCss += '}</style>\n';
     
+    // Intercept full screen canvas clears so CSS backgrounds show through
+    const clearScript = `
+    <script>
+        const originalGetContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function(type, contextAttributes) {
+            const ctx = originalGetContext.call(this, type, contextAttributes);
+            if (type === '2d' && !ctx._hasDreamStreamOverride) {
+                ctx._hasDreamStreamOverride = true;
+                const origFillRect = ctx.fillRect;
+                ctx.fillRect = function(x, y, w, h) {
+                    if (x === 0 && y === 0 && w >= this.canvas.width * 0.9 && h >= this.canvas.height * 0.9) {
+                        ctx.clearRect(x, y, w, h);
+                        return;
+                    }
+                    origFillRect.apply(this, arguments);
+                };
+            }
+            return ctx;
+        };
+    </script>
+    `;
+
     // Replace placeholders
     let finalHtml = rawHtml.replace('{{GAME_PARAMETERS}}', paramsStr);
-    finalHtml = finalHtml.replace('</head>', globalCss + '</head>');
+    finalHtml = finalHtml.replace('</head>', globalCss + clearScript + '</head>');
     finalHtml = finalHtml.replace('{{ASSET_TAGS}}', assetTagsStr);
     
     // Replace text placeholders

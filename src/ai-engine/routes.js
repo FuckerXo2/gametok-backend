@@ -79,6 +79,10 @@ async function executeDreamJob(jobId, prompt, userId) {
                     // Fallthrough to AI if Kenney fails
                 }
 
+                const fallbackEmoji = { HERO: "🦸‍♂️", ENEMY: "👾", BACKGROUND: "", WEAPON: "⚔️", COLLECTIBLE: "💎", OBSTACLE: "🧱" }[key] || "📦";
+                const errSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text y="80" font-size="80">${fallbackEmoji}</text></svg>`;
+                const fallbackUrl = fallbackEmoji ? `data:image/svg+xml;utf8,${encodeURIComponent(errSvg)}` : "";
+
                 // AI generation via Pollinations
                 try {
                     const controller = new AbortController();
@@ -97,11 +101,14 @@ async function executeDreamJob(jobId, prompt, userId) {
                         signal: controller.signal
                     });
                     clearTimeout(timeout);
-                    if (!imgRes.ok) return null;
+                    if (!imgRes.ok) return fallbackUrl;
                     const arrayBuffer = await imgRes.arrayBuffer();
                     const base64 = Buffer.from(arrayBuffer).toString('base64');
                     return "data:image/jpeg;base64," + base64;
-                } catch(e) { return null; }
+                } catch(e) { 
+                    console.log(`Fallback for ${key} triggered due to Pollinations failing.`);
+                    return fallbackUrl; 
+                }
             };
             
             const keys = Object.keys(aiJson.neededAssets);
