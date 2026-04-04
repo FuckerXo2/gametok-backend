@@ -102,9 +102,19 @@ export function injectTemplate(templateId, config, assetMap) {
     </script>
     `;
 
+    // Inject Global Juice Engine dynamically
+    let juiceScript = '';
+    try {
+        const juicePath = path.join(process.cwd(), 'src/ai-engine/juice.js');
+        const juiceCode = fs.readFileSync(juicePath, 'utf8');
+        juiceScript = '<script>' + juiceCode + '</script>';
+    } catch(e) {
+        console.error("Failed to load juice engine", e);
+    }
+
     // Replace placeholders
     let finalHtml = rawHtml.replace('{{GAME_PARAMETERS}}', paramsStr);
-    finalHtml = finalHtml.replace('</head>', globalCss + clearScript + '</head>');
+    finalHtml = finalHtml.replace('</head>', globalCss + clearScript + juiceScript + '</head>');
     finalHtml = finalHtml.replace('{{ASSET_TAGS}}', assetTagsStr);
     
     // Replace text placeholders
