@@ -118,14 +118,14 @@ ASSET RULES:
         });
         
         const responseText = codeRes.choices[0].message.content;
-        const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+        const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
         let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
         if (rawCode.includes('\`\`\`')) {
-            rawCode = rawCode.replace(/\`\`\`(?:javascript|js)*\n?/gi, '').replace(/\`\`\`/g, '');
+            rawCode = rawCode.replace(/\`\`\`(?:html)*\n?/gi, '').replace(/\`\`\`/g, '');
         }
 
         if (!rawCode || rawCode.length < 50) {
-            throw new Error("AI failed to output a complete javascript block.");
+            throw new Error("AI failed to output a complete html block.");
         }
 
         const parsedJson = {
@@ -189,7 +189,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         let messages = [
             { 
                 role: "user", 
-                content: `You are a master game developer. Below is the existing HTML5 Canvas Javascript code for a game:\n\n\`\`\`javascript\n${oldCode}\n\`\`\`\n\nApply the following modifications/instructions requested by the user: "${instructions}".\n\nReturn the ENTIRE updated JavaScript code inside a single \`\`\`javascript block. Do not truncate or omit any unchanged parts. Preserve the existing variable structures.` 
+                content: `You are a master game developer. Below is the existing HTML5 Canvas code for a game:\n\n\`\`\`html\n${oldCode}\n\`\`\`\n\nApply the following modifications/instructions requested by the user: "${instructions}".\n\nReturn the ENTIRE updated HTML code inside a single \`\`\`html block. Do not truncate or omit any unchanged parts. Preserve the existing variable structures.` 
             }
         ];
 
@@ -204,14 +204,14 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         });
         
         const responseText = codeRes.choices[0].message.content;
-        const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+        const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
         let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
         if (rawCode.includes('\`\`\`')) {
-            rawCode = rawCode.replace(/\`\`\`(?:javascript|js)*\n?/gi, '').replace(/\`\`\`/g, '');
+            rawCode = rawCode.replace(/\`\`\`(?:html)*\n?/gi, '').replace(/\`\`\`/g, '');
         }
 
         if (!rawCode || rawCode.length < 50) {
-            throw new Error("AI failed to output a complete javascript block during edit.");
+            throw new Error("AI failed to output a complete html block during edit.");
         }
 
         const parsedJson = {
@@ -598,10 +598,10 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
         const responseText = codeRes.choices[0].message.content;
         console.log(`🧪 Gemma 4 response length: ${responseText.length} chars`);
 
-        const codeMatch = responseText.match(/```(?:javascript|js)*\n([\s\S]*?)```/i);
+        const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
         let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
         if (rawCode.includes('\`\`\`')) {
-            rawCode = rawCode.replace(/\`\`\`(?:javascript|js)*\n?/gi, '').replace(/\`\`\`/g, '');
+            rawCode = rawCode.replace(/\`\`\`(?:html)*\n?/gi, '').replace(/\`\`\`/g, '');
         }
 
         if (!rawCode || rawCode.length < 50) {
