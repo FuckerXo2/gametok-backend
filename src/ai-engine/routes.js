@@ -1,5 +1,6 @@
 import express from 'express';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
@@ -8,7 +9,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import pool from '../db.js';
-import { buildPhase1_Quantize, buildPhase2_Architect, buildPhase3_Polish, injectTemplate } from './promptRegistry.js';
+import { buildPhase1_Quantize, buildPhase2_BuildPrototype, buildPhase2_EditGame, postProcessRawHtml } from './promptRegistry.js';
 import { compileGameHTML } from './compiler.js';
 import { verifyGame } from './sandbox.js';
 import { searchAssets } from './asset-dictionary.js';
@@ -34,6 +35,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const nvidiaClient = new OpenAI({
     baseURL: 'https://integrate.api.nvidia.com/v1',
     apiKey: process.env.NVIDIA_API_KEY || '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',
+});
+
+// Claude Sonnet 4.6 — Premium code generation
+const claude = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -105,150 +111,117 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
 }
 
 // ═══════════════════════════════════════════════════════════
-// MULTI-PHASE DREAM JOB (Dream3DForge-inspired pipeline)
-// Phase 1: QUANTIZE  — Game Designer extracts structured spec
-// Phase 2: ARCHITECT — Technical Director picks template + config  
-// Phase 3: POLISH    — QA Director reviews for consistency
+// CLAUDE RAW CODE GENERATION PIPELINE
+// Phase 1: QUANTIZE  — Gemma extracts game spec (FREE)
+// Phase 2: BUILD     — Claude writes full game code (PREMIUM)
+// Phase 3: VERIFY    — Puppeteer sandbox validates
 // ═══════════════════════════════════════════════════════════
 async function executeDreamJob(jobId, prompt, userId) {
     try {
-        console.log(`🧠 [DREAM JOB] Started multi-phase pipeline for job: ${jobId}`);
+        console.log(`🧠 [DREAM JOB] Started Claude pipeline for job: ${jobId}`);
 
-        // ── PHASE 1: QUANTIZE REQUIREMENTS ──
-        console.log(`📋 Phase 1/3: Game Designer analyzing prompt...`);
+        // ── PHASE 1: QUANTIZE (Gemma — FREE) ──
+        console.log(`📋 Phase 1/2: Game Designer analyzing prompt...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
 
-        // ── PHASE 2: ARCHITECT (Template Router + Config) ──
-        console.log(`🏗️ Phase 2/3: Technical Director selecting template...`);
-        const phase2 = buildPhase2_Architect(specSheet);
-        const architectOutput = await callAI(phase2.system, phase2.user, 2000, 0.2);
-        console.log(`✅ Phase 2 complete: Template = ${architectOutput.selectedTemplateId}`);
+        // ── PHASE 2: BUILD PROTOTYPE (Claude Sonnet 4.6) ──
+        console.log(`🔨 Phase 2/2: Claude Sonnet 4.6 building full game...`);
+        const buildPrompt = buildPhase2_BuildPrototype(specSheet);
+        
+        const claudeRes = await claude.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 16000,
+            messages: [
+                { role: 'user', content: buildPrompt }
+            ]
+        });
+        
+        let rawGameHtml = claudeRes.content[0].text;
+        console.log(`✅ Claude generated ${rawGameHtml.length} chars of game code`);
 
-        // ── PHASE 3: POLISH (QA Review) ──
-        console.log(`🔍 Phase 3/3: QA Director reviewing config...`);
-        const phase3 = buildPhase3_Polish(specSheet, architectOutput);
-        let finalConfig;
-        try {
-            finalConfig = await callAI(phase3.system, phase3.user, 2000, 0.1);
-        } catch (e) {
-            console.log(`⚠️ Phase 3 parse failed, using Phase 2 output directly.`);
-            finalConfig = architectOutput;
-        }
-        console.log(`✅ Phase 3 complete. Final template: ${finalConfig.selectedTemplateId}`);
-
-        // ── ASSET RESOLUTION ──
-        let assetMap = {};
-        if (finalConfig.neededAssets && Object.keys(finalConfig.neededAssets).length > 0) {
-            console.log(`🎨 Resolving ${Object.keys(finalConfig.neededAssets).length} assets...`);
-            const keys = Object.keys(finalConfig.neededAssets);
-            const results = await Promise.all(
-                keys.map(k => resolveAsset(k.toUpperCase(), finalConfig.neededAssets[k]))
-            );
-            keys.forEach((k, i) => {
-                if (results[i]) assetMap[k.toUpperCase()] = results[i];
-            });
+        // Strip markdown code fences if Claude wrapped it
+        rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
+        
+        // Ensure it starts with doctype
+        if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
+            const htmlStart = rawGameHtml.indexOf('<!');
+            if (htmlStart > 0) rawGameHtml = rawGameHtml.substring(htmlStart);
         }
 
-        // ── TEMPLATE INJECTION ──
-        console.log(`🔧 Compiling final HTML...`);
-        const previewHtml = injectTemplate(
-            finalConfig.selectedTemplateId,
-            finalConfig.config,
-            assetMap
-        );
+        // ── POST-PROCESS: Inject Juice + Audio engines ──
+        const finalHtml = postProcessRawHtml(rawGameHtml);
 
-        // ── SCREENSHOT ──
-        console.log(`📸 Capturing screenshot...`);
-        const sandboxRes = await verifyGame(previewHtml);
+        // ── VERIFY IN SANDBOX ──
+        console.log(`📸 Verifying game in sandbox...`);
+        const sandboxRes = await verifyGame(finalHtml);
         const finalScreenshot = sandboxRes.screenshot || null;
 
         // ── SAVE TO DB ──
-        const rawCode = JSON.stringify({ specSheet, finalConfig }, null, 2);
-        const gameTitle = specSheet.title || finalConfig.config?.GAMEOVER_TITLE || "DreamStream Game";
+        const rawCode = rawGameHtml; // Store the raw Claude output for editing
 
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [gameTitle, previewHtml, rawCode, finalScreenshot, jobId]
+            [specSheet.title || 'DreamStream Game', finalHtml, rawCode, finalScreenshot, jobId]
         );
-        console.log(`✅ [DREAM JOB] Complete! "${gameTitle}" saved for job ${jobId}`);
+        console.log(`✅ [DREAM JOB] Complete! "${specSheet.title}" saved for job ${jobId}`);
 
     } catch (err) {
         console.error("❌ [DREAM JOB] Error:", err);
         await pool.query(
             `UPDATE ai_games SET title = $1 WHERE id = $2`,
-            ['ERROR: ' + (err.message || "Multi-phase generation failed"), jobId]
+            ['ERROR: ' + (err.message || "Claude generation failed"), jobId]
         );
     }
 }
 
+
 async function executeEditJob(newJobId, parentDraftId, instructions, userId, newAsset) {
     try {
-        console.log(`🚀 [EDIT JOB] Starting remix job ${newJobId} based on parent ${parentDraftId}`);
+        console.log(`🚀 [EDIT JOB] Starting Claude edit job ${newJobId} based on parent ${parentDraftId}`);
+        
         // 1. Fetch parent draft
         const parentRes = await pool.query('SELECT raw_code, html_payload, title FROM ai_games WHERE id = $1', [parentDraftId]);
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
-        const oldCode = parentDraft.raw_code;
+        const existingCode = parentDraft.raw_code || parentDraft.html_payload;
         
-        // Extract existing assets if any so we don't lose the images
-        let assetMap = {};
-        const assetMatch = parentDraft.html_payload.match(/window\.EXTERNAL_ASSETS\s*=\s*(\{.*?\});/);
-        if (assetMatch) {
-            try { assetMap = JSON.parse(assetMatch[1]); } catch(e){}
+        // 2. Claude modifies the existing game code
+        console.log(`🤖 Claude editing game...`);
+        const editPrompt = buildPhase2_EditGame(existingCode, instructions);
+        
+        const claudeRes = await claude.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 16000,
+            messages: [
+                { role: 'user', content: editPrompt }
+            ]
+        });
+        
+        let rawGameHtml = claudeRes.content[0].text;
+        console.log(`✅ Claude edited: ${rawGameHtml.length} chars`);
+
+        // Strip markdown fences
+        rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
+        if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
+            const htmlStart = rawGameHtml.indexOf('<!');
+            if (htmlStart > 0) rawGameHtml = rawGameHtml.substring(htmlStart);
         }
-        
-        // Inject the newly generated user asset into the context
-        if (newAsset && newAsset.key && newAsset.base64) {
-            assetMap[newAsset.key] = newAsset.base64;
-            console.log(`Injecting new custom asset: ${newAsset.key}`);
-        }
 
-        // 2. Use callAI to modify the existing config
-        console.log(`🤖 Edit Agent modifying game config...`);
-        
-        const editSystem = `You are a game configuration editor. You receive an existing game JSON config and user modification instructions. Your job is to apply the requested changes and return the ENTIRE updated JSON object.
-
-RULES:
-1. Keep the same selectedTemplateId unless the user explicitly asks for a different game type.
-2. Asset keys MUST be: "HERO", "ENEMY", "BACKGROUND", "COLLECTIBLE", "WEAPON", "OBSTACLE".
-3. Output ONLY raw JSON. No markdown, no explanation.`;
-
-        const editUser = `EXISTING CONFIG:
-${oldCode}
-
-USER INSTRUCTIONS: "${instructions}"
-
-Return the ENTIRE updated JSON object.`;
-
-        const aiJson = await callAI(editSystem, editUser, 3000, 0.4);
-        const rawCode = JSON.stringify(aiJson, null, 2);
-        
-        // Resolve any new assets the edit might have introduced
-        if (aiJson.neededAssets) {
-            const keys = Object.keys(aiJson.neededAssets);
-            const results = await Promise.all(
-                keys.map(k => resolveAsset(k.toUpperCase(), aiJson.neededAssets[k]))
-            );
-            keys.forEach((k, i) => {
-                if (results[i]) assetMap[k.toUpperCase()] = results[i];
-            });
-        }
-        
-        const previewHtml = injectTemplate(aiJson.selectedTemplateId || aiJson.finalConfig?.selectedTemplateId, aiJson.config || aiJson.finalConfig?.config, assetMap);
+        // Post-process with Juice + Audio
+        const finalHtml = postProcessRawHtml(rawGameHtml);
         const finalTitle = parentDraft.title.startsWith("Remix of") ? parentDraft.title : "Remix of " + parentDraft.title;
 
-        // Test in sandbox and capture screenshot
+        // Screenshot
         console.log(`📸 Taking screenshot for edit job ${newJobId}...`);
-        const sandboxRes = await verifyGame(previewHtml);
+        const sandboxRes = await verifyGame(finalHtml);
         const finalScreenshot = sandboxRes.screenshot || null;
 
-        // Update Job as COMPLETE
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [finalTitle, previewHtml, rawCode, finalScreenshot, newJobId]
+            [finalTitle, finalHtml, rawGameHtml, finalScreenshot, newJobId]
         );
         console.log(`✅ [EDIT JOB] Finished! Saved to DB for job ${newJobId}`);
 
@@ -515,62 +488,47 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 
 
 async function executeLabsDreamJob(jobId, prompt, userId) {
-    // Labs now uses the EXACT same multi-phase pipeline as Dream for consistency
+    // Labs now uses the same Claude pipeline as Dream
     try {
-        console.log(`🧪 [LABS JOB] Started multi-phase pipeline for job: ${jobId}`);
+        console.log(`🧪 [LABS JOB] Started Claude pipeline for job: ${jobId}`);
 
-        // ── PHASE 1: QUANTIZE ──
-        console.log(`📋 Labs Phase 1/3: Game Designer analyzing prompt...`);
+        // Phase 1: Quantize (Gemma — FREE)
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
-        console.log(`✅ Labs Phase 1: "${specSheet.title}" (${specSheet.genre})`);
+        console.log(`✅ Labs Phase 1: "${specSheet.title}"`);
 
-        // ── PHASE 2: ARCHITECT ──
-        console.log(`🏗️ Labs Phase 2/3: Selecting template...`);
-        const phase2 = buildPhase2_Architect(specSheet);
-        const architectOutput = await callAI(phase2.system, phase2.user, 2000, 0.2);
-        console.log(`✅ Labs Phase 2: Template = ${architectOutput.selectedTemplateId}`);
+        // Phase 2: Build (Claude)
+        console.log(`🔨 Labs: Claude building game...`);
+        const buildPrompt = buildPhase2_BuildPrototype(specSheet);
+        const claudeRes = await claude.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 16000,
+            messages: [{ role: 'user', content: buildPrompt }]
+        });
 
-        // ── PHASE 3: POLISH ──
-        console.log(`🔍 Labs Phase 3/3: QA review...`);
-        const phase3 = buildPhase3_Polish(specSheet, architectOutput);
-        let finalConfig;
-        try {
-            finalConfig = await callAI(phase3.system, phase3.user, 2000, 0.1);
-        } catch (e) {
-            finalConfig = architectOutput;
+        let rawGameHtml = claudeRes.content[0].text;
+        rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
+        if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
+            const htmlStart = rawGameHtml.indexOf('<!');
+            if (htmlStart > 0) rawGameHtml = rawGameHtml.substring(htmlStart);
         }
 
-        // ── ASSET RESOLUTION ──
-        let assetMap = {};
-        if (finalConfig.neededAssets && Object.keys(finalConfig.neededAssets).length > 0) {
-            const keys = Object.keys(finalConfig.neededAssets);
-            const results = await Promise.all(
-                keys.map(k => resolveAsset(k.toUpperCase(), finalConfig.neededAssets[k]))
-            );
-            keys.forEach((k, i) => {
-                if (results[i]) assetMap[k.toUpperCase()] = results[i];
-            });
-        }
-
-        // ── COMPILE & SAVE ──
-        const previewHtml = injectTemplate(finalConfig.selectedTemplateId, finalConfig.config, assetMap);
-        const sandboxRes = await verifyGame(previewHtml);
+        const finalHtml = postProcessRawHtml(rawGameHtml);
+        const sandboxRes = await verifyGame(finalHtml);
         const finalScreenshot = sandboxRes.screenshot || null;
-        const rawCode = JSON.stringify({ specSheet, finalConfig }, null, 2);
         const gameTitle = "🧪 " + (specSheet.title || "Labs Game");
 
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [gameTitle, previewHtml, rawCode, finalScreenshot, jobId]
+            [gameTitle, finalHtml, rawGameHtml, finalScreenshot, jobId]
         );
         console.log(`✅ [LABS JOB] Complete! "${gameTitle}" saved for job ${jobId}`);
 
     } catch (err) {
-        console.error("❌ [LABS JOB] Gemma 4 Error:", err);
+        console.error("❌ [LABS JOB] Error:", err);
         await pool.query(
             `UPDATE ai_games SET title = $1 WHERE id = $2`,
-            ['ERROR: ' + (err.message || "Gemma 4 Labs Error"), jobId]
+            ['ERROR: ' + (err.message || "Claude Labs Error"), jobId]
         );
     }
 }
