@@ -75,7 +75,8 @@ Extract a Game Spec Sheet as JSON:
   "scoreLabel": "What to call the score (e.g. TVS COLLECTED, COINS, KILLS)",
   "healthLabel": "What to call health/lives (e.g. SANITY, LIVES, HEALTH)",
   "gameOverTitle": "Thematic game over message",
-  "difficulty": "easy | medium | hard"
+  "difficulty": "easy | medium | hard",
+  "seed": "A random alphanumeric string (e.g. 'f9a2b7')"
 }
 
 Output ONLY the JSON.`
@@ -88,7 +89,7 @@ Output ONLY the JSON.`
 // ─────────────────────────────────────────────────────────
 
 export function buildPhase2_BuildPrototype(specSheet) {
-  return `You are an expert HTML5 Canvas2D game developer. Build a COMPLETE, POLISHED, PRODUCTION-QUALITY mobile game as a single HTML file.
+  return `You are an expert Creative Coder and Game Engine Specialist. Build a COMPLETE, POLISHED, PRODUCTION-QUALITY mobile game as a single HTML file.
 
 GAME SPECIFICATION:
 - Title: ${specSheet.title}
@@ -102,94 +103,73 @@ GAME SPECIFICATION:
 - Accent Color: ${specSheet.accentColor}
 
 ENTITIES:
-- Hero: ${specSheet.entities?.hero} (draw as emoji: ${specSheet.heroEmoji || '🦸'})
-- Enemy: ${specSheet.entities?.enemy} (draw as emoji: ${specSheet.enemyEmoji || '👾'})
+- Hero: ${specSheet.entities?.hero} (emoji representation: ${specSheet.heroEmoji || '🦸'})
+- Enemy: ${specSheet.entities?.enemy} (emoji representation: ${specSheet.enemyEmoji || '👾'})
 - Collectible: ${specSheet.entities?.collectible || 'none'} (emoji: ${specSheet.collectibleEmoji || '⭐'})
-- Obstacle: ${specSheet.entities?.obstacle || 'none'}
 
 UI LABELS:
 - Score: "${specSheet.scoreLabel || 'SCORE'}"
 - Health: "${specSheet.healthLabel || 'LIVES'}"
 - Game Over: "${specSheet.gameOverTitle || 'GAME OVER'}"
 
+DETERMINISTIC SEED: "${specSheet.seed || 'f9a2b7'}"
+You MUST implement a seeded random number generator (PRNG) and use it for ALL procedural generation and gameplay randomness.
+
+═══════════════════════════════════════════
+CRITICAL IMPLEMENTATION RULES:
+═══════════════════════════════════════════
+You MUST choose one of the following engines based on the game genre and visuals:
+1. THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js)
+   - Best for: 3D games, immersive environments, first-person or third-person perspectives.
+2. P5.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js)
+   - Best for: Creative art games, complex 2D physics, generative visuals.
+3. CANVAS 2D (Native)
+   - Best for: Classic 2D arcade games, platformers, top-down shooters.
+4. DOM/CSS (Native)
+   - Best for: Card games, puzzles, trivia, word games.
+
 ═══════════════════════════════════════════
 CRITICAL IMPLEMENTATION RULES:
 ═══════════════════════════════════════════
 
-1. SINGLE FILE: Everything (HTML + CSS + JS) in ONE complete HTML document. No external dependencies. No CDN imports.
+1. SINGLE FILE: Everything in ONE HTML document. You MAY use CDNs for Three.js or p5.js if chosen.
 
-2. CANVAS2D ONLY: Use HTML5 Canvas with 2D context. No WebGL, no Three.js, no Phaser. Pure Canvas2D.
+2. MOBILE-FIRST TOUCH CONTROLS (STRICT):
+   - PRIMARY: touchstart, touchmove, touchend.
+   - FALLBACK: pointerdown, pointermove, pointerup.
+   - NO KEYBOARD-ONLY LOGIC. Ensure joystick or swipe controls are visible if needed.
 
-3. MOBILE-FIRST TOUCH CONTROLS:
-   - Use touch events (touchstart, touchmove, touchend) as PRIMARY input.
-   - Also support mouse events as fallback (pointerdown, pointermove, pointerup).
-   - NO keyboard controls. This runs on phones.
-   - Common patterns: tap to jump, drag to move, swipe to dodge.
+3. FULLSCREEN RESPONSIVE:
+   - Must fill the entire viewport (100vw, 100vh).
+   - Handle window resize events to update camera/canvas.
+   - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; }
 
-4. FULLSCREEN RESPONSIVE CANVAS:
-   - Canvas MUST fill the entire viewport: canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-   - Handle window resize events.
-   - Use CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; }
-   - Set canvas style: canvas { display: block; }
+4. ENTITY RENDERING:
+   - Use emojis for characters/items unless the chosen engine style dictates otherwise.
+   - If using Three.js, you can use SpriteMaterial or TextGeometry for emojis.
+   - If Canvas2D/p5.js, use fillText('emoji').
 
-5. RENDER ENTITIES AS EMOJI:
-   - Use ctx.font = 'Xpx serif' and ctx.fillText('emoji', x, y) to draw game entities.
-   - Hero emoji: ${specSheet.heroEmoji || '🦸'} (size: 40-50px)
-   - Enemy emoji: ${specSheet.enemyEmoji || '👾'} (size: 35-45px)
-   - Collectible emoji: ${specSheet.collectibleEmoji || '⭐'} (size: 30px)
-   - Center the emoji text: ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+5. HUD & UI:
+   - Score: "${specSheet.scoreLabel || 'SCORE'}"
+   - Health: "${specSheet.healthLabel || 'LIVES'}"
+   - Use accent color (${specSheet.accentColor}).
+   - High-contrast for readability on small screens.
 
-6. POLISHED HUD (MANDATORY):
-   - Score display in top-left with label "${specSheet.scoreLabel || 'SCORE'}"
-   - Health/lives display in top-right with label "${specSheet.healthLabel || 'LIVES'}"
-   - Use the accent color (${specSheet.accentColor}) for HUD text.
-   - Font: ctx.font = 'bold 20px sans-serif';
-   - Add a semi-transparent dark bar behind the HUD for readability.
+6. GAME STATES:
+   - MENU: Centered title, "TAP TO START".
+   - PLAYING: Core gameplay.
+   - GAMEOVER: "${specSheet.gameOverTitle || 'GAME OVER'}", final score, "TAP TO RESTART".
 
-7. GAME STATES (MANDATORY):
-   - Implement 3 states: 'MENU', 'PLAYING', 'GAMEOVER'
-   - MENU: Show game title centered, "TAP TO START" instruction. Transition to PLAYING on touch.
-   - PLAYING: The actual game loop.
-   - GAMEOVER: Show "${specSheet.gameOverTitle || 'GAME OVER'}", final score, "TAP TO RESTART".
+7. GAME FEEL / JUICE (MANDATORY):
+   - Immersive screen shake / camera shake on impact.
+   - Visual feedback for Every Action (flashes, tiny particles, scaling).
+   - Sound: Use Web Audio API for synthesized effects (Collect: chirpy, Hit: deep thud).
 
-8. GAME FEEL / JUICE (MANDATORY):
-   - Screen shake on damage (offset canvas translate by random ±5px for 10 frames).
-   - Flash effect on hit (brief red overlay).
-   - Score pop animation (briefly scale up score text on increment).
-   - Particle burst on collectible pickup (8-12 small circles that fade out).
-   - Smooth entity movement with delta-time (not frame-dependent).
-
-9. COLLISION DETECTION:
-   - Use simple circle-circle or AABB collision.
-   - function circleCollision(a, b, rA, rB) { return Math.hypot(a.x-b.x, a.y-b.y) < rA + rB; }
-
-10. ENEMY AI:
-    - Enemies MUST move toward the player or spawn from edges.
-    - Enemies must be constrained within screen bounds.
-    - Increase difficulty over time (faster enemies, more spawns).
-
-11. PERFORMANCE:
-    - Use requestAnimationFrame for the game loop.
-    - Delta-time based movement: let dt = (now - lastTime) / 1000;
-    - Cap delta time: dt = Math.min(dt, 0.05);
-    - Clear canvas each frame: ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-12. ERROR SAFETY:
-    - Wrap the entire game in a try/catch.
-    - If ANY error occurs, display it visually on screen (not just console).
-
-13. NO BLANK SCREENS:
-    - The background color (${specSheet.backgroundColor}) must ALWAYS be visible.
-    - The canvas must ALWAYS render something — even during state transitions.
-
-14. SOUND (OPTIONAL BUT PREFERRED):
-    - Use Web Audio API for simple synthesized sounds if possible.
-    - At minimum: collect sound (short ascending beep), hit sound (low thud), game over sound.
+8. ERROR HANDLING:
+   - Use try/catch blocks. Render error text on the screen if the engine fails to initialize.
 
 OUTPUT FORMAT:
-Return ONLY the complete HTML code. Start with <!DOCTYPE html> and end with </html>.
-Do NOT wrap in markdown code blocks. Do NOT include any explanation text.
-Just the raw HTML.`;
+Return ONLY the complete HTML code. Do NOT wrap in markdown. No explanation. Just raw HTML starting with <!DOCTYPE html>.`;
 }
 
 // ─────────────────────────────────────────────────────────
