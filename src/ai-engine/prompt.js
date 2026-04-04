@@ -63,14 +63,26 @@ export function injectTemplate(templateId, config, assetMap) {
 
     // Prepare Image Tags
     let assetTagsStr = '';
+    let globalCss = '<style>body, html, canvas { ';
+    
+    if (safeConfig.primary_color) {
+        globalCss += `background-color: ${safeConfig.primary_color} !important; `;
+    }
+
     if (assetMap) {
         for (const [key, url] of Object.entries(assetMap)) {
             assetTagsStr += `<img id="img_${key}" src="${url}" hidden>\n`;
+            if (key === 'BACKGROUND') {
+                globalCss += `background-image: url('${url}') !important; background-size: cover !important; background-position: center !important; `;
+            }
         }
     }
-
+    
+    globalCss += '}</style>\n';
+    
     // Replace placeholders
     let finalHtml = rawHtml.replace('{{GAME_PARAMETERS}}', paramsStr);
+    finalHtml = finalHtml.replace('</head>', globalCss + '</head>');
     finalHtml = finalHtml.replace('{{ASSET_TAGS}}', assetTagsStr);
     
     // Replace text placeholders
