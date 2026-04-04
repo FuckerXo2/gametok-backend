@@ -131,7 +131,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         
         const claudeRes = await claude.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 16000,
             messages: [
                 { role: 'user', content: buildPrompt }
@@ -193,7 +193,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         const editPrompt = buildPhase2_EditGame(existingCode, instructions);
         
         const claudeRes = await claude.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 16000,
             messages: [
                 { role: 'user', content: editPrompt }
@@ -501,7 +501,7 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         console.log(`🔨 Labs: Claude building game...`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         const claudeRes = await claude.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 16000,
             messages: [{ role: 'user', content: buildPrompt }]
         });
