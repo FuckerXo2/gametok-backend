@@ -11,6 +11,7 @@ import pool from '../db.js';
 import { buildOmniEnginePrompt } from './prompt.js';
 import { compileGameHTML } from './compiler.js';
 import { verifyGame } from './sandbox.js';
+import { searchAssets } from './asset-dictionary.js';
 
 function extractJson(text) {
     let jsonStart = text.indexOf('{');
@@ -71,36 +72,53 @@ ASSET RULES:
             manifest = { mechanics: prompt, assets: [] }; // Fallback to 0 assets to avoid hang on error
         }
 
-        // === STEP 2: ART DIRECTOR (AI HORDE) ===
-        console.log(`🎨 Fetching ${manifest.assets.length} Assets...`);
-        const fetchImage = async (assetObj) => {
-            try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 12000);
-                const imgRes = await fetch("https://image.pollinations.ai/", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        prompt: assetObj.prompt,
-                        width: assetObj.width || 512,
-                        height: assetObj.height || 512,
-                        model: "flux",
-                        seed: Math.floor(Math.random() * 1000000)
-                    }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeout);
-                if (!imgRes.ok) return null;
-                const arrayBuffer = await imgRes.arrayBuffer();
-                const base64 = Buffer.from(arrayBuffer).toString('base64');
-                return "data:image/jpeg;base64," + base64;
-            } catch(e) { return null; }
-        };
-
-        const assetPromises = manifest.assets.map(a => fetchImage(a));
-        const base64Results = await Promise.all(assetPromises);
+        // === STEP 2: ART DIRECTOR (Dictionary Search → Pollinations Fallback) ===
+        console.log(`🎨 Resolving ${manifest.assets.length} Assets via Dictionary + Fallback...`);
         let assetMap = {};
-        manifest.assets.forEach((a, i) => { if (base64Results[i]) assetMap[a.key] = base64Results[i]; });
+        const unresolvedAssets = [];
+
+        for (const assetObj of manifest.assets) {
+            // Search the Kenney dictionary first
+            const dictResults = searchAssets(assetObj.prompt || assetObj.key, 1);
+            if (dictResults.length > 0) {
+                assetMap[assetObj.key] = dictResults[0].url;
+                console.log(`📚 Dictionary hit: '${assetObj.key}' → ${dictResults[0].label}`);
+            } else {
+                unresolvedAssets.push(assetObj);
+            }
+        }
+
+        // Fallback: Generate unresolved assets via Pollinations
+        if (unresolvedAssets.length > 0) {
+            console.log(`🎨 ${unresolvedAssets.length} unresolved assets, falling back to Pollinations...`);
+            const fetchImage = async (assetObj) => {
+                try {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 12000);
+                    const imgRes = await fetch("https://image.pollinations.ai/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            prompt: assetObj.prompt,
+                            width: assetObj.width || 512,
+                            height: assetObj.height || 512,
+                            model: "flux",
+                            seed: Math.floor(Math.random() * 1000000)
+                        }),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeout);
+                    if (!imgRes.ok) return null;
+                    const arrayBuffer = await imgRes.arrayBuffer();
+                    const base64 = Buffer.from(arrayBuffer).toString('base64');
+                    return "data:image/jpeg;base64," + base64;
+                } catch(e) { return null; }
+            };
+            const fallbackResults = await Promise.all(unresolvedAssets.map(a => fetchImage(a)));
+            unresolvedAssets.forEach((a, i) => { if (fallbackResults[i]) assetMap[a.key] = fallbackResults[i]; });
+        } else {
+            console.log(`✅ All ${manifest.assets.length} assets resolved from dictionary! No AI generation needed.`);
+        }
 
         // === STEP 3: CODER AGENT (CLAUDE OPUS) ===
         const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
@@ -548,37 +566,51 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
         }
 
 
-        // === STEP 2: ART DIRECTOR (Pollinations FLUX) ===
-        console.log(`🎨 Labs fetching ${manifest.assets.length} Assets via Pollinations FLUX...`);
-        const fetchImage = async (assetObj) => {
-            try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 12000); // 12s hard timeout
-                const imgRes = await fetch("https://image.pollinations.ai/", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        prompt: assetObj.prompt,
-                        width: assetObj.width || 512,
-                        height: assetObj.height || 512,
-                        model: "flux",
-                        seed: Math.floor(Math.random() * 1000000)
-                    }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeout);
-                if (!imgRes.ok) { console.warn(`🎨 Asset fetch failed: ${imgRes.status}`); return null; }
-                const arrayBuffer = await imgRes.arrayBuffer();
-                const base64 = Buffer.from(arrayBuffer).toString('base64');
-                console.log(`🎨 Asset '${assetObj.key}' fetched (${Math.round(base64.length/1024)}KB)`);
-                return "data:image/jpeg;base64," + base64;
-            } catch(e) { console.warn(`🎨 Asset '${assetObj.key}' timed out or failed:`, e.message); return null; }
-        };
-
-        const assetPromises = manifest.assets.map(a => fetchImage(a));
-        const base64Results = await Promise.all(assetPromises);
+        // === STEP 2: ART DIRECTOR (Dictionary Search → Pollinations Fallback) ===
+        console.log(`🎨 Labs resolving ${manifest.assets.length} Assets via Dictionary + Fallback...`);
         let assetMap = {};
-        manifest.assets.forEach((a, i) => { if (base64Results[i]) assetMap[a.key] = base64Results[i]; });
+        const unresolvedAssets = [];
+
+        for (const assetObj of manifest.assets) {
+            const dictResults = searchAssets(assetObj.prompt || assetObj.key, 1);
+            if (dictResults.length > 0) {
+                assetMap[assetObj.key] = dictResults[0].url;
+                console.log(`📚 Dictionary hit: '${assetObj.key}' → ${dictResults[0].label}`);
+            } else {
+                unresolvedAssets.push(assetObj);
+            }
+        }
+
+        if (unresolvedAssets.length > 0) {
+            console.log(`🎨 ${unresolvedAssets.length} unresolved, falling back to Pollinations...`);
+            const fetchImage = async (assetObj) => {
+                try {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 12000);
+                    const imgRes = await fetch("https://image.pollinations.ai/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            prompt: assetObj.prompt,
+                            width: assetObj.width || 512,
+                            height: assetObj.height || 512,
+                            model: "flux",
+                            seed: Math.floor(Math.random() * 1000000)
+                        }),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeout);
+                    if (!imgRes.ok) return null;
+                    const arrayBuffer = await imgRes.arrayBuffer();
+                    const base64 = Buffer.from(arrayBuffer).toString('base64');
+                    return "data:image/jpeg;base64," + base64;
+                } catch(e) { return null; }
+            };
+            const fallbackResults = await Promise.all(unresolvedAssets.map(a => fetchImage(a)));
+            unresolvedAssets.forEach((a, i) => { if (fallbackResults[i]) assetMap[a.key] = fallbackResults[i]; });
+        } else {
+            console.log(`✅ All ${manifest.assets.length} assets resolved from dictionary!`);
+        }
 
         // === STEP 3: CODER AGENT (GEMMA 4) ===
         const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
