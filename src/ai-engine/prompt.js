@@ -55,202 +55,66 @@ Use this HTML layout, HUD, and loop structure, BUT write Custom Game Logic to ma
         <button id="restart-btn">PLAY AGAIN</button>
     </div>
     <script>
+    ${assetLoadCode || ''}
     var canvas = document.getElementById('gameCanvas');
     var ctx = canvas.getContext('2d');
     var cw, ch;
-
-    // Parse game config
+    
+    // Parse Config safely
     var gameConfig = {};
     try {
-        var confEl = document.getElementById('game-config');
-        if (confEl) {
-            var defs = JSON.parse(confEl.textContent);
-            for (var k in defs) gameConfig[k] = defs[k].value;
+        var el = document.getElementById('game-config');
+        if (el) {
+            var conf = JSON.parse(el.textContent);
+            for (var k in conf) gameConfig[k] = conf[k].value;
         }
-    } catch(e) {}
-
-    // State
-    var state = 'PLAYING'; // PLAYING or GAMEOVER
-    var score = 0;
-    var lives = 3;
-    var lastTime = 0;
-
-    // Player entity
-    var player = { x: 0, y: 0, r: 25, targetX: 0, targetY: 0 };
-    // Enemies array
-    var enemies = [];
-    // Collectibles array
-    var coins = [];
+    } catch(e) { console.error("Config parse error"); }
 
     function resize() {
         cw = window.innerWidth;
         ch = window.innerHeight;
         canvas.width = cw;
         canvas.height = ch;
-        canvas.style.width = cw + 'px';
-        canvas.style.height = ch + 'px';
     }
     window.addEventListener('resize', resize);
-    resize();
-
+    
+    // ==========================================
+    // ZERO-SHOT GAME LOGIC (WRITE FROM SCRATCH)
+    // ==========================================
+    
+    var lastTime = 0;
     function init() {
-        score = 0; lives = 3; state = 'PLAYING';
-        player.x = cw / 2; player.y = ch / 2;
-        player.targetX = player.x; player.targetY = player.y;
-        enemies = []; coins = [];
-        // Spawn initial enemies
-        for (var i = 0; i < 3; i++) spawnEnemy();
-        spawnCoin();
-        document.getElementById('game-over').style.display = 'none';
-        updateHUD();
-    }
-
-    function spawnEnemy() {
-        enemies.push({
-            x: Math.random() * cw,
-            y: Math.random() < 0.5 ? 80 : ch - 180,
-            r: 20, speed: gameConfig.enemySpeed || 3
-        });
-    }
-    function spawnCoin() {
-        coins.push({
-            x: 60 + Math.random() * (cw - 120),
-            y: 100 + Math.random() * (ch - 300),
-            r: 15, pulse: 0
-        });
-    }
-
-    // Input
-    window.addEventListener('pointerdown', function(e) {
-        if (state === 'GAMEOVER') return;
-        player.targetX = e.clientX;
-        player.targetY = e.clientY;
-    });
-    window.addEventListener('pointermove', function(e) {
-        if (e.buttons > 0 && state === 'PLAYING') {
-            player.targetX = e.clientX;
-            player.targetY = e.clientY;
-        }
-    });
-    document.getElementById('restart-btn').onclick = function() { init(); };
-
-    function updateHUD() {
-        document.getElementById('hud-score').textContent = 'Score: ' + score;
-        document.getElementById('hud-lives').textContent = '❤️ ' + lives;
-    }
-
-    function update(dt) {
-        if (state !== 'PLAYING') return;
-        // Move player toward target
-        var dx = player.targetX - player.x;
-        var dy = player.targetY - player.y;
-        var dist = Math.hypot(dx, dy);
-        if (dist > 2) {
-            var speed = gameConfig.heroSpeed || 5;
-            var move = Math.min(dist, speed * dt * 60);
-            player.x += (dx / dist) * move;
-            player.y += (dy / dist) * move;
-        }
-        // Clamp player to safe area
-        player.x = Math.max(player.r, Math.min(cw - player.r, player.x));
-        player.y = Math.max(80 + player.r, Math.min(ch - 180 - player.r, player.y));
-
-        // Move enemies toward player
-        for (var i = 0; i < enemies.length; i++) {
-            var e = enemies[i];
-            var edx = player.x - e.x, edy = player.y - e.y;
-            var ed = Math.hypot(edx, edy);
-            if (ed > 0) { e.x += (edx/ed) * e.speed * dt * 60; e.y += (edy/ed) * e.speed * dt * 60; }
-            // Collision with player
-            if (ed < player.r + e.r) {
-                lives--;
-                updateHUD();
-                if (lives <= 0) { gameOver(); return; }
-                // Reset enemy position
-                e.x = Math.random() * cw;
-                e.y = Math.random() < 0.5 ? 80 : ch - 180;
-            }
-        }
-        // Coin collection
-        for (var j = coins.length - 1; j >= 0; j--) {
-            coins[j].pulse += dt * 4;
-            var c = coins[j];
-            if (Math.hypot(player.x - c.x, player.y - c.y) < player.r + c.r) {
-                score += 10;
-                coins.splice(j, 1);
-                spawnCoin();
-                if (score % 50 === 0) spawnEnemy();
-                updateHUD();
-            }
-        }
-    }
-
-    function draw() {
-        // Background gradient
-        var bg = ctx.createLinearGradient(0, 0, 0, ch);
-        bg.addColorStop(0, '#0f0f2a');
-        bg.addColorStop(1, '#1a0a2e');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, cw, ch);
-
-        // Draw coins with glow
-        for (var j = 0; j < coins.length; j++) {
-            var c = coins[j];
-            var pr = c.r + Math.sin(c.pulse) * 3;
-            ctx.save();
-            ctx.shadowBlur = 15; ctx.shadowColor = '#ffcc00';
-            ctx.fillStyle = '#ffcc00';
-            ctx.beginPath(); ctx.arc(c.x, c.y, pr, 0, Math.PI*2); ctx.fill();
-            ctx.restore();
-        }
-        // Draw enemies
-        for (var i = 0; i < enemies.length; i++) {
-            var e = enemies[i];
-            ctx.save();
-            ctx.shadowBlur = 10; ctx.shadowColor = '#ff3344';
-            ctx.fillStyle = '#ff3344';
-            ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
-            // Eyes
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(e.x - 6, e.y - 5, 4, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(e.x + 6, e.y - 5, 4, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#000';
-            ctx.beginPath(); ctx.arc(e.x - 5, e.y - 5, 2, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(e.x + 7, e.y - 5, 2, 0, Math.PI*2); ctx.fill();
-            ctx.restore();
-        }
-        // Draw player
-        ctx.save();
-        ctx.shadowBlur = 12; ctx.shadowColor = '#44aaff';
-        ctx.fillStyle = '#44aaff';
-        ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(player.x - 8, player.y - 6, 5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(player.x + 8, player.y - 6, 5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.arc(player.x - 7, player.y - 6, 2.5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(player.x + 9, player.y - 6, 2.5, 0, Math.PI*2); ctx.fill();
-        ctx.restore();
-    }
-
-    function gameOver() {
-        state = 'GAMEOVER';
-        document.getElementById('final-score').textContent = score;
-        document.getElementById('game-over').style.display = 'flex';
-    }
-
-    function gameLoop(now) {
-        if (!lastTime) lastTime = now;
-        var dt = Math.min((now - lastTime) / 1000, 0.05);
-        lastTime = now;
-        update(dt);
-        draw();
+        resize();
+        // You MUST initialize your unique game here
+        
+        lastTime = performance.now();
         requestAnimationFrame(gameLoop);
     }
+    
+    function gameLoop(now) {
+        var dt = Math.min((now - lastTime) / 1000, 0.05); // cap at 50ms to prevent glitches
+        lastTime = now;
+        
+        // You MUST write custom physics, inputs, and draw operations here!
+        ctx.clearRect(0, 0, cw, ch);
+        
+        requestAnimationFrame(gameLoop);
+    }
+    
+    // Example interaction hooks
+    window.addEventListener('pointerdown', function(e) {
+        // Handle custom input
+    });
+    document.getElementById('restart-btn').onclick = function() {
+        document.getElementById('game-over').style.display = 'none';
+        init();
+    };
+    
+    // Start Game
     init();
-    requestAnimationFrame(gameLoop);
     </script>
-</body></html>
+</body>
+</html>
 \`\`\`
 
 === YOUR TASK ===
