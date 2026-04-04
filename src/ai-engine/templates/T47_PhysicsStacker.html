@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let blocks = [];
+let blockWidth = 50;
+let blockHeight = 20;
+let blockGap = 10;
+let blockSpeed = params.speed;
+let gameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function createBlock() {
+  const block = {
+    x: Math.random() * (canvas.width - blockWidth),
+    y: 0,
+    width: blockWidth,
+    height: blockHeight,
+    speed: blockSpeed,
+  };
+  blocks.push(block);
+}
+
+function update() {
+  if (!gameOver) {
+    scoreSpan.textContent = score;
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const block = blocks[i];
+      block.y += block.speed;
+      if (block.y > canvas.height) {
+        blocks.splice(i, 1);
+        score++;
+        createBlock();
+      }
+    }
+    if (blocks.length === 0) {
+      createBlock();
+    }
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const block = blocks[i];
+      for (let j = i - 1; j >= 0; j--) {
+        const otherBlock = blocks[j];
+        if (block.y + block.height > otherBlock.y && block.y < otherBlock.y + otherBlock.height) {
+          if (block.x < otherBlock.x + otherBlock.width && block.x + block.width > otherBlock.x) {
+            gameOver = true;
+          }
+        }
+      }
+    }
+  }
+}
+
+function render() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (const block of blocks) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(block.x, block.y, block.width, block.height);
+  }
+}
+
+function loop() {
+  update();
+  render();
+  if (gameOver) {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  } else {
+    requestAnimationFrame(loop);
+  }
+}
+
+restartBtn.addEventListener('click', () => {
+  gameOver = false;
+  score = 0;
+  blocks = [];
+  gameOverDiv.style.display = 'none';
+  loop();
+});
+
+loop();
+</script>
+</body>
+</html>

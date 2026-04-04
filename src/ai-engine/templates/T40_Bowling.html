@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let ballX = 0;
+let ballY = canvas.height - 20;
+let ballSpeedX = 0;
+let ballSpeedY = 0;
+let pins = [];
+let isGameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function init() {
+  for (let i = 0; i < 10; i++) {
+    pins.push({ x: Math.random() * (canvas.width - 50), y: Math.random() * (canvas.height / 2) });
+  }
+}
+
+function update() {
+  if (!isGameOver) {
+    if (ballSpeedX !== 0 || ballSpeedY !== 0) {
+      ballX += ballSpeedX;
+      ballY += ballSpeedY;
+
+      if (ballX < 0 || ballX > canvas.width - 20) {
+        ballSpeedX = -ballSpeedX;
+      }
+      if (ballY < 0 || ballY > canvas.height - 20) {
+        ballSpeedY = -ballSpeedY;
+      }
+
+      for (let i = 0; i < pins.length; i++) {
+        if (checkCollision(ballX, ballY, pins[i].x, pins[i].y)) {
+          pins.splice(i, 1);
+          score++;
+          scoreSpan.textContent = score;
+        }
+      }
+
+      if (pins.length === 0) {
+        isGameOver = true;
+        gameOverDiv.style.display = 'flex';
+        finalScoreSpan.textContent = score;
+      }
+    }
+  }
+}
+
+function render() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < pins.length; i++) {
+    ctx.beginPath();
+    ctx.arc(pins[i].x, pins[i].y, 10, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function checkCollision(x1, y1, x2, y2) {
+  const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  return distance < 20;
+}
+
+function handleMouseDown(event) {
+  if (!isGameOver) {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    ballSpeedX = (x - ballX) / 10;
+    ballSpeedY = (y - ballY) / 10;
+  }
+}
+
+function handleRestart() {
+  isGameOver = false;
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  pins = [];
+  ballX = 0;
+  ballY = canvas.height - 20;
+  ballSpeedX = 0;
+  ballSpeedY = 0;
+  init();
+}
+
+init();
+canvas.addEventListener('mousedown', handleMouseDown);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

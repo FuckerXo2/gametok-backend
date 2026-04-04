@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let targetX = 0;
+let targetY = 0;
+let arrowX = 0;
+let arrowY = 0;
+let arrowVelX = 0;
+let arrowVelY = 0;
+let gravity = 0.1;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(targetX, targetY, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(arrowX, arrowY, 10, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function update() {
+  if (!gameOver) {
+    if (arrowX < targetX) {
+      arrowVelX += params.speed / 100;
+    } else if (arrowX > targetX) {
+      arrowVelX -= params.speed / 100;
+    }
+
+    if (arrowY < targetY) {
+      arrowVelY += gravity;
+    } else if (arrowY > targetY) {
+      arrowVelY -= gravity;
+    }
+
+    arrowX += arrowVelX;
+    arrowY += arrowVelY;
+
+    if (Math.abs(arrowX - targetX) < 10 && Math.abs(arrowY - targetY) < 10) {
+      score++;
+      scoreSpan.textContent = score;
+      targetX = Math.random() * (canvas.width - 40) + 20;
+      targetY = Math.random() * (canvas.height - 40) + 20;
+      arrowX = 20;
+      arrowY = canvas.height - 20;
+      arrowVelX = 0;
+      arrowVelY = 0;
+    }
+
+    if (arrowY > canvas.height) {
+      gameOver = true;
+      finalScoreSpan.textContent = score;
+      gameOverDiv.style.display = 'flex';
+    }
+  }
+}
+
+function loop() {
+  draw();
+  update();
+  requestAnimationFrame(loop);
+}
+
+restartBtn.addEventListener('click', () => {
+  gameOver = false;
+  score = 0;
+  scoreSpan.textContent = score;
+  targetX = Math.random() * (canvas.width - 40) + 20;
+  targetY = Math.random() * (canvas.height - 40) + 20;
+  arrowX = 20;
+  arrowY = canvas.height - 20;
+  arrowVelX = 0;
+  arrowVelY = 0;
+  gameOverDiv.style.display = 'none';
+});
+
+loop();
+</script>
+</body>
+</html>

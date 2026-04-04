@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let fruits = [];
+let fruitTypes = ['apple', 'banana', 'orange', 'grape'];
+let fruitSpeed = params.speed;
+let fruitSize = 50;
+let fruitSpawnInterval = 1000;
+let lastFruitSpawn = 0;
+let canvasWidth = canvas.width = window.innerWidth;
+let canvasHeight = canvas.height = window.innerHeight;
+
+class Fruit {
+  constructor(x, y, type) {
+    this.x = x;
+    this.y = y;
+    this.type = type;
+    this.width = fruitSize;
+    this.height = fruitSize;
+    this.speed = fruitSpeed;
+  }
+
+  draw() {
+    ctx.fillStyle = this.type === 'apple' ? 'red' : this.type === 'banana' ? 'yellow' : this.type === 'orange' ? 'orange' : 'purple';
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+
+  update() {
+    this.y += this.speed;
+  }
+}
+
+function spawnFruit() {
+  const x = Math.random() * (canvasWidth - fruitSize);
+  const y = -fruitSize;
+  const type = fruitTypes[Math.floor(Math.random() * fruitTypes.length)];
+  fruits.push(new Fruit(x, y, type));
+}
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  for (let i = 0; i < fruits.length; i++) {
+    fruits[i].draw();
+    fruits[i].update();
+
+    if (fruits[i].y > canvasHeight) {
+      fruits.splice(i, 1);
+    }
+  }
+}
+
+function handleMouseDown(e) {
+  if (gameOver) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  for (let i = 0; i < fruits.length; i++) {
+    if (x > fruits[i].x && x < fruits[i].x + fruits[i].width && y > fruits[i].y && y < fruits[i].y + fruits[i].height) {
+      fruits.splice(i, 1);
+      score++;
+      scoreSpan.textContent = score;
+    }
+  }
+}
+
+function update() {
+  const now = Date.now();
+
+  if (now - lastFruitSpawn > fruitSpawnInterval) {
+    spawnFruit();
+    lastFruitSpawn = now;
+  }
+
+  if (fruits.length > 10) {
+    gameOver = true;
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+}
+
+function loop() {
+  if (gameOver) return;
+
+  draw();
+  update();
+
+  requestAnimationFrame(loop);
+}
+
+canvas.addEventListener('mousedown', handleMouseDown);
+restartBtn.addEventListener('click', () => {
+  gameOver = false;
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  fruits = [];
+  lastFruitSpawn = 0;
+  loop();
+});
+
+loop();
+</script>
+</body>
+</html>

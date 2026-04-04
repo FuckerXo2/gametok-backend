@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Top Down Shooter</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #111; color: #fff; font-family: sans-serif; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; font-size: 20px; font-weight: bold; pointer-events: none; }
+        #game-over { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+        button { margin-top: 20px; padding: 15px 30px; font-size: 20px; border: none; border-radius: 8px; background: {{primary_color}}; color: #fff; font-weight: bold; cursor: pointer; }
+    </style>
+    <script id="game-params" type="application/json">
+        {{GAME_PARAMETERS}}
+    </script>
+</head>
+<body>
+    <!-- Hidden Assets -->
+    <div style="display:none;" id="assets-container">
+        {{ASSET_TAGS}}
+    </div>
+
+    <div id="hud">
+        <div>{{SCORE_LABEL}}: <span id="score">0</span></div>
+        <div>{{HEALTH_LABEL}}: <span id="lives">3</span></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="game-over">
+        <h1 style="color: {{primary_color}}">{{GAMEOVER_TITLE}}</h1>
+        <h2>{{FINAL_SCORE_LABEL}}: <span id="finalScore">0</span></h2>
+        <button id="restart-btn">{{RESTART_TEXT}}</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let cw, ch;
+        function resize() { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; }
+        window.addEventListener('resize', resize);
+        
+        let params = { heroSpeed: 5, enemySpeed: 3, spawnRate: 1000, heroScale: 40, enemyScale: 30 };
+        try { params = Object.assign(params, JSON.parse(document.getElementById('game-params').textContent || '{}')); } catch(e){}
+        
+        let state = 'PLAYING';
+        let score = 0, lives = 3;
+        let lastTime = performance.now(), spawnTimer = 0;
+        
+        let player = { x: 0, y: 0, targetX: 0, targetY: 0, r: params.heroScale };
+        let enemies = [];
+        
+        const heroImg = document.getElementById('img_HERO');
+        const enemyImg = document.getElementById('img_ENEMY');
+        const bgImg = document.getElementById('img_BACKGROUND');
+
+        function init() {
+            resize();
+            state = 'PLAYING'; score = 0; lives = 3; enemies = [];
+            player.x = cw / 2; player.y = ch / 2;
+            player.targetX = player.x; player.targetY = player.y;
+            document.getElementById('game-over').style.display = 'none';
+            updateHUD();
+            lastTime = performance.now();
+            requestAnimationFrame(loop);
+        }
+
+        function updateHUD() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+        }
+
+        window.addEventListener('pointerdown', e => { player.targetX = e.clientX; player.targetY = e.clientY; });
+        window.addEventListener('pointermove', e => { if (e.buttons) { player.targetX = e.clientX; player.targetY = e.clientY; } });
+        document.getElementById('restart-btn').onclick = init;
+
+        function loop(now) {
+            if (state !== 'PLAYING') return;
+            let dt = Math.min((now - lastTime) / 1000, 0.05);
+            lastTime = now;
+
+            // Spawn
+            spawnTimer -= dt * 1000;
+            if (spawnTimer <= 0) {
+                enemies.push({ x: Math.random() < 0.5 ? -50 : cw+50, y: Math.random() * ch, r: params.enemyScale });
+                spawnTimer = params.spawnRate;
+            }
+
+            // Move Player
+            let dx = player.targetX - player.x, dy = player.targetY - player.y;
+            let dist = Math.hypot(dx, dy);
+            if (dist > 2) {
+                let move = Math.min(dist, params.heroSpeed * dt * 60);
+                player.x += (dx / dist) * move; player.y += (dy / dist) * move;
+            }
+
+            // Move Enemies & Collide
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                let edx = player.x - e.x, edy = player.y - e.y;
+                let edist = Math.hypot(edx, edy);
+                if (edist > 0) {
+                    e.x += (edx / edist) * params.enemySpeed * dt * 60;
+                    e.y += (edy / edist) * params.enemySpeed * dt * 60;
+                }
+                if (edist < player.r + e.r) {
+                    lives--; updateHUD(); enemies.splice(i, 1);
+                    if (lives <= 0) {
+                        state = 'GAMEOVER';
+                        document.getElementById('finalScore').textContent = score;
+                        document.getElementById('game-over').style.display = 'flex';
+                    }
+                } else {
+                    // Survive time = score
+                    if (Math.random() < 0.01) { score += 1; updateHUD(); }
+                }
+            }
+
+            // Draw
+            if (bgImg && bgImg.src) ctx.drawImage(bgImg, 0, 0, cw, ch);
+            else { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, cw, ch); }
+
+            for (let e of enemies) {
+                if (enemyImg && enemyImg.src) ctx.drawImage(enemyImg, e.x - e.r, e.y - e.r, e.r*2, e.r*2);
+                else { ctx.fillStyle='red'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill(); }
+            }
+
+            if (heroImg && heroImg.src) ctx.drawImage(heroImg, player.x - player.r, player.y - player.r, player.r*2, player.r*2);
+            else { ctx.fillStyle='cyan'; ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill(); }
+
+            requestAnimationFrame(loop);
+        }
+        init();
+    </script>
+</body>
+</html>

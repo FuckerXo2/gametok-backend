@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let knifeX = canvas.width / 2;
+let knifeY = canvas.height - 50;
+let knifeSpeed = 5;
+let knifeRadius = 20;
+let logX = canvas.width / 2;
+let logY = canvas.height - 100;
+let logSpeed = params.speed;
+let logWidth = 100;
+let logHeight = 50;
+let rotation = 0;
+let isGameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(knifeX, knifeY, knifeRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.save();
+  ctx.translate(logX, logY);
+  ctx.rotate(rotation);
+  ctx.fillRect(-logWidth / 2, -logHeight / 2, logWidth, logHeight);
+  ctx.restore();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '24px Arial';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Score: ' + score, 10, 10);
+}
+
+function update() {
+  if (!isGameOver) {
+    logY -= logSpeed;
+    rotation += 0.01;
+
+    if (logY < -logHeight) {
+      logY = canvas.height;
+      logX = Math.random() * (canvas.width - logWidth);
+      score++;
+    }
+
+    if (Math.hypot(knifeX - logX, knifeY - logY) < knifeRadius + logHeight / 2) {
+      isGameOver = true;
+    }
+  }
+}
+
+function handleInput(event) {
+  if (event.type === 'touchstart' || event.type === 'mousedown') {
+    knifeX = event.clientX || event.touches[0].clientX;
+    knifeY = event.clientY || event.touches[0].clientY;
+  }
+}
+
+function handleRestart() {
+  isGameOver = false;
+  score = 0;
+  logY = canvas.height;
+  logX = canvas.width / 2;
+  rotation = 0;
+  gameOverDiv.style.display = 'none';
+}
+
+document.addEventListener('touchstart', handleInput);
+document.addEventListener('mousedown', handleInput);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  draw();
+  if (isGameOver) {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

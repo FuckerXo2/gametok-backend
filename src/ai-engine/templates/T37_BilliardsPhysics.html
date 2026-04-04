@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let balls = [];
+let cueBall;
+let cueStick;
+let isGameRunning = true;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+class Ball {
+  constructor(x, y, radius, color, isCueBall) {
+    this.x = x;
+    this.y = y;
+    this.radius = radius;
+    this.color = color;
+    this.isCueBall = isCueBall;
+    this.velocity = { x: 0, y: 0 };
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+  }
+
+  update() {
+    this.x += this.velocity.x;
+    this.y += this.velocity.y;
+
+    if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
+      this.velocity.x *= -1;
+    }
+    if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
+      this.velocity.y *= -1;
+    }
+  }
+}
+
+class CueStick {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.length = 100;
+    this.angle = Math.PI / 2;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(this.x + Math.cos(this.angle) * this.length, this.y + Math.sin(this.angle) * this.length);
+    ctx.strokeStyle = 'white';
+    ctx.stroke();
+  }
+
+  update() {
+    const dx = cueBall.x - this.x;
+    const dy = cueBall.y - this.y;
+    this.angle = Math.atan2(dy, dx);
+  }
+}
+
+function init() {
+  cueBall = new Ball(canvas.width / 2, canvas.height / 2, 10, 'white', true);
+  cueStick = new CueStick(canvas.width / 2, canvas.height / 2);
+  for (let i = 0; i < 10; i++) {
+    balls.push(new Ball(Math.random() * (canvas.width - 20) + 10, Math.random() * (canvas.height - 20) + 10, 10, `hsl(${Math.random() * 360}, 100%, 50%)`, false));
+  }
+}
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  cueBall.draw();
+  cueStick.draw();
+  balls.forEach(ball => ball.draw());
+}
+
+function update() {
+  cueStick.update();
+  cueBall.update();
+  balls.forEach(ball => ball.update());
+  checkCollisions();
+}
+
+function checkCollisions() {
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      const dx = balls[i].x - balls[j].x;
+      const dy = balls[i].y - balls[j].y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < balls[i].radius + balls[j].radius) {
+        const tempVx = balls[i].velocity.x;
+        const tempVy = balls[i].velocity.y;
+        balls[i].velocity.x = balls[j].velocity.x;
+        balls[i].velocity.y = balls[j].velocity.y;
+        balls[j].velocity.x = tempVx;
+        balls[j].velocity.y = tempVy;
+      }
+    }
+  }
+  if (cueBall.isCueBall) {
+    for (let i = 0; i < balls.length; i++) {
+      const dx = cueBall.x - balls[i].x;
+      const dy = cueBall.y - balls[i].y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < cueBall.radius + balls[i].radius) {
+        const tempVx = cueBall.velocity.x;
+        const tempVy = cueBall.velocity.y;
+        cueBall.velocity.x = balls[i].velocity.x;
+        cueBall.velocity.y = balls[i].velocity.y;
+        balls[i].velocity.x = tempVx;
+        balls[i].velocity.y = tempVy;
+        score++;
+        scoreSpan.textContent = score;
+      }
+    }
+  }
+}
+
+function handleMouseDown(event) {
+  if (isGameRunning) {
+    const angle = cueStick.angle;
+    cueBall.velocity.x = Math.cos(angle) * params.speed;
+    cueBall.velocity.y = Math.sin(angle) * params.speed;
+    cueBall.isCueBall = false;
+  }
+}
+
+function handleRestart() {
+  isGameRunning = true;
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  cueBall.x = canvas.width / 2;
+  cueBall.y = canvas.height / 2;
+  cueBall.velocity.x = 0;
+  cueBall.velocity.y = 0;
+  cueBall.isCueBall = true;
+  balls.forEach(ball => {
+    ball.x = Math.random() * (canvas.width - 20) + 10;
+    ball.y = Math.random() * (canvas.height - 20) + 10;
+    ball.velocity.x = 0;
+    ball.velocity.y = 0;
+  });
+}
+
+init();
+canvas.addEventListener('mousedown', handleMouseDown);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  if (isGameRunning) {
+    update();
+    draw();
+  } else {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let playerX = canvas.width / 2;
+let playerY = canvas.height / 2;
+let playerSpeedX = 0;
+let playerSpeedY = 0;
+let gravity = 0.1;
+let playerRadius = 20;
+let obstacles = [];
+let gameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function createObstacle() {
+  const obstacle = {
+    x: Math.random() * canvas.width,
+    y: -20,
+    radius: 20,
+    speed: params.speed
+  };
+  obstacles.push(obstacle);
+}
+
+function update() {
+  if (!gameOver) {
+    playerSpeedY += gravity;
+    playerY += playerSpeedY;
+    playerX += playerSpeedX;
+
+    if (playerY + playerRadius > canvas.height) {
+      playerY = canvas.height - playerRadius;
+      playerSpeedY = 0;
+    }
+
+    if (playerX + playerRadius > canvas.width) {
+      playerX = canvas.width - playerRadius;
+    } else if (playerX - playerRadius < 0) {
+      playerX = playerRadius;
+    }
+
+    for (let i = 0; i < obstacles.length; i++) {
+      const obstacle = obstacles[i];
+      obstacle.y += obstacle.speed;
+
+      if (obstacle.y > canvas.height) {
+        obstacles.splice(i, 1);
+        score++;
+        scoreSpan.textContent = score;
+      }
+
+      if (checkCollision(playerX, playerY, playerRadius, obstacle.x, obstacle.y, obstacle.radius)) {
+        gameOver = true;
+      }
+    }
+
+    if (Math.random() < 0.05) {
+      createObstacle();
+    }
+  }
+}
+
+function render() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(playerX, playerY, playerRadius, 0, 2 * Math.PI);
+  ctx.fill();
+
+  for (let i = 0; i < obstacles.length; i++) {
+    const obstacle = obstacles[i];
+    ctx.beginPath();
+    ctx.arc(obstacle.x, obstacle.y, obstacle.radius, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  if (gameOver) {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+}
+
+function checkCollision(x1, y1, r1, x2, y2, r2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  return distance < r1 + r2;
+}
+
+function handleKeyDown(event) {
+  if (event.key === 'ArrowLeft') {
+    playerSpeedX = -params.speed;
+  } else if (event.key === 'ArrowRight') {
+    playerSpeedX = params.speed;
+  }
+}
+
+function handleKeyUp(event) {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    playerSpeedX = 0;
+  }
+}
+
+function handleRestart() {
+  gameOver = false;
+  score = 0;
+  scoreSpan.textContent = score;
+  playerX = canvas.width / 2;
+  playerY = canvas.height / 2;
+  playerSpeedX = 0;
+  playerSpeedY = 0;
+  obstacles = [];
+  gameOverDiv.style.display = 'none';
+}
+
+document.addEventListener('keydown', handleKeyDown);
+document.addEventListener('keyup', handleKeyUp);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let player = {
+  x: 50,
+  y: canvas.height / 2,
+  w: 50,
+  h: 50,
+  vy: 0,
+  gravity: 0.5,
+  jump: -10,
+  isJumping: false,
+};
+let platforms = [
+  { x: 0, y: canvas.height - 50, w: canvas.width, h: 50 },
+  { x: 200, y: canvas.height / 2, w: 200, h: 20 },
+  { x: 500, y: canvas.height / 2, w: 200, h: 20 },
+];
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  platforms.forEach(platform => {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+  });
+
+  ctx.font = '24px Arial';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`Score: ${score}`, 10, 10);
+}
+
+function update() {
+  if (!gameOver) {
+    player.vy += player.gravity;
+    player.y += player.vy;
+
+    if (player.y + player.h > canvas.height) {
+      player.y = canvas.height - player.h;
+      player.vy = 0;
+      player.isJumping = false;
+    }
+
+    platforms.forEach(platform => {
+      if (checkCollision(player, platform)) {
+        if (player.vy > 0) {
+          player.y = platform.y - player.h;
+          player.vy = 0;
+          player.isJumping = false;
+        } else if (player.vy < 0) {
+          player.y = platform.y + platform.h;
+          player.vy = 0;
+        }
+      }
+    });
+
+    if (player.x + player.w > canvas.width) {
+      player.x = 0;
+      score++;
+    }
+
+    player.x += params.speed;
+  }
+}
+
+function checkCollision(rect1, rect2) {
+  return (
+    rect1.x + rect1.w > rect2.x &&
+    rect1.x < rect2.x + rect2.w &&
+    rect1.y + rect1.h > rect2.y &&
+    rect1.y < rect2.y + rect2.h
+  );
+}
+
+function handleInput(event) {
+  if (event.key === ' ') {
+    if (!player.isJumping) {
+      player.vy = player.jump;
+      player.isJumping = true;
+    }
+  }
+}
+
+function handleRestart() {
+  gameOver = false;
+  score = 0;
+  player.x = 50;
+  player.y = canvas.height / 2;
+  player.vy = 0;
+  player.isJumping = false;
+  gameOverDiv.style.display = 'none';
+}
+
+document.addEventListener('keydown', handleInput);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  if (gameOver) {
+    finalScoreSpan.textContent = score;
+    gameOverDiv.style.display = 'flex';
+  } else {
+    update();
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

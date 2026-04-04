@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Catching Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #eee; font-family: sans-serif; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; font-size: 24px; font-weight: bold; }
+        #game-over { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; color: white; }
+        button { margin-top: 20px; padding: 15px 30px; font-size: 20px; border: none; border-radius: 8px; background: {{primary_color}}; color: #fff; font-weight: bold; cursor: pointer; }
+    </style>
+    <script id="game-params" type="application/json">{{GAME_PARAMETERS}}</script>
+</head>
+<body>
+    <div style="display:none;" id="assets-container">{{ASSET_TAGS}}</div>
+    <div id="hud">
+        <div>{{SCORE_LABEL}}: <span id="score">0</span></div>
+        <div>{{HEALTH_LABEL}}: <span id="lives">3</span></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="game-over">
+        <h1 style="color: {{primary_color}}">{{GAMEOVER_TITLE}}</h1>
+        <h2>{{FINAL_SCORE_LABEL}}: <span id="finalScore">0</span></h2>
+        <button id="restart-btn">{{RESTART_TEXT}}</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let cw, ch;
+        function resize() { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; }
+        window.addEventListener('resize', resize);
+        
+        let params = { heroSpeed: 10, itemSpeed: 5, spawnRate: 60 };
+        try { params = Object.assign(params, JSON.parse(document.getElementById('game-params').textContent || '{}')); } catch(e){}
+        
+        const heroImg = document.getElementById('img_HERO');
+        const itemImg = document.getElementById('img_ENEMY');
+        const bgImg = document.getElementById('img_BACKGROUND');
+
+        let player = { x: 0, y: 0, w: 80, h: 40, targetX: 0 };
+        let items = [];
+        let score = 0, lives = 3, frames = 0, state = 'PLAYING';
+        
+        function init() {
+            resize(); state = 'PLAYING'; score = 0; lives = 3; frames = 0; items = [];
+            player.x = cw / 2 - player.w/2; player.y = ch - 80; player.targetX = player.x;
+            document.getElementById('game-over').style.display = 'none';
+            updateHUD();
+            requestAnimationFrame(loop);
+        }
+
+        function updateHUD() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+        }
+
+        window.addEventListener('pointerdown', e => player.targetX = e.clientX - player.w/2);
+        window.addEventListener('pointermove', e => { if(e.buttons) player.targetX = e.clientX - player.w/2; });
+        document.getElementById('restart-btn').onclick = init;
+
+        function loop() {
+            if (state !== 'PLAYING') return;
+
+            player.x += (player.targetX - player.x) * 0.2; // smooth follow
+            player.x = Math.max(0, Math.min(cw - player.w, player.x));
+
+            if (frames % params.spawnRate === 0) {
+                let iw = 30;
+                items.push({ x: Math.random() * (cw - iw), y: -50, w: iw, h: iw });
+            }
+
+            for (let i = items.length - 1; i >= 0; i--) {
+                let it = items[i];
+                it.y += params.itemSpeed;
+                
+                // Missed
+                if (it.y > ch) {
+                    items.splice(i, 1);
+                    lives--; updateHUD();
+                    if (lives <= 0) {
+                        state = 'GAMEOVER';
+                        document.getElementById('finalScore').textContent = score;
+                        document.getElementById('game-over').style.display = 'flex';
+                    }
+                    continue;
+                }
+                
+                // Caught
+                if (player.x < it.x + it.w && player.x + player.w > it.x &&
+                    player.y < it.y + it.h && player.y + player.h > it.y) {
+                    items.splice(i, 1); score += 10; updateHUD();
+                }
+            }
+            frames++;
+
+            // Draw
+            if (bgImg && bgImg.src) ctx.drawImage(bgImg, 0, 0, cw, ch);
+            else { ctx.fillStyle = '#eee'; ctx.fillRect(0, 0, cw, ch); }
+
+            for (let it of items) {
+                if (itemImg && itemImg.src) ctx.drawImage(itemImg, it.x, it.y, it.w, it.h);
+                else { ctx.fillStyle='orange'; ctx.beginPath(); ctx.arc(it.x+it.w/2, it.y+it.h/2, it.w/2, 0, Math.PI*2); ctx.fill(); }
+            }
+
+            if (heroImg && heroImg.src) ctx.drawImage(heroImg, player.x, player.y, player.w, player.h);
+            else { ctx.fillStyle='blue'; ctx.fillRect(player.x, player.y, player.w, player.h); }
+
+            requestAnimationFrame(loop);
+        }
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let grid = [];
+let gridSize = 10;
+let wordList = ['apple', 'banana', 'cherry', 'date', 'elderberry'];
+let wordDirections = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+let selectedWord = '';
+let selectedWordIndex = 0;
+let selectedWordDirection = [0, 0];
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function generateGrid() {
+  grid = [];
+  for (let i = 0; i < gridSize; i++) {
+    grid[i] = [];
+    for (let j = 0; j < gridSize; j++) {
+      grid[i][j] = Math.floor(Math.random() * 26);
+    }
+  }
+  placeWords();
+}
+
+function placeWords() {
+  for (let i = 0; i < wordList.length; i++) {
+    let word = wordList[i];
+    let direction = wordDirections[Math.floor(Math.random() * wordDirections.length)];
+    let x = Math.floor(Math.random() * gridSize);
+    let y = Math.floor(Math.random() * gridSize);
+    for (let j = 0; j < word.length; j++) {
+      let charCode = word.charCodeAt(j) - 97;
+      if (x + direction[0] * j >= 0 && x + direction[0] * j < gridSize && y + direction[1] * j >= 0 && y + direction[1] * j < gridSize) {
+        grid[x + direction[0] * j][y + direction[1] * j] = charCode;
+      }
+    }
+  }
+}
+
+function drawGrid() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#fff';
+  ctx.font = '24px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < gridSize; i++) {
+    for (let j = 0; j < gridSize; j++) {
+      ctx.fillText(String.fromCharCode(grid[i][j] + 97), j * (canvas.width / gridSize) + (canvas.width / gridSize) / 2, i * (canvas.height / gridSize) + (canvas.height / gridSize) / 2);
+    }
+  }
+  if (selectedWord !== '') {
+    ctx.fillStyle = '#0f0';
+    for (let i = 0; i < selectedWord.length; i++) {
+      let x = (selectedWordIndex[0] + selectedWordDirection[0] * i) * (canvas.width / gridSize) + (canvas.width / gridSize) / 2;
+      let y = (selectedWordIndex[1] + selectedWordDirection[1] * i) * (canvas.height / gridSize) + (canvas.height / gridSize) / 2;
+      ctx.fillText(String.fromCharCode(grid[selectedWordIndex[0] + selectedWordDirection[0] * i][selectedWordIndex[1] + selectedWordDirection[1] * i] + 97), x, y);
+    }
+  }
+}
+
+function checkWord(x, y, direction) {
+  let word = '';
+  for (let i = 0; i < 10; i++) {
+    if (x + direction[0] * i >= 0 && x + direction[0] * i < gridSize && y + direction[1] * i >= 0 && y + direction[1] * i < gridSize) {
+      word += String.fromCharCode(grid[x + direction[0] * i][y + direction[1] * i] + 97);
+    } else {
+      break;
+    }
+  }
+  if (wordList.includes(word)) {
+    return word;
+  } else {
+    return '';
+  }
+}
+
+canvas.addEventListener('click', (e) => {
+  if (!gameOver) {
+    let x = Math.floor(e.clientX / (canvas.width / gridSize));
+    let y = Math.floor(e.clientY / (canvas.height / gridSize));
+    for (let i = 0; i < wordDirections.length; i++) {
+      let word = checkWord(x, y, wordDirections[i]);
+      if (word !== '') {
+        selectedWord = word;
+        selectedWordIndex = [x, y];
+        selectedWordDirection = wordDirections[i];
+        score++;
+        scoreSpan.textContent = score;
+        break;
+      }
+    }
+  }
+});
+
+restartBtn.addEventListener('click', () => {
+  gameOver = false;
+  score = 0;
+  scoreSpan.textContent = score;
+  generateGrid();
+  drawGrid();
+  gameOverDiv.style.display = 'none';
+});
+
+function update() {
+  if (!gameOver) {
+    drawGrid();
+    requestAnimationFrame(update);
+  } else {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+}
+
+generateGrid();
+update();
+</script>
+</body>
+</html>

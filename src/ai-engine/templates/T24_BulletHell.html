@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let player = { x: canvas.width / 2, y: canvas.height - 50, w: 50, h: 50, speed: 5 };
+let bullets = [];
+let enemies = [];
+let gameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  for (let i = 0; i < bullets.length; i++) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(bullets[i].x, bullets[i].y, bullets[i].w, bullets[i].h);
+  }
+
+  for (let i = 0; i < enemies.length; i++) {
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(enemies[i].x, enemies[i].y, enemies[i].w, enemies[i].h);
+  }
+
+  scoreSpan.textContent = score;
+}
+
+function update() {
+  if (!gameOver) {
+    if (enemies.length < 10) {
+      enemies.push({ x: Math.random() * (canvas.width - 50), y: 0, w: 50, h: 50, speed: 2 });
+    }
+
+    for (let i = 0; i < enemies.length; i++) {
+      enemies[i].y += enemies[i].speed;
+
+      if (enemies[i].y > canvas.height) {
+        enemies.splice(i, 1);
+        score++;
+      }
+
+      for (let j = 0; j < bullets.length; j++) {
+        if (checkCollision(bullets[j], enemies[i])) {
+          enemies.splice(i, 1);
+          bullets.splice(j, 1);
+          score++;
+        }
+      }
+
+      if (checkCollision(player, enemies[i])) {
+        gameOver = true;
+      }
+    }
+
+    for (let i = 0; i < bullets.length; i++) {
+      bullets[i].y -= bullets[i].speed;
+
+      if (bullets[i].y < 0) {
+        bullets.splice(i, 1);
+      }
+    }
+  }
+}
+
+function checkCollision(obj1, obj2) {
+  if (obj1.x + obj1.w > obj2.x && obj1.x < obj2.x + obj2.w && obj1.y + obj1.h > obj2.y && obj1.y < obj2.y + obj2.h) {
+    return true;
+  }
+
+  return false;
+}
+
+function handleInput(event) {
+  if (event.key === 'ArrowLeft') {
+    player.x -= player.speed;
+  } else if (event.key === 'ArrowRight') {
+    player.x += player.speed;
+  } else if (event.key === ' ') {
+    bullets.push({ x: player.x + player.w / 2, y: player.y, w: 10, h: 10, speed: 5 });
+  }
+
+  if (player.x < 0) {
+    player.x = 0;
+  } else if (player.x + player.w > canvas.width) {
+    player.x = canvas.width - player.w;
+  }
+}
+
+function handleRestart() {
+  gameOver = false;
+  score = 0;
+  player.x = canvas.width / 2;
+  player.y = canvas.height - 50;
+  bullets = [];
+  enemies = [];
+  finalScoreSpan.textContent = score;
+  gameOverDiv.style.display = 'none';
+}
+
+document.addEventListener('keydown', handleInput);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

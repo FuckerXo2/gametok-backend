@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let ball = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  vx: Math.random() * 2 - 1,
+  vy: Math.random() * 2 - 1,
+  radius: 10,
+  color: '#fff'
+};
+
+let bumpers = [];
+for (let i = 0; i < 5; i++) {
+  bumpers.push({
+    x: Math.random() * (canvas.width - 50),
+    y: Math.random() * (canvas.height - 50),
+    radius: 20,
+    color: '#f00'
+  });
+}
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = ball.color;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let bumper of bumpers) {
+    ctx.fillStyle = bumper.color;
+    ctx.beginPath();
+    ctx.arc(bumper.x, bumper.y, bumper.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.font = '24px Arial';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`Score: ${score}`, 10, 10);
+}
+
+function update() {
+  ball.x += ball.vx * params.speed;
+  ball.y += ball.vy * params.speed;
+
+  if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+    ball.vx *= -1;
+  }
+  if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+    ball.vy *= -1;
+  }
+
+  for (let bumper of bumpers) {
+    let dx = ball.x - bumper.x;
+    let dy = ball.y - bumper.y;
+    let distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance < ball.radius + bumper.radius) {
+      ball.vx *= -1;
+      ball.vy *= -1;
+      score++;
+      scoreSpan.textContent = score;
+    }
+  }
+
+  if (ball.y + ball.radius > canvas.height) {
+    gameOver();
+  }
+}
+
+function gameOver() {
+  gameOverDiv.style.display = 'flex';
+  finalScoreSpan.textContent = score;
+  restartBtn.addEventListener('click', restart);
+}
+
+function restart() {
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  ball.vx = Math.random() * 2 - 1;
+  ball.vy = Math.random() * 2 - 1;
+  for (let bumper of bumpers) {
+    bumper.x = Math.random() * (canvas.width - 50);
+    bumper.y = Math.random() * (canvas.height - 50);
+  }
+}
+
+function loop() {
+  draw();
+  update();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

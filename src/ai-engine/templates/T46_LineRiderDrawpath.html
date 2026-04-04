@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let lines = [];
+let rider = { x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0 };
+let gameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function drawLine(x1, y1, x2, y2) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function update() {
+  if (!gameOver) {
+    if (lines.length > 0) {
+      const lastLine = lines[lines.length - 1];
+      const dx = lastLine.x2 - lastLine.x1;
+      const dy = lastLine.y2 - lastLine.y1;
+      const angle = Math.atan2(dy, dx);
+      rider.vx = Math.cos(angle) * params.speed;
+      rider.vy = Math.sin(angle) * params.speed;
+      rider.x += rider.vx;
+      rider.y += rider.vy;
+      if (Math.hypot(rider.x - lastLine.x2, rider.y - lastLine.y2) < 5) {
+        lines.push({ x1: lastLine.x2, y1: lastLine.y2, x2: rider.x, y2: rider.y });
+        score++;
+        scoreSpan.textContent = score;
+      }
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < lines.length; i++) {
+      drawLine(lines[i].x1, lines[i].y1, lines[i].x2, lines[i].y2);
+    }
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(rider.x, rider.y, 5, 0, 2 * Math.PI);
+    ctx.fill();
+    if (rider.x < 0 || rider.x > canvas.width || rider.y < 0 || rider.y > canvas.height) {
+      gameOver = true;
+    }
+  } else {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+}
+
+function handleMouseDown(e) {
+  if (!gameOver) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (lines.length === 0) {
+      lines.push({ x1: x, y1: y, x2: x, y2: y });
+    } else {
+      const lastLine = lines[lines.length - 1];
+      lines.push({ x1: lastLine.x2, y1: lastLine.y2, x2: x, y2: y });
+    }
+  }
+}
+
+function handleMouseMove(e) {
+  if (!gameOver) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (lines.length > 0) {
+      const lastLine = lines[lines.length - 1];
+      lastLine.x2 = x;
+      lastLine.y2 = y;
+    }
+  }
+}
+
+function handleMouseUp(e) {
+  if (!gameOver) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (lines.length > 0) {
+      const lastLine = lines[lines.length - 1];
+      lastLine.x2 = x;
+      lastLine.y2 = y;
+    }
+  }
+}
+
+function handleRestart() {
+  gameOver = false;
+  gameOverDiv.style.display = 'none';
+  lines = [];
+  rider = { x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0 };
+  score = 0;
+  scoreSpan.textContent = score;
+}
+
+canvas.addEventListener('mousedown', handleMouseDown);
+canvas.addEventListener('mousemove', handleMouseMove);
+canvas.addEventListener('mouseup', handleMouseUp);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

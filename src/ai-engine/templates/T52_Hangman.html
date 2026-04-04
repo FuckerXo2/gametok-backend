@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const gameParams = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let word = '';
+let guessedWord = '';
+let guessedLetters = [];
+let lives = 6;
+let gameOver = false;
+
+const words = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape'];
+
+function init() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  ctx.font = '24px Arial';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#fff';
+  word = words[Math.floor(Math.random() * words.length)];
+  guessedWord = '_'.repeat(word.length);
+  draw();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = gameParams.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(guessedWord, 10, 10);
+  ctx.fillText(`Lives: ${lives}`, 10, 40);
+  if (gameOver) {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+}
+
+function update() {
+  if (!gameOver) {
+    if (guessedWord === word) {
+      score++;
+      scoreSpan.textContent = score;
+      word = words[Math.floor(Math.random() * words.length)];
+      guessedWord = '_'.repeat(word.length);
+      guessedLetters = [];
+      lives = 6;
+    }
+  }
+}
+
+function handleInput(e) {
+  if (!gameOver) {
+    const letter = e.key.toLowerCase();
+    if (letter.length === 1 && letter.match(/[a-z]/i)) {
+      if (!guessedLetters.includes(letter)) {
+        guessedLetters.push(letter);
+        if (word.includes(letter)) {
+          guessedWord = guessedWord.split('').map((c, i) => word[i] === letter ? letter : c).join('');
+        } else {
+          lives--;
+          if (lives === 0) {
+            gameOver = true;
+          }
+        }
+      }
+    }
+  } else {
+    if (e.key === ' ') {
+      gameOver = false;
+      gameOverDiv.style.display = 'none';
+      word = words[Math.floor(Math.random() * words.length)];
+      guessedWord = '_'.repeat(word.length);
+      guessedLetters = [];
+      lives = 6;
+    }
+  }
+}
+
+function handleRestart() {
+  gameOver = false;
+  gameOverDiv.style.display = 'none';
+  word = words[Math.floor(Math.random() * words.length)];
+  guessedWord = '_'.repeat(word.length);
+  guessedLetters = [];
+  lives = 6;
+}
+
+init();
+draw();
+update();
+
+document.addEventListener('keydown', handleInput);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

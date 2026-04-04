@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import pool from '../db.js';
-import { buildOmniEnginePrompt } from './prompt.js';
+import { buildOmniEnginePrompt, injectTemplate } from './prompt.js';
 import { compileGameHTML } from './compiler.js';
 import { verifyGame } from './sandbox.js';
 import { searchAssets } from './asset-dictionary.js';
@@ -35,73 +35,62 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 async function executeDreamJob(jobId, prompt, userId) {
     try {
         console.log(`🧠 [BACKGROUND JOB] Started Dream... Job: ${jobId}`);
-        
-        
-        // === STEP 1: PLANNER AGENT (CLAUDE 3.5 HAIKU) ===
-        console.log("🧭 Planner Agent: Classifying prompt & building asset manifest...");
-        const plannerSystemPrompt = `You are a game design planner for a Canvas2D mobile game engine. Given a user's game idea, you must:
-1. Rewrite the casual prompt into a detailed, technical game design brief covering mechanics, controls, scoring, and visual style.
-2. Create an asset manifest for the AI image generator.
 
-ASSET RULES:
-- SMART ART DIRECTOR: If the prompt involves living things, physical objects, locations, or organic characters (no matter how weird), you MUST generate 2 to 5 image assets. If the prompt is strictly a retro geometric game or simple physics (Pong, Tetris, bouncing lines), you MAY return an empty array [] for pure Canvas rendering.
-- 2D ENFORCEMENT: ALL requested images MUST strictly be 2D video game assets. You must append phrases like "2D flat vector game art, clean illustration, strictly 2D" or "2D 16-bit pixel art" to EVERY image prompt so the AI absolutely never creates mismatched 3D or photorealistic images.
-- ISOLATED SPRITES: Character/object sprites MUST request a "solid black background, isolated centered subject" so the engine can extract them.
-- BACKGROUNDS: MUST request "vertical mobile game background, 2D art" (512x768).`;
-
-        let enhancedPrompt = prompt;
-        let manifest;
+        // === TEMPLATE ROUTER & MODDER AGENT ===
+        const systemInstruction = buildOmniEnginePrompt({}, { mechanics: prompt });
         
-        try {
-            const plannerRes = await nvidiaClient.chat.completions.create({
-                model: "google/gemma-4-31b-it",
-                messages: [
-                    { role: "system", content: plannerSystemPrompt },
-                    { role: "user", content: `User prompt: "${prompt}"\n\nReturn pure JSON.` }
-                ],
-                max_tokens: 3000,
-                temperature: 0.5
-            });
-            
-            const rawOutput = plannerRes.choices[0].message.content;
-            const plannerJson = JSON.parse(extractJson(rawOutput));
-            enhancedPrompt = plannerJson.technicalPrompt || prompt;
-            manifest = { mechanics: plannerJson.mechanics || enhancedPrompt, assets: plannerJson.assets || [] };
-        } catch(e) {
-            console.error("Planner failed, falling back", e.message);
-            manifest = { mechanics: prompt, assets: [] }; // Fallback to 0 assets to avoid hang on error
-        }
+        console.log(`🤖 AI Modder: Selecting Template & Config...`);
+        const res = await nvidiaClient.chat.completions.create({
+            model: "google/gemma-4-31b-it",
+            messages: [
+                { role: "system", content: systemInstruction },
+                { role: "user", content: "CREATE THIS GAME:\n" + prompt }
+            ],
+            max_tokens: 2000,
+            temperature: 0.2
+        });
+        
+        const rawOutput = res.choices[0].message.content;
+        const aiJsonStr = extractJson(rawOutput);
+        const aiJson = JSON.parse(aiJsonStr);
+        
+        console.log(`✅ Selected Template: ${aiJson.selectedTemplateId}`);
 
-        // === STEP 2: ART DIRECTOR (Dictionary Search → Pollinations Fallback) ===
-        console.log(`🎨 Resolving ${manifest.assets.length} Assets via Dictionary + Fallback...`);
+        // === ASSET GENERATION ===
         let assetMap = {};
-        const unresolvedAssets = [];
+        if (aiJson.neededAssets && Object.keys(aiJson.neededAssets).length > 0) {
+            console.log(`🎨 Resolving ${Object.keys(aiJson.neededAssets).length} Assets...`);
+            const resolveAsset = async (key, assetDef) => {
+                let type = "ai";
+                let value = assetDef;
+                if (typeof assetDef === "object" && assetDef !== null) {
+                    type = assetDef.type || "ai";
+                    value = assetDef.value || "";
+                }
 
-        for (const assetObj of manifest.assets) {
-            // Search the Kenney dictionary first
-            const dictResults = searchAssets(assetObj.prompt || assetObj.key, 1);
-            if (dictResults.length > 0) {
-                assetMap[assetObj.key] = dictResults[0].url;
-                console.log(`📚 Dictionary hit: '${assetObj.key}' → ${dictResults[0].label}`);
-            } else {
-                unresolvedAssets.push(assetObj);
-            }
-        }
+                if (type === "emoji") {
+                    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text y="80" font-size="80">${value}</text></svg>`;
+                    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+                }
 
-        // Fallback: Generate unresolved assets via Pollinations
-        if (unresolvedAssets.length > 0) {
-            console.log(`🎨 ${unresolvedAssets.length} unresolved assets, falling back to Pollinations...`);
-            const fetchImage = async (assetObj) => {
+                if (type === "kenney") {
+                    const dictResults = searchAssets(value, 1);
+                    if (dictResults.length > 0) return dictResults[0].url;
+                    // Fallthrough to AI if Kenney fails
+                }
+
+                // AI generation via Pollinations
                 try {
                     const controller = new AbortController();
                     const timeout = setTimeout(() => controller.abort(), 12000);
+                    const imgPrompt = `2D game asset, clean vector style, flat colors, isolated on solid black background: ${value}`;
                     const imgRes = await fetch("https://image.pollinations.ai/", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            prompt: assetObj.prompt,
-                            width: assetObj.width || 512,
-                            height: assetObj.height || 512,
+                            prompt: imgPrompt,
+                            width: 512,
+                            height: 512,
                             model: "flux",
                             seed: Math.floor(Math.random() * 1000000)
                         }),
@@ -114,61 +103,27 @@ ASSET RULES:
                     return "data:image/jpeg;base64," + base64;
                 } catch(e) { return null; }
             };
-            const fallbackResults = await Promise.all(unresolvedAssets.map(a => fetchImage(a)));
-            unresolvedAssets.forEach((a, i) => { if (fallbackResults[i]) assetMap[a.key] = fallbackResults[i]; });
-        } else {
-            console.log(`✅ All ${manifest.assets.length} assets resolved from dictionary! No AI generation needed.`);
+            
+            const keys = Object.keys(aiJson.neededAssets);
+            const fallbackResults = await Promise.all(keys.map(k => resolveAsset(k, aiJson.neededAssets[k])));
+            keys.forEach((k, i) => { if (fallbackResults[i]) assetMap[k] = fallbackResults[i]; });
         }
 
-        // === STEP 3: CODER AGENT (CLAUDE OPUS) ===
-        const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
-        let messages = [{ role: "user", content: "CREATE THIS GAME:\n" + prompt }];
-        
-        console.log(`🤖 Coder Agent Generating Game Logic...`);
-        const stream = await nvidiaClient.chat.completions.create({
-            model: "google/gemma-4-31b-it",
-            messages: [
-                { role: "system", content: systemInstruction },
-                ...messages
-            ],
-            max_tokens: 8192,
-            temperature: 0.7,
-            stream: true,
-        });
-        
-        let responseText = "";
-        for await (const chunk of stream) {
-            responseText += chunk.choices[0]?.delta?.content || "";
-        }
-        
-        const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
-        let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
-        if (rawCode.includes('\`\`\`')) {
-            rawCode = rawCode.replace(/\`\`\`(?:html)*\n?/gi, '').replace(/\`\`\`/g, '');
-        }
-
-        if (!rawCode || rawCode.length < 50) {
-            throw new Error("AI failed to output a complete html block.");
-        }
-
-        const parsedJson = {
-            title: "DreamStream Game",
-            engine: "canvas2d",
-            settings: {},
-            code: rawCode
-        };
-
-        const previewHtml = compileGameHTML(parsedJson, assetMap);
+        // === TEMPLATE INJECTION ===
+        console.log(`🔧 Injecting JSON config into template...`);
+        const previewHtml = injectTemplate(aiJson.selectedTemplateId, aiJson.config, assetMap);
 
         // Test in sandbox and capture screenshot
         console.log(`📸 Taking screenshot for job ${jobId}...`);
         const sandboxRes = await verifyGame(previewHtml);
         const finalScreenshot = sandboxRes.screenshot || null;
 
+        const rawCode = JSON.stringify(aiJson, null, 2);
+
         // Update Job as COMPLETE
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [parsedJson.title || "DreamStream Game", previewHtml, rawCode, finalScreenshot, jobId]
+            [aiJson.config.GAMEOVER_TITLE || "DreamStream Game", previewHtml, rawCode, finalScreenshot, jobId]
         );
         console.log(`✅ [BACKGROUND JOB] Finished! Saved to DB for job ${jobId}`);
 

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const gameParams = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let playerX = canvas.width / 2;
+let playerY = canvas.height - 50;
+let playerWidth = 50;
+let playerHeight = 50;
+let laserSpeed = gameParams.speed;
+let lasers = [];
+let gameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function drawPlayer() {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(playerX, playerY, playerWidth, playerHeight);
+}
+
+function drawLasers() {
+  lasers.forEach((laser, index) => {
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(laser.x, laser.y, 10, 20);
+    laser.y += laserSpeed;
+    if (laser.y > canvas.height) {
+      lasers.splice(index, 1);
+    }
+  });
+}
+
+function checkCollision() {
+  lasers.forEach((laser) => {
+    if (laser.x < playerX + playerWidth &&
+        laser.x + 10 > playerX &&
+        laser.y < playerY + playerHeight &&
+        laser.y + 20 > playerY) {
+      gameOver = true;
+    }
+  });
+}
+
+function updateScore() {
+  score++;
+  scoreSpan.textContent = score;
+}
+
+function draw() {
+  ctx.fillStyle = gameParams.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawPlayer();
+  drawLasers();
+  checkCollision();
+  updateScore();
+}
+
+function handleMouseMove(event) {
+  playerX = event.clientX - playerWidth / 2;
+}
+
+function handleRestartClick() {
+  gameOver = false;
+  lasers = [];
+  score = 0;
+  scoreSpan.textContent = score;
+  gameOverDiv.style.display = 'none';
+}
+
+function handleLaserSpawn() {
+  lasers.push({ x: Math.random() * (canvas.width - 10), y: 0 });
+}
+
+setInterval(handleLaserSpawn, 1000);
+
+canvas.addEventListener('mousemove', handleMouseMove);
+restartBtn.addEventListener('click', handleRestartClick);
+
+function loop() {
+  if (!gameOver) {
+    draw();
+    requestAnimationFrame(loop);
+  } else {
+    finalScoreSpan.textContent = score;
+    gameOverDiv.style.display = 'flex';
+  }
+}
+
+loop();
+</script>
+</body>
+</html>

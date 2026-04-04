@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Endless Runner</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; font-size: 24px; font-weight: bold; padding: 10px; box-sizing: border-box; }
+        #game-over { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; color: white; }
+        button { margin-top: 20px; padding: 15px 30px; font-size: 20px; border: none; border-radius: 8px; background: {{primary_color}}; color: #fff; font-weight: bold; cursor: pointer; }
+    </style>
+    <script id="game-params" type="application/json">{{GAME_PARAMETERS}}</script>
+</head>
+<body>
+    <div style="display:none;" id="assets-container">{{ASSET_TAGS}}</div>
+    <div id="hud">
+        <div>{{SCORE_LABEL}}: <span id="score">0</span></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="game-over">
+        <h1 style="color: {{primary_color}}">{{GAMEOVER_TITLE}}</h1>
+        <h2>{{FINAL_SCORE_LABEL}}: <span id="finalScore">0</span></h2>
+        <button id="restart-btn">{{RESTART_TEXT}}</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let cw, ch;
+        function resize() { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; }
+        window.addEventListener('resize', resize);
+        
+        let params = { gravity: 1.5, jumpForce: 20, gameSpeed: 8, spawnRate: 90 };
+        try { params = Object.assign(params, JSON.parse(document.getElementById('game-params').textContent || '{}')); } catch(e){}
+        
+        const heroImg = document.getElementById('img_HERO');
+        const enemyImg = document.getElementById('img_ENEMY');
+        const bgImg = document.getElementById('img_BACKGROUND');
+
+        let player = { x: 50, y: 0, w: 50, h: 50, vy: 0, isJumping: false };
+        let obstacles = [];
+        let score = 0, frames = 0, state = 'PLAYING';
+        
+        function init() {
+            resize(); state = 'PLAYING'; score = 0; frames = 0; obstacles = [];
+            player.y = ch - 50 - player.h; player.vy = 0;
+            document.getElementById('game-over').style.display = 'none';
+            requestAnimationFrame(loop);
+        }
+
+        window.addEventListener('pointerdown', () => {
+            if (state === 'PLAYING' && !player.isJumping) {
+                player.vy = -params.jumpForce;
+                player.isJumping = true;
+            }
+        });
+        document.getElementById('restart-btn').onclick = init;
+
+        function loop() {
+            if (state !== 'PLAYING') return;
+
+            // Physics
+            player.vy += params.gravity;
+            player.y += player.vy;
+            let ground = ch - 50; // 50px floor
+            if (player.y + player.h > ground) {
+                player.y = ground - player.h;
+                player.vy = 0;
+                player.isJumping = false;
+            }
+
+            // Spawn obstacles
+            if (frames % params.spawnRate === 0) {
+                let obW = 30 + Math.random() * 30;
+                let obH = 40 + Math.random() * 40;
+                obstacles.push({ x: cw, y: ground - obH, w: obW, h: obH });
+            }
+
+            // Move and Check Collision
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let ob = obstacles[i];
+                ob.x -= params.gameSpeed;
+                if (ob.x + ob.w < 0) { obstacles.splice(i, 1); score++; }
+                
+                // AABB Collision
+                if (player.x < ob.x + ob.w && player.x + player.w > ob.x &&
+                    player.y < ob.y + ob.h && player.y + player.h > ob.y) {
+                    state = 'GAMEOVER';
+                    document.getElementById('finalScore').textContent = score;
+                    document.getElementById('game-over').style.display = 'flex';
+                }
+            }
+
+            document.getElementById('score').textContent = score;
+            frames++;
+
+            // Draw
+            if (bgImg && bgImg.src) ctx.drawImage(bgImg, 0, 0, cw, ch);
+            else { ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, cw, ch); }
+
+            ctx.fillStyle = '#654321'; ctx.fillRect(0, ground, cw, ch - ground);
+
+            for (let ob of obstacles) {
+                if (enemyImg && enemyImg.src) ctx.drawImage(enemyImg, ob.x, ob.y, ob.w, ob.h);
+                else { ctx.fillStyle='red'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h); }
+            }
+
+            if (heroImg && heroImg.src) ctx.drawImage(heroImg, player.x, player.y, player.w, player.h);
+            else { ctx.fillStyle='blue'; ctx.fillRect(player.x, player.y, player.w, player.h); }
+
+            requestAnimationFrame(loop);
+        }
+        init();
+    </script>
+</body>
+</html>

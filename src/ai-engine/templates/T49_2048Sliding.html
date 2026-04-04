@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let grid = [];
+let gridWidth = 4;
+let gridHeight = 4;
+let cellSize = 100;
+let cellSpacing = 10;
+let cellRadius = 10;
+let cellColor = '#fff';
+let cellTextColor = '#222';
+let cellFontSize = 24;
+let cellFontFamily = 'Arial';
+
+function init() {
+  canvas.width = gridWidth * (cellSize + cellSpacing) + cellSpacing;
+  canvas.height = gridHeight * (cellSize + cellSpacing) + cellSpacing;
+  ctx.font = `${cellFontSize}px ${cellFontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < gridHeight; i++) {
+    grid[i] = [];
+    for (let j = 0; j < gridWidth; j++) {
+      grid[i][j] = 0;
+    }
+  }
+  spawnCell();
+  spawnCell();
+}
+
+function spawnCell() {
+  let x, y;
+  do {
+    x = Math.floor(Math.random() * gridWidth);
+    y = Math.floor(Math.random() * gridHeight);
+  } while (grid[y][x] !== 0);
+  grid[y][x] = Math.random() < 0.9 ? 2 : 4;
+}
+
+function drawGrid() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < gridHeight; i++) {
+    for (let j = 0; j < gridWidth; j++) {
+      if (grid[i][j] !== 0) {
+        ctx.fillStyle = cellColor;
+        ctx.strokeStyle = cellColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(j * (cellSize + cellSpacing) + cellSpacing + cellRadius, i * (cellSize + cellSpacing) + cellSpacing);
+        ctx.lineTo(j * (cellSize + cellSpacing) + cellSize + cellSpacing - cellRadius, i * (cellSize + cellSpacing) + cellSpacing);
+        ctx.quadraticCurveTo(j * (cellSize + cellSpacing) + cellSize + cellSpacing, i * (cellSize + cellSpacing) + cellSpacing + cellRadius, j * (cellSize + cellSpacing) + cellSize + cellSpacing, i * (cellSize + cellSpacing) + cellSpacing + cellRadius);
+        ctx.lineTo(j * (cellSize + cellSpacing) + cellSize + cellSpacing, i * (cellSize + cellSpacing) + cellSize + cellSpacing - cellRadius);
+        ctx.quadraticCurveTo(j * (cellSize + cellSpacing) + cellSize + cellSpacing, i * (cellSize + cellSpacing) + cellSize + cellSpacing, j * (cellSize + cellSpacing) + cellSize + cellSpacing - cellRadius, i * (cellSize + cellSpacing) + cellSize + cellSpacing);
+        ctx.lineTo(j * (cellSize + cellSpacing) + cellSpacing + cellRadius, i * (cellSize + cellSpacing) + cellSize + cellSpacing);
+        ctx.quadraticCurveTo(j * (cellSize + cellSpacing) + cellSpacing, i * (cellSize + cellSpacing) + cellSize + cellSpacing, j * (cellSize + cellSpacing) + cellSpacing, i * (cellSize + cellSpacing) + cellSize + cellSpacing - cellRadius);
+        ctx.lineTo(j * (cellSize + cellSpacing) + cellSpacing, i * (cellSize + cellSpacing) + cellSpacing + cellRadius);
+        ctx.quadraticCurveTo(j * (cellSize + cellSpacing) + cellSpacing, i * (cellSize + cellSpacing) + cellSpacing, j * (cellSize + cellSpacing) + cellSpacing + cellRadius, i * (cellSize + cellSpacing) + cellSpacing);
+        ctx.stroke();
+        ctx.fill();
+        ctx.fillStyle = cellTextColor;
+        ctx.fillText(grid[i][j], j * (cellSize + cellSpacing) + cellSpacing + cellSize / 2, i * (cellSize + cellSpacing) + cellSpacing + cellSize / 2);
+      }
+    }
+  }
+}
+
+function moveUp() {
+  for (let j = 0; j < gridWidth; j++) {
+    let column = [];
+    for (let i = 0; i < gridHeight; i++) {
+      column.push(grid[i][j]);
+    }
+    column = column.filter(x => x !== 0);
+    for (let i = 0; i < column.length - 1; i++) {
+      if (column[i] === column[i + 1]) {
+        column[i] *= 2;
+        column.splice(i + 1, 1);
+        score += column[i];
+      }
+    }
+    for (let i = 0; i < gridHeight; i++) {
+      grid[i][j] = column[i] || 0;
+    }
+  }
+}
+
+function moveDown() {
+  for (let j = 0; j < gridWidth; j++) {
+    let column = [];
+    for (let i = gridHeight - 1; i >= 0; i--) {
+      column.push(grid[i][j]);
+    }
+    column = column.filter(x => x !== 0);
+    for (let i = 0; i < column.length - 1; i++) {
+      if (column[i] === column[i + 1]) {
+        column[i] *= 2;
+        column.splice(i + 1, 1);
+        score += column[i];
+      }
+    }
+    for (let i = gridHeight - 1; i >= 0; i--) {
+      grid[i][j] = column[gridHeight - 1 - i] || 0;
+    }
+  }
+}
+
+function moveLeft() {
+  for (let i = 0; i < gridHeight; i++) {
+    let row = [];
+    for (let j = 0; j < gridWidth; j++) {
+      row.push(grid[i][j]);
+    }
+    row = row.filter(x => x !== 0);
+    for (let j = 0; j < row.length - 1; j++) {
+      if (row[j] === row[j + 1]) {
+        row[j] *= 2;
+        row.splice(j + 1, 1);
+        score += row[j];
+      }
+    }
+    for (let j = 0; j < gridWidth; j++) {
+      grid[i][j] = row[j] || 0;
+    }
+  }
+}
+
+function moveRight() {
+  for (let i = 0; i < gridHeight; i++) {
+    let row = [];
+    for (let j = gridWidth - 1; j >= 0; j--) {
+      row.push(grid[i][j]);
+    }
+    row = row.filter(x => x !== 0);
+    for (let j = 0; j < row.length - 1; j++) {
+      if (row[j] === row[j + 1]) {
+        row[j] *= 2;
+        row.splice(j + 1, 1);
+        score += row[j];
+      }
+    }
+    for (let j = gridWidth - 1; j >= 0; j--) {
+      grid[i][j] = row[gridWidth - 1 - j] || 0;
+    }
+  }
+}
+
+function checkGameOver() {
+  for (let i = 0; i < gridHeight; i++) {
+    for (let j = 0; j < gridWidth; j++) {
+      if (grid[i][j] === 0) return false;
+      if (i < gridHeight - 1 && grid[i][j] === grid[i + 1][j]) return false;
+      if (j < gridWidth - 1 && grid[i][j] === grid[i][j + 1]) return false;
+    }
+  }
+  return true;
+}
+
+function update() {
+  scoreSpan.textContent = score;
+  if (gameOver) {
+    finalScoreSpan.textContent = score;
+    gameOverDiv.style.display = 'flex';
+    return;
+  }
+  drawGrid();
+}
+
+function handleInput(event) {
+  if (gameOver) return;
+  switch (event.key) {
+    case 'ArrowUp':
+      moveUp();
+      break;
+    case 'ArrowDown':
+      moveDown();
+      break;
+    case 'ArrowLeft':
+      moveLeft();
+      break;
+    case 'ArrowRight':
+      moveRight();
+      break;
+  }
+  spawnCell();
+  if (checkGameOver()) {
+    gameOver = true;
+  }
+}
+
+init();
+document.addEventListener('keydown', handleInput);
+function animate() {
+  update();
+  requestAnimationFrame(animate);
+}
+animate();
+restartBtn.addEventListener('click', () => {
+  score = 0;
+  gameOver = false;
+  grid = [];
+  for (let i = 0; i < gridHeight; i++) {
+    grid[i] = [];
+    for (let j = 0; j < gridWidth; j++) {
+      grid[i][j] = 0;
+    }
+  }
+  spawnCell();
+  spawnCell();
+  gameOverDiv.style.display = 'none';
+});
+</script>
+</body>
+</html>

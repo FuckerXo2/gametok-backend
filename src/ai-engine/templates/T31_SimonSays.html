@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let sequence = [];
+let playerSequence = [];
+let currentColorIndex = 0;
+let gameOver = false;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
+const colorRadius = Math.min(canvas.width, canvas.height) / 4;
+
+function drawColor(index) {
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, canvas.height / 2, colorRadius, 0, 2 * Math.PI);
+  ctx.fillStyle = colors[index];
+  ctx.fill();
+}
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!gameOver) {
+    if (currentColorIndex < sequence.length) {
+      drawColor(sequence[currentColorIndex]);
+      currentColorIndex++;
+      setTimeout(() => {
+        currentColorIndex = 0;
+      }, params.speed * 1000);
+    }
+  }
+}
+
+function checkSequence() {
+  if (playerSequence.length === sequence.length) {
+    if (playerSequence.every((value, index) => value === sequence[index])) {
+      score++;
+      scoreSpan.textContent = score;
+      playerSequence = [];
+      sequence.push(Math.floor(Math.random() * colors.length));
+    } else {
+      gameOver = true;
+      gameOverDiv.style.display = 'flex';
+      finalScoreSpan.textContent = score;
+    }
+  }
+}
+
+canvas.addEventListener('click', (e) => {
+  if (!gameOver) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const distance = Math.sqrt((x - canvas.width / 2) ** 2 + (y - canvas.height / 2) ** 2);
+    if (distance <= colorRadius) {
+      playerSequence.push(colors.indexOf(ctx.fillStyle));
+      checkSequence();
+    }
+  }
+});
+
+restartBtn.addEventListener('click', () => {
+  gameOver = false;
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  sequence = [Math.floor(Math.random() * colors.length)];
+  playerSequence = [];
+  currentColorIndex = 0;
+});
+
+function animate() {
+  draw();
+  requestAnimationFrame(animate);
+}
+
+animate();
+sequence.push(Math.floor(Math.random() * colors.length));
+</script>
+</body>
+</html>

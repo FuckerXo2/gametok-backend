@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let fish = [];
+let hook = { x: 0, y: 0, vx: 0, vy: 0, radius: 10 };
+let player = { x: 0, y: 0, vx: 0, vy: 0, radius: 20 };
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function init() {
+  player.x = canvas.width / 2;
+  player.y = canvas.height - player.radius * 2;
+  hook.x = player.x;
+  hook.y = player.y;
+  hook.vx = 0;
+  hook.vy = -params.speed;
+  fish.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, vx: Math.random() * 2 - 1, vy: Math.random() * 2 - 1, radius: 10 });
+}
+
+function update() {
+  if (!gameOver) {
+    hook.x += hook.vx;
+    hook.y += hook.vy;
+    if (hook.y < 0) {
+      hook.y = 0;
+      hook.vy = -hook.vy;
+    }
+    if (hook.y > canvas.height) {
+      hook.y = canvas.height;
+      hook.vy = -hook.vy;
+    }
+    if (hook.x < 0) {
+      hook.x = 0;
+      hook.vx = -hook.vx;
+    }
+    if (hook.x > canvas.width) {
+      hook.x = canvas.width;
+      hook.vx = -hook.vx;
+    }
+    for (let i = 0; i < fish.length; i++) {
+      fish[i].x += fish[i].vx;
+      fish[i].y += fish[i].vy;
+      if (fish[i].x < 0 || fish[i].x > canvas.width) {
+        fish[i].vx = -fish[i].vx;
+      }
+      if (fish[i].y < 0 || fish[i].y > canvas.height) {
+        fish[i].vy = -fish[i].vy;
+      }
+      if (distance(hook, fish[i]) < hook.radius + fish[i].radius) {
+        score++;
+        scoreSpan.textContent = score;
+        fish.splice(i, 1);
+        fish.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, vx: Math.random() * 2 - 1, vy: Math.random() * 2 - 1, radius: 10 });
+      }
+    }
+  }
+}
+
+function render() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(hook.x, hook.y, hook.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < fish.length; i++) {
+    ctx.beginPath();
+    ctx.arc(fish[i].x, fish[i].y, fish[i].radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (gameOver) {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+}
+
+function distance(p1, p2) {
+  return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+}
+
+function handleMouseMove(e) {
+  if (!gameOver) {
+    hook.vx = (e.clientX - hook.x) / 10;
+    hook.vy = (e.clientY - hook.y) / 10;
+  }
+}
+
+function handleRestart() {
+  gameOver = false;
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  init();
+}
+
+init();
+canvas.addEventListener('mousemove', handleMouseMove);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let towers = [];
+let enemies = [];
+let bullets = [];
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+class Tower {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.range = 100;
+    this.damage = 1;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 10, 0, 2 * Math.PI);
+    ctx.fillStyle = 'blue';
+    ctx.fill();
+  }
+}
+
+class Enemy {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.speed = 2;
+    this.health = 10;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 10, 0, 2 * Math.PI);
+    ctx.fillStyle = 'red';
+    ctx.fill();
+  }
+
+  update() {
+    this.x += this.speed;
+    if (this.x > canvas.width) {
+      gameOver = true;
+    }
+  }
+}
+
+class Bullet {
+  constructor(x, y, target) {
+    this.x = x;
+    this.y = y;
+    this.speed = 5;
+    this.target = target;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'green';
+    ctx.fill();
+  }
+
+  update() {
+    const dx = this.target.x - this.x;
+    const dy = this.target.y - this.y;
+    const angle = Math.atan2(dy, dx);
+    this.x += Math.cos(angle) * this.speed;
+    this.y += Math.sin(angle) * this.speed;
+    const distance = Math.hypot(this.x - this.target.x, this.y - this.target.y);
+    if (distance < 10) {
+      this.target.health -= 1;
+      if (this.target.health <= 0) {
+        enemies.splice(enemies.indexOf(this.target), 1);
+        score += 10;
+      }
+      bullets.splice(bullets.indexOf(this), 1);
+    }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  towers.forEach(tower => tower.draw());
+  enemies.forEach(enemy => enemy.draw());
+  bullets.forEach(bullet => bullet.draw());
+  scoreSpan.textContent = score;
+}
+
+function update() {
+  if (!gameOver) {
+    enemies.forEach(enemy => enemy.update());
+    bullets.forEach(bullet => bullet.update());
+    towers.forEach(tower => {
+      const closestEnemy = enemies.reduce((closest, enemy) => {
+        const distance = Math.hypot(tower.x - enemy.x, tower.y - enemy.y);
+        if (distance < closest.distance) {
+          return { enemy, distance };
+        }
+        return closest;
+      }, { enemy: null, distance: Infinity });
+      if (closestEnemy.enemy && closestEnemy.distance < tower.range) {
+        bullets.push(new Bullet(tower.x, tower.y, closestEnemy.enemy));
+      }
+    });
+  }
+}
+
+function handleMouseDown(event) {
+  if (!gameOver) {
+    const x = event.clientX;
+    const y = event.clientY;
+    towers.push(new Tower(x, y));
+  }
+}
+
+function handleRestartClick() {
+  gameOver = false;
+  score = 0;
+  towers = [];
+  enemies = [];
+  bullets = [];
+  gameOverDiv.style.display = 'none';
+}
+
+function spawnEnemies() {
+  if (!gameOver) {
+    enemies.push(new Enemy(0, Math.random() * canvas.height));
+    setTimeout(spawnEnemies, 1000);
+  }
+}
+
+canvas.addEventListener('mousedown', handleMouseDown);
+restartBtn.addEventListener('click', handleRestartClick);
+
+function loop() {
+  draw();
+  update();
+  if (gameOver) {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+  requestAnimationFrame(loop);
+}
+
+loop();
+spawnEnemies();
+</script>
+</body>
+</html>

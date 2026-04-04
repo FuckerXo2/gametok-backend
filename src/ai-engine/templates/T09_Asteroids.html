@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let ship = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  angle: 0,
+  speed: 0,
+  rotationSpeed: 0,
+  acceleration: 0.1,
+  friction: 0.99,
+  radius: 10,
+  color: '#fff'
+};
+
+let bullets = [];
+let asteroids = [];
+
+function createAsteroid() {
+  return {
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    radius: Math.random() * 20 + 10,
+    speedX: Math.random() * 2 - 1,
+    speedY: Math.random() * 2 - 1,
+    color: '#fff'
+  };
+}
+
+function createBullet() {
+  return {
+    x: ship.x,
+    y: ship.y,
+    speedX: Math.cos(ship.angle) * 5,
+    speedY: Math.sin(ship.angle) * 5,
+    radius: 2,
+    color: '#fff'
+  };
+}
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = ship.color;
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+  ctx.rotate(ship.angle);
+  ctx.beginPath();
+  ctx.moveTo(0, -ship.radius);
+  ctx.lineTo(-ship.radius, ship.radius);
+  ctx.lineTo(ship.radius, ship.radius);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  for (let i = 0; i < bullets.length; i++) {
+    ctx.fillStyle = bullets[i].color;
+    ctx.beginPath();
+    ctx.arc(bullets[i].x, bullets[i].y, bullets[i].radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < asteroids.length; i++) {
+    ctx.fillStyle = asteroids[i].color;
+    ctx.beginPath();
+    ctx.arc(asteroids[i].x, asteroids[i].y, asteroids[i].radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function update() {
+  ship.speed *= ship.friction;
+  ship.x += Math.cos(ship.angle) * ship.speed;
+  ship.y += Math.sin(ship.angle) * ship.speed;
+
+  if (ship.x < 0) ship.x = canvas.width;
+  if (ship.x > canvas.width) ship.x = 0;
+  if (ship.y < 0) ship.y = canvas.height;
+  if (ship.y > canvas.height) ship.y = 0;
+
+  for (let i = 0; i < bullets.length; i++) {
+    bullets[i].x += bullets[i].speedX;
+    bullets[i].y += bullets[i].speedY;
+
+    if (bullets[i].x < 0 || bullets[i].x > canvas.width || bullets[i].y < 0 || bullets[i].y > canvas.height) {
+      bullets.splice(i, 1);
+    }
+  }
+
+  for (let i = 0; i < asteroids.length; i++) {
+    asteroids[i].x += asteroids[i].speedX;
+    asteroids[i].y += asteroids[i].speedY;
+
+    if (asteroids[i].x < 0) asteroids[i].x = canvas.width;
+    if (asteroids[i].x > canvas.width) asteroids[i].x = 0;
+    if (asteroids[i].y < 0) asteroids[i].y = canvas.height;
+    if (asteroids[i].y > canvas.height) asteroids[i].y = 0;
+
+    for (let j = 0; j < bullets.length; j++) {
+      const distance = Math.sqrt(Math.pow(asteroids[i].x - bullets[j].x, 2) + Math.pow(asteroids[i].y - bullets[j].y, 2));
+      if (distance < asteroids[i].radius + bullets[j].radius) {
+        asteroids.splice(i, 1);
+        bullets.splice(j, 1);
+        score++;
+        scoreSpan.textContent = score;
+      }
+    }
+
+    const distance = Math.sqrt(Math.pow(asteroids[i].x - ship.x, 2) + Math.pow(asteroids[i].y - ship.y, 2));
+    if (distance < asteroids[i].radius + ship.radius) {
+      gameOver();
+    }
+  }
+
+  if (Math.random() < 0.05) {
+    asteroids.push(createAsteroid());
+  }
+}
+
+function gameOver() {
+  gameOverDiv.style.display = 'flex';
+  finalScoreSpan.textContent = score;
+}
+
+function restart() {
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  ship.x = canvas.width / 2;
+  ship.y = canvas.height / 2;
+  ship.angle = 0;
+  ship.speed = 0;
+  ship.rotationSpeed = 0;
+  bullets = [];
+  asteroids = [];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowUp') {
+    ship.speed += ship.acceleration;
+  }
+  if (e.key === 'ArrowDown') {
+    ship.speed -= ship.acceleration;
+  }
+  if (e.key === 'ArrowLeft') {
+    ship.angle -= 0.1;
+  }
+  if (e.key === 'ArrowRight') {
+    ship.angle += 0.1;
+  }
+  if (e.key === ' ') {
+    bullets.push(createBullet());
+  }
+});
+
+restartBtn.addEventListener('click', restart);
+
+function loop() {
+  draw();
+  update();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

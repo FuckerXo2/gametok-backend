@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let bird = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  vy: 0,
+  gravity: 0.2,
+  jump: -4,
+  radius: 20
+};
+let pipes = [];
+let pipeGap = 150;
+let pipeWidth = 80;
+let pipeSpeed = params.speed;
+
+function draw() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < pipes.length; i++) {
+    const pipe = pipes[i];
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+    ctx.fillRect(pipe.x, pipe.bottom, pipeWidth, canvas.height - pipe.bottom);
+  }
+
+  hud.style.display = gameOver ? 'none' : 'block';
+  scoreSpan.textContent = score;
+  gameOverDiv.style.display = gameOver ? 'flex' : 'none';
+  finalScoreSpan.textContent = score;
+}
+
+function update() {
+  if (!gameOver) {
+    bird.vy += bird.gravity;
+    bird.y += bird.vy;
+
+    if (bird.y + bird.radius > canvas.height) {
+      bird.y = canvas.height - bird.radius;
+      bird.vy = 0;
+      gameOver = true;
+    }
+
+    if (bird.y - bird.radius < 0) {
+      bird.y = bird.radius;
+      bird.vy = 0;
+    }
+
+    for (let i = 0; i < pipes.length; i++) {
+      const pipe = pipes[i];
+      pipe.x -= pipeSpeed;
+
+      if (pipe.x + pipeWidth < 0) {
+        pipes.splice(i, 1);
+        score++;
+      }
+
+      if (pipe.x < bird.x + bird.radius && pipe.x + pipeWidth > bird.x - bird.radius) {
+        if (bird.y - bird.radius < pipe.top || bird.y + bird.radius > pipe.bottom) {
+          gameOver = true;
+        }
+      }
+    }
+
+    if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - pipeGap) {
+      const pipeTop = Math.random() * (canvas.height - pipeGap);
+      pipes.push({
+        x: canvas.width,
+        top: pipeTop,
+        bottom: pipeTop + pipeGap
+      });
+    }
+  }
+}
+
+function handleInput(event) {
+  if (event.type === 'keydown' && event.key === ' ') {
+    bird.vy = bird.jump;
+  }
+}
+
+function handleRestart() {
+  score = 0;
+  gameOver = false;
+  bird.x = canvas.width / 2;
+  bird.y = canvas.height / 2;
+  bird.vy = 0;
+  pipes = [];
+}
+
+document.addEventListener('keydown', handleInput);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

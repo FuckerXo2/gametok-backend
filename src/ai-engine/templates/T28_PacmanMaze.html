@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let pacMan = {
+  x: 10,
+  y: 10,
+  speed: params.speed,
+  direction: 'right',
+  size: 20
+};
+let ghosts = [
+  {x: 50, y: 50, speed: params.speed, direction: 'down', size: 20},
+  {x: 100, y: 100, speed: params.speed, direction: 'up', size: 20},
+  {x: 150, y: 150, speed: params.speed, direction: 'left', size: 20},
+  {x: 200, y: 200, speed: params.speed, direction: 'right', size: 20}
+];
+let pellets = [];
+let powerPellets = [];
+
+// Initialize pellets and power pellets
+for (let i = 0; i < 100; i++) {
+  pellets.push({
+    x: Math.floor(Math.random() * (canvas.width - 10)) + 5,
+    y: Math.floor(Math.random() * (canvas.height - 10)) + 5,
+    size: 5
+  });
+  if (Math.random() < 0.1) {
+    powerPellets.push({
+      x: Math.floor(Math.random() * (canvas.width - 10)) + 5,
+      y: Math.floor(Math.random() * (canvas.height - 10)) + 5,
+      size: 10
+    });
+  }
+}
+
+// Main game loop
+function update() {
+  if (!gameOver) {
+    // Move Pac-Man
+    if (pacMan.direction === 'right') {
+      pacMan.x += pacMan.speed;
+    } else if (pacMan.direction === 'left') {
+      pacMan.x -= pacMan.speed;
+    } else if (pacMan.direction === 'up') {
+      pacMan.y -= pacMan.speed;
+    } else if (pacMan.direction === 'down') {
+      pacMan.y += pacMan.speed;
+    }
+
+    // Collision with walls
+    if (pacMan.x < 0) {
+      pacMan.x = 0;
+    } else if (pacMan.x > canvas.width - pacMan.size) {
+      pacMan.x = canvas.width - pacMan.size;
+    }
+    if (pacMan.y < 0) {
+      pacMan.y = 0;
+    } else if (pacMan.y > canvas.height - pacMan.size) {
+      pacMan.y = canvas.height - pacMan.size;
+    }
+
+    // Collision with pellets
+    for (let i = 0; i < pellets.length; i++) {
+      if (checkCollision(pacMan, pellets[i])) {
+        pellets.splice(i, 1);
+        score++;
+        scoreSpan.textContent = score;
+      }
+    }
+
+    // Collision with power pellets
+    for (let i = 0; i < powerPellets.length; i++) {
+      if (checkCollision(pacMan, powerPellets[i])) {
+        powerPellets.splice(i, 1);
+        score += 10;
+        scoreSpan.textContent = score;
+      }
+    }
+
+    // Move ghosts
+    for (let i = 0; i < ghosts.length; i++) {
+      if (ghosts[i].direction === 'right') {
+        ghosts[i].x += ghosts[i].speed;
+      } else if (ghosts[i].direction === 'left') {
+        ghosts[i].x -= ghosts[i].speed;
+      } else if (ghosts[i].direction === 'up') {
+        ghosts[i].y -= ghosts[i].speed;
+      } else if (ghosts[i].direction === 'down') {
+        ghosts[i].y += ghosts[i].speed;
+      }
+
+      // Collision with Pac-Man
+      if (checkCollision(pacMan, ghosts[i])) {
+        gameOver = true;
+      }
+    }
+  }
+}
+
+function render() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw Pac-Man
+  ctx.fillStyle = 'yellow';
+  ctx.fillRect(pacMan.x, pacMan.y, pacMan.size, pacMan.size);
+
+  // Draw ghosts
+  ctx.fillStyle = 'red';
+  for (let i = 0; i < ghosts.length; i++) {
+    ctx.fillRect(ghosts[i].x, ghosts[i].y, ghosts[i].size, ghosts[i].size);
+  }
+
+  // Draw pellets
+  ctx.fillStyle = 'white';
+  for (let i = 0; i < pellets.length; i++) {
+    ctx.fillRect(pellets[i].x, pellets[i].y, pellets[i].size, pellets[i].size);
+  }
+
+  // Draw power pellets
+  ctx.fillStyle = 'blue';
+  for (let i = 0; i < powerPellets.length; i++) {
+    ctx.fillRect(powerPellets[i].x, powerPellets[i].y, powerPellets[i].size, powerPellets[i].size);
+  }
+
+  if (gameOver) {
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+}
+
+function checkCollision(obj1, obj2) {
+  if (obj1.x < obj2.x + obj2.size &&
+    obj1.x + obj1.size > obj2.x &&
+    obj1.y < obj2.y + obj2.size &&
+    obj1.y + obj1.size > obj2.y) {
+    return true;
+  }
+  return false;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') {
+    pacMan.direction = 'right';
+  } else if (e.key === 'ArrowLeft') {
+    pacMan.direction = 'left';
+  } else if (e.key === 'ArrowUp') {
+    pacMan.direction = 'up';
+  } else if (e.key === 'ArrowDown') {
+    pacMan.direction = 'down';
+  }
+});
+
+restartBtn.addEventListener('click', () => {
+  gameOver = false;
+  gameOverDiv.style.display = 'none';
+  score = 0;
+  scoreSpan.textContent = score;
+  pacMan.x = 10;
+  pacMan.y = 10;
+  pacMan.direction = 'right';
+  ghosts = [
+    {x: 50, y: 50, speed: params.speed, direction: 'down', size: 20},
+    {x: 100, y: 100, speed: params.speed, direction: 'up', size: 20},
+    {x: 150, y: 150, speed: params.speed, direction: 'left', size: 20},
+    {x: 200, y: 200, speed: params.speed, direction: 'right', size: 20}
+  ];
+  pellets = [];
+  powerPellets = [];
+  for (let i = 0; i < 100; i++) {
+    pellets.push({
+      x: Math.floor(Math.random() * (canvas.width - 10)) + 5,
+      y: Math.floor(Math.random() * (canvas.height - 10)) + 5,
+      size: 5
+    });
+    if (Math.random() < 0.1) {
+      powerPellets.push({
+        x: Math.floor(Math.random() * (canvas.width - 10)) + 5,
+        y: Math.floor(Math.random() * (canvas.height - 10)) + 5,
+        size: 10
+      });
+    }
+  }
+});
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

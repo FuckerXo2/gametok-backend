@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let tubes = [];
+let balls = [];
+let tubeWidth = 50;
+let tubeHeight = 200;
+let ballSize = 20;
+let tubeSpacing = 20;
+let ballSpeed = params.speed;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function createTubes() {
+  for (let i = 0; i < 4; i++) {
+    tubes.push({
+      x: i * (tubeWidth + tubeSpacing) + tubeSpacing,
+      y: canvas.height - tubeHeight - tubeSpacing,
+      width: tubeWidth,
+      height: tubeHeight,
+      color: getRandomColor(),
+      balls: []
+    });
+  }
+}
+
+function createBall() {
+  const tubeIndex = Math.floor(Math.random() * tubes.length);
+  balls.push({
+    x: tubes[tubeIndex].x + tubes[tubeIndex].width / 2,
+    y: tubes[tubeIndex].y - ballSize,
+    vx: 0,
+    vy: -ballSpeed,
+    size: ballSize,
+    color: getRandomColor()
+  });
+  tubes[tubeIndex].balls.push(balls.length - 1);
+}
+
+function update() {
+  if (!gameOver) {
+    for (let i = 0; i < balls.length; i++) {
+      balls[i].y += balls[i].vy;
+      if (balls[i].y < 0) {
+        balls.splice(i, 1);
+        i--;
+      }
+    }
+    for (let i = 0; i < tubes.length; i++) {
+      for (let j = 0; j < tubes[i].balls.length; j++) {
+        const ballIndex = tubes[i].balls[j];
+        if (balls[ballIndex].y + balls[ballIndex].size > tubes[i].y) {
+          balls[ballIndex].vy = 0;
+          balls[ballIndex].x = tubes[i].x + tubes[i].width / 2;
+          balls[ballIndex].y = tubes[i].y - balls[ballIndex].size;
+          score++;
+          scoreSpan.textContent = score;
+        }
+      }
+    }
+  }
+}
+
+function render() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < tubes.length; i++) {
+    ctx.fillStyle = tubes[i].color;
+    ctx.fillRect(tubes[i].x, tubes[i].y, tubes[i].width, tubes[i].height);
+  }
+  for (let i = 0; i < balls.length; i++) {
+    ctx.fillStyle = balls[i].color;
+    ctx.beginPath();
+    ctx.arc(balls[i].x, balls[i].y, balls[i].size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function handleMouseDown(event) {
+  if (!gameOver) {
+    const x = event.clientX;
+    const y = event.clientY;
+    for (let i = 0; i < tubes.length; i++) {
+      if (x > tubes[i].x && x < tubes[i].x + tubes[i].width && y > tubes[i].y && y < tubes[i].y + tubes[i].height) {
+        const ballIndex = tubes[i].balls[0];
+        if (ballIndex !== undefined) {
+          balls[ballIndex].vy = -ballSpeed;
+          tubes[i].balls.shift();
+        }
+      }
+    }
+  }
+}
+
+function handleRestart() {
+  gameOver = false;
+  score = 0;
+  scoreSpan.textContent = score;
+  tubes = [];
+  balls = [];
+  createTubes();
+  gameOverDiv.style.display = 'none';
+}
+
+function getRandomColor() {
+  const r = Math.floor(Math.random() * 256);
+  const g = Math.floor(Math.random() * 256);
+  const b = Math.floor(Math.random() * 256);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+createTubes();
+createBall();
+
+canvas.addEventListener('mousedown', handleMouseDown);
+restartBtn.addEventListener('click', handleRestart);
+
+function loop() {
+  update();
+  render();
+  if (balls.length < 5) {
+    createBall();
+  }
+  if (score > 50) {
+    gameOver = true;
+    gameOverDiv.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+  }
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

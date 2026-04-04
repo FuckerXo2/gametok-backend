@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Whack A Mole</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #222; color: #fff; font-family: sans-serif; touch-action: none; }
+        #hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; font-size: 24px; font-weight: bold; pointer-events: none; }
+        #game-over { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+        button { margin-top: 20px; padding: 15px 30px; font-size: 20px; border: none; border-radius: 8px; background: {{primary_color}}; color: #fff; font-weight: bold; cursor: pointer; }
+        .grid { position: absolute; inset: 60px 20px 20px 20px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 10px; }
+        .hole-container { position: relative; display: flex; justify-content: center; align-items: flex-end; overflow: hidden; border-radius: 20px; background: rgba(0,0,0,0.3); }
+        .enemy { position: absolute; bottom: -100%; transition: bottom 0.2s ease-out; cursor: pointer; width: 80%; height: 80%; object-fit: contain; pointer-events: none; }
+        .enemy.up { bottom: 10%; pointer-events: auto; }
+        #bg_img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
+    </style>
+    <script id="game-params" type="application/json">
+        {{GAME_PARAMETERS}}
+    </script>
+</head>
+<body>
+    <!-- Hidden Assets -->
+    <div style="display:none;" id="assets-container">
+        {{ASSET_TAGS}}
+    </div>
+    
+    <img id="bg_img" src="" alt="bg">
+
+    <div id="hud">
+        <div>{{SCORE_LABEL}}: <span id="score">0</span></div>
+        <div>{{TIMER_LABEL}}: <span id="timer">30</span></div>
+    </div>
+
+    <div class="grid" id="grid">
+        <!-- 9 holes -->
+    </div>
+
+    <div id="game-over">
+        <h1 style="color: {{primary_color}}">{{GAMEOVER_TITLE}}</h1>
+        <h2>{{FINAL_SCORE_LABEL}}: <span id="finalScore">0</span></h2>
+        <button id="restart-btn">{{RESTART_TEXT}}</button>
+    </div>
+
+    <script>
+        let params = { popTimeMin: 600, popTimeMax: 1200, gameDuration: 30 };
+        try { params = Object.assign(params, JSON.parse(document.getElementById('game-params').textContent || '{}')); } catch(e){}
+        
+        let score = 0, timeLeft = params.gameDuration;
+        let lastHole = null;
+        let timeUp = false;
+        let countdown;
+        
+        const grid = document.getElementById('grid');
+        const bgImgEl = document.getElementById('img_BACKGROUND');
+        const enemyImgEl = document.getElementById('img_ENEMY');
+        
+        if (bgImgEl && bgImgEl.src) document.getElementById('bg_img').src = bgImgEl.src;
+
+        const holes = [];
+        for(let i=0; i<9; i++) {
+            let hc = document.createElement('div'); hc.className = 'hole-container';
+            let en = document.createElement('img'); en.className = 'enemy';
+            en.src = enemyImgEl && enemyImgEl.src ? enemyImgEl.src : 'data:image/svg+xml;utf8,<svg fill="red" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50"/></svg>';
+            en.addEventListener('pointerdown', (e) => {
+                if(e.isTrusted && !timeUp) {
+                    score += 10;
+                    document.getElementById('score').textContent = score;
+                    en.classList.remove('up');
+                }
+            });
+            hc.appendChild(en);
+            grid.appendChild(hc);
+            holes.push(en);
+        }
+
+        function randomTime(min, max) { return Math.round(Math.random() * (max - min) + min); }
+        function randomHole() {
+            const idx = Math.floor(Math.random() * holes.length);
+            const hole = holes[idx];
+            if (hole === lastHole) return randomHole();
+            lastHole = hole;
+            return hole;
+        }
+
+        function peep() {
+            if (timeUp) return;
+            const time = randomTime(params.popTimeMin, params.popTimeMax);
+            const hole = randomHole();
+            hole.classList.add('up');
+            setTimeout(() => { hole.classList.remove('up'); if (!timeUp) peep(); }, time);
+        }
+
+        function startGame() {
+            score = 0; timeLeft = params.gameDuration; timeUp = false;
+            document.getElementById('score').textContent = 0;
+            document.getElementById('timer').textContent = timeLeft;
+            document.getElementById('game-over').style.display = 'none';
+            peep();
+            countdown = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    timeUp = true;
+                    document.getElementById('finalScore').textContent = score;
+                    document.getElementById('game-over').style.display = 'flex';
+                }
+            }, 1000);
+        }
+        
+        document.getElementById('restart-btn').onclick = startGame;
+        startGame();
+    </script>
+</body>
+</html>

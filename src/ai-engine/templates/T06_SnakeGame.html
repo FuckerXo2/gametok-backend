@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const gameParams = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let snake = [{x: 10, y: 10}, {x: 9, y: 10}, {x: 8, y: 10}];
+let direction = 'right';
+let food = {x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20)};
+let score = 0;
+let speed = gameParams.speed;
+let lastRenderTime = 0;
+
+function render(time) {
+  const deltaTime = time - lastRenderTime;
+  lastRenderTime = time;
+
+  if (deltaTime >= 1000 / speed) {
+    update();
+  }
+
+  ctx.fillStyle = gameParams.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px Arial';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`Score: ${score}`, 10, 10);
+
+  ctx.fillStyle = '#0f0';
+  ctx.fillRect(food.x * 20, food.y * 20, 20, 20);
+
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < snake.length; i++) {
+    ctx.fillRect(snake[i].x * 20, snake[i].y * 20, 20, 20);
+  }
+
+  if (checkCollision()) {
+    gameOver();
+  }
+
+  requestAnimationFrame(render);
+}
+
+function update() {
+  const head = snake[0];
+  let newHead;
+
+  switch (direction) {
+    case 'right':
+      newHead = {x: head.x + 1, y: head.y};
+      break;
+    case 'left':
+      newHead = {x: head.x - 1, y: head.y};
+      break;
+    case 'up':
+      newHead = {x: head.x, y: head.y - 1};
+      break;
+    case 'down':
+      newHead = {x: head.x, y: head.y + 1};
+      break;
+  }
+
+  snake.unshift(newHead);
+
+  if (snake[0].x === food.x && snake[0].y === food.y) {
+    score++;
+    scoreSpan.textContent = score;
+    food = {x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20)};
+  } else {
+    snake.pop();
+  }
+}
+
+function checkCollision() {
+  const head = snake[0];
+
+  if (head.x < 0 || head.x >= 20 || head.y < 0 || head.y >= 20) {
+    return true;
+  }
+
+  for (let i = 1; i < snake.length; i++) {
+    if (head.x === snake[i].x && head.y === snake[i].y) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function gameOver() {
+  gameOverDiv.style.display = 'flex';
+  finalScoreSpan.textContent = score;
+}
+
+restartBtn.addEventListener('click', () => {
+  snake = [{x: 10, y: 10}, {x: 9, y: 10}, {x: 8, y: 10}];
+  direction = 'right';
+  food = {x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20)};
+  score = 0;
+  scoreSpan.textContent = score;
+  gameOverDiv.style.display = 'none';
+  lastRenderTime = 0;
+  requestAnimationFrame(render);
+});
+
+document.addEventListener('keydown', (e) => {
+  switch (e.key) {
+    case 'ArrowRight':
+      if (direction !== 'left') {
+        direction = 'right';
+      }
+      break;
+    case 'ArrowLeft':
+      if (direction !== 'right') {
+        direction = 'left';
+      }
+      break;
+    case 'ArrowUp':
+      if (direction !== 'down') {
+        direction = 'up';
+      }
+      break;
+    case 'ArrowDown':
+      if (direction !== 'up') {
+        direction = 'down';
+      }
+      break;
+  }
+});
+
+canvas.width = 400;
+canvas.height = 400;
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const gameParams = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hudScore = document.getElementById('score');
+const gameOver = document.getElementById('game-over');
+const finalScore = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let clickMultiplier = 1;
+let autoClickMultiplier = 0;
+let autoClickInterval = 1000 / gameParams.speed;
+let autoClickTimeout;
+let gameOverTimeout;
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function draw() {
+  ctx.fillStyle = gameParams.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '24px Arial';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Click to earn points!', canvas.width / 2, canvas.height / 2);
+}
+
+function update() {
+  if (autoClickMultiplier > 0) {
+    score += autoClickMultiplier;
+    hudScore.textContent = Math.floor(score);
+  }
+}
+
+function handleMouseDown(event) {
+  if (event.button === 0) {
+    score += clickMultiplier;
+    hudScore.textContent = Math.floor(score);
+  }
+}
+
+function handleGameOver() {
+  gameOver.style.display = 'flex';
+  finalScore.textContent = Math.floor(score);
+  clearTimeout(autoClickTimeout);
+  clearTimeout(gameOverTimeout);
+}
+
+function handleRestart() {
+  score = 0;
+  clickMultiplier = 1;
+  autoClickMultiplier = 0;
+  hudScore.textContent = score;
+  gameOver.style.display = 'none';
+  draw();
+  update();
+}
+
+function animate() {
+  draw();
+  update();
+  requestAnimationFrame(animate);
+}
+
+animate();
+
+canvas.addEventListener('mousedown', handleMouseDown);
+restartBtn.addEventListener('click', handleRestart);
+
+// Auto clicker upgrade system
+setInterval(() => {
+  if (score >= 100) {
+    autoClickMultiplier += 1;
+    score -= 100;
+    hudScore.textContent = Math.floor(score);
+  }
+}, autoClickInterval);
+
+// Game over system
+setInterval(() => {
+  if (score >= 1000) {
+    handleGameOver();
+  }
+}, 1000);
+</script>
+</body>
+</html>

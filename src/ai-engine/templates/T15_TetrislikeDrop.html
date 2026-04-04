@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{margin:0;overflow:hidden;background:#222;color:#fff}
+canvas{display:block;width:100vw;height:100vh;}
+#hud{position:absolute;top:10px;left:10px;}
+#game-over{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;flex-direction:column;}
+</style>
+<script id="game-params" type="application/json">{"speed": 5, "bgColor": "#222"}</script>
+</head>
+<body>
+<div style="display:none;" id="assets-container"></div>
+<div id="hud">Score: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+<div id="game-over"><h1 id="finalScore">0</h1><button id="restart-btn">Retry</button></div>
+<script>
+const params = JSON.parse(document.getElementById('game-params').textContent);
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const scoreSpan = document.getElementById('score');
+const gameOverDiv = document.getElementById('game-over');
+const finalScoreSpan = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let gameOver = false;
+let piece = null;
+let grid = [];
+let nextPiece = null;
+let speed = params.speed;
+let lastTime = 0;
+
+// Define the shapes
+const shapes = [
+  [[1, 1], [1, 1]], // O
+  [[1, 1, 1, 1]], // I
+  [[1, 1, 0], [0, 1, 1]], // S
+  [[0, 1, 1], [1, 1, 0]], // Z
+  [[1, 1, 1], [0, 0, 1]], // J
+  [[1, 1, 1], [1, 0, 0]], // L
+  [[1, 1, 1], [0, 1, 0]] // T
+];
+
+// Initialize the grid
+function initGrid() {
+  for (let i = 0; i < 20; i++) {
+    grid[i] = [];
+    for (let j = 0; j < 10; j++) {
+      grid[i][j] = 0;
+    }
+  }
+}
+
+// Draw the grid
+function drawGrid() {
+  ctx.fillStyle = params.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < 20; i++) {
+    for (let j = 0; j < 10; j++) {
+      if (grid[i][j] === 1) {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(j * 30, i * 30, 30, 30);
+      }
+    }
+  }
+}
+
+// Draw the piece
+function drawPiece() {
+  if (piece) {
+    for (let i = 0; i < piece.shape.length; i++) {
+      for (let j = 0; j < piece.shape[i].length; j++) {
+        if (piece.shape[i][j] === 1) {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect((piece.x + j) * 30, (piece.y + i) * 30, 30, 30);
+        }
+      }
+    }
+  }
+}
+
+// Check for collision
+function checkCollision(x, y) {
+  for (let i = 0; i < piece.shape.length; i++) {
+    for (let j = 0; j < piece.shape[i].length; j++) {
+      if (piece.shape[i][j] === 1) {
+        if (x + j < 0 || x + j >= 10 || y + i < 0 || y + i >= 20) {
+          return true;
+        }
+        if (grid[y + i][x + j] === 1) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// Move the piece down
+function moveDown() {
+  if (piece) {
+    if (checkCollision(piece.x, piece.y + 1)) {
+      // Piece has landed, add it to the grid
+      for (let i = 0; i < piece.shape.length; i++) {
+        for (let j = 0; j < piece.shape[i].length; j++) {
+          if (piece.shape[i][j] === 1) {
+            grid[piece.y + i][piece.x + j] = 1;
+          }
+        }
+      }
+      // Check for full rows
+      for (let i = 0; i < 20; i++) {
+        let fullRow = true;
+        for (let j = 0; j < 10; j++) {
+          if (grid[i][j] === 0) {
+            fullRow = false;
+            break;
+          }
+        }
+        if (fullRow) {
+          // Remove the full row
+          grid.splice(i, 1);
+          grid.unshift([]);
+          for (let j = 0; j < 10; j++) {
+            grid[0][j] = 0;
+          }
+          score++;
+          scoreSpan.textContent = score;
+        }
+      }
+      // Create a new piece
+      piece = nextPiece;
+      nextPiece = { shape: shapes[Math.floor(Math.random() * shapes.length)], x: 4, y: 0 };
+    } else {
+      piece.y++;
+    }
+  }
+}
+
+// Handle user input
+function handleInput(event) {
+  if (event.key === 'ArrowLeft') {
+    if (piece) {
+      if (!checkCollision(piece.x - 1, piece.y)) {
+        piece.x--;
+      }
+    }
+  } else if (event.key === 'ArrowRight') {
+    if (piece) {
+      if (!checkCollision(piece.x + 1, piece.y)) {
+        piece.x++;
+      }
+    }
+  } else if (event.key === 'ArrowDown') {
+    moveDown();
+  } else if (event.key === 'ArrowUp') {
+    if (piece) {
+      // Rotate the piece
+      const newShape = [];
+      for (let i = 0; i < piece.shape[0].length; i++) {
+        newShape[i] = [];
+        for (let j = 0; j < piece.shape.length; j++) {
+          newShape[i][j] = piece.shape[piece.shape.length - 1 - j][i];
+        }
+      }
+      if (!checkCollision(piece.x, piece.y)) {
+        piece.shape = newShape;
+      }
+    }
+  }
+}
+
+// Main game loop
+function update(time) {
+  if (!gameOver) {
+    const deltaTime = time - lastTime;
+    lastTime = time;
+    if (deltaTime > 1000 / speed) {
+      moveDown();
+    }
+    drawGrid();
+    drawPiece();
+    requestAnimationFrame(update);
+  }
+}
+
+// Restart the game
+function restart() {
+  gameOver = false;
+  score = 0;
+  scoreSpan.textContent = score;
+  grid = [];
+  initGrid();
+  piece = null;
+  nextPiece = null;
+  lastTime = 0;
+  gameOverDiv.style.display = 'none';
+  update(0);
+}
+
+// Initialize the game
+initGrid();
+nextPiece = { shape: shapes[Math.floor(Math.random() * shapes.length)], x: 4, y: 0 };
+document.addEventListener('keydown', handleInput);
+restartBtn.addEventListener('click', restart);
+update(0);
+</script>
+</body>
+</html>
