@@ -167,7 +167,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         let messages = [
             { 
                 role: "user", 
-                content: `You are a master game developer. Below is the existing HTML5 Canvas code for a game:\n\n\`\`\`html\n${oldCode}\n\`\`\`\n\nApply the following modifications/instructions requested by the user: "${instructions}".\n\nReturn the ENTIRE updated HTML code inside a single \`\`\`html block. Do not truncate or omit any unchanged parts. Preserve the existing variable structures.` 
+                content: `You are an AI game configurator. Below is the existing JSON configuration of the game:\n\n${oldCode}\n\nApply the following modifications/instructions requested by the user: "${instructions}".\n\nReturn the ENTIRE updated JSON object.` 
             }
         ];
 
@@ -186,24 +186,12 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         for await (const chunk of stream) {
             responseText += chunk.choices[0]?.delta?.content || "";
         }
-        const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
-        let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
-        if (rawCode.includes('\`\`\`')) {
-            rawCode = rawCode.replace(/\`\`\`(?:html)*\n?/gi, '').replace(/\`\`\`/g, '');
-        }
-
-        if (!rawCode || rawCode.length < 50) {
-            throw new Error("AI failed to output a complete html block during edit.");
-        }
-
-        const parsedJson = {
-            title: parentDraft.title.startsWith("Remix of") ? parentDraft.title : "Remix of " + parentDraft.title,
-            engine: "canvas2d",
-            settings: {},
-            code: rawCode
-        };
-
-        const previewHtml = compileGameHTML(parsedJson, assetMap);
+        
+        const aiJsonStr = extractJson(responseText);
+        const aiJson = JSON.parse(aiJsonStr);
+        const rawCode = JSON.stringify(aiJson, null, 2);
+        const previewHtml = injectTemplate(aiJson.selectedTemplateId, aiJson.config, assetMap);
+        const finalTitle = parentDraft.title.startsWith("Remix of") ? parentDraft.title : "Remix of " + parentDraft.title;
 
         // Test in sandbox and capture screenshot
         console.log(`📸 Taking screenshot for edit job ${newJobId}...`);
@@ -213,7 +201,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         // Update Job as COMPLETE
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [parsedJson.title, previewHtml, rawCode, finalScreenshot, newJobId]
+            [finalTitle, previewHtml, rawCode, finalScreenshot, newJobId]
         );
         console.log(`✅ [EDIT JOB] Finished! Saved to DB for job ${newJobId}`);
 
@@ -598,24 +586,11 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
         }
         console.log(`🧪 Gemma 4 response length: ${responseText.length} chars`);
 
-        const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
-        let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
-        if (rawCode.includes('\`\`\`')) {
-            rawCode = rawCode.replace(/\`\`\`(?:html)*\n?/gi, '').replace(/\`\`\`/g, '');
-        }
-
-        if (!rawCode || rawCode.length < 50) {
-            throw new Error("Gemma 4 failed to output a complete javascript block.");
-        }
-
-        const parsedJson = {
-            title: "🧪 Labs Game (Gemma 4)",
-            engine: "canvas2d",
-            settings: {},
-            code: rawCode
-        };
-
-        const previewHtml = compileGameHTML(parsedJson, assetMap);
+        const aiJsonStr = extractJson(responseText);
+        const aiJson = JSON.parse(aiJsonStr);
+        const rawCode = JSON.stringify(aiJson, null, 2);
+        const previewHtml = injectTemplate(aiJson.selectedTemplateId, aiJson.config, assetMap);
+        const finalTitle = "🧪 " + (aiJson.config.GAMEOVER_TITLE || "Labs Game");
 
         // Test in sandbox and capture screenshot
         console.log(`📸 Taking screenshot for Labs job ${jobId}...`);
@@ -625,7 +600,7 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
         // Update Job as COMPLETE
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            ["🧪 " + (parsedJson.title || "Labs Game"), previewHtml, rawCode, finalScreenshot, jobId]
+            [finalTitle, previewHtml, rawCode, finalScreenshot, jobId]
         );
         console.log(`✅ [LABS JOB] Gemma 4 finished! Saved to DB for job ${jobId}`);
 
