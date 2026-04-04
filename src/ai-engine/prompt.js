@@ -9,11 +9,15 @@ export function buildOmniEnginePrompt(assetMap, manifest) {
 
     return `You are an expert HTML5 Canvas game developer. You produce a COMPLETE, working HTML file.
 
+=== EXTREMELY IMPORTANT INSTRUCTION ===
+DO NOT just copy and paste the reference template exactly! The reference template is only there to show you the architectural skeleton (how to use RequestAnimationFrame, how to parse gameConfig, how to bind pointer events). 
+You MUST COMPLETELY REWRITE the internal game logic (the update loop, the drawing logic, the entities) to explicitly create the game described in the GAME BRIEF! If you just output the reference template without changing it to match the requested game, YOU WILL FAIL!
+
 === GAME BRIEF ===
 ${manifest ? manifest.mechanics : "Build a highly engaging interactive mobile game."}
 
-=== REFERENCE TEMPLATE ===
-Below is a working reference game. You MUST follow this EXACT structure but REPLACE the game logic, entities, and theme to match the GAME BRIEF above. Keep the same architectural patterns.
+=== REFERENCE TEMPLATE SKELETON ===
+Use this HTML layout, HUD, and loop structure, BUT write Custom Game Logic to match the brief:
 
 \`\`\`html
 <!DOCTYPE html>

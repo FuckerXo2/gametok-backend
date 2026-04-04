@@ -126,7 +126,7 @@ ASSET RULES:
         
         console.log(`🤖 Coder Agent Generating Game Logic...`);
         const stream = await nvidiaClient.chat.completions.create({
-            model: "google/gemma-4-31b-it",
+            model: "meta/llama-3.1-70b-instruct",
             messages: [
                 { role: "system", content: systemInstruction },
                 ...messages
@@ -217,7 +217,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         ];
 
         const stream = await nvidiaClient.chat.completions.create({
-            model: "google/gemma-4-31b-it",
+            model: "meta/llama-3.1-70b-instruct",
             messages: [
                 { role: "system", content: systemInstruction },
                 ...messages
@@ -554,7 +554,7 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
         
         try {
             const plannerRes = await nvidiaClient.chat.completions.create({
-                model: "google/gemma-4-31b-it",
+                model: "meta/llama-3.1-70b-instruct",
                 messages: [
                     { role: "system", content: plannerSystemPrompt },
                     { role: "user", content: `User prompt: "${prompt}"\n\nReturn pure JSON.` }
@@ -626,7 +626,7 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
         
         console.log(`🧪 Gemma 4 31B Generating Game Logic with manifest...`);
         const stream = await nvidiaClient.chat.completions.create({
-            model: "google/gemma-4-31b-it",
+            model: "meta/llama-3.1-70b-instruct",
             messages: [
                 { role: "system", content: systemInstruction },
                 { role: "user", content: "CREATE THIS GAME:\n" + enhancedPrompt }
