@@ -125,7 +125,7 @@ ASSET RULES:
         let messages = [{ role: "user", content: "CREATE THIS GAME:\n" + prompt }];
         
         console.log(`🤖 Coder Agent Generating Game Logic...`);
-        const codeRes = await nvidiaClient.chat.completions.create({
+        const stream = await nvidiaClient.chat.completions.create({
             model: "google/gemma-4-31b-it",
             messages: [
                 { role: "system", content: systemInstruction },
@@ -133,9 +133,14 @@ ASSET RULES:
             ],
             max_tokens: 8192,
             temperature: 0.7,
+            stream: true,
         });
         
-        const responseText = codeRes.choices[0].message.content;
+        let responseText = "";
+        for await (const chunk of stream) {
+            responseText += chunk.choices[0]?.delta?.content || "";
+        }
+        
         const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
         let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
         if (rawCode.includes('\`\`\`')) {
@@ -211,7 +216,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
             }
         ];
 
-        const codeRes = await nvidiaClient.chat.completions.create({
+        const stream = await nvidiaClient.chat.completions.create({
             model: "google/gemma-4-31b-it",
             messages: [
                 { role: "system", content: systemInstruction },
@@ -219,9 +224,13 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
             ],
             max_tokens: 8192,
             temperature: 0.7,
+            stream: true,
         });
         
-        const responseText = codeRes.choices[0].message.content;
+        let responseText = "";
+        for await (const chunk of stream) {
+            responseText += chunk.choices[0]?.delta?.content || "";
+        }
         const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
         let rawCode = codeMatch ? codeMatch[1].trim() : responseText.trim();
         if (rawCode.includes('\`\`\`')) {
@@ -616,7 +625,7 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
         const systemInstruction = buildOmniEnginePrompt(assetMap, manifest);
         
         console.log(`🧪 Gemma 4 31B Generating Game Logic with manifest...`);
-        const codeRes = await nvidiaClient.chat.completions.create({
+        const stream = await nvidiaClient.chat.completions.create({
             model: "google/gemma-4-31b-it",
             messages: [
                 { role: "system", content: systemInstruction },
@@ -625,9 +634,13 @@ You MUST output a raw JSON object and nothing else. Ensure properties matching: 
             max_tokens: 8192,
             temperature: 0.7,
             top_p: 0.95,
+            stream: true,
         });
         
-        const responseText = codeRes.choices[0].message.content;
+        let responseText = "";
+        for await (const chunk of stream) {
+            responseText += chunk.choices[0]?.delta?.content || "";
+        }
         console.log(`🧪 Gemma 4 response length: ${responseText.length} chars`);
 
         const codeMatch = responseText.match(/```(?:html)*\n([\s\S]*?)```/i);
