@@ -38,6 +38,7 @@ You must return a raw JSON object (and nothing else). The JSON must match this E
         "gameSpeed": 10
     },
     // Assets needed to skin the game. Types can be "emoji", "kenney", or "ai". Only use "ai" if absolutely necessary. Emojis load instantly and are highly preferred.
+    // IMPERATIVE: The keys inside neededAssets MUST be strictly ONE of these standard keys: "HERO", "ENEMY", "BACKGROUND", "COLLECTIBLE", "WEAPON", "OBSTACLE". DO NOT INVENT CUSTOM KEYS or the game will not render them.
     "neededAssets": {
         "HERO": { "type": "emoji", "value": "🦸‍♂️" },
         "ENEMY": { "type": "kenney", "value": "alien" },

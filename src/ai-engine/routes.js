@@ -112,8 +112,8 @@ async function executeDreamJob(jobId, prompt, userId) {
             };
             
             const keys = Object.keys(aiJson.neededAssets);
-            const fallbackResults = await Promise.all(keys.map(k => resolveAsset(k, aiJson.neededAssets[k])));
-            keys.forEach((k, i) => { if (fallbackResults[i]) assetMap[k] = fallbackResults[i]; });
+            const fallbackResults = await Promise.all(keys.map(k => resolveAsset(k.toUpperCase(), aiJson.neededAssets[k])));
+            keys.forEach((k, i) => { if (fallbackResults[i]) assetMap[k.toUpperCase()] = fallbackResults[i]; });
         }
 
         // === TEMPLATE INJECTION ===
