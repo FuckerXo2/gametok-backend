@@ -146,10 +146,11 @@ CRITICAL IMPLEMENTATION RULES:
    - Handle window resize events to update camera/canvas.
    - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
 
-4. ENTITY RENDERING:
-   - Use emojis for characters/items unless the chosen engine style dictates otherwise.
-   - If using Three.js, you can use SpriteMaterial or TextGeometry for emojis.
-   - If Canvas2D/p5.js, use fillText('emoji').
+4. ENTITY RENDERING (KENNEY ASSETS):
+   - You have been provided with the following Kenney.nl game assets based on the prompt's context:
+   - ASSET MANIFEST: ${JSON.stringify(specSheet.assetManifest || [])}
+   - You MUST use these high-quality image URLs to render characters, enemies, items, and backgrounds where applicable using your chosen engine (e.g. Sprite, Image, Texture).
+   - If no relevant asset is provided for a specific entity, fall back to Emojis (e.g. fillText with ${specSheet.heroEmoji}).
 
 5. HUD & UI:
    - Score: "${specSheet.scoreLabel || 'SCORE'}"

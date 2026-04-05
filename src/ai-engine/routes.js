@@ -108,7 +108,8 @@ async function resolveAsset(key, assetDef) {
 // Helper to call the AI and parse JSON response
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
     const res = await nvidiaClient.chat.completions.create({
-        model: "google/gemma-4-31b-it",
+        // Using Nemotron-4-340B for superior prompt deconstruction and RAG mapping
+        model: "nvidia/nemotron-4-340b-instruct",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -130,13 +131,19 @@ async function executeDreamJob(jobId, prompt, userId) {
     try {
         console.log(`🧠 [DREAM JOB] Started Claude pipeline for job: ${jobId}`);
 
-        // ── PHASE 1: QUANTIZE (Gemma — FREE) ──
-        console.log(`📋 Phase 1/2: Game Designer analyzing prompt...`);
+        // ── PHASE 1: QUANTIZE (Nemotron-4-340B — RAG Engine) ──
+        console.log(`📋 Phase 1/2: Advanced Nemotron Game Designer analyzing prompt...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
 
-        // ── TEMPORARY TEST: QWEN 3.6 VIA OPENROUTER ──
+        // ── ASSET RAG INJECTION ──
+        console.log(`🔍 RAG: Searching Kenney.nl Asset Dictionary...`);
+        const searchTags = `${specSheet.genre} ${specSheet.visualStyle} ${specSheet.coreMechanics.join(' ')}`;
+        specSheet.assetManifest = searchAssets(searchTags, 3); // Get top 3 assets
+        console.log(`✅ Found ${specSheet.assetManifest.length} matched assets for the game context.`);
+
+        // ── PHASE 2: BUILD PROTOTYPE ──
         console.log(`🔨 Phase 2/2: Qwen 3.6 OpenRouter building full game... (TESTING)`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         
@@ -506,10 +513,12 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
     try {
         console.log(`🧪 [LABS JOB] Started Claude pipeline for job: ${jobId}`);
 
-        // Phase 1: Quantize (Gemma — FREE)
+        // Phase 1: Quantize (Nemotron + RAG)
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Labs Phase 1: "${specSheet.title}"`);
+        
+        specSheet.assetManifest = searchAssets(`${specSheet.genre} ${specSheet.coreMechanics.join(' ')}`, 3);
 
         // Phase 2: Build (Qwen)
         console.log(`🔨 Labs: Qwen 3.6 building game...`);
