@@ -165,8 +165,10 @@ CRITICAL IMPLEMENTATION RULES:
    - Visual feedback for Every Action (flashes, tiny particles, scaling).
    - Sound: Use Web Audio API for synthesized effects (Collect: chirpy, Hit: deep thud).
 
-8. ERROR HANDLING:
+8. ERROR HANDLING & LOGGING (CRITICAL FOR MOBILE):
    - Use try/catch blocks. Render error text on the screen if the engine fails to initialize.
+   - DO NOT use console.log(), console.warn(), or console.error() inside the game loop (requestAnimationFrame). Spamming the console will CRASH the mobile wrapper.
+   - Never log massive objects like 'window' or DOM events.
 
 OUTPUT FORMAT:
 Return ONLY the complete HTML code. Do NOT wrap in markdown. No explanation. Just raw HTML starting with <!DOCTYPE html>.`;
