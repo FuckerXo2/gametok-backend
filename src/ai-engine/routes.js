@@ -12,7 +12,7 @@ import pool from '../db.js';
 import { buildPhase1_Quantize, buildPhase2_BuildPrototype, buildPhase2_EditGame, postProcessRawHtml } from './promptRegistry.js';
 import { compileGameHTML } from './compiler.js';
 import { verifyGame } from './sandbox.js';
-import { searchAssets } from './asset-dictionary.js';
+import { searchAssets, setAssetBaseUrl } from './asset-dictionary.js';
 
 function extractJson(text) {
     let jsonStart = text.indexOf('{');
@@ -311,6 +311,7 @@ router.post('/dream', async (req, res) => {
         const userId = userResult.rows[0].id;
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+        setAssetBaseUrl(req); // Set correct base URL for Kenney assets
         console.log(`🧠 [PEAK ARCHITECTURE - POLLING] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
         // 1. Immediately create a blank draft entry in DB (html_payload="", raw_code="")
@@ -570,6 +571,7 @@ router.post('/dream-labs', async (req, res) => {
         const userId = userResult.rows[0].id;
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+        setAssetBaseUrl(req); // Set correct base URL for Kenney assets
         console.log(`🧪 [LABS - GEMMA 4] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
         // 1. Create blank draft entry in DB

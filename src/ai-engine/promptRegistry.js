@@ -152,20 +152,22 @@ CRITICAL IMPLEMENTATION RULES:
    - You MUST implement a Camera System. In Canvas2D, calculate \`camera.x\` and \`camera.y\` to follow the player, and use \`ctx.save(); ctx.translate(-camera.x, -camera.y);\` before drawing the game world (and restore before drawing HUD).
    - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!
 
-5. ENTITY RENDERING (PROCEDURAL GRAPHICS — MANDATORY):
-   - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS (e.g. 🧟 ⚔️ 🚀). The device CANNOT render them. They show as broken boxes.
-   - ⚠️ NEVER USE new Image() or external image URLs. They fail silently in the mobile WebView.
-   - You MUST draw ALL entities (hero, enemies, items, environment) using ONLY Canvas2D drawing commands:
-     • ctx.fillRect(), ctx.arc(), ctx.beginPath()/lineTo()/fill(), ctx.fillStyle with gradients
-   - Make entities visually DISTINCT and BEAUTIFUL using:
-     • Different bright colors for hero vs enemies vs items (hero = vibrant blue/green, enemies = red/purple, items = gold/yellow)
-     • Layered shapes to create detail (e.g. a knight = large rectangle body + small circle head + thin rectangle sword)
-     • ctx.createRadialGradient() or ctx.createLinearGradient() for glow effects
-     • Shadows via ctx.shadowColor/ctx.shadowBlur for depth
-   - Each entity type MUST be visually recognizable and at least 30x30 pixels.
-   - The hero description is: ${specSheet.entities?.hero}
-   - The enemy description is: ${specSheet.entities?.enemy}
-   - Draw them to MATCH their description using colored geometric shapes.
+5. ENTITY RENDERING (SELF-HOSTED KENNEY SPRITES):
+   - You have been given a curated set of Kenney.nl game sprite images hosted on the game server.
+   - ASSET MANIFEST: ${JSON.stringify(specSheet.assetManifest || [])}
+   - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS. The device CANNOT render them — they show as broken ? boxes.
+   - You MUST preload ALL manifest images BEFORE starting the game loop using this exact pattern:
+     \`\`\`
+     const images = {};
+     const manifest = [/* the asset manifest array */];
+     let loaded = 0;
+     function tryStart() { if (loaded >= manifest.length) startGame(); }
+     manifest.forEach(a => { const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { loaded++; images[a.id] = img; tryStart(); }; img.onerror = () => { loaded++; tryStart(); }; img.src = a.url; });
+     if (manifest.length === 0) startGame();
+     \`\`\`
+   - In your draw loop, use: \`if(images['asset_id']) ctx.drawImage(images['asset_id'], x, y, w, h);\`
+   - If an image fails to load (onerror), draw a colored geometric shape as a fallback for that entity.
+   - Each entity type MUST be at least 30x30 pixels and visually distinct.
 
 6. HUD & UI:
    - Score: "${specSheet.scoreLabel || 'SCORE'}"
