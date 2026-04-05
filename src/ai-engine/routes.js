@@ -42,6 +42,12 @@ const claude = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// OpenRouter Client (Qwen 3.6)
+const openRouterClient = new OpenAI({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: process.env.OPENROUTER_API_KEY || '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', // Fallback key if missing
+});
+
 // ═══════════════════════════════════════════════════════════
 // ASSET RESOLVER (shared across all job types)
 // ═══════════════════════════════════════════════════════════
@@ -126,12 +132,12 @@ async function executeDreamJob(jobId, prompt, userId) {
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
 
-        // ── TEMPORARY TEST: GEMMA 4 INSTEAD OF CLAUDE ──
-        console.log(`🔨 Phase 2/2: Google Gemma 4 building full game... (TESTING)`);
+        // ── TEMPORARY TEST: QWEN 3.6 VIA OPENROUTER ──
+        console.log(`🔨 Phase 2/2: Qwen 3.6 OpenRouter building full game... (TESTING)`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         
-        const gemmaRes = await nvidiaClient.chat.completions.create({
-            model: "google/gemma-4-31b-it",
+        const qwenRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus-preview:free",
             messages: [
                 { role: "system", content: "You are an expert game developer." },
                 { role: "user", content: buildPrompt }
@@ -140,8 +146,8 @@ async function executeDreamJob(jobId, prompt, userId) {
             temperature: 0.3
         });
         
-        let rawGameHtml = gemmaRes.choices[0].message.content;
-        console.log(`✅ Gemma generated ${rawGameHtml.length} chars of game code`);
+        let rawGameHtml = qwenRes.choices[0].message.content;
+        console.log(`✅ Qwen generated ${rawGameHtml.length} chars of game code`);
 
         // Strip markdown code fences if Claude wrapped it
         rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
@@ -190,20 +196,22 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         const parentDraft = parentRes.rows[0];
         const existingCode = parentDraft.raw_code || parentDraft.html_payload;
         
-        // 2. Claude modifies the existing game code
-        console.log(`🤖 Claude editing game...`);
+        // 2. Qwen modifies the existing game code
+        console.log(`🤖 Qwen editing game...`);
         const editPrompt = buildPhase2_EditGame(existingCode, instructions);
         
-        const claudeRes = await claude.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 16000,
+        const qwenRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus-preview:free",
             messages: [
-                { role: 'user', content: editPrompt }
-            ]
+                { role: "system", content: "You are an expert game developer." },
+                { role: "user", content: editPrompt }
+            ],
+            max_tokens: 8000,
+            temperature: 0.3
         });
         
-        let rawGameHtml = claudeRes.content[0].text;
-        console.log(`✅ Claude edited: ${rawGameHtml.length} chars`);
+        let rawGameHtml = qwenRes.choices[0].message.content;
+        console.log(`✅ Qwen edited: ${rawGameHtml.length} chars`);
 
         // Strip markdown fences
         rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
@@ -499,16 +507,20 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Labs Phase 1: "${specSheet.title}"`);
 
-        // Phase 2: Build (Claude)
-        console.log(`🔨 Labs: Claude building game...`);
+        // Phase 2: Build (Qwen)
+        console.log(`🔨 Labs: Qwen 3.6 building game...`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
-        const claudeRes = await claude.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 16000,
-            messages: [{ role: 'user', content: buildPrompt }]
+        const qwenRes = await openRouterClient.chat.completions.create({
+            model: 'qwen/qwen3.6-plus-preview:free',
+            max_tokens: 8000,
+            temperature: 0.3,
+            messages: [
+                { role: "system", content: "You are an expert game developer." },
+                { role: "user", content: buildPrompt }
+            ]
         });
 
-        let rawGameHtml = claudeRes.content[0].text;
+        let rawGameHtml = qwenRes.choices[0].message.content;
         rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
         if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
             const htmlStart = rawGameHtml.indexOf('<!');
