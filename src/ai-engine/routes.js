@@ -45,7 +45,7 @@ const claude = new Anthropic({
 // OpenRouter Client (Qwen 3.6)
 const openRouterClient = new OpenAI({
     baseURL: 'https://openrouter.ai/api/v1',
-    apiKey: process.env.OPENROUTER_API_KEY || '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', // Fallback key if missing
+    apiKey: process.env.OPENROUTER_API_KEY,
 });
 
 // ═══════════════════════════════════════════════════════════
