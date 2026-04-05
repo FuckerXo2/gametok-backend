@@ -141,7 +141,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         
         const qwenRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus",
+            model: "qwen/qwen3.6-plus:free",
             messages: [
                 { role: "system", content: "You are an expert game developer." },
                 { role: "user", content: buildPrompt }
@@ -205,7 +205,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         const editPrompt = buildPhase2_EditGame(existingCode, instructions);
         
         const qwenRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus",
+            model: "qwen/qwen3.6-plus:free",
             messages: [
                 { role: "system", content: "You are an expert game developer." },
                 { role: "user", content: editPrompt }
@@ -515,7 +515,7 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         console.log(`🔨 Labs: Qwen 3.6 building game...`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         const qwenRes = await openRouterClient.chat.completions.create({
-            model: 'qwen/qwen3.6-plus',
+            model: 'qwen/qwen3.6-plus:free',
             max_tokens: 8000,
             temperature: 0.3,
             messages: [
