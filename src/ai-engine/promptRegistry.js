@@ -153,19 +153,34 @@ CRITICAL IMPLEMENTATION RULES:
    - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!
 
 5. ENTITY RENDERING (STRICT KENNEY ASSET USAGE):
-   - You have been provided with these high-quality Kenney.nl game asset images:
+   - Here is the ASSET MANIFEST of high-quality image URLs provided for this game:
    - ASSET MANIFEST: ${JSON.stringify(specSheet.assetManifest || [])}
-   - IF AN ASSET IS IN THE MANIFEST, YOU MUST USE IT. DO NOT raw-draw shapes or use emojis for it.
-   - Example Image Loading for Canvas: \`const img = new Image(); img.src = URL; img.onload = () => { ctx.drawImage(img, x, y, w, h); };\`
-   - Only fall back to Emojis (${specSheet.heroEmoji}) if the asset manifest is completely empty or empty for that specific category.
+   - NEVER USE EMOJIS! The user's device cannot render them! You MUST use the image URLs from the manifest or draw geometric shapes.
+   - You MUST preload images BEFORE your game loop using this exact pattern:
+     \`\`\`javascript
+     const images = {};
+     const manifest = ${JSON.stringify(specSheet.assetManifest || [])};
+     let loaded = 0;
+     manifest.forEach(asset => {
+       const img = new Image();
+       img.src = asset.url;
+       img.onload = () => {
+         loaded++;
+         images[asset.id] = img;
+         if(loaded === manifest.length) startGameLoop(); // start requestAnimationFrame
+       };
+     });
+     if(manifest.length === 0) startGameLoop();
+     \`\`\`
+   - Inside your game loop, use \`ctx.drawImage(images['asset_id'], x, y, width, height);\`.
 
-5. HUD & UI:
+6. HUD & UI:
    - Score: "${specSheet.scoreLabel || 'SCORE'}"
    - Health: "${specSheet.healthLabel || 'LIVES'}"
    - Use accent color (${specSheet.accentColor}).
    - High-contrast for readability on small screens.
 
-6. GAME STATES (THE START BUTTON FIX):
+7. GAME STATES (THE START BUTTON FIX):
    - MENU: Draw centered title and "TAP TO START" text directly on the Canvas.
    - You MUST transition from MENU to PLAYING state exactly like this:
      window.addEventListener('pointerdown', () => { if (gameState === 'MENU') gameState = 'PLAYING'; });
