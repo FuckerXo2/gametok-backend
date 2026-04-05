@@ -126,20 +126,22 @@ async function executeDreamJob(jobId, prompt, userId) {
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
 
-        // ── PHASE 2: BUILD PROTOTYPE (Claude Sonnet 4.6) ──
-        console.log(`🔨 Phase 2/2: Claude Sonnet 4.6 building full game...`);
+        // ── TEMPORARY TEST: GEMMA 4 INSTEAD OF CLAUDE ──
+        console.log(`🔨 Phase 2/2: Google Gemma 4 building full game... (TESTING)`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         
-        const claudeRes = await claude.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 16000,
+        const gemmaRes = await nvidiaClient.chat.completions.create({
+            model: "google/gemma-4-31b-it",
             messages: [
-                { role: 'user', content: buildPrompt }
-            ]
+                { role: "system", content: "You are an expert game developer." },
+                { role: "user", content: buildPrompt }
+            ],
+            max_tokens: 8000,
+            temperature: 0.3
         });
         
-        let rawGameHtml = claudeRes.content[0].text;
-        console.log(`✅ Claude generated ${rawGameHtml.length} chars of game code`);
+        let rawGameHtml = gemmaRes.choices[0].message.content;
+        console.log(`✅ Gemma generated ${rawGameHtml.length} chars of game code`);
 
         // Strip markdown code fences if Claude wrapped it
         rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
