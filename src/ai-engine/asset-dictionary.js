@@ -20,45 +20,45 @@ const ASSET_LIBRARY = [
   // ============================================
   // CHARACTERS & PLAYERS
   // ============================================
-  { id: 'char_alien_green', url: `${TWEMOJI_BASE}/1f47d.svg`, tags: ['alien', 'player', 'green', 'platformer', 'character', 'hero'], category: 'character', label: 'Alien Hero' },
-  { id: 'char_knight', url: `${TWEMOJI_BASE}/2694.svg`, tags: ['knight', 'warrior', 'medieval', 'dungeon', 'hero', 'armor', 'sword', 'character'], category: 'character', label: 'Knight Swordsman' },
-  { id: 'char_zombie', url: `${TWEMOJI_BASE}/1f9df.svg`, tags: ['zombie', 'enemy', 'undead', 'horror', 'monster', 'villain', 'scary'], category: 'character', label: 'Zombie Enemy' },
-  { id: 'char_robot', url: `${TWEMOJI_BASE}/1f916.svg`, tags: ['robot', 'mech', 'sci-fi', 'machine', 'future', 'android', 'character'], category: 'character', label: 'Robot Character' },
+  { id: 'char_alien_green', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/space-baddie.png', tags: ['alien', 'player', 'green', 'platformer', 'character', 'hero'], category: 'character', label: 'Alien Hero' },
+  { id: 'char_knight', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/shinyball.png', tags: ['knight', 'warrior', 'medieval', 'dungeon', 'hero', 'armor', 'sword', 'character'], category: 'character', label: 'Shiny Hero' },
+  { id: 'char_zombie', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/ghost.png', tags: ['zombie', 'enemy', 'undead', 'horror', 'monster', 'villain', 'scary', 'ghost'], category: 'character', label: 'Ghost Enemy' },
+  { id: 'char_robot', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/mine.png', tags: ['robot', 'mech', 'sci-fi', 'machine', 'future', 'android', 'character'], category: 'character', label: 'Floating Mine' },
   { id: 'char_animal', url: `${TWEMOJI_BASE}/1f436.svg`, tags: ['animal', 'pet', 'dog', 'cat', 'farm', 'cute', 'character'], category: 'character', label: 'Animal Dog' },
 
   // ============================================
   // SPACE & SCI-FI
   // ============================================
-  { id: 'space_ship', url: `${TWEMOJI_BASE}/1f680.svg`, tags: ['spaceship', 'ship', 'space', 'shooter', 'rocket', 'ufo', 'vehicle', 'sci-fi'], category: 'vehicle', label: 'Space Rocket' },
-  { id: 'space_planets', url: `${TWEMOJI_BASE}/1f30d.svg`, tags: ['planet', 'space', 'earth', 'moon', 'sun', 'star', 'galaxy', 'background', 'cosmos'], category: 'background', label: 'Earth Planet' },
+  { id: 'space_ship', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/asteroids_ship.png', tags: ['spaceship', 'ship', 'space', 'shooter', 'rocket', 'ufo', 'vehicle', 'sci-fi'], category: 'vehicle', label: 'Space Ship' },
+  { id: 'space_planets', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/earth.png', tags: ['planet', 'space', 'earth', 'moon', 'sun', 'star', 'galaxy', 'background', 'cosmos'], category: 'background', label: 'Earth Planet' },
 
   // ============================================
   // PLATFORMER TILES & ENVIRONMENTS
   // ============================================
-  { id: 'tiles_platformer', url: `${TWEMOJI_BASE}/1f9f1.svg`, tags: ['platform', 'tile', 'ground', 'block', 'brick', 'level', 'environment', 'jump'], category: 'environment', label: 'Brick Platform' },
-  { id: 'tiles_dungeon', url: `${TWEMOJI_BASE}/1f5ff.svg`, tags: ['dungeon', 'cave', 'dark', 'underground', 'medieval', 'tile', 'wall', 'floor'], category: 'environment', label: 'Dungeon Statue Floor' },
+  { id: 'tiles_platformer', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/platform.png', tags: ['platform', 'tile', 'ground', 'block', 'brick', 'level', 'environment', 'jump'], category: 'environment', label: 'Grass Platform' },
+  { id: 'tiles_dungeon', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/mushroom2.png', tags: ['dungeon', 'cave', 'dark', 'underground', 'medieval', 'tile', 'wall', 'floor'], category: 'environment', label: 'Dungeon Mushroom' },
   { id: 'tiles_town', url: `${TWEMOJI_BASE}/1f3d8.svg`, tags: ['town', 'city', 'house', 'building', 'road', 'village', 'urban', 'tile'], category: 'environment', label: 'Town Building' },
 
   // ============================================
   // UI ELEMENTS
   // ============================================
   { id: 'ui_buttons', url: `${TWEMOJI_BASE}/25b6.svg`, tags: ['button', 'ui', 'menu', 'interface', 'panel', 'hud', 'start', 'play'], category: 'ui', label: 'Play Button' },
-  { id: 'ui_icons', url: `${TWEMOJI_BASE}/1f48e.svg`, tags: ['icon', 'heart', 'star', 'coin', 'gem', 'trophy', 'score', 'life', 'power'], category: 'ui', label: 'Gem UI Icon' },
+  { id: 'ui_icons', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/diamond.png', tags: ['icon', 'heart', 'star', 'coin', 'gem', 'trophy', 'score', 'life', 'power'], category: 'ui', label: 'Gem UI Icon' },
 
   // ============================================
   // VEHICLES & RACING
   // ============================================
-  { id: 'car_racing', url: `${TWEMOJI_BASE}/1f3ce.svg`, tags: ['car', 'racing', 'vehicle', 'race', 'road', 'speed', 'truck', 'drift'], category: 'vehicle', label: 'Racing Car' },
+  { id: 'car_racing', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/car-red.png', tags: ['car', 'racing', 'vehicle', 'race', 'road', 'speed', 'truck', 'drift'], category: 'vehicle', label: 'Red Racing Car' },
 
   // ============================================
   // WEAPONS & ITEMS
   // ============================================
-  { id: 'items_food', url: `${TWEMOJI_BASE}/1f355.svg`, tags: ['food', 'fruit', 'apple', 'pizza', 'burger', 'collectible', 'item', 'eat'], category: 'item', label: 'Pizza Item' },
+  { id: 'items_food', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/apple.png', tags: ['food', 'fruit', 'apple', 'pizza', 'burger', 'collectible', 'item', 'eat'], category: 'item', label: 'Red Apple' },
 
   // ============================================
   // NATURE & BACKGROUNDS
   // ============================================
-  { id: 'bg_nature', url: `${TWEMOJI_BASE}/1f332.svg`, tags: ['tree', 'nature', 'grass', 'forest', 'hill', 'cloud', 'sky', 'outdoor', 'background'], category: 'background', label: 'Pine Tree' },
+  { id: 'bg_nature', url: 'https://raw.githubusercontent.com/photonstorm/phaser3-examples/master/public/assets/sprites/tree.png', tags: ['tree', 'nature', 'grass', 'forest', 'hill', 'cloud', 'sky', 'outdoor', 'background'], category: 'background', label: 'Pine Tree' },
 
   // ============================================
   // PHYSICS & PUZZLE
