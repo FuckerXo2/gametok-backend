@@ -154,20 +154,22 @@ CRITICAL IMPLEMENTATION RULES:
    - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!
 
 5. ENTITY RENDERING (SELF-HOSTED KENNEY SPRITES):
-   - You have been given a curated set of Kenney.nl game sprite images hosted on the game server.
-   - ASSET MANIFEST: ${JSON.stringify(specSheet.assetManifest || [])}
-   - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS. The device CANNOT render them — they show as broken ? boxes.
-   - You MUST preload ALL manifest images BEFORE starting the game loop using this exact pattern:
-     \`\`\`
+   - You have been given a curated set of Kenney game sprite images hosted on our server.
+   - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS. The device CANNOT render them — they show as broken boxes.
+   - You MUST preload the images and use them to draw your entities.
+   - The hero description is: ${specSheet.entities?.hero || "Main player character"}
+   - The enemy description is: ${specSheet.entities?.enemy || "Adversary or obstacle"}
+   - Use this EXACT loading pattern before your start loop:
+     \`\`\`javascript
      const images = {};
-     const manifest = [/* the asset manifest array */];
+     const manifest = ${JSON.stringify(specSheet.assetManifest || [])};
      let loaded = 0;
      function tryStart() { if (loaded >= manifest.length) startGame(); }
      manifest.forEach(a => { const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { loaded++; images[a.id] = img; tryStart(); }; img.onerror = () => { loaded++; tryStart(); }; img.src = a.url; });
      if (manifest.length === 0) startGame();
      \`\`\`
-   - In your draw loop, use: \`if(images['asset_id']) ctx.drawImage(images['asset_id'], x, y, w, h);\`
-   - If an image fails to load (onerror), draw a colored geometric shape as a fallback for that entity.
+   - In your draw loop, map your entities to the loaded assets. Example: \`if(images['hero_alien_pink']) ctx.drawImage(images['hero_alien_pink'], x, y, w, h);\`
+   - For entities without a specific image, fall back to drawing them using Canvas2D geometric colored shapes (\`ctx.fillRect\`, \`ctx.arc\`, etc).
    - Each entity type MUST be at least 30x30 pixels and visually distinct.
 
 6. HUD & UI:
