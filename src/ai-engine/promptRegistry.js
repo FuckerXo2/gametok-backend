@@ -146,11 +146,12 @@ CRITICAL IMPLEMENTATION RULES:
    - Handle window resize events to update camera/canvas.
    - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
 
-4. ENTITY RENDERING (KENNEY ASSETS):
-   - You have been provided with the following Kenney.nl game assets based on the prompt's context:
+4. ENTITY RENDERING (STRICT KENNEY ASSET USAGE):
+   - You have been provided with these high-quality Kenney.nl game asset images:
    - ASSET MANIFEST: ${JSON.stringify(specSheet.assetManifest || [])}
-   - You MUST use these high-quality image URLs to render characters, enemies, items, and backgrounds where applicable using your chosen engine (e.g. Sprite, Image, Texture).
-   - If no relevant asset is provided for a specific entity, fall back to Emojis (e.g. fillText with ${specSheet.heroEmoji}).
+   - IF AN ASSET IS IN THE MANIFEST, YOU MUST USE IT. DO NOT raw-draw shapes or use emojis for it.
+   - Example Image Loading for Canvas: \`const img = new Image(); img.src = URL; img.onload = () => { ctx.drawImage(img, x, y, w, h); };\`
+   - Only fall back to Emojis (${specSheet.heroEmoji}) if the asset manifest is completely empty or empty for that specific category.
 
 5. HUD & UI:
    - Score: "${specSheet.scoreLabel || 'SCORE'}"
