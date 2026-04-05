@@ -146,7 +146,13 @@ CRITICAL IMPLEMENTATION RULES:
    - Handle window resize events to update camera/canvas.
    - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
 
-4. ENTITY RENDERING (STRICT KENNEY ASSET USAGE):
+4. WORLD CAMERA & EXPANSIVE MOVEMENT (CRITICAL):
+   - DO NOT trap the player in a single small screen box unless it's a puzzle game!
+   - For RPGs, Survival, Shooters, and Platformers, the world MUST be massive or strictly infinite. 
+   - You MUST implement a Camera System. In Canvas2D, calculate \`camera.x\` and \`camera.y\` to follow the player, and use \`ctx.save(); ctx.translate(-camera.x, -camera.y);\` before drawing the game world (and restore before drawing HUD).
+   - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!
+
+5. ENTITY RENDERING (STRICT KENNEY ASSET USAGE):
    - You have been provided with these high-quality Kenney.nl game asset images:
    - ASSET MANIFEST: ${JSON.stringify(specSheet.assetManifest || [])}
    - IF AN ASSET IS IN THE MANIFEST, YOU MUST USE IT. DO NOT raw-draw shapes or use emojis for it.
