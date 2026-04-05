@@ -108,8 +108,7 @@ async function resolveAsset(key, assetDef) {
 // Helper to call the AI and parse JSON response
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
     const res = await nvidiaClient.chat.completions.create({
-        // Using Nemotron-4-340B for superior prompt deconstruction and RAG mapping
-        model: "nvidia/nemotron-4-340b-instruct",
+        model: "google/gemma-4-31b-it", // Reverting to Gemma because Nemotron 404s on this account
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
