@@ -46,6 +46,10 @@ const claude = new Anthropic({
 const openRouterClient = new OpenAI({
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: process.env.OPENROUTER_API_KEY,
+    defaultHeaders: {
+        'HTTP-Referer': 'https://gametok.app',
+        'X-Title': 'DreamStream Game Engine',
+    },
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -137,7 +141,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         
         const qwenRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus-preview:free",
+            model: "qwen/qwen3.6-plus",
             messages: [
                 { role: "system", content: "You are an expert game developer." },
                 { role: "user", content: buildPrompt }
@@ -201,7 +205,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         const editPrompt = buildPhase2_EditGame(existingCode, instructions);
         
         const qwenRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus-preview:free",
+            model: "qwen/qwen3.6-plus",
             messages: [
                 { role: "system", content: "You are an expert game developer." },
                 { role: "user", content: editPrompt }
@@ -511,7 +515,7 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         console.log(`🔨 Labs: Qwen 3.6 building game...`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         const qwenRes = await openRouterClient.chat.completions.create({
-            model: 'qwen/qwen3.6-plus-preview:free',
+            model: 'qwen/qwen3.6-plus',
             max_tokens: 8000,
             temperature: 0.3,
             messages: [
