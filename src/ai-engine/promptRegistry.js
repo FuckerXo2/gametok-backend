@@ -102,10 +102,10 @@ GAME SPECIFICATION:
 - Background Color: ${specSheet.backgroundColor}
 - Accent Color: ${specSheet.accentColor}
 
-ENTITIES:
-- Hero: ${specSheet.entities?.hero} (emoji representation: ${specSheet.heroEmoji || '🦸'})
-- Enemy: ${specSheet.entities?.enemy} (emoji representation: ${specSheet.enemyEmoji || '👾'})
-- Collectible: ${specSheet.entities?.collectible || 'none'} (emoji: ${specSheet.collectibleEmoji || '⭐'})
+ENTITIES (draw these as colored geometric shapes — NO emojis, NO images):
+- Hero: ${specSheet.entities?.hero}
+- Enemy: ${specSheet.entities?.enemy}
+- Collectible: ${specSheet.entities?.collectible || 'none'}
 
 UI LABELS:
 - Score: "${specSheet.scoreLabel || 'SCORE'}"
@@ -133,7 +133,7 @@ CRITICAL IMPLEMENTATION RULES:
 ═══════════════════════════════════════════
 
 1. SINGLE FILE: Everything in ONE HTML document. You MAY use CDNs for Three.js or p5.js if chosen.
-   - You MUST include <meta charset="UTF-8"> in the <head> otherwise Emojis will break and show question marks.
+   - You MUST include <meta charset="UTF-8"> in the <head>.
 
 2. MOBILE-FIRST TOUCH CONTROLS (STRICT):
    - USE 'pointerdown', 'pointermove', 'pointerup' for universal touch/mouse support.
@@ -152,27 +152,20 @@ CRITICAL IMPLEMENTATION RULES:
    - You MUST implement a Camera System. In Canvas2D, calculate \`camera.x\` and \`camera.y\` to follow the player, and use \`ctx.save(); ctx.translate(-camera.x, -camera.y);\` before drawing the game world (and restore before drawing HUD).
    - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!
 
-5. ENTITY RENDERING (STRICT KENNEY ASSET USAGE):
-   - Here is the ASSET MANIFEST of high-quality image URLs provided for this game:
-   - ASSET MANIFEST: ${JSON.stringify(specSheet.assetManifest || [])}
-   - NEVER USE EMOJIS! The user's device cannot render them! You MUST use the image URLs from the manifest or draw geometric shapes.
-   - You MUST preload images BEFORE your game loop using this exact pattern:
-     \`\`\`javascript
-     const images = {};
-     const manifest = ${JSON.stringify(specSheet.assetManifest || [])};
-     let loaded = 0;
-     manifest.forEach(asset => {
-       const img = new Image();
-       img.src = asset.url;
-       img.onload = () => {
-         loaded++;
-         images[asset.id] = img;
-         if(loaded === manifest.length) startGameLoop(); // start requestAnimationFrame
-       };
-     });
-     if(manifest.length === 0) startGameLoop();
-     \`\`\`
-   - Inside your game loop, use \`ctx.drawImage(images['asset_id'], x, y, width, height);\`.
+5. ENTITY RENDERING (PROCEDURAL GRAPHICS — MANDATORY):
+   - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS (e.g. 🧟 ⚔️ 🚀). The device CANNOT render them. They show as broken boxes.
+   - ⚠️ NEVER USE new Image() or external image URLs. They fail silently in the mobile WebView.
+   - You MUST draw ALL entities (hero, enemies, items, environment) using ONLY Canvas2D drawing commands:
+     • ctx.fillRect(), ctx.arc(), ctx.beginPath()/lineTo()/fill(), ctx.fillStyle with gradients
+   - Make entities visually DISTINCT and BEAUTIFUL using:
+     • Different bright colors for hero vs enemies vs items (hero = vibrant blue/green, enemies = red/purple, items = gold/yellow)
+     • Layered shapes to create detail (e.g. a knight = large rectangle body + small circle head + thin rectangle sword)
+     • ctx.createRadialGradient() or ctx.createLinearGradient() for glow effects
+     • Shadows via ctx.shadowColor/ctx.shadowBlur for depth
+   - Each entity type MUST be visually recognizable and at least 30x30 pixels.
+   - The hero description is: ${specSheet.entities?.hero}
+   - The enemy description is: ${specSheet.entities?.enemy}
+   - Draw them to MATCH their description using colored geometric shapes.
 
 6. HUD & UI:
    - Score: "${specSheet.scoreLabel || 'SCORE'}"
