@@ -69,7 +69,7 @@ async function resolveAsset(key, assetDef) {
     }
 
     if (type === "kenney") {
-        const dictResults = searchAssets(value, 1);
+        const dictResults = await searchAssets(value, 1);
         if (dictResults.length > 0) return dictResults[0].url;
     }
 
@@ -139,7 +139,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         // ── ASSET RAG INJECTION ──
         console.log(`🔍 RAG: Searching Kenney.nl Asset Dictionary...`);
         const searchTags = `${specSheet.genre} ${specSheet.visualStyle} ${specSheet.coreMechanics.join(' ')}`;
-        specSheet.assetManifest = searchAssets(searchTags, 3); // Get top 3 assets
+        specSheet.assetManifest = await searchAssets(searchTags, 3); // Get top 3 assets
         console.log(`✅ Found ${specSheet.assetManifest.length} matched assets for the game context.`);
 
         // ── PHASE 2: BUILD PROTOTYPE ──
@@ -517,7 +517,7 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Labs Phase 1: "${specSheet.title}"`);
         
-        specSheet.assetManifest = searchAssets(`${specSheet.genre} ${specSheet.coreMechanics.join(' ')}`, 3);
+        specSheet.assetManifest = await searchAssets(`${specSheet.genre} ${specSheet.coreMechanics.join(' ')}`, 3);
 
         // Phase 2: Build (Qwen)
         console.log(`🔨 Labs: Qwen 3.6 building game...`);

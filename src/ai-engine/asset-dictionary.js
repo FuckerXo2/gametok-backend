@@ -89,30 +89,69 @@ const ASSET_LIBRARY = [
   { id: 'pirate_pack', url: 'https://kenney.nl/media/pages/assets/pirate-pack/81cd3e7dff-1677578219/sample.png', tags: ['pirate', 'ship', 'cannonball', 'treasure', 'island', 'ocean', 'boat', 'skull'], category: 'character', label: 'Pirate Pack' },
 ];
 
+let assetEmbeddingsCache = null;
+
+async function getEmbedding(text) {
+  const napiKey = process.env.NVIDIA_API_KEY || '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';
+  try {
+    const res = await fetch('https://integrate.api.nvidia.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${napiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        input: [text],
+        model: 'nvidia/nv-embedqa-e5-v5',
+        encoding_format: 'float',
+        input_type: 'query'
+      })
+    });
+    const json = await res.json();
+    return json.data[0].embedding;
+  } catch (err) {
+    console.error("Embedding API failed:", err);
+    return null;
+  }
+}
+
+function cosineSimilarity(A, B) {
+  let dotProduct = 0, normA = 0, normB = 0;
+  for (let i = 0; i < A.length; i++) {
+    dotProduct += A[i] * B[i];
+    normA += A[i] * A[i];
+    normB += B[i] * B[i];
+  }
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+}
+
 /**
- * Search the asset dictionary by tags.
- * Returns the top N matching assets sorted by relevance (number of tag matches).
+ * True Semantic Vector Search (RAG) using NVIDIA NIM Embeddings.
+ * Returns the top N matching assets sorted by vector similarity.
  */
-export function searchAssets(query, maxResults = 5) {
-  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-  
-  if (queryWords.length === 0) return [];
-
-  const scored = ASSET_LIBRARY.map(asset => {
-    let score = 0;
-    for (const word of queryWords) {
-      // Exact tag match = 3 points
-      if (asset.tags.includes(word)) score += 3;
-      // Partial tag match = 1 point
-      else if (asset.tags.some(t => t.includes(word) || word.includes(t))) score += 1;
-      // Label match = 2 points
-      if (asset.label.toLowerCase().includes(word)) score += 2;
+export async function searchAssets(query, maxResults = 5) {
+  if (!assetEmbeddingsCache) {
+    console.log("🧩 Initializing RAG Asset Vector Cache...");
+    assetEmbeddingsCache = [];
+    for (const asset of ASSET_LIBRARY) {
+      const description = `${asset.label}. Tags: ${asset.tags.join(', ')}`;
+      const vector = await getEmbedding(description);
+      if (vector) assetEmbeddingsCache.push({ asset, vector });
     }
-    return { ...asset, score };
-  }).filter(a => a.score > 0);
+    console.log(`✅ Cached ${assetEmbeddingsCache.length} asset vectors.`);
+  }
 
+  const queryVector = await getEmbedding(query);
+  if (!queryVector) return [];
+
+  const scored = assetEmbeddingsCache.map(entry => {
+    const score = cosineSimilarity(queryVector, entry.vector);
+    return { ...entry.asset, score };
+  });
+
+  // Sort highest similarity first and filter out very low matches
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, maxResults);
+  return scored.filter(a => a.score > 0.45).slice(0, maxResults);
 }
 
 /**
