@@ -145,6 +145,7 @@ CRITICAL IMPLEMENTATION RULES:
    - Must fill the entire viewport (100vw, 100vh).
    - Handle window resize events to update camera/canvas.
    - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
+   - ⚠️ MUST USE VIBRANT BACKGROUNDS: At the start of your draw loop, NEVER clear the screen with \`ctx.fillStyle = "black";\`. You MUST clear using \`ctx.clearRect(0, 0, canvas.width, canvas.height);\` so the vibrant CSS background color shows through!
 
 4. WORLD CAMERA & EXPANSIVE MOVEMENT (CRITICAL):
    - DO NOT trap the player in a single small screen box unless it's a puzzle game!
