@@ -13,80 +13,82 @@
 // Base URL for Kenney's GitHub-hosted PNG assets
 const KENNEY_BASE = 'https://raw.githubusercontent.com/kenney-assets/Game-Assets/main';
 
+const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg';
+
 // All assets are tagged for semantic search by the Planner Agent
 const ASSET_LIBRARY = [
   // ============================================
   // CHARACTERS & PLAYERS
   // ============================================
-  { id: 'char_alien_green', url: 'https://kenney.nl/media/pages/assets/platformer-art-deluxe/52f4518804-1677578214/sample.png', tags: ['alien', 'player', 'green', 'platformer', 'character', 'hero'], category: 'character', label: 'Green Alien Hero' },
-  { id: 'char_knight', url: 'https://kenney.nl/media/pages/assets/tiny-dungeon/7e4a760685-1677578240/sample.png', tags: ['knight', 'warrior', 'medieval', 'dungeon', 'hero', 'armor', 'sword', 'character'], category: 'character', label: 'Pixel Knight' },
-  { id: 'char_zombie', url: 'https://kenney.nl/media/pages/assets/zombie-2d-characters/a8c3a26780-1705312786/sample.png', tags: ['zombie', 'enemy', 'undead', 'horror', 'monster', 'villain', 'scary'], category: 'character', label: 'Zombie Character' },
-  { id: 'char_robot', url: 'https://kenney.nl/media/pages/assets/robot-pack/44eb0ab1c3-1677578222/sample.png', tags: ['robot', 'mech', 'sci-fi', 'machine', 'future', 'android', 'character'], category: 'character', label: 'Robot Character' },
-  { id: 'char_animal', url: 'https://kenney.nl/media/pages/assets/animal-pack-redux/621f174b0a-1677578183/sample.png', tags: ['animal', 'pet', 'dog', 'cat', 'farm', 'cute', 'character'], category: 'character', label: 'Animal Characters' },
+  { id: 'char_alien_green', url: `${TWEMOJI_BASE}/1f47d.svg`, tags: ['alien', 'player', 'green', 'platformer', 'character', 'hero'], category: 'character', label: 'Alien Hero' },
+  { id: 'char_knight', url: `${TWEMOJI_BASE}/2694.svg`, tags: ['knight', 'warrior', 'medieval', 'dungeon', 'hero', 'armor', 'sword', 'character'], category: 'character', label: 'Knight Swordsman' },
+  { id: 'char_zombie', url: `${TWEMOJI_BASE}/1f9df.svg`, tags: ['zombie', 'enemy', 'undead', 'horror', 'monster', 'villain', 'scary'], category: 'character', label: 'Zombie Enemy' },
+  { id: 'char_robot', url: `${TWEMOJI_BASE}/1f916.svg`, tags: ['robot', 'mech', 'sci-fi', 'machine', 'future', 'android', 'character'], category: 'character', label: 'Robot Character' },
+  { id: 'char_animal', url: `${TWEMOJI_BASE}/1f436.svg`, tags: ['animal', 'pet', 'dog', 'cat', 'farm', 'cute', 'character'], category: 'character', label: 'Animal Dog' },
 
   // ============================================
   // SPACE & SCI-FI
   // ============================================
-  { id: 'space_ship', url: 'https://kenney.nl/media/pages/assets/space-shooter-redux/cc87fcfb31-1677578231/sample.png', tags: ['spaceship', 'ship', 'space', 'shooter', 'rocket', 'ufo', 'vehicle', 'sci-fi'], category: 'vehicle', label: 'Space Shooter Ships' },
-  { id: 'space_planets', url: 'https://kenney.nl/media/pages/assets/planets/9a7dd04b70-1677578219/sample.png', tags: ['planet', 'space', 'earth', 'moon', 'sun', 'star', 'galaxy', 'background', 'cosmos'], category: 'background', label: 'Planets' },
+  { id: 'space_ship', url: `${TWEMOJI_BASE}/1f680.svg`, tags: ['spaceship', 'ship', 'space', 'shooter', 'rocket', 'ufo', 'vehicle', 'sci-fi'], category: 'vehicle', label: 'Space Rocket' },
+  { id: 'space_planets', url: `${TWEMOJI_BASE}/1f30d.svg`, tags: ['planet', 'space', 'earth', 'moon', 'sun', 'star', 'galaxy', 'background', 'cosmos'], category: 'background', label: 'Earth Planet' },
 
   // ============================================
   // PLATFORMER TILES & ENVIRONMENTS
   // ============================================
-  { id: 'tiles_platformer', url: 'https://kenney.nl/media/pages/assets/simplified-platformer-pack/fd8b0e9ad4-1677578227/sample.png', tags: ['platform', 'tile', 'ground', 'block', 'brick', 'level', 'environment', 'jump'], category: 'environment', label: 'Platformer Tiles' },
-  { id: 'tiles_dungeon', url: 'https://kenney.nl/media/pages/assets/tiny-dungeon/7e4a760685-1677578240/sample.png', tags: ['dungeon', 'cave', 'dark', 'underground', 'medieval', 'tile', 'wall', 'floor'], category: 'environment', label: 'Dungeon Tiles' },
-  { id: 'tiles_town', url: 'https://kenney.nl/media/pages/assets/tiny-town/88e73e8fb8-1677578241/sample.png', tags: ['town', 'city', 'house', 'building', 'road', 'village', 'urban', 'tile'], category: 'environment', label: 'Town Tiles' },
+  { id: 'tiles_platformer', url: `${TWEMOJI_BASE}/1f9f1.svg`, tags: ['platform', 'tile', 'ground', 'block', 'brick', 'level', 'environment', 'jump'], category: 'environment', label: 'Brick Platform' },
+  { id: 'tiles_dungeon', url: `${TWEMOJI_BASE}/1f5ff.svg`, tags: ['dungeon', 'cave', 'dark', 'underground', 'medieval', 'tile', 'wall', 'floor'], category: 'environment', label: 'Dungeon Statue Floor' },
+  { id: 'tiles_town', url: `${TWEMOJI_BASE}/1f3d8.svg`, tags: ['town', 'city', 'house', 'building', 'road', 'village', 'urban', 'tile'], category: 'environment', label: 'Town Building' },
 
   // ============================================
   // UI ELEMENTS
   // ============================================
-  { id: 'ui_buttons', url: 'https://kenney.nl/media/pages/assets/ui-pack/3ec58a2a6e-1677578243/sample.png', tags: ['button', 'ui', 'menu', 'interface', 'panel', 'hud', 'start', 'play'], category: 'ui', label: 'UI Buttons & Panels' },
-  { id: 'ui_icons', url: 'https://kenney.nl/media/pages/assets/game-icons/e61c7ec41d-1677578198/sample.png', tags: ['icon', 'heart', 'star', 'coin', 'gem', 'trophy', 'score', 'life', 'power'], category: 'ui', label: 'Game Icons' },
+  { id: 'ui_buttons', url: `${TWEMOJI_BASE}/25b6.svg`, tags: ['button', 'ui', 'menu', 'interface', 'panel', 'hud', 'start', 'play'], category: 'ui', label: 'Play Button' },
+  { id: 'ui_icons', url: `${TWEMOJI_BASE}/1f48e.svg`, tags: ['icon', 'heart', 'star', 'coin', 'gem', 'trophy', 'score', 'life', 'power'], category: 'ui', label: 'Gem UI Icon' },
 
   // ============================================
   // VEHICLES & RACING
   // ============================================
-  { id: 'car_racing', url: 'https://kenney.nl/media/pages/assets/racing-pack/d7e590bb73-1677578221/sample.png', tags: ['car', 'racing', 'vehicle', 'race', 'road', 'speed', 'truck', 'drift'], category: 'vehicle', label: 'Racing Cars' },
+  { id: 'car_racing', url: `${TWEMOJI_BASE}/1f3ce.svg`, tags: ['car', 'racing', 'vehicle', 'race', 'road', 'speed', 'truck', 'drift'], category: 'vehicle', label: 'Racing Car' },
 
   // ============================================
   // WEAPONS & ITEMS
   // ============================================
-  { id: 'items_food', url: 'https://kenney.nl/media/pages/assets/food-kit/d53b26c1e6-1696691075/sample.png', tags: ['food', 'fruit', 'apple', 'pizza', 'burger', 'collectible', 'item', 'eat'], category: 'item', label: 'Food Items' },
+  { id: 'items_food', url: `${TWEMOJI_BASE}/1f355.svg`, tags: ['food', 'fruit', 'apple', 'pizza', 'burger', 'collectible', 'item', 'eat'], category: 'item', label: 'Pizza Item' },
 
   // ============================================
   // NATURE & BACKGROUNDS
   // ============================================
-  { id: 'bg_nature', url: 'https://kenney.nl/media/pages/assets/background-elements-redux/b62bae2dc7-1677578189/sample.png', tags: ['tree', 'nature', 'grass', 'forest', 'hill', 'cloud', 'sky', 'outdoor', 'background'], category: 'background', label: 'Nature Elements' },
+  { id: 'bg_nature', url: `${TWEMOJI_BASE}/1f332.svg`, tags: ['tree', 'nature', 'grass', 'forest', 'hill', 'cloud', 'sky', 'outdoor', 'background'], category: 'background', label: 'Pine Tree' },
 
   // ============================================
   // PHYSICS & PUZZLE
   // ============================================
-  { id: 'physics_shapes', url: 'https://kenney.nl/media/pages/assets/physics-pack/1fce01ef8a-1677578218/sample.png', tags: ['physics', 'ball', 'box', 'circle', 'triangle', 'shape', 'puzzle', 'bounce', 'block'], category: 'physics', label: 'Physics Shapes' },
+  { id: 'physics_shapes', url: `${TWEMOJI_BASE}/1f7e5.svg`, tags: ['physics', 'ball', 'box', 'circle', 'triangle', 'shape', 'puzzle', 'bounce', 'block'], category: 'physics', label: 'Red Box Shape' },
 
   // ============================================
   // SPORTS
   // ============================================
-  { id: 'sports_ball', url: 'https://kenney.nl/media/pages/assets/sports-pack/7f2e510ddc-1677578232/sample.png', tags: ['ball', 'soccer', 'basketball', 'football', 'tennis', 'sport', 'sports'], category: 'sports', label: 'Sports Balls' },
+  { id: 'sports_ball', url: `${TWEMOJI_BASE}/26bd.svg`, tags: ['ball', 'soccer', 'basketball', 'football', 'tennis', 'sport', 'sports'], category: 'sports', label: 'Soccer Ball' },
 
   // ============================================
   // FISH & UNDERWATER
   // ============================================
-  { id: 'fish_pack', url: 'https://kenney.nl/media/pages/assets/fish-pack/6b40d68e8e-1677578196/sample.png', tags: ['fish', 'ocean', 'sea', 'underwater', 'water', 'swim', 'aquarium', 'shark', 'whale'], category: 'character', label: 'Fish & Sea Life' },
+  { id: 'fish_pack', url: `${TWEMOJI_BASE}/1f41f.svg`, tags: ['fish', 'ocean', 'sea', 'underwater', 'water', 'swim', 'aquarium', 'shark', 'whale'], category: 'character', label: 'Swimming Fish' },
 
   // ============================================
   // EMOJIS & EXPRESSIONS
   // ============================================
-  { id: 'emojis', url: 'https://kenney.nl/media/pages/assets/emotes-pack/cb14e20bd4-1677578195/sample.png', tags: ['emoji', 'face', 'expression', 'smile', 'happy', 'sad', 'angry', 'laugh', 'emotional'], category: 'ui', label: 'Emoji Pack' },
+  { id: 'emojis', url: `${TWEMOJI_BASE}/1f600.svg`, tags: ['emoji', 'face', 'expression', 'smile', 'happy', 'sad', 'angry', 'laugh', 'emotional'], category: 'ui', label: 'Smile Emote' },
 
   // ============================================
   // MEDIEVAL & FANTASY
   // ============================================
-  { id: 'medieval_items', url: 'https://kenney.nl/media/pages/assets/tiny-dungeon/7e4a760685-1677578240/sample.png', tags: ['sword', 'shield', 'potion', 'treasure', 'chest', 'medieval', 'fantasy', 'weapon', 'magic', 'rpg'], category: 'item', label: 'Fantasy Items' },
+  { id: 'medieval_items', url: `${TWEMOJI_BASE}/1f6e1.svg`, tags: ['sword', 'shield', 'potion', 'treasure', 'chest', 'medieval', 'fantasy', 'weapon', 'magic', 'rpg'], category: 'item', label: 'Knight Shield' },
 
   // ============================================
   // PIRATE
   // ============================================
-  { id: 'pirate_pack', url: 'https://kenney.nl/media/pages/assets/pirate-pack/81cd3e7dff-1677578219/sample.png', tags: ['pirate', 'ship', 'cannonball', 'treasure', 'island', 'ocean', 'boat', 'skull'], category: 'character', label: 'Pirate Pack' },
+  { id: 'pirate_pack', url: `${TWEMOJI_BASE}/1f3f4-200d-2620-fe0f.svg`, tags: ['pirate', 'ship', 'cannonball', 'treasure', 'island', 'ocean', 'boat', 'skull'], category: 'character', label: 'Pirate Flag' },
 ];
 
 let assetEmbeddingsCache = null;
