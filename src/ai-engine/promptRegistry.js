@@ -158,10 +158,13 @@ CRITICAL IMPLEMENTATION RULES:
    - Use accent color (${specSheet.accentColor}).
    - High-contrast for readability on small screens.
 
-6. GAME STATES:
-   - MENU: Centered title, "TAP TO START".
+6. GAME STATES (THE START BUTTON FIX):
+   - MENU: Draw centered title and "TAP TO START" text directly on the Canvas.
+   - You MUST transition from MENU to PLAYING state exactly like this:
+     window.addEventListener('pointerdown', () => { if (gameState === 'MENU') gameState = 'PLAYING'; });
+   - Do NOT create physical HTML <button> overlays. They block touches in iOS WebViews. Draw everything on the canvas and listen for a global screen tap!
    - PLAYING: Core gameplay.
-   - GAMEOVER: "${specSheet.gameOverTitle || 'GAME OVER'}", final score, "TAP TO RESTART".
+   - GAMEOVER: Draw "${specSheet.gameOverTitle || 'GAME OVER'}", final score, "TAP TO RESTART".
 
 7. GAME FEEL / JUICE (MANDATORY):
    - Immersive screen shake / camera shake on impact.
