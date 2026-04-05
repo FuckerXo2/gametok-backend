@@ -133,16 +133,18 @@ CRITICAL IMPLEMENTATION RULES:
 ═══════════════════════════════════════════
 
 1. SINGLE FILE: Everything in ONE HTML document. You MAY use CDNs for Three.js or p5.js if chosen.
+   - You MUST include <meta charset="UTF-8"> in the <head> otherwise Emojis will break and show question marks.
 
 2. MOBILE-FIRST TOUCH CONTROLS (STRICT):
-   - PRIMARY: touchstart, touchmove, touchend.
-   - FALLBACK: pointerdown, pointermove, pointerup.
-   - NO KEYBOARD-ONLY LOGIC. Ensure joystick or swipe controls are visible if needed.
+   - USE 'pointerdown', 'pointermove', 'pointerup' for universal touch/mouse support.
+   - Add 'touch-action: none;' to your CSS for the body/canvas so iOS doesn't intercept the touches.
+   - Attach your event listeners directly to the window or canvas (e.g. window.addEventListener('pointerdown', ...)).
+   - Do NOT use the 'click' event. It is swallowed by iOS WebViews.
 
 3. FULLSCREEN RESPONSIVE:
    - Must fill the entire viewport (100vw, 100vh).
    - Handle window resize events to update camera/canvas.
-   - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; }
+   - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
 
 4. ENTITY RENDERING:
    - Use emojis for characters/items unless the chosen engine style dictates otherwise.
