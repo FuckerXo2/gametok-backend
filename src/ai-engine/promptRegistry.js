@@ -350,6 +350,29 @@ OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
 
 export function compileMultiAgentGame(artistCode, engineHtml) {
-    const artistScript = `<script id="artist-engine">\n${artistCode}\n</script>\n<script id="game-logic">`;
-    return engineHtml.replace('<script>', artistScript);
+    // 1. Strip markdown thoroughly
+    let cleanArtistCode = artistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
+    
+    // 2. Wrap in an auto-healing sandbox script. 
+    // If the Artist hallucinates invalid syntax, the Engine falls back to these basic geometric shapes.
+    const artistScript = `\n<script id="artist-engine">
+// AUTO-HEALING ARTIST STUB
+window.RenderEngine = {
+    drawHero: (c, x, y, w, h) => { c.fillStyle = 'pink'; c.beginPath(); c.arc(x+w/2, y+h/2, w/2, 0, Math.PI*2); c.fill(); },
+    drawEnemy: (c, x, y, w, h) => { c.fillStyle = 'red'; c.fillRect(x, y, w, h); },
+    drawBackground: (c, w, h) => { c.fillStyle = '#111'; c.fillRect(0, 0, w, h); }
+};
+try {
+\n${cleanArtistCode}\n
+} catch(e) { console.error("Artist-Coder Syntax Error. using fallback geometry.", e); }
+</script>\n`;
+
+    // 3. Robust injection
+    if (engineHtml.includes('</head>')) {
+        return engineHtml.replace('</head>', artistScript + '</head>');
+    } else if (engineHtml.includes('<script')) {
+        return engineHtml.replace('<script', artistScript + '<script');
+    } else {
+        return artistScript + engineHtml;
+    }
 }
