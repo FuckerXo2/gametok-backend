@@ -168,8 +168,18 @@ CRITICAL IMPLEMENTATION RULES:
      manifest.forEach(a => { const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { loaded++; images[a.id] = img; tryStart(); }; img.onerror = () => { loaded++; tryStart(); }; img.src = a.url; });
      if (manifest.length === 0) startGame();
      \`\`\`
-   - In your draw loop, map your entities to the loaded assets. Example: \`if(images['hero_alien_pink']) ctx.drawImage(images['hero_alien_pink'], x, y, w, h);\`
-   - For entities without a specific image, fall back to drawing them using Canvas2D geometric colored shapes (\`ctx.fillRect\`, \`ctx.arc\`, etc).
+   - ⚠️ YOU MUST USE THESE EXACT ASSET KEYS FROM THE MANIFEST:
+     ${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest.map(a => `'${a.id}'`).join(', ') : 'None'}
+   - In your draw loop, map your entities to the loaded assets. Example for Hero:
+     \`\`\`javascript
+     if(images['${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest[0].id : 'hero'}']) {
+         ctx.drawImage(images['${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest[0].id : 'hero'}'], x, y, width, height);
+     } else {
+         // MANDATORY FALLBACK (if image fails to load):
+         ctx.fillStyle = "pink";
+         ctx.fillRect(x, y, width, height);
+     }
+     \`\`\`
    - Each entity type MUST be at least 30x30 pixels and visually distinct.
 
 6. HUD & UI:
@@ -178,7 +188,8 @@ CRITICAL IMPLEMENTATION RULES:
    - Use accent color (${specSheet.accentColor}).
    - High-contrast for readability on small screens.
 
-7. GAME STATES (THE START BUTTON FIX):
+7. GAME STATES & BOOTING (CRITICAL FOR IOS):
+   - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
    - MENU: Draw centered title and "TAP TO START" text directly on the Canvas.
    - You MUST transition from MENU to PLAYING state exactly like this:
      window.addEventListener('pointerdown', () => { if (gameState === 'MENU') gameState = 'PLAYING'; });
