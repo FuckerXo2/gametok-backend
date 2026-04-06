@@ -141,20 +141,21 @@ async function executeDreamJob(jobId, prompt, userId) {
         const artistPrompt = buildPhase2A_Artist(specSheet);
         const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        const [artistRes, engineRes] = await Promise.all([
-            openRouterClient.chat.completions.create({
-                model: "qwen/qwen3.6-plus:free",
-                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-                max_tokens: 4000,
-                temperature: 0.5
-            }),
-            openRouterClient.chat.completions.create({
-                model: "qwen/qwen3.6-plus:free",
-                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-                max_tokens: 8000,
-                temperature: 0.2
-            })
-        ]);
+        console.log(`⏳ Artist-Coder spinning up...`);
+        const artistRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+            max_tokens: 4000,
+            temperature: 0.5
+        });
+
+        console.log(`⏳ Logic-Coder spinning up (waiting for artist to finish to respect API rate limits)...`);
+        const engineRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+            max_tokens: 8000,
+            temperature: 0.2
+        });
 
         let rawArtistCode = artistRes.choices[0].message.content;
         let rawEngineHtml = engineRes.choices[0].message.content;
@@ -529,20 +530,21 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         const artistPrompt = buildPhase2A_Artist(specSheet);
         const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        const [artistRes, engineRes] = await Promise.all([
-            openRouterClient.chat.completions.create({
-                model: "qwen/qwen3.6-plus:free",
-                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-                max_tokens: 4000,
-                temperature: 0.5
-            }),
-            openRouterClient.chat.completions.create({
-                model: "qwen/qwen3.6-plus:free",
-                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-                max_tokens: 8000,
-                temperature: 0.2
-            })
-        ]);
+        console.log(`⏳ Labs Artist-Coder spinning up...`);
+        const artistRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+            max_tokens: 4000,
+            temperature: 0.5
+        });
+
+        console.log(`⏳ Labs Logic-Coder spinning up...`);
+        const engineRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+            max_tokens: 8000,
+            temperature: 0.2
+        });
 
         let rawArtistCode = artistRes.choices[0].message.content;
         let rawEngineHtml = engineRes.choices[0].message.content;
