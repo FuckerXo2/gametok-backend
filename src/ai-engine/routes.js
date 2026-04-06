@@ -219,7 +219,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
-        const existingCode = parentDraft.raw_code || parentDraft.html_payload;
+        const existingCode = parentDraft.html_payload || parentDraft.raw_code;
         
         // 2. Qwen modifies the existing game code
         console.log(`🤖 Qwen editing game...`);
