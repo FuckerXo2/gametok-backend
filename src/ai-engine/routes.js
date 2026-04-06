@@ -105,10 +105,9 @@ async function resolveAsset(key, assetDef) {
     }
 }
 
-// Helper to call the AI and parse JSON response
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
     const res = await nvidiaClient.chat.completions.create({
-        model: "google/gemma-4-31b-it", // Reverting to Gemma because Nemotron 404s on this account
+        model: "google/gemma-2-27b-it", // Correct valid Gemma model on NIM
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -116,6 +115,9 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
         max_tokens: maxTokens,
         temperature: temperature
     });
+    if (!res || !res.choices || !res.choices[0]) {
+        throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
+    }
     const raw = res.choices[0].message.content;
     return JSON.parse(extractJson(raw));
 }
@@ -149,6 +151,9 @@ async function executeDreamJob(jobId, prompt, userId) {
             temperature: 0.5
         });
 
+        if (!artistRes || !artistRes.choices || !artistRes.choices[0]) {
+            throw new Error("NVIDIA NIM Error (Artist-Coder): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
+        }
         let rawArtistCode = artistRes.choices[0].message.content;
         let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
 
@@ -162,6 +167,9 @@ async function executeDreamJob(jobId, prompt, userId) {
             max_tokens: 8000,
             temperature: 0.2
         });
+        if (!engineRes || !engineRes.choices || !engineRes.choices[0]) {
+            throw new Error("OpenRouter Error (Logic-Coder): " + (engineRes?.error?.message || JSON.stringify(engineRes)));
+        }
 
         let rawEngineHtml = engineRes.choices[0].message.content;
         console.log(`✅ Multi-Agent Generated: Artist (${cleanSvgCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
@@ -541,6 +549,9 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
             temperature: 0.5
         });
 
+        if (!artistRes || !artistRes.choices || !artistRes.choices[0]) {
+            throw new Error("NVIDIA NIM Labs Error (Artist): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
+        }
         let rawArtistCode = artistRes.choices[0].message.content;
         let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
 
@@ -553,6 +564,9 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
             max_tokens: 8000,
             temperature: 0.2
         });
+        if (!engineRes || !engineRes.choices || !engineRes.choices[0]) {
+            throw new Error("OpenRouter Labs Error (Logic): " + (engineRes?.error?.message || JSON.stringify(engineRes)));
+        }
 
         let rawEngineHtml = engineRes.choices[0].message.content;
 
