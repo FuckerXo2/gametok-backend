@@ -147,7 +147,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
         
         const qwenRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
+            model: "qwen/qwen-2.5-coder-32b-instruct",
             messages: [
                 { role: "system", content: "You are an expert game developer." },
                 { role: "user", content: buildPrompt }
