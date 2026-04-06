@@ -213,34 +213,52 @@ async function executeDreamJob(jobId, prompt, userId) {
 async function executeEditJob(newJobId, parentDraftId, instructions, userId, newAsset) {
     try {
         console.log(`🚀 [EDIT JOB] Starting edit job ${newJobId} based on parent ${parentDraftId}`);
-        console.log(`📝 [EDIT JOB] User instruction: "${instructions}"`);
         
-        // 1. Fetch parent draft — get artist_code and raw_code (engine only) separately
-        const parentRes = await pool.query('SELECT raw_code, html_payload, artist_code, title FROM ai_games WHERE id = $1', [parentDraftId]);
+        // 1. Fetch parent draft with all context
+        const parentRes = await pool.query('SELECT raw_code, html_payload, artist_code, title, edit_history FROM ai_games WHERE id = $1', [parentDraftId]);
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
         const artistCode = parentDraft.artist_code || '';
+        const engineCode = parentDraft.raw_code || parentDraft.html_payload;
+        const editHistory = parentDraft.edit_history || [];
         
-        // raw_code = engine HTML only (small, focused). Fallback to html_payload for legacy games.
-        let engineCode = parentDraft.raw_code || parentDraft.html_payload;
         if (!engineCode || engineCode.length < 100) {
             throw new Error(`Parent draft has no usable code!`);
         }
         
-        console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — engineCode: ${engineCode.length} chars, artistCode: ${artistCode.length} chars`);
+        console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — engine: ${engineCode.length} chars, artist: ${artistCode.length} chars, history: ${editHistory.length} past edits`);
+
+        // 2. Build conversation messages WITH MEMORY
+        const messages = [];
         
-        // 2. Send ONLY the engine code to the AI (not the artist drawing functions)
-        //    This keeps the prompt small and focused on what the user actually wants to change
-        console.log(`🤖 [EDIT JOB] Sending ${engineCode.length} chars of engine code to AI...`);
-        const editPrompt = buildPhase2_EditGame(engineCode, instructions);
+        // System message: establish the AI's role and the current code
+        let systemContent = `You are an expert HTML5 game developer. You built this game and are now modifying it based on user feedback.`;
+        
+        if (artistCode) {
+            systemContent += `\n\nThe game has TWO code sections:\n\n===ARTIST CODE (Canvas drawing functions)===\n${artistCode}\n\n===ENGINE CODE (Game HTML with physics, inputs, game loop)===\n${engineCode}`;
+            systemContent += `\n\nWhen responding, you MUST output BOTH sections using these exact markers:\n===ARTIST_CODE===\n(complete artist JavaScript)\n===ENGINE_CODE===\n(complete engine HTML starting with <!DOCTYPE html>)\n\nOutput BOTH sections every time. If you only changed one, copy the other unchanged. NEVER abbreviate or use "...".`;
+        } else {
+            systemContent += `\n\nCurrent game code:\n${engineCode}`;
+            systemContent += `\n\nOutput the COMPLETE modified HTML file. Start with <!DOCTYPE html>, end with </html>. NEVER abbreviate.`;
+        }
+        
+        messages.push({ role: "system", content: systemContent });
+        
+        // Replay past edit history as conversation turns so the AI remembers
+        for (const pastEdit of editHistory) {
+            messages.push({ role: "user", content: pastEdit });
+            messages.push({ role: "assistant", content: "(Applied successfully)" });
+        }
+        
+        // Current edit instruction
+        messages.push({ role: "user", content: instructions });
+        
+        console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to AI (${editHistory.length} past edits + new instruction)...`);
         
         const aiRes = await openRouterClient.chat.completions.create({
             model: "qwen/qwen3.6-plus:free",
-            messages: [
-                { role: "system", content: "You are an expert game developer. You MUST output COMPLETE code. NEVER abbreviate or truncate." },
-                { role: "user", content: editPrompt }
-            ],
+            messages: messages,
             max_tokens: 16000,
             temperature: 0.3
         });
@@ -249,27 +267,46 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
             throw new Error("OpenRouter Error (Edit): " + (aiRes?.error?.message || JSON.stringify(aiRes)));
         }
         
-        let editedEngineHtml = aiRes.choices[0].message.content;
-        console.log(`✅ [EDIT JOB] AI returned: ${editedEngineHtml.length} chars (original engine was ${engineCode.length}), finish_reason=${aiRes.choices[0].finish_reason}`);
+        let aiOutput = aiRes.choices[0].message.content;
+        console.log(`✅ [EDIT JOB] AI returned ${aiOutput.length} chars, finish_reason=${aiRes.choices[0].finish_reason}`);
 
-        // Strip markdown fences
+        // 3. Parse the response — extract artist and engine sections
+        let editedArtistCode = artistCode; // default: unchanged
+        let editedEngineHtml;
+        
+        if (artistCode && aiOutput.includes('===ARTIST_CODE===') && aiOutput.includes('===ENGINE_CODE===')) {
+            // Structured response — parse both sections
+            const artistMatch = aiOutput.split('===ARTIST_CODE===')[1]?.split('===ENGINE_CODE===')[0]?.trim();
+            const engineMatch = aiOutput.split('===ENGINE_CODE===')[1]?.trim();
+            
+            if (artistMatch) editedArtistCode = artistMatch.replace(/^```[a-z]*\n?/gi, '').replace(/\n?```$/g, '').trim();
+            if (engineMatch) editedEngineHtml = engineMatch.replace(/^```[a-z]*\n?/gi, '').replace(/\n?```$/g, '').trim();
+        } else {
+            // Flat response — treat entire output as engine HTML (legacy or no markers)
+            editedEngineHtml = aiOutput;
+        }
+        
+        if (!editedEngineHtml) {
+            throw new Error('Could not parse engine code from AI response');
+        }
+        
+        // Strip markdown fences from engine HTML
         editedEngineHtml = editedEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
         if (!editedEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
             const htmlStart = editedEngineHtml.indexOf('<!');
             if (htmlStart > 0) editedEngineHtml = editedEngineHtml.substring(htmlStart);
         }
-
-        // Basic sanity check
+        
         if (!editedEngineHtml.includes('</html>')) {
             throw new Error('AI output is missing </html> — likely truncated.');
         }
 
-        // 3. Re-compile: merge original artist code back with the edited engine code
+        // 4. Re-compile: merge artist code with edited engine code
         let compiledHtml;
-        if (artistCode) {
-            compiledHtml = compileMultiAgentGame(artistCode, editedEngineHtml);
+        if (editedArtistCode) {
+            compiledHtml = compileMultiAgentGame(editedArtistCode, editedEngineHtml);
         } else {
-            compiledHtml = editedEngineHtml; // Legacy game without separate artist code
+            compiledHtml = editedEngineHtml;
         }
 
         // Post-process with Juice + Audio
@@ -281,12 +318,14 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         const sandboxRes = await verifyGame(finalHtml);
         const finalScreenshot = sandboxRes.screenshot || null;
 
-        // Save: keep artist_code unchanged, update raw_code to the new engine code
+        // 5. Save with updated edit history (memory for next edit)
+        const newHistory = [...editHistory, instructions];
+        
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5 WHERE id = $6`,
-            [finalTitle, finalHtml, editedEngineHtml, artistCode, finalScreenshot, newJobId]
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, edit_history = $6 WHERE id = $7`,
+            [finalTitle, finalHtml, editedEngineHtml, editedArtistCode, finalScreenshot, JSON.stringify(newHistory), newJobId]
         );
-        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId}`);
+        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} (history now has ${newHistory.length} edits)`);
 
     } catch (err) {
         console.error("❌ [EDIT JOB] Error:", err);

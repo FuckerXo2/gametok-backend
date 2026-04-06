@@ -216,23 +216,53 @@ Return ONLY the complete HTML code. Do NOT wrap in markdown. No explanation. Jus
 // PHASE 2B: EDIT GAME (Claude modifies existing code)
 // ─────────────────────────────────────────────────────────
 
-export function buildPhase2_EditGame(existingCode, instructions) {
+export function buildPhase2_EditGame(engineCode, instructions, artistCode) {
+  // If we have separate artist code, send both sections clearly labeled
+  if (artistCode) {
+    return `You are an expert HTML5 game developer. You are modifying an existing game that has TWO parts:
+
+===SECTION 1: ARTIST CODE (Canvas drawing functions)===
+${artistCode}
+
+===SECTION 2: ENGINE CODE (Game HTML with physics, input, game loop)===
+${engineCode}
+
+USER WANTS: "${instructions}"
+
+YOUR TASK:
+- If the user wants to change visuals/characters/art → edit SECTION 1 (Artist Code)
+- If the user wants to change gameplay/physics/positioning/controls → edit SECTION 2 (Engine Code)  
+- If the user wants both → edit both sections
+
+OUTPUT FORMAT (you MUST follow this exactly):
+===ARTIST_CODE===
+(output the complete artist code JavaScript here — the window.RenderEngine object)
+===ENGINE_CODE===
+(output the complete engine HTML here — starting with <!DOCTYPE html> and ending with </html>)
+
+RULES:
+1. Output BOTH sections every time, even if you only changed one. Copy the unchanged section exactly.
+2. NEVER abbreviate, truncate, or use "..." or "// rest of code". Output EVERY line.
+3. Do NOT wrap in markdown code blocks. Do NOT add explanation text.
+4. The ENGINE_CODE section must start with <!DOCTYPE html> and end with </html>.`;
+  }
+
+  // Fallback for legacy games without separate artist code
   return `You are an expert HTML5 game developer. You are modifying an existing game.
 
 EXISTING GAME CODE:
-${existingCode}
+${engineCode}
 
 USER INSTRUCTIONS: "${instructions}"
 
 RULES:
 1. Apply ONLY the requested changes to the existing code.
-2. ⚠️ CRITICAL: You MUST return the COMPLETE, FULL, UNABRIDGED modified HTML file.
-3. ⚠️ NEVER abbreviate, truncate, or skip sections. NEVER write "..." or "// rest of code" or "// same as before" or any placeholder. Every single line of code must be present in your output.
-4. If the original file is 500 lines, your output must also be ~500 lines (plus your changes). Do NOT shorten it.
-5. Keep everything that works — only change what the user asked for.
-6. Start with <!DOCTYPE html> and end with </html>.
-7. Do NOT wrap in markdown code blocks. Do NOT include explanation.
-8. Just output the raw HTML. Nothing else.`;
+2. CRITICAL: You MUST return the COMPLETE, FULL, UNABRIDGED modified HTML file.
+3. NEVER abbreviate, truncate, or skip sections. NEVER write "..." or "// rest of code". Every single line must be present.
+4. Keep everything that works — only change what the user asked for.
+5. Start with <!DOCTYPE html> and end with </html>.
+6. Do NOT wrap in markdown code blocks. Do NOT include explanation.
+7. Just output the raw HTML. Nothing else.`;
 }
 
 
