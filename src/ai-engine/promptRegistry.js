@@ -327,40 +327,64 @@ export function postProcessRawHtml(rawHtml) {
 // PHASE 2A: ARTIST-CODER (Dedicated Art Generation)
 // ─────────────────────────────────────────────────────────
 export function buildPhase2A_Artist(specSheet) {
-  return `You are an elite, specialized HTML5 Canvas Artist-Coder.
-Your ONLY job is to write a javascript object called \`window.RenderEngine\` that contains generative drawing functions for the game entities.
-You must NOT write game loops, physics, input handling, or HTML.
+  return `You are a world-class procedural artist who creates stunning visuals using ONLY Canvas2D JavaScript.
+Your job: write a \`window.RenderEngine\` object with drawing functions for a game.
+You must NOT write game loops, physics, input handling, or HTML. ONLY drawing code.
 
-GAME SPECIFICATION:
-- Title: ${specSheet.title}
+GAME CONTEXT:
+- Title: "${specSheet.title}"
 - Visual Style: ${specSheet.visualStyle}
 - Atmosphere: ${specSheet.atmosphere}
 - Accent Color: ${specSheet.accentColor || '#f0f'}
-
-ENTITIES TO DRAW IN CANVAS2D:
 - Hero: ${specSheet.entities?.hero || 'Main player character'}
 - Enemy: ${specSheet.entities?.enemy || 'Adversary or obstacle'}
-- Background: ${specSheet.atmosphere} atmosphere landscape
 
-API CONTRACT (YOU MUST FOLLOW THIS EXACTLY):
-Output ONLY valid JavaScript (no markdown, no html, no explanation).
-Your code must look exactly like this:
+MANDATORY CANVAS2D TECHNIQUES (use ALL of these across your functions):
+- ctx.createLinearGradient / ctx.createRadialGradient for rich color fills
+- ctx.bezierCurveTo / ctx.quadraticCurveTo for organic curved shapes
+- ctx.shadowBlur + ctx.shadowColor for glow effects
+- ctx.globalCompositeOperation = 'lighter' for additive blending / energy effects
+- ctx.globalAlpha for transparency layering
+- ctx.save() / ctx.restore() + ctx.translate + ctx.rotate for sub-parts (limbs, wings, turrets)
+- Math.sin(time) and Math.cos(time) for idle animations (breathing, bobbing, pulsing)
+- Multiple layered shapes (not just one shape per entity — build complex figures from 5+ primitives)
+
+QUALITY RULES:
+- Each draw function must use AT LEAST 15 lines of Canvas calls. Simple rectangles or circles alone = FAILURE.
+- The hero should look like a recognizable character with body parts, not a blob.
+- The enemy must look visually distinct from the hero.
+- The background must have depth (layers: far sky/gradient → mid-ground details → near-ground texture).
+- Use the accent color ${specSheet.accentColor || '#f0f'} as a highlight/energy color throughout.
+
+API CONTRACT — output ONLY this JavaScript object, nothing else:
 
 window.RenderEngine = {
-    drawHero: function(ctx, x, y, width, height) {
-        // Write massive, generative, multi-layered Canvas code here.
-        // Use bezier curves, gradients, globalCompositeOperation, shadows, and paths.
-        // Make it look Spectacular. Do not draw simple rectangles.
+    drawHero: function(ctx, x, y, w, h, time) {
+        // REQUIRED: Multi-part character with at least body + head + 2 detail elements
+        // Use gradients, shadows, rotation. 'time' = elapsed seconds for idle animation.
     },
-    drawEnemy: function(ctx, x, y, width, height) {
-        // Generative art for the enemy using native math
+    drawEnemy: function(ctx, x, y, w, h, time) {
+        // REQUIRED: Distinct hostile entity. Animate menacingly with time parameter.
     },
-    drawBackground: function(ctx, width, height) {
-        // Generative abstract background
+    drawProjectile: function(ctx, x, y, w, h, time) {
+        // REQUIRED: Glowing bullet/projectile with additive blending + trail effect.
+    },
+    drawPickup: function(ctx, x, y, w, h, time) {
+        // REQUIRED: Collectible item (coin, gem, health) with pulsing glow animation.
+    },
+    drawParticle: function(ctx, x, y, size, alpha, color) {
+        // REQUIRED: Single particle for explosions/effects. Use radial gradient + alpha.
+    },
+    drawBackground: function(ctx, width, height, scrollX, scrollY, time) {
+        // REQUIRED: Multi-layer parallax background. At least 3 depth layers.
+        // scrollX/scrollY = camera offset for parallax. time = animation.
+    },
+    drawHUD: function(ctx, width, height, score, health) {
+        // REQUIRED: Heads-up display with score text + health bar + stylized frame.
     }
 };
 
-OUTPUT ONLY JAVASCRIPT!`;
+OUTPUT ONLY THE JAVASCRIPT OBJECT. No markdown fences. No explanation. No HTML.`;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -383,10 +407,17 @@ ${generatedArtistCode}
 \`\`\`
 
 These algorithms will be automatically injected into the DOM as \`window.RenderEngine\`.
-To draw the entities in your game loop, strictly call them:
-\`window.RenderEngine.drawHero(ctx, hero.x, hero.y, hero.width, hero.height);\`
-\`window.RenderEngine.drawEnemy(ctx, enemy.x, enemy.y, enemy.width, enemy.height);\`
-\`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height);\`
+In your game loop, you MUST track elapsed time and pass it to draw functions for animation:
+\`const time = performance.now() / 1000;\`
+
+REQUIRED DRAW CALLS in your render loop:
+\`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height, cameraX||0, cameraY||0, time);\`
+\`window.RenderEngine.drawHero(ctx, hero.x, hero.y, hero.width, hero.height, time);\`
+\`window.RenderEngine.drawEnemy(ctx, enemy.x, enemy.y, enemy.width, enemy.height, time);\`
+\`window.RenderEngine.drawProjectile(ctx, bullet.x, bullet.y, bullet.width, bullet.height, time);\`
+\`window.RenderEngine.drawPickup(ctx, item.x, item.y, item.width, item.height, time);\`
+\`window.RenderEngine.drawParticle(ctx, p.x, p.y, p.size, p.alpha, p.color);\`
+\`window.RenderEngine.drawHUD(ctx, canvas.width, canvas.height, score, health);\`
 
 RULES:
 1. Output ONE continuous HTML file starting with <!DOCTYPE html>.
@@ -399,6 +430,7 @@ RULES:
    - If Area/Single Screen: Confine bounds to canvas dimensions.
    - If Linear: Design distinct logical transitions or waves.
 7. SENSE OF ALIGNMENT: Ensure physics, entity speeds, and platform alignments are spaced logically so the game is mathematically playable and flows smoothly without impossible gaps.
+8. IMPLEMENT: Score tracking, health system, particle effects on hits/kills, and pickup collectibles.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
