@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import pool from '../db.js';
-import { buildPhase1_Quantize, buildPhase2_BuildPrototype, buildPhase2_EditGame, postProcessRawHtml } from './promptRegistry.js';
+import { buildPhase1_Quantize, buildPhase2B_Engineer, buildPhase2_EditGame, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
 import { compileGameHTML } from './compiler.js';
 import { verifyGame } from './sandbox.js';
 import { searchAssets, setAssetBaseUrl } from './asset-dictionary.js';
@@ -135,35 +135,40 @@ async function executeDreamJob(jobId, prompt, userId) {
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
-
-        // ── ARTIST-CODER PROTOCOL ──
-        console.log(`🎨 Artist-Coder: Bypassing external assets, utilizing full procedural code generation...`);
-
-        // ── PHASE 2: BUILD PROTOTYPE ──
-        console.log(`🔨 Phase 2/2: Qwen 3.6 OpenRouter building full game... (TESTING)`);
-        const buildPrompt = buildPhase2_BuildPrototype(specSheet);
+        // ── PHASE 2: MULTI-AGENT SYNTHESIS ──
+        console.log(`🔨 Phase 2: Splitting tasks between Artist-Coder and Engine-Coder (Qwen 3.6)...`);
         
-        const qwenRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
-            messages: [
-                { role: "system", content: "You are an expert game developer." },
-                { role: "user", content: buildPrompt }
-            ],
-            max_tokens: 8000,
-            temperature: 0.3
-        });
-        
-        let rawGameHtml = qwenRes.choices[0].message.content;
-        console.log(`✅ Qwen generated ${rawGameHtml.length} chars of game code`);
+        const artistPrompt = buildPhase2A_Artist(specSheet);
+        const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        // Strip markdown code fences if Claude wrapped it
-        rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
-        
-        // Ensure it starts with doctype
-        if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
-            const htmlStart = rawGameHtml.indexOf('<!');
-            if (htmlStart > 0) rawGameHtml = rawGameHtml.substring(htmlStart);
+        const [artistRes, engineRes] = await Promise.all([
+            openRouterClient.chat.completions.create({
+                model: "qwen/qwen3.6-plus:free",
+                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+                max_tokens: 4000,
+                temperature: 0.5
+            }),
+            openRouterClient.chat.completions.create({
+                model: "qwen/qwen3.6-plus:free",
+                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+                max_tokens: 8000,
+                temperature: 0.2
+            })
+        ]);
+
+        let rawArtistCode = artistRes.choices[0].message.content;
+        let rawEngineHtml = engineRes.choices[0].message.content;
+        console.log(`✅ Multi-Agent Generated: Artist (${rawArtistCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
+
+        rawArtistCode = rawArtistCode.replace(/^```javascript?\n?/i, '').replace(/\n?```$/i, '');
+        rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
+        if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
+            const htmlStart = rawEngineHtml.indexOf('<!');
+            if (htmlStart > 0) rawEngineHtml = rawEngineHtml.substring(htmlStart);
         }
+
+        // ── COMPILE MULTI-AGENT CODE ──
+        let rawGameHtml = compileMultiAgentGame(rawArtistCode, rawEngineHtml);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         const finalHtml = postProcessRawHtml(rawGameHtml);
@@ -518,25 +523,38 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         // ── ARTIST-CODER PROTOCOL ──
         console.log(`🎨 Artist-Coder: Utilizing full procedural code generation...`);
 
-        // Phase 2: Build (Qwen)
-        console.log(`🔨 Labs: Qwen 3.6 building game...`);
-        const buildPrompt = buildPhase2_BuildPrototype(specSheet);
-        const qwenRes = await openRouterClient.chat.completions.create({
-            model: 'qwen/qwen3.6-plus:free',
-            max_tokens: 8000,
-            temperature: 0.3,
-            messages: [
-                { role: "system", content: "You are an expert game developer." },
-                { role: "user", content: buildPrompt }
-            ]
-        });
+        // Phase 2: MULTI-AGENT SYNTHESIS
+        console.log(`🔨 Labs Phase 2: Multi-Agent Synthesis (Artist & Engineer)...`);
+        
+        const artistPrompt = buildPhase2A_Artist(specSheet);
+        const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        let rawGameHtml = qwenRes.choices[0].message.content;
-        rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
-        if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
-            const htmlStart = rawGameHtml.indexOf('<!');
-            if (htmlStart > 0) rawGameHtml = rawGameHtml.substring(htmlStart);
+        const [artistRes, engineRes] = await Promise.all([
+            openRouterClient.chat.completions.create({
+                model: "qwen/qwen3.6-plus:free",
+                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+                max_tokens: 4000,
+                temperature: 0.5
+            }),
+            openRouterClient.chat.completions.create({
+                model: "qwen/qwen3.6-plus:free",
+                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+                max_tokens: 8000,
+                temperature: 0.2
+            })
+        ]);
+
+        let rawArtistCode = artistRes.choices[0].message.content;
+        let rawEngineHtml = engineRes.choices[0].message.content;
+
+        rawArtistCode = rawArtistCode.replace(/^```javascript?\n?/i, '').replace(/\n?```$/i, '');
+        rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
+        if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
+            const htmlStart = rawEngineHtml.indexOf('<!');
+            if (htmlStart > 0) rawEngineHtml = rawEngineHtml.substring(htmlStart);
         }
+
+        let rawGameHtml = compileMultiAgentGame(rawArtistCode, rawEngineHtml);
 
         const finalHtml = postProcessRawHtml(rawGameHtml);
         const sandboxRes = await verifyGame(finalHtml);

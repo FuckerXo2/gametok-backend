@@ -153,36 +153,20 @@ CRITICAL IMPLEMENTATION RULES:
    - You MUST implement a Camera System. In Canvas2D, calculate \`camera.x\` and \`camera.y\` to follow the player, and use \`ctx.save(); ctx.translate(-camera.x, -camera.y);\` before drawing the game world (and restore before drawing HUD).
    - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!
 
-5. ENTITY RENDERING (SELF-HOSTED KENNEY SPRITES):
-   - You have been given a curated set of Kenney game sprite images hosted on our server.
+5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS):
+   - ⚠️ ABSOLUTELY NO EXTERNAL IMAGES OR URLS. Do NOT attempt to load external sprites, PNGs, or textures!
    - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS. The device CANNOT render them — they show as broken boxes.
-   - You MUST preload the images and use them to draw your entities.
+   - You MUST act as an 'Artist-Coder'. You will draw every single entity (Player, Enemies, Backgrounds, Collectibles) procedurally using pure Canvas2D API.
    - The hero description is: ${specSheet.entities?.hero || "Main player character"}
    - The enemy description is: ${specSheet.entities?.enemy || "Adversary or obstacle"}
-   - Use this EXACT loading pattern before your start loop:
+   - 🔥 DO NOT DRAW BORING RECTANGLES OR BASIC CIRCLES! 
+   - Write custom generative, multi-layered Canvas drawing sequence functions for each entity. Use bezier curves, gradients, globalCompositeOperation, shadows, glowing effects, and paths.
+   - Make it look Spectacular and match the game's theme perfectly.
+   - Example abstract energetic procedural art:
      \`\`\`javascript
-     const images = {};
-     const manifest = ${JSON.stringify(specSheet.assetManifest || [])};
-     let loaded = 0;
-     function tryStart() { if (loaded >= manifest.length) startGame(); }
-     manifest.forEach(a => { const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { loaded++; images[a.id] = img; tryStart(); }; img.onerror = () => { loaded++; tryStart(); }; img.src = a.url; });
-     if (manifest.length === 0) startGame();
-     \`\`\`
-   - ⚠️ YOU MUST USE THESE EXACT ASSET KEYS FROM THE MANIFEST:
-     ${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest.map(a => `'${a.id}'`).join(', ') : 'None'}
-   - In your draw loop, map your entities to the loaded assets. Example for Hero:
-     \`\`\`javascript
-     if(images['${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest[0].id : 'hero'}']) {
-         ctx.drawImage(images['${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest[0].id : 'hero'}'], x, y, width, height);
-     } else {
-         // 🔥 ARTIST-CODER PROTOCOL (if image fails to load):
-         // DO NOT DRAW A BORING RECTANGLE!
-         // Write a custom generative, multi-layered Canvas drawing sequence 
-         // using bezier curves, gradients, globalCompositeOperation, shadows, and paths.
-         // Make it look Spectacular and match the game's theme perfectly.
+     function drawHero(ctx, x, y, width, height) {
          ctx.save();
          ctx.translate(x + width/2, y + height/2);
-         // Example abstract energetic procedural art:
          const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, width);
          gradient.addColorStop(0, '#fff');
          gradient.addColorStop(1, '${specSheet.accentColor || '#f0f'}');
@@ -190,7 +174,7 @@ CRITICAL IMPLEMENTATION RULES:
          ctx.shadowBlur = 15;
          ctx.shadowColor = '${specSheet.accentColor || '#f0f'}';
          ctx.beginPath();
-         // ... (Write complex procedural paths here)
+         // ... (Write complex procedural paths here mapping your character's shape)
          ctx.arc(0, 0, width/2, 0, Math.PI * 2);
          ctx.fill();
          ctx.restore();
@@ -293,4 +277,79 @@ export function postProcessRawHtml(rawHtml) {
   }
 
   return rawHtml;
+}
+
+// ─────────────────────────────────────────────────────────
+// PHASE 2A: ARTIST-CODER (Dedicated Art Generation)
+// ─────────────────────────────────────────────────────────
+export function buildPhase2A_Artist(specSheet) {
+  return `You are an elite, specialized HTML5 Canvas Artist-Coder.
+Your ONLY job is to write a javascript object called \`window.RenderEngine\` that contains generative drawing functions for the game entities.
+You must NOT write game loops, physics, input handling, or HTML.
+
+GAME SPECIFICATION:
+- Title: ${specSheet.title}
+- Visual Style: ${specSheet.visualStyle}
+- Atmosphere: ${specSheet.atmosphere}
+- Accent Color: ${specSheet.accentColor || '#f0f'}
+
+ENTITIES TO DRAW:
+- Hero: ${specSheet.entities?.hero || 'Main player character'}
+- Enemy: ${specSheet.entities?.enemy || 'Adversary or obstacle'}
+- Background: ${specSheet.atmosphere} atmosphere landscape
+
+API CONTRACT (YOU MUST FOLLOW THIS EXACTLY):
+Output ONLY valid JavaScript (no markdown, no html, no explanation).
+Your code must look exactly like this:
+
+window.RenderEngine = {
+    drawHero: function(ctx, x, y, width, height) {
+        // Write massive, generative, multi-layered Canvas code here.
+        // Use bezier curves, gradients, globalCompositeOperation, shadows, and paths.
+        // Make it look Spectacular. Do not draw simple rectangles.
+    },
+    drawEnemy: function(ctx, x, y, width, height) {
+        // Generative art for the enemy
+    },
+    drawBackground: function(ctx, width, height) {
+        // Generative abstract background filling the screen
+    }
+};
+
+OUTPUT ONLY JAVASCRIPT!`;
+}
+
+// ─────────────────────────────────────────────────────────
+// PHASE 2B: ENGINEER-CODER (Dedicated Physics/Logic)
+// ─────────────────────────────────────────────────────────
+export function buildPhase2B_Engineer(specSheet) {
+  return `You are an elite HTML5 Game Engineer. Build a COMPLETE mobile game as a single HTML file.
+You are strictly in charge of physics, inputs, state, and the game loop.
+DO NOT WRITE ART LOGIC. All entity and background rendering is handled by the Artist API Contract.
+
+GAME SPECIFICATION:
+- Title: ${specSheet.title}
+- Core Mechanics: ${JSON.stringify(specSheet.coreMechanics)}
+
+API CONTRACT (CRITICAL):
+You MUST use native Canvas2D.
+Assume that a global object \`window.RenderEngine\` already exists.
+To draw the background, you MUST call: \`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height);\`
+To draw the hero, you MUST call: \`window.RenderEngine.drawHero(ctx, hero.x, hero.y, hero.width, hero.height);\`
+To draw the enemy, you MUST call: \`window.RenderEngine.drawEnemy(ctx, enemy.x, enemy.y, enemy.width, enemy.height);\`
+DO NOT draw them yourself using fillRect unless for debugging hitboxes.
+
+RULES:
+1. Output ONE continuous HTML file starting with <!DOCTYPE html>.
+2. Do not include external libraries.
+3. Mobile-first touch controls (pointerdown/pointerup).
+4. Fullscreen Canvas2D (resize loop).
+5. Implement Juiciness (screen shake, physics easing).
+
+OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
+}
+
+export function compileMultiAgentGame(artistCode, engineHtml) {
+    const artistScript = `<script id="artist-engine">\n${artistCode}\n</script>\n<script id="game-logic">`;
+    return engineHtml.replace('<script>', artistScript);
 }
