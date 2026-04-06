@@ -283,9 +283,9 @@ export function postProcessRawHtml(rawHtml) {
 // PHASE 2A: ARTIST-CODER (Dedicated Art Generation)
 // ─────────────────────────────────────────────────────────
 export function buildPhase2A_Artist(specSheet) {
-  return `You are an elite, specialized HTML5 Canvas Artist-Coder.
-Your ONLY job is to write a javascript object called \`window.RenderEngine\` that contains generative drawing functions for the game entities.
-You must NOT write game loops, physics, input handling, or HTML.
+  return `You are an elite, specialized Vector SVG Artist.
+Your ONLY job is to write highly detailed, modern, glowing SVG code for the game entities.
+You must NOT write Javascript or logic.
 
 GAME SPECIFICATION:
 - Title: ${specSheet.title}
@@ -293,30 +293,18 @@ GAME SPECIFICATION:
 - Atmosphere: ${specSheet.atmosphere}
 - Accent Color: ${specSheet.accentColor || '#f0f'}
 
-ENTITIES TO DRAW:
-- Hero: ${specSheet.entities?.hero || 'Main player character'}
-- Enemy: ${specSheet.entities?.enemy || 'Adversary or obstacle'}
-- Background: ${specSheet.atmosphere} atmosphere landscape
+ENTITIES TO DESIGN (SVG):
+- hero (Main player character)
+- enemy (Adversary or obstacle)
 
-API CONTRACT (YOU MUST FOLLOW THIS EXACTLY):
-Output ONLY valid JavaScript (no markdown, no html, no explanation).
-Your code must look exactly like this:
+API CONTRACT:
+Output exactly TWO <svg> blocks. Do not wrap in markdown or json.
+First SVG MUST have id="hero-svg", second MUST have id="enemy-svg".
+Use beautiful gradients, glowing filter drop-shadows, and intricate vector paths.
+Make them perfectly square, e.g. viewBox="0 0 100 100".
+Ensure they include xmlns="http://www.w3.org/2000/svg".
 
-window.RenderEngine = {
-    drawHero: function(ctx, x, y, width, height) {
-        // Write massive, generative, multi-layered Canvas code here.
-        // Use bezier curves, gradients, globalCompositeOperation, shadows, and paths.
-        // Make it look Spectacular. Do not draw simple rectangles.
-    },
-    drawEnemy: function(ctx, x, y, width, height) {
-        // Generative art for the enemy
-    },
-    drawBackground: function(ctx, width, height) {
-        // Generative abstract background filling the screen
-    }
-};
-
-OUTPUT ONLY JAVASCRIPT!`;
+OUTPUT ONLY THE RAW <svg> STRINGS!`;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -325,7 +313,6 @@ OUTPUT ONLY JAVASCRIPT!`;
 export function buildPhase2B_Engineer(specSheet) {
   return `You are an elite HTML5 Game Engineer. Build a COMPLETE mobile game as a single HTML file.
 You are strictly in charge of physics, inputs, state, and the game loop.
-DO NOT WRITE ART LOGIC. All entity and background rendering is handled by the Artist API Contract.
 
 GAME SPECIFICATION:
 - Title: ${specSheet.title}
@@ -333,11 +320,14 @@ GAME SPECIFICATION:
 
 API CONTRACT (CRITICAL):
 You MUST use native Canvas2D.
-Assume that a global object \`window.RenderEngine\` already exists.
-To draw the background, you MUST call: \`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height);\`
-To draw the hero, you MUST call: \`window.RenderEngine.drawHero(ctx, hero.x, hero.y, hero.width, hero.height);\`
-To draw the enemy, you MUST call: \`window.RenderEngine.drawEnemy(ctx, enemy.x, enemy.y, enemy.width, enemy.height);\`
-DO NOT draw them yourself using fillRect unless for debugging hitboxes.
+An Architect has injected beautifully designed Vector SVGs into the DOM, and provided a loader function \`getSvgImage(id)\`.
+To get the assets, load them in your init function:
+\`\`\`javascript
+const heroImg = getSvgImage('hero-svg'); // Do not wait for onload, it is synchronous
+const enemyImg = getSvgImage('enemy-svg');
+\`\`\`
+In your game loop, strictly draw them using: \`if(heroImg) ctx.drawImage(heroImg, x, y, width, height); else { /* fallback generic shape */ }\`
+You can draw the background yourself natively using Canvas gradient fills if you wish.
 
 RULES:
 1. Output ONE continuous HTML file starting with <!DOCTYPE html>.
@@ -351,28 +341,31 @@ OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 
 export function compileMultiAgentGame(artistCode, engineHtml) {
     // 1. Strip markdown thoroughly
-    let cleanArtistCode = artistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
+    let cleanSvgCode = artistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
     
-    // 2. Wrap in an auto-healing sandbox script. 
-    // If the Artist hallucinates invalid syntax, the Engine falls back to these basic geometric shapes.
-    const artistScript = `\n<script id="artist-engine">
-// AUTO-HEALING ARTIST STUB
-window.RenderEngine = {
-    drawHero: (c, x, y, w, h) => { c.fillStyle = 'pink'; c.beginPath(); c.arc(x+w/2, y+h/2, w/2, 0, Math.PI*2); c.fill(); },
-    drawEnemy: (c, x, y, w, h) => { c.fillStyle = 'red'; c.fillRect(x, y, w, h); },
-    drawBackground: (c, w, h) => { c.fillStyle = '#111'; c.fillRect(0, 0, w, h); }
-};
-try {
-\n${cleanArtistCode}\n
-} catch(e) { console.error("Artist-Coder Syntax Error. using fallback geometry.", e); }
+    // 2. Inject raw SVGs into hidden container and provide an indestructible SVG to Image API
+    const assetInjection = `\n<div id="ai-assets" style="display:none;">\n${cleanSvgCode}\n</div>
+<script id="artist-compiler">
+window.aiImages = {};
+function getSvgImage(id) {
+    try {
+        if(window.aiImages[id]) return window.aiImages[id];
+        let el = document.getElementById(id);
+        if(!el) return null;
+        if(!el.getAttribute('xmlns')) el.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        const svgStr = new XMLSerializer().serializeToString(el);
+        const img = new Image();
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+        window.aiImages[id] = img;
+        return img;
+    } catch(e) { console.error("SVG Init Error:", e); return null; }
+}
 </script>\n`;
 
-    // 3. Robust injection
-    if (engineHtml.includes('</head>')) {
-        return engineHtml.replace('</head>', artistScript + '</head>');
-    } else if (engineHtml.includes('<script')) {
-        return engineHtml.replace('<script', artistScript + '<script');
+    // 3. Robust injection before the main game logic begins
+    if (engineHtml.includes('<body')) {
+        return engineHtml.replace(/(<body[^>]*>)/i, '$1' + assetInjection);
     } else {
-        return artistScript + engineHtml;
+        return assetInjection + engineHtml;
     }
 }
