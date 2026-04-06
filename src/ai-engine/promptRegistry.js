@@ -283,9 +283,9 @@ export function postProcessRawHtml(rawHtml) {
 // PHASE 2A: ARTIST-CODER (Dedicated Art Generation)
 // ─────────────────────────────────────────────────────────
 export function buildPhase2A_Artist(specSheet) {
-  return `You are an elite, specialized Vector SVG Artist.
-Your ONLY job is to write highly detailed, modern, glowing SVG code for the game entities.
-You must NOT write Javascript or logic.
+  return `You are an elite, specialized HTML5 Canvas Artist-Coder.
+Your ONLY job is to write a javascript object called \`window.RenderEngine\` that contains generative drawing functions for the game entities.
+You must NOT write game loops, physics, input handling, or HTML.
 
 GAME SPECIFICATION:
 - Title: ${specSheet.title}
@@ -293,26 +293,39 @@ GAME SPECIFICATION:
 - Atmosphere: ${specSheet.atmosphere}
 - Accent Color: ${specSheet.accentColor || '#f0f'}
 
-ENTITIES TO DESIGN (SVG):
-- hero (Main player character)
-- enemy (Adversary or obstacle)
+ENTITIES TO DRAW IN CANVAS2D:
+- Hero: ${specSheet.entities?.hero || 'Main player character'}
+- Enemy: ${specSheet.entities?.enemy || 'Adversary or obstacle'}
+- Background: ${specSheet.atmosphere} atmosphere landscape
 
-API CONTRACT:
-Output exactly TWO <svg> blocks. Do not wrap in markdown or json.
-First SVG MUST have id="hero-svg", second MUST have id="enemy-svg".
-Use beautiful gradients, glowing filter drop-shadows, and intricate vector paths.
-Make them perfectly square, e.g. viewBox="0 0 100 100".
-Ensure they include xmlns="http://www.w3.org/2000/svg".
+API CONTRACT (YOU MUST FOLLOW THIS EXACTLY):
+Output ONLY valid JavaScript (no markdown, no html, no explanation).
+Your code must look exactly like this:
 
-OUTPUT ONLY THE RAW <svg> STRINGS!`;
+window.RenderEngine = {
+    drawHero: function(ctx, x, y, width, height) {
+        // Write massive, generative, multi-layered Canvas code here.
+        // Use bezier curves, gradients, globalCompositeOperation, shadows, and paths.
+        // Make it look Spectacular. Do not draw simple rectangles.
+    },
+    drawEnemy: function(ctx, x, y, width, height) {
+        // Generative art for the enemy using native math
+    },
+    drawBackground: function(ctx, width, height) {
+        // Generative abstract background
+    }
+};
+
+OUTPUT ONLY JAVASCRIPT!`;
 }
 
 // ─────────────────────────────────────────────────────────
 // PHASE 2B: ENGINEER-CODER (Dedicated Physics/Logic)
 // ─────────────────────────────────────────────────────────
-export function buildPhase2B_Engineer(specSheet, generatedSvgAssets) {
+export function buildPhase2B_Engineer(specSheet, generatedArtistCode) {
   return `You are an elite HTML5 Game Engineer. Build a COMPLETE mobile game as a single HTML file.
 You are strictly in charge of physics, inputs, state, and the game loop.
+DO NOT WRITE ART LOGIC. All entity rendering is handled by the Artist API Contract.
 
 GAME SPECIFICATION:
 - Title: ${specSheet.title}
@@ -320,19 +333,16 @@ GAME SPECIFICATION:
 
 API CONTRACT (CRITICAL):
 You MUST use native Canvas2D.
-An Architect has explicitly designed the following Vector SVGs for this game:
-\`\`\`html
-${generatedSvgAssets}
+An Architect has explicitly designed the following Canvas Javascript functions for this game:
+\`\`\`javascript
+${generatedArtistCode}
 \`\`\`
 
-These SVGs will be injected into the DOM automatically. I have provided a loader function \`getSvgImage(id)\`.
-To get the assets, load them in your init function:
-\`\`\`javascript
-const heroImg = getSvgImage('hero-svg'); // Do not wait for onload, it is synchronous
-const enemyImg = getSvgImage('enemy-svg');
-\`\`\`
-In your game loop, strictly draw them using: \`if(heroImg) ctx.drawImage(heroImg, x, y, width, height); else { /* fallback generic shape */ }\`
-You can draw the background yourself natively using Canvas gradient fills if you wish.
+These algorithms will be automatically injected into the DOM as \`window.RenderEngine\`.
+To draw the entities in your game loop, strictly call them:
+\`window.RenderEngine.drawHero(ctx, hero.x, hero.y, hero.width, hero.height);\`
+\`window.RenderEngine.drawEnemy(ctx, enemy.x, enemy.y, enemy.width, enemy.height);\`
+\`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height);\`
 
 RULES:
 1. Output ONE continuous HTML file starting with <!DOCTYPE html>.
@@ -344,30 +354,20 @@ RULES:
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
 
-export function compileMultiAgentGame(artistGeneratedSvgs, engineHtml) {
-    // 2. Inject raw SVGs into hidden container and provide an indestructible SVG to Image API
-    const assetInjection = `\n<div id="ai-assets" style="display:none;">\n${artistGeneratedSvgs}\n</div>
-<script id="artist-compiler">
-window.aiImages = {};
-function getSvgImage(id) {
-    try {
-        if(window.aiImages[id]) return window.aiImages[id];
-        let el = document.getElementById(id);
-        if(!el) return null;
-        if(!el.getAttribute('xmlns')) el.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        const svgStr = new XMLSerializer().serializeToString(el);
-        const img = new Image();
-        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
-        window.aiImages[id] = img;
-        return img;
-    } catch(e) { console.error("SVG Init Error:", e); return null; }
-}
+export function compileMultiAgentGame(artistGeneratedJS, engineHtml) {
+    const artistScript = `\n<script id="artist-engine">
+// MULTI-AGENT PROCEDURAL GRAPHICS
+try {
+\n${artistGeneratedJS}\n
+} catch(e) { console.error("Artist-Coder Syntax Error", e); }
 </script>\n`;
 
     // 3. Robust injection before the main game logic begins
-    if (engineHtml.includes('<body')) {
-        return engineHtml.replace(/(<body[^>]*>)/i, '$1' + assetInjection);
+    if (engineHtml.includes('</head>')) {
+        return engineHtml.replace('</head>', artistScript + '</head>');
+    } else if (engineHtml.includes('<script')) {
+        return engineHtml.replace('<script', artistScript + '<script');
     } else {
-        return assetInjection + engineHtml;
+        return artistScript + engineHtml;
     }
 }
