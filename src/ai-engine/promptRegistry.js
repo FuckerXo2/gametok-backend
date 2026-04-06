@@ -61,6 +61,7 @@ Extract a Game Spec Sheet as JSON:
   "visualStyle": "ONE from the Visual Styles list",
   "atmosphere": "ONE from the Atmospheres list",
   "pacing": "ONE from the Pacing list",
+  "levelDesign": "Endless | Single Screen Arena | Linear Levels",
   "backgroundColor": "#hex color that matches the theme and visual style",
   "accentColor": "#hex secondary color for UI elements",
   "entities": {
@@ -361,8 +362,11 @@ RULES:
 3. Mobile-first touch controls (pointerdown/pointerup).
 4. Fullscreen Canvas2D (resize loop).
 5. Implement Juiciness (screen shake, physics easing).
-6. LEVEL GENERATION: The game must be strictly ENDLESS. Procedurally generate platforms and enemies just outside the viewport infinitely as the player moves.
-7. SENSE OF ALIGNMENT: Ensure platforms and enemies are spaced logically so the game is mathematically playable, flows well, and is never impossible to traverse.
+6. LEVEL GENERATION (${specSheet.levelDesign || 'Dynamic'}):
+   - If Endless: Procedurally generate platforms/enemies infinitely as player moves.
+   - If Area/Single Screen: Confine bounds to canvas dimensions.
+   - If Linear: Design distinct logical transitions or waves.
+7. SENSE OF ALIGNMENT: Ensure physics, entity speeds, and platform alignments are spaced logically so the game is mathematically playable and flows smoothly without impossible gaps.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
