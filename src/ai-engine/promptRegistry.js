@@ -175,9 +175,25 @@ CRITICAL IMPLEMENTATION RULES:
      if(images['${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest[0].id : 'hero'}']) {
          ctx.drawImage(images['${specSheet.assetManifest && specSheet.assetManifest.length > 0 ? specSheet.assetManifest[0].id : 'hero'}'], x, y, width, height);
      } else {
-         // MANDATORY FALLBACK (if image fails to load):
-         ctx.fillStyle = "pink";
-         ctx.fillRect(x, y, width, height);
+         // 🔥 ARTIST-CODER PROTOCOL (if image fails to load):
+         // DO NOT DRAW A BORING RECTANGLE!
+         // Write a custom generative, multi-layered Canvas drawing sequence 
+         // using bezier curves, gradients, globalCompositeOperation, shadows, and paths.
+         // Make it look Spectacular and match the game's theme perfectly.
+         ctx.save();
+         ctx.translate(x + width/2, y + height/2);
+         // Example abstract energetic procedural art:
+         const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, width);
+         gradient.addColorStop(0, '#fff');
+         gradient.addColorStop(1, '${specSheet.accentColor || '#f0f'}');
+         ctx.fillStyle = gradient;
+         ctx.shadowBlur = 15;
+         ctx.shadowColor = '${specSheet.accentColor || '#f0f'}';
+         ctx.beginPath();
+         // ... (Write complex procedural paths here)
+         ctx.arc(0, 0, width/2, 0, Math.PI * 2);
+         ctx.fill();
+         ctx.restore();
      }
      \`\`\`
    - Each entity type MUST be at least 30x30 pixels and visually distinct.
