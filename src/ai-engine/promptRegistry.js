@@ -310,7 +310,7 @@ OUTPUT ONLY THE RAW <svg> STRINGS!`;
 // ─────────────────────────────────────────────────────────
 // PHASE 2B: ENGINEER-CODER (Dedicated Physics/Logic)
 // ─────────────────────────────────────────────────────────
-export function buildPhase2B_Engineer(specSheet) {
+export function buildPhase2B_Engineer(specSheet, generatedSvgAssets) {
   return `You are an elite HTML5 Game Engineer. Build a COMPLETE mobile game as a single HTML file.
 You are strictly in charge of physics, inputs, state, and the game loop.
 
@@ -320,7 +320,12 @@ GAME SPECIFICATION:
 
 API CONTRACT (CRITICAL):
 You MUST use native Canvas2D.
-An Architect has injected beautifully designed Vector SVGs into the DOM, and provided a loader function \`getSvgImage(id)\`.
+An Architect has explicitly designed the following Vector SVGs for this game:
+\`\`\`html
+${generatedSvgAssets}
+\`\`\`
+
+These SVGs will be injected into the DOM automatically. I have provided a loader function \`getSvgImage(id)\`.
 To get the assets, load them in your init function:
 \`\`\`javascript
 const heroImg = getSvgImage('hero-svg'); // Do not wait for onload, it is synchronous
@@ -339,12 +344,9 @@ RULES:
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
 
-export function compileMultiAgentGame(artistCode, engineHtml) {
-    // 1. Strip markdown thoroughly
-    let cleanSvgCode = artistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
-    
+export function compileMultiAgentGame(artistGeneratedSvgs, engineHtml) {
     // 2. Inject raw SVGs into hidden container and provide an indestructible SVG to Image API
-    const assetInjection = `\n<div id="ai-assets" style="display:none;">\n${cleanSvgCode}\n</div>
+    const assetInjection = `\n<div id="ai-assets" style="display:none;">\n${artistGeneratedSvgs}\n</div>
 <script id="artist-compiler">
 window.aiImages = {};
 function getSvgImage(id) {

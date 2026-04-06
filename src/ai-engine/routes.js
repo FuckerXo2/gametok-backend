@@ -135,34 +135,37 @@ async function executeDreamJob(jobId, prompt, userId) {
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
-        // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS ──
-        console.log(`🔨 Phase 2: Concurrent Multi-Cloud Synthesis...`);
+        // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS (STRICT SEQUENTIAL FOR EXTREME RELIABILITY) ──
+        console.log(`🔨 Phase 2: Sequential Multi-Agent Synthesis (Artist translates first, then Engineer builds around it)...`);
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
-        const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        const [artistRes, engineRes] = await Promise.all([
-            // Artist runs on NVIDIA NIM (Qwen 3 Coder - 480B)
-            nvidiaClient.chat.completions.create({
-                model: "qwen/qwen3-coder-480b-a35b-instruct",
-                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-                max_tokens: 4000,
-                temperature: 0.5
-            }),
-            // Engine runs on OpenRouter (Qwen 3.6 Plus)
-            openRouterClient.chat.completions.create({
-                model: "qwen/qwen3.6-plus:free",
-                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-                max_tokens: 8000,
-                temperature: 0.2
-            })
-        ]);
+        // 1. Artist runs First on NVIDIA NIM
+        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3 480B) sketching SVGs...`);
+        const artistRes = await nvidiaClient.chat.completions.create({
+            model: "qwen/qwen3-coder-480b-a35b-instruct",
+            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+            max_tokens: 4000,
+            temperature: 0.5
+        });
 
         let rawArtistCode = artistRes.choices[0].message.content;
-        let rawEngineHtml = engineRes.choices[0].message.content;
-        console.log(`✅ Multi-Agent Generated: Artist (${rawArtistCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
+        let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
 
-        rawArtistCode = rawArtistCode.replace(/^```javascript?\n?/i, '').replace(/\n?```$/i, '');
+        // 2. Engineer builds Physics specifically tuned to the Artist's SVGs on OpenRouter
+        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
+
+        console.log(`⚙️ Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
+        const engineRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+            max_tokens: 8000,
+            temperature: 0.2
+        });
+
+        let rawEngineHtml = engineRes.choices[0].message.content;
+        console.log(`✅ Multi-Agent Generated: Artist (${cleanSvgCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
+
         rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
         if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
             const htmlStart = rawEngineHtml.indexOf('<!');
@@ -170,7 +173,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         }
 
         // ── COMPILE MULTI-AGENT CODE ──
-        let rawGameHtml = compileMultiAgentGame(rawArtistCode, rawEngineHtml);
+        let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         const finalHtml = postProcessRawHtml(rawGameHtml);
@@ -525,40 +528,41 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         // ── ARTIST-CODER PROTOCOL ──
         console.log(`🎨 Artist-Coder: Utilizing full procedural code generation...`);
 
-        // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS ──
-        console.log(`🔨 Labs Phase 2: Concurrent Multi-Cloud Synthesis...`);
+        // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS (SEQUENTIAL) ──
+        console.log(`🔨 Labs Phase 2: Sequential Multi-Cloud Synthesis...`);
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
-        const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        const [artistRes, engineRes] = await Promise.all([
-            // Artist runs on NVIDIA NIM (Qwen 3 Coder - 480B)
-            nvidiaClient.chat.completions.create({
-                model: "qwen/qwen3-coder-480b-a35b-instruct",
-                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-                max_tokens: 4000,
-                temperature: 0.5
-            }),
-            // Engine runs on OpenRouter (Qwen 3.6 Plus)
-            openRouterClient.chat.completions.create({
-                model: "qwen/qwen3.6-plus:free",
-                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-                max_tokens: 8000,
-                temperature: 0.2
-            })
-        ]);
+        console.log(`🎨 Labs Artist-Coder (NVIDIA Qwen 3 480B) sketching SVGs...`);
+        const artistRes = await nvidiaClient.chat.completions.create({
+            model: "qwen/qwen3-coder-480b-a35b-instruct",
+            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+            max_tokens: 4000,
+            temperature: 0.5
+        });
 
         let rawArtistCode = artistRes.choices[0].message.content;
+        let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
+
+        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
+
+        console.log(`⚙️ Labs Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
+        const engineRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+            max_tokens: 8000,
+            temperature: 0.2
+        });
+
         let rawEngineHtml = engineRes.choices[0].message.content;
 
-        rawArtistCode = rawArtistCode.replace(/^```javascript?\n?/i, '').replace(/\n?```$/i, '');
         rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
         if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
             const htmlStart = rawEngineHtml.indexOf('<!');
             if (htmlStart > 0) rawEngineHtml = rawEngineHtml.substring(htmlStart);
         }
 
-        let rawGameHtml = compileMultiAgentGame(rawArtistCode, rawEngineHtml);
+        let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
 
         const finalHtml = postProcessRawHtml(rawGameHtml);
         const sandboxRes = await verifyGame(finalHtml);
