@@ -192,11 +192,11 @@ async function executeDreamJob(jobId, prompt, userId) {
         const finalScreenshot = sandboxRes.screenshot || null;
 
         // ── SAVE TO DB ──
-        const rawCode = rawGameHtml; // Store the raw Claude output for editing
-
+        // Store artist_code and raw_code (engine HTML only) SEPARATELY
+        // so edits only need to touch the small engine part
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [specSheet.title || 'DreamStream Game', finalHtml, rawCode, finalScreenshot, jobId]
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5 WHERE id = $6`,
+            [specSheet.title || 'DreamStream Game', finalHtml, rawEngineHtml, cleanSvgCode, finalScreenshot, jobId]
         );
         console.log(`✅ [DREAM JOB] Complete! "${specSheet.title}" saved for job ${jobId}`);
 
@@ -215,24 +215,27 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         console.log(`🚀 [EDIT JOB] Starting edit job ${newJobId} based on parent ${parentDraftId}`);
         console.log(`📝 [EDIT JOB] User instruction: "${instructions}"`);
         
-        // 1. Fetch parent draft
-        const parentRes = await pool.query('SELECT raw_code, html_payload, title FROM ai_games WHERE id = $1', [parentDraftId]);
+        // 1. Fetch parent draft — get artist_code and raw_code (engine only) separately
+        const parentRes = await pool.query('SELECT raw_code, html_payload, artist_code, title FROM ai_games WHERE id = $1', [parentDraftId]);
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
-        console.log(`📊 [EDIT JOB] Parent draft "${parentDraft.title}" — raw_code: ${parentDraft.raw_code?.length || 0} chars, html_payload: ${parentDraft.html_payload?.length || 0} chars`);
+        const artistCode = parentDraft.artist_code || '';
         
-        const existingCode = parentDraft.raw_code || parentDraft.html_payload;
-        if (!existingCode || existingCode.length < 100) {
-            throw new Error(`Parent draft has no usable code! raw_code=${parentDraft.raw_code?.length || 0}, html_payload=${parentDraft.html_payload?.length || 0}`);
+        // raw_code = engine HTML only (small, focused). Fallback to html_payload for legacy games.
+        let engineCode = parentDraft.raw_code || parentDraft.html_payload;
+        if (!engineCode || engineCode.length < 100) {
+            throw new Error(`Parent draft has no usable code!`);
         }
-        console.log(`✅ [EDIT JOB] Using existingCode: ${existingCode.length} chars (first 100: ${existingCode.substring(0, 100)}...)`);
         
-        // 2. AI modifies the existing game code
-        console.log(`🤖 [EDIT JOB] Calling Qwen with ${existingCode.length} chars of code + instructions...`);
-        const editPrompt = buildPhase2_EditGame(existingCode, instructions);
+        console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — engineCode: ${engineCode.length} chars, artistCode: ${artistCode.length} chars`);
         
-        const qwenRes = await openRouterClient.chat.completions.create({
+        // 2. Send ONLY the engine code to the AI (not the artist drawing functions)
+        //    This keeps the prompt small and focused on what the user actually wants to change
+        console.log(`🤖 [EDIT JOB] Sending ${engineCode.length} chars of engine code to AI...`);
+        const editPrompt = buildPhase2_EditGame(engineCode, instructions);
+        
+        const aiRes = await openRouterClient.chat.completions.create({
             model: "qwen/qwen3.6-plus:free",
             messages: [
                 { role: "system", content: "You are an expert game developer. You MUST output COMPLETE code. NEVER abbreviate or truncate." },
@@ -242,62 +245,48 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
             temperature: 0.3
         });
 
-        if (!qwenRes || !qwenRes.choices || !qwenRes.choices[0]) {
-            throw new Error("OpenRouter Error (Edit): " + (qwenRes?.error?.message || JSON.stringify(qwenRes)));
+        if (!aiRes || !aiRes.choices || !aiRes.choices[0]) {
+            throw new Error("OpenRouter Error (Edit): " + (aiRes?.error?.message || JSON.stringify(aiRes)));
         }
         
-        let rawGameHtml = qwenRes.choices[0].message.content;
-        const finishReason = qwenRes.choices[0].finish_reason;
-        console.log(`✅ [EDIT JOB] Qwen returned: ${rawGameHtml.length} chars (original was ${existingCode.length} chars), finish_reason=${finishReason}`);
-        console.log(`📝 [EDIT JOB] First 200 chars of response: ${rawGameHtml.substring(0, 200)}`);
-        console.log(`📝 [EDIT JOB] Last 200 chars of response: ${rawGameHtml.substring(rawGameHtml.length - 200)}`);
+        let editedEngineHtml = aiRes.choices[0].message.content;
+        console.log(`✅ [EDIT JOB] AI returned: ${editedEngineHtml.length} chars (original engine was ${engineCode.length}), finish_reason=${aiRes.choices[0].finish_reason}`);
 
         // Strip markdown fences
-        rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
-        if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
-            const htmlStart = rawGameHtml.indexOf('<!');
-            if (htmlStart > 0) rawGameHtml = rawGameHtml.substring(htmlStart);
+        editedEngineHtml = editedEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
+        if (!editedEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
+            const htmlStart = editedEngineHtml.indexOf('<!');
+            if (htmlStart > 0) editedEngineHtml = editedEngineHtml.substring(htmlStart);
         }
 
-        // TRUNCATION DETECTION: If the AI was lazy and abbreviated the code, reject it
-        const lazyPatterns = ['// ...', '/* ... */', '// rest of', '// same as', '// remaining', '// unchanged', '… rest'];
-        const isLazy = lazyPatterns.some(p => rawGameHtml.includes(p));
-        const isTooShort = rawGameHtml.length < existingCode.length * 0.5; // Less than half the original = clearly truncated
-        const missingClose = !rawGameHtml.includes('</html>');
-        
-        if (isLazy || isTooShort || missingClose) {
-            console.warn(`⚠️ [EDIT JOB] Truncation detected! lazy=${isLazy}, tooShort=${isTooShort}, missingClose=${missingClose}. Falling back to original.`);
-            const errorHtml = `
-            <!DOCTYPE html>
-            <html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-            <body style="background:#000;color:#FFF;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;padding:20px;">
-                <div>
-                   <h2 style="color:#FF3B30">Edit Failed</h2>
-                   <p>The AI got confused and abbreviated the code.</p>
-                   <p>Please try a simpler instruction!</p>
-                </div>
-            </body></html>`;
-            await pool.query(
-                `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3 WHERE id = $4`,
-                ['ERROR: AI Output Truncated', errorHtml, '', newJobId]
-            );
-            return;
+        // Basic sanity check
+        if (!editedEngineHtml.includes('</html>')) {
+            throw new Error('AI output is missing </html> — likely truncated.');
+        }
+
+        // 3. Re-compile: merge original artist code back with the edited engine code
+        let compiledHtml;
+        if (artistCode) {
+            compiledHtml = compileMultiAgentGame(artistCode, editedEngineHtml);
+        } else {
+            compiledHtml = editedEngineHtml; // Legacy game without separate artist code
         }
 
         // Post-process with Juice + Audio
-        const finalHtml = postProcessRawHtml(rawGameHtml);
-        const finalTitle = parentDraft.title.startsWith("Remix of") ? parentDraft.title : "Remix of " + parentDraft.title;
+        const finalHtml = postProcessRawHtml(compiledHtml);
+        const finalTitle = parentDraft.title.replace(/^Remix of /i, '');
 
         // Screenshot
         console.log(`📸 Taking screenshot for edit job ${newJobId}...`);
         const sandboxRes = await verifyGame(finalHtml);
         const finalScreenshot = sandboxRes.screenshot || null;
 
+        // Save: keep artist_code unchanged, update raw_code to the new engine code
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [finalTitle, finalHtml, rawGameHtml, finalScreenshot, newJobId]
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5 WHERE id = $6`,
+            [finalTitle, finalHtml, editedEngineHtml, artistCode, finalScreenshot, newJobId]
         );
-        console.log(`✅ [EDIT JOB] Finished! Saved to DB for job ${newJobId}`);
+        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId}`);
 
     } catch (err) {
         console.error("❌ [EDIT JOB] Error:", err);
