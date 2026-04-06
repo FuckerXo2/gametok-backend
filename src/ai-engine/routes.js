@@ -420,17 +420,15 @@ router.get('/dream/status/:jobId', async (req, res) => {
         
         const row = result.rows[0];
         
-        // If background worker failed, it saved 'ERROR: ...' in the title
-        if (row.title && row.title.startsWith('ERROR:')) {
-            return res.json({ status: 'error', error: row.title.replace('ERROR: ', '') });
-        }
-        
-        // If html_payload is still empty, the background worker is still running
+        // If html_payload is still empty, check if it's a hard error or just pending
         if (!row.html_payload || row.html_payload === '') {
+            if (row.title && row.title.startsWith('ERROR:')) {
+                return res.json({ status: 'error', error: row.title.replace('ERROR: ', '') });
+            }
             return res.json({ status: 'pending' });
         }
         
-        // Done! Return the payload
+        // Done! Return the payload (even if it's an errorHtml payload, let the webview render it)
         return res.json({
             success: true,
             status: 'complete',
