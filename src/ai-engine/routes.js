@@ -212,17 +212,24 @@ async function executeDreamJob(jobId, prompt, userId) {
 
 async function executeEditJob(newJobId, parentDraftId, instructions, userId, newAsset) {
     try {
-        console.log(`🚀 [EDIT JOB] Starting Claude edit job ${newJobId} based on parent ${parentDraftId}`);
+        console.log(`🚀 [EDIT JOB] Starting edit job ${newJobId} based on parent ${parentDraftId}`);
+        console.log(`📝 [EDIT JOB] User instruction: "${instructions}"`);
         
         // 1. Fetch parent draft
         const parentRes = await pool.query('SELECT raw_code, html_payload, title FROM ai_games WHERE id = $1', [parentDraftId]);
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
-        const existingCode = parentDraft.raw_code || parentDraft.html_payload;
+        console.log(`📊 [EDIT JOB] Parent draft "${parentDraft.title}" — raw_code: ${parentDraft.raw_code?.length || 0} chars, html_payload: ${parentDraft.html_payload?.length || 0} chars`);
         
-        // 2. Qwen modifies the existing game code
-        console.log(`🤖 Qwen editing game...`);
+        const existingCode = parentDraft.raw_code || parentDraft.html_payload;
+        if (!existingCode || existingCode.length < 100) {
+            throw new Error(`Parent draft has no usable code! raw_code=${parentDraft.raw_code?.length || 0}, html_payload=${parentDraft.html_payload?.length || 0}`);
+        }
+        console.log(`✅ [EDIT JOB] Using existingCode: ${existingCode.length} chars (first 100: ${existingCode.substring(0, 100)}...)`);
+        
+        // 2. AI modifies the existing game code
+        console.log(`🤖 [EDIT JOB] Calling Qwen with ${existingCode.length} chars of code + instructions...`);
         const editPrompt = buildPhase2_EditGame(existingCode, instructions);
         
         const qwenRes = await openRouterClient.chat.completions.create({
@@ -240,7 +247,10 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         }
         
         let rawGameHtml = qwenRes.choices[0].message.content;
-        console.log(`✅ Qwen edited: ${rawGameHtml.length} chars (original was ${existingCode.length} chars)`);
+        const finishReason = qwenRes.choices[0].finish_reason;
+        console.log(`✅ [EDIT JOB] Qwen returned: ${rawGameHtml.length} chars (original was ${existingCode.length} chars), finish_reason=${finishReason}`);
+        console.log(`📝 [EDIT JOB] First 200 chars of response: ${rawGameHtml.substring(0, 200)}`);
+        console.log(`📝 [EDIT JOB] Last 200 chars of response: ${rawGameHtml.substring(rawGameHtml.length - 200)}`);
 
         // Strip markdown fences
         rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
