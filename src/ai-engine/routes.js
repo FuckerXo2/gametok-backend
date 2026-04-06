@@ -228,21 +228,42 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         const qwenRes = await openRouterClient.chat.completions.create({
             model: "qwen/qwen3.6-plus:free",
             messages: [
-                { role: "system", content: "You are an expert game developer." },
+                { role: "system", content: "You are an expert game developer. You MUST output COMPLETE code. NEVER abbreviate or truncate." },
                 { role: "user", content: editPrompt }
             ],
-            max_tokens: 8000,
+            max_tokens: 16000,
             temperature: 0.3
         });
+
+        if (!qwenRes || !qwenRes.choices || !qwenRes.choices[0]) {
+            throw new Error("OpenRouter Error (Edit): " + (qwenRes?.error?.message || JSON.stringify(qwenRes)));
+        }
         
         let rawGameHtml = qwenRes.choices[0].message.content;
-        console.log(`✅ Qwen edited: ${rawGameHtml.length} chars`);
+        console.log(`✅ Qwen edited: ${rawGameHtml.length} chars (original was ${existingCode.length} chars)`);
 
         // Strip markdown fences
         rawGameHtml = rawGameHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
         if (!rawGameHtml.trim().toLowerCase().startsWith('<!doctype')) {
             const htmlStart = rawGameHtml.indexOf('<!');
             if (htmlStart > 0) rawGameHtml = rawGameHtml.substring(htmlStart);
+        }
+
+        // TRUNCATION DETECTION: If the AI was lazy and abbreviated the code, reject it
+        const lazyPatterns = ['// ...', '/* ... */', '// rest of', '// same as', '// remaining', '// unchanged', '… rest'];
+        const isLazy = lazyPatterns.some(p => rawGameHtml.includes(p));
+        const isTooShort = rawGameHtml.length < existingCode.length * 0.5; // Less than half the original = clearly truncated
+        const missingClose = !rawGameHtml.includes('</html>');
+        
+        if (isLazy || isTooShort || missingClose) {
+            console.warn(`⚠️ [EDIT JOB] Truncation detected! lazy=${isLazy}, tooShort=${isTooShort}, missingClose=${missingClose}. Falling back to original.`);
+            // Save the original game back so the user doesn't get a black screen
+            const finalTitle = parentDraft.title.startsWith("Remix of") ? parentDraft.title : parentDraft.title;
+            await pool.query(
+                `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3 WHERE id = $4`,
+                ['ERROR: Edit failed — AI truncated its output. Try a simpler instruction.', '', '', newJobId]
+            );
+            return;
         }
 
         // Post-process with Juice + Audio

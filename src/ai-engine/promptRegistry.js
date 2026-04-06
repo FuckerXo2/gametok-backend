@@ -225,12 +225,14 @@ ${existingCode}
 USER INSTRUCTIONS: "${instructions}"
 
 RULES:
-1. Apply the requested changes to the existing code.
-2. Return the COMPLETE modified HTML file (not just the diff).
-3. Keep everything that works — only change what the user asked for.
-4. Start with <!DOCTYPE html> and end with </html>.
-5. Do NOT wrap in markdown code blocks. Do NOT include explanation.
-6. Just output the raw HTML.`;
+1. Apply ONLY the requested changes to the existing code.
+2. ⚠️ CRITICAL: You MUST return the COMPLETE, FULL, UNABRIDGED modified HTML file.
+3. ⚠️ NEVER abbreviate, truncate, or skip sections. NEVER write "..." or "// rest of code" or "// same as before" or any placeholder. Every single line of code must be present in your output.
+4. If the original file is 500 lines, your output must also be ~500 lines (plus your changes). Do NOT shorten it.
+5. Keep everything that works — only change what the user asked for.
+6. Start with <!DOCTYPE html> and end with </html>.
+7. Do NOT wrap in markdown code blocks. Do NOT include explanation.
+8. Just output the raw HTML. Nothing else.`;
 }
 
 
