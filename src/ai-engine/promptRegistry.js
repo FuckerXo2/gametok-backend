@@ -262,10 +262,21 @@ export function postProcessRawHtml(rawHtml) {
     rawHtml += juiceScript + audioScript;
   }
 
-  // Force inject essential mobile metas
+  // Force inject essential mobile metas and strict no-selection CSS
   const metaTags = `
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <style>
+      * {
+        -webkit-touch-callout: none !important;
+        -webkit-user-select: none !important;
+        user-select: none !important;
+      }
+      body, html {
+        touch-action: none;
+        overflow: hidden;
+      }
+    </style>
   `;
 
   if (rawHtml.includes('<head>')) {
@@ -350,6 +361,8 @@ RULES:
 3. Mobile-first touch controls (pointerdown/pointerup).
 4. Fullscreen Canvas2D (resize loop).
 5. Implement Juiciness (screen shake, physics easing).
+6. LEVEL GENERATION: The game must be strictly ENDLESS. Procedurally generate platforms and enemies just outside the viewport infinitely as the player moves.
+7. SENSE OF ALIGNMENT: Ensure platforms and enemies are spaced logically so the game is mathematically playable, flows well, and is never impossible to traverse.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
