@@ -219,7 +219,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
-        const existingCode = parentDraft.html_payload || parentDraft.raw_code;
+        const existingCode = parentDraft.raw_code || parentDraft.html_payload;
         
         // 2. Qwen modifies the existing game code
         console.log(`🤖 Qwen editing game...`);
@@ -257,11 +257,19 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         
         if (isLazy || isTooShort || missingClose) {
             console.warn(`⚠️ [EDIT JOB] Truncation detected! lazy=${isLazy}, tooShort=${isTooShort}, missingClose=${missingClose}. Falling back to original.`);
-            // Save the original game back so the user doesn't get a black screen
-            const finalTitle = parentDraft.title.startsWith("Remix of") ? parentDraft.title : parentDraft.title;
+            const errorHtml = `
+            <!DOCTYPE html>
+            <html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+            <body style="background:#000;color:#FFF;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;padding:20px;">
+                <div>
+                   <h2 style="color:#FF3B30">Edit Failed</h2>
+                   <p>The AI got confused and abbreviated the code.</p>
+                   <p>Please try a simpler instruction!</p>
+                </div>
+            </body></html>`;
             await pool.query(
                 `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3 WHERE id = $4`,
-                ['ERROR: Edit failed — AI truncated its output. Try a simpler instruction.', '', '', newJobId]
+                ['ERROR: AI Output Truncated', errorHtml, '', newJobId]
             );
             return;
         }
