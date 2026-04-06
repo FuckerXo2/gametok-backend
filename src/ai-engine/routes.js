@@ -107,7 +107,7 @@ async function resolveAsset(key, assetDef) {
 
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
     const res = await nvidiaClient.chat.completions.create({
-        model: "google/gemma-2-27b-it", // Correct valid Gemma model on NIM
+        model: "google/gemma-4-31b-it", // NIM's state-of-the-art Gemma 4 31B model
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
