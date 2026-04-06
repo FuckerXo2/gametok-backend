@@ -8,6 +8,10 @@
  * These files live on OUR server and are served via Express static middleware.
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 // Base URL is constructed at runtime from the request's host
 // Default fallback for local dev
 const DEFAULT_BASE = process.env.RAILWAY_PUBLIC_DOMAIN 
@@ -188,28 +192,42 @@ function cosineSimilarity(A, B) {
  * Returns the top N matching assets sorted by vector similarity,
  * with FULL absolute URLs ready for the AI to use.
  */
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let precomputedEmbeddings = null;
+
+try {
+  const jsonPath = path.join(__dirname, 'asset-embeddings.json');
+  if (fs.existsSync(jsonPath)) {
+    precomputedEmbeddings = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+    console.log(`✅ Loaded ${precomputedEmbeddings.length} precomputed asset vectors from memory.`);
+  }
+} catch (e) {
+  console.warn("⚠️ Failed to load precomputed embeddings:", e.message);
+}
+
+/**
+ * Perform vector search using precomputed cosine similarity
+ */
 export async function searchAssets(query, maxResults = 8) {
-  if (!assetEmbeddingsCache) {
-    console.log("🧩 Initializing RAG Asset Vector Cache...");
-    assetEmbeddingsCache = [];
-    for (const asset of ASSET_LIBRARY) {
-      const description = `${asset.label}. Tags: ${asset.tags.join(', ')}`;
-      const vector = await getEmbedding(description);
-      if (vector) assetEmbeddingsCache.push({ asset, vector });
-    }
-    console.log(`✅ Cached ${assetEmbeddingsCache.length} asset vectors.`);
+  if (!precomputedEmbeddings) {
+    console.error("❌ Precomputed embeddings missing! Run precompute_embeddings.js");
+    return [];
   }
 
   const queryVector = await getEmbedding(query);
   if (!queryVector) return [];
 
-  const scored = assetEmbeddingsCache.map(entry => {
+  const scored = precomputedEmbeddings.map(entry => {
     const score = cosineSimilarity(queryVector, entry.vector);
+    const assetObj = ASSET_LIBRARY.find(a => a.id === entry.assetId);
     return { 
-      ...entry.asset, 
+      ...assetObj, 
       score,
       // Construct the full absolute URL for the AI
-      url: `${ASSET_BASE_URL}/${entry.asset.file}`
+      url: `${ASSET_BASE_URL}/${assetObj.file}`
     };
   });
 
