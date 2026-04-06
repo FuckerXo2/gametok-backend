@@ -136,11 +136,8 @@ async function executeDreamJob(jobId, prompt, userId) {
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
 
-        // ── ASSET RAG INJECTION ──
-        console.log(`🔍 RAG: Searching Kenney.nl Asset Dictionary...`);
-        const searchTags = `${specSheet.genre} ${specSheet.visualStyle} ${specSheet.coreMechanics.join(' ')}`;
-        specSheet.assetManifest = await searchAssets(searchTags, 3); // Get top 3 assets
-        console.log(`✅ Found ${specSheet.assetManifest.length} matched assets for the game context.`);
+        // ── ARTIST-CODER PROTOCOL ──
+        console.log(`🎨 Artist-Coder: Bypassing external assets, utilizing full procedural code generation...`);
 
         // ── PHASE 2: BUILD PROTOTYPE ──
         console.log(`🔨 Phase 2/2: Qwen 3.6 OpenRouter building full game... (TESTING)`);
@@ -518,7 +515,8 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Labs Phase 1: "${specSheet.title}"`);
         
-        specSheet.assetManifest = await searchAssets(`${specSheet.genre} ${specSheet.coreMechanics.join(' ')}`, 3);
+        // ── ARTIST-CODER PROTOCOL ──
+        console.log(`🎨 Artist-Coder: Utilizing full procedural code generation...`);
 
         // Phase 2: Build (Qwen)
         console.log(`🔨 Labs: Qwen 3.6 building game...`);
