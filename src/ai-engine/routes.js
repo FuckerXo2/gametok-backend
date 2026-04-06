@@ -136,26 +136,27 @@ async function executeDreamJob(jobId, prompt, userId) {
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
         // ── PHASE 2: MULTI-AGENT SYNTHESIS ──
-        console.log(`🔨 Phase 2: Splitting tasks between Artist-Coder and Engine-Coder (Qwen 3.6)...`);
+        console.log(`🔨 Phase 2: Multi-Cloud Agent Synthesis (Nvidia NIM + OpenRouter)...`);
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
         const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        console.log(`⏳ Artist-Coder spinning up...`);
-        const artistRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
-            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-            max_tokens: 4000,
-            temperature: 0.5
-        });
-
-        console.log(`⏳ Logic-Coder spinning up (waiting for artist to finish to respect API rate limits)...`);
-        const engineRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
-            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-            max_tokens: 8000,
-            temperature: 0.2
-        });
+        const [artistRes, engineRes] = await Promise.all([
+            // Artist runs on NVIDIA NIM (Qwen 3 Coder - 480B)
+            nvidiaClient.chat.completions.create({
+                model: "qwen/qwen3-coder-480b-a35b-instruct",
+                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+                max_tokens: 4000,
+                temperature: 0.5
+            }),
+            // Engine runs on OpenRouter (Qwen 3.6 Plus)
+            openRouterClient.chat.completions.create({
+                model: "qwen/qwen3.6-plus:free",
+                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+                max_tokens: 8000,
+                temperature: 0.2
+            })
+        ]);
 
         let rawArtistCode = artistRes.choices[0].message.content;
         let rawEngineHtml = engineRes.choices[0].message.content;
@@ -525,26 +526,27 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         console.log(`🎨 Artist-Coder: Utilizing full procedural code generation...`);
 
         // Phase 2: MULTI-AGENT SYNTHESIS
-        console.log(`🔨 Labs Phase 2: Multi-Agent Synthesis (Artist & Engineer)...`);
+        console.log(`🔨 Labs Phase 2: Multi-Cloud Synthesis...`);
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
         const enginePrompt = buildPhase2B_Engineer(specSheet);
 
-        console.log(`⏳ Labs Artist-Coder spinning up...`);
-        const artistRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
-            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-            max_tokens: 4000,
-            temperature: 0.5
-        });
-
-        console.log(`⏳ Labs Logic-Coder spinning up...`);
-        const engineRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
-            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-            max_tokens: 8000,
-            temperature: 0.2
-        });
+        const [artistRes, engineRes] = await Promise.all([
+            // Artist runs on NVIDIA NIM (Qwen 3 Coder - 480B)
+            nvidiaClient.chat.completions.create({
+                model: "qwen/qwen3-coder-480b-a35b-instruct",
+                messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+                max_tokens: 4000,
+                temperature: 0.5
+            }),
+            // Engine runs on OpenRouter (Qwen 3.6 Plus)
+            openRouterClient.chat.completions.create({
+                model: "qwen/qwen3.6-plus:free",
+                messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+                max_tokens: 8000,
+                temperature: 0.2
+            })
+        ]);
 
         let rawArtistCode = artistRes.choices[0].message.content;
         let rawEngineHtml = engineRes.choices[0].message.content;
