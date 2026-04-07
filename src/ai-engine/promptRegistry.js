@@ -366,6 +366,9 @@ window.RenderEngine = {
     drawEnemy: function(ctx, x, y, w, h, time) {
         // REQUIRED: Distinct hostile entity. Animate menacingly with time parameter.
     },
+    drawObstacle: function(ctx, x, y, w, h, time) {
+        // REQUIRED: Platforms, walls, or ground. Use gradients or patterns to give it texture.
+    },
     drawProjectile: function(ctx, x, y, w, h, time) {
         // REQUIRED: Glowing bullet/projectile with additive blending + trail effect.
     },
@@ -410,13 +413,14 @@ These algorithms will be automatically injected into the DOM as \`window.RenderE
 In your game loop, you MUST track elapsed time and pass it to draw functions for animation:
 \`const time = performance.now() / 1000;\`
 
-REQUIRED DRAW CALLS in your render loop:
-\`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height, cameraX||0, cameraY||0, time);\`
-\`window.RenderEngine.drawHero(ctx, hero.x, hero.y, hero.width, hero.height, time);\`
-\`window.RenderEngine.drawEnemy(ctx, enemy.x, enemy.y, enemy.width, enemy.height, time);\`
-\`window.RenderEngine.drawProjectile(ctx, bullet.x, bullet.y, bullet.width, bullet.height, time);\`
-\`window.RenderEngine.drawPickup(ctx, item.x, item.y, item.width, item.height, time);\`
-\`window.RenderEngine.drawParticle(ctx, p.x, p.y, p.size, p.alpha, p.color);\`
+REQUIRED DRAW CALLS in your render loop (Always subtract cameraX/cameraY from world coordinates!):
+\`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height, camera.x||0, camera.y||0, time);\`
+\`window.RenderEngine.drawHero(ctx, hero.x - camera.x, hero.y - camera.y, hero.width, hero.height, time);\`
+\`window.RenderEngine.drawEnemy(ctx, enemy.x - camera.x, enemy.y - camera.y, enemy.width, enemy.height, time);\`
+\`window.RenderEngine.drawObstacle(ctx, platform.x - camera.x, platform.y - camera.y, platform.width, platform.height, time);\`
+\`window.RenderEngine.drawProjectile(ctx, bullet.x - camera.x, bullet.y - camera.y, bullet.width, bullet.height, time);\`
+\`window.RenderEngine.drawPickup(ctx, item.x - camera.x, item.y - camera.y, item.width, item.height, time);\`
+\`window.RenderEngine.drawParticle(ctx, p.x - camera.x, p.y - camera.y, p.size, p.alpha, p.color);\`
 \`window.RenderEngine.drawHUD(ctx, canvas.width, canvas.height, score, health);\`
 
 RULES:
@@ -431,7 +435,8 @@ RULES:
    - If Linear: Design distinct logical transitions or waves.
 7. SENSE OF ALIGNMENT: Ensure physics, entity speeds, and platform alignments are spaced logically so the game is mathematically playable and flows smoothly without impossible gaps.
 8. PROPER SCALE & MOVEMENT (CRITICAL): Under NO CIRCUMSTANCES should any entity (hero, enemy, platform) have a width or height of 1. Use realistic pixel dimensions (e.g. Hero: 60x80, Enemy: 50x50, Platforms: 100x20). Also, ensure the hero physically MOVES (updates x/y axis) if the game is endless.
-9. IMPLEMENT: Score tracking, health system, particle effects on hits/kills, and pickup collectibles.
+9. CAMERA SHIFTS (CRITICAL): When calling your RenderEngine functions (drawHero, drawEnemy, etc.), you MUST pass Screen Coordinates by subtracting your game camera. You MUST do: \`window.RenderEngine.drawHero(ctx, hero.x - camera.x, hero.y - camera.y, ...)\`. Otherwise, the hero will walk completely off the Canvas screen!
+10. IMPLEMENT: Score tracking, health system, particle effects on hits/kills, and pickup collectibles.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
