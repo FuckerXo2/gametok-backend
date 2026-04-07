@@ -192,12 +192,61 @@ async function executeDreamJob(jobId, prompt, userId) {
         let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
-        const finalHtml = postProcessRawHtml(rawGameHtml);
+        let finalHtml = postProcessRawHtml(rawGameHtml);
+        let finalScreenshot = null;
 
-        // ── VERIFY IN SANDBOX ──
-        console.log(`📸 Verifying game in sandbox...`);
-        const sandboxRes = await verifyGame(finalHtml);
-        const finalScreenshot = sandboxRes.screenshot || null;
+        // ── PHASE 3/4: QA SANDBOX AUTO-HEALING LOOP ──
+        let maxRetries = 3;
+        let p3Success = false;
+        
+        while (maxRetries > 0 && !p3Success) {
+            console.log(`📸 [Attempt ${4 - maxRetries}/3] Verifying game in sandbox...`);
+            const sandboxRes = await verifyGame(finalHtml);
+            finalScreenshot = sandboxRes.screenshot || null;
+
+            if (sandboxRes.crashes && sandboxRes.crashes.length > 0) {
+                console.log(`⚠️ Sandbox CRASH DETECTED. Auto-Healing... (${sandboxRes.crashes[0]})`);
+                
+                // Construct healing prompt for the Engineer
+                const healPrompt = `The game code you just generated crashed the headless Chrome sandbox.
+FATAL ERROR: ${sandboxRes.crashes[0]}
+
+Here is the HTML file that caused the crash:
+\`\`\`html
+${rawEngineHtml}
+\`\`\`
+
+You MUST rewrite the ENTIRE HTML file from scratch, analyzing line-by-line where the ReferenceError or syntax error occurred, and outputting the FULL FIXED HTML file. Do NOT use placeholders.`;
+
+                // Stream the new engine code
+                const healStream = await nvidiaClient.chat.completions.create({
+                    model: "qwen/qwen3-coder-480b-a35b-instruct",
+                    messages: [{ role: "system", content: "You are an elite expert at debugging HTML5 Javascript canvas games." }, { role: "user", content: healPrompt }],
+                    max_tokens: 8000,
+                    temperature: 0.1,
+                    stream: true
+                });
+
+                rawEngineHtml = "";
+                for await (const chunk of healStream) {
+                    if (chunk.choices[0]?.delta?.content) {
+                        rawEngineHtml += chunk.choices[0].delta.content;
+                    }
+                }
+                rawEngineHtml = rawEngineHtml.replace(/^\s*\`\`\`html\n?/i, '').replace(/\n?\`\`\`\s*$/i, '');
+                if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
+                    const htmlStart = rawEngineHtml.indexOf('<!');
+                    if (htmlStart > 0) rawEngineHtml = rawEngineHtml.substring(htmlStart);
+                }
+
+                rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
+                finalHtml = postProcessRawHtml(rawGameHtml);
+                maxRetries--;
+            } else {
+                console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
+                p3Success = true;
+            }
+        }
 
         // ── SAVE TO DB ──
         // Store artist_code and raw_code (engine HTML only) SEPARATELY

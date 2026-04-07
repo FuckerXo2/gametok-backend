@@ -70,6 +70,7 @@ Extract a Game Spec Sheet as JSON:
     "collectible": "What the player collects (e.g. 'glowing TV screens', or null)",
     "obstacle": "Environmental hazards (e.g. 'dark fog patches', or null)"
   },
+  "renderManifest": ["drawHeavyKnight", "drawRapidArcher", "drawAreaWizard", "drawGoblin"],
   "heroEmoji": "Single emoji representing the hero (e.g. 👦, 🚀, 🐱)",
   "enemyEmoji": "Single emoji representing the enemy (e.g. 👹, 👾, 🧟)",
   "collectibleEmoji": "Single emoji for collectible (e.g. 📺, 💎, ⭐) or null",
@@ -359,25 +360,8 @@ QUALITY RULES:
 API CONTRACT — output ONLY this JavaScript object, nothing else:
 
 window.RenderEngine = {
-    drawHero: function(ctx, x, y, w, h, time) {
-        // REQUIRED: Multi-part character with at least body + head + 2 detail elements
-        // Use gradients, shadows, rotation. 'time' = elapsed seconds for idle animation.
-    },
-    drawEnemy: function(ctx, x, y, w, h, time) {
-        // REQUIRED: Distinct hostile entity. Animate menacingly with time parameter.
-    },
-    drawObstacle: function(ctx, x, y, w, h, time) {
-        // REQUIRED: Platforms, walls, or ground. Use gradients or patterns to give it texture.
-    },
-    drawProjectile: function(ctx, x, y, w, h, time) {
-        // REQUIRED: Glowing bullet/projectile with additive blending + trail effect.
-    },
-    drawPickup: function(ctx, x, y, w, h, time) {
-        // REQUIRED: Collectible item (coin, gem, health) with pulsing glow animation.
-    },
-    drawParticle: function(ctx, x, y, size, alpha, color) {
-        // REQUIRED: Single particle for explosions/effects. Use radial gradient + alpha.
-    },
+${(specSheet.renderManifest && specSheet.renderManifest.length > 0 ? specSheet.renderManifest : ['drawHero', 'drawEnemy', 'drawObstacle', 'drawProjectile', 'drawPickup', 'drawParticle']).map(fnName => `    ${fnName}: function(ctx, x, y, w, h, time) {\n        // REQUIRED: Fully generative canvas drawing sequence for ${fnName}\n    }`).join(',\n')}
+    ,
     drawBackground: function(ctx, width, height, scrollX, scrollY, time) {
         // REQUIRED: Multi-layer parallax background. At least 3 depth layers.
         // scrollX/scrollY = camera offset for parallax. time = animation.
@@ -413,14 +397,9 @@ These algorithms will be automatically injected into the DOM as \`window.RenderE
 In your game loop, you MUST track elapsed time and pass it to draw functions for animation:
 \`const time = performance.now() / 1000;\`
 
-REQUIRED DRAW CALLS in your render loop (Always subtract cameraX/cameraY from world coordinates!):
+REQUIRED DRAW CALLS in your render loop (Always subtract camera.x/camera.y from world coordinates!):
 \`window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height, camera.x||0, camera.y||0, time);\`
-\`window.RenderEngine.drawHero(ctx, hero.x - camera.x, hero.y - camera.y, hero.width, hero.height, time);\`
-\`window.RenderEngine.drawEnemy(ctx, enemy.x - camera.x, enemy.y - camera.y, enemy.width, enemy.height, time);\`
-\`window.RenderEngine.drawObstacle(ctx, platform.x - camera.x, platform.y - camera.y, platform.width, platform.height, time);\`
-\`window.RenderEngine.drawProjectile(ctx, bullet.x - camera.x, bullet.y - camera.y, bullet.width, bullet.height, time);\`
-\`window.RenderEngine.drawPickup(ctx, item.x - camera.x, item.y - camera.y, item.width, item.height, time);\`
-\`window.RenderEngine.drawParticle(ctx, p.x - camera.x, p.y - camera.y, p.size, p.alpha, p.color);\`
+${(specSheet.renderManifest && specSheet.renderManifest.length > 0 ? specSheet.renderManifest : ['drawHero', 'drawEnemy', 'drawObstacle', 'drawProjectile', 'drawPickup', 'drawParticle']).map(fnName => `\`window.RenderEngine.${fnName}(ctx, entity.x - camera.x, entity.y - camera.y, entity.width, entity.height, time);\` // Use this for ${fnName.replace('draw', '')}`).join('\n')}
 \`window.RenderEngine.drawHUD(ctx, canvas.width, canvas.height, score, health);\`
 
 RULES:
