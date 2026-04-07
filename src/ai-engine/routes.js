@@ -160,10 +160,10 @@ async function executeDreamJob(jobId, prompt, userId) {
         // 2. Engineer builds Physics specifically tuned to the Artist's SVGs on OpenRouter
         const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
 
-        console.log(`⚙️ Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
+        console.log(`⚙️ Engine-Coder (OpenRouter Llama 3.3) writing physics...`);
         const engineRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
-            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+            model: "meta-llama/llama-3.3-70b-instruct:free",
+            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer. Output ONLY valid HTML. Start with <!DOCTYPE html>." }, { role: "user", content: enginePrompt }],
             max_tokens: 8000,
             temperature: 0.2
         });
@@ -257,7 +257,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to AI (${editHistory.length} past edits + new instruction)...`);
         
         const aiRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
+            model: "meta-llama/llama-3.3-70b-instruct:free",
             messages: messages,
             max_tokens: 16000,
             temperature: 0.3
