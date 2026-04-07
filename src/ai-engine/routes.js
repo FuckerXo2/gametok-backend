@@ -143,9 +143,9 @@ async function executeDreamJob(jobId, prompt, userId) {
         const artistPrompt = buildPhase2A_Artist(specSheet);
 
         // 1. Artist runs First on NVIDIA NIM
-        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3) sketching SVGs (Streaming to bypass proxy timeout)...`);
+        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3.5) sketching SVGs (Streaming)...`);
         const artistStream = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3-coder-480b-a35b-instruct",
+            model: "qwen/qwen3.5",
             messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
             max_tokens: 4000,
             temperature: 0.5,
@@ -164,9 +164,9 @@ async function executeDreamJob(jobId, prompt, userId) {
         // 2. Engineer builds Physics specifically tuned to the Artist's SVGs on OpenRouter
         const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
 
-        console.log(`⚙️ Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics (Streaming)...`);
-        const engineStream = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
+        console.log(`⚙️ Engine-Coder (NVIDIA Qwen 3 Coder) writing physics (Streaming)...`);
+        const engineStream = await nvidiaClient.chat.completions.create({
+            model: "qwen/qwen3-coder",
             messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
             max_tokens: 8000,
             temperature: 0.2,
@@ -262,10 +262,10 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         // Current edit instruction
         messages.push({ role: "user", content: instructions });
         
-        console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to AI (${editHistory.length} past edits + new instruction)...`);
+        console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to NVIDIA NIM (${editHistory.length} past edits + new instruction)...`);
         
-        const aiStream = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
+        const aiStream = await nvidiaClient.chat.completions.create({
+            model: "qwen/qwen3-coder",
             messages: messages,
             max_tokens: 16000,
             temperature: 0.3,
