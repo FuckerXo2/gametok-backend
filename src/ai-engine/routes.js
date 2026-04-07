@@ -145,7 +145,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         // 1. Artist runs First on NVIDIA NIM
         console.log(`🎨 Artist-Coder (NVIDIA Qwen 3.5) sketching SVGs (Streaming)...`);
         const artistStream = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3.5",
+            model: "qwen/qwen3.5-397b-a17b",
             messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
             max_tokens: 4000,
             temperature: 0.5,
@@ -166,7 +166,7 @@ async function executeDreamJob(jobId, prompt, userId) {
 
         console.log(`⚙️ Engine-Coder (NVIDIA Qwen 3 Coder) writing physics (Streaming)...`);
         const engineStream = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3-coder",
+            model: "qwen/qwen3-coder-480b-a35b-instruct",
             messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
             max_tokens: 8000,
             temperature: 0.2,
@@ -265,7 +265,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to NVIDIA NIM (${editHistory.length} past edits + new instruction)...`);
         
         const aiStream = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3-coder",
+            model: "qwen/qwen3-coder-480b-a35b-instruct",
             messages: messages,
             max_tokens: 16000,
             temperature: 0.3,
