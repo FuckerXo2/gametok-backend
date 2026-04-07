@@ -142,17 +142,17 @@ async function executeDreamJob(jobId, prompt, userId) {
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
 
-        // 1. Artist runs First on NVIDIA NIM
-        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3 480B) sketching SVGs...`);
-        const artistRes = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3-coder-480b-a35b-instruct",
+        // 1. Artist runs First
+        console.log(`🎨 Artist-Coder (OpenRouter Llama 3.3) sketching SVGs...`);
+        const artistRes = await openRouterClient.chat.completions.create({
+            model: "meta-llama/llama-3.3-70b-instruct:free",
             messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-            max_tokens: 4000,
+            max_tokens: 8000,
             temperature: 0.5
         });
 
         if (!artistRes || !artistRes.choices || !artistRes.choices[0]) {
-            throw new Error("NVIDIA NIM Error (Artist-Coder): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
+            throw new Error("OpenRouter Error (Artist-Coder): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
         }
         let rawArtistCode = artistRes.choices[0].message.content;
         let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
