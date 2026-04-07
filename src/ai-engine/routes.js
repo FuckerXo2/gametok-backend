@@ -143,35 +143,43 @@ async function executeDreamJob(jobId, prompt, userId) {
         const artistPrompt = buildPhase2A_Artist(specSheet);
 
         // 1. Artist runs First on NVIDIA NIM
-        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3 480B) sketching SVGs...`);
-        const artistRes = await nvidiaClient.chat.completions.create({
+        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3) sketching SVGs (Streaming to bypass proxy timeout)...`);
+        const artistStream = await nvidiaClient.chat.completions.create({
             model: "qwen/qwen3-coder-480b-a35b-instruct",
             messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
             max_tokens: 4000,
-            temperature: 0.5
+            temperature: 0.5,
+            stream: true
         });
 
-        if (!artistRes || !artistRes.choices || !artistRes.choices[0]) {
-            throw new Error("NVIDIA NIM Error (Artist-Coder): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
+        let rawArtistCode = "";
+        for await (const chunk of artistStream) {
+            if (chunk.choices[0]?.delta?.content) {
+                rawArtistCode += chunk.choices[0].delta.content;
+            }
         }
-        let rawArtistCode = artistRes.choices[0].message.content;
+        
         let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
 
         // 2. Engineer builds Physics specifically tuned to the Artist's SVGs on OpenRouter
         const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
 
-        console.log(`⚙️ Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
-        const engineRes = await openRouterClient.chat.completions.create({
+        console.log(`⚙️ Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics (Streaming)...`);
+        const engineStream = await openRouterClient.chat.completions.create({
             model: "qwen/qwen3.6-plus:free",
             messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
             max_tokens: 8000,
-            temperature: 0.2
+            temperature: 0.2,
+            stream: true
         });
-        if (!engineRes || !engineRes.choices || !engineRes.choices[0]) {
-            throw new Error("OpenRouter Error (Logic-Coder): " + (engineRes?.error?.message || JSON.stringify(engineRes)));
+
+        let rawEngineHtml = "";
+        for await (const chunk of engineStream) {
+            if (chunk.choices[0]?.delta?.content) {
+                rawEngineHtml += chunk.choices[0].delta.content;
+            }
         }
 
-        let rawEngineHtml = engineRes.choices[0].message.content;
         console.log(`✅ Multi-Agent Generated: Artist (${cleanSvgCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
 
         rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
@@ -256,19 +264,22 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         
         console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to AI (${editHistory.length} past edits + new instruction)...`);
         
-        const aiRes = await openRouterClient.chat.completions.create({
+        const aiStream = await openRouterClient.chat.completions.create({
             model: "qwen/qwen3.6-plus:free",
             messages: messages,
             max_tokens: 16000,
-            temperature: 0.3
+            temperature: 0.3,
+            stream: true
         });
 
-        if (!aiRes || !aiRes.choices || !aiRes.choices[0]) {
-            throw new Error("OpenRouter Error (Edit): " + (aiRes?.error?.message || JSON.stringify(aiRes)));
+        let aiOutput = "";
+        for await (const chunk of aiStream) {
+            if (chunk.choices[0]?.delta?.content) {
+                aiOutput += chunk.choices[0].delta.content;
+            }
         }
         
-        let aiOutput = aiRes.choices[0].message.content;
-        console.log(`✅ [EDIT JOB] AI returned ${aiOutput.length} chars, finish_reason=${aiRes.choices[0].finish_reason}`);
+        console.log(`✅ [EDIT JOB] AI returned ${aiOutput.length} chars (Streaming completed)`);
 
         // 3. Parse the response — extract artist and engine sections
         let editedArtistCode = artistCode; // default: unchanged
