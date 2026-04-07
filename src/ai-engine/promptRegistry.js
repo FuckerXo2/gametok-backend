@@ -388,12 +388,14 @@ GAME SPECIFICATION:
 
 API CONTRACT (CRITICAL):
 You MUST use native Canvas2D.
-An Architect has explicitly designed the following Canvas Javascript functions for this game:
+An Architect has explicitly designed the RenderEngine for this game. It will be automatically injected.
+Do NOT attempt to write or define \`window.RenderEngine\` yourself! It already exists!
+Your ONLY job is to CALL these functions inside your game loop:
 \`\`\`javascript
-${generatedArtistCode}
+${(specSheet.renderManifest && specSheet.renderManifest.length > 0 ? specSheet.renderManifest : ['drawHero', 'drawEnemy', 'drawObstacle']).map(fn => `window.RenderEngine.${fn} = function(ctx, x, y, w, h, time) {};`).join('\n')}
+window.RenderEngine.drawBackground = function(ctx, width, height, scrollX, scrollY, time) {};
+window.RenderEngine.drawHUD = function(ctx, width, height, score, health) {};
 \`\`\`
-
-These algorithms will be automatically injected into the DOM as \`window.RenderEngine\`.
 In your game loop, you MUST track elapsed time and pass it to draw functions for animation:
 \`const time = performance.now() / 1000;\`
 
@@ -415,7 +417,8 @@ RULES:
 7. SENSE OF ALIGNMENT: Ensure physics, entity speeds, and platform alignments are spaced logically so the game is mathematically playable and flows smoothly without impossible gaps.
 8. PROPER SCALE & MOVEMENT (CRITICAL): Under NO CIRCUMSTANCES should any entity (hero, enemy, platform) have a width or height of 1. Use realistic pixel dimensions (e.g. Hero: 60x80, Enemy: 50x50, Platforms: 100x20). Also, ensure the hero physically MOVES (updates x/y axis) if the game is endless.
 9. CAMERA SHIFTS (CRITICAL): When calling your RenderEngine functions (drawHero, drawEnemy, etc.), you MUST pass Screen Coordinates by subtracting your game camera. You MUST do: \`window.RenderEngine.drawHero(ctx, hero.x - camera.x, hero.y - camera.y, ...)\`. Otherwise, the hero will walk completely off the Canvas screen!
-10. IMPLEMENT: Score tracking, health system, particle effects on hits/kills, and pickup collectibles.
+10. NO PLACEHOLDERS (CRITICAL): You MUST write the absolutely complete physics loop and game update math yourself! DO NOT leave "// Placeholder" comments for logic! You are building the final production build right now. Do not skip any core functionality.
+11. IMPLEMENT: Score tracking, health system, particle effects on hits/kills, and pickup collectibles.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
