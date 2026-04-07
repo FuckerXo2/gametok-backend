@@ -142,39 +142,36 @@ async function executeDreamJob(jobId, prompt, userId) {
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
 
-        // 1. Artist runs First
-        console.log(`🎨 Artist-Coder (Claude 3.5 Sonnet) sketching SVGs...`);
-        const artistRes = await claude.messages.create({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 8192,
-            temperature: 0.5,
-            system: "You are an elite procedural HTML5 Canvas Artist.",
-            messages: [{ role: "user", content: artistPrompt }]
+        // 1. Artist runs First on NVIDIA NIM
+        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3 480B) sketching SVGs...`);
+        const artistRes = await nvidiaClient.chat.completions.create({
+            model: "qwen/qwen3-coder-480b-a35b-instruct",
+            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
+            max_tokens: 4000,
+            temperature: 0.5
         });
 
-        if (!artistRes || !artistRes.content || !artistRes.content[0]) {
-            throw new Error("Claude Error (Artist-Coder): " + JSON.stringify(artistRes));
+        if (!artistRes || !artistRes.choices || !artistRes.choices[0]) {
+            throw new Error("NVIDIA NIM Error (Artist-Coder): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
         }
-        let rawArtistCode = artistRes.content[0].text;
+        let rawArtistCode = artistRes.choices[0].message.content;
         let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
 
         // 2. Engineer builds Physics specifically tuned to the Artist's SVGs on OpenRouter
         const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
 
-        console.log(`⚙️ Engine-Coder (Claude 3.5 Sonnet) writing physics...`);
-        const engineRes = await claude.messages.create({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 8192,
-            temperature: 0.2,
-            system: "You are an elite HTML5 Game Engineer. Output ONLY valid HTML. Start with <!DOCTYPE html>.",
-            messages: [{ role: "user", content: enginePrompt }]
+        console.log(`⚙️ Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
+        const engineRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
+            max_tokens: 8000,
+            temperature: 0.2
         });
-
-        if (!engineRes || !engineRes.content || !engineRes.content[0]) {
-            throw new Error("Claude Error (Logic-Coder): " + JSON.stringify(engineRes));
+        if (!engineRes || !engineRes.choices || !engineRes.choices[0]) {
+            throw new Error("OpenRouter Error (Logic-Coder): " + (engineRes?.error?.message || JSON.stringify(engineRes)));
         }
 
-        let rawEngineHtml = engineRes.content[0].text;
+        let rawEngineHtml = engineRes.choices[0].message.content;
         console.log(`✅ Multi-Agent Generated: Artist (${cleanSvgCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
 
         rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
@@ -246,6 +243,8 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
             systemContent += `\n\nOutput the COMPLETE modified HTML file. Start with <!DOCTYPE html>, end with </html>. NEVER abbreviate.`;
         }
         
+        messages.push({ role: "system", content: systemContent });
+        
         // Replay past edit history as conversation turns so the AI remembers
         for (const pastEdit of editHistory) {
             messages.push({ role: "user", content: pastEdit });
@@ -255,22 +254,21 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         // Current edit instruction
         messages.push({ role: "user", content: instructions });
         
-        console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to Claude 3.5 (${editHistory.length} past edits + new instruction)...`);
+        console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to AI (${editHistory.length} past edits + new instruction)...`);
         
-        const aiRes = await claude.messages.create({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 8192,
-            temperature: 0.3,
-            system: systemContent,
-            messages: messages
+        const aiRes = await openRouterClient.chat.completions.create({
+            model: "qwen/qwen3.6-plus:free",
+            messages: messages,
+            max_tokens: 16000,
+            temperature: 0.3
         });
 
-        if (!aiRes || !aiRes.content || !aiRes.content[0]) {
-            throw new Error("Claude Error (Edit): " + JSON.stringify(aiRes));
+        if (!aiRes || !aiRes.choices || !aiRes.choices[0]) {
+            throw new Error("OpenRouter Error (Edit): " + (aiRes?.error?.message || JSON.stringify(aiRes)));
         }
         
-        let aiOutput = aiRes.content[0].text;
-        console.log(`✅ [EDIT JOB] Claude returned ${aiOutput.length} chars`);
+        let aiOutput = aiRes.choices[0].message.content;
+        console.log(`✅ [EDIT JOB] AI returned ${aiOutput.length} chars, finish_reason=${aiRes.choices[0].finish_reason}`);
 
         // 3. Parse the response — extract artist and engine sections
         let editedArtistCode = artistCode; // default: unchanged
