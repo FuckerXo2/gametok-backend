@@ -430,7 +430,8 @@ RULES:
    - If Area/Single Screen: Confine bounds to canvas dimensions.
    - If Linear: Design distinct logical transitions or waves.
 7. SENSE OF ALIGNMENT: Ensure physics, entity speeds, and platform alignments are spaced logically so the game is mathematically playable and flows smoothly without impossible gaps.
-8. IMPLEMENT: Score tracking, health system, particle effects on hits/kills, and pickup collectibles.
+8. PROPER SCALE & MOVEMENT (CRITICAL): Under NO CIRCUMSTANCES should any entity (hero, enemy, platform) have a width or height of 1. Use realistic pixel dimensions (e.g. Hero: 60x80, Enemy: 50x50, Platforms: 100x20). Also, ensure the hero physically MOVES (updates x/y axis) if the game is endless.
+9. IMPLEMENT: Score tracking, health system, particle effects on hits/kills, and pickup collectibles.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
