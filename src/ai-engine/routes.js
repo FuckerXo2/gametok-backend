@@ -5,7 +5,7 @@ import vm from 'vm';
 import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
-import { buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
+import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
 import { normalizeDreamSpec } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl } from './asset-dictionary.js';
@@ -302,6 +302,11 @@ function normalizeHtmlDocument(rawHtml) {
         }
     }
     return html;
+}
+
+function extractHtmlTitle(html) {
+    const match = html.match(/<title>(.*?)<\/title>/i);
+    return match?.[1]?.trim() || null;
 }
 
 function withTimeout(promise, ms, label) {
@@ -860,41 +865,77 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 
 async function executeLabsDreamJob(jobId, prompt) {
     try {
-        console.log(`🧪 [LABS JOB] Started experimental Labs pipeline for job: ${jobId}`);
+        console.log(`🧪 [LABS JOB] Started Qwen solo Labs pipeline for job: ${jobId}`);
+        const soloPrompt = buildLabsSoloPrototype(prompt);
+        let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
+            model: DREAM_MODELS.engineer,
+            systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself.",
+            userPrompt: soloPrompt,
+            maxTokens: 12000,
+            temperature: 0.25,
+            retryLabel: 'Labs Solo Generation'
+        }));
 
-        // Phase 1: Llama 3.3 70B Instruct extracts the shared spec
-        const phase1 = buildPhase1_Quantize(prompt);
-        const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
-        const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
-        console.log(`✅ Labs Phase 1: "${specSheet.title}" [lane=${specSheet.runtimeLane}]`);
-        const scaffoldPhase = buildPhase1B_Scaffold(specSheet);
-        const scaffold = await callAI(scaffoldPhase.system, scaffoldPhase.user, 1600, 0.2);
-        const scaffoldShell = buildSharedScaffoldShell(specSheet, scaffold);
-        
-        // ── ARTIST-CODER PROTOCOL ──
-        console.log(`🎨 Artist-Coder: Utilizing full procedural code generation...`);
+        let finalHtml = postProcessRawHtml(rawEngineHtml);
+        let finalScreenshot = null;
+        let maxRetries = 2;
+        let stable = false;
 
-        // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS (SEQUENTIAL) ──
-        console.log(`🔨 Labs Phase 2: Sequential Multi-Cloud Synthesis...`);
-        
-        const collaboration = await runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell });
-        const cleanSvgCode = collaboration.artistCode;
-        let rawEngineHtml = collaboration.engineHtml;
+        while (maxRetries >= 0 && !stable) {
+            console.log(`🧪 [LABS JOB] Verifying solo build...`);
+            let sandboxRes;
+            try {
+                validateGeneratedBuild('', rawEngineHtml, rawEngineHtml);
+                sandboxRes = await verifyGame(finalHtml);
+            } catch (validationError) {
+                sandboxRes = {
+                    success: false,
+                    crashes: [validationError.message || String(validationError)],
+                    screenshot: null
+                };
+            }
 
-        let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
-        validateGeneratedBuild(cleanSvgCode, rawEngineHtml, rawGameHtml);
+            finalScreenshot = sandboxRes.screenshot || null;
+            if (sandboxRes.success || !sandboxRes.crashes?.length) {
+                stable = true;
+                break;
+            }
 
-        const finalHtml = postProcessRawHtml(rawGameHtml);
-        const sandboxRes = await verifyGame(finalHtml);
-        if (!sandboxRes.success && sandboxRes.crashes?.length) {
-            throw new Error(`Labs game failed sandbox verification: ${sandboxRes.crashes[0]}`);
+            if (maxRetries === 0) {
+                throw new Error(`Labs solo game failed verification: ${sandboxRes.crashes[0]}`);
+            }
+
+            console.log(`⚠️ [LABS JOB] Solo build crashed. Repairing... (${sandboxRes.crashes[0]})`);
+            const repairPrompt = `The mobile HTML5 game below failed verification.
+FATAL ERROR: ${sandboxRes.crashes[0]}
+
+You must rewrite the FULL HTML document so it boots and remains playable.
+Keep the same game fantasy, but prioritize a working game over ambition.
+
+BROKEN HTML:
+\`\`\`html
+${rawEngineHtml}
+\`\`\`
+
+Output ONLY the complete fixed HTML document.`;
+
+            rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
+                model: DREAM_MODELS.engineer,
+                systemPrompt: "You are an elite HTML5 game debugger repairing a single-file mobile game.",
+                userPrompt: repairPrompt,
+                maxTokens: 12000,
+                temperature: 0.1,
+                retryLabel: 'Labs Solo Repair'
+            }));
+            finalHtml = postProcessRawHtml(rawEngineHtml);
+            maxRetries--;
         }
-        const finalScreenshot = sandboxRes.screenshot || null;
-        const gameTitle = "🧪 " + (specSheet.title || "Labs Game");
+
+        const gameTitle = "🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Qwen Solo Labs');
 
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
-            [gameTitle, finalHtml, rawGameHtml, finalScreenshot, jobId]
+            [gameTitle, finalHtml, rawEngineHtml, finalScreenshot, jobId]
         );
         console.log(`✅ [LABS JOB] Complete! "${gameTitle}" saved for job ${jobId}`);
 

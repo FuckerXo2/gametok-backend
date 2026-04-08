@@ -105,6 +105,47 @@ Output ONLY the JSON.`
   };
 }
 
+export function buildLabsSoloPrototype(userPrompt) {
+  return `You are an elite solo HTML5 game engineer-artist.
+Build a COMPLETE mobile-first HTML5 Canvas game as a single self-contained HTML file.
+You are working alone: you must handle gameplay logic, rendering, HUD, interactions, and game feel yourself.
+
+USER PROMPT:
+"${userPrompt}"
+
+CORE RULES:
+- Output ONLY raw HTML starting with <!DOCTYPE html>.
+- Use native Canvas2D only. No external libraries or remote assets.
+- Touch-first controls only (pointerdown / pointermove / pointerup). No keyboard dependency.
+- Boot immediately at top level. Do NOT wait for DOMContentLoaded or window.onload.
+- Draw a visible first frame synchronously so the screen is never blank.
+- If the prompt asks for something huge, compress it into one excellent playable vertical slice.
+- Favor a strong, working game loop over sprawling ambition.
+- If this is an auto-battler or battle game, the result must be actually playable:
+  - visible prep/setup or immediate combat
+  - obvious interaction
+  - real state changes
+  - enemies spawn and can be defeated
+  - a win/loss or reset path exists
+- Include score/HUD, moment-to-moment feedback, and at least a little juice.
+- Render your own stylized art with Canvas2D; do not rely on emojis or external image URLs.
+- Keep it phone-readable and avoid tiny UI.
+
+BOOT + RELIABILITY:
+- Wrap initialization in try/catch and render a visible in-game error panel if something fails.
+- The opening frame must already show the theme, background, and at least one important interactive or playable element.
+- Never leave placeholder comments for core gameplay.
+
+PERFORMANCE:
+- Keep it efficient enough for a mobile WebView.
+- Fake scale with waves, particles, layered enemies, and damage numbers instead of simulating absurdly huge systems.
+
+OUTPUT:
+- Return ONLY the complete HTML document.
+- No markdown fences.
+- No explanation.`;
+}
+
 export function buildPhase1B_Scaffold(specSheet) {
   return {
     system: `You are the Technical Design Lead for a mobile HTML5 Canvas game studio.
