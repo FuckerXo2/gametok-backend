@@ -1,5 +1,6 @@
 import express from 'express';
 import OpenAI from 'openai';
+import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
@@ -53,6 +54,29 @@ const openRouterClient = new OpenAI({
         'X-Title': 'DreamStream Game Engine',
     },
 });
+
+const pendingJobBoots = new Map();
+
+function rememberPendingBoot(jobId, update) {
+    pendingJobBoots.set(jobId, {
+        createdAt: Date.now(),
+        ...pendingJobBoots.get(jobId),
+        ...update,
+    });
+}
+
+function forgetPendingBoot(jobId) {
+    pendingJobBoots.delete(jobId);
+}
+
+setInterval(() => {
+    const cutoff = Date.now() - (15 * 60 * 1000);
+    for (const [jobId, state] of pendingJobBoots.entries()) {
+        if ((state?.createdAt || 0) < cutoff) {
+            pendingJobBoots.delete(jobId);
+        }
+    }
+}, 60 * 1000).unref?.();
 
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
     const res = await nvidiaClient.chat.completions.create({
@@ -130,15 +154,36 @@ async function markJobError(jobId, fallbackMessage, err) {
     );
 }
 
-async function createPendingJob(userId, prompt, title) {
+async function createPendingJob(userId, prompt, title, jobId = randomUUID()) {
     const startedAt = Date.now();
     const dbRes = await withTimeout(pool.query(
-        `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [userId, prompt, title, '', '', true]
+        `INSERT INTO ai_games (id, user_id, prompt, title, html_payload, raw_code, is_draft)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [jobId, userId, prompt, title, '', '', true]
     ), 12000, 'Dream job creation');
     console.log(`⏱️ [AI DB] Pending job row created in ${Date.now() - startedAt}ms`);
     return dbRes.rows[0].id;
+}
+
+function queuePendingJobBootstrap({ jobId, userId, prompt, title, logLabel, run }) {
+    rememberPendingBoot(jobId, { status: 'pending' });
+
+    setImmediate(() => {
+        void (async () => {
+            try {
+                console.log(`🚀 [${logLabel}] Bootstrapping pending job ${jobId}`);
+                await createPendingJob(userId, prompt, title, jobId);
+                forgetPendingBoot(jobId);
+                await run(jobId, prompt);
+            } catch (error) {
+                console.error(`❌ [${logLabel}] Bootstrap failed for ${jobId}:`, error);
+                rememberPendingBoot(jobId, {
+                    status: 'error',
+                    error: error?.message || 'Job bootstrap failed',
+                });
+            }
+        })();
+    });
 }
 
 async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
@@ -458,13 +503,16 @@ router.post('/dream', async (req, res) => {
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
         console.log(`🧠 [DREAM ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
-        // 1. Immediately create a blank draft entry in DB (html_payload="", raw_code="")
-        const jobId = await createPendingJob(userId, prompt, JOB_TITLES.dreamPending);
+        const jobId = randomUUID();
+        queuePendingJobBootstrap({
+            jobId,
+            userId,
+            prompt,
+            title: JOB_TITLES.dreamPending,
+            logLabel: 'DREAM ROUTE',
+            run: executeDreamJob,
+        });
 
-        // 2. Offload work to background process (do NOT await it)
-        executeDreamJob(jobId, prompt);
-
-        // 3. Guarantee immediate return to user before 100s proxy timeout
         res.json({ success: true, jobId: jobId });
 
     } catch (outerError) {
@@ -483,14 +531,16 @@ router.post('/edit', async (req, res) => {
         if (!draftId || !instructions) return res.status(400).json({ error: "draftId and instructions are required" });
         console.log(`🧠 [EDIT ROUTE] Creating remix job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
 
-        // 1. Immediately create a blank draft entry in DB to store the NEW remixed version
-        const newJobId = await createPendingJob(userId, instructions, JOB_TITLES.remixPending);
+        const newJobId = randomUUID();
+        queuePendingJobBootstrap({
+            jobId: newJobId,
+            userId,
+            prompt: instructions,
+            title: JOB_TITLES.remixPending,
+            logLabel: 'EDIT ROUTE',
+            run: async (jobId) => executeEditJob(jobId, draftId, instructions),
+        });
 
-        // 2. Offload work to background process (do NOT await it)
-        executeEditJob(newJobId, draftId, instructions);
-
-        // 3. Guarantee immediate return to user before timeout
-        // We reuse the same long-polling status endpoint, just feeding it the NEW jobId.
         res.json({ success: true, jobId: newJobId });
 
     } catch (outerError) {
@@ -503,7 +553,16 @@ router.get('/dream/status/:jobId', async (req, res) => {
     try {
         const { jobId } = req.params;
         const result = await pool.query('SELECT title, html_payload, raw_code FROM ai_games WHERE id = $1', [jobId]);
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+        if (result.rows.length === 0) {
+            const pendingBoot = pendingJobBoots.get(jobId);
+            if (pendingBoot?.status === 'error') {
+                return res.json({ status: 'error', error: pendingBoot.error || 'Job startup failed' });
+            }
+            if (pendingBoot) {
+                return res.json({ status: 'pending' });
+            }
+            return res.status(404).json({ error: 'Job not found' });
+        }
         
         const row = result.rows[0];
         
@@ -717,12 +776,16 @@ router.post('/dream-labs', async (req, res) => {
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
         console.log(`🧪 [LABS ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
-        const jobId = await createPendingJob(userId, prompt, JOB_TITLES.labsPending);
+        const jobId = randomUUID();
+        queuePendingJobBootstrap({
+            jobId,
+            userId,
+            prompt,
+            title: JOB_TITLES.labsPending,
+            logLabel: 'LABS ROUTE',
+            run: executeLabsDreamJob,
+        });
 
-        // 2. Offload to background (same pattern as main engine)
-        executeLabsDreamJob(jobId, prompt);
-
-        // 3. Immediate return
         res.json({ success: true, jobId: jobId });
 
     } catch (outerError) {
