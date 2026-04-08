@@ -8,7 +8,7 @@ This backend currently has one real production game-generation path and one expe
 - Backend route: `POST /api/ai/dream`
 - Worker: `executeDreamJob()` in `src/ai-engine/routes.js`
 - Models:
-  - Phase 1 spec extraction: Gemma on NVIDIA NIM
+  - Phase 1 spec extraction: Llama 3.3 70B Instruct on NVIDIA NIM
   - Phase 2A artist: Qwen 3.5 on NVIDIA NIM
   - Phase 2B engineer: Qwen 3 Coder on NVIDIA NIM
 - Verification: `verifyGame()` in `src/ai-engine/sandbox.js`
@@ -19,7 +19,7 @@ This backend currently has one real production game-generation path and one expe
 
 - Route: `POST /api/ai/dream-labs`
 - Purpose: alternate provider experiments
-- Current difference: uses the same Gemma spec stage, then an alternate Labs artist/engineer combination
+- Current difference: uses the same Llama 3.3 70B Instruct spec stage, then an alternate Labs artist/engineer combination
 - This path is not the default mobile app flow
 
 ### Source-of-truth files

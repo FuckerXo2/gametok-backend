@@ -2,7 +2,7 @@
  * DreamStream Prompt Registry v3.0
  *
  * Live architecture:
- * Phase 1: QUANTIZE  — Gemma on NIM extracts structured spec
+ * Phase 1: QUANTIZE  — Llama 3.3 70B Instruct on NIM extracts structured spec
  * Phase 2A: ART      — Qwen 3.5 on NIM writes RenderEngine drawing code
  * Phase 2B: ENGINE   — Qwen 3 Coder on NIM writes the full gameplay HTML shell
  * Phase 3: VERIFY    — Puppeteer sandbox validates the game doesn't crash
@@ -34,7 +34,7 @@ function formatPromptList(items, fallback = 'none provided') {
 }
 
 // ─────────────────────────────────────────────────────────
-// PHASE 1: QUANTIZE REQUIREMENTS (runs on Gemma — FREE)
+// PHASE 1: QUANTIZE REQUIREMENTS (runs on Llama 3.3 70B Instruct)
 // AI acts as Lead Game Designer — extracts structured spec
 // ─────────────────────────────────────────────────────────
 

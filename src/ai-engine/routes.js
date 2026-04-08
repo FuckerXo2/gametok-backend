@@ -27,7 +27,7 @@ function extractJson(text) {
 const router = express.Router();
 
 const DREAM_MODELS = {
-    spec: "google/gemma-4-31b-it",
+    spec: "meta/llama-3.3-70b-instruct",
     artist: "qwen/qwen3.5-397b-a17b",
     engineer: "qwen/qwen3-coder-480b-a35b-instruct",
     labsArtist: "qwen/qwen3-coder-480b-a35b-instruct",
@@ -209,7 +209,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 
 // ═══════════════════════════════════════════════════════════
 // DREAMSTREAM PRODUCTION PIPELINE
-// Phase 1: Gemma on NIM extracts a playable spec
+// Phase 1: Llama 3.3 70B Instruct on NIM extracts a playable spec
 // Phase 2A: Qwen 3.5 on NIM writes the RenderEngine art layer
 // Phase 2B: Qwen 3 Coder on NIM writes the gameplay HTML shell
 // Phase 3: Puppeteer verifies the result before save
@@ -219,7 +219,7 @@ async function executeDreamJob(jobId, prompt) {
         console.log(`🧠 [DREAM JOB] Started DreamStream production pipeline for job: ${jobId}`);
 
         // ── PHASE 1: SPEC EXTRACTION ──
-        console.log(`📋 Phase 1/3: Gemma on NIM extracting a playable game spec...`);
+        console.log(`📋 Phase 1/3: Llama 3.3 70B Instruct on NIM extracting a playable game spec...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
@@ -698,7 +698,7 @@ async function executeLabsDreamJob(jobId, prompt) {
     try {
         console.log(`🧪 [LABS JOB] Started experimental Labs pipeline for job: ${jobId}`);
 
-        // Phase 1: Gemma extracts the shared spec
+        // Phase 1: Llama 3.3 70B Instruct extracts the shared spec
         const phase1 = buildPhase1_Quantize(prompt);
         const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
