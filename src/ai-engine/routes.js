@@ -1,11 +1,12 @@
 import express from 'express';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'crypto';
 import vm from 'vm';
 import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
-import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
+import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
 import { normalizeDreamSpec } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl } from './asset-dictionary.js';
@@ -29,6 +30,7 @@ const router = express.Router();
 
 const DREAM_MODELS = {
     spec: "meta/llama-3.3-70b-instruct",
+    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "claude-opus-4-6",
     artist: "qwen/qwen3.5-397b-a17b",
     engineer: "qwen/qwen3-coder-480b-a35b-instruct",
     labsArtist: "qwen/qwen3-coder-480b-a35b-instruct",
@@ -44,6 +46,10 @@ const JOB_TITLES = {
 const nvidiaClient = new OpenAI({
     baseURL: 'https://integrate.api.nvidia.com/v1',
     apiKey: process.env.NVIDIA_API_KEY || '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',
+});
+
+const claudeClient = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 // OpenRouter is only used by the experimental Labs route.
@@ -132,6 +138,38 @@ async function withNvidiaRetries(task, { label, maxAttempts = 3, baseDelayMs = 1
         }
     }
     throw lastError;
+}
+
+async function withClaudeRetries(task, { label, maxAttempts = 2, baseDelayMs = 1500 }) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            if (attempt > 1) {
+                console.log(`🔁 [${label}] Retry ${attempt}/${maxAttempts}...`);
+            }
+            return await task();
+        } catch (error) {
+            lastError = error;
+            if (!isRetryableProviderError(error) || attempt === maxAttempts) {
+                throw error;
+            }
+            const waitMs = baseDelayMs * attempt;
+            console.warn(`⚠️ [${label}] Provider hiccup: ${error?.message || error}. Retrying in ${waitMs}ms...`);
+            await sleep(waitMs);
+        }
+    }
+    throw lastError;
+}
+
+function extractAnthropicText(response) {
+    if (!Array.isArray(response?.content)) {
+        return '';
+    }
+    return response.content
+        .filter((block) => block?.type === 'text')
+        .map((block) => block.text || '')
+        .join('')
+        .trim();
 }
 
 function extractInlineScripts(html) {
@@ -299,6 +337,11 @@ function normalizeHtmlDocument(rawHtml) {
         const htmlStart = html.indexOf('<!');
         if (htmlStart > 0) {
             html = html.substring(htmlStart);
+        } else {
+            const fallbackHtmlStart = html.toLowerCase().indexOf('<html');
+            if (fallbackHtmlStart > 0) {
+                html = html.substring(fallbackHtmlStart);
+            }
         }
     }
     return html;
@@ -382,16 +425,18 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 }
 
 // ═══════════════════════════════════════════════════════════
-// DREAMSTREAM PRODUCTION PIPELINE
-// Phase 1: Llama 3.3 70B Instruct on NIM extracts a playable spec
-// Phase 1.5: Llama 3.3 creates a shared scaffold shell/contract
-// Phase 2A: Qwen 3.5 on NIM writes the RenderEngine art layer
-// Phase 2B: Qwen 3 Coder on NIM writes the gameplay HTML shell
+// DREAMSTREAM MAIN PIPELINE
+// Phase 1: Llama 3.3 on NIM extracts a playable spec
+// Phase 2: Claude Opus builds the entire game in one pass
 // Phase 3: Puppeteer verifies the result before save
 // ═══════════════════════════════════════════════════════════
 async function executeDreamJob(jobId, prompt) {
     try {
-        console.log(`🧠 [DREAM JOB] Started DreamStream production pipeline for job: ${jobId}`);
+        if (!process.env.ANTHROPIC_API_KEY) {
+            throw new Error('ANTHROPIC_API_KEY is not configured for main DreamStream.');
+        }
+
+        console.log(`🧠 [DREAM JOB] Started DreamStream Opus pipeline for job: ${jobId}`);
 
         // ── PHASE 1: SPEC EXTRACTION ──
         console.log(`📋 Phase 1/3: Llama 3.3 70B Instruct on NIM extracting a playable game spec...`);
@@ -399,32 +444,40 @@ async function executeDreamJob(jobId, prompt) {
         const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle}) [lane=${specSheet.runtimeLane}]`);
-        console.log(`🧱 Phase 1.5/3: Building shared scaffold contract...`);
-        const scaffoldPhase = buildPhase1B_Scaffold(specSheet);
-        const scaffold = await callAI(scaffoldPhase.system, scaffoldPhase.user, 1600, 0.2);
-        const scaffoldShell = buildSharedScaffoldShell(specSheet, scaffold);
-        console.log(`✅ Phase 1.5 complete: shared scaffold ready with ${Array.isArray(scaffold?.entityBlueprints) ? scaffold.entityBlueprints.length : 0} entity blueprints`);
-        console.log(`🔨 Phase 2/3: Scaffolded multi-agent synthesis with critique + intelligent integration...`);
-        const collaboration = await runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell });
-        let currentArtistCode = collaboration.artistCode;
-        let rawEngineHtml = collaboration.engineHtml;
 
-        // ── COMPILE MULTI-AGENT CODE ──
-        let rawGameHtml = compileMultiAgentGame(currentArtistCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
+        // ── PHASE 2: SINGLE-AGENT PREMIUM BUILD ──
+        console.log(`🔨 Phase 2/3: Claude Opus building the complete game in one pass...`);
+        const buildPrompt = buildPhase2_BuildPrototype(specSheet);
+        let rawGameHtml = normalizeHtmlDocument(extractAnthropicText(await withClaudeRetries(
+            () => claudeClient.messages.create({
+                model: DREAM_MODELS.premiumBuilder,
+                max_tokens: 16000,
+                messages: [{ role: 'user', content: buildPrompt }],
+            }),
+            { label: 'Phase 2 Opus Build', maxAttempts: 2, baseDelayMs: 2000 }
+        )));
+
+        if (!rawGameHtml) {
+            throw new Error('Claude returned empty game output.');
+        }
+        if (!rawGameHtml.toLowerCase().includes('</html>')) {
+            throw new Error('Claude output is missing </html> and appears truncated.');
+        }
+
+        console.log(`✅ Phase 2 complete: Claude generated ${rawGameHtml.length} chars of game code`);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         let finalHtml = postProcessRawHtml(rawGameHtml);
         let finalScreenshot = null;
 
         // ── PHASE 3/3: QA SANDBOX AUTO-HEALING LOOP ──
-        let maxRetries = 3;
+        let maxRetries = 2;
         let p3Success = false;
         
         while (maxRetries > 0 && !p3Success) {
-            console.log(`📸 [Attempt ${4 - maxRetries}/3] Verifying game in sandbox...`);
+            console.log(`📸 [Attempt ${3 - maxRetries}/2] Verifying game in sandbox...`);
             let sandboxRes;
             try {
-                validateGeneratedBuild(currentArtistCode, rawEngineHtml, rawGameHtml);
                 sandboxRes = await verifyGame(finalHtml);
             } catch (validationError) {
                 sandboxRes = {
@@ -436,32 +489,27 @@ async function executeDreamJob(jobId, prompt) {
             finalScreenshot = sandboxRes.screenshot || null;
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
-                console.log(`⚠️ Sandbox CRASH DETECTED. Auto-Healing... (${sandboxRes.crashes[0]})`);
-
-                const healPrompt = buildPhase3_Repair(
-                    specSheet,
-                    scaffold,
-                    scaffoldShell,
-                    currentArtistCode,
-                    rawEngineHtml,
-                    rawGameHtml,
-                    sandboxRes.crashes.join('\n')
-                );
-
-                const repairOutput = await streamNvidiaText({
-                    model: DREAM_MODELS.engineer,
-                    systemPrompt: "You are an elite HTML5 game integration debugger repairing both art and engine code together.",
-                    userPrompt: healPrompt,
-                    maxTokens: 12000,
-                    temperature: 0.1,
-                    retryLabel: 'Phase 3 Repair'
-                });
-                const repairedSections = parseRepairSections(repairOutput, currentArtistCode, rawEngineHtml);
-                currentArtistCode = stripMarkdownFences(repairedSections.artistCode);
-                rawEngineHtml = normalizeHtmlDocument(repairedSections.engineHtml);
-
-                rawGameHtml = compileMultiAgentGame(currentArtistCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
-                validateGeneratedBuild(currentArtistCode, rawEngineHtml, rawGameHtml);
+                console.log(`⚠️ Sandbox CRASH DETECTED. Asking Claude to repair... (${sandboxRes.crashes[0]})`);
+                const repairInstructions = [
+                    `The sandbox crashed with these errors:`,
+                    sandboxRes.crashes.join('\n'),
+                    '',
+                    'Repair the game so it boots and remains playable on mobile.',
+                    'Return the COMPLETE corrected HTML file only.',
+                    'Do not explain anything.',
+                ].join('\n');
+                const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
+                rawGameHtml = normalizeHtmlDocument(extractAnthropicText(await withClaudeRetries(
+                    () => claudeClient.messages.create({
+                        model: DREAM_MODELS.premiumBuilder,
+                        max_tokens: 16000,
+                        messages: [{ role: 'user', content: repairPrompt }],
+                    }),
+                    { label: 'Phase 3 Opus Repair', maxAttempts: 2, baseDelayMs: 2000 }
+                )));
+                if (!rawGameHtml.toLowerCase().includes('</html>')) {
+                    throw new Error('Claude repair output is missing </html> and appears truncated.');
+                }
                 finalHtml = postProcessRawHtml(rawGameHtml);
                 maxRetries--;
             } else {
@@ -471,17 +519,16 @@ async function executeDreamJob(jobId, prompt) {
         }
 
         if (!p3Success) {
-            throw new Error('Sandbox verification failed after 3 attempts.');
+            throw new Error('Sandbox verification failed after 2 Claude repair attempts.');
         }
 
         // ── SAVE TO DB ──
-        // Store artist_code and raw_code (engine HTML only) SEPARATELY
-        // so edits only need to touch the small engine part
+        const finalTitle = extractHtmlTitle(rawGameHtml) || specSheet.title || 'DreamStream Game';
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5 WHERE id = $6`,
-            [specSheet.title || 'DreamStream Game', finalHtml, rawEngineHtml, currentArtistCode, finalScreenshot, jobId]
+            [finalTitle, finalHtml, rawGameHtml, null, finalScreenshot, jobId]
         );
-        console.log(`✅ [DREAM JOB] Complete! "${specSheet.title}" saved for job ${jobId}`);
+        console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved for job ${jobId}`);
 
     } catch (err) {
         console.error("❌ [DREAM JOB] Error:", err);

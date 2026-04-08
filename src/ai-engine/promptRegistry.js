@@ -1,12 +1,15 @@
 /**
- * DreamStream Prompt Registry v3.0
+ * DreamStream Prompt Registry
  *
- * Live architecture:
- * Phase 1: QUANTIZE  — Llama 3.3 70B Instruct on NIM extracts structured spec
- * Phase 1.5: SCAFFOLD — Llama 3.3 creates a shared shell + collaboration contract
- * Phase 2A: ART      — Qwen 3.5 on NIM writes RenderEngine drawing code
- * Phase 2B: ENGINE   — Qwen 3 Coder on NIM writes the full gameplay HTML shell
- * Phase 3: VERIFY    — Puppeteer sandbox validates the game doesn't crash
+ * Main DreamStream:
+ * Phase 1: QUANTIZE  — Llama 3.3 extracts a structured spec
+ * Phase 2: BUILD     — Claude Opus writes the full game in one shot
+ * Phase 3: VERIFY    — Puppeteer sandbox validates the result
+ *
+ * Labs:
+ * Solo Qwen experiment path
+ *
+ * Experimental collaboration prompts are kept below for iteration and fallback work.
  */
 
 import fs from 'fs';
@@ -751,8 +754,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 }
 
 // ─────────────────────────────────────────────────────────
-// LEGACY: Single-agent prototype prompt kept for local prompt experiments.
-// The production DreamStream route uses the Artist + Engineer split below.
+// MAIN DREAMSTREAM: Single-agent prototype prompt used by Claude Opus.
 // ─────────────────────────────────────────────────────────
 
 export function buildPhase2_BuildPrototype(specSheet) {
