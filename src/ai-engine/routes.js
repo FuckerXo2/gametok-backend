@@ -30,15 +30,14 @@ const router = express.Router();
 
 const DREAM_MODELS = {
     spec: "meta/llama-3.3-70b-instruct",
-    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "claude-opus-4-6",
+    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "qwen/qwen3-coder-480b-a35b-instruct",
     artist: "qwen/qwen3.5-397b-a17b",
     engineer: "qwen/qwen3-coder-480b-a35b-instruct",
-    labsArtist: "qwen/qwen3-coder-480b-a35b-instruct",
-    labsEngineer: "qwen/qwen3.6-plus:free",
+    labsBuilder: "qwen/qwen3-coder-480b-a35b-instruct",
 };
 
-const OPUS_MAX_TOKENS = Number(process.env.DREAMSTREAM_OPUS_MAX_TOKENS || 32000);
-const OPUS_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_OPUS_MAX_CONTINUATIONS || 2);
+const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 32000);
+const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
@@ -175,18 +174,22 @@ function extractAnthropicText(response) {
         .trim();
 }
 
+function isAnthropicModel(model) {
+    return typeof model === 'string' && model.startsWith('claude-');
+}
+
 function hasClosedHtmlDocument(html) {
     return html.toLowerCase().includes('</html>');
 }
 
-function cleanClaudeContinuation(text) {
+function cleanBuilderContinuation(text) {
     let output = stripMarkdownFences(text, 'html');
     output = output.replace(/^\s*<!doctype html[^>]*>\s*/i, '');
     output = output.replace(/^\s*<html[^>]*>\s*/i, '');
     return output.trimStart();
 }
 
-function buildClaudeContinuationPrompt(partialHtml) {
+function buildBuilderContinuationPrompt(partialHtml) {
     const suffix = partialHtml.slice(-4000);
     return [
         'You were generating a single complete HTML game document and your previous response was cut off.',
@@ -205,35 +208,66 @@ function buildClaudeContinuationPrompt(partialHtml) {
     ].join('\n');
 }
 
-async function requestClaudeMessage(userPrompt, { label }) {
-    const response = await withClaudeRetries(async () => {
-        const stream = claudeClient.messages.stream({
+async function requestBuilderMessage(userPrompt, { label }) {
+    if (isAnthropicModel(DREAM_MODELS.premiumBuilder)) {
+        const response = await withClaudeRetries(async () => {
+            const stream = claudeClient.messages.stream({
+                model: DREAM_MODELS.premiumBuilder,
+                max_tokens: BUILDER_MAX_TOKENS,
+                thinking: { type: 'adaptive' },
+                messages: [{ role: 'user', content: userPrompt }],
+            });
+            return await stream.finalMessage();
+        }, { label, maxAttempts: 2, baseDelayMs: 2000 });
+
+        return {
+            text: extractAnthropicText(response),
+            stopReason: response?.stop_reason || null,
+        };
+    }
+
+    let finishReason = null;
+    const text = await withNvidiaRetries(async () => {
+        const stream = await nvidiaClient.chat.completions.create({
             model: DREAM_MODELS.premiumBuilder,
-            max_tokens: OPUS_MAX_TOKENS,
-            thinking: { type: 'adaptive' },
             messages: [{ role: 'user', content: userPrompt }],
+            max_tokens: BUILDER_MAX_TOKENS,
+            temperature: 0.25,
+            stream: true,
         });
-        return await stream.finalMessage();
-    }, { label, maxAttempts: 2, baseDelayMs: 2000 });
+
+        let output = "";
+        for await (const chunk of stream) {
+            const delta = chunk.choices?.[0]?.delta?.content;
+            if (delta) {
+                output += delta;
+            }
+            const chunkFinishReason = chunk.choices?.[0]?.finish_reason;
+            if (chunkFinishReason) {
+                finishReason = chunkFinishReason;
+            }
+        }
+        return output;
+    }, { label, maxAttempts: 3, baseDelayMs: 1500 });
 
     return {
-        text: extractAnthropicText(response),
-        stopReason: response?.stop_reason || null,
+        text,
+        stopReason: finishReason,
     };
 }
 
-async function generateCompleteHtmlWithClaude(initialPrompt, { label }) {
-    let { text, stopReason } = await requestClaudeMessage(initialPrompt, { label });
+async function generateCompleteHtmlWithBuilder(initialPrompt, { label }) {
+    let { text, stopReason } = await requestBuilderMessage(initialPrompt, { label });
     let html = normalizeHtmlDocument(text);
     console.log(`🧾 [${label}] stop_reason=${stopReason || 'unknown'} chars=${html.length}`);
 
     let continuationCount = 0;
-    while (!hasClosedHtmlDocument(html) && continuationCount < OPUS_MAX_CONTINUATIONS) {
+    while (!hasClosedHtmlDocument(html) && continuationCount < BUILDER_MAX_CONTINUATIONS) {
         continuationCount += 1;
-        console.warn(`⚠️ [${label}] Output truncated or incomplete. Requesting continuation ${continuationCount}/${OPUS_MAX_CONTINUATIONS}...`);
-        const continuationPrompt = buildClaudeContinuationPrompt(html);
-        const continuation = await requestClaudeMessage(continuationPrompt, { label: `${label} Continue` });
-        const continuationText = cleanClaudeContinuation(continuation.text);
+        console.warn(`⚠️ [${label}] Output truncated or incomplete. Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
+        const continuationPrompt = buildBuilderContinuationPrompt(html);
+        const continuation = await requestBuilderMessage(continuationPrompt, { label: `${label} Continue` });
+        const continuationText = cleanBuilderContinuation(continuation.text);
         console.log(`🧾 [${label} Continue] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
         if (!continuationText) {
             break;
@@ -499,16 +533,16 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // ═══════════════════════════════════════════════════════════
 // DREAMSTREAM MAIN PIPELINE
 // Phase 1: Llama 3.3 on NIM extracts a playable spec
-// Phase 2: Claude Opus builds the entire game in one pass
+// Phase 2: Main builder model writes the entire game in one pass
 // Phase 3: Puppeteer verifies the result before save
 // ═══════════════════════════════════════════════════════════
 async function executeDreamJob(jobId, prompt) {
     try {
-        if (!process.env.ANTHROPIC_API_KEY) {
+        if (isAnthropicModel(DREAM_MODELS.premiumBuilder) && !process.env.ANTHROPIC_API_KEY) {
             throw new Error('ANTHROPIC_API_KEY is not configured for main DreamStream.');
         }
 
-        console.log(`🧠 [DREAM JOB] Started DreamStream Opus pipeline for job: ${jobId}`);
+        console.log(`🧠 [DREAM JOB] Started DreamStream single-agent pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
 
         // ── PHASE 1: SPEC EXTRACTION ──
         console.log(`📋 Phase 1/3: Llama 3.3 70B Instruct on NIM extracting a playable game spec...`);
@@ -518,18 +552,18 @@ async function executeDreamJob(jobId, prompt) {
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle}) [lane=${specSheet.runtimeLane}]`);
 
         // ── PHASE 2: SINGLE-AGENT PREMIUM BUILD ──
-        console.log(`🔨 Phase 2/3: Claude Opus building the complete game in one pass...`);
+        console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building the complete game in one pass...`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
-        let rawGameHtml = await generateCompleteHtmlWithClaude(buildPrompt, { label: 'Phase 2 Opus Build' });
+        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Builder Build' });
 
         if (!rawGameHtml) {
-            throw new Error('Claude returned empty game output.');
+            throw new Error('Main builder returned empty game output.');
         }
         if (!hasClosedHtmlDocument(rawGameHtml)) {
-            throw new Error('Claude output is missing </html> and appears truncated.');
+            throw new Error('Builder output is missing </html> and appears truncated.');
         }
 
-        console.log(`✅ Phase 2 complete: Claude generated ${rawGameHtml.length} chars of game code`);
+        console.log(`✅ Phase 2 complete: builder generated ${rawGameHtml.length} chars of game code`);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         let finalHtml = postProcessRawHtml(rawGameHtml);
@@ -554,7 +588,7 @@ async function executeDreamJob(jobId, prompt) {
             finalScreenshot = sandboxRes.screenshot || null;
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
-                console.log(`⚠️ Sandbox CRASH DETECTED. Asking Claude to repair... (${sandboxRes.crashes[0]})`);
+                console.log(`⚠️ Sandbox CRASH DETECTED. Asking main builder to repair... (${sandboxRes.crashes[0]})`);
                 const repairInstructions = [
                     `The sandbox crashed with these errors:`,
                     sandboxRes.crashes.join('\n'),
@@ -564,9 +598,9 @@ async function executeDreamJob(jobId, prompt) {
                     'Do not explain anything.',
                 ].join('\n');
                 const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
-                rawGameHtml = await generateCompleteHtmlWithClaude(repairPrompt, { label: 'Phase 3 Opus Repair' });
+                rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Builder Repair' });
                 if (!hasClosedHtmlDocument(rawGameHtml)) {
-                    throw new Error('Claude repair output is missing </html> and appears truncated.');
+                    throw new Error('Builder repair output is missing </html> and appears truncated.');
                 }
                 finalHtml = postProcessRawHtml(rawGameHtml);
                 maxRetries--;
@@ -577,7 +611,7 @@ async function executeDreamJob(jobId, prompt) {
         }
 
         if (!p3Success) {
-            throw new Error('Sandbox verification failed after 2 Claude repair attempts.');
+            throw new Error('Sandbox verification failed after 2 builder repair attempts.');
         }
 
         // ── SAVE TO DB ──
@@ -973,7 +1007,7 @@ async function executeLabsDreamJob(jobId, prompt) {
         console.log(`🧪 [LABS JOB] Started Qwen solo Labs pipeline for job: ${jobId}`);
         const soloPrompt = buildLabsSoloPrototype(prompt);
         let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
-            model: DREAM_MODELS.engineer,
+            model: DREAM_MODELS.labsBuilder,
             systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself.",
             userPrompt: soloPrompt,
             maxTokens: 12000,
@@ -1025,7 +1059,7 @@ ${rawEngineHtml}
 Output ONLY the complete fixed HTML document.`;
 
             rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
-                model: DREAM_MODELS.engineer,
+                model: DREAM_MODELS.labsBuilder,
                 systemPrompt: "You are an elite HTML5 game debugger repairing a single-file mobile game.",
                 userPrompt: repairPrompt,
                 maxTokens: 12000,
