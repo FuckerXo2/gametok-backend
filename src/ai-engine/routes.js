@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
 import { buildPhase1_Quantize, buildPhase2B_Engineer, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
+import { normalizeDreamSpec } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl } from './asset-dictionary.js';
 
@@ -175,8 +176,9 @@ async function executeDreamJob(jobId, prompt) {
         // ── PHASE 1: SPEC EXTRACTION ──
         console.log(`📋 Phase 1/3: Gemma on NIM extracting a playable game spec...`);
         const phase1 = buildPhase1_Quantize(prompt);
-        const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
-        console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
+        const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
+        const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
+        console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle}) [lane=${specSheet.runtimeLane}]`);
         console.log(`🔨 Phase 2/3: Sequential multi-agent synthesis (artist first, engineer second)...`);
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
@@ -639,8 +641,9 @@ async function executeLabsDreamJob(jobId, prompt) {
 
         // Phase 1: Gemma extracts the shared spec
         const phase1 = buildPhase1_Quantize(prompt);
-        const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
-        console.log(`✅ Labs Phase 1: "${specSheet.title}"`);
+        const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
+        const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
+        console.log(`✅ Labs Phase 1: "${specSheet.title}" [lane=${specSheet.runtimeLane}]`);
         
         // ── ARTIST-CODER PROTOCOL ──
         console.log(`🎨 Artist-Coder: Utilizing full procedural code generation...`);

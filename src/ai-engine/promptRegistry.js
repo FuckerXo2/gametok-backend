@@ -28,6 +28,11 @@ const ATMOSPHERES = [
 
 const PACING = ['Fast / Arcade', 'Medium / Balanced', 'Slow / Strategic', 'Turn-Based'];
 
+function formatPromptList(items, fallback = 'none provided') {
+  if (!Array.isArray(items) || items.length === 0) return fallback;
+  return items.map((item) => `- ${item}`).join('\n');
+}
+
 // ─────────────────────────────────────────────────────────
 // PHASE 1: QUANTIZE REQUIREMENTS (runs on Gemma — FREE)
 // AI acts as Lead Game Designer — extracts structured spec
@@ -408,6 +413,15 @@ GAME CONTEXT:
 - Accent Color: ${specSheet.accentColor || '#f0f'}
 - Hero: ${specSheet.entities?.hero || 'Main player character'}
 - Enemy: ${specSheet.entities?.enemy || 'Adversary or obstacle'}
+- Runtime Lane: ${specSheet.runtimeLane || 'arcade_canvas'}
+- Playable Slice: ${specSheet.playableSlice || 'One compact mobile game scene.'}
+- Scene Blueprint: ${specSheet.sceneBlueprint || 'A readable stage with one hero and one threat type.'}
+
+VISUAL TARGETS:
+${formatPromptList(specSheet.visualTargets, '- clean readable silhouettes')}
+
+SPECTACLE FOCUS:
+${formatPromptList(specSheet.spectacleFocus, '- subtle particles and impact flashes')}
 
 MANDATORY CANVAS2D TECHNIQUES:
 - Use advanced techniques matching the atmosphere (e.g. ctx.createLinearGradient or ctx.createRadialGradient for rich color fills if needed).
@@ -465,7 +479,26 @@ DO NOT WRITE ART LOGIC. All entity rendering is handled by the Artist API Contra
 
 GAME SPECIFICATION:
 - Title: ${specSheet.title}
+- Genre: ${specSheet.genre}
+- Summary: ${specSheet.summary}
 - Core Mechanics: ${JSON.stringify(specSheet.coreMechanics)}
+- Runtime Lane: ${specSheet.runtimeLane || 'arcade_canvas'}
+- Playable Slice: ${specSheet.playableSlice || 'One compact mobile game scene.'}
+- Scene Blueprint: ${specSheet.sceneBlueprint || 'A readable stage with one hero and one threat type.'}
+- Control Model: ${specSheet.controlModel || 'Simple touch-first interaction.'}
+
+SPECTACLE FOCUS:
+${formatPromptList(specSheet.spectacleFocus, '- impact flashes')}
+
+PLAYABILITY RULES:
+${formatPromptList(specSheet.playabilityRules, '- Prefer one polished gameplay loop over sprawling feature lists.')}
+
+${specSheet.runtimeLane === 'auto_battler_arena' ? `AUTO-BATTLER EXECUTION NOTE:
+- Use a short prep phase with a visible BATTLE button.
+- Keep active fighters to a readable squad and staged goblin waves.
+- Sell "hundreds of goblins" with spawn gates, queues, dust, corpse decals, and effects instead of true large-scale ragdoll simulation.
+- Heavy units should feel powerful through knockback, hit-stop, and wide attack arcs.
+` : ''}
 
 API CONTRACT (CRITICAL):
 You MUST use native Canvas2D.
