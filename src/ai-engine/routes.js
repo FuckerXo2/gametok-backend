@@ -206,15 +206,15 @@ function buildClaudeContinuationPrompt(partialHtml) {
 }
 
 async function requestClaudeMessage(userPrompt, { label }) {
-    const response = await withClaudeRetries(
-        () => claudeClient.messages.create({
+    const response = await withClaudeRetries(async () => {
+        const stream = claudeClient.messages.stream({
             model: DREAM_MODELS.premiumBuilder,
             max_tokens: OPUS_MAX_TOKENS,
             thinking: { type: 'adaptive' },
             messages: [{ role: 'user', content: userPrompt }],
-        }),
-        { label, maxAttempts: 2, baseDelayMs: 2000 }
-    );
+        });
+        return await stream.finalMessage();
+    }, { label, maxAttempts: 2, baseDelayMs: 2000 });
 
     return {
         text: extractAnthropicText(response),
