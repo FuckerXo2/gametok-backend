@@ -1,10 +1,11 @@
 import express from 'express';
 import OpenAI from 'openai';
 import { randomUUID } from 'crypto';
+import vm from 'vm';
 import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
-import { buildPhase1_Quantize, buildPhase2B_Engineer, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
+import { buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2B_Engineer, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
 import { normalizeDreamSpec } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl } from './asset-dictionary.js';
@@ -93,6 +94,50 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     }
     const raw = res.choices[0].message.content;
     return JSON.parse(extractJson(raw));
+}
+
+function extractInlineScripts(html) {
+    const scripts = [];
+    const regex = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+        if (/src\s*=/.test(match[1] || '')) {
+            continue;
+        }
+        scripts.push(match[2] || '');
+    }
+    return scripts;
+}
+
+function validateJavaScriptSyntax(source, label) {
+    try {
+        new vm.Script(source, { filename: label });
+    } catch (error) {
+        throw new Error(`${label} syntax error: ${error.message}`);
+    }
+}
+
+function validateGeneratedBuild(artistCode, engineHtml, compiledHtml) {
+    validateJavaScriptSyntax(artistCode, 'artist-code.js');
+    const engineScripts = extractInlineScripts(engineHtml);
+    engineScripts.forEach((script, index) => validateJavaScriptSyntax(script, `engine-inline-${index + 1}.js`));
+    const compiledScripts = extractInlineScripts(compiledHtml);
+    compiledScripts.forEach((script, index) => validateJavaScriptSyntax(script, `compiled-inline-${index + 1}.js`));
+}
+
+function parseRepairSections(aiOutput, fallbackArtistCode, fallbackEngineHtml) {
+    const artistMarker = '===ARTIST_CODE===';
+    const engineMarker = '===ENGINE_CODE===';
+    if (!aiOutput.includes(artistMarker) || !aiOutput.includes(engineMarker)) {
+        return {
+            artistCode: fallbackArtistCode,
+            engineHtml: normalizeHtmlDocument(aiOutput || fallbackEngineHtml)
+        };
+    }
+
+    const artistCode = stripMarkdownFences(aiOutput.split(artistMarker)[1]?.split(engineMarker)[0]?.trim() || fallbackArtistCode);
+    const engineHtml = normalizeHtmlDocument(aiOutput.split(engineMarker)[1]?.trim() || fallbackEngineHtml);
+    return { artistCode, engineHtml };
 }
 
 async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature }) {
@@ -210,6 +255,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // ═══════════════════════════════════════════════════════════
 // DREAMSTREAM PRODUCTION PIPELINE
 // Phase 1: Llama 3.3 70B Instruct on NIM extracts a playable spec
+// Phase 1.5: Llama 3.3 creates a shared scaffold shell/contract
 // Phase 2A: Qwen 3.5 on NIM writes the RenderEngine art layer
 // Phase 2B: Qwen 3 Coder on NIM writes the gameplay HTML shell
 // Phase 3: Puppeteer verifies the result before save
@@ -224,9 +270,14 @@ async function executeDreamJob(jobId, prompt) {
         const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle}) [lane=${specSheet.runtimeLane}]`);
-        console.log(`🔨 Phase 2/3: Sequential multi-agent synthesis (artist first, engineer second)...`);
+        console.log(`🧱 Phase 1.5/3: Building shared scaffold contract...`);
+        const scaffoldPhase = buildPhase1B_Scaffold(specSheet);
+        const scaffold = await callAI(scaffoldPhase.system, scaffoldPhase.user, 1600, 0.2);
+        const scaffoldShell = buildSharedScaffoldShell(specSheet, scaffold);
+        console.log(`✅ Phase 1.5 complete: shared scaffold ready with ${Array.isArray(scaffold?.entityBlueprints) ? scaffold.entityBlueprints.length : 0} entity blueprints`);
+        console.log(`🔨 Phase 2/3: Scaffolded multi-agent synthesis (artist first, engineer second)...`);
         
-        const artistPrompt = buildPhase2A_Artist(specSheet);
+        const artistPrompt = buildPhase2A_Artist(specSheet, scaffold);
 
         console.log(`🎨 Phase 2A: Qwen 3.5 on NIM sketching the RenderEngine...`);
         const rawArtistCode = await streamNvidiaText({
@@ -238,7 +289,7 @@ async function executeDreamJob(jobId, prompt) {
         });
         const cleanSvgCode = stripMarkdownFences(rawArtistCode);
 
-        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
+        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode, scaffold, scaffoldShell);
 
         console.log(`⚙️ Phase 2B: Qwen 3 Coder on NIM writing gameplay HTML...`);
         let rawEngineHtml = await streamNvidiaText({
@@ -254,7 +305,8 @@ async function executeDreamJob(jobId, prompt) {
         rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
 
         // ── COMPILE MULTI-AGENT CODE ──
-        let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
+        let currentArtistCode = cleanSvgCode;
+        let rawGameHtml = compileMultiAgentGame(currentArtistCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         let finalHtml = postProcessRawHtml(rawGameHtml);
@@ -266,33 +318,45 @@ async function executeDreamJob(jobId, prompt) {
         
         while (maxRetries > 0 && !p3Success) {
             console.log(`📸 [Attempt ${4 - maxRetries}/3] Verifying game in sandbox...`);
-            const sandboxRes = await verifyGame(finalHtml);
+            let sandboxRes;
+            try {
+                validateGeneratedBuild(currentArtistCode, rawEngineHtml, rawGameHtml);
+                sandboxRes = await verifyGame(finalHtml);
+            } catch (validationError) {
+                sandboxRes = {
+                    success: false,
+                    crashes: [validationError.message || String(validationError)],
+                    screenshot: null
+                };
+            }
             finalScreenshot = sandboxRes.screenshot || null;
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
                 console.log(`⚠️ Sandbox CRASH DETECTED. Auto-Healing... (${sandboxRes.crashes[0]})`);
-                
-                // Construct healing prompt for the Engineer
-                const healPrompt = `The game code you just generated crashed the headless Chrome sandbox.
-FATAL ERROR: ${sandboxRes.crashes[0]}
 
-Here is the HTML file that caused the crash:
-\`\`\`html
-${rawEngineHtml}
-\`\`\`
+                const healPrompt = buildPhase3_Repair(
+                    specSheet,
+                    scaffold,
+                    scaffoldShell,
+                    currentArtistCode,
+                    rawEngineHtml,
+                    rawGameHtml,
+                    sandboxRes.crashes.join('\n')
+                );
 
-You MUST rewrite the ENTIRE HTML file from scratch, analyzing line-by-line where the ReferenceError or syntax error occurred, and outputting the FULL FIXED HTML file. Do NOT use placeholders.`;
-
-                rawEngineHtml = await streamNvidiaText({
+                const repairOutput = await streamNvidiaText({
                     model: DREAM_MODELS.engineer,
-                    systemPrompt: "You are an elite expert at debugging HTML5 Javascript canvas games.",
+                    systemPrompt: "You are an elite HTML5 game integration debugger repairing both art and engine code together.",
                     userPrompt: healPrompt,
-                    maxTokens: 8000,
+                    maxTokens: 12000,
                     temperature: 0.1
                 });
-                rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
+                const repairedSections = parseRepairSections(repairOutput, currentArtistCode, rawEngineHtml);
+                currentArtistCode = stripMarkdownFences(repairedSections.artistCode);
+                rawEngineHtml = normalizeHtmlDocument(repairedSections.engineHtml);
 
-                rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
+                rawGameHtml = compileMultiAgentGame(currentArtistCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
+                validateGeneratedBuild(currentArtistCode, rawEngineHtml, rawGameHtml);
                 finalHtml = postProcessRawHtml(rawGameHtml);
                 maxRetries--;
             } else {
@@ -310,7 +374,7 @@ You MUST rewrite the ENTIRE HTML file from scratch, analyzing line-by-line where
         // so edits only need to touch the small engine part
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5 WHERE id = $6`,
-            [specSheet.title || 'DreamStream Game', finalHtml, rawEngineHtml, cleanSvgCode, finalScreenshot, jobId]
+            [specSheet.title || 'DreamStream Game', finalHtml, rawEngineHtml, currentArtistCode, finalScreenshot, jobId]
         );
         console.log(`✅ [DREAM JOB] Complete! "${specSheet.title}" saved for job ${jobId}`);
 
@@ -703,6 +767,9 @@ async function executeLabsDreamJob(jobId, prompt) {
         const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
         console.log(`✅ Labs Phase 1: "${specSheet.title}" [lane=${specSheet.runtimeLane}]`);
+        const scaffoldPhase = buildPhase1B_Scaffold(specSheet);
+        const scaffold = await callAI(scaffoldPhase.system, scaffoldPhase.user, 1600, 0.2);
+        const scaffoldShell = buildSharedScaffoldShell(specSheet, scaffold);
         
         // ── ARTIST-CODER PROTOCOL ──
         console.log(`🎨 Artist-Coder: Utilizing full procedural code generation...`);
@@ -710,7 +777,7 @@ async function executeLabsDreamJob(jobId, prompt) {
         // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS (SEQUENTIAL) ──
         console.log(`🔨 Labs Phase 2: Sequential Multi-Cloud Synthesis...`);
         
-        const artistPrompt = buildPhase2A_Artist(specSheet);
+        const artistPrompt = buildPhase2A_Artist(specSheet, scaffold);
 
         console.log(`🎨 Labs Artist-Coder (Qwen 3 Coder on NIM) sketching SVGs...`);
         const artistRes = await nvidiaClient.chat.completions.create({
@@ -726,7 +793,7 @@ async function executeLabsDreamJob(jobId, prompt) {
         const rawArtistCode = artistRes.choices[0].message.content;
         const cleanSvgCode = stripMarkdownFences(rawArtistCode);
 
-        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
+        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode, scaffold, scaffoldShell);
 
         console.log(`⚙️ Labs Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
         const engineRes = await openRouterClient.chat.completions.create({
@@ -743,7 +810,8 @@ async function executeLabsDreamJob(jobId, prompt) {
 
         rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
 
-        let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
+        let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
+        validateGeneratedBuild(cleanSvgCode, rawEngineHtml, rawGameHtml);
 
         const finalHtml = postProcessRawHtml(rawGameHtml);
         const sandboxRes = await verifyGame(finalHtml);

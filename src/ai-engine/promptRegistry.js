@@ -3,6 +3,7 @@
  *
  * Live architecture:
  * Phase 1: QUANTIZE  — Llama 3.3 70B Instruct on NIM extracts structured spec
+ * Phase 1.5: SCAFFOLD — Llama 3.3 creates a shared shell + collaboration contract
  * Phase 2A: ART      — Qwen 3.5 on NIM writes RenderEngine drawing code
  * Phase 2B: ENGINE   — Qwen 3 Coder on NIM writes the full gameplay HTML shell
  * Phase 3: VERIFY    — Puppeteer sandbox validates the game doesn't crash
@@ -31,6 +32,10 @@ const PACING = ['Fast / Arcade', 'Medium / Balanced', 'Slow / Strategic', 'Turn-
 function formatPromptList(items, fallback = 'none provided') {
   if (!Array.isArray(items) || items.length === 0) return fallback;
   return items.map((item) => `- ${item}`).join('\n');
+}
+
+function normalizeList(items, fallback = []) {
+  return Array.isArray(items) && items.length > 0 ? items : fallback;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -98,6 +103,229 @@ renderManifest rules:
 
 Output ONLY the JSON.`
   };
+}
+
+export function buildPhase1B_Scaffold(specSheet) {
+  return {
+    system: `You are the Technical Design Lead for a mobile HTML5 Canvas game studio.
+Your job is to turn a validated game spec into a SHARED SCAFFOLD CONTRACT that both the artist and engineer can follow.
+
+IMPORTANT RULES:
+- Output ONLY raw JSON.
+- Think like a gameplay lead creating a playable shell, not a prose writer.
+- Keep the scaffold realistic for one self-contained mobile canvas game.
+- Prefer one polished vertical slice over impossible scope.
+- Include only contracts and structure the team can actually execute in one pass.`,
+    user: `GAME SPEC:
+${JSON.stringify(specSheet, null, 2)}
+
+Return this JSON shape:
+{
+  "initialState": "MENU | PREP | PLAYING",
+  "stateFlow": ["MENU", "PREP", "BATTLE", "RESULT"],
+  "cameraMode": "single_screen | follow_player | anchored_arena",
+  "worldRules": ["short practical world rule"],
+  "hudBlocks": ["currency", "health", "battle_button"],
+  "entityBlueprints": [
+    {
+      "id": "knight",
+      "role": "ally | enemy | projectile | pickup | fx | obstacle",
+      "renderFn": "drawKnight",
+      "width": 72,
+      "height": 72,
+      "spawnRule": "how it appears in the scene"
+    }
+  ],
+  "firstFrameChecklist": ["visible thing that must exist on first frame"],
+  "interactionLoops": ["short input or game-loop description"],
+  "engineTodos": ["concrete engineering task"],
+  "artistTodos": ["concrete art/render task"],
+  "integrationNotes": ["how art + logic should fit together"]
+}
+
+Rules:
+- entityBlueprints must align with renderManifest and the requested game fantasy.
+- Include 3 to 8 entityBlueprints.
+- Width and height must be realistic gameplay sizes, never 1.
+- stateFlow should reflect the actual lane. Auto-battlers should usually use MENU/PREP/BATTLE/RESULT.
+- firstFrameChecklist must guarantee a non-black, readable first frame.
+- integrationNotes should describe how the engineer should call the render API safely.
+
+Output ONLY JSON.`
+  };
+}
+
+export function buildSharedScaffoldShell(specSheet, scaffold) {
+  const stateFlow = normalizeList(scaffold?.stateFlow, ['MENU', 'PLAYING', 'RESULT']);
+  const entityBlueprints = normalizeList(scaffold?.entityBlueprints, []).slice(0, 8);
+  const firstEntity = entityBlueprints[0] || { id: 'hero', renderFn: 'drawHero', width: 72, height: 72, role: 'ally' };
+  const secondEntity = entityBlueprints[1] || { id: 'enemy', renderFn: 'drawEnemy', width: 64, height: 64, role: 'enemy' };
+  const hudBlocks = normalizeList(scaffold?.hudBlocks, ['score', 'health']);
+  const worldRules = normalizeList(scaffold?.worldRules, ['Keep the experience readable on a phone screen.']);
+  const engineTodos = normalizeList(scaffold?.engineTodos, ['Implement a complete update loop and state transitions.']);
+  const interactionLoops = normalizeList(scaffold?.interactionLoops, ['Use touch-first controls and keep the first interaction obvious.']);
+  const integrationNotes = normalizeList(scaffold?.integrationNotes, ['Always render through window.RenderEngine functions.']);
+  const safeScaffoldJson = JSON.stringify({
+    initialState: scaffold?.initialState || 'MENU',
+    stateFlow,
+    cameraMode: scaffold?.cameraMode || 'single_screen',
+    hudBlocks,
+    worldRules,
+    entityBlueprints,
+    firstFrameChecklist: normalizeList(scaffold?.firstFrameChecklist, ['Draw a visible background and at least one ally + one enemy.']),
+    interactionLoops,
+    engineTodos,
+    artistTodos: normalizeList(scaffold?.artistTodos, ['Create readable silhouettes and themed background depth.']),
+    integrationNotes,
+  }, null, 2);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>${specSheet.title}</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: ${specSheet.backgroundColor || '#111111'};
+      touch-action: none;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <script>
+  const DreamScaffold = ${safeScaffoldJson};
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const game = {
+    state: DreamScaffold.initialState,
+    stateFlow: DreamScaffold.stateFlow,
+    camera: { x: 0, y: 0, shakeX: 0, shakeY: 0 },
+    score: 0,
+    health: 100,
+    wave: 1,
+    allies: [],
+    enemies: [],
+    projectiles: [],
+    pickups: [],
+    particles: [],
+    damageNumbers: [],
+    ui: {
+      battleButton: { x: 0, y: 0, w: 184, h: 64, label: 'BATTLE', visible: true }
+    },
+    bootReady: false,
+    pointer: { x: 0, y: 0, down: false },
+    lastTime: 0,
+    seedFirstFrame() {
+      this.allies = [{
+        type: '${firstEntity.id}',
+        renderFn: '${firstEntity.renderFn}',
+        x: 240,
+        y: 500,
+        width: ${firstEntity.width},
+        height: ${firstEntity.height},
+        hp: 100
+      }];
+      this.enemies = [{
+        type: '${secondEntity.id}',
+        renderFn: '${secondEntity.renderFn}',
+        x: 820,
+        y: 360,
+        width: ${secondEntity.width},
+        height: ${secondEntity.height},
+        hp: 100
+      }];
+    },
+    resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      this.ui.battleButton.x = canvas.width - this.ui.battleButton.w - 24;
+      this.ui.battleButton.y = 24;
+    },
+    renderEntity(entity, time) {
+      if (!entity || !entity.renderFn || !window.RenderEngine) return;
+      const fn = window.RenderEngine[entity.renderFn];
+      if (typeof fn === 'function') {
+        fn(ctx, entity.x - this.camera.x, entity.y - this.camera.y, entity.width, entity.height, time);
+      }
+    },
+    drawBattleButton() {
+      if (!this.ui.battleButton.visible) return;
+      const b = this.ui.battleButton;
+      ctx.save();
+      ctx.fillStyle = '${specSheet.accentColor || '#ffd54a'}';
+      ctx.strokeStyle = '#141414';
+      ctx.lineWidth = 4;
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = '#141414';
+      ctx.font = 'bold 28px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
+      ctx.restore();
+    },
+    render(time) {
+      window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height, this.camera.x || 0, this.camera.y || 0, time);
+      for (const entity of this.allies) this.renderEntity(entity, time);
+      for (const entity of this.enemies) this.renderEntity(entity, time);
+      this.drawBattleButton();
+      window.RenderEngine.drawHUD(ctx, canvas.width, canvas.height, this.score, this.health);
+    },
+    loop(now) {
+      const time = now / 1000;
+      const dt = Math.min(0.033, (now - this.lastTime) / 1000 || 0.016);
+      this.lastTime = now;
+      this.update(dt, time);
+      this.render(time);
+      requestAnimationFrame(this.loop.bind(this));
+    },
+    update(dt, time) {
+      // TODO_ENGINE: Implement full state machine, input handling, combat, spawning, physics, and win/loss flow.
+      // DreamScaffold.engineTodos:
+      // ${engineTodos.join('\n      // ')}
+      // DreamScaffold.interactionLoops:
+      // ${interactionLoops.join('\n      // ')}
+      // DreamScaffold.worldRules:
+      // ${worldRules.join('\n      // ')}
+    }
+  };
+
+  function renderFatal(error) {
+    document.body.innerHTML = '<div style="padding:16px;color:#fff;background:#7f1d1d;font-family:system-ui;">Boot error: ' + String(error && error.message || error) + '</div>';
+  }
+
+  try {
+    game.resize();
+    game.seedFirstFrame();
+    window.addEventListener('resize', () => game.resize());
+    window.addEventListener('pointerdown', (event) => {
+      game.pointer.down = true;
+      game.pointer.x = event.clientX;
+      game.pointer.y = event.clientY;
+    });
+    window.addEventListener('pointerup', () => { game.pointer.down = false; });
+    game.render(0);
+    requestAnimationFrame(game.loop.bind(game));
+  } catch (error) {
+    renderFatal(error);
+  }
+  </script>
+</body>
+</html>`;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -401,7 +629,8 @@ export function postProcessRawHtml(rawHtml) {
 // ─────────────────────────────────────────────────────────
 // PHASE 2A: ARTIST-CODER (Dedicated Art Generation)
 // ─────────────────────────────────────────────────────────
-export function buildPhase2A_Artist(specSheet) {
+export function buildPhase2A_Artist(specSheet, scaffold) {
+  const scaffoldJson = JSON.stringify(scaffold || {}, null, 2);
   return `You are a world-class procedural artist who creates stunning visuals using ONLY Canvas2D JavaScript.
 Your job: write a \`window.RenderEngine\` object with drawing functions for a game.
 You must NOT write game loops, physics, input handling, or HTML. ONLY drawing code.
@@ -416,6 +645,9 @@ GAME CONTEXT:
 - Runtime Lane: ${specSheet.runtimeLane || 'arcade_canvas'}
 - Playable Slice: ${specSheet.playableSlice || 'One compact mobile game scene.'}
 - Scene Blueprint: ${specSheet.sceneBlueprint || 'A readable stage with one hero and one threat type.'}
+
+SHARED SCAFFOLD CONTRACT:
+${scaffoldJson}
 
 VISUAL TARGETS:
 ${formatPromptList(specSheet.visualTargets, '- clean readable silhouettes')}
@@ -439,6 +671,7 @@ QUALITY RULES:
 - Strictly adhere to the requested Visual Style (${specSheet.visualStyle}) and Atmosphere (${specSheet.atmosphere}).
 - Every requested function in renderManifest must actually exist on window.RenderEngine.
 - Prefer resilient stylized silhouettes and readable shapes over ultra-complex art that is likely to break.
+- The shared scaffold shell will call your functions on frame zero, so drawBackground and drawHUD must be safe and deterministic immediately.
 
 API CONTRACT — output ONLY this JavaScript object, nothing else:
 
@@ -460,7 +693,7 @@ OUTPUT ONLY THE JAVASCRIPT OBJECT. No markdown fences. No explanation. No HTML.`
 // ─────────────────────────────────────────────────────────
 // PHASE 2B: ENGINEER-CODER (Dedicated Physics/Logic)
 // ─────────────────────────────────────────────────────────
-export function buildPhase2B_Engineer(specSheet, generatedArtistCode) {
+export function buildPhase2B_Engineer(specSheet, generatedArtistCode, scaffold, scaffoldShell) {
   // Extract the exact function names the Artist actually generated to prevent name mismatches
   const exactFunctions = [];
   const regex = /draw[A-Z][a-zA-Z0-9_]+/g;
@@ -472,6 +705,7 @@ export function buildPhase2B_Engineer(specSheet, generatedArtistCode) {
   }
   // Dedup and fallback
   let parsedManifest = exactFunctions.length > 0 ? exactFunctions : (specSheet.renderManifest || ['drawHero', 'drawEnemy', 'drawObstacle']);
+  const scaffoldJson = JSON.stringify(scaffold || {}, null, 2);
 
   return `You are an elite HTML5 Game Engineer. Build a COMPLETE mobile game as a single HTML file.
 You are strictly in charge of physics, inputs, state, and the game loop.
@@ -486,6 +720,14 @@ GAME SPECIFICATION:
 - Playable Slice: ${specSheet.playableSlice || 'One compact mobile game scene.'}
 - Scene Blueprint: ${specSheet.sceneBlueprint || 'A readable stage with one hero and one threat type.'}
 - Control Model: ${specSheet.controlModel || 'Simple touch-first interaction.'}
+
+SHARED SCAFFOLD CONTRACT:
+${scaffoldJson}
+
+START FROM THIS SCAFFOLD HTML SHELL AND PRESERVE ITS BOOT SHAPE, RUNTIME OBJECTS, AND FIRST-FRAME GUARANTEES:
+\`\`\`html
+${scaffoldShell}
+\`\`\`
 
 SPECTACLE FOCUS:
 ${formatPromptList(specSheet.spectacleFocus, '- impact flashes')}
@@ -546,11 +788,78 @@ RULES:
    - Draw background every frame.
    - Draw at least one hero/player unit and one enemy/threat within the first second.
    - Ensure the game still looks intentional even before the user taps start.
+15. SHARED-SHELL CONTRACT:
+   - Preserve the existing scaffold shell structure instead of inventing a new one from scratch.
+   - Keep the first-frame visibility guarantees from the scaffold.
+   - Expand the placeholder update logic into the final working game.
+   - Do not remove the RenderEngine call pattern.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
 
-export function compileMultiAgentGame(artistGeneratedJS, engineHtml) {
+export function buildPhase3_Repair(specSheet, scaffold, scaffoldShell, artistGeneratedJS, engineHtml, compiledHtml, crashLog) {
+  return `You are the integration lead repairing a broken DreamStream game build.
+The Artist and Engineer must now be repaired TOGETHER so the merged artifact boots.
+
+GAME SPEC:
+${JSON.stringify(specSheet, null, 2)}
+
+SHARED SCAFFOLD:
+${JSON.stringify(scaffold || {}, null, 2)}
+
+SCAFFOLD SHELL:
+\`\`\`html
+${scaffoldShell}
+\`\`\`
+
+CURRENT ARTIST CODE:
+\`\`\`javascript
+${artistGeneratedJS}
+\`\`\`
+
+CURRENT ENGINE HTML:
+\`\`\`html
+${engineHtml}
+\`\`\`
+
+CURRENT COMPILED HTML:
+\`\`\`html
+${compiledHtml}
+\`\`\`
+
+CRASH REPORT:
+${crashLog}
+
+TASK:
+- Analyze whether the crash lives in the artist code, the engineer code, or their integration boundary.
+- Repair BOTH sides if necessary so the merged game boots reliably.
+- Keep the same game fantasy and scaffolded structure.
+- The fixed code must preserve the RenderEngine contract and the engineer shell contract.
+
+OUTPUT FORMAT (MANDATORY):
+===ARTIST_CODE===
+(complete artist JavaScript object)
+===ENGINE_CODE===
+(complete engine HTML document starting with <!DOCTYPE html>)
+
+RULES:
+- Output BOTH sections every time.
+- No markdown fences.
+- No explanation.
+- No placeholders or ellipses.
+- Make boot reliability the top priority over extra features.`;
+}
+
+export function compileMultiAgentGame(artistGeneratedJS, engineHtml, options = {}) {
+    const renderManifest = normalizeList(options.renderManifest, []);
+    const renderFns = Array.from(new Set([...renderManifest, 'drawBackground', 'drawHUD']));
+    const renderEngineStubScript = `\n<script id="render-engine-stubs">
+window.RenderEngine = window.RenderEngine || {};
+(function() {
+  var noop = function() {};
+  ${renderFns.map((fnName) => `if (typeof window.RenderEngine.${fnName} !== 'function') window.RenderEngine.${fnName} = noop;`).join('\n  ')}
+})();
+</script>\n`;
     const artistScript = `\n<script id="artist-engine">
 // MULTI-AGENT PROCEDURAL GRAPHICS
 try {
@@ -560,10 +869,10 @@ try {
 
     // 3. Robust injection before the main game logic begins
     if (engineHtml.includes('</head>')) {
-        return engineHtml.replace('</head>', artistScript + '</head>');
+        return engineHtml.replace('</head>', renderEngineStubScript + artistScript + '</head>');
     } else if (engineHtml.includes('<script')) {
-        return engineHtml.replace('<script', artistScript + '<script');
+        return engineHtml.replace('<script', renderEngineStubScript + artistScript + '<script');
     } else {
-        return artistScript + engineHtml;
+        return renderEngineStubScript + artistScript + engineHtml;
     }
 }
