@@ -118,6 +118,9 @@ function validateJavaScriptSyntax(source, label) {
 }
 
 function validateGeneratedBuild(artistCode, engineHtml, compiledHtml) {
+    if (engineHtml.includes('TODO_ENGINE')) {
+        throw new Error('engine-html validation error: scaffold TODO markers were left in the final output');
+    }
     validateJavaScriptSyntax(artistCode, 'artist-code.js');
     const engineScripts = extractInlineScripts(engineHtml);
     engineScripts.forEach((script, index) => validateJavaScriptSyntax(script, `engine-inline-${index + 1}.js`));

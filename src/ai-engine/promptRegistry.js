@@ -178,6 +178,387 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
     artistTodos: normalizeList(scaffold?.artistTodos, ['Create readable silhouettes and themed background depth.']),
     integrationNotes,
   }, null, 2);
+  const allyBlueprints = entityBlueprints.filter((entity) => entity.role === 'ally');
+  const enemyBlueprints = entityBlueprints.filter((entity) => entity.role === 'enemy');
+  const safeAllies = allyBlueprints.length > 0 ? allyBlueprints : [firstEntity];
+  const safeEnemies = enemyBlueprints.length > 0 ? enemyBlueprints : [secondEntity];
+
+  if (specSheet.runtimeLane === 'auto_battler_arena') {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>${specSheet.title}</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: ${specSheet.backgroundColor || '#111111'};
+      touch-action: none;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <script>
+  const DreamScaffold = ${safeScaffoldJson};
+  const UnitCatalog = ${JSON.stringify(safeAllies, null, 2)};
+  const EnemyCatalog = ${JSON.stringify(safeEnemies, null, 2)};
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const TOP_INSET = 112;
+  const SIDE_PAD = 24;
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function distance(a, b) {
+    return Math.hypot((a.x + a.width / 2) - (b.x + b.width / 2), (a.y + a.height / 2) - (b.y + b.height / 2));
+  }
+
+  function pointInRect(x, y, rect) {
+    return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+  }
+
+  function makeDamageNumber(x, y, value, color) {
+    return { x, y, value, color, life: 0.9 };
+  }
+
+  function createUnitFromBlueprint(blueprint, x, y, side) {
+    const archetype = String(blueprint.id || '').toLowerCase();
+    const isKnight = archetype.includes('knight');
+    const isArcher = archetype.includes('archer');
+    const isWizard = archetype.includes('wizard');
+    const isGoblin = archetype.includes('goblin');
+    return {
+      id: Math.random().toString(36).slice(2),
+      type: blueprint.id,
+      renderFn: blueprint.renderFn,
+      x,
+      y,
+      width: blueprint.width || 64,
+      height: blueprint.height || 64,
+      side,
+      hp: isKnight ? 180 : isWizard ? 90 : isArcher ? 110 : isGoblin ? 55 : 100,
+      maxHp: isKnight ? 180 : isWizard ? 90 : isArcher ? 110 : isGoblin ? 55 : 100,
+      damage: isKnight ? 26 : isWizard ? 18 : isArcher ? 12 : isGoblin ? 10 : 12,
+      speed: isKnight ? 62 : isWizard ? 48 : isArcher ? 72 : isGoblin ? 78 : 70,
+      range: isKnight ? 78 : isWizard ? 180 : isArcher ? 220 : isGoblin ? 54 : 70,
+      cooldown: 0.2,
+      attackRate: isKnight ? 0.8 : isWizard ? 1.3 : isArcher ? 0.55 : isGoblin ? 0.75 : 0.8,
+      archetype,
+      knockback: isKnight ? 18 : isWizard ? 8 : 5,
+      aoe: isWizard ? 82 : 0
+    };
+  }
+
+  const game = {
+    state: DreamScaffold.initialState || 'PREP',
+    camera: { x: 0, y: 0, shake: 0 },
+    score: 0,
+    health: 100,
+    wave: 1,
+    battleTimer: 0,
+    previewIndex: 0,
+    placementSlots: [],
+    allies: [],
+    enemies: [],
+    projectiles: [],
+    particles: [],
+    damageNumbers: [],
+    pointer: { x: 0, y: 0, down: false },
+    lastTime: 0,
+    ui: {
+      battleButton: { x: 0, y: 0, w: 188, h: 66, label: 'BATTLE', visible: true }
+    },
+    resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      this.ui.battleButton.x = canvas.width - this.ui.battleButton.w - SIDE_PAD;
+      this.ui.battleButton.y = TOP_INSET + 6;
+      const laneTop = TOP_INSET + 124;
+      const laneHeight = canvas.height - laneTop - 84;
+      const laneBottom = laneTop + laneHeight;
+      this.placementSlots = Array.from({ length: 4 }, (_, index) => ({
+        x: 92 + index * 88,
+        y: laneBottom - 136 - (index % 2) * 58,
+        w: 76,
+        h: 76
+      }));
+    },
+    resetPrep() {
+      this.state = 'PREP';
+      this.wave = 1;
+      this.battleTimer = 0;
+      this.enemies = [];
+      this.projectiles = [];
+      this.particles = [];
+      this.damageNumbers = [];
+      this.health = 100;
+      this.score = 0;
+      this.previewIndex = 0;
+      this.ui.battleButton.visible = true;
+      this.allies = this.placementSlots.slice(0, 3).map((slot, index) => {
+        const blueprint = UnitCatalog[index % UnitCatalog.length];
+        return createUnitFromBlueprint(blueprint, slot.x, slot.y, 'ally');
+      });
+    },
+    spawnGoblinWave(count) {
+      const enemyBlueprint = EnemyCatalog[0];
+      for (let i = 0; i < count; i++) {
+        const yBase = TOP_INSET + 170 + (i % 4) * 88;
+        this.enemies.push(createUnitFromBlueprint(enemyBlueprint, canvas.width - 170 + (i % 2) * 18, yBase + Math.floor(i / 2) * 22, 'enemy'));
+      }
+    },
+    startBattle() {
+      if (this.allies.length === 0) return;
+      this.state = 'BATTLE';
+      this.ui.battleButton.visible = false;
+      this.spawnGoblinWave(5);
+    },
+    cycleSlot(slotIndex) {
+      const slot = this.placementSlots[slotIndex];
+      const blueprint = UnitCatalog[this.previewIndex % UnitCatalog.length];
+      this.previewIndex += 1;
+      const existing = this.allies.findIndex((unit) => unit.slotIndex === slotIndex);
+      const unit = createUnitFromBlueprint(blueprint, slot.x, slot.y, 'ally');
+      unit.slotIndex = slotIndex;
+      if (existing >= 0) this.allies.splice(existing, 1, unit);
+      else this.allies.push(unit);
+    },
+    applyDamage(target, amount, source) {
+      if (!target) return;
+      target.hp -= amount;
+      this.damageNumbers.push(makeDamageNumber(target.x + target.width / 2, target.y, amount, source && source.side === 'ally' ? '#fef08a' : '#fca5a5'));
+      this.camera.shake = Math.max(this.camera.shake, source && source.archetype.includes('knight') ? 10 : 5);
+    },
+    updateUnit(unit, opponents, dt) {
+      if (!unit || opponents.length === 0) return;
+      unit.cooldown -= dt;
+      const target = opponents.reduce((best, candidate) => !best || distance(unit, candidate) < distance(unit, best) ? candidate : best, null);
+      if (!target) return;
+      const gap = distance(unit, target);
+      if (gap > unit.range) {
+        const dirX = ((target.x - unit.x) || 1) / gap;
+        const dirY = ((target.y - unit.y) || 1) / gap;
+        unit.x += dirX * unit.speed * dt * (unit.side === 'ally' ? 1 : -1);
+        unit.y += dirY * unit.speed * dt * 0.4;
+      } else if (unit.cooldown <= 0) {
+        unit.cooldown = unit.attackRate;
+        if (unit.aoe > 0) {
+          opponents.forEach((candidate) => {
+            if (distance(candidate, target) <= unit.aoe) this.applyDamage(candidate, unit.damage, unit);
+          });
+        } else if (unit.range > 120) {
+          this.projectiles.push({
+            x: unit.x + unit.width / 2,
+            y: unit.y + unit.height / 2,
+            tx: target.x + target.width / 2,
+            ty: target.y + target.height / 2,
+            damage: unit.damage,
+            owner: unit.side,
+            speed: unit.archetype.includes('archer') ? 520 : 360
+          });
+        } else {
+          this.applyDamage(target, unit.damage, unit);
+          target.x += unit.side === 'ally' ? unit.knockback : -unit.knockback;
+        }
+      }
+    },
+    updateProjectiles(dt) {
+      this.projectiles = this.projectiles.filter((projectile) => {
+        const dx = projectile.tx - projectile.x;
+        const dy = projectile.ty - projectile.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        projectile.x += (dx / dist) * projectile.speed * dt;
+        projectile.y += (dy / dist) * projectile.speed * dt;
+        const targets = projectile.owner === 'ally' ? this.enemies : this.allies;
+        const hit = targets.find((target) => Math.hypot(projectile.x - (target.x + target.width / 2), projectile.y - (target.y + target.height / 2)) < target.width * 0.45);
+        if (hit) {
+          this.applyDamage(hit, projectile.damage, { side: projectile.owner, archetype: projectile.owner });
+          return false;
+        }
+        return dist > 18;
+      });
+    },
+    cleanupDead() {
+      const removedEnemies = this.enemies.filter((unit) => unit.hp <= 0).length;
+      if (removedEnemies > 0) this.score += removedEnemies * 10;
+      this.allies = this.allies.filter((unit) => unit.hp > 0);
+      this.enemies = this.enemies.filter((unit) => unit.hp > 0);
+    },
+    update(dt, time) {
+      this.damageNumbers.forEach((item) => { item.y -= 42 * dt; item.life -= dt; });
+      this.damageNumbers = this.damageNumbers.filter((item) => item.life > 0);
+      this.camera.shake = Math.max(0, this.camera.shake - dt * 18);
+      if (this.state !== 'BATTLE') return;
+      this.battleTimer += dt;
+      if (this.enemies.length < 3 && this.wave < 4) {
+        this.wave += 1;
+        this.spawnGoblinWave(3 + this.wave);
+      }
+      this.allies.forEach((unit) => this.updateUnit(unit, this.enemies, dt));
+      this.enemies.forEach((unit) => this.updateUnit(unit, this.allies, dt));
+      this.updateProjectiles(dt);
+      this.cleanupDead();
+      if (this.allies.length === 0) {
+        this.state = 'RESULT';
+        this.ui.battleButton.label = 'TRY AGAIN';
+        this.ui.battleButton.visible = true;
+      } else if (this.wave >= 4 && this.enemies.length === 0) {
+        this.state = 'RESULT';
+        this.ui.battleButton.label = 'REMATCH';
+        this.ui.battleButton.visible = true;
+      }
+    },
+    renderFallbackEntity(entity) {
+      ctx.save();
+      ctx.translate(entity.x - this.camera.x, entity.y - this.camera.y);
+      ctx.fillStyle = entity.side === 'ally' ? '#f59e0b' : '#22c55e';
+      if (entity.archetype && entity.archetype.includes('wizard')) ctx.fillStyle = '#a855f7';
+      if (entity.archetype && entity.archetype.includes('archer')) ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(0, 0, entity.width, entity.height);
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(0, 0, entity.width, entity.height);
+      ctx.restore();
+    },
+    renderEntity(entity, time) {
+      if (!entity || !entity.renderFn || !window.RenderEngine) return;
+      const fn = window.RenderEngine[entity.renderFn];
+      if (typeof fn === 'function' && !fn.__dreamstreamStub) {
+        fn(ctx, entity.x - this.camera.x, entity.y - this.camera.y, entity.width, entity.height, time);
+      } else {
+        this.renderFallbackEntity(entity);
+      }
+    },
+    drawArena() {
+      const arenaTop = TOP_INSET + 118;
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.fillRect(SIDE_PAD, arenaTop, canvas.width - SIDE_PAD * 2, canvas.height - arenaTop - 36);
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i++) {
+        const x = SIDE_PAD + 30 + i * ((canvas.width - SIDE_PAD * 2 - 60) / 5);
+        ctx.beginPath();
+        ctx.moveTo(x, arenaTop);
+        ctx.lineTo(x, canvas.height - 40);
+        ctx.stroke();
+      }
+      ctx.restore();
+    },
+    drawPrepSlots() {
+      if (this.state !== 'PREP') return;
+      ctx.save();
+      this.placementSlots.forEach((slot, index) => {
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '12px system-ui';
+        ctx.fillText(String(index + 1), slot.x + 8, slot.y + 18);
+      });
+      ctx.restore();
+    },
+    drawBattleButton() {
+      if (!this.ui.battleButton.visible) return;
+      const b = this.ui.battleButton;
+      ctx.save();
+      ctx.fillStyle = '${specSheet.accentColor || '#ffd54a'}';
+      ctx.strokeStyle = '#141414';
+      ctx.lineWidth = 4;
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = '#141414';
+      ctx.font = 'bold 28px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
+      ctx.restore();
+    },
+    drawDamageNumbers() {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 20px system-ui';
+      this.damageNumbers.forEach((item) => {
+        ctx.globalAlpha = clamp(item.life, 0, 1);
+        ctx.fillStyle = item.color;
+        ctx.fillText(String(item.value), item.x, item.y);
+      });
+      ctx.restore();
+    },
+    render(time) {
+      const shakeX = (Math.random() - 0.5) * this.camera.shake;
+      const shakeY = (Math.random() - 0.5) * this.camera.shake;
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+      window.RenderEngine.drawBackground(ctx, canvas.width, canvas.height, this.camera.x || 0, this.camera.y || 0, time);
+      this.drawArena();
+      this.drawPrepSlots();
+      this.allies.forEach((entity) => this.renderEntity(entity, time));
+      this.enemies.forEach((entity) => this.renderEntity(entity, time));
+      this.drawDamageNumbers();
+      this.drawBattleButton();
+      window.RenderEngine.drawHUD(ctx, canvas.width, canvas.height, this.score, this.health);
+      ctx.restore();
+    },
+    handlePointerDown(x, y) {
+      if (this.ui.battleButton.visible && pointInRect(x, y, this.ui.battleButton)) {
+        if (this.state === 'PREP') this.startBattle();
+        else this.resetPrep();
+        return;
+      }
+      if (this.state !== 'PREP') return;
+      const slotIndex = this.placementSlots.findIndex((slot) => pointInRect(x, y, slot));
+      if (slotIndex >= 0) this.cycleSlot(slotIndex);
+    },
+    loop(now) {
+      const dt = Math.min(0.033, (now - this.lastTime) / 1000 || 0.016);
+      this.lastTime = now;
+      this.update(dt, now / 1000);
+      this.render(now / 1000);
+      requestAnimationFrame(this.loop.bind(this));
+    }
+  };
+
+  function renderFatal(error) {
+    document.body.innerHTML = '<div style="padding:16px;color:#fff;background:#7f1d1d;font-family:system-ui;">Boot error: ' + String(error && error.message || error) + '</div>';
+  }
+
+  try {
+    game.resize();
+    game.resetPrep();
+    window.addEventListener('resize', () => game.resize());
+    window.addEventListener('pointerdown', (event) => {
+      game.pointer.down = true;
+      game.pointer.x = event.clientX;
+      game.pointer.y = event.clientY;
+      game.handlePointerDown(event.clientX, event.clientY);
+    });
+    window.addEventListener('pointerup', () => { game.pointer.down = false; });
+    game.render(0);
+    requestAnimationFrame(game.loop.bind(game));
+  } catch (error) {
+    renderFatal(error);
+  }
+  </script>
+</body>
+</html>`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -793,6 +1174,7 @@ RULES:
    - Keep the first-frame visibility guarantees from the scaffold.
    - Expand the placeholder update logic into the final working game.
    - Do not remove the RenderEngine call pattern.
+   - Remove any scaffold placeholder markers like TODO_ENGINE from the final output.
 
 OUTPUT FORMAT: Return ONLY HTML code, no markdown wrappers.`;
 }
@@ -857,6 +1239,7 @@ export function compileMultiAgentGame(artistGeneratedJS, engineHtml, options = {
 window.RenderEngine = window.RenderEngine || {};
 (function() {
   var noop = function() {};
+  noop.__dreamstreamStub = true;
   ${renderFns.map((fnName) => `if (typeof window.RenderEngine.${fnName} !== 'function') window.RenderEngine.${fnName} = noop;`).join('\n  ')}
 })();
 </script>\n`;
