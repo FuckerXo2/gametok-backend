@@ -5,7 +5,7 @@ import vm from 'vm';
 import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
-import { buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2B_Engineer, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
+import { buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
 import { normalizeDreamSpec } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl } from './asset-dictionary.js';
@@ -143,6 +143,78 @@ function parseRepairSections(aiOutput, fallbackArtistCode, fallbackEngineHtml) {
     return { artistCode, engineHtml };
 }
 
+async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }) {
+    const artistPrompt = buildPhase2A_Artist(specSheet, scaffold);
+
+    console.log(`🎨 Phase 2A: Qwen 3.5 on NIM sketching the RenderEngine...`);
+    const rawArtistCode = await streamNvidiaText({
+        model: DREAM_MODELS.artist,
+        systemPrompt: "You are an elite procedural HTML5 Canvas Artist.",
+        userPrompt: artistPrompt,
+        maxTokens: 4000,
+        temperature: 0.5
+    });
+    let currentArtistCode = stripMarkdownFences(rawArtistCode);
+
+    const enginePrompt = buildPhase2B_Engineer(specSheet, currentArtistCode, scaffold, scaffoldShell);
+
+    console.log(`⚙️ Phase 2B: Qwen 3 Coder on NIM writing gameplay HTML...`);
+    let rawEngineHtml = await streamNvidiaText({
+        model: DREAM_MODELS.engineer,
+        systemPrompt: "You are an elite HTML5 Game Engineer.",
+        userPrompt: enginePrompt,
+        maxTokens: 8000,
+        temperature: 0.2
+    });
+    rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
+
+    console.log(`🧪 Phase 2C: Collaboration critic reviewing drafts...`);
+    const criticPrompt = buildPhase2C_Critic(specSheet, scaffold, scaffoldShell, currentArtistCode, rawEngineHtml);
+    const criticNotes = await callAI(criticPrompt.system, criticPrompt.user, 1200, 0.2);
+
+    if (criticNotes?.shouldRevise) {
+        console.log(`🔁 Phase 2D: Applying critic feedback to artist draft...`);
+        const artistRevisionPrompt = buildPhase2D_ArtistRevision(specSheet, scaffold, currentArtistCode, criticNotes);
+        currentArtistCode = stripMarkdownFences(await streamNvidiaText({
+            model: DREAM_MODELS.artist,
+            systemPrompt: "You are an elite procedural HTML5 Canvas Artist revising your work after teammate feedback.",
+            userPrompt: artistRevisionPrompt,
+            maxTokens: 4500,
+            temperature: 0.35
+        }));
+
+        console.log(`🔁 Phase 2E: Applying critic feedback to engineer draft...`);
+        const engineerRevisionPrompt = buildPhase2E_EngineerRevision(specSheet, scaffold, scaffoldShell, currentArtistCode, rawEngineHtml, criticNotes);
+        rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
+            model: DREAM_MODELS.engineer,
+            systemPrompt: "You are an elite HTML5 Game Engineer revising your build after teammate feedback.",
+            userPrompt: engineerRevisionPrompt,
+            maxTokens: 9000,
+            temperature: 0.15
+        }));
+    }
+
+    console.log(`🧠 Phase 2F: Intelligent integrator reconciling artist + engineer...`);
+    const integratorPrompt = buildPhase2F_Integrator(specSheet, scaffold, scaffoldShell, currentArtistCode, rawEngineHtml, criticNotes);
+    const integratedOutput = await streamNvidiaText({
+        model: DREAM_MODELS.engineer,
+        systemPrompt: "You are an elite integration architect producing a coherent final artist+engine pair.",
+        userPrompt: integratorPrompt,
+        maxTokens: 12000,
+        temperature: 0.12
+    });
+    const integratedSections = parseRepairSections(integratedOutput, currentArtistCode, rawEngineHtml);
+    currentArtistCode = stripMarkdownFences(integratedSections.artistCode);
+    rawEngineHtml = normalizeHtmlDocument(integratedSections.engineHtml);
+
+    console.log(`✅ Multi-Agent Generated: Artist (${currentArtistCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
+    return {
+        artistCode: currentArtistCode,
+        engineHtml: rawEngineHtml,
+        criticNotes,
+    };
+}
+
 async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature }) {
     const stream = await nvidiaClient.chat.completions.create({
         model,
@@ -278,37 +350,12 @@ async function executeDreamJob(jobId, prompt) {
         const scaffold = await callAI(scaffoldPhase.system, scaffoldPhase.user, 1600, 0.2);
         const scaffoldShell = buildSharedScaffoldShell(specSheet, scaffold);
         console.log(`✅ Phase 1.5 complete: shared scaffold ready with ${Array.isArray(scaffold?.entityBlueprints) ? scaffold.entityBlueprints.length : 0} entity blueprints`);
-        console.log(`🔨 Phase 2/3: Scaffolded multi-agent synthesis (artist first, engineer second)...`);
-        
-        const artistPrompt = buildPhase2A_Artist(specSheet, scaffold);
-
-        console.log(`🎨 Phase 2A: Qwen 3.5 on NIM sketching the RenderEngine...`);
-        const rawArtistCode = await streamNvidiaText({
-            model: DREAM_MODELS.artist,
-            systemPrompt: "You are an elite procedural HTML5 Canvas Artist.",
-            userPrompt: artistPrompt,
-            maxTokens: 4000,
-            temperature: 0.5
-        });
-        const cleanSvgCode = stripMarkdownFences(rawArtistCode);
-
-        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode, scaffold, scaffoldShell);
-
-        console.log(`⚙️ Phase 2B: Qwen 3 Coder on NIM writing gameplay HTML...`);
-        let rawEngineHtml = await streamNvidiaText({
-            model: DREAM_MODELS.engineer,
-            systemPrompt: "You are an elite HTML5 Game Engineer.",
-            userPrompt: enginePrompt,
-            maxTokens: 8000,
-            temperature: 0.2
-        });
-
-        console.log(`✅ Multi-Agent Generated: Artist (${cleanSvgCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
-
-        rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
+        console.log(`🔨 Phase 2/3: Scaffolded multi-agent synthesis with critique + intelligent integration...`);
+        const collaboration = await runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell });
+        let currentArtistCode = collaboration.artistCode;
+        let rawEngineHtml = collaboration.engineHtml;
 
         // ── COMPILE MULTI-AGENT CODE ──
-        let currentArtistCode = cleanSvgCode;
         let rawGameHtml = compileMultiAgentGame(currentArtistCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
@@ -780,38 +827,9 @@ async function executeLabsDreamJob(jobId, prompt) {
         // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS (SEQUENTIAL) ──
         console.log(`🔨 Labs Phase 2: Sequential Multi-Cloud Synthesis...`);
         
-        const artistPrompt = buildPhase2A_Artist(specSheet, scaffold);
-
-        console.log(`🎨 Labs Artist-Coder (Qwen 3 Coder on NIM) sketching SVGs...`);
-        const artistRes = await nvidiaClient.chat.completions.create({
-            model: DREAM_MODELS.labsArtist,
-            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-            max_tokens: 4000,
-            temperature: 0.5
-        });
-
-        if (!artistRes || !artistRes.choices || !artistRes.choices[0]) {
-            throw new Error("NVIDIA NIM Labs Error (Artist): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
-        }
-        const rawArtistCode = artistRes.choices[0].message.content;
-        const cleanSvgCode = stripMarkdownFences(rawArtistCode);
-
-        const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode, scaffold, scaffoldShell);
-
-        console.log(`⚙️ Labs Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
-        const engineRes = await openRouterClient.chat.completions.create({
-            model: DREAM_MODELS.labsEngineer,
-            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-            max_tokens: 8000,
-            temperature: 0.2
-        });
-        if (!engineRes || !engineRes.choices || !engineRes.choices[0]) {
-            throw new Error("OpenRouter Labs Error (Logic): " + (engineRes?.error?.message || JSON.stringify(engineRes)));
-        }
-
-        let rawEngineHtml = engineRes.choices[0].message.content;
-
-        rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
+        const collaboration = await runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell });
+        const cleanSvgCode = collaboration.artistCode;
+        let rawEngineHtml = collaboration.engineHtml;
 
         let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml, { renderManifest: specSheet.renderManifest });
         validateGeneratedBuild(cleanSvgCode, rawEngineHtml, rawGameHtml);

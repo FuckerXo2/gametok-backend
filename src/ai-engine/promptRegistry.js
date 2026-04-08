@@ -1232,6 +1232,177 @@ RULES:
 - Make boot reliability the top priority over extra features.`;
 }
 
+export function buildPhase2C_Critic(specSheet, scaffold, scaffoldShell, artistGeneratedJS, engineHtml) {
+  return {
+    system: `You are the collaboration critic for a mobile HTML5 canvas game team.
+Your job is to review the ARTIST code and ENGINEER code together and decide what must be revised before merge.
+
+IMPORTANT RULES:
+- Output ONLY raw JSON.
+- Focus on playability, contract mismatches, boot safety, missing interactions, and visual/gameplay alignment.
+- Be concise and specific.
+- Prefer a short revision list over long essays.`,
+    user: `GAME SPEC:
+${JSON.stringify(specSheet, null, 2)}
+
+SHARED SCAFFOLD:
+${JSON.stringify(scaffold || {}, null, 2)}
+
+SCAFFOLD SHELL:
+\`\`\`html
+${scaffoldShell}
+\`\`\`
+
+ARTIST CODE:
+\`\`\`javascript
+${artistGeneratedJS}
+\`\`\`
+
+ENGINE HTML:
+\`\`\`html
+${engineHtml}
+\`\`\`
+
+Return JSON:
+{
+  "shouldRevise": true,
+  "artistFeedback": ["specific art/render fix"],
+  "engineerFeedback": ["specific gameplay/boot fix"],
+  "jointRisks": ["integration mismatch or runtime risk"],
+  "collaborationSummary": "one short sentence about how the two should align"
+}
+
+Rules:
+- artistFeedback and engineerFeedback should each contain 0 to 4 short actionable notes.
+- jointRisks should call out contract mismatches, not vague complaints.
+- If the build already looks coherent, set shouldRevise to false.
+- Prioritize missing play loop, missing interaction, bad render contract usage, and dead-screen risks.
+
+Output ONLY JSON.`
+  };
+}
+
+export function buildPhase2D_ArtistRevision(specSheet, scaffold, artistGeneratedJS, criticNotes) {
+  return `You are the procedural artist revising your RenderEngine after team review.
+Keep the existing game fantasy, but fix the issues called out by the critic so the engineer can integrate cleanly.
+
+GAME SPEC:
+${JSON.stringify(specSheet, null, 2)}
+
+SHARED SCAFFOLD:
+${JSON.stringify(scaffold || {}, null, 2)}
+
+CURRENT ARTIST CODE:
+${artistGeneratedJS}
+
+CRITIC FEEDBACK FOR ARTIST:
+${formatPromptList(criticNotes?.artistFeedback, '- no direct artist changes requested')}
+
+JOINT RISKS:
+${formatPromptList(criticNotes?.jointRisks, '- no joint risks reported')}
+
+COLLABORATION SUMMARY:
+${criticNotes?.collaborationSummary || 'Keep the render API easy for the engineer to call correctly.'}
+
+RULES:
+- Output the COMPLETE window.RenderEngine object.
+- Keep the same function names unless the scaffold contract demands otherwise.
+- Make drawBackground and drawHUD safe on frame zero.
+- Favor readable, robust silhouettes over brittle complexity.
+- Output ONLY JavaScript, no markdown, no explanation.`;
+}
+
+export function buildPhase2E_EngineerRevision(specSheet, scaffold, scaffoldShell, artistGeneratedJS, engineHtml, criticNotes) {
+  return `You are the HTML5 game engineer revising your implementation after team review.
+Keep the existing scaffolded game structure, but fix the interaction, playability, and integration problems called out by the critic.
+
+GAME SPEC:
+${JSON.stringify(specSheet, null, 2)}
+
+SHARED SCAFFOLD:
+${JSON.stringify(scaffold || {}, null, 2)}
+
+SCAFFOLD SHELL:
+\`\`\`html
+${scaffoldShell}
+\`\`\`
+
+CURRENT ARTIST CODE:
+\`\`\`javascript
+${artistGeneratedJS}
+\`\`\`
+
+CURRENT ENGINE HTML:
+\`\`\`html
+${engineHtml}
+\`\`\`
+
+CRITIC FEEDBACK FOR ENGINEER:
+${formatPromptList(criticNotes?.engineerFeedback, '- no direct engineer changes requested')}
+
+JOINT RISKS:
+${formatPromptList(criticNotes?.jointRisks, '- no joint risks reported')}
+
+COLLABORATION SUMMARY:
+${criticNotes?.collaborationSummary || 'Preserve the shared shell and make the game actually playable.'}
+
+RULES:
+- Output the COMPLETE HTML document.
+- Preserve the scaffolded boot shape and first-frame guarantees.
+- Use the artist render functions exactly as provided.
+- Remove placeholder behavior and ensure the first interaction leads to a real play loop.
+- Output ONLY HTML, no markdown, no explanation.`;
+}
+
+export function buildPhase2F_Integrator(specSheet, scaffold, scaffoldShell, artistGeneratedJS, engineHtml, criticNotes) {
+  return `You are the intelligent integration lead for a mobile HTML5 canvas game team.
+Your job is to merge the ARTIST and ENGINEER outputs into one coherent final build plan before technical packaging happens.
+
+GAME SPEC:
+${JSON.stringify(specSheet, null, 2)}
+
+SHARED SCAFFOLD:
+${JSON.stringify(scaffold || {}, null, 2)}
+
+SCAFFOLD SHELL:
+\`\`\`html
+${scaffoldShell}
+\`\`\`
+
+ARTIST CODE:
+\`\`\`javascript
+${artistGeneratedJS}
+\`\`\`
+
+ENGINE HTML:
+\`\`\`html
+${engineHtml}
+\`\`\`
+
+CRITIC NOTES:
+${JSON.stringify(criticNotes || {}, null, 2)}
+
+TASK:
+- Resolve any remaining mismatches between render code and gameplay code.
+- Keep the best parts of both outputs instead of blindly rewriting from scratch.
+- Ensure the engineer HTML calls the artist render API correctly.
+- Keep the scaffolded structure and first-frame/playability guarantees.
+- Prefer robust alignment over flashy but brittle code.
+
+OUTPUT FORMAT (MANDATORY):
+===ARTIST_CODE===
+(complete final artist JavaScript object)
+===ENGINE_CODE===
+(complete final engine HTML document starting with <!DOCTYPE html>)
+
+RULES:
+- Output BOTH sections every time.
+- No markdown fences.
+- No explanation.
+- Do not drop working functionality unless it conflicts with boot safety or playability.
+- Remove any TODO placeholders or dead shell behavior from the final output.`;
+}
+
 export function compileMultiAgentGame(artistGeneratedJS, engineHtml, options = {}) {
     const renderManifest = normalizeList(options.renderManifest, []);
     const renderFns = Array.from(new Set([...renderManifest, 'drawBackground', 'drawHUD']));
