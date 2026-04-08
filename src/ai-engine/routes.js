@@ -37,6 +37,9 @@ const DREAM_MODELS = {
     labsEngineer: "qwen/qwen3.6-plus:free",
 };
 
+const OPUS_MAX_TOKENS = Number(process.env.DREAMSTREAM_OPUS_MAX_TOKENS || 32000);
+const OPUS_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_OPUS_MAX_CONTINUATIONS || 2);
+
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
     remixPending: 'Pending Remix...',
@@ -170,6 +173,75 @@ function extractAnthropicText(response) {
         .map((block) => block.text || '')
         .join('')
         .trim();
+}
+
+function hasClosedHtmlDocument(html) {
+    return html.toLowerCase().includes('</html>');
+}
+
+function cleanClaudeContinuation(text) {
+    let output = stripMarkdownFences(text, 'html');
+    output = output.replace(/^\s*<!doctype html[^>]*>\s*/i, '');
+    output = output.replace(/^\s*<html[^>]*>\s*/i, '');
+    return output.trimStart();
+}
+
+function buildClaudeContinuationPrompt(partialHtml) {
+    const suffix = partialHtml.slice(-4000);
+    return [
+        'You were generating a single complete HTML game document and your previous response was cut off.',
+        'Continue from EXACTLY where the HTML stopped.',
+        'Output ONLY the missing continuation text.',
+        'Do NOT restart the document.',
+        'Do NOT repeat earlier code.',
+        'Do NOT explain anything.',
+        '',
+        'The current partial HTML ends with this exact suffix:',
+        '```html',
+        suffix,
+        '```',
+        '',
+        'Continue with only the remaining characters needed to finish the same HTML document.'
+    ].join('\n');
+}
+
+async function requestClaudeMessage(userPrompt, { label }) {
+    const response = await withClaudeRetries(
+        () => claudeClient.messages.create({
+            model: DREAM_MODELS.premiumBuilder,
+            max_tokens: OPUS_MAX_TOKENS,
+            thinking: { type: 'adaptive' },
+            messages: [{ role: 'user', content: userPrompt }],
+        }),
+        { label, maxAttempts: 2, baseDelayMs: 2000 }
+    );
+
+    return {
+        text: extractAnthropicText(response),
+        stopReason: response?.stop_reason || null,
+    };
+}
+
+async function generateCompleteHtmlWithClaude(initialPrompt, { label }) {
+    let { text, stopReason } = await requestClaudeMessage(initialPrompt, { label });
+    let html = normalizeHtmlDocument(text);
+    console.log(`🧾 [${label}] stop_reason=${stopReason || 'unknown'} chars=${html.length}`);
+
+    let continuationCount = 0;
+    while (!hasClosedHtmlDocument(html) && continuationCount < OPUS_MAX_CONTINUATIONS) {
+        continuationCount += 1;
+        console.warn(`⚠️ [${label}] Output truncated or incomplete. Requesting continuation ${continuationCount}/${OPUS_MAX_CONTINUATIONS}...`);
+        const continuationPrompt = buildClaudeContinuationPrompt(html);
+        const continuation = await requestClaudeMessage(continuationPrompt, { label: `${label} Continue` });
+        const continuationText = cleanClaudeContinuation(continuation.text);
+        console.log(`🧾 [${label} Continue] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
+        if (!continuationText) {
+            break;
+        }
+        html += continuationText;
+    }
+
+    return html;
 }
 
 function extractInlineScripts(html) {
@@ -448,19 +520,12 @@ async function executeDreamJob(jobId, prompt) {
         // ── PHASE 2: SINGLE-AGENT PREMIUM BUILD ──
         console.log(`🔨 Phase 2/3: Claude Opus building the complete game in one pass...`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet);
-        let rawGameHtml = normalizeHtmlDocument(extractAnthropicText(await withClaudeRetries(
-            () => claudeClient.messages.create({
-                model: DREAM_MODELS.premiumBuilder,
-                max_tokens: 16000,
-                messages: [{ role: 'user', content: buildPrompt }],
-            }),
-            { label: 'Phase 2 Opus Build', maxAttempts: 2, baseDelayMs: 2000 }
-        )));
+        let rawGameHtml = await generateCompleteHtmlWithClaude(buildPrompt, { label: 'Phase 2 Opus Build' });
 
         if (!rawGameHtml) {
             throw new Error('Claude returned empty game output.');
         }
-        if (!rawGameHtml.toLowerCase().includes('</html>')) {
+        if (!hasClosedHtmlDocument(rawGameHtml)) {
             throw new Error('Claude output is missing </html> and appears truncated.');
         }
 
@@ -499,15 +564,8 @@ async function executeDreamJob(jobId, prompt) {
                     'Do not explain anything.',
                 ].join('\n');
                 const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
-                rawGameHtml = normalizeHtmlDocument(extractAnthropicText(await withClaudeRetries(
-                    () => claudeClient.messages.create({
-                        model: DREAM_MODELS.premiumBuilder,
-                        max_tokens: 16000,
-                        messages: [{ role: 'user', content: repairPrompt }],
-                    }),
-                    { label: 'Phase 3 Opus Repair', maxAttempts: 2, baseDelayMs: 2000 }
-                )));
-                if (!rawGameHtml.toLowerCase().includes('</html>')) {
+                rawGameHtml = await generateCompleteHtmlWithClaude(repairPrompt, { label: 'Phase 3 Opus Repair' });
+                if (!hasClosedHtmlDocument(rawGameHtml)) {
                     throw new Error('Claude repair output is missing </html> and appears truncated.');
                 }
                 finalHtml = postProcessRawHtml(rawGameHtml);
