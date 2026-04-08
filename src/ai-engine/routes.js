@@ -50,6 +50,11 @@ const nvidiaClient = new OpenAI({
     apiKey: process.env.NVIDIA_API_KEY || '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',
 });
 
+const moonshotClient = new OpenAI({
+    baseURL: 'https://api.moonshot.ai/v1',
+    apiKey: process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY,
+});
+
 const claudeClient = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -418,6 +423,33 @@ async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, te
         let output = "";
         for await (const chunk of stream) {
             if (chunk.choices[0]?.delta?.content) {
+                output += chunk.choices[0].delta.content;
+            }
+        }
+
+        return output;
+    }, {
+        label: retryLabel || model,
+        maxAttempts: 3,
+        baseDelayMs: 1500
+    });
+}
+
+async function streamMoonshotText({ model, systemPrompt, userPrompt, maxTokens, retryLabel }) {
+    return withNvidiaRetries(async () => {
+        const stream = await moonshotClient.chat.completions.create({
+            model,
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            max_tokens: maxTokens,
+            stream: true
+        });
+
+        let output = "";
+        for await (const chunk of stream) {
+            if (chunk.choices?.[0]?.delta?.content) {
                 output += chunk.choices[0].delta.content;
             }
         }
@@ -1004,15 +1036,18 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 
 async function executeLabsDreamJob(jobId, prompt) {
     try {
-        console.log(`🧪 [LABS JOB] Started Qwen solo Labs pipeline for job: ${jobId}`);
+        if (!(process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY)) {
+            throw new Error('MOONSHOT_API_KEY or KIMI_API_KEY is not configured for Labs.');
+        }
+
+        console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
         const soloPrompt = buildLabsSoloPrototype(prompt);
-        let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
-            model: DREAM_MODELS.labsBuilder,
-            systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself.",
+        let rawEngineHtml = normalizeHtmlDocument(await streamMoonshotText({
+            model: "kimi-k2.5",
+            systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself. Be practical, obey the format exactly, and prioritize a playable first frame.",
             userPrompt: soloPrompt,
             maxTokens: 12000,
-            temperature: 0.25,
-            retryLabel: 'Labs Solo Generation'
+            retryLabel: 'Labs Kimi Generation'
         }));
 
         let finalHtml = postProcessRawHtml(rawEngineHtml);
@@ -1044,7 +1079,7 @@ async function executeLabsDreamJob(jobId, prompt) {
                 throw new Error(`Labs solo game failed verification: ${sandboxRes.crashes[0]}`);
             }
 
-            console.log(`⚠️ [LABS JOB] Solo build crashed. Repairing... (${sandboxRes.crashes[0]})`);
+            console.log(`⚠️ [LABS JOB] Solo build crashed. Repairing with Kimi... (${sandboxRes.crashes[0]})`);
             const repairPrompt = `The mobile HTML5 game below failed verification.
 FATAL ERROR: ${sandboxRes.crashes[0]}
 
@@ -1058,19 +1093,18 @@ ${rawEngineHtml}
 
 Output ONLY the complete fixed HTML document.`;
 
-            rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
-                model: DREAM_MODELS.labsBuilder,
-                systemPrompt: "You are an elite HTML5 game debugger repairing a single-file mobile game.",
+            rawEngineHtml = normalizeHtmlDocument(await streamMoonshotText({
+                model: "kimi-k2.5",
+                systemPrompt: "You are an elite HTML5 game debugger repairing a single-file mobile game. Keep the fantasy, but aggressively prefer correctness and visible playability.",
                 userPrompt: repairPrompt,
                 maxTokens: 12000,
-                temperature: 0.1,
-                retryLabel: 'Labs Solo Repair'
+                retryLabel: 'Labs Kimi Repair'
             }));
             finalHtml = postProcessRawHtml(rawEngineHtml);
             maxRetries--;
         }
 
-        const gameTitle = "🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Qwen Solo Labs');
+        const gameTitle = "🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Kimi Solo Labs');
 
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
