@@ -50,11 +50,6 @@ const nvidiaClient = new OpenAI({
     apiKey: process.env.NVIDIA_API_KEY || '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',
 });
 
-const moonshotClient = new OpenAI({
-    baseURL: 'https://api.moonshot.ai/v1',
-    apiKey: process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY,
-});
-
 const claudeClient = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -423,33 +418,6 @@ async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, te
         let output = "";
         for await (const chunk of stream) {
             if (chunk.choices[0]?.delta?.content) {
-                output += chunk.choices[0].delta.content;
-            }
-        }
-
-        return output;
-    }, {
-        label: retryLabel || model,
-        maxAttempts: 3,
-        baseDelayMs: 1500
-    });
-}
-
-async function streamMoonshotText({ model, systemPrompt, userPrompt, maxTokens, retryLabel }) {
-    return withNvidiaRetries(async () => {
-        const stream = await moonshotClient.chat.completions.create({
-            model,
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt }
-            ],
-            max_tokens: maxTokens,
-            stream: true
-        });
-
-        let output = "";
-        for await (const chunk of stream) {
-            if (chunk.choices?.[0]?.delta?.content) {
                 output += chunk.choices[0].delta.content;
             }
         }
@@ -1036,14 +1004,10 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 
 async function executeLabsDreamJob(jobId, prompt) {
     try {
-        if (!(process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY)) {
-            throw new Error('MOONSHOT_API_KEY or KIMI_API_KEY is not configured for Labs.');
-        }
-
         console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
         const soloPrompt = buildLabsSoloPrototype(prompt);
-        let rawEngineHtml = normalizeHtmlDocument(await streamMoonshotText({
-            model: "kimi-k2.5",
+        let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
+            model: "moonshotai/kimi-k2.5",
             systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself. Be practical, obey the format exactly, and prioritize a playable first frame.",
             userPrompt: soloPrompt,
             maxTokens: 12000,
@@ -1093,8 +1057,8 @@ ${rawEngineHtml}
 
 Output ONLY the complete fixed HTML document.`;
 
-            rawEngineHtml = normalizeHtmlDocument(await streamMoonshotText({
-                model: "kimi-k2.5",
+            rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
+                model: "moonshotai/kimi-k2.5",
                 systemPrompt: "You are an elite HTML5 game debugger repairing a single-file mobile game. Keep the fantasy, but aggressively prefer correctness and visible playability.",
                 userPrompt: repairPrompt,
                 maxTokens: 12000,
