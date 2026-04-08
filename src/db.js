@@ -162,6 +162,8 @@ export const initDB = async () => {
         title VARCHAR(255),
         html_payload TEXT NOT NULL,
         raw_code TEXT NOT NULL,
+        artist_code TEXT,
+        edit_history JSONB DEFAULT '[]'::jsonb,
         is_draft BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT NOW()
       );
@@ -211,6 +213,12 @@ export const initDB = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'is_template') THEN
           ALTER TABLE ai_games ADD COLUMN is_template BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'artist_code') THEN
+          ALTER TABLE ai_games ADD COLUMN artist_code TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'edit_history') THEN
+          ALTER TABLE ai_games ADD COLUMN edit_history JSONB DEFAULT '[]'::jsonb;
         END IF;
         -- Make password nullable for OAuth users
         ALTER TABLE users ALTER COLUMN password DROP NOT NULL;

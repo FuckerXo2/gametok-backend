@@ -204,7 +204,7 @@ async function executeDreamJob(jobId, prompt, userId) {
             const sandboxRes = await verifyGame(finalHtml);
             finalScreenshot = sandboxRes.screenshot || null;
 
-            if (sandboxRes.crashes && sandboxRes.crashes.length > 0) {
+            if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
                 console.log(`⚠️ Sandbox CRASH DETECTED. Auto-Healing... (${sandboxRes.crashes[0]})`);
                 
                 // Construct healing prompt for the Engineer
@@ -246,6 +246,10 @@ You MUST rewrite the ENTIRE HTML file from scratch, analyzing line-by-line where
                 console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
                 p3Success = true;
             }
+        }
+
+        if (!p3Success) {
+            throw new Error('Sandbox verification failed after 3 attempts.');
         }
 
         // ── SAVE TO DB ──
@@ -376,6 +380,9 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         // Screenshot
         console.log(`📸 Taking screenshot for edit job ${newJobId}...`);
         const sandboxRes = await verifyGame(finalHtml);
+        if (!sandboxRes.success && sandboxRes.crashes?.length) {
+            throw new Error(`Edited game failed sandbox verification: ${sandboxRes.crashes[0]}`);
+        }
         const finalScreenshot = sandboxRes.screenshot || null;
 
         // 5. Save with updated edit history (memory for next edit)
@@ -705,6 +712,9 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
 
         const finalHtml = postProcessRawHtml(rawGameHtml);
         const sandboxRes = await verifyGame(finalHtml);
+        if (!sandboxRes.success && sandboxRes.crashes?.length) {
+            throw new Error(`Labs game failed sandbox verification: ${sandboxRes.crashes[0]}`);
+        }
         const finalScreenshot = sandboxRes.screenshot || null;
         const gameTitle = "🧪 " + (specSheet.title || "Labs Game");
 
