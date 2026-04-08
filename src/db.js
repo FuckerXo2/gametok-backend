@@ -5,7 +5,8 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 10000,
 });
 
 // Initialize database tables
@@ -170,6 +171,7 @@ export const initDB = async () => {
 
       CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
+      CREATE INDEX IF NOT EXISTS idx_users_token ON users(token);
       CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);

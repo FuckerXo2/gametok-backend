@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "seed-bots": "node seed-bots.js"
+    "seed-bots": "node seed-bots.js",
+    "check:ai-engine": "node --check src/ai-engine/routes.js && node --check src/ai-engine/promptRegistry.js && node --check src/ai-engine/sandbox.js && node --check src/db.js"
   },
   "engines": {
     "node": ">=18.0.0"

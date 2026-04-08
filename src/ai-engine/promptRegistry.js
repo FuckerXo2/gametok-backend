@@ -96,8 +96,8 @@ Output ONLY the JSON.`
 }
 
 // ─────────────────────────────────────────────────────────
-// PHASE 2: BUILD PROTOTYPE (runs on Claude Sonnet 4.6)
-// Claude generates the COMPLETE game as a single HTML file
+// LEGACY: Single-agent prototype prompt kept for local prompt experiments.
+// The production DreamStream route uses the Artist + Engineer split below.
 // ─────────────────────────────────────────────────────────
 
 export function buildPhase2_BuildPrototype(specSheet) {
@@ -224,7 +224,7 @@ Return ONLY the complete HTML code. Do NOT wrap in markdown. No explanation. Jus
 }
 
 // ─────────────────────────────────────────────────────────
-// PHASE 2B: EDIT GAME (Claude modifies existing code)
+// EDIT PROMPT HELPER (kept for local experiments and legacy tooling)
 // ─────────────────────────────────────────────────────────
 
 export function buildPhase2_EditGame(engineCode, instructions, artistCode) {
@@ -278,8 +278,8 @@ RULES:
 
 
 // ─────────────────────────────────────────────────────────
-// POST-PROCESSING: Inject Juice + Audio engines into
-// the raw HTML that Claude generates
+// POST-PROCESSING: Inject runtime diagnostics, Juice, and Audio
+// into the raw HTML returned by the gameplay engineer
 // ─────────────────────────────────────────────────────────
 
 export function postProcessRawHtml(rawHtml) {

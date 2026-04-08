@@ -1,18 +1,11 @@
 import express from 'express';
 import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 import pool from '../db.js';
-import { buildPhase1_Quantize, buildPhase2B_Engineer, buildPhase2_EditGame, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
-import { compileGameHTML } from './compiler.js';
+import { buildPhase1_Quantize, buildPhase2B_Engineer, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
 import { verifyGame } from './sandbox.js';
-import { searchAssets, setAssetBaseUrl } from './asset-dictionary.js';
+import { setAssetBaseUrl } from './asset-dictionary.js';
 
 function extractJson(text) {
     let jsonStart = text.indexOf('{');
@@ -30,19 +23,27 @@ function extractJson(text) {
 }
 
 const router = express.Router();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const DREAM_MODELS = {
+    spec: "google/gemma-4-31b-it",
+    artist: "qwen/qwen3.5-397b-a17b",
+    engineer: "qwen/qwen3-coder-480b-a35b-instruct",
+    labsArtist: "qwen/qwen3-coder-480b-a35b-instruct",
+    labsEngineer: "qwen/qwen3.6-plus:free",
+};
+
+const JOB_TITLES = {
+    dreamPending: 'Pending Dream...',
+    remixPending: 'Pending Remix...',
+    labsPending: '🧪 Labs: Cooking...',
+};
 
 const nvidiaClient = new OpenAI({
     baseURL: 'https://integrate.api.nvidia.com/v1',
     apiKey: process.env.NVIDIA_API_KEY || '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',
 });
 
-// Claude Sonnet 4.6 — Premium code generation
-const claude = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// OpenRouter Client (Qwen 3.6)
+// OpenRouter is only used by the experimental Labs route.
 const openRouterClient = new OpenAI({
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: process.env.OPENROUTER_API_KEY,
@@ -52,62 +53,9 @@ const openRouterClient = new OpenAI({
     },
 });
 
-// ═══════════════════════════════════════════════════════════
-// ASSET RESOLVER (shared across all job types)
-// ═══════════════════════════════════════════════════════════
-async function resolveAsset(key, assetDef) {
-    let type = "ai";
-    let value = assetDef;
-    if (typeof assetDef === "object" && assetDef !== null) {
-        type = assetDef.type || "ai";
-        value = assetDef.value || "";
-    }
-
-    if (type === "emoji") {
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text y="80" font-size="80">${value}</text></svg>`;
-        return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-    }
-
-    if (type === "kenney") {
-        const dictResults = await searchAssets(value, 1);
-        if (dictResults.length > 0) return dictResults[0].url;
-    }
-
-    // Fallback emoji for the role
-    const fallbackEmoji = { HERO: "🦸‍♂️", ENEMY: "👾", BACKGROUND: "", WEAPON: "⚔️", COLLECTIBLE: "💎", OBSTACLE: "🧱" }[key] || "📦";
-    const errSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text y="80" font-size="80">${fallbackEmoji}</text></svg>`;
-    const fallbackUrl = fallbackEmoji ? `data:image/svg+xml;utf8,${encodeURIComponent(errSvg)}` : "";
-
-    // AI generation via Pollinations (last resort)
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 12000);
-        const imgPrompt = `2D game asset, clean vector style, flat colors, isolated on transparent background: ${value}`;
-        const imgRes = await fetch("https://image.pollinations.ai/", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                prompt: imgPrompt,
-                width: 512, height: 512,
-                model: "flux",
-                seed: Math.floor(Math.random() * 1000000)
-            }),
-            signal: controller.signal
-        });
-        clearTimeout(timeout);
-        if (!imgRes.ok) return fallbackUrl;
-        const arrayBuffer = await imgRes.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString('base64');
-        return "data:image/jpeg;base64," + base64;
-    } catch (e) {
-        console.log(`⚠️ Fallback emoji for ${key} (Pollinations failed)`);
-        return fallbackUrl;
-    }
-}
-
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
     const res = await nvidiaClient.chat.completions.create({
-        model: "google/gemma-4-31b-it", // NIM's state-of-the-art Gemma 4 31B model
+        model: DREAM_MODELS.spec,
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -122,71 +70,141 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     return JSON.parse(extractJson(raw));
 }
 
-// ═══════════════════════════════════════════════════════════
-// CLAUDE RAW CODE GENERATION PIPELINE
-// Phase 1: QUANTIZE  — Gemma extracts game spec (FREE)
-// Phase 2: BUILD     — Claude writes full game code (PREMIUM)
-// Phase 3: VERIFY    — Puppeteer sandbox validates
-// ═══════════════════════════════════════════════════════════
-async function executeDreamJob(jobId, prompt, userId) {
-    try {
-        console.log(`🧠 [DREAM JOB] Started Claude pipeline for job: ${jobId}`);
+async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature }) {
+    const stream = await nvidiaClient.chat.completions.create({
+        model,
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+        ],
+        max_tokens: maxTokens,
+        temperature,
+        stream: true
+    });
 
-        // ── PHASE 1: QUANTIZE (Nemotron-4-340B — RAG Engine) ──
-        console.log(`📋 Phase 1/2: Advanced Nemotron Game Designer analyzing prompt...`);
+    let output = "";
+    for await (const chunk of stream) {
+        if (chunk.choices[0]?.delta?.content) {
+            output += chunk.choices[0].delta.content;
+        }
+    }
+
+    return output;
+}
+
+function stripMarkdownFences(text, languageHint = '') {
+    const openingFence = languageHint
+        ? new RegExp(`^\\s*\\\`\\\`\\\`${languageHint}\\n?`, 'i')
+        : /^\s*```[a-z]*\n?/i;
+    return text.replace(openingFence, '').replace(/\n?```\s*$/i, '').trim();
+}
+
+function normalizeHtmlDocument(rawHtml) {
+    let html = stripMarkdownFences(rawHtml, 'html');
+    if (!html.trim().toLowerCase().startsWith('<!doctype')) {
+        const htmlStart = html.indexOf('<!');
+        if (htmlStart > 0) {
+            html = html.substring(htmlStart);
+        }
+    }
+    return html;
+}
+
+function withTimeout(promise, ms, label) {
+    let timeoutId;
+    return Promise.race([
+        promise.finally(() => clearTimeout(timeoutId)),
+        new Promise((_, reject) => {
+            const error = new Error(`${label} timed out.`);
+            error.statusCode = 503;
+            timeoutId = setTimeout(() => reject(error), ms);
+        })
+    ]);
+}
+
+async function markJobError(jobId, fallbackMessage, err) {
+    await pool.query(
+        `UPDATE ai_games SET title = $1 WHERE id = $2`,
+        ['ERROR: ' + (err?.message || fallbackMessage), jobId]
+    );
+}
+
+async function createPendingJob(userId, prompt, title) {
+    const startedAt = Date.now();
+    const dbRes = await withTimeout(pool.query(
+        `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [userId, prompt, title, '', '', true]
+    ), 12000, 'Dream job creation');
+    console.log(`⏱️ [AI DB] Pending job row created in ${Date.now() - startedAt}ms`);
+    return dbRes.rows[0].id;
+}
+
+async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
+    if (!token) {
+        return null;
+    }
+
+    const startedAt = Date.now();
+    const userResult = await withTimeout(
+        pool.query('SELECT id FROM users WHERE token = $1', [token]),
+        12000,
+        'Auth lookup'
+    );
+    console.log(`⏱️ [AI AUTH] Token lookup completed in ${Date.now() - startedAt}ms`);
+    if (userResult.rows.length === 0) {
+        const error = new Error(invalidMessage);
+        error.statusCode = 401;
+        throw error;
+    }
+
+    return userResult.rows[0].id;
+}
+
+// ═══════════════════════════════════════════════════════════
+// DREAMSTREAM PRODUCTION PIPELINE
+// Phase 1: Gemma on NIM extracts a playable spec
+// Phase 2A: Qwen 3.5 on NIM writes the RenderEngine art layer
+// Phase 2B: Qwen 3 Coder on NIM writes the gameplay HTML shell
+// Phase 3: Puppeteer verifies the result before save
+// ═══════════════════════════════════════════════════════════
+async function executeDreamJob(jobId, prompt) {
+    try {
+        console.log(`🧠 [DREAM JOB] Started DreamStream production pipeline for job: ${jobId}`);
+
+        // ── PHASE 1: SPEC EXTRACTION ──
+        console.log(`📋 Phase 1/3: Gemma on NIM extracting a playable game spec...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle})`);
-        // ── PHASE 2: MULTI-CLOUD AGENT SYNTHESIS (STRICT SEQUENTIAL FOR EXTREME RELIABILITY) ──
-        console.log(`🔨 Phase 2: Sequential Multi-Agent Synthesis (Artist translates first, then Engineer builds around it)...`);
+        console.log(`🔨 Phase 2/3: Sequential multi-agent synthesis (artist first, engineer second)...`);
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
 
-        // 1. Artist runs First on NVIDIA NIM
-        console.log(`🎨 Artist-Coder (NVIDIA Qwen 3.5) sketching SVGs (Streaming)...`);
-        const artistStream = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3.5-397b-a17b",
-            messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
-            max_tokens: 4000,
-            temperature: 0.5,
-            stream: true
+        console.log(`🎨 Phase 2A: Qwen 3.5 on NIM sketching the RenderEngine...`);
+        const rawArtistCode = await streamNvidiaText({
+            model: DREAM_MODELS.artist,
+            systemPrompt: "You are an elite procedural HTML5 Canvas Artist.",
+            userPrompt: artistPrompt,
+            maxTokens: 4000,
+            temperature: 0.5
         });
+        const cleanSvgCode = stripMarkdownFences(rawArtistCode);
 
-        let rawArtistCode = "";
-        for await (const chunk of artistStream) {
-            if (chunk.choices[0]?.delta?.content) {
-                rawArtistCode += chunk.choices[0].delta.content;
-            }
-        }
-        
-        let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
-
-        // 2. Engineer builds Physics specifically tuned to the Artist's SVGs on OpenRouter
         const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
 
-        console.log(`⚙️ Engine-Coder (NVIDIA Qwen 3 Coder) writing physics (Streaming)...`);
-        const engineStream = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3-coder-480b-a35b-instruct",
-            messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
-            max_tokens: 8000,
-            temperature: 0.2,
-            stream: true
+        console.log(`⚙️ Phase 2B: Qwen 3 Coder on NIM writing gameplay HTML...`);
+        let rawEngineHtml = await streamNvidiaText({
+            model: DREAM_MODELS.engineer,
+            systemPrompt: "You are an elite HTML5 Game Engineer.",
+            userPrompt: enginePrompt,
+            maxTokens: 8000,
+            temperature: 0.2
         });
-
-        let rawEngineHtml = "";
-        for await (const chunk of engineStream) {
-            if (chunk.choices[0]?.delta?.content) {
-                rawEngineHtml += chunk.choices[0].delta.content;
-            }
-        }
 
         console.log(`✅ Multi-Agent Generated: Artist (${cleanSvgCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
 
-        rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
-        if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
-            const htmlStart = rawEngineHtml.indexOf('<!');
-            if (htmlStart > 0) rawEngineHtml = rawEngineHtml.substring(htmlStart);
-        }
+        rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
 
         // ── COMPILE MULTI-AGENT CODE ──
         let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
@@ -195,7 +213,7 @@ async function executeDreamJob(jobId, prompt, userId) {
         let finalHtml = postProcessRawHtml(rawGameHtml);
         let finalScreenshot = null;
 
-        // ── PHASE 3/4: QA SANDBOX AUTO-HEALING LOOP ──
+        // ── PHASE 3/3: QA SANDBOX AUTO-HEALING LOOP ──
         let maxRetries = 3;
         let p3Success = false;
         
@@ -218,26 +236,14 @@ ${rawEngineHtml}
 
 You MUST rewrite the ENTIRE HTML file from scratch, analyzing line-by-line where the ReferenceError or syntax error occurred, and outputting the FULL FIXED HTML file. Do NOT use placeholders.`;
 
-                // Stream the new engine code
-                const healStream = await nvidiaClient.chat.completions.create({
-                    model: "qwen/qwen3-coder-480b-a35b-instruct",
-                    messages: [{ role: "system", content: "You are an elite expert at debugging HTML5 Javascript canvas games." }, { role: "user", content: healPrompt }],
-                    max_tokens: 8000,
-                    temperature: 0.1,
-                    stream: true
+                rawEngineHtml = await streamNvidiaText({
+                    model: DREAM_MODELS.engineer,
+                    systemPrompt: "You are an elite expert at debugging HTML5 Javascript canvas games.",
+                    userPrompt: healPrompt,
+                    maxTokens: 8000,
+                    temperature: 0.1
                 });
-
-                rawEngineHtml = "";
-                for await (const chunk of healStream) {
-                    if (chunk.choices[0]?.delta?.content) {
-                        rawEngineHtml += chunk.choices[0].delta.content;
-                    }
-                }
-                rawEngineHtml = rawEngineHtml.replace(/^\s*\`\`\`html\n?/i, '').replace(/\n?\`\`\`\s*$/i, '');
-                if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
-                    const htmlStart = rawEngineHtml.indexOf('<!');
-                    if (htmlStart > 0) rawEngineHtml = rawEngineHtml.substring(htmlStart);
-                }
+                rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
 
                 rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
                 finalHtml = postProcessRawHtml(rawGameHtml);
@@ -263,15 +269,12 @@ You MUST rewrite the ENTIRE HTML file from scratch, analyzing line-by-line where
 
     } catch (err) {
         console.error("❌ [DREAM JOB] Error:", err);
-        await pool.query(
-            `UPDATE ai_games SET title = $1 WHERE id = $2`,
-            ['ERROR: ' + (err.message || "Claude generation failed"), jobId]
-        );
+        await markJobError(jobId, "DreamStream generation failed", err);
     }
 }
 
 
-async function executeEditJob(newJobId, parentDraftId, instructions, userId, newAsset) {
+async function executeEditJob(newJobId, parentDraftId, instructions) {
     try {
         console.log(`🚀 [EDIT JOB] Starting edit job ${newJobId} based on parent ${parentDraftId}`);
         
@@ -318,7 +321,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to NVIDIA NIM (${editHistory.length} past edits + new instruction)...`);
         
         const aiStream = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3-coder-480b-a35b-instruct",
+            model: DREAM_MODELS.engineer,
             messages: messages,
             max_tokens: 16000,
             temperature: 0.3,
@@ -343,8 +346,8 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
             const artistMatch = aiOutput.split('===ARTIST_CODE===')[1]?.split('===ENGINE_CODE===')[0]?.trim();
             const engineMatch = aiOutput.split('===ENGINE_CODE===')[1]?.trim();
             
-            if (artistMatch) editedArtistCode = artistMatch.replace(/^```[a-z]*\n?/gi, '').replace(/\n?```$/g, '').trim();
-            if (engineMatch) editedEngineHtml = engineMatch.replace(/^```[a-z]*\n?/gi, '').replace(/\n?```$/g, '').trim();
+            if (artistMatch) editedArtistCode = stripMarkdownFences(artistMatch);
+            if (engineMatch) editedEngineHtml = stripMarkdownFences(engineMatch);
         } else {
             // Flat response — treat entire output as engine HTML (legacy or no markers)
             editedEngineHtml = aiOutput;
@@ -355,11 +358,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
         }
         
         // Strip markdown fences from engine HTML
-        editedEngineHtml = editedEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
-        if (!editedEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
-            const htmlStart = editedEngineHtml.indexOf('<!');
-            if (htmlStart > 0) editedEngineHtml = editedEngineHtml.substring(htmlStart);
-        }
+        editedEngineHtml = normalizeHtmlDocument(editedEngineHtml);
         
         if (!editedEngineHtml.includes('</html>')) {
             throw new Error('AI output is missing </html> — likely truncated.');
@@ -396,10 +395,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, userId, new
 
     } catch (err) {
         console.error("❌ [EDIT JOB] Error:", err);
-        await pool.query(
-            `UPDATE ai_games SET title = $1 WHERE id = $2`,
-            ['ERROR: ' + (err.message || "Engine Edit Error"), newJobId]
-        );
+        await markJobError(newJobId, "DreamStream edit failed", err);
     }
 }
 
@@ -454,32 +450,24 @@ router.post('/dream', async (req, res) => {
         const { prompt } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        
-        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Expired session' });
-        const userId = userResult.rows[0].id;
+        const userId = await getUserIdFromToken(token, 'Expired session');
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
-        console.log(`🧠 [PEAK ARCHITECTURE - POLLING] Creating job for User[${userId}] -> Concept: "${prompt}"`);
+        console.log(`🧠 [DREAM ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
         // 1. Immediately create a blank draft entry in DB (html_payload="", raw_code="")
-        const dbRes = await pool.query(
-            `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [userId, prompt, 'Pending Dream...', '', '', true]
-        );
-        const jobId = dbRes.rows[0].id;
+        const jobId = await createPendingJob(userId, prompt, JOB_TITLES.dreamPending);
 
         // 2. Offload work to background process (do NOT await it)
-        executeDreamJob(jobId, prompt, userId);
+        executeDreamJob(jobId, prompt);
 
         // 3. Guarantee immediate return to user before 100s proxy timeout
         res.json({ success: true, jobId: jobId });
 
     } catch (outerError) {
         console.error("OUTER GENERATION ERROR:", outerError);
-        res.status(500).json({ error: "System Error" });
+        res.status(outerError.statusCode || 500).json({ error: outerError.message || "System Error" });
     }
 });
 
@@ -488,24 +476,16 @@ router.post('/edit', async (req, res) => {
         const { draftId, instructions, newAsset } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        
-        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Expired session' });
-        const userId = userResult.rows[0].id;
+        const userId = await getUserIdFromToken(token, 'Expired session');
 
         if (!draftId || !instructions) return res.status(400).json({ error: "draftId and instructions are required" });
-        console.log(`🧠 [PEAK ARCHITECTURE - EDIT] Creating remix job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
+        console.log(`🧠 [EDIT ROUTE] Creating remix job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
 
         // 1. Immediately create a blank draft entry in DB to store the NEW remixed version
-        const dbRes = await pool.query(
-            `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [userId, instructions, 'Pending Remix...', '', '', true]
-        );
-        const newJobId = dbRes.rows[0].id;
+        const newJobId = await createPendingJob(userId, instructions, JOB_TITLES.remixPending);
 
         // 2. Offload work to background process (do NOT await it)
-        executeEditJob(newJobId, draftId, instructions, userId, newAsset);
+        executeEditJob(newJobId, draftId, instructions);
 
         // 3. Guarantee immediate return to user before timeout
         // We reuse the same long-polling status endpoint, just feeding it the NEW jobId.
@@ -513,7 +493,7 @@ router.post('/edit', async (req, res) => {
 
     } catch (outerError) {
         console.error("OUTER EDIT ERROR:", outerError);
-        res.status(500).json({ error: "System Error" });
+        res.status(outerError.statusCode || 500).json({ error: outerError.message || "System Error" });
     }
 });
 
@@ -551,39 +531,37 @@ router.get('/drafts', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
-        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userResult.rows[0].id]);
+        const userId = await getUserIdFromToken(token, 'Invalid token');
+        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userId]);
         res.json({ drafts: drafts.rows });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
 router.get('/drafts/:id', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
-        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-        const draft = await pool.query("SELECT id, title, prompt, html_payload, created_at FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userResult.rows[0].id]);
+        const userId = await getUserIdFromToken(token, 'Invalid token');
+        const draft = await pool.query("SELECT id, title, prompt, html_payload, created_at FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
         if (draft.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         res.json({ draft: draft.rows[0] });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
 router.post('/publish/:draftId', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
-        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Unauthorized' });
-        const publishRes = await pool.query("UPDATE ai_games SET is_draft = false WHERE id = $1 AND user_id = $2 RETURNING *", [req.params.draftId, userResult.rows[0].id]);
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        const userId = await getUserIdFromToken(token, 'Unauthorized');
+        const publishRes = await pool.query("UPDATE ai_games SET is_draft = false WHERE id = $1 AND user_id = $2 RETURNING *", [req.params.draftId, userId]);
         if (publishRes.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         const globalId = `gm-ai-${req.params.draftId.substring(0, 8)}`;
         await pool.query(
             `INSERT INTO games (id, name, description, icon, color, category, developer, embed_url, thumbnail) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
-            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userResult.rows[0].id, `/api/ai/play/${req.params.draftId}`, publishRes.rows[0].thumbnail]
+            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userId, `/api/ai/play/${req.params.draftId}`, publishRes.rows[0].thumbnail]
         );
         res.json({ success: true, gameId: globalId });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
 router.get('/play/:targetId', async (req, res) => {
@@ -651,16 +629,15 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 });
 
 // ========================================================
-// 🧪 LABS: GEMMA 4 EXPERIMENTAL ENGINE (NVIDIA NIM)
+// 🧪 LABS: Experimental alternate provider path
 // ========================================================
 
 
-async function executeLabsDreamJob(jobId, prompt, userId) {
-    // Labs now uses the same Claude pipeline as Dream
+async function executeLabsDreamJob(jobId, prompt) {
     try {
-        console.log(`🧪 [LABS JOB] Started Claude pipeline for job: ${jobId}`);
+        console.log(`🧪 [LABS JOB] Started experimental Labs pipeline for job: ${jobId}`);
 
-        // Phase 1: Quantize (Nemotron + RAG)
+        // Phase 1: Gemma extracts the shared spec
         const phase1 = buildPhase1_Quantize(prompt);
         const specSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
         console.log(`✅ Labs Phase 1: "${specSheet.title}"`);
@@ -673,9 +650,9 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         
         const artistPrompt = buildPhase2A_Artist(specSheet);
 
-        console.log(`🎨 Labs Artist-Coder (NVIDIA Qwen 3 480B) sketching SVGs...`);
+        console.log(`🎨 Labs Artist-Coder (Qwen 3 Coder on NIM) sketching SVGs...`);
         const artistRes = await nvidiaClient.chat.completions.create({
-            model: "qwen/qwen3-coder-480b-a35b-instruct",
+            model: DREAM_MODELS.labsArtist,
             messages: [{ role: "system", content: "You are an elite procedural HTML5 Canvas Artist." }, { role: "user", content: artistPrompt }],
             max_tokens: 4000,
             temperature: 0.5
@@ -684,14 +661,14 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
         if (!artistRes || !artistRes.choices || !artistRes.choices[0]) {
             throw new Error("NVIDIA NIM Labs Error (Artist): " + (artistRes?.error?.message || JSON.stringify(artistRes)));
         }
-        let rawArtistCode = artistRes.choices[0].message.content;
-        let cleanSvgCode = rawArtistCode.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '').trim();
+        const rawArtistCode = artistRes.choices[0].message.content;
+        const cleanSvgCode = stripMarkdownFences(rawArtistCode);
 
         const enginePrompt = buildPhase2B_Engineer(specSheet, cleanSvgCode);
 
         console.log(`⚙️ Labs Engine-Coder (OpenRouter Qwen 3.6 Plus) writing physics...`);
         const engineRes = await openRouterClient.chat.completions.create({
-            model: "qwen/qwen3.6-plus:free",
+            model: DREAM_MODELS.labsEngineer,
             messages: [{ role: "system", content: "You are an elite HTML5 Game Engineer." }, { role: "user", content: enginePrompt }],
             max_tokens: 8000,
             temperature: 0.2
@@ -702,11 +679,7 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
 
         let rawEngineHtml = engineRes.choices[0].message.content;
 
-        rawEngineHtml = rawEngineHtml.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '');
-        if (!rawEngineHtml.trim().toLowerCase().startsWith('<!doctype')) {
-            const htmlStart = rawEngineHtml.indexOf('<!');
-            if (htmlStart > 0) rawEngineHtml = rawEngineHtml.substring(htmlStart);
-        }
+        rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
 
         let rawGameHtml = compileMultiAgentGame(cleanSvgCode, rawEngineHtml);
 
@@ -726,10 +699,7 @@ async function executeLabsDreamJob(jobId, prompt, userId) {
 
     } catch (err) {
         console.error("❌ [LABS JOB] Error:", err);
-        await pool.query(
-            `UPDATE ai_games SET title = $1 WHERE id = $2`,
-            ['ERROR: ' + (err.message || "Claude Labs Error"), jobId]
-        );
+        await markJobError(jobId, "Labs generation failed", err);
     }
 }
 
@@ -738,32 +708,23 @@ router.post('/dream-labs', async (req, res) => {
         const { prompt } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        
-        const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-        if (userResult.rows.length === 0) return res.status(401).json({ error: 'Expired session' });
-        const userId = userResult.rows[0].id;
+        const userId = await getUserIdFromToken(token, 'Expired session');
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
-        console.log(`🧪 [LABS - GEMMA 4] Creating job for User[${userId}] -> Concept: "${prompt}"`);
+        console.log(`🧪 [LABS ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
-        // 1. Create blank draft entry in DB
-        const dbRes = await pool.query(
-            `INSERT INTO ai_games (user_id, prompt, title, html_payload, raw_code, is_draft)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [userId, prompt, '🧪 Labs: Cooking...', '', '', true]
-        );
-        const jobId = dbRes.rows[0].id;
+        const jobId = await createPendingJob(userId, prompt, JOB_TITLES.labsPending);
 
         // 2. Offload to background (same pattern as main engine)
-        executeLabsDreamJob(jobId, prompt, userId);
+        executeLabsDreamJob(jobId, prompt);
 
         // 3. Immediate return
         res.json({ success: true, jobId: jobId });
 
     } catch (outerError) {
         console.error("LABS GENERATION ERROR:", outerError);
-        res.status(500).json({ error: "Labs System Error" });
+        res.status(outerError.statusCode || 500).json({ error: outerError.message || "Labs System Error" });
     }
 });
 

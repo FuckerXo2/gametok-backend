@@ -1,9 +1,5 @@
-// ============================================
-// 🚀 PEAK ARCHITECTURE: MODULE EXPORT
-// ============================================
-// The massive monolithic AI routing file has been fully modularized
-// into the /ai-engine/ folder inside src. 
-// This file acts as the router entrypoint to preserve src/index.js imports.
+// Re-export the DreamStream AI router from the modular ai-engine folder.
+// Keeping this entrypoint avoids churn in src/index.js and older imports.
 
 import aiRoutes from './ai-engine/routes.js';
 export default aiRoutes;
