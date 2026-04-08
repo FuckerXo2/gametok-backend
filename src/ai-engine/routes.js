@@ -96,6 +96,44 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     return JSON.parse(extractJson(raw));
 }
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableProviderError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return Boolean(
+        error?.status >= 500 ||
+        message.includes('timed out') ||
+        message.includes('timeout') ||
+        message.includes('econnreset') ||
+        message.includes('connection error') ||
+        message.includes('overloaded') ||
+        message.includes('rate limit')
+    );
+}
+
+async function withNvidiaRetries(task, { label, maxAttempts = 3, baseDelayMs = 1500 }) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            if (attempt > 1) {
+                console.log(`🔁 [${label}] Retry ${attempt}/${maxAttempts}...`);
+            }
+            return await task();
+        } catch (error) {
+            lastError = error;
+            if (!isRetryableProviderError(error) || attempt === maxAttempts) {
+                throw error;
+            }
+            const waitMs = baseDelayMs * attempt;
+            console.warn(`⚠️ [${label}] Provider hiccup: ${error?.message || error}. Retrying in ${waitMs}ms...`);
+            await sleep(waitMs);
+        }
+    }
+    throw lastError;
+}
+
 function extractInlineScripts(html) {
     const scripts = [];
     const regex = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
@@ -152,7 +190,8 @@ async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }
         systemPrompt: "You are an elite procedural HTML5 Canvas Artist.",
         userPrompt: artistPrompt,
         maxTokens: 4000,
-        temperature: 0.5
+        temperature: 0.5,
+        retryLabel: 'Phase 2A Artist'
     });
     let currentArtistCode = stripMarkdownFences(rawArtistCode);
 
@@ -164,7 +203,8 @@ async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }
         systemPrompt: "You are an elite HTML5 Game Engineer.",
         userPrompt: enginePrompt,
         maxTokens: 8000,
-        temperature: 0.2
+        temperature: 0.2,
+        retryLabel: 'Phase 2B Engineer'
     });
     rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
 
@@ -180,7 +220,8 @@ async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }
             systemPrompt: "You are an elite procedural HTML5 Canvas Artist revising your work after teammate feedback.",
             userPrompt: artistRevisionPrompt,
             maxTokens: 4500,
-            temperature: 0.35
+            temperature: 0.35,
+            retryLabel: 'Phase 2D Artist Revision'
         }));
 
         console.log(`🔁 Phase 2E: Applying critic feedback to engineer draft...`);
@@ -190,7 +231,8 @@ async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }
             systemPrompt: "You are an elite HTML5 Game Engineer revising your build after teammate feedback.",
             userPrompt: engineerRevisionPrompt,
             maxTokens: 9000,
-            temperature: 0.15
+            temperature: 0.15,
+            retryLabel: 'Phase 2E Engineer Revision'
         }));
     }
 
@@ -201,7 +243,8 @@ async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }
         systemPrompt: "You are an elite integration architect producing a coherent final artist+engine pair.",
         userPrompt: integratorPrompt,
         maxTokens: 12000,
-        temperature: 0.12
+        temperature: 0.12,
+        retryLabel: 'Phase 2F Integrator'
     });
     const integratedSections = parseRepairSections(integratedOutput, currentArtistCode, rawEngineHtml);
     currentArtistCode = stripMarkdownFences(integratedSections.artistCode);
@@ -215,26 +258,32 @@ async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }
     };
 }
 
-async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature }) {
-    const stream = await nvidiaClient.chat.completions.create({
-        model,
-        messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ],
-        max_tokens: maxTokens,
-        temperature,
-        stream: true
-    });
+async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature, retryLabel }) {
+    return withNvidiaRetries(async () => {
+        const stream = await nvidiaClient.chat.completions.create({
+            model,
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            max_tokens: maxTokens,
+            temperature,
+            stream: true
+        });
 
-    let output = "";
-    for await (const chunk of stream) {
-        if (chunk.choices[0]?.delta?.content) {
-            output += chunk.choices[0].delta.content;
+        let output = "";
+        for await (const chunk of stream) {
+            if (chunk.choices[0]?.delta?.content) {
+                output += chunk.choices[0].delta.content;
+            }
         }
-    }
 
-    return output;
+        return output;
+    }, {
+        label: retryLabel || model,
+        maxAttempts: 3,
+        baseDelayMs: 1500
+    });
 }
 
 function stripMarkdownFences(text, languageHint = '') {
@@ -399,7 +448,8 @@ async function executeDreamJob(jobId, prompt) {
                     systemPrompt: "You are an elite HTML5 game integration debugger repairing both art and engine code together.",
                     userPrompt: healPrompt,
                     maxTokens: 12000,
-                    temperature: 0.1
+                    temperature: 0.1,
+                    retryLabel: 'Phase 3 Repair'
                 });
                 const repairedSections = parseRepairSections(repairOutput, currentArtistCode, rawEngineHtml);
                 currentArtistCode = stripMarkdownFences(repairedSections.artistCode);
