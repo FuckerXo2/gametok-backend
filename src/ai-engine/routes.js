@@ -33,7 +33,7 @@ const DREAM_MODELS = {
     premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "moonshotai/kimi-k2.5",
     artist: "qwen/qwen3.5-397b-a17b",
     engineer: "qwen/qwen3-coder-480b-a35b-instruct",
-    labsBuilder: "qwen/qwen3-coder-480b-a35b-instruct",
+    labsBuilder: "moonshotai/kimi-k2.5",
 };
 
 const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 32000);
@@ -1030,14 +1030,14 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 
 async function executeLabsDreamJob(jobId, prompt) {
     try {
-        console.log(`🧪 [LABS JOB] Started Qwen solo Labs pipeline for job: ${jobId}`);
+        console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
         const soloPrompt = buildLabsSoloPrototype(prompt);
         let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
             model: DREAM_MODELS.labsBuilder,
             systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself. Be practical, obey the format exactly, and prioritize a playable first frame.",
             userPrompt: soloPrompt,
             maxTokens: 12000,
-            retryLabel: 'Labs Qwen Generation'
+            retryLabel: 'Labs Kimi Generation'
         }));
 
         let finalHtml = postProcessRawHtml(rawEngineHtml);
@@ -1069,7 +1069,7 @@ async function executeLabsDreamJob(jobId, prompt) {
                 throw new Error(`Labs solo game failed verification: ${sandboxRes.crashes[0]}`);
             }
 
-            console.log(`⚠️ [LABS JOB] Solo build crashed. Repairing with Qwen... (${sandboxRes.crashes[0]})`);
+            console.log(`⚠️ [LABS JOB] Solo build crashed. Repairing with Kimi... (${sandboxRes.crashes[0]})`);
             const repairPrompt = `The mobile HTML5 game below failed verification.
 FATAL ERROR: ${sandboxRes.crashes[0]}
 
@@ -1088,13 +1088,13 @@ Output ONLY the complete fixed HTML document.`;
                 systemPrompt: "You are an elite HTML5 game debugger repairing a single-file mobile game. Keep the fantasy, but aggressively prefer correctness and visible playability.",
                 userPrompt: repairPrompt,
                 maxTokens: 12000,
-                retryLabel: 'Labs Qwen Repair'
+                retryLabel: 'Labs Kimi Repair'
             }));
             finalHtml = postProcessRawHtml(rawEngineHtml);
             maxRetries--;
         }
 
-        const gameTitle = "🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Qwen Solo Labs');
+        const gameTitle = "🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Kimi Solo Labs');
 
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
