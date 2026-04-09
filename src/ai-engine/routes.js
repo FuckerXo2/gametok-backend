@@ -477,6 +477,10 @@ async function markJobError(jobId, fallbackMessage, err) {
     );
 }
 
+function markEphemeralJob(jobId, update) {
+    rememberPendingBoot(jobId, update);
+}
+
 async function createPendingJob(userId, prompt, title, jobId = randomUUID()) {
     const startedAt = Date.now();
     const dbRes = await withTimeout(pool.query(
@@ -632,6 +636,7 @@ async function executeDreamJob(jobId, prompt) {
 async function executeEditJob(newJobId, parentDraftId, instructions) {
     try {
         console.log(`🚀 [EDIT JOB] Starting edit job ${newJobId} based on parent ${parentDraftId}`);
+        markEphemeralJob(newJobId, { status: 'pending', draftId: parentDraftId });
         
         // 1. Fetch parent draft with all context
         const parentRes = await pool.query('SELECT raw_code, html_payload, artist_code, title, edit_history FROM ai_games WHERE id = $1', [parentDraftId]);
@@ -735,13 +740,18 @@ Output ONLY the complete fixed HTML document.`;
         
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, edit_history = $6 WHERE id = $7`,
-            [finalTitle, finalHtml, editedHtml, null, finalScreenshot, JSON.stringify(newHistory), newJobId]
+            [finalTitle, finalHtml, editedHtml, null, finalScreenshot, JSON.stringify(newHistory), parentDraftId]
         );
-        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} (history now has ${newHistory.length} edits)`);
+        markEphemeralJob(newJobId, { status: 'complete', draftId: parentDraftId });
+        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} -> updated draft ${parentDraftId} (history now has ${newHistory.length} edits)`);
 
     } catch (err) {
         console.error("❌ [EDIT JOB] Error:", err);
-        await markJobError(newJobId, "DreamStream edit failed", err);
+        markEphemeralJob(newJobId, {
+            status: 'error',
+            draftId: parentDraftId,
+            error: err?.message || 'DreamStream edit failed',
+        });
     }
 }
 
@@ -831,13 +841,9 @@ router.post('/edit', async (req, res) => {
         console.log(`🧠 [EDIT ROUTE] Creating edit job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
 
         const newJobId = randomUUID();
-        queuePendingJobBootstrap({
-            jobId: newJobId,
-            userId,
-            prompt: instructions,
-            title: JOB_TITLES.remixPending,
-            logLabel: 'EDIT ROUTE',
-            run: async (jobId) => executeEditJob(jobId, draftId, instructions),
+        markEphemeralJob(newJobId, { status: 'pending', draftId });
+        setImmediate(() => {
+            void executeEditJob(newJobId, draftId, instructions);
         });
 
         res.json({ success: true, jobId: newJobId });
@@ -851,6 +857,35 @@ router.post('/edit', async (req, res) => {
 router.get('/dream/status/:jobId', async (req, res) => {
     try {
         const { jobId } = req.params;
+        const ephemeralJob = pendingJobBoots.get(jobId);
+        if (ephemeralJob?.draftId) {
+            if (ephemeralJob.status === 'error') {
+                return res.json({ status: 'error', error: ephemeralJob.error || 'Job failed' });
+            }
+            if (ephemeralJob.status !== 'complete') {
+                return res.json({ status: 'pending' });
+            }
+
+            const targetDraftId = ephemeralJob.draftId;
+            const editResult = await pool.query('SELECT title, html_payload, raw_code FROM ai_games WHERE id = $1', [targetDraftId]);
+            if (editResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Draft not found' });
+            }
+
+            const row = editResult.rows[0];
+            if (!row.html_payload || row.html_payload === '') {
+                return res.json({ status: 'pending' });
+            }
+
+            return res.json({
+                success: true,
+                status: 'complete',
+                draftId: targetDraftId,
+                title: row.title,
+                htmlPreview: row.html_payload
+            });
+        }
+
         const result = await pool.query('SELECT title, html_payload, raw_code FROM ai_games WHERE id = $1', [jobId]);
         if (result.rows.length === 0) {
             const pendingBoot = pendingJobBoots.get(jobId);
