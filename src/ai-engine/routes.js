@@ -41,7 +41,7 @@ const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CON
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
-    remixPending: 'Pending Remix...',
+    remixPending: 'Updating Game...',
     labsPending: '🧪 Labs: Cooking...',
 };
 
@@ -638,113 +638,104 @@ async function executeEditJob(newJobId, parentDraftId, instructions) {
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
-        const artistCode = parentDraft.artist_code || '';
-        const engineCode = parentDraft.raw_code || parentDraft.html_payload;
-        const editHistory = parentDraft.edit_history || [];
-        
-        if (!engineCode || engineCode.length < 100) {
+        const existingHtml = parentDraft.artist_code
+            ? (parentDraft.html_payload || '')
+            : (parentDraft.raw_code || parentDraft.html_payload || '');
+        const editHistory = Array.isArray(parentDraft.edit_history) ? parentDraft.edit_history : [];
+        const priorInstructions = editHistory.slice(-6);
+
+        if (!existingHtml || existingHtml.length < 100) {
             throw new Error(`Parent draft has no usable code!`);
         }
         
-        console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — engine: ${engineCode.length} chars, artist: ${artistCode.length} chars, history: ${editHistory.length} past edits`);
+        console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — html: ${existingHtml.length} chars, history: ${editHistory.length} past edits`);
 
-        // 2. Build conversation messages WITH MEMORY
-        const messages = [];
-        
-        // System message: establish the AI's role and the current code
-        let systemContent = `You are an expert HTML5 game developer. You built this game and are now modifying it based on user feedback.`;
-        
-        if (artistCode) {
-            systemContent += `\n\nThe game has TWO code sections:\n\n===ARTIST CODE (Canvas drawing functions)===\n${artistCode}\n\n===ENGINE CODE (Game HTML with physics, inputs, game loop)===\n${engineCode}`;
-            systemContent += `\n\nWhen responding, you MUST output BOTH sections using these exact markers:\n===ARTIST_CODE===\n(complete artist JavaScript)\n===ENGINE_CODE===\n(complete engine HTML starting with <!DOCTYPE html>)\n\nOutput BOTH sections every time. If you only changed one, copy the other unchanged. NEVER abbreviate or use "...".`;
-        } else {
-            systemContent += `\n\nCurrent game code:\n${engineCode}`;
-            systemContent += `\n\nOutput the COMPLETE modified HTML file. Start with <!DOCTYPE html>, end with </html>. NEVER abbreviate.`;
-        }
-        
-        messages.push({ role: "system", content: systemContent });
-        
-        // Replay past edit history as conversation turns so the AI remembers
-        for (const pastEdit of editHistory) {
-            messages.push({ role: "user", content: pastEdit });
-            messages.push({ role: "assistant", content: "(Applied successfully)" });
-        }
-        
-        // Current edit instruction
-        messages.push({ role: "user", content: instructions });
-        
-        console.log(`🤖 [EDIT JOB] Sending ${messages.length} messages to NVIDIA NIM (${editHistory.length} past edits + new instruction)...`);
-        
-        const aiStream = await nvidiaClient.chat.completions.create({
-            model: DREAM_MODELS.engineer,
-            messages: messages,
-            max_tokens: 16000,
-            temperature: 0.3,
-            stream: true
-        });
+        const enrichedInstructions = [
+            `Apply this user edit request to the current game: "${instructions}"`,
+            '',
+            'Requirements:',
+            '- Keep the game playable on mobile.',
+            '- Preserve the existing game identity unless the instruction explicitly changes it.',
+            '- Return the COMPLETE updated HTML document.',
+            '- Do not rename the game unless the instruction explicitly asks for it.',
+            '- Do not remove working controls, HUD, or core gameplay unless requested.',
+            priorInstructions.length
+                ? `Recent accepted edits to keep consistent with:\n${priorInstructions.map((item, index) => `${index + 1}. ${item}`).join('\n')}`
+                : 'There are no prior edits to preserve beyond the current HTML itself.'
+        ].join('\n');
 
-        let aiOutput = "";
-        for await (const chunk of aiStream) {
-            if (chunk.choices[0]?.delta?.content) {
-                aiOutput += chunk.choices[0].delta.content;
+        console.log(`🤖 [EDIT JOB] Sending single-file edit request to ${DREAM_MODELS.premiumBuilder}...`);
+        let editedHtml = await generateCompleteHtmlWithBuilder(
+            buildPhase2_EditGame(existingHtml, enrichedInstructions),
+            { label: 'Edit Builder Pass' }
+        );
+
+        if (!editedHtml) {
+            throw new Error('Edit builder returned empty HTML.');
+        }
+        if (!hasClosedHtmlDocument(editedHtml)) {
+            throw new Error('Edit builder output is missing </html>.');
+        }
+
+        let finalHtml = postProcessRawHtml(editedHtml);
+        let finalScreenshot = null;
+        let maxRetries = 2;
+        let stable = false;
+
+        while (maxRetries >= 0 && !stable) {
+            console.log(`📸 [EDIT JOB] Verifying edited game...`);
+            let sandboxRes;
+            try {
+                sandboxRes = await verifyGame(finalHtml);
+            } catch (validationError) {
+                sandboxRes = {
+                    success: false,
+                    crashes: [validationError.message || String(validationError)],
+                    screenshot: null
+                };
             }
-        }
-        
-        console.log(`✅ [EDIT JOB] AI returned ${aiOutput.length} chars (Streaming completed)`);
 
-        // 3. Parse the response — extract artist and engine sections
-        let editedArtistCode = artistCode; // default: unchanged
-        let editedEngineHtml;
-        
-        if (artistCode && aiOutput.includes('===ARTIST_CODE===') && aiOutput.includes('===ENGINE_CODE===')) {
-            // Structured response — parse both sections
-            const artistMatch = aiOutput.split('===ARTIST_CODE===')[1]?.split('===ENGINE_CODE===')[0]?.trim();
-            const engineMatch = aiOutput.split('===ENGINE_CODE===')[1]?.trim();
-            
-            if (artistMatch) editedArtistCode = stripMarkdownFences(artistMatch);
-            if (engineMatch) editedEngineHtml = stripMarkdownFences(engineMatch);
-        } else {
-            // Flat response — treat entire output as engine HTML (legacy or no markers)
-            editedEngineHtml = aiOutput;
-        }
-        
-        if (!editedEngineHtml) {
-            throw new Error('Could not parse engine code from AI response');
-        }
-        
-        // Strip markdown fences from engine HTML
-        editedEngineHtml = normalizeHtmlDocument(editedEngineHtml);
-        
-        if (!editedEngineHtml.includes('</html>')) {
-            throw new Error('AI output is missing </html> — likely truncated.');
-        }
+            finalScreenshot = sandboxRes.screenshot || null;
+            if (sandboxRes.success || !sandboxRes.crashes?.length) {
+                stable = true;
+                break;
+            }
 
-        // 4. Re-compile: merge artist code with edited engine code
-        let compiledHtml;
-        if (editedArtistCode) {
-            compiledHtml = compileMultiAgentGame(editedArtistCode, editedEngineHtml);
-        } else {
-            compiledHtml = editedEngineHtml;
+            if (maxRetries === 0) {
+                throw new Error(`Edited game failed sandbox verification: ${sandboxRes.crashes[0]}`);
+            }
+
+            console.log(`⚠️ [EDIT JOB] Edited build crashed. Repairing with main builder... (${sandboxRes.crashes[0]})`);
+            const repairPrompt = `The mobile HTML5 game below failed verification after an edit.
+FATAL ERROR: ${sandboxRes.crashes[0]}
+
+You must rewrite the FULL HTML document so it boots and remains playable.
+Preserve the user's requested edit:
+"${instructions}"
+
+BROKEN HTML:
+\`\`\`html
+${editedHtml}
+\`\`\`
+
+Output ONLY the complete fixed HTML document.`;
+
+            editedHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Edit Builder Repair' });
+            if (!hasClosedHtmlDocument(editedHtml)) {
+                throw new Error('Edit repair output is missing </html>.');
+            }
+            finalHtml = postProcessRawHtml(editedHtml);
+            maxRetries--;
         }
 
-        // Post-process with Juice + Audio
-        const finalHtml = postProcessRawHtml(compiledHtml);
-        const finalTitle = parentDraft.title.replace(/^Remix of /i, '');
-
-        // Screenshot
-        console.log(`📸 Taking screenshot for edit job ${newJobId}...`);
-        const sandboxRes = await verifyGame(finalHtml);
-        if (!sandboxRes.success && sandboxRes.crashes?.length) {
-            throw new Error(`Edited game failed sandbox verification: ${sandboxRes.crashes[0]}`);
-        }
-        const finalScreenshot = sandboxRes.screenshot || null;
+        const finalTitle = extractHtmlTitle(editedHtml) || parentDraft.title.replace(/^Remix of /i, '') || 'DreamStream Game';
 
         // 5. Save with updated edit history (memory for next edit)
         const newHistory = [...editHistory, instructions];
         
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, edit_history = $6 WHERE id = $7`,
-            [finalTitle, finalHtml, editedEngineHtml, editedArtistCode, finalScreenshot, JSON.stringify(newHistory), newJobId]
+            [finalTitle, finalHtml, editedHtml, null, finalScreenshot, JSON.stringify(newHistory), newJobId]
         );
         console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} (history now has ${newHistory.length} edits)`);
 
@@ -837,7 +828,7 @@ router.post('/edit', async (req, res) => {
         const userId = await getUserIdFromToken(token, 'Expired session');
 
         if (!draftId || !instructions) return res.status(400).json({ error: "draftId and instructions are required" });
-        console.log(`🧠 [EDIT ROUTE] Creating remix job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
+        console.log(`🧠 [EDIT ROUTE] Creating edit job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
 
         const newJobId = randomUUID();
         queuePendingJobBootstrap({
