@@ -163,7 +163,17 @@ ${wants3D ? `FIRST-PERSON 3D RULES:
 - The player viewpoint must be the camera. Do not show the player as a top-down icon.
 - The world must read as three-dimensional within the first second: perspective depth, walls, floor, and horizon or room depth.
 - Use mobile-friendly sensitivity and keep the play space compact.
-- Include a simple HUD overlay for health, score/gold, and objective.` : ''}
+- Include a simple HUD overlay for health, score/gold, and objective.
+- Build from this starter architecture:
+  1. create scene, PerspectiveCamera, and WebGLRenderer
+  2. add ambient light plus one warm key light
+  3. build a compact room/corridor/maze using box and plane meshes
+  4. track player = { position, velocity, yaw, pitch, hp, score/gold }
+  5. track input = { moveX, moveY, lookX, lookY, attacking }
+  6. add world-space enemies and pickups
+  7. render HUD and touch controls as overlays
+  8. run update() then render() inside requestAnimationFrame
+- The opening frame must already show a real 3D room or corridor, not a fake map or abstract loading screen.` : ''}
 
 PERFORMANCE:
 - Keep it efficient enough for a mobile WebView.
@@ -878,6 +888,26 @@ export function buildPhase2_BuildPrototype(specSheet) {
    - PLAYING: Core gameplay.
    - GAMEOVER: Draw "${specSheet.gameOverTitle || 'GAME OVER'}", final score, "TAP TO RESTART".`;
 
+  const starterArchitectureRule = isFirstPerson3D
+    ? `9. FIRST-PERSON THREE.JS STARTER ARCHITECTURE (FOLLOW THIS SHAPE):
+   - Your HTML should include:
+     - a full-screen renderer mount
+     - a HUD overlay
+     - a left joystick zone
+     - a right-side look drag zone
+     - an attack/interact button if combat exists
+   - Your JavaScript should roughly define:
+     - scene, camera, renderer
+     - player = { position, velocity, yaw, pitch, hp, gold }
+     - input = { moveX, moveY, lookX, lookY, attacking }
+     - world = { walls: [], enemies: [], pickups: [] }
+     - functions: buildWorld(), spawnEnemies(), updatePlayer(dt), updateEnemies(dt), collectPickups(), renderHud(), animate()
+   - Keep geometry simple and low-poly: boxes, planes, cylinders, and spheres are enough.
+   - Add collision checks so the player cannot walk through walls.
+   - Add visible lighting, fog, or emissive landmarks so the depth reads instantly.
+   - Do NOT replace this with a top-down map, pseudo-3D raycast, or flat sprite maze.`
+    : '';
+
   return `You are an expert Creative Coder and Game Engine Specialist. Build a COMPLETE, POLISHED, PRODUCTION-QUALITY mobile game as a single HTML file.
 
 GAME SPECIFICATION:
@@ -948,6 +978,8 @@ ${gameStateRule}
    - Use try/catch blocks. Render error text on the screen if the engine fails to initialize.
    - DO NOT use console.log(), console.warn(), or console.error() inside the game loop (requestAnimationFrame). Spamming the console will CRASH the mobile wrapper.
    - Never log massive objects like 'window' or DOM events.
+
+${starterArchitectureRule}
 
 OUTPUT FORMAT:
 Return ONLY the complete HTML code. Do NOT wrap in markdown. No explanation. Just raw HTML starting with <!DOCTYPE html>.`;
