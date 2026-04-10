@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
 import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
-import { normalizeDreamSpec } from './spec-normalizer.js';
+import { normalizeDreamSpec, wantsFirstPerson3D } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl } from './asset-dictionary.js';
 
@@ -310,6 +310,33 @@ function validateGeneratedBuild(artistCode, engineHtml, compiledHtml) {
     compiledScripts.forEach((script, index) => validateJavaScriptSyntax(script, `compiled-inline-${index + 1}.js`));
 }
 
+function validateRuntimeLaneContract(runtimeLane, html) {
+    if (runtimeLane !== 'first_person_threejs') {
+        return;
+    }
+
+    const source = String(html || '');
+    if (!source) {
+        throw new Error('first-person 3D validation error: empty HTML output');
+    }
+
+    if (!/three(\.min)?\.js/i.test(source) && !/\bTHREE\./.test(source)) {
+        throw new Error('first-person 3D validation error: missing Three.js runtime');
+    }
+    if (!/PerspectiveCamera/i.test(source)) {
+        throw new Error('first-person 3D validation error: missing THREE.PerspectiveCamera');
+    }
+    if (!/WebGLRenderer/i.test(source)) {
+        throw new Error('first-person 3D validation error: missing THREE.WebGLRenderer');
+    }
+    if (/OrthographicCamera/i.test(source)) {
+        throw new Error('first-person 3D validation error: used OrthographicCamera instead of first-person perspective');
+    }
+    if (!/camera\.rotation|camera\.lookAt|yaw|pitch|lookDelta|lookSensitivity/i.test(source)) {
+        throw new Error('first-person 3D validation error: missing first-person look/camera control logic');
+    }
+}
+
 function parseRepairSections(aiOutput, fallbackArtistCode, fallbackEngineHtml) {
     const artistMarker = '===ARTIST_CODE===';
     const engineMarker = '===ENGINE_CODE===';
@@ -581,6 +608,7 @@ async function executeDreamJob(jobId, prompt) {
             console.log(`📸 [Attempt ${3 - maxRetries}/2] Verifying game in sandbox...`);
             let sandboxRes;
             try {
+                validateRuntimeLaneContract(specSheet.runtimeLane, rawGameHtml);
                 sandboxRes = await verifyGame(finalHtml);
             } catch (validationError) {
                 sandboxRes = {
@@ -598,6 +626,9 @@ async function executeDreamJob(jobId, prompt) {
                     sandboxRes.crashes.join('\n'),
                     '',
                     'Repair the game so it boots and remains playable on mobile.',
+                    specSheet.runtimeLane === 'first_person_threejs'
+                        ? 'This game MUST remain a true first-person 3D Three.js game with a PerspectiveCamera and mobile look controls. Do not downgrade it into top-down 2D.'
+                        : 'Preserve the intended perspective and gameplay fantasy.',
                     'Return the COMPLETE corrected HTML file only.',
                     'Do not explain anything.',
                 ].join('\n');
@@ -1031,6 +1062,7 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 async function executeLabsDreamJob(jobId, prompt) {
     try {
         console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
+        const requested3DLane = wantsFirstPerson3D(prompt, {});
         const soloPrompt = buildLabsSoloPrototype(prompt);
         let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
             model: DREAM_MODELS.labsBuilder,
@@ -1050,6 +1082,7 @@ async function executeLabsDreamJob(jobId, prompt) {
             let sandboxRes;
             try {
                 validateGeneratedBuild('', rawEngineHtml, rawEngineHtml);
+                validateRuntimeLaneContract(requested3DLane ? 'first_person_threejs' : null, rawEngineHtml);
                 sandboxRes = await verifyGame(finalHtml);
             } catch (validationError) {
                 sandboxRes = {
@@ -1075,6 +1108,7 @@ FATAL ERROR: ${sandboxRes.crashes[0]}
 
 You must rewrite the FULL HTML document so it boots and remains playable.
 Keep the same game fantasy, but prioritize a working game over ambition.
+${requested3DLane ? 'This request MUST remain a true first-person 3D Three.js game with a PerspectiveCamera. Do not convert it into a top-down maze or flat 2D view.\n' : ''}
 
 BROKEN HTML:
 \`\`\`html

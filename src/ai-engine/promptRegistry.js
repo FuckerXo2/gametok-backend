@@ -41,6 +41,15 @@ function normalizeList(items, fallback = []) {
   return Array.isArray(items) && items.length > 0 ? items : fallback;
 }
 
+function requestsFirstPerson3D(userPrompt = '') {
+  const text = String(userPrompt || '').toLowerCase();
+  const perspectiveIntent = ['first-person', 'first person', 'fps', '3d', 'three.js', 'threejs', 'voxel', 'block world']
+    .some((keyword) => text.includes(keyword));
+  const worldIntent = ['dungeon', 'maze', 'corridor', 'crawler', 'shooter', 'wasteland', 'explore', 'arena']
+    .some((keyword) => text.includes(keyword));
+  return perspectiveIntent && worldIntent;
+}
+
 // ─────────────────────────────────────────────────────────
 // PHASE 1: QUANTIZE REQUIREMENTS (runs on Llama 3.3 70B Instruct)
 // AI acts as Lead Game Designer — extracts structured spec
@@ -48,7 +57,7 @@ function normalizeList(items, fallback = []) {
 
 export function buildPhase1_Quantize(userPrompt) {
   return {
-    system: `You are a Lead Game Designer for a mobile HTML5 Canvas2D game studio.
+    system: `You are a Lead Game Designer for a mobile HTML5 game studio.
 Your job is to analyze a user's casual game idea and extract a precise, structured Game Spec Sheet.
 
 IMPORTANT RULES:
@@ -57,7 +66,8 @@ IMPORTANT RULES:
 - The visual style MUST match the mood of the game (horror = dark, cute = pastel, etc.)
 - Choose a background color that FITS the game theme. DO NOT default to dark/black unless the game is actually dark-themed.
 - Games should be touch-friendly (tap, swipe, drag — no keyboard required).
-- The spec must describe a game the engineer can ship as one self-contained mobile HTML canvas experience.
+- The spec must describe a game the engineer can ship as one self-contained mobile HTML experience.
+- If the user explicitly asks for first-person 3D, FPS, voxel, or a Three.js-style world, preserve that request in the spec instead of flattening it into top-down 2D.
 - If the user's ask is too large, scale it into a strong playable vertical slice instead of describing an impossible full production game.
 - renderManifest MUST be specific to the requested game. Never use a fixed default list from some unrelated genre.
 
@@ -109,8 +119,18 @@ Output ONLY the JSON.`
 }
 
 export function buildLabsSoloPrototype(userPrompt) {
+  const wants3D = requestsFirstPerson3D(userPrompt);
+  const engineRules = wants3D
+    ? `- Use Three.js via CDN as the rendering engine.
+- This request MUST remain a first-person 3D game. Do NOT downgrade it into a top-down maze, flat map, or side view.
+- Use THREE.WebGLRenderer and THREE.PerspectiveCamera.
+- Create real 3D depth with floors, walls, props, enemies, pickups, and lighting.
+- Support touch-first controls: left joystick for movement, right drag area for camera look, plus a tap attack/interact button if needed.
+- Use procedural low-poly or blocky geometry/materials. No external textures or remote assets beyond the Three.js CDN.`
+    : `- Use native Canvas2D only. No external libraries or remote assets.`;
+
   return `You are an elite solo HTML5 game engineer-artist.
-Build a COMPLETE mobile-first HTML5 Canvas game as a single self-contained HTML file.
+Build a COMPLETE mobile-first HTML5 game as a single self-contained HTML file.
 You are working alone: you must handle gameplay logic, rendering, HUD, interactions, and game feel yourself.
 
 USER PROMPT:
@@ -118,7 +138,7 @@ USER PROMPT:
 
 CORE RULES:
 - Output ONLY raw HTML starting with <!DOCTYPE html>.
-- Use native Canvas2D only. No external libraries or remote assets.
+${engineRules}
 - Touch-first controls only (pointerdown / pointermove / pointerup). No keyboard dependency.
 - Boot immediately at top level. Do NOT wait for DOMContentLoaded or window.onload.
 - Draw a visible first frame synchronously so the screen is never blank.
@@ -131,13 +151,19 @@ CORE RULES:
   - enemies spawn and can be defeated
   - a win/loss or reset path exists
 - Include score/HUD, moment-to-moment feedback, and at least a little juice.
-- Render your own stylized art with Canvas2D; do not rely on emojis or external image URLs.
+- Render your own stylized art procedurally; do not rely on emojis or external image URLs.
 - Keep it phone-readable and avoid tiny UI.
 
 BOOT + RELIABILITY:
 - Wrap initialization in try/catch and render a visible in-game error panel if something fails.
 - The opening frame must already show the theme, background, and at least one important interactive or playable element.
 - Never leave placeholder comments for core gameplay.
+
+${wants3D ? `FIRST-PERSON 3D RULES:
+- The player viewpoint must be the camera. Do not show the player as a top-down icon.
+- The world must read as three-dimensional within the first second: perspective depth, walls, floor, and horizon or room depth.
+- Use mobile-friendly sensitivity and keep the play space compact.
+- Include a simple HUD overlay for health, score/gold, and objective.` : ''}
 
 PERFORMANCE:
 - Keep it efficient enough for a mobile WebView.
@@ -758,36 +784,13 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 // ─────────────────────────────────────────────────────────
 
 export function buildPhase2_BuildPrototype(specSheet) {
-  return `You are an expert Creative Coder and Game Engine Specialist. Build a COMPLETE, POLISHED, PRODUCTION-QUALITY mobile game as a single HTML file.
-
-GAME SPECIFICATION:
-- Title: ${specSheet.title}
-- Genre: ${specSheet.genre}
-- Summary: ${specSheet.summary}
-- Core Mechanics: ${JSON.stringify(specSheet.coreMechanics)}
-- Visual Style: ${specSheet.visualStyle}
-- Atmosphere: ${specSheet.atmosphere}
-- Pacing: ${specSheet.pacing}
-- Background Color: ${specSheet.backgroundColor}
-- Accent Color: ${specSheet.accentColor}
-
-ENTITIES (draw these as colored geometric shapes — NO emojis, NO images):
-- Hero: ${specSheet.entities?.hero}
-- Enemy: ${specSheet.entities?.enemy}
-- Collectible: ${specSheet.entities?.collectible || 'none'}
-
-UI LABELS:
-- Score: "${specSheet.scoreLabel || 'SCORE'}"
-- Health: "${specSheet.healthLabel || 'LIVES'}"
-- Game Over: "${specSheet.gameOverTitle || 'GAME OVER'}"
-
-DETERMINISTIC SEED: "${specSheet.seed || 'f9a2b7'}"
-You MUST implement a seeded random number generator (PRNG) and use it for ALL procedural generation and gameplay randomness.
-
-═══════════════════════════════════════════
-CRITICAL IMPLEMENTATION RULES:
-═══════════════════════════════════════════
-You MUST choose one of the following engines based on the game genre and visuals:
+  const isFirstPerson3D = specSheet.runtimeLane === 'first_person_threejs';
+  const engineSelectionRules = isFirstPerson3D
+    ? `You MUST use THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js) for this game.
+- This is a hard requirement because the prompt/spec requires a first-person 3D experience.
+- You MUST use THREE.WebGLRenderer and THREE.PerspectiveCamera.
+- You MUST keep the camera in first-person view. Do NOT downgrade to top-down, side-view, orthographic, or fake-2D.`
+    : `You MUST choose one of the following engines based on the game genre and visuals:
 1. THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js)
    - Best for: 3D games, immersive environments, first-person or third-person perspectives.
 2. P5.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js)
@@ -795,34 +798,42 @@ You MUST choose one of the following engines based on the game genre and visuals
 3. CANVAS 2D (Native)
    - Best for: Classic 2D arcade games, platformers, top-down shooters.
 4. DOM/CSS (Native)
-   - Best for: Card games, puzzles, trivia, word games.
+   - Best for: Card games, puzzles, trivia, word games.`;
 
-═══════════════════════════════════════════
-CRITICAL IMPLEMENTATION RULES:
-═══════════════════════════════════════════
-
-1. SINGLE FILE: Everything in ONE HTML document. You MAY use CDNs for Three.js or p5.js if chosen.
-   - You MUST include <meta charset="UTF-8"> in the <head>.
-
-2. MOBILE-FIRST TOUCH CONTROLS (STRICT):
-   - USE 'pointerdown', 'pointermove', 'pointerup' for universal touch/mouse support.
-   - Add 'touch-action: none;' to your CSS for the body/canvas so iOS doesn't intercept the touches.
-   - Attach your event listeners directly to the window or canvas (e.g. window.addEventListener('pointerdown', ...)).
-   - Do NOT use the 'click' event. It is swallowed by iOS WebViews.
-
-3. FULLSCREEN RESPONSIVE:
+  const fullscreenRule = isFirstPerson3D
+    ? `3. FULLSCREEN RESPONSIVE:
+   - Must fill the entire viewport (100vw, 100vh).
+   - Handle window resize events to update renderer size and camera aspect.
+   - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
+   - Render a visible world immediately: floor, walls, lighting, and at least one key landmark or enemy on the first frame.`
+    : `3. FULLSCREEN RESPONSIVE:
    - Must fill the entire viewport (100vw, 100vh).
    - Handle window resize events to update camera/canvas.
    - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
-   - ⚠️ MUST USE VIBRANT BACKGROUNDS: At the start of your draw loop, NEVER clear the screen with \`ctx.fillStyle = "black";\`. You MUST clear using \`ctx.clearRect(0, 0, canvas.width, canvas.height);\` so the vibrant CSS background color shows through!
+   - ⚠️ MUST USE VIBRANT BACKGROUNDS: At the start of your draw loop, NEVER clear the screen with \`ctx.fillStyle = "black";\`. You MUST clear using \`ctx.clearRect(0, 0, canvas.width, canvas.height);\` so the vibrant CSS background color shows through!`;
 
-4. WORLD CAMERA & EXPANSIVE MOVEMENT (CRITICAL):
+  const cameraRule = isFirstPerson3D
+    ? `4. WORLD CAMERA & EXPANSIVE MOVEMENT (CRITICAL):
+   - This must be a true first-person world, not a map view.
+   - Keep the world compact but real: hallways, rooms, props, pickups, enemies, and an obvious goal.
+   - The player's viewpoint is the camera. Add touch movement plus right-side drag look or similar mobile-friendly look controls.
+   - Use perspective depth, collision-aware movement, and readable landmarks instead of faking 3D with flat sprites.`
+    : `4. WORLD CAMERA & EXPANSIVE MOVEMENT (CRITICAL):
    - DO NOT trap the player in a single small screen box unless it's a puzzle game!
    - For RPGs, Survival, Shooters, and Platformers, the world MUST be massive or strictly infinite. 
    - You MUST implement a Camera System. In Canvas2D, calculate \`camera.x\` and \`camera.y\` to follow the player, and use \`ctx.save(); ctx.translate(-camera.x, -camera.y);\` before drawing the game world (and restore before drawing HUD).
-   - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!
+   - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!`;
 
-5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS):
+  const renderingRule = isFirstPerson3D
+    ? `5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS):
+   - ⚠️ ABSOLUTELY NO EXTERNAL IMAGES OR TEXTURES. Do NOT load remote sprites, PNGs, or material maps.
+   - Build your art procedurally with Three.js primitives, low-poly meshes, emissive materials, lighting, fog, and particle-like effects.
+   - The hero description is: ${specSheet.entities?.hero || "Main player character"}
+   - The enemy description is: ${specSheet.entities?.enemy || "Adversary or obstacle"}
+   - Create a readable first-person weapon/hands or viewport cue so the player perspective feels embodied.
+   - Environments must have depth: floor plane, walls, props, pickups, and at least one strong light source.
+   - Prefer chunky, stylish geometry that reads well on mobile over ultra-detailed scenes.`
+    : `5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS):
    - ⚠️ ABSOLUTELY NO EXTERNAL IMAGES OR URLS. Do NOT attempt to load external sprites, PNGs, or textures!
    - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS. The device CANNOT render them — they show as broken boxes.
    - You MUST act as an 'Artist-Coder'. You will draw every single entity (Player, Enemies, Backgrounds, Collectibles) procedurally using pure Canvas2D API.
@@ -849,7 +860,76 @@ CRITICAL IMPLEMENTATION RULES:
          ctx.restore();
      }
      \`\`\`
-   - Each entity type MUST be at least 30x30 pixels and visually distinct.
+   - Each entity type MUST be at least 30x30 pixels and visually distinct.`;
+
+  const gameStateRule = isFirstPerson3D
+    ? `7. GAME STATES & BOOTING (CRITICAL FOR IOS):
+   - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
+   - MENU: Show a readable title and TAP TO START overlay before entering the level.
+   - PLAYING: First-person exploration/combat loop.
+   - GAMEOVER / WIN: Show the result and TAP TO RESTART.
+   - Draw your HUD and touch controls as overlays without blocking the renderer.`
+    : `7. GAME STATES & BOOTING (CRITICAL FOR IOS):
+   - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
+   - MENU: Draw centered title and "TAP TO START" text directly on the Canvas.
+   - You MUST transition from MENU to PLAYING state exactly like this:
+     window.addEventListener('pointerdown', () => { if (gameState === 'MENU') gameState = 'PLAYING'; });
+   - Do NOT create physical HTML <button> overlays. They block touches in iOS WebViews. Draw everything on the canvas and listen for a global screen tap!
+   - PLAYING: Core gameplay.
+   - GAMEOVER: Draw "${specSheet.gameOverTitle || 'GAME OVER'}", final score, "TAP TO RESTART".`;
+
+  return `You are an expert Creative Coder and Game Engine Specialist. Build a COMPLETE, POLISHED, PRODUCTION-QUALITY mobile game as a single HTML file.
+
+GAME SPECIFICATION:
+- Title: ${specSheet.title}
+- Genre: ${specSheet.genre}
+- Summary: ${specSheet.summary}
+- Core Mechanics: ${JSON.stringify(specSheet.coreMechanics)}
+- Visual Style: ${specSheet.visualStyle}
+- Atmosphere: ${specSheet.atmosphere}
+- Pacing: ${specSheet.pacing}
+- Runtime Lane: ${specSheet.runtimeLane || 'arcade_canvas'}
+- Preferred Engine: ${specSheet.preferredEngine || 'AUTO'}
+- Perspective: ${specSheet.preferredPerspective || 'AUTO'}
+- Background Color: ${specSheet.backgroundColor}
+- Accent Color: ${specSheet.accentColor}
+
+ENTITIES (draw these as colored geometric shapes — NO emojis, NO images):
+- Hero: ${specSheet.entities?.hero}
+- Enemy: ${specSheet.entities?.enemy}
+- Collectible: ${specSheet.entities?.collectible || 'none'}
+
+UI LABELS:
+- Score: "${specSheet.scoreLabel || 'SCORE'}"
+- Health: "${specSheet.healthLabel || 'LIVES'}"
+- Game Over: "${specSheet.gameOverTitle || 'GAME OVER'}"
+
+DETERMINISTIC SEED: "${specSheet.seed || 'f9a2b7'}"
+You MUST implement a seeded random number generator (PRNG) and use it for ALL procedural generation and gameplay randomness.
+
+═══════════════════════════════════════════
+CRITICAL IMPLEMENTATION RULES:
+═══════════════════════════════════════════
+${engineSelectionRules}
+
+═══════════════════════════════════════════
+CRITICAL IMPLEMENTATION RULES:
+═══════════════════════════════════════════
+
+1. SINGLE FILE: Everything in ONE HTML document. You MAY use CDNs for Three.js or p5.js if chosen.
+   - You MUST include <meta charset="UTF-8"> in the <head>.
+
+2. MOBILE-FIRST TOUCH CONTROLS (STRICT):
+   - USE 'pointerdown', 'pointermove', 'pointerup' for universal touch/mouse support.
+   - Add 'touch-action: none;' to your CSS for the body/canvas so iOS doesn't intercept the touches.
+   - Attach your event listeners directly to the window or canvas (e.g. window.addEventListener('pointerdown', ...)).
+   - Do NOT use the 'click' event. It is swallowed by iOS WebViews.
+
+${fullscreenRule}
+
+${cameraRule}
+
+${renderingRule}
 
 6. HUD & UI:
    - Score: "${specSheet.scoreLabel || 'SCORE'}"
@@ -857,14 +937,7 @@ CRITICAL IMPLEMENTATION RULES:
    - Use accent color (${specSheet.accentColor}).
    - High-contrast for readability on small screens.
 
-7. GAME STATES & BOOTING (CRITICAL FOR IOS):
-   - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
-   - MENU: Draw centered title and "TAP TO START" text directly on the Canvas.
-   - You MUST transition from MENU to PLAYING state exactly like this:
-     window.addEventListener('pointerdown', () => { if (gameState === 'MENU') gameState = 'PLAYING'; });
-   - Do NOT create physical HTML <button> overlays. They block touches in iOS WebViews. Draw everything on the canvas and listen for a global screen tap!
-   - PLAYING: Core gameplay.
-   - GAMEOVER: Draw "${specSheet.gameOverTitle || 'GAME OVER'}", final score, "TAP TO RESTART".
+${gameStateRule}
 
 7. GAME FEEL / JUICE (MANDATORY):
    - Immersive screen shake / camera shake on impact.

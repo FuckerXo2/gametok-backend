@@ -22,10 +22,45 @@ function includesAny(text, keywords) {
   return keywords.some((keyword) => text.includes(keyword));
 }
 
+export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
+  const genre = safeText(rawSpec.genre, '').toLowerCase();
+  const summary = safeText(rawSpec.summary, '').toLowerCase();
+  const text = `${promptText} ${genre} ${summary}`.toLowerCase();
+
+  const hasPerspectiveIntent = includesAny(text, [
+    'first-person',
+    'first person',
+    'fps',
+    'three.js',
+    'threejs',
+    '3d',
+    'voxel',
+    'block world',
+  ]);
+
+  const hasWorldIntent = includesAny(text, [
+    'dungeon',
+    'maze',
+    'corridor',
+    'survival shooter',
+    'shooter',
+    'crawler',
+    'explore',
+    'arena',
+    'wasteland',
+  ]);
+
+  return hasPerspectiveIntent && hasWorldIntent;
+}
+
 function pickLane(promptText, rawSpec) {
   const genre = safeText(rawSpec.genre, '').toLowerCase();
   const summary = safeText(rawSpec.summary, '').toLowerCase();
   const text = `${promptText} ${genre} ${summary}`.toLowerCase();
+
+  if (wantsFirstPerson3D(text, rawSpec)) {
+    return 'first_person_threejs';
+  }
 
   if (
     includesAny(text, ['auto-battler', 'autobattler', 'knight', 'archer', 'wizard', 'goblin', 'battle grid']) ||
@@ -57,6 +92,66 @@ function buildLaneSpec(lane, spec, promptText) {
   const baseEntities = spec.entities || {};
 
   switch (lane) {
+    case 'first_person_threejs':
+      return {
+        ...spec,
+        runtimeLane: lane,
+        preferredEngine: 'THREE_JS',
+        preferredPerspective: 'FIRST_PERSON',
+        genre: 'First-Person 3D Adventure',
+        levelDesign: 'Linear Levels',
+        summary: safeText(
+          spec.summary,
+          'A compact mobile first-person 3D adventure built with Three.js, featuring touch controls, readable combat, loot, and a clear objective.'
+        ),
+        coreMechanics: uniqueList([
+          'virtual joystick movement',
+          'drag-to-look first-person camera',
+          'tap attack or interact',
+          'explore compact 3D spaces with readable landmarks',
+          ...(Array.isArray(spec.coreMechanics) ? spec.coreMechanics : []),
+        ]).slice(0, 6),
+        entities: {
+          hero: safeText(baseEntities.hero, 'a first-person adventurer represented through weapon, hands, HUD, and camera motion'),
+          enemy: safeText(baseEntities.enemy, 'skeletons, monsters, or hostile drones roaming a compact 3D environment'),
+          collectible: safeText(baseEntities.collectible, 'gold, keys, potions, or glowing loot pickups'),
+          obstacle: safeText(baseEntities.obstacle, 'stone walls, doors, columns, hazards, and simple environmental props'),
+        },
+        renderManifest: clampManifest(spec.renderManifest, [
+          'drawWeaponHud',
+          'drawEnemyIndicator',
+          'drawPickupGlow',
+          'drawHitFlash',
+          'drawCrosshair',
+          'drawDamageOverlay',
+        ]),
+        playableSlice:
+          'One compact first-person 3D level with a real sense of depth, a few enemies, pickups, and a clear exit or survive objective.',
+        sceneBlueprint:
+          'Three.js corridor, dungeon, or arena space with floor, walls, props, enemy patrols, pickup placement, and a visible goal landmark.',
+        controlModel:
+          'Left-side virtual joystick moves the player, right-side drag rotates the camera, and a tap button attacks or interacts.',
+        spectacleFocus: [
+          'torch glow or atmospheric lighting',
+          'weapon bob and hit flash',
+          'pickup glows',
+          'enemy impact feedback',
+          'subtle camera kick',
+        ],
+        playabilityRules: [
+          'This must remain first-person and truly 3D. Do not downgrade to a top-down maze or flat 2D map.',
+          'Use a compact, highly readable world instead of pretending to be an endless open world.',
+          'Prefer simple low-poly or blocky geometry and clean lighting over complex asset needs.',
+        ],
+        visualTargets: [
+          'clear perspective depth',
+          'chunky readable low-poly forms',
+          'strong landmark lighting',
+          'mobile-friendly first-person HUD',
+        ],
+        promptEcho: promptText,
+      };
+
     case 'auto_battler_arena':
       return {
         ...spec,
