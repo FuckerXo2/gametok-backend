@@ -25,6 +25,8 @@ function includesAny(text, keywords) {
 export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
   const genre = safeText(rawSpec.genre, '').toLowerCase();
   const summary = safeText(rawSpec.summary, '').toLowerCase();
+  const cameraPerspective = safeText(rawSpec.cameraPerspective, '').toLowerCase();
+  const preferredEngine = safeText(rawSpec.preferredEngine, '').toLowerCase();
   const text = `${promptText} ${genre} ${summary}`.toLowerCase();
 
   const hasPerspectiveIntent = includesAny(text, [
@@ -38,10 +40,27 @@ export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
     'block world',
   ]);
 
+  const hasDirect3DIntent =
+    includesAny(promptText.toLowerCase(), ['first-person', 'first person', 'fps']) &&
+    includesAny(promptText.toLowerCase(), ['3d', 'three.js', 'threejs']);
+
+  const hasSpec3DIntent = includesAny(`${cameraPerspective} ${preferredEngine}`, [
+    'first_person',
+    'first-person',
+    'three_js',
+    'three.js',
+    'threejs',
+  ]);
+
   const hasWorldIntent = includesAny(text, [
     'dungeon',
     'maze',
     'corridor',
+    'zombie',
+    'wave',
+    'waves',
+    'survival',
+    'first-person survival',
     'survival shooter',
     'shooter',
     'crawler',
@@ -50,7 +69,7 @@ export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
     'wasteland',
   ]);
 
-  return hasPerspectiveIntent && hasWorldIntent;
+  return hasDirect3DIntent || hasSpec3DIntent || (hasPerspectiveIntent && hasWorldIntent);
 }
 
 function pickLane(promptText, rawSpec) {

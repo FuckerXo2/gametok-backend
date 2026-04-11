@@ -7,7 +7,14 @@ export async function verifyGame(htmlString) {
     try {
         console.log("🕵️  Sandbox: Booting Headless Environment...");
         browser = await puppeteer.launch({
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--use-gl=swiftshader',
+                '--enable-webgl',
+                '--ignore-gpu-blocklist',
+            ]
         });
         const page = await browser.newPage();
         await page.setViewport({ width: 390, height: 844 });
