@@ -335,6 +335,12 @@ function validateRuntimeLaneContract(runtimeLane, html) {
     if (!/camera\.rotation|camera\.lookAt|yaw|pitch|lookDelta|lookSensitivity/i.test(source)) {
         throw new Error('first-person 3D validation error: missing first-person look/camera control logic');
     }
+    if (!/pointerdown/i.test(source)) {
+        throw new Error('first-person 3D validation error: missing pointerdown-based start/input flow');
+    }
+    if (/onclick\s*=|addEventListener\(\s*['"]click['"]/i.test(source) && !/pointerdown/i.test(source)) {
+        throw new Error('first-person 3D validation error: relies on click without pointerdown fallback');
+    }
 }
 
 function parseRepairSections(aiOutput, fallbackArtistCode, fallbackEngineHtml) {

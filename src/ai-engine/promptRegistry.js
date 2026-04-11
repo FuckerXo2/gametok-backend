@@ -926,6 +926,11 @@ export function buildPhase2_BuildPrototype(specSheet) {
     ? `7. GAME STATES & BOOTING (CRITICAL FOR IOS):
    - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
    - MENU: Show a readable title and TAP TO START overlay before entering the level.
+   - You MUST transition from MENU to PLAYING with a \`pointerdown\` handler. Use this exact boot shape:
+     \`window.addEventListener('pointerdown', () => { if (gameState === 'MENU') startGame(); });\`
+   - Define a top-level \`startGame()\` function that hides the menu overlay, marks gameplay as active, and resumes audio if needed.
+   - Do NOT rely on the \`click\` event for the start flow. It is unreliable in iOS WebViews.
+   - If you render a start overlay, make the full overlay react to \`pointerdown\`, not a tiny HTML button.
    - PLAYING: First-person exploration/combat loop.
    - GAMEOVER / WIN: Show the result and TAP TO RESTART.
    - Draw your HUD and touch controls as overlays without blocking the renderer.`
@@ -1102,6 +1107,49 @@ export function postProcessRawHtml(rawHtml) {
   const runtimeOverlayScript = `
     <script>
       (function() {
+        function isStartLikeLabel(text) {
+          var normalized = String(text || '').trim().toLowerCase();
+          if (!normalized) return false;
+          return normalized.includes('start') ||
+            normalized.includes('play') ||
+            normalized.includes('begin') ||
+            normalized.includes('tap to start') ||
+            normalized.includes('enter');
+        }
+
+        function rescueStartInteraction(target) {
+          if (!target || target.__dreamstreamStartBound) return;
+          target.__dreamstreamStartBound = true;
+          target.style.touchAction = target.style.touchAction || 'none';
+          target.addEventListener('pointerdown', function(event) {
+            try { event.preventDefault(); } catch (e) {}
+            try { event.stopPropagation(); } catch (e) {}
+            try {
+              if (typeof window.startGame === 'function') {
+                window.startGame();
+              } else if (typeof window.start === 'function') {
+                window.start();
+              } else if (typeof target.onclick === 'function') {
+                target.onclick(event);
+              } else if (typeof target.click === 'function') {
+                target.click();
+              }
+            } catch (e) {}
+          }, { passive: false });
+        }
+
+        function bindStartTargets() {
+          try {
+            var candidates = Array.from(document.querySelectorAll('button, [role="button"], [onclick], #start, #start-button, #start-btn, #overlay, #menu, .start, .start-button, .start-btn, .overlay'));
+            candidates.forEach(function(el) {
+              var text = [el.innerText, el.textContent, el.getAttribute && el.getAttribute('aria-label')].filter(Boolean).join(' ');
+              if (isStartLikeLabel(text) || /start|play|begin|tap/i.test(el.id || '') || /start|play|begin|tap/i.test(el.className || '')) {
+                rescueStartInteraction(el);
+              }
+            });
+          } catch (e) {}
+        }
+
         function reportRuntimeIssue(kind, detail) {
           try {
             var existing = document.getElementById('__dreamstream_runtime_error');
@@ -1142,6 +1190,12 @@ export function postProcessRawHtml(rawHtml) {
         window.addEventListener('unhandledrejection', function(event) {
           var reason = event && event.reason ? (event.reason.message || String(event.reason)) : 'Unknown promise rejection';
           reportRuntimeIssue('DreamStream async error', reason);
+        });
+
+        bindStartTargets();
+        window.addEventListener('load', function() {
+          bindStartTargets();
+          setTimeout(bindStartTargets, 400);
         });
 
         window.addEventListener('load', function() {
