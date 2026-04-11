@@ -53,6 +53,41 @@ function requestsFirstPerson3D(userPrompt = '') {
   return perspectiveIntent && worldIntent;
 }
 
+function formatAssetLines(sectionName, assets = []) {
+  if (!Array.isArray(assets) || assets.length === 0) return '';
+  const lines = assets
+    .map((asset) => `- ${asset.role}: ${asset.label} [${asset.kind}] (${asset.packName}) -> ${asset.url}`)
+    .join('\n');
+  return `${sectionName}:\n${lines}`;
+}
+
+function buildAssetKitBlock(assetBundle = null) {
+  if (!assetBundle) {
+    return `APPROVED ASSET KIT:
+- No curated self-hosted asset kit was attached for this run.
+- Build everything procedurally and do NOT fetch any third-party images, textures, or audio URLs.`;
+  }
+
+  const sections = [
+    formatAssetLines('Visual Assets', assetBundle.visuals),
+    formatAssetLines('Control / UI Assets', assetBundle.controls),
+    formatAssetLines('Audio Assets', assetBundle.audio),
+    formatAssetLines('3D Models', assetBundle.models),
+  ].filter(Boolean);
+
+  const notes = (assetBundle.notes || []).map((note) => `- ${note}`).join('\n');
+
+  return `APPROVED SELF-HOSTED ASSET KIT (${assetBundle.lane}):
+- You MAY use these same-origin GameTok assets directly.
+- You MUST NOT fetch any other third-party asset URLs beyond allowed engine CDNs.
+- If you use these assets, preload them, fail gracefully, and keep the game playable even if one asset fails to load.
+- It is okay to mix these assets with procedural particles, lighting, and effects.
+${sections.join('\n\n')}
+
+Asset Notes:
+${notes || '- No extra notes.'}`;
+}
+
 // ─────────────────────────────────────────────────────────
 // PHASE 1: QUANTIZE REQUIREMENTS (runs on Llama 3.3 70B Instruct)
 // AI acts as Lead Game Designer — extracts structured spec
@@ -167,7 +202,7 @@ function buildEngineSpecBlock(specSheet) {
 - Keep the loop compact, touch-first, and readable on mobile.`;
 }
 
-export function buildLabsSoloPrototype(userPrompt) {
+export function buildLabsSoloPrototype(userPrompt, assetBundle = null) {
   const wants3D = requestsFirstPerson3D(userPrompt);
   const engineRules = wants3D
     ? `- Use Three.js via CDN as the rendering engine.
@@ -175,8 +210,12 @@ export function buildLabsSoloPrototype(userPrompt) {
 - Use THREE.WebGLRenderer and THREE.PerspectiveCamera.
 - Create real 3D depth with floors, walls, props, enemies, pickups, and lighting.
 - Support touch-first controls: left joystick for movement, right drag area for camera look, plus a tap attack/interact button if needed.
-- Use procedural low-poly or blocky geometry/materials. No external textures or remote assets beyond the Three.js CDN.`
-    : `- Use native Canvas2D only. No external libraries or remote assets.`;
+- Use procedural low-poly or blocky geometry/materials unless the approved self-hosted asset kit below gives you same-origin GLB models or UI sprites you can safely load.
+- If you use provided GLB models, you MAY also include GLTFLoader via the official Three.js examples CDN.`
+    : `- Use native Canvas2D only unless the approved self-hosted asset kit below gives you same-origin sprites/audio you can preload.
+- No external libraries or third-party remote assets.`;
+
+  const assetKitBlock = buildAssetKitBlock(assetBundle);
 
   return `You are an elite solo HTML5 game engineer-artist.
 Build a COMPLETE mobile-first HTML5 game as a single self-contained HTML file.
@@ -188,6 +227,7 @@ USER PROMPT:
 CORE RULES:
 - Output ONLY raw HTML starting with <!DOCTYPE html>.
 ${engineRules}
+- Prefer the approved self-hosted asset kit below when it improves quality and clarity.
 - Touch-first controls only (pointerdown / pointermove / pointerup). No keyboard dependency.
 - Boot immediately at top level. Do NOT wait for DOMContentLoaded or window.onload.
 - Draw a visible first frame synchronously so the screen is never blank.
@@ -202,6 +242,8 @@ ${engineRules}
 - Include score/HUD, moment-to-moment feedback, and at least a little juice.
 - Render your own stylized art procedurally; do not rely on emojis or external image URLs.
 - Keep it phone-readable and avoid tiny UI.
+
+${assetKitBlock}
 
 BOOT + RELIABILITY:
 - Wrap initialization in try/catch and render a visible in-game error panel if something fails.
@@ -842,14 +884,16 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 // MAIN DREAMSTREAM: Single-agent prototype prompt used by Claude Opus.
 // ─────────────────────────────────────────────────────────
 
-export function buildPhase2_BuildPrototype(specSheet) {
+export function buildPhase2_BuildPrototype(specSheet, assetBundle = null) {
   const isFirstPerson3D = specSheet.runtimeLane === 'first_person_threejs';
   const engineSpecBlock = buildEngineSpecBlock(specSheet);
+  const assetKitBlock = buildAssetKitBlock(assetBundle);
   const engineSelectionRules = isFirstPerson3D
     ? `You MUST use THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js) for this game.
 - This is a hard requirement because the prompt/spec requires a first-person 3D experience.
 - You MUST use THREE.WebGLRenderer and THREE.PerspectiveCamera.
-- You MUST keep the camera in first-person view. Do NOT downgrade to top-down, side-view, orthographic, or fake-2D.`
+- You MUST keep the camera in first-person view. Do NOT downgrade to top-down, side-view, orthographic, or fake-2D.
+- If you use provided self-hosted GLB models, you MAY additionally load GLTFLoader from the official Three.js examples CDN.`
     : `You MUST choose one of the following engines based on the game genre and visuals:
 1. THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js)
    - Best for: 3D games, immersive environments, first-person or third-person perspectives.
@@ -885,22 +929,25 @@ export function buildPhase2_BuildPrototype(specSheet) {
    - Spawn enemies and environment objects dynamically across global world coordinates, not just the visible screen!`;
 
   const renderingRule = isFirstPerson3D
-    ? `5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS):
-   - ⚠️ ABSOLUTELY NO EXTERNAL IMAGES OR TEXTURES. Do NOT load remote sprites, PNGs, or material maps.
-   - Build your art procedurally with Three.js primitives, low-poly meshes, emissive materials, lighting, fog, and particle-like effects.
+    ? `5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS + APPROVED ASSETS):
+   - ⚠️ ABSOLUTELY NO THIRD-PARTY IMAGES OR TEXTURES. Do NOT load random remote sprites, PNGs, or material maps.
+   - You MAY use the approved same-origin GameTok asset kit below, including .glb models, if it helps quality.
+   - Otherwise build your art procedurally with Three.js primitives, low-poly meshes, emissive materials, lighting, fog, and particle-like effects.
    - The hero description is: ${specSheet.entities?.hero || "Main player character"}
    - The enemy description is: ${specSheet.entities?.enemy || "Adversary or obstacle"}
    - Create a readable first-person weapon/hands or viewport cue so the player perspective feels embodied.
    - Environments must have depth: floor plane, walls, props, pickups, and at least one strong light source.
    - Prefer chunky, stylish geometry that reads well on mobile over ultra-detailed scenes.`
-    : `5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS):
-   - ⚠️ ABSOLUTELY NO EXTERNAL IMAGES OR URLS. Do NOT attempt to load external sprites, PNGs, or textures!
+    : `5. ENTITY RENDERING (ARTIST-CODER GRAPHICS + APPROVED ASSETS):
+   - ⚠️ ABSOLUTELY NO THIRD-PARTY IMAGES OR URLS. Do NOT attempt to load random external sprites, PNGs, or textures!
+   - You SHOULD use the approved same-origin GameTok asset kit below for characters, props, backgrounds, controls, or audio when it improves polish.
    - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS. The device CANNOT render them — they show as broken boxes.
-   - You MUST act as an 'Artist-Coder'. You will draw every single entity (Player, Enemies, Backgrounds, Collectibles) procedurally using pure Canvas2D API.
+   - You MUST still act as an 'Artist-Coder'. Use the approved assets as your base kit, then layer procedural effects, particles, tinting, and HUD polish on top.
    - The hero description is: ${specSheet.entities?.hero || "Main player character"}
    - The enemy description is: ${specSheet.entities?.enemy || "Adversary or obstacle"}
    - 🔥 DO NOT DRAW BORING RECTANGLES OR BASIC CIRCLES! 
-   - Write custom generative, multi-layered Canvas drawing sequence functions for each entity. Use bezier curves, gradients, globalCompositeOperation, shadows, glowing effects, and paths.
+   - If you use sprite assets, preload them with Image() and draw them cleanly at readable sizes.
+   - Write custom generative, multi-layered Canvas drawing sequences for effects, particles, lighting, screen shake, HUD polish, and any missing entities. Use bezier curves, gradients, globalCompositeOperation, shadows, glowing effects, and paths.
    - Make it look Spectacular and match the game's theme perfectly.
    - Example abstract energetic procedural art:
      \`\`\`javascript
@@ -993,6 +1040,8 @@ UI LABELS:
 
 DETERMINISTIC SEED: "${specSheet.seed || 'f9a2b7'}"
 You MUST implement a seeded random number generator (PRNG) and use it for ALL procedural generation and gameplay randomness.
+
+${assetKitBlock}
 
 ═══════════════════════════════════════════
 CRITICAL IMPLEMENTATION RULES:

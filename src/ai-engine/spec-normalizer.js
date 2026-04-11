@@ -110,6 +110,10 @@ function pickLane(promptText, rawSpec) {
   return 'arcade_canvas';
 }
 
+export function inferRuntimeLaneFromPrompt(promptText = '') {
+  return pickLane(promptText, {});
+}
+
 function buildLaneSpec(lane, spec, promptText) {
   const baseEntities = spec.entities || {};
 

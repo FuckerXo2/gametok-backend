@@ -7,9 +7,9 @@ import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
 import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
-import { normalizeDreamSpec, wantsFirstPerson3D } from './spec-normalizer.js';
+import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
-import { setAssetBaseUrl } from './asset-dictionary.js';
+import { setAssetBaseUrl, buildDreamAssetBundle } from './asset-dictionary.js';
 
 function extractJson(text) {
     let jsonStart = text.indexOf('{');
@@ -588,9 +588,17 @@ async function executeDreamJob(jobId, prompt) {
         const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle}) [lane=${specSheet.runtimeLane}]`);
 
+        const assetBundle = buildDreamAssetBundle(specSheet, prompt);
+        if (assetBundle) {
+            const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
+            console.log(`📦 Asset Brain: attached ${bundleCount} curated assets for lane ${assetBundle.lane}`);
+        } else {
+            console.log(`📦 Asset Brain: no curated asset bundle available for lane ${specSheet.runtimeLane}`);
+        }
+
         // ── PHASE 2: SINGLE-AGENT PREMIUM BUILD ──
         console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building the complete game in one pass...`);
-        const buildPrompt = buildPhase2_BuildPrototype(specSheet);
+        const buildPrompt = buildPhase2_BuildPrototype(specSheet, assetBundle);
         let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Builder Build' });
 
         if (!rawGameHtml) {
@@ -1069,7 +1077,13 @@ async function executeLabsDreamJob(jobId, prompt) {
     try {
         console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
         const requested3DLane = wantsFirstPerson3D(prompt, {});
-        const soloPrompt = buildLabsSoloPrototype(prompt);
+        const inferredLane = requested3DLane ? 'first_person_threejs' : inferRuntimeLaneFromPrompt(prompt);
+        const assetBundle = buildDreamAssetBundle({ runtimeLane: inferredLane, summary: prompt, title: prompt }, prompt);
+        if (assetBundle) {
+            const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
+            console.log(`📦 [LABS JOB] Asset Brain attached ${bundleCount} curated assets for lane ${assetBundle.lane}`);
+        }
+        const soloPrompt = buildLabsSoloPrototype(prompt, assetBundle);
         let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
             model: DREAM_MODELS.labsBuilder,
             systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself. Be practical, obey the format exactly, and prioritize a playable first frame.",

@@ -235,6 +235,10 @@ function toAbsoluteWave1Url(url) {
   return `${WAVE1_BASE_URL}${url.replace(/^\/uploads\/kenney-wave1/, '')}`;
 }
 
+function toAbsoluteLegacyUrl(file) {
+  return `${ASSET_BASE_URL}/${file}`;
+}
+
 function mapWave1Asset(asset) {
   return {
     id: `${asset.lane}:${asset.packSlug}:${asset.filename}`,
@@ -257,6 +261,205 @@ function getWave1Assets({ lane = null, category = null } = {}) {
     .filter((asset) => !lane || asset.lane === lane)
     .filter((asset) => !category || asset.kind === category || asset.role === category || asset.runtime === category)
     .map(mapWave1Asset);
+}
+
+function normalizeRegexList(patterns = []) {
+  return patterns.map((pattern) => (pattern instanceof RegExp ? pattern : new RegExp(pattern, 'i')));
+}
+
+function pickWave1ByPatterns(lane, patterns = [], options = {}) {
+  const regexes = normalizeRegexList(patterns);
+  const { limit = 1, kind = null, runtime = null } = options;
+  const assets = getWave1Assets({ lane }).filter((asset) => !kind || asset.kind === kind).filter((asset) => !runtime || asset.runtime === runtime);
+  const chosen = [];
+  const seen = new Set();
+
+  for (const regex of regexes) {
+    for (const asset of assets) {
+      const haystack = `${asset.file} ${asset.label} ${asset.packName} ${(asset.tags || []).join(' ')}`;
+      if (seen.has(asset.url) || !regex.test(haystack)) continue;
+      chosen.push(asset);
+      seen.add(asset.url);
+      break;
+    }
+    if (chosen.length >= limit) break;
+  }
+
+  return chosen.slice(0, limit);
+}
+
+function pickWave1ByPack(lane, packSlug, options = {}) {
+  const { limit = 1, kind = null } = options;
+  const assets = getWave1Assets({ lane }).filter((asset) => asset.id.includes(`:${packSlug}:`)).filter((asset) => !kind || asset.kind === kind);
+  return assets.slice(0, limit);
+}
+
+function scoreLegacyAsset(asset, query) {
+  const haystack = `${asset.label} ${asset.category} ${(asset.tags || []).join(' ')}`.toLowerCase();
+  let score = 0;
+  for (const token of String(query || '').toLowerCase().split(/\s+/).filter(Boolean)) {
+    if (haystack.includes(token)) score += 1;
+  }
+  return score;
+}
+
+function pickLegacyAssets(query, options = {}) {
+  const { limit = 3, categories = [] } = options;
+  return ASSET_LIBRARY
+    .filter((asset) => categories.length === 0 || categories.includes(asset.category))
+    .map((asset) => ({
+      ...asset,
+      url: toAbsoluteLegacyUrl(asset.file),
+      score: scoreLegacyAsset(asset, query),
+    }))
+    .filter((asset) => asset.score > 0)
+    .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
+    .slice(0, limit)
+    .map(({ score, ...asset }) => asset);
+}
+
+function dedupeAssets(assets = []) {
+  const seen = new Set();
+  return assets.filter((asset) => {
+    const key = asset?.url || asset?.id;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function summarizeBundleSection(assets, role) {
+  return dedupeAssets(assets).map((asset) => ({
+    role,
+    label: asset.label,
+    kind: asset.kind || asset.category || 'asset',
+    packName: asset.packName || 'Legacy Library',
+    url: asset.url,
+  }));
+}
+
+export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
+  const lane = specSheet?.runtimeLane || 'arcade_canvas';
+  const prompt = [
+    promptText,
+    specSheet?.title,
+    specSheet?.genre,
+    specSheet?.summary,
+    specSheet?.entities?.hero,
+    specSheet?.entities?.enemy,
+    specSheet?.entities?.collectible,
+  ].filter(Boolean).join(' ');
+
+  if (!wave1Catalog?.assets?.length && !ASSET_LIBRARY.length) {
+    return null;
+  }
+
+  let visuals = [];
+  let controls = [];
+  let audio = [];
+  let models = [];
+  let notes = [];
+
+  switch (lane) {
+    case 'endless_flyer':
+      visuals = [
+        ...pickWave1ByPatterns(lane, [/plane(?:blue|green|red|yellow)1\.png/i, /background\.png/i, /bg_layer1\.png/i, /cloud\.png/i, /coin_gold\.png/i], { limit: 5 }),
+      ];
+      controls = [
+        ...pickWave1ByPatterns(lane, [/buttonlarge\.png/i, /joystick_circle_pad_highlight\.png/i, /joystick_circle_nub_highlight\.png/i], { limit: 3 }),
+      ];
+      audio = [
+        ...pickWave1ByPack(lane, 'music-jingles', { limit: 1, kind: 'audio' }),
+        ...pickWave1ByPack(lane, 'interface-sounds', { limit: 2, kind: 'audio' }),
+      ];
+      notes = [
+        'Use the provided plane, backdrop, cloud, and button assets for a polished flappy-style look.',
+        'It is fine to layer procedural particles and score text on top of these assets.',
+      ];
+      break;
+
+    case 'topdown_arcade':
+      visuals = [
+        ...pickWave1ByPatterns(lane, [/survivor1_gun\.png/i, /soldier1_gun\.png/i, /zombie2_stand\.png/i, /zoimbie1_stand\.png/i, /tile_0?1\.png/i, /tile_0?5\.png/i], { limit: 6 }),
+      ];
+      controls = [
+        ...pickWave1ByPatterns(lane, [/button/i], { limit: 2 }),
+      ];
+      audio = [
+        ...pickWave1ByPack(lane, 'impact-sounds', { limit: 2, kind: 'audio' }),
+        ...pickWave1ByPack(lane, 'interface-sounds', { limit: 1, kind: 'audio' }),
+      ];
+      notes = [
+        'Use the survivor and zombie sprites plus the shooter tiles to keep the top-down combat lane visually coherent.',
+      ];
+      break;
+
+    case 'pixel_platformer':
+      visuals = [
+        ...pickWave1ByPatterns(lane, [/background_color_trees\.png/i, /background_fade_hills\.png/i, /terrain_grass_block_top\.png/i, /slime_normal_rest\.png/i, /block_coin\.png/i, /hud_player_beige\.png/i], { limit: 6 }),
+      ];
+      audio = [
+        ...pickWave1ByPack(lane, 'music-jingles', { limit: 1, kind: 'audio' }),
+      ];
+      notes = [
+        'Lean on the provided backgrounds, terrain tiles, slime, and coin sprites before inventing your own platformer art.',
+      ];
+      break;
+
+    case 'auto_battler_arena':
+      visuals = [
+        ...pickWave1ByPatterns(lane, [/tilemap_packed\.png/i, /tile_0001\.png/i, /tile_0010\.png/i, /border|frame|fantasy/i], { limit: 4 }),
+        ...pickLegacyAssets(`${prompt} knight archer wizard fantasy`, { limit: 3, categories: ['character', 'weapon'] }),
+        ...pickLegacyAssets(`${prompt} goblin ghost enemy`, { limit: 2, categories: ['enemy'] }),
+      ];
+      audio = [
+        ...pickWave1ByPack(lane, 'music-loops', { limit: 1, kind: 'audio' }),
+        ...pickWave1ByPack(lane, 'impact-sounds', { limit: 2, kind: 'audio' }),
+      ];
+      notes = [
+        'Use the battlefield/tile assets for the arena and combine them with the provided fantasy character or weapon sprites when helpful.',
+        'If the enemy asset fit is imperfect, keep combat readable and fall back to procedural effects for missing classes.',
+      ];
+      break;
+
+    case 'first_person_threejs':
+      models = [
+        ...pickWave1ByPatterns(lane, [/character-zombie\.glb/i, /character-skeleton\.glb/i, /barrel\.glb/i, /chest\.glb/i, /coin\.glb/i, /tree(?:-autumn)?(?:-tall|-trunk|-log|-small)?\.glb/i], { limit: 6, kind: 'model', runtime: 'threejs' }),
+      ];
+      controls = [
+        ...pickWave1ByPatterns(lane, [/button_circle_highlight\.png/i, /joystick_circle_pad_highlight\.png/i, /joystick_circle_nub_highlight\.png/i], { limit: 3 }),
+      ];
+      audio = [
+        ...pickWave1ByPack(lane, 'impact-sounds', { limit: 2, kind: 'audio' }),
+        ...pickWave1ByPack(lane, 'interface-sounds', { limit: 1, kind: 'audio' }),
+      ];
+      notes = [
+        'You may use the provided .glb props and enemy models with GLTFLoader if that improves quality.',
+        'If loading models feels too risky, use the control/audio assets and keep world geometry procedural.',
+      ];
+      break;
+
+    default:
+      visuals = [
+        ...pickLegacyAssets(prompt, { limit: 4, categories: ['character', 'enemy', 'environment', 'item', 'weapon'] }),
+      ];
+      notes = [
+        'This lane has no dedicated Wave 1 kit yet, so fall back to the legacy curated asset set when useful.',
+      ];
+      break;
+  }
+
+  const bundle = {
+    lane,
+    visuals: summarizeBundleSection(visuals, 'visual'),
+    controls: summarizeBundleSection(controls, 'control'),
+    audio: summarizeBundleSection(audio, 'audio'),
+    models: summarizeBundleSection(models, 'model'),
+    notes,
+  };
+
+  const total = bundle.visuals.length + bundle.controls.length + bundle.audio.length + bundle.models.length;
+  return total > 0 ? bundle : null;
 }
 
 function scoreWave1Asset(asset, query) {
