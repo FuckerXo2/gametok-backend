@@ -19,6 +19,7 @@ const DEFAULT_BASE = process.env.RAILWAY_PUBLIC_DOMAIN
   : 'http://localhost:3000';
 
 let ASSET_BASE_URL = `${DEFAULT_BASE}/uploads/kenney`;
+let WAVE1_BASE_URL = `${DEFAULT_BASE}/uploads/kenney-wave1`;
 
 /**
  * Call this from routes.js with the actual request to set the correct base URL
@@ -27,6 +28,7 @@ export function setAssetBaseUrl(req) {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
   const host = req.headers['x-forwarded-host'] || req.get('host');
   ASSET_BASE_URL = `${protocol}://${host}/uploads/kenney`;
+  WAVE1_BASE_URL = `${protocol}://${host}/uploads/kenney-wave1`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -197,6 +199,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let precomputedEmbeddings = null;
+let wave1Catalog = null;
 
 try {
   const jsonPath = path.join(__dirname, 'asset-embeddings.json');
@@ -208,10 +211,82 @@ try {
   console.warn("⚠️ Failed to load precomputed embeddings:", e.message);
 }
 
+try {
+  const wave1CatalogPath = path.resolve(process.cwd(), 'docs', 'kenney-wave1-catalog.json');
+  const wave1StageRoot = path.resolve(process.cwd(), 'public', 'uploads', 'kenney-wave1');
+  if (fs.existsSync(wave1CatalogPath) && fs.existsSync(wave1StageRoot)) {
+    wave1Catalog = JSON.parse(fs.readFileSync(wave1CatalogPath, 'utf8'));
+    console.log(`✅ Loaded Wave 1 Kenney catalog with ${wave1Catalog?.totals?.assets || 0} staged assets.`);
+  }
+} catch (e) {
+  console.warn("⚠️ Failed to load Wave 1 Kenney catalog:", e.message);
+}
+
+function toAbsoluteWave1Url(url) {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${WAVE1_BASE_URL}${url.replace(/^\/uploads\/kenney-wave1/, '')}`;
+}
+
+function mapWave1Asset(asset) {
+  return {
+    id: `${asset.lane}:${asset.packSlug}:${asset.filename}`,
+    file: asset.targetPath,
+    tags: asset.tags || [],
+    category: asset.kind || asset.role || asset.runtime || 'asset',
+    label: `${asset.packName} — ${asset.filename}`,
+    lane: asset.lane,
+    runtime: asset.runtime,
+    role: asset.role,
+    packName: asset.packName,
+    kind: asset.kind,
+    url: toAbsoluteWave1Url(asset.url),
+  };
+}
+
+function getWave1Assets({ lane = null, category = null } = {}) {
+  const assets = wave1Catalog?.assets || [];
+  return assets
+    .filter((asset) => !lane || asset.lane === lane)
+    .filter((asset) => !category || asset.kind === category || asset.role === category || asset.runtime === category)
+    .map(mapWave1Asset);
+}
+
+function scoreWave1Asset(asset, query) {
+  const haystack = [
+    asset.packName,
+    asset.filename,
+    asset.kind,
+    asset.role,
+    asset.lane,
+    ...(asset.tags || []),
+  ].join(' ').toLowerCase();
+
+  let score = 0;
+  for (const token of String(query || '').toLowerCase().split(/\s+/).filter(Boolean)) {
+    if (haystack.includes(token)) score += 1;
+  }
+  return score;
+}
+
 /**
  * Perform vector search using precomputed cosine similarity
  */
-export async function searchAssets(query, maxResults = 8) {
+export async function searchAssets(query, maxResults = 8, options = {}) {
+  if (wave1Catalog?.assets?.length) {
+    const lane = options?.lane || null;
+    const category = options?.category || null;
+    const ranked = getWave1Assets({ lane, category })
+      .map((asset) => ({ ...asset, score: scoreWave1Asset(asset, query) }))
+      .filter((asset) => asset.score > 0)
+      .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
+      .slice(0, maxResults);
+
+    if (ranked.length) {
+      return ranked;
+    }
+  }
+
   if (!precomputedEmbeddings) {
     console.error("❌ Precomputed embeddings missing! Run precompute_embeddings.js");
     return [];
@@ -239,6 +314,9 @@ export async function searchAssets(query, maxResults = 8) {
  * Get all available assets (for admin/debug)
  */
 export function getAllAssets() {
+  if (wave1Catalog?.assets?.length) {
+    return getWave1Assets();
+  }
   return ASSET_LIBRARY.map(a => ({ ...a, url: `${ASSET_BASE_URL}/${a.file}` }));
 }
 
@@ -246,6 +324,9 @@ export function getAllAssets() {
  * Get assets by category
  */
 export function getAssetsByCategory(category) {
+  if (wave1Catalog?.assets?.length) {
+    return getWave1Assets({ category });
+  }
   return ASSET_LIBRARY
     .filter(a => a.category === category)
     .map(a => ({ ...a, url: `${ASSET_BASE_URL}/${a.file}` }));
