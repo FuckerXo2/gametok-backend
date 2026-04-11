@@ -17,6 +17,12 @@ import { fileURLToPath } from 'url';
 const DEFAULT_BASE = process.env.RAILWAY_PUBLIC_DOMAIN 
   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
   : 'http://localhost:3000';
+const ASSET_STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
+const WAVE1_STAGE_CANDIDATES = [
+  path.resolve(process.cwd(), 'public', 'uploads', 'kenney-wave1'),
+  path.join(ASSET_STORAGE_ROOT, 'kenney-wave1'),
+];
+const WAVE1_CATALOG_PATH = path.resolve(process.cwd(), 'docs', 'kenney-wave1-catalog.json');
 
 let ASSET_BASE_URL = `${DEFAULT_BASE}/uploads/kenney`;
 let WAVE1_BASE_URL = `${DEFAULT_BASE}/uploads/kenney-wave1`;
@@ -212,11 +218,12 @@ try {
 }
 
 try {
-  const wave1CatalogPath = path.resolve(process.cwd(), 'docs', 'kenney-wave1-catalog.json');
-  const wave1StageRoot = path.resolve(process.cwd(), 'public', 'uploads', 'kenney-wave1');
-  if (fs.existsSync(wave1CatalogPath) && fs.existsSync(wave1StageRoot)) {
-    wave1Catalog = JSON.parse(fs.readFileSync(wave1CatalogPath, 'utf8'));
-    console.log(`✅ Loaded Wave 1 Kenney catalog with ${wave1Catalog?.totals?.assets || 0} staged assets.`);
+  const wave1StageRoot = WAVE1_STAGE_CANDIDATES.find((candidate) => fs.existsSync(candidate));
+  if (fs.existsSync(WAVE1_CATALOG_PATH) && wave1StageRoot) {
+    wave1Catalog = JSON.parse(fs.readFileSync(WAVE1_CATALOG_PATH, 'utf8'));
+    console.log(
+      `✅ Loaded Wave 1 Kenney catalog with ${wave1Catalog?.totals?.assets || 0} staged assets from ${wave1StageRoot}.`
+    );
   }
 } catch (e) {
   console.warn("⚠️ Failed to load Wave 1 Kenney catalog:", e.message);

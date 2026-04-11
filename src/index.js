@@ -15,6 +15,11 @@ import assetsRouter from './assets-router.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
+const STATIC_UPLOAD_ROOTS = [
+  path.join(__dirname, '../public/uploads'),
+  STORAGE_ROOT,
+];
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,7 +35,9 @@ app.use('/api/ai', aiRouter);
 
 // Global Media & Assets Pool
 app.use('/api/assets', assetsRouter);
-app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+for (const uploadRoot of STATIC_UPLOAD_ROOTS) {
+  app.use('/uploads', express.static(uploadRoot));
+}
 
 // Serve static thumbnails
 app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thumbnails')));
