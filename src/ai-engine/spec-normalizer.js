@@ -56,7 +56,10 @@ export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
 function pickLane(promptText, rawSpec) {
   const genre = safeText(rawSpec.genre, '').toLowerCase();
   const summary = safeText(rawSpec.summary, '').toLowerCase();
-  const text = `${promptText} ${genre} ${summary}`.toLowerCase();
+  const cameraPerspective = safeText(rawSpec.cameraPerspective, '').toLowerCase();
+  const environmentType = safeText(rawSpec.environmentType, '').toLowerCase();
+  const preferredEngine = safeText(rawSpec.preferredEngine, '').toLowerCase();
+  const text = `${promptText} ${genre} ${summary} ${cameraPerspective} ${environmentType} ${preferredEngine}`.toLowerCase();
 
   if (wantsFirstPerson3D(text, rawSpec)) {
     return 'first_person_threejs';
@@ -289,6 +292,9 @@ export function normalizeDreamSpec(rawSpec, userPrompt = '') {
     atmosphere: safeText(rawSpec.atmosphere, 'Bright & Cheerful'),
     backgroundColor: safeText(rawSpec.backgroundColor, '#1d2433'),
     accentColor: safeText(rawSpec.accentColor, '#f7c948'),
+    cameraPerspective: safeText(rawSpec.cameraPerspective, 'AUTO'),
+    environmentType: safeText(rawSpec.environmentType, 'ARENA'),
+    preferredEngine: safeText(rawSpec.preferredEngine, 'AUTO'),
     coreMechanics: Array.isArray(rawSpec.coreMechanics) ? rawSpec.coreMechanics : [],
     entities: rawSpec.entities || {},
     renderManifest: clampManifest(rawSpec.renderManifest, ['drawHero', 'drawEnemy', 'drawObstacle', 'drawProjectile']),

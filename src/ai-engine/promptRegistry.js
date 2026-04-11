@@ -31,6 +31,9 @@ const ATMOSPHERES = [
 ];
 
 const PACING = ['Fast / Arcade', 'Medium / Balanced', 'Slow / Strategic', 'Turn-Based'];
+const CAMERA_PERSPECTIVES = ['FIRST_PERSON', 'THIRD_PERSON', 'ISOMETRIC', 'TOP_DOWN', 'SIDE_VIEW'];
+const ENVIRONMENT_TYPES = ['DUNGEON', 'ARENA', 'CORRIDOR', 'OPEN_FIELD', 'CITY', 'SPACE', 'INTERIOR'];
+const ENGINE_PREFERENCES = ['THREE_JS', 'CANVAS_2D', 'DOM_UI', 'P5_JS'];
 
 function formatPromptList(items, fallback = 'none provided') {
   if (!Array.isArray(items) || items.length === 0) return fallback;
@@ -73,7 +76,10 @@ IMPORTANT RULES:
 
 Available Visual Styles: ${VISUAL_STYLES.join(', ')}
 Available Atmospheres: ${ATMOSPHERES.join(', ')}
-Available Pacing: ${PACING.join(', ')}`,
+Available Pacing: ${PACING.join(', ')}
+Available Camera Perspectives: ${CAMERA_PERSPECTIVES.join(', ')}
+Available Environment Types: ${ENVIRONMENT_TYPES.join(', ')}
+Available Engine Preferences: ${ENGINE_PREFERENCES.join(', ')}`,
 
     user: `USER PROMPT: "${userPrompt}"
 
@@ -86,6 +92,9 @@ Extract a Game Spec Sheet as JSON:
   "visualStyle": "ONE from the Visual Styles list",
   "atmosphere": "ONE from the Atmospheres list",
   "pacing": "ONE from the Pacing list",
+  "cameraPerspective": "ONE from the Camera Perspectives list",
+  "environmentType": "ONE from the Environment Types list",
+  "preferredEngine": "ONE from the Engine Preferences list",
   "levelDesign": "Endless | Single Screen Arena | Linear Levels",
   "backgroundColor": "#hex color that matches the theme and visual style",
   "accentColor": "#hex secondary color for UI elements",
@@ -116,6 +125,46 @@ renderManifest rules:
 
 Output ONLY the JSON.`
   };
+}
+
+function buildEngineSpecBlock(specSheet) {
+  if (specSheet.runtimeLane === 'first_person_threejs' || specSheet.preferredEngine === 'THREE_JS') {
+    return `ENGINE SPEC: THREE.JS FIRST-PERSON
+- Imports:
+  - <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+- Required setup:
+  1. const scene = new THREE.Scene()
+  2. const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 200)
+  3. const renderer = new THREE.WebGLRenderer({ antialias: true })
+  4. renderer.setSize(window.innerWidth, window.innerHeight)
+  5. add ambient light + one stronger directional/point light
+  6. build floor plus wall meshes using BoxGeometry / PlaneGeometry
+- Controls:
+  - left thumb joystick = movement
+  - right drag region = yaw/pitch look
+  - touch button = attack/interact if needed
+- World style:
+  - compact low-poly or blocky geometry
+  - no external textures required
+  - strong landmarks, readable lighting, obvious depth`;
+  }
+
+  if (specSheet.preferredEngine === 'P5_JS') {
+    return `ENGINE SPEC: P5.JS
+- Use p5.js via CDN.
+- Use WEBGL mode only if the cameraPerspective is 3D-like.
+- Keep the render loop simple and mobile-friendly.`;
+  }
+
+  if (specSheet.preferredEngine === 'DOM_UI') {
+    return `ENGINE SPEC: DOM/CSS
+- Build the interface with HTML/CSS overlays.
+- Prefer this only for UI-heavy non-action games.`;
+  }
+
+  return `ENGINE SPEC: CANVAS 2D
+- Use native Canvas2D.
+- Keep the loop compact, touch-first, and readable on mobile.`;
 }
 
 export function buildLabsSoloPrototype(userPrompt) {
@@ -795,6 +844,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 
 export function buildPhase2_BuildPrototype(specSheet) {
   const isFirstPerson3D = specSheet.runtimeLane === 'first_person_threejs';
+  const engineSpecBlock = buildEngineSpecBlock(specSheet);
   const engineSelectionRules = isFirstPerson3D
     ? `You MUST use THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js) for this game.
 - This is a hard requirement because the prompt/spec requires a first-person 3D experience.
@@ -921,6 +971,8 @@ GAME SPECIFICATION:
 - Runtime Lane: ${specSheet.runtimeLane || 'arcade_canvas'}
 - Preferred Engine: ${specSheet.preferredEngine || 'AUTO'}
 - Perspective: ${specSheet.preferredPerspective || 'AUTO'}
+- Camera Perspective: ${specSheet.cameraPerspective || 'AUTO'}
+- Environment Type: ${specSheet.environmentType || 'ARENA'}
 - Background Color: ${specSheet.backgroundColor}
 - Accent Color: ${specSheet.accentColor}
 
@@ -941,6 +993,8 @@ You MUST implement a seeded random number generator (PRNG) and use it for ALL pr
 CRITICAL IMPLEMENTATION RULES:
 ═══════════════════════════════════════════
 ${engineSelectionRules}
+
+${engineSpecBlock}
 
 ═══════════════════════════════════════════
 CRITICAL IMPLEMENTATION RULES:
