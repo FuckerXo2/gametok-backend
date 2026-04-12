@@ -88,6 +88,68 @@ Asset Notes:
 ${notes || '- No extra notes.'}`;
 }
 
+function normalizeMediaAttachmentType(type = '') {
+  const normalized = String(type || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'photo':
+    case 'gif':
+    case 'sticker':
+      return 'image';
+    case 'music':
+      return 'bgm';
+    case 'audio':
+      return 'sfx';
+    default:
+      return normalized || 'image';
+  }
+}
+
+function describeMediaAttachmentUsage(type) {
+  switch (normalizeMediaAttachmentType(type)) {
+    case 'image':
+      return 'Use as a sprite, background, prop, splash art, HUD art, or decorative layer if it fits the game.';
+    case 'video':
+      return 'Use as a looping, muted background layer, intro panel, or atmospheric screen element. Keep the game playable if it fails to load.';
+    case 'bgm':
+      return 'Use as optional looping background music with safe default volume and graceful fallback.';
+    case 'sfx':
+      return 'Use as a triggered sound effect for actions, impacts, pickups, or events.';
+    case 'meme':
+      return 'Use as a humorous sticker, popup, reward card, decal, or themed collectible if it improves the fantasy.';
+    default:
+      return 'Use it thoughtfully if it improves clarity, personality, or game feel. Never make bootability depend on it.';
+  }
+}
+
+function buildUserMediaBlock(mediaAttachments = []) {
+  if (!Array.isArray(mediaAttachments) || mediaAttachments.length === 0) {
+    return `USER-PROVIDED MEDIA:
+- No user-provided media attachments were included for this run.`;
+  }
+
+  const lines = mediaAttachments.map((asset, index) => {
+    const type = normalizeMediaAttachmentType(asset?.type);
+    const title = asset?.title || asset?.label || `Attachment ${index + 1}`;
+    const url = asset?.url || 'missing-url';
+    const instruction = asset?.instruction || 'No extra instruction provided.';
+    const usage = describeMediaAttachmentUsage(type);
+    return [
+      `- Attachment ${index + 1}: ${title}`,
+      `  - type: ${type}`,
+      `  - url: ${url}`,
+      `  - user intent: ${instruction}`,
+      `  - usage guidance: ${usage}`,
+    ].join('\n');
+  }).join('\n');
+
+  return `USER-PROVIDED MEDIA:
+- These attachments are part of the user's request and should be honored when practical.
+- Prefer them over generic decorative substitutes when they clearly fit the game.
+- If one attachment fails to load, keep the game playable and visible anyway.
+- Do not silently ignore them unless they truly conflict with bootability or readability.
+${lines}`;
+}
+
 // ─────────────────────────────────────────────────────────
 // PHASE 1: QUANTIZE REQUIREMENTS (runs on Llama 3.3 70B Instruct)
 // AI acts as Lead Game Designer — extracts structured spec
@@ -202,7 +264,7 @@ function buildEngineSpecBlock(specSheet) {
 - Keep the loop compact, touch-first, and readable on mobile.`;
 }
 
-export function buildLabsSoloPrototype(userPrompt, assetBundle = null) {
+export function buildLabsSoloPrototype(userPrompt, assetBundle = null, mediaAttachments = []) {
   const wants3D = requestsFirstPerson3D(userPrompt);
   const engineRules = wants3D
     ? `- Use Three.js via CDN as the rendering engine.
@@ -216,6 +278,7 @@ export function buildLabsSoloPrototype(userPrompt, assetBundle = null) {
 - No external libraries or third-party remote assets.`;
 
   const assetKitBlock = buildAssetKitBlock(assetBundle);
+  const userMediaBlock = buildUserMediaBlock(mediaAttachments);
 
   return `You are an elite solo HTML5 game engineer-artist.
 Build a COMPLETE mobile-first HTML5 game as a single self-contained HTML file.
@@ -240,10 +303,14 @@ ${engineRules}
   - enemies spawn and can be defeated
   - a win/loss or reset path exists
 - Include score/HUD, moment-to-moment feedback, and at least a little juice.
-- Render your own stylized art procedurally; do not rely on emojis or external image URLs.
+- Prefer the approved same-origin asset kit for hero/enemy/collectible silhouettes whenever it contains a usable character, creature, or prop.
+- Only fall back to fully procedural art when the attached kit truly lacks a usable match.
+- Do not rely on emojis or any third-party external image URLs.
 - Keep it phone-readable and avoid tiny UI.
 
 ${assetKitBlock}
+
+${userMediaBlock}
 
 BOOT + RELIABILITY:
 - Wrap initialization in try/catch and render a visible in-game error panel if something fails.
@@ -884,10 +951,11 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 // MAIN DREAMSTREAM: Single-agent prototype prompt used by Claude Opus.
 // ─────────────────────────────────────────────────────────
 
-export function buildPhase2_BuildPrototype(specSheet, assetBundle = null) {
+export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaAttachments = []) {
   const isFirstPerson3D = specSheet.runtimeLane === 'first_person_threejs';
   const engineSpecBlock = buildEngineSpecBlock(specSheet);
   const assetKitBlock = buildAssetKitBlock(assetBundle);
+  const userMediaBlock = buildUserMediaBlock(mediaAttachments);
   const engineSelectionRules = isFirstPerson3D
     ? `You MUST use THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js) for this game.
 - This is a hard requirement because the prompt/spec requires a first-person 3D experience.
@@ -931,22 +999,24 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null) {
   const renderingRule = isFirstPerson3D
     ? `5. ENTITY RENDERING (ARTIST-CODER PROCEDURAL GRAPHICS + APPROVED ASSETS):
    - ⚠️ ABSOLUTELY NO THIRD-PARTY IMAGES OR TEXTURES. Do NOT load random remote sprites, PNGs, or material maps.
-   - You MAY use the approved same-origin GameTok asset kit below, including .glb models, if it helps quality.
+   - You SHOULD use the approved same-origin GameTok asset kit below, including .glb models, whenever it contains readable enemies, props, pickups, or landmark pieces.
    - Otherwise build your art procedurally with Three.js primitives, low-poly meshes, emissive materials, lighting, fog, and particle-like effects.
    - The hero description is: ${specSheet.entities?.hero || "Main player character"}
    - The enemy description is: ${specSheet.entities?.enemy || "Adversary or obstacle"}
    - Create a readable first-person weapon/hands or viewport cue so the player perspective feels embodied.
    - Environments must have depth: floor plane, walls, props, pickups, and at least one strong light source.
-   - Prefer chunky, stylish geometry that reads well on mobile over ultra-detailed scenes.`
+   - Prefer chunky, stylish geometry that reads well on mobile over ultra-detailed scenes.
+   - Do not represent enemies or pickups as plain spheres, cubes, or colored blobs if the asset kit already includes a usable matching model or prop.`
     : `5. ENTITY RENDERING (ARTIST-CODER GRAPHICS + APPROVED ASSETS):
    - ⚠️ ABSOLUTELY NO THIRD-PARTY IMAGES OR URLS. Do NOT attempt to load random external sprites, PNGs, or textures!
-   - You SHOULD use the approved same-origin GameTok asset kit below for characters, props, backgrounds, controls, or audio when it improves polish.
+   - You SHOULD use the approved same-origin GameTok asset kit below for characters, props, backgrounds, controls, or audio whenever it contains a usable match.
    - ⚠️ NEVER USE EMOJIS OR UNICODE CHARACTERS. The device CANNOT render them — they show as broken boxes.
    - You MUST still act as an 'Artist-Coder'. Use the approved assets as your base kit, then layer procedural effects, particles, tinting, and HUD polish on top.
    - The hero description is: ${specSheet.entities?.hero || "Main player character"}
    - The enemy description is: ${specSheet.entities?.enemy || "Adversary or obstacle"}
-   - 🔥 DO NOT DRAW BORING RECTANGLES OR BASIC CIRCLES! 
+   - 🔥 DO NOT DRAW BORING RECTANGLES OR BASIC CIRCLES AS HEROES OR ENEMIES WHEN A USABLE ASSET EXISTS IN THE ATTACHED KIT.
    - If you use sprite assets, preload them with Image() and draw them cleanly at readable sizes.
+   - If the attached kit contains even a rough character/creature silhouette that fits the fantasy, use that asset before inventing a plain geometric placeholder.
    - Write custom generative, multi-layered Canvas drawing sequences for effects, particles, lighting, screen shake, HUD polish, and any missing entities. Use bezier curves, gradients, globalCompositeOperation, shadows, glowing effects, and paths.
    - Make it look Spectacular and match the game's theme perfectly.
    - Example abstract energetic procedural art:
@@ -1028,7 +1098,7 @@ GAME SPECIFICATION:
 - Background Color: ${specSheet.backgroundColor}
 - Accent Color: ${specSheet.accentColor}
 
-ENTITIES (draw these as colored geometric shapes — NO emojis, NO images):
+ENTITIES (use attached same-origin character/prop assets whenever possible; only fall back to procedural stand-ins if the kit truly has no usable match):
 - Hero: ${specSheet.entities?.hero}
 - Enemy: ${specSheet.entities?.enemy}
 - Collectible: ${specSheet.entities?.collectible || 'none'}
@@ -1042,6 +1112,8 @@ DETERMINISTIC SEED: "${specSheet.seed || 'f9a2b7'}"
 You MUST implement a seeded random number generator (PRNG) and use it for ALL procedural generation and gameplay randomness.
 
 ${assetKitBlock}
+
+${userMediaBlock}
 
 ═══════════════════════════════════════════
 CRITICAL IMPLEMENTATION RULES:
@@ -1097,7 +1169,8 @@ Return ONLY the complete HTML code. Do NOT wrap in markdown. No explanation. Jus
 // EDIT PROMPT HELPER (kept for local experiments and legacy tooling)
 // ─────────────────────────────────────────────────────────
 
-export function buildPhase2_EditGame(engineCode, instructions, artistCode) {
+export function buildPhase2_EditGame(engineCode, instructions, artistCode, mediaAttachments = []) {
+  const userMediaBlock = buildUserMediaBlock(mediaAttachments);
   // If we have separate artist code, send both sections clearly labeled
   if (artistCode) {
     return `You are an expert HTML5 game developer. You are modifying an existing game that has TWO parts:
@@ -1109,6 +1182,8 @@ ${artistCode}
 ${engineCode}
 
 USER WANTS: "${instructions}"
+
+${userMediaBlock}
 
 YOUR TASK:
 - If the user wants to change visuals/characters/art → edit SECTION 1 (Artist Code)
@@ -1135,6 +1210,8 @@ EXISTING GAME CODE:
 ${engineCode}
 
 USER INSTRUCTIONS: "${instructions}"
+
+${userMediaBlock}
 
 RULES:
 1. Apply ONLY the requested changes to the existing code.

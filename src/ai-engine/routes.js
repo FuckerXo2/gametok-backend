@@ -525,7 +525,7 @@ async function createPendingJob(userId, prompt, title, jobId = randomUUID()) {
     return dbRes.rows[0].id;
 }
 
-function queuePendingJobBootstrap({ jobId, userId, prompt, title, logLabel, run }) {
+function queuePendingJobBootstrap({ jobId, userId, prompt, title, logLabel, run, runArgs = [] }) {
     rememberPendingBoot(jobId, { status: 'pending' });
 
     setImmediate(() => {
@@ -534,7 +534,7 @@ function queuePendingJobBootstrap({ jobId, userId, prompt, title, logLabel, run 
                 console.log(`🚀 [${logLabel}] Bootstrapping pending job ${jobId}`);
                 await createPendingJob(userId, prompt, title, jobId);
                 forgetPendingBoot(jobId);
-                await run(jobId, prompt);
+                await run(jobId, prompt, ...runArgs);
             } catch (error) {
                 console.error(`❌ [${logLabel}] Bootstrap failed for ${jobId}:`, error);
                 rememberPendingBoot(jobId, {
@@ -544,6 +544,51 @@ function queuePendingJobBootstrap({ jobId, userId, prompt, title, logLabel, run 
             }
         })();
     });
+}
+
+function normalizeMediaAttachmentType(type = '') {
+    const normalized = String(type || '').trim().toLowerCase();
+    switch (normalized) {
+        case 'photo':
+        case 'gif':
+        case 'sticker':
+            return 'image';
+        case 'music':
+            return 'bgm';
+        case 'audio':
+            return 'sfx';
+        default:
+            return normalized || 'image';
+    }
+}
+
+function sanitizeMediaAttachments(rawAttachments = []) {
+    if (!Array.isArray(rawAttachments)) {
+        return [];
+    }
+
+    return rawAttachments
+        .map((asset) => ({
+            type: normalizeMediaAttachmentType(asset?.type),
+            url: typeof asset?.url === 'string' ? asset.url.trim() : '',
+            title: typeof asset?.title === 'string' ? asset.title.trim() : '',
+            label: typeof asset?.label === 'string' ? asset.label.trim() : '',
+            instruction: typeof asset?.instruction === 'string' ? asset.instruction.trim() : '',
+            thumb: typeof asset?.thumb === 'string' ? asset.thumb.trim() : '',
+            duration: typeof asset?.duration === 'string' ? asset.duration.trim() : '',
+        }))
+        .filter((asset) => asset.url && asset.instruction);
+}
+
+function buildMediaAttachmentSummary(mediaAttachments = []) {
+    if (!Array.isArray(mediaAttachments) || mediaAttachments.length === 0) {
+        return '';
+    }
+
+    return mediaAttachments.map((asset, index) => {
+        const label = asset.title || asset.label || `Attachment ${index + 1}`;
+        return `${index + 1}. [${asset.type}] ${label} -> ${asset.url}\n   user intent: ${asset.instruction}`;
+    }).join('\n');
 }
 
 async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
@@ -573,7 +618,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // Phase 2: Main builder model writes the entire game in one pass
 // Phase 3: Puppeteer verifies the result before save
 // ═══════════════════════════════════════════════════════════
-async function executeDreamJob(jobId, prompt) {
+async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
     try {
         if (isAnthropicModel(DREAM_MODELS.premiumBuilder) && !process.env.ANTHROPIC_API_KEY) {
             throw new Error('ANTHROPIC_API_KEY is not configured for main DreamStream.');
@@ -598,7 +643,7 @@ async function executeDreamJob(jobId, prompt) {
 
         // ── PHASE 2: SINGLE-AGENT PREMIUM BUILD ──
         console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building the complete game in one pass...`);
-        const buildPrompt = buildPhase2_BuildPrototype(specSheet, assetBundle);
+        const buildPrompt = buildPhase2_BuildPrototype(specSheet, assetBundle, mediaAttachments);
         let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Builder Build' });
 
         if (!rawGameHtml) {
@@ -678,7 +723,7 @@ async function executeDreamJob(jobId, prompt) {
 }
 
 
-async function executeEditJob(newJobId, parentDraftId, instructions) {
+async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttachments = []) {
     try {
         console.log(`🚀 [EDIT JOB] Starting edit job ${newJobId} based on parent ${parentDraftId}`);
         markEphemeralJob(newJobId, { status: 'pending', draftId: parentDraftId });
@@ -700,6 +745,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions) {
         
         console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — html: ${existingHtml.length} chars, history: ${editHistory.length} past edits`);
 
+        const attachmentSummary = buildMediaAttachmentSummary(mediaAttachments);
         const enrichedInstructions = [
             `Apply this user edit request to the current game: "${instructions}"`,
             '',
@@ -709,6 +755,9 @@ async function executeEditJob(newJobId, parentDraftId, instructions) {
             '- Return the COMPLETE updated HTML document.',
             '- Do not rename the game unless the instruction explicitly asks for it.',
             '- Do not remove working controls, HUD, or core gameplay unless requested.',
+            attachmentSummary
+                ? `User-provided media to use if practical:\n${attachmentSummary}`
+                : 'No user-provided media attachments were included for this edit.',
             priorInstructions.length
                 ? `Recent accepted edits to keep consistent with:\n${priorInstructions.map((item, index) => `${index + 1}. ${item}`).join('\n')}`
                 : 'There are no prior edits to preserve beyond the current HTML itself.'
@@ -716,7 +765,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions) {
 
         console.log(`🤖 [EDIT JOB] Sending single-file edit request to ${DREAM_MODELS.premiumBuilder}...`);
         let editedHtml = await generateCompleteHtmlWithBuilder(
-            buildPhase2_EditGame(existingHtml, enrichedInstructions),
+            buildPhase2_EditGame(existingHtml, enrichedInstructions, undefined, mediaAttachments),
             { label: 'Edit Builder Pass' }
         );
 
@@ -764,6 +813,7 @@ FATAL ERROR: ${sandboxRes.crashes[0]}
 You must rewrite the FULL HTML document so it boots and remains playable.
 Preserve the user's requested edit:
 "${instructions}"
+${attachmentSummary ? `\nUser-provided media to preserve or apply if practical:\n${attachmentSummary}\n` : ''}
 
 BROKEN HTML:
 \`\`\`html
@@ -850,10 +900,11 @@ router.post('/generate-asset', async (req, res) => {
 
 router.post('/dream', async (req, res) => {
     try {
-        const { prompt } = req.body;
+        const { prompt, attachments } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Expired session');
+        const mediaAttachments = sanitizeMediaAttachments(attachments);
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
@@ -867,6 +918,7 @@ router.post('/dream', async (req, res) => {
             title: JOB_TITLES.dreamPending,
             logLabel: 'DREAM ROUTE',
             run: executeDreamJob,
+            runArgs: [mediaAttachments],
         });
 
         res.json({ success: true, jobId: jobId });
@@ -879,10 +931,11 @@ router.post('/dream', async (req, res) => {
 
 router.post('/edit', async (req, res) => {
     try {
-        const { draftId, instructions, newAsset } = req.body;
+        const { draftId, instructions, newAsset, attachments } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Expired session');
+        const mediaAttachments = sanitizeMediaAttachments(attachments);
 
         if (!draftId || !instructions) return res.status(400).json({ error: "draftId and instructions are required" });
         console.log(`🧠 [EDIT ROUTE] Creating edit job for User[${userId}] -> Draft: ${draftId}, Inst: "${instructions}"`);
@@ -890,7 +943,7 @@ router.post('/edit', async (req, res) => {
         const newJobId = randomUUID();
         markEphemeralJob(newJobId, { status: 'pending', draftId });
         setImmediate(() => {
-            void executeEditJob(newJobId, draftId, instructions);
+            void executeEditJob(newJobId, draftId, instructions, mediaAttachments);
         });
 
         res.json({ success: true, jobId: newJobId });
@@ -1075,7 +1128,7 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 // ========================================================
 
 
-async function executeLabsDreamJob(jobId, prompt) {
+async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
     try {
         console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
         const requested3DLane = wantsFirstPerson3D(prompt, {});
@@ -1085,7 +1138,7 @@ async function executeLabsDreamJob(jobId, prompt) {
             const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
             console.log(`📦 [LABS JOB] Asset Brain attached ${bundleCount} curated assets for lane ${assetBundle.lane}`);
         }
-        const soloPrompt = buildLabsSoloPrototype(prompt, assetBundle);
+        const soloPrompt = buildLabsSoloPrototype(prompt, assetBundle, mediaAttachments);
         let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
             model: DREAM_MODELS.labsBuilder,
             systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself. Be practical, obey the format exactly, and prioritize a playable first frame.",
@@ -1166,10 +1219,11 @@ Output ONLY the complete fixed HTML document.`;
 
 router.post('/dream-labs', async (req, res) => {
     try {
-        const { prompt } = req.body;
+        const { prompt, attachments } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Expired session');
+        const mediaAttachments = sanitizeMediaAttachments(attachments);
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
@@ -1183,6 +1237,7 @@ router.post('/dream-labs', async (req, res) => {
             title: JOB_TITLES.labsPending,
             logLabel: 'LABS ROUTE',
             run: executeLabsDreamJob,
+            runArgs: [mediaAttachments],
         });
 
         res.json({ success: true, jobId: jobId });
