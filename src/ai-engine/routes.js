@@ -623,7 +623,7 @@ async function executeDreamJob(jobId, prompt) {
             let sandboxRes;
             try {
                 validateRuntimeLaneContract(specSheet.runtimeLane, rawGameHtml);
-                sandboxRes = await verifyGame(finalHtml);
+                sandboxRes = await verifyGame(finalHtml, { runtimeLane: specSheet.runtimeLane });
             } catch (validationError) {
                 sandboxRes = {
                     success: false,
@@ -736,7 +736,9 @@ async function executeEditJob(newJobId, parentDraftId, instructions) {
             console.log(`📸 [EDIT JOB] Verifying edited game...`);
             let sandboxRes;
             try {
-                sandboxRes = await verifyGame(finalHtml);
+                sandboxRes = await verifyGame(finalHtml, {
+                    runtimeLane: wantsFirstPerson3D(existingHtml, {}) ? 'first_person_threejs' : null,
+                });
             } catch (validationError) {
                 sandboxRes = {
                     success: false,
@@ -1103,7 +1105,7 @@ async function executeLabsDreamJob(jobId, prompt) {
             try {
                 validateGeneratedBuild('', rawEngineHtml, rawEngineHtml);
                 validateRuntimeLaneContract(requested3DLane ? 'first_person_threejs' : null, rawEngineHtml);
-                sandboxRes = await verifyGame(finalHtml);
+                sandboxRes = await verifyGame(finalHtml, { runtimeLane: requested3DLane ? 'first_person_threejs' : inferredLane });
             } catch (validationError) {
                 sandboxRes = {
                     success: false,
