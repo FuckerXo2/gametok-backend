@@ -95,6 +95,13 @@ function pickLane(promptText, rawSpec) {
     return 'endless_flyer';
   }
 
+  if (
+    includesAny(text, ['subway surfers', 'subway', 'endless runner', 'runner', 'temple run']) &&
+    includesAny(text, ['lane', 'lanes', 'swipe', 'run', 'running', 'train', 'track', 'coin', 'coins', 'endless'])
+  ) {
+    return 'endless_runner_vertical';
+  }
+
   if (includesAny(text, ['platformer', 'plumber', 'jump', 'coins', 'pixel'])) {
     return 'pixel_platformer';
   }
@@ -259,6 +266,69 @@ function buildLaneSpec(lane, spec, promptText) {
         spectacleFocus: ['soft squash and stretch', 'cute impact puffs', 'parallax clouds'],
         playabilityRules: ['Keep obstacle count low and timing crisp; the fun should come from rhythm and feel.'],
         visualTargets: ['cute mascot silhouette', 'soft toy-like props', 'very readable spacing'],
+        promptEcho: promptText,
+      };
+
+    case 'endless_runner_vertical':
+      return {
+        ...spec,
+        runtimeLane: lane,
+        genre: safeText(spec.genre, 'Endless Lane Runner'),
+        levelDesign: 'Endless Run',
+        cameraPerspective: 'THIRD_PERSON',
+        preferredEngine: 'CANVAS_2D',
+        summary: safeText(
+          spec.summary,
+          'A fast vertical endless runner where the player dashes forward through three lanes, swipes to dodge, jump, and slide, and chases high scores through coin lines and obstacle patterns.'
+        ),
+        coreMechanics: uniqueList([
+          'constant forward movement',
+          'three-lane switching',
+          'swipe up to jump',
+          'swipe down to slide',
+          'collect coin lines',
+          'dodge trains, barricades, and obstacles',
+          ...(Array.isArray(spec.coreMechanics) ? spec.coreMechanics : []),
+        ]).slice(0, 6),
+        entities: {
+          hero: safeText(baseEntities.hero, 'a runner sprinting away from danger down a bright multi-lane track'),
+          enemy: safeText(baseEntities.enemy, 'oncoming trains, barricades, or track obstacles that punish bad lane choices'),
+          collectible: safeText(baseEntities.collectible, 'coins lined up in readable arcs and rows'),
+          obstacle: safeText(baseEntities.obstacle, 'barriers, trains, signs, and low slide-under hazards'),
+        },
+        renderManifest: clampManifest(spec.renderManifest, [
+          'drawRunner',
+          'drawTrain',
+          'drawBarrier',
+          'drawCoin',
+          'drawDustTrail',
+          'drawLaneMarkers',
+        ]),
+        playableSlice:
+          'A vertical portrait endless runner with three clear lanes, constant forward speed, readable coins, and escalating obstacle cadence.',
+        sceneBlueprint:
+          'Portrait-oriented runner track moving toward the player with three vertical lanes, lane markers, trains or barricades ahead, and coin lines guiding the best path.',
+        controlModel:
+          'Swipe left/right to change lanes, swipe up to jump, swipe down to slide. The runner should always move forward automatically.',
+        spectacleFocus: [
+          'speed streaks',
+          'coin pop sparkles',
+          'near-miss flashes',
+          'dust trails',
+          'lane-switch swooshes',
+        ],
+        playabilityRules: [
+          'This must read as a portrait endless runner, not a side-scrolling platformer.',
+          'The runner should move toward the top of the screen or the world should scroll downward toward the player to preserve the Subway Surfers feel.',
+          'Always keep three clear readable lanes and obstacles that occupy lane space cleanly.',
+          'Never make the primary movement horizontal unless the prompt explicitly asks for that.',
+        ],
+        visualTargets: [
+          'strong lane readability',
+          'portrait runner composition',
+          'clear obstacle telegraphing',
+          'fast arcadey motion',
+        ],
         promptEcho: promptText,
       };
 
