@@ -270,13 +270,14 @@ function buildLaneSpec(lane, spec, promptText) {
         visualStyle: strictPixelArt ? 'PIXEL_RETRO' : safeText(spec.visualStyle, 'PIXEL_RETRO'),
         pixelArtStrict: strictPixelArt,
         playableSlice: 'A compact vertical or side-scrolling pixel platformer with a few platform modules, enemy hops, and coin routes.',
-        sceneBlueprint: 'Small pixel character, layered skyline, simple platforms, coin arcs, and one or two enemy patterns per screen.',
+        sceneBlueprint: 'Small pixel character, low-resolution sky or tile background, crisp grass/dirt platforms, coin arcs, and one or two enemy patterns per screen.',
         controlModel: 'Hold left/right touch zones to move and tap to jump.',
         spectacleFocus: ['coin pops', 'jump dust', 'screen shake on stomp', 'sparkle pickups'],
         playabilityRules: [
           'Prefer tight platform spacing and readable jumps over giant map ambition.',
           'If the user asked for pixel art, treat that as a hard visual rule, not a loose retro suggestion.',
           'Keep all gameplay sprites, tiles, pickups, and HUD readable on a phone without mixing in glossy smooth art.',
+          'Render the game at a deliberately low internal resolution and upscale it crisply, instead of drawing a smooth full-resolution scene.',
         ],
         visualTargets: [
           '8-bit or 16-bit readability',
@@ -284,6 +285,7 @@ function buildLaneSpec(lane, spec, promptText) {
           'simple enemy tells',
           'integer-aligned movement and camera framing',
           'nearest-neighbor sprite scaling with no blurry filtering',
+          'low-resolution internal canvas upscaled sharply to the phone screen',
         ],
         promptEcho: promptText,
       };
