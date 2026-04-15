@@ -179,7 +179,6 @@ function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
 - If you use sprite assets, render them with nearest-neighbor scaling:
   - canvas/context CSS should prefer crisp edges when possible
   - disable smoothing with ctx.imageSmoothingEnabled = false
-- You MAY use a low-resolution internal buffer and upscale it crisply if that helps sell the pixel look, but it is not mandatory.
 - Keep sprite/camera movement aligned to integer pixels whenever practical. Avoid subpixel blur.
 - Use consistent tile sizing such as 16x16, 24x24, or 32x32. Platforms, pickups, enemies, and HUD ornaments should respect that pixel grid.
 - Do NOT use soft gradients, blurry glow blobs, glassmorphism, or modern rounded-dashboard UI styling as the primary look.

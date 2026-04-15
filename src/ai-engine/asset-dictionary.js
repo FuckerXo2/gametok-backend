@@ -595,7 +595,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
       notes = [
         ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
         ...(wantsStrictGeneratedPixel
-          ? ['Strict pixel-art prompt detected: do not attach Kenney visual sprites for this run. Generate original low-resolution pixel art procedurally instead.']
+          ? ['Strict pixel-art prompt detected: do not attach Kenney visual sprites for this run. Generate original pixel art procedurally instead.']
           : ['This lane should stay visually pixel-first. Prefer the staged pixel platformer packs over smooth or mixed-style substitutes.']),
       ];
       break;

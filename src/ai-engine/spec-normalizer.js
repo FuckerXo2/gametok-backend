@@ -270,7 +270,7 @@ function buildLaneSpec(lane, spec, promptText) {
         visualStyle: strictPixelArt ? 'PIXEL_RETRO' : safeText(spec.visualStyle, 'PIXEL_RETRO'),
         pixelArtStrict: strictPixelArt,
         playableSlice: 'A compact vertical or side-scrolling pixel platformer with a few platform modules, enemy hops, and coin routes.',
-        sceneBlueprint: 'Small pixel character, low-resolution sky or tile background, crisp grass/dirt platforms, coin arcs, and one or two enemy patterns per screen.',
+        sceneBlueprint: 'Small pixel character, crisp sky or tile background, grass/dirt platforms, coin arcs, and one or two enemy patterns per screen.',
         controlModel: 'Hold left/right touch zones to move and tap to jump.',
         spectacleFocus: ['coin pops', 'jump dust', 'screen shake on stomp', 'sparkle pickups'],
         playabilityRules: [
