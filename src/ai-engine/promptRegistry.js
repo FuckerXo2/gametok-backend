@@ -176,14 +176,10 @@ function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
   return `STRICT PIXEL-ART CONTRACT:
 - The user explicitly wants pixel art. Treat that as a hard visual requirement, not a loose retro vibe.
 - Use only Canvas2D for the main render path. Do not switch to glossy DOM cards, smooth vector-style scenes, or soft illustrative backgrounds.
-- Build the game around a LOW INTERNAL RESOLUTION such as 320x180, 360x202, or 384x216, then upscale that framebuffer to fill the phone screen.
-- The final look should read like a crisp upscaled retro game, not a normal-resolution scene with a small sprite dropped into it.
 - If you use sprite assets, render them with nearest-neighbor scaling:
   - canvas/context CSS should prefer crisp edges when possible
   - disable smoothing with ctx.imageSmoothingEnabled = false
-- Prefer a dedicated internal render canvas or offscreen canvas:
-  - draw gameplay into the low-res buffer
-  - then scale it onto the full screen canvas with imageSmoothingEnabled disabled
+- You MAY use a low-resolution internal buffer and upscale it crisply if that helps sell the pixel look, but it is not mandatory.
 - Keep sprite/camera movement aligned to integer pixels whenever practical. Avoid subpixel blur.
 - Use consistent tile sizing such as 16x16, 24x24, or 32x32. Platforms, pickups, enemies, and HUD ornaments should respect that pixel grid.
 - Do NOT use soft gradients, blurry glow blobs, glassmorphism, or modern rounded-dashboard UI styling as the primary look.

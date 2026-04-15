@@ -277,7 +277,6 @@ function buildLaneSpec(lane, spec, promptText) {
           'Prefer tight platform spacing and readable jumps over giant map ambition.',
           'If the user asked for pixel art, treat that as a hard visual rule, not a loose retro suggestion.',
           'Keep all gameplay sprites, tiles, pickups, and HUD readable on a phone without mixing in glossy smooth art.',
-          'Render the game at a deliberately low internal resolution and upscale it crisply, instead of drawing a smooth full-resolution scene.',
         ],
         visualTargets: [
           '8-bit or 16-bit readability',
@@ -285,7 +284,7 @@ function buildLaneSpec(lane, spec, promptText) {
           'simple enemy tells',
           'integer-aligned movement and camera framing',
           'nearest-neighbor sprite scaling with no blurry filtering',
-          'low-resolution internal canvas upscaled sharply to the phone screen',
+          'self-generated pixel-looking sprites and tiles instead of smooth modern illustration',
         ],
         promptEcho: promptText,
       };
