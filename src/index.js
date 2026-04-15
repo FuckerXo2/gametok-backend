@@ -16,6 +16,7 @@ import assetsRouter from './assets-router.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
+const SEKAI_TEMPLATES_ROOT = path.resolve(__dirname, '../../sekai-templates');
 const STATIC_UPLOAD_ROOTS = [
   path.join(__dirname, '../public/uploads'),
   STORAGE_ROOT,
@@ -38,6 +39,7 @@ app.use('/api/assets', assetsRouter);
 for (const uploadRoot of STATIC_UPLOAD_ROOTS) {
   app.use('/uploads', express.static(uploadRoot));
 }
+app.use('/sekai-templates', express.static(SEKAI_TEMPLATES_ROOT));
 
 // Serve static thumbnails
 app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thumbnails')));

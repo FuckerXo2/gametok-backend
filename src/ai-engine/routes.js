@@ -5,11 +5,110 @@ import { randomUUID } from 'crypto';
 import vm from 'vm';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import pool from '../db.js';
 import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle } from './asset-dictionary.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const SEKAI_TEMPLATES_ROOT = path.resolve(__dirname, '../../../sekai-templates');
+const SEKAI_TEMPLATE_PREFIX = 'sekai__';
+
+function getRequestOrigin(req) {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    return `${protocol}://${host}`;
+}
+
+function toSekaiTemplateId(gameId) {
+    return `${SEKAI_TEMPLATE_PREFIX}${gameId}`;
+}
+
+function listSekaiTemplates() {
+    if (!fs.existsSync(SEKAI_TEMPLATES_ROOT)) return [];
+
+    const entries = fs.readdirSync(SEKAI_TEMPLATES_ROOT, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith('game_'))
+        .map((entry) => {
+            const dirName = entry.name;
+            const gameId = dirName.replace(/^game_/, '');
+            const cardPath = path.join(SEKAI_TEMPLATES_ROOT, dirName, 'card-data.json');
+            const gameHtmlPath = path.join(SEKAI_TEMPLATES_ROOT, dirName, 'assets', 'game.html');
+
+            if (!fs.existsSync(cardPath) || !fs.existsSync(gameHtmlPath)) return null;
+
+            try {
+                const card = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
+                return {
+                    id: toSekaiTemplateId(gameId),
+                    title: card.title || `Sekai Template ${gameId.slice(0, 8)}`,
+                    prompt: `Imported Sekai template by ${card.creator_name || 'Unknown creator'}`,
+                    thumbnail: card.cover || null,
+                    created_at: null,
+                    source: 'sekai',
+                    sekaiGameId: gameId,
+                    sekaiDirName: dirName,
+                };
+            } catch (error) {
+                console.error(`[sekai-templates] Failed to parse ${cardPath}:`, error.message);
+                return null;
+            }
+        })
+        .filter(Boolean);
+
+    return entries;
+}
+
+function getSekaiTemplateById(templateId) {
+    const all = listSekaiTemplates();
+    return all.find((template) => template.id === templateId) || null;
+}
+
+function buildSekaiTemplateHtml(req, template) {
+    const origin = getRequestOrigin(req);
+    const iframeSrc = `${origin}/sekai-templates/${template.sekaiDirName}/assets/game.html`;
+    const escapedTitle = String(template.title || 'Sekai Template')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>${escapedTitle}</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    src="${iframeSrc}"
+    allow="autoplay; camera; microphone; clipboard-read; clipboard-write; gyroscope; accelerometer; fullscreen"
+    sandbox="allow-scripts allow-same-origin allow-popups allow-pointer-lock allow-modals allow-forms"
+  ></iframe>
+</body>
+</html>`;
+}
 
 function extractJson(text) {
     let jsonStart = text.indexOf('{');
@@ -1286,12 +1385,28 @@ router.get('/templates', async (req, res) => {
         const templates = await pool.query(
             "SELECT id, title, prompt, thumbnail, created_at FROM ai_games WHERE is_template = true AND html_payload != '' ORDER BY created_at DESC"
         );
-        res.json({ templates: templates.rows });
+        const sekaiTemplates = listSekaiTemplates();
+        res.json({ templates: [...sekaiTemplates, ...templates.rows] });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 router.get('/templates/:id', async (req, res) => {
     try {
+        if (req.params.id.startsWith(SEKAI_TEMPLATE_PREFIX)) {
+            const sekaiTemplate = getSekaiTemplateById(req.params.id);
+            if (!sekaiTemplate) return res.status(404).json({ error: 'Template not found' });
+            return res.json({
+                template: {
+                    id: sekaiTemplate.id,
+                    title: sekaiTemplate.title,
+                    prompt: sekaiTemplate.prompt,
+                    html_payload: buildSekaiTemplateHtml(req, sekaiTemplate),
+                    thumbnail: sekaiTemplate.thumbnail,
+                    created_at: sekaiTemplate.created_at,
+                }
+            });
+        }
+
         const tpl = await pool.query(
             "SELECT id, title, prompt, html_payload, thumbnail, created_at FROM ai_games WHERE id = $1 AND is_template = true",
             [req.params.id]
