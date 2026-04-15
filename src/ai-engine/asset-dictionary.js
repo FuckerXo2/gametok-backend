@@ -507,8 +507,34 @@ function enrichNotesWithCrossLaneBorrowing(lane, assets = []) {
   ];
 }
 
+function wantsGeneratedPixelArt(specSheet = {}, promptText = '') {
+  const text = [
+    promptText,
+    specSheet?.title,
+    specSheet?.genre,
+    specSheet?.summary,
+    specSheet?.visualStyle,
+    specSheet?.promptEcho,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return specSheet?.pixelArtStrict === true || [
+    'pixel',
+    'pixel art',
+    'pixel-art',
+    '8-bit',
+    '16-bit',
+    'retro sprite',
+    'sprite sheet',
+    'tileset',
+  ].some((keyword) => text.includes(keyword));
+}
+
 export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
   const lane = specSheet?.runtimeLane || 'arcade_canvas';
+  const wantsStrictGeneratedPixel = lane === 'pixel_platformer' && wantsGeneratedPixelArt(specSheet, promptText);
   const prompt = [
     promptText,
     specSheet?.title,
@@ -554,17 +580,23 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
       break;
 
     case 'pixel_platformer':
-      visuals = mergeAssetGroups(
-        rankWave1Assets(`${prompt} pixel background clouds sky hills trees grass`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
-        rankWave1Assets(`${prompt} pixel player hero adventurer character`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 3 }),
-        rankWave1Assets(`${prompt} pixel slime ghost enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} coin gem heart pickup hud`, { lane, desiredRoles: ['pickup', 'ui'], desiredKinds: ['environment', 'sprite', 'item'], limit: 2 })
-      );
-      controls = rankWave1Assets(`${prompt} button ui`, { lane, desiredRoles: ['ui'], desiredKinds: ['ui', 'control'], limit: 2 });
+      visuals = wantsStrictGeneratedPixel
+        ? []
+        : mergeAssetGroups(
+            rankWave1Assets(`${prompt} pixel background clouds sky hills trees grass`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
+            rankWave1Assets(`${prompt} pixel player hero adventurer character`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 3 }),
+            rankWave1Assets(`${prompt} pixel slime ghost enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 2 }),
+            rankWave1Assets(`${prompt} coin gem heart pickup hud`, { lane, desiredRoles: ['pickup', 'ui'], desiredKinds: ['environment', 'sprite', 'item'], limit: 2 })
+          );
+      controls = wantsStrictGeneratedPixel
+        ? []
+        : rankWave1Assets(`${prompt} button ui`, { lane, desiredRoles: ['ui'], desiredKinds: ['ui', 'control'], limit: 2 });
       audio = rankWave1Assets(`${prompt} jingle platformer coin`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 2 });
       notes = [
         ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
-        'This lane should stay visually pixel-first. Prefer the staged pixel platformer packs over smooth or mixed-style substitutes.',
+        ...(wantsStrictGeneratedPixel
+          ? ['Strict pixel-art prompt detected: do not attach Kenney visual sprites for this run. Generate original low-resolution pixel art procedurally instead.']
+          : ['This lane should stay visually pixel-first. Prefer the staged pixel platformer packs over smooth or mixed-style substitutes.']),
       ];
       break;
 

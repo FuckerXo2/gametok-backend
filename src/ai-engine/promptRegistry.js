@@ -189,6 +189,7 @@ function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
 - Do NOT use soft gradients, blurry glow blobs, glassmorphism, or modern rounded-dashboard UI styling as the primary look.
 - Do NOT leave giant smooth empty sky areas with tiny sprites floating in them. Compose the frame like a real pixel platformer: stronger tile rhythm, horizon layers, chunkier platforms, and readable spacing.
 - Prefer pixel-friendly backgrounds, tiles, characters, pickups, and HUD ornaments from the approved asset kit.
+- If no visual pixel kit is attached for this run, you MUST generate the pixel sprites, tiles, pickups, and backdrop yourself instead of faking a smooth scene.
 - If you must draw missing art procedurally, make it blocky, tile-like, and pixel-readable instead of smooth or painterly.
 - Use chunky, readable pixel-style HUD text treatment. Avoid sleek modern UI panels that clash with pixel sprites.`;
 }
