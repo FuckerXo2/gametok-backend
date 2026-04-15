@@ -52,17 +52,41 @@ const LANE_NOTES = {
   endless_flyer: [
     'Keep the flyer high enough on screen that the opening state looks safe and playable.',
     'Obstacle silhouettes matter more than raw asset count here; one strong plane plus clean hazards beats a cluttered bundle.',
+    'Use horizon layers, cloud bands, and distant props so the flyer reads like open air instead of a boxed shaft.',
   ],
   topdown_arcade: [
     'Prefer readable survivor and zombie silhouettes over over-decorating the map.',
     'A few good tiles, pickups, and impacts are enough to sell the lane.',
+    'Favor ground coverage and map context so the action feels placed inside a space, not floating in UI emptiness.',
+    'If the control rig is move-and-fire, prioritize readable combat controls and pressure lanes over decorative filler.',
   ],
   pixel_platformer: [
     'Prioritize clear terrain silhouettes, readable pickups, and one dependable enemy family.',
+    'Background depth matters here: hills, clouds, trees, and tile rhythm keep the scene from feeling trapped.',
   ],
   auto_battler_arena: [
     'This lane currently borrows character ingredients from nearby sprite families when the dedicated battle packs are too tile-heavy.',
     'If class-specific art is still imperfect, keep units chunky and readable instead of shrinking them into colored dots.',
+    'Use banners, stage props, gates, and floor framing so the arena feels wide and deliberate.',
+  ],
+  endless_runner_vertical: [
+    'Sell forward depth with repeated lane markers, skyline props, and distant obstacle silhouettes instead of a flat boxed track.',
+    'Runner lanes need horizon support just as much as obstacle support.',
+    'If the control rig is lane-swipe runner, the track needs clean lane telegraphing more than extra clutter.',
+  ],
+  story_horror_vignette: [
+    'This lane can win with almost no custom art if the typography, spacing, and atmosphere are strong.',
+    'Use texture, panels, restrained props, and ambient support instead of cluttering a horror vignette with random sprites.',
+    'A single note, prompt card, terminal frame, or reveal object is often enough if the scene is staged well.',
+  ],
+  simulation_toybox: [
+    'This lane wins by making the source zone, central machine, and result zone read clearly as one playful system.',
+    'Favor strong workstation props, ingredient cards, trays, and reveal panels over cluttering the screen with unrelated decoration.',
+    'A good central object plus a readable shelf and one satisfying reveal state beats trying to simulate ten subsystems.',
+  ],
+  single_room_shooter: [
+    'A room-based game still needs depth: foreground props, back-wall details, and readable combat cover.',
+    'Favor a strong room kit over random decorative clutter.',
   ],
   first_person_threejs: [
     'Use same-origin GLB models only if they actually help readability; otherwise keep geometry procedural and use the kit for landmarks.',
@@ -476,6 +500,29 @@ function dedupeAssets(assets = []) {
   });
 }
 
+function filterAssetsByKeywords(assets = [], keywords = []) {
+  const terms = keywords.map((term) => String(term || '').toLowerCase()).filter(Boolean);
+  if (terms.length === 0) return dedupeAssets(assets);
+  return dedupeAssets(assets).filter((asset) => {
+    const haystack = [
+      asset?.label,
+      asset?.packName,
+      asset?.url,
+      asset?.lane,
+      ...(Array.isArray(asset?.tags) ? asset.tags : []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return terms.some((term) => haystack.includes(term));
+  });
+}
+
+function hasAnyAssetKeyword(assets = [], keywords = []) {
+  const filtered = filterAssetsByKeywords(assets, keywords);
+  return filtered.length > 0;
+}
+
 function summarizeBundleSection(assets, role) {
   return dedupeAssets(assets).map((asset) => ({
     role,
@@ -534,6 +581,10 @@ function wantsGeneratedPixelArt(specSheet = {}, promptText = '') {
 
 export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
   const lane = specSheet?.runtimeLane || 'arcade_canvas';
+  const controlRig = specSheet?.controlRig || null;
+  const isCockpitDriver = lane === 'first_person_threejs' && controlRig === 'cockpit_driver';
+  const isMoveAndFire = controlRig === 'move_and_fire';
+  const isLaneSwipeRunner = controlRig === 'lane_swipe_runner';
   const wantsStrictGeneratedPixel = lane === 'pixel_platformer' && wantsGeneratedPixelArt(specSheet, promptText);
   const prompt = [
     promptText,
@@ -569,14 +620,30 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
 
     case 'topdown_arcade':
       visuals = mergeAssetGroups(
-        rankWave1Assets(`${prompt} survivor soldier hero player gun`, { lane, desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
+        rankWave1Assets(`${prompt} survivor soldier hero player gun blaster fighter`, { lane, desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
         rankWave1Assets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} road parking lot tile barricade crate barrel`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 2 }),
+        rankWave1Assets(`${prompt} road parking lot tile barricade crate barrel floor curb wall`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
+        rankWave1Assets(`${prompt} skyline horizon tree building fence sign streetlight background`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 2 }),
         rankWave1Assets(`${prompt} coin ammo medkit pickup`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], limit: 2 })
       );
-      controls = rankWave1Assets(`${prompt} button shoot joystick ui`, { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 2 });
-      audio = rankWave1Assets(`${prompt} impact interface gun hit`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
-      notes = enrichNotesWithCrossLaneBorrowing(lane, visuals);
+      controls = rankWave1Assets(
+        isMoveAndFire
+          ? `${prompt} joystick thumbpad fire button attack ui combat`
+          : `${prompt} button shoot joystick ui`,
+        { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 }
+      );
+      audio = rankWave1Assets(
+        isMoveAndFire
+          ? `${prompt} gun hit muzzle impact combat interface`
+          : `${prompt} impact interface gun hit`,
+        { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }
+      );
+      notes = [
+        ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
+        ...(isMoveAndFire
+          ? ['Move-and-fire control rig detected: prefer visible combat-control art, ammo/medkit pickups, and readable enemy pressure over generic top-down filler.']
+          : []),
+      ];
       break;
 
     case 'pixel_platformer':
@@ -601,27 +668,210 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
       break;
 
     case 'auto_battler_arena':
-      visuals = mergeAssetGroups(
-        rankWave1Assets(`${prompt} knight archer wizard ally warrior paladin mage`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 3 }),
-        rankWave1Assets(`${prompt} goblin orc zombie skeleton enemy monster`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer', 'first_person_threejs'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite', 'model'], preferHero: true, limit: 3 }),
-        rankWave1Assets(`${prompt} battlefield arena board prep grid fantasy tile banner frame`, { lane, desiredRoles: ['environment', 'ui', 'prop'], desiredKinds: ['environment', 'ui', 'sprite'], limit: 4 }),
-        pickLegacyAssets(`${prompt} knight archer wizard fantasy`, { limit: 4, categories: ['character', 'weapon'] }),
-        pickLegacyAssets(`${prompt} goblin orc zombie skeleton ghost enemy`, { limit: 3, categories: ['enemy'] })
+      visuals = filterAssetsByKeywords(
+        mergeAssetGroups(
+          rankWave1Assets(`${prompt} knight archer wizard ally warrior paladin mage`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 3 }),
+          rankWave1Assets(`${prompt} goblin orc zombie skeleton enemy monster`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer', 'first_person_threejs'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite', 'model'], preferHero: true, limit: 3 }),
+          rankWave1Assets(`${prompt} battlefield arena board prep grid fantasy tile banner frame floor`, { lane, desiredRoles: ['environment', 'ui', 'prop'], desiredKinds: ['environment', 'ui', 'sprite'], limit: 4 }),
+          rankWave1Assets(`${prompt} gate castle torch crowd stand wall statue horizon backdrop`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
+          pickLegacyAssets(`${prompt} knight archer wizard fantasy`, { limit: 4, categories: ['character', 'weapon'] }),
+          pickLegacyAssets(`${prompt} goblin orc zombie skeleton ghost enemy`, { limit: 3, categories: ['enemy'] })
+        ),
+        ['knight', 'archer', 'wizard', 'mage', 'warrior', 'paladin', 'goblin', 'orc', 'skeleton', 'enemy', 'banner', 'gate', 'castle', 'arena', 'battle', 'grid', 'frame', 'tile']
       );
-      controls = rankWave1Assets(`${prompt} battle button deploy ui frame`, { lane, desiredRoles: ['ui', 'control'], desiredKinds: ['ui', 'control', 'environment'], limit: 3 });
-      audio = rankWave1Assets(`${prompt} impact sword magic battle interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
-      notes = enrichNotesWithCrossLaneBorrowing(lane, visuals);
+      visuals = visuals.filter((asset) => {
+        const label = String(asset?.label || '').toLowerCase();
+        const url = String(asset?.url || '').toLowerCase();
+        return !/tile_\d+\.png/.test(label) && !/\/tiles\/tile_\d+\.png/.test(url);
+      });
+      if (
+        !hasAnyAssetKeyword(visuals, ['knight', 'archer', 'wizard', 'mage', 'warrior', 'paladin']) ||
+        !hasAnyAssetKeyword(visuals, ['goblin', 'orc', 'skeleton', 'enemy', 'zombie', 'ghost']) ||
+        !hasAnyAssetKeyword(visuals, ['banner', 'gate', 'castle', 'arena', 'battle', 'grid', 'frame', 'tile', 'wall', 'floor'])
+      ) {
+        visuals = [];
+      }
+      controls = filterAssetsByKeywords(
+        rankWave1Assets(`${prompt} battle button deploy ui frame`, { lane, desiredRoles: ['ui', 'control'], desiredKinds: ['ui', 'control', 'environment'], limit: 3 }),
+        ['battle', 'button', 'frame', 'panel', 'banner', 'deploy']
+      );
+      controls = controls.filter((asset) => {
+        const label = String(asset?.label || '').toLowerCase();
+        const url = String(asset?.url || '').toLowerCase();
+        return !label.includes('divider-') && !url.includes('/divider/');
+      });
+      if (!hasAnyAssetKeyword(controls, ['battle', 'button', 'frame', 'panel', 'banner', 'deploy'])) {
+        controls = [];
+      }
+      audio = filterAssetsByKeywords(
+        rankWave1Assets(`${prompt} impact sword magic battle interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        ['impact', 'sword', 'magic', 'battle', 'hit', 'attack']
+      );
+      notes = [
+        ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
+        ...(visuals.length === 0
+          ? ['No convincing class/enemy/arena assets were found for this prompt, so the builder should proceduralize chunky allied squads, goblin fodder, and stage props instead of forcing weak fantasy sprites.']
+          : []),
+        ...(controls.length === 0
+          ? ['No convincing battle-control art was found, so the builder should render a procedural BATTLE/deploy panel instead of pasting generic divider chrome into the arena.']
+          : []),
+      ];
+      break;
+
+    case 'endless_runner_vertical':
+      visuals = filterAssetsByKeywords(
+        mergeAssetGroups(
+          rankWave1Assets(`${prompt} runner player hero skater surfer character`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
+          rankWave1Assets(`${prompt} train barrier cone obstacle sign crate hazard`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
+          rankWave1Assets(
+            isLaneSwipeRunner
+              ? `${prompt} road lane marker track stripe divider arrow skyline city building fence horizon background`
+              : `${prompt} road lane marker track stripe skyline city building fence horizon background`,
+            { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 4 }
+          ),
+          rankWave1Assets(`${prompt} coin gem pickup score`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 2 })
+        ),
+        ['runner', 'run', 'track', 'lane', 'road', 'stripe', 'barrier', 'train', 'coin', 'gem', 'pickup', 'sign', 'cone', 'arrow']
+      );
+      if (!hasAnyAssetKeyword(visuals, ['runner', 'track', 'lane', 'road', 'barrier', 'train', 'sign', 'cone'])) {
+        visuals = [];
+      }
+      controls = filterAssetsByKeywords(rankWave1Assets(
+        isLaneSwipeRunner
+          ? `${prompt} swipe left right jump slide ui lane runner`
+          : `${prompt} swipe button ui lane`,
+        { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 }
+      ), ['left', 'right', 'arrow', 'button', 'direction', 'swipe']);
+      audio = filterAssetsByKeywords(
+        rankWave1Assets(`${prompt} swoosh hit coin interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        ['coin', 'jump', 'swoosh', 'swipe', 'pickup', 'move', 'woosh']
+      );
+      notes = [
+        ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
+        ...(isLaneSwipeRunner
+          ? ['Lane-swipe runner control rig detected: prioritize lane markers, obstacle telegraphing, and jump/slide cues so the path reads instantly.']
+          : []),
+        ...(visuals.length === 0
+          ? ['No convincing runner character/track assets were found for this prompt, so the builder should proceduralize the runner silhouette, lanes, and early obstacles instead of forcing weak sprite support.']
+          : []),
+      ];
+      break;
+
+    case 'story_horror_vignette':
+      visuals = filterAssetsByKeywords(
+        mergeAssetGroups(
+          rankWave1Assets(`${prompt} paper note letter terminal frame card panel eerie prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'ui', 'item', 'sprite'], limit: 3 }),
+          rankWave1Assets(`${prompt} candle lamp glow dust smoke shadow frame background`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite', 'item'], limit: 2 })
+        ),
+        ['panel', 'frame', 'window', 'terminal', 'screen', 'card', 'paper', 'note', 'letter', 'lamp', 'candle']
+      );
+      controls = rankWave1Assets(`${prompt} yes no continue button ui prompt`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 2 });
+      audio = rankWave1Assets(`${prompt} ambience hum whisper click interface eerie`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
+      notes = [
+        ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
+        'Minimal story/horror vignette detected: sparse assets are acceptable if atmosphere, typography, and one strong focal object carry the scene.',
+      ];
+      break;
+
+    case 'simulation_toybox':
+      visuals = filterAssetsByKeywords(
+        mergeAssetGroups(
+          rankWave1Assets(`${prompt} ingredient card pantry shelf tray bottle jar fruit gem reagent item`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['pickup', 'item', 'prop', 'ui'], desiredKinds: ['item', 'ui', 'sprite', 'environment'], limit: 4 }),
+          rankWave1Assets(`${prompt} cauldron pot machine altar lab table workbench station core vessel`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'sprite', 'ui', 'item'], limit: 4 }),
+          rankWave1Assets(`${prompt} result card badge reveal modal frame spark bubble glow`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['ui', 'prop'], desiredKinds: ['ui', 'environment', 'item', 'sprite'], limit: 3 })
+        ),
+        ['card', 'panel', 'tray', 'shelf', 'bottle', 'jar', 'potion', 'gem', 'item', 'machine', 'station', 'workbench', 'altar', 'pot', 'cauldron', 'frame', 'badge']
+      );
+      if (!hasAnyAssetKeyword(visuals, ['machine', 'station', 'workbench', 'altar', 'pot', 'cauldron', 'tray', 'shelf', 'card', 'frame'])) {
+        visuals = [];
+      }
+      controls = filterAssetsByKeywords(
+        rankWave1Assets(`${prompt} drag button combine mix fuse cook brew reveal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 }),
+        ['button', 'panel', 'frame', 'card', 'tab']
+      );
+      if (visuals.length === 0) {
+        controls = [];
+      }
+      audio = filterAssetsByKeywords(
+        rankWave1Assets(`${prompt} bubble pop sparkle reveal success interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        ['bubble', 'pop', 'sparkle', 'success', 'confirm', 'magic', 'reveal']
+      );
+      notes = [
+        ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
+        'Simulation/toybox lane detected: prioritize source shelf/tray ingredients, one central machine or vessel, and a satisfying reveal/result layer.',
+        ...(visuals.length === 0
+          ? ['No convincing workstation assets were found for this prompt, so the builder should proceduralize the toybox layout and controls instead of forcing mismatched props or generic UI buttons.']
+          : []),
+      ];
+      break;
+
+    case 'single_room_shooter':
+      visuals = mergeAssetGroups(
+        rankWave1Assets(`${prompt} soldier survivor hero player gun`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 2 }),
+        rankWave1Assets(`${prompt} zombie skeleton enemy monster raider`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
+        rankWave1Assets(`${prompt} bunker room wall floor table crate barrel cover terminal prop`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 5 }),
+        rankWave1Assets(`${prompt} medkit ammo coin pickup`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 2 })
+      );
+      visuals = visuals.filter((asset) => {
+        const label = String(asset?.label || '').toLowerCase();
+        const url = String(asset?.url || '').toLowerCase();
+        return !/tile_\d+\.png/.test(label) && !/\/tiles\/tile_\d+\.png/.test(url);
+      });
+      controls = rankWave1Assets(`${prompt} fire button joystick ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 });
+      controls = controls.filter((asset) => {
+        const label = String(asset?.label || '').toLowerCase();
+        const url = String(asset?.url || '').toLowerCase();
+        return !label.includes('screws') && !url.includes('screws');
+      });
+      if (!hasAnyAssetKeyword(controls, ['joystick', 'button', 'attack', 'fire', 'thumb'])) {
+        controls = [];
+      }
+      audio = filterAssetsByKeywords(
+        rankWave1Assets(`${prompt} gun hit reload interface impact`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        ['gun', 'shot', 'hit', 'reload', 'impact', 'weapon', 'attack']
+      );
+      audio = audio.filter((asset) => {
+        const label = String(asset?.label || '').toLowerCase();
+        const url = String(asset?.url || '').toLowerCase();
+        return !label.includes('footstep') && !url.includes('footstep');
+      });
+      notes = [
+        ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
+        ...(!hasAnyAssetKeyword(visuals, ['wall', 'floor', 'table', 'crate', 'barrel', 'cover', 'terminal', 'room', 'bunker'])
+          ? ['No convincing room-kit props were found for this prompt, so the builder should proceduralize the back wall, cover pieces, and floor framing instead of forcing generic tile slices.']
+          : []),
+        ...(controls.length === 0
+          ? ['No convincing move-and-fire control art was found, so the builder should render a procedural joystick and attack button instead of pasting generic sci-fi chrome.']
+          : []),
+      ];
       break;
 
     case 'first_person_threejs':
-      models = mergeAssetGroups(
-        rankWave1Assets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} chest coin pickup treasure`, { lane, desiredRoles: ['pickup'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} wall floor dungeon graveyard barrel torch prop`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['model'], runtime: 'threejs', limit: 4 })
-      );
-      controls = rankWave1Assets(`${prompt} button joystick ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 });
-      audio = rankWave1Assets(`${prompt} impact interface horror hit`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
-      notes = enrichNotesWithCrossLaneBorrowing(lane, models);
+      if (isCockpitDriver) {
+        models = mergeAssetGroups(
+          rankWave1Assets(`${prompt} road barrier traffic cone pillar tunnel prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', limit: 4 }),
+          rankWave1Assets(`${prompt} boost pickup checkpoint coin`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 2 }),
+          rankWave1Assets(`${prompt} vehicle car chassis cockpit dashboard prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 2 })
+        );
+        controls = filterAssetsByKeywords(mergeAssetGroups(
+          rankWave1Assets(`${prompt} steering wheel dashboard speedometer pedal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 4 }),
+          pickLegacyAssets(`${prompt} speedometer dashboard steering`, { limit: 2, categories: ['decoration', 'item'] })
+        ), ['steer', 'wheel', 'dashboard', 'speed', 'pedal', 'meter', 'rpm', 'gauge']);
+        audio = rankWave1Assets(`${prompt} engine rev brake swoosh interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
+        notes = [
+          ...enrichNotesWithCrossLaneBorrowing(lane, [...models, ...controls]),
+          'Cockpit-driver control rig detected: prioritize dashboard, steering, pedals, road cues, and horizon props over dungeon-style first-person set dressing.',
+        ];
+      } else {
+        models = mergeAssetGroups(
+          rankWave1Assets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 2 }),
+          rankWave1Assets(`${prompt} chest coin pickup treasure`, { lane, desiredRoles: ['pickup'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 2 }),
+          rankWave1Assets(`${prompt} wall floor dungeon graveyard barrel torch prop`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['model'], runtime: 'threejs', limit: 4 })
+        );
+        controls = rankWave1Assets(`${prompt} button joystick ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 });
+        audio = rankWave1Assets(`${prompt} impact interface horror hit`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
+        notes = enrichNotesWithCrossLaneBorrowing(lane, models);
+      }
       break;
 
     default:

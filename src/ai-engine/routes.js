@@ -343,6 +343,214 @@ function validateRuntimeLaneContract(runtimeLane, html) {
     }
 }
 
+function validateControlRigContract(specSheet, html) {
+    const controlRig = specSheet?.controlRig;
+    if (!controlRig) {
+        return;
+    }
+
+    const source = String(html || '');
+    if (!source) {
+        throw new Error(`${controlRig} validation error: empty HTML output`);
+    }
+
+    if (controlRig === 'cockpit_driver') {
+        const hasSteeringUi = /steering wheel|steering-pad|steer-pad|id=["'][^"']*steer|class=["'][^"']*steer|STEER/i.test(source);
+        const hasThrottleUi = /ACCEL|THROTTLE|GAS|PEDAL|id=["'][^"']*accel|id=["'][^"']*throttle|class=["'][^"']*accel/i.test(source);
+        const hasBrakeUi = /BRAKE|id=["'][^"']*brake|class=["'][^"']*brake/i.test(source);
+        const hasDrivingState = /speed|steering|throttle|brake|laneOffset|roadScroll|dashboard/i.test(source);
+        const hasCockpitHud = /dashboard|speedometer|rpm|km\/h|cockpit/i.test(source);
+
+        if (!hasSteeringUi) {
+            throw new Error('cockpit-driver validation error: missing visible steering control');
+        }
+        if (!hasThrottleUi) {
+            throw new Error('cockpit-driver validation error: missing visible accelerate/throttle control');
+        }
+        if (!hasBrakeUi) {
+            throw new Error('cockpit-driver validation error: missing visible brake control');
+        }
+        if (!hasDrivingState) {
+            throw new Error('cockpit-driver validation error: missing driving-state logic (speed/steering/throttle/brake)');
+        }
+        if (!hasCockpitHud) {
+            throw new Error('cockpit-driver validation error: missing cockpit/dashboard HUD language');
+        }
+        return;
+    }
+
+    if (controlRig === 'move_and_fire') {
+        const hasMovementUi = /joystick|thumbpad|move pad|move-zone|movement zone|move stick|left-pad|virtual joystick|MOVE/i.test(source);
+        const hasFireUi = /FIRE|SHOOT|ATTACK|BLAST|id=["'][^"']*fire|class=["'][^"']*fire|id=["'][^"']*attack|class=["'][^"']*attack/i.test(source);
+        const hasCombatState = /projectile|bullet|shotCooldown|fireCooldown|enemyHit|damage|impact|attack/i.test(source);
+        const hasCombatFeedback = /knockback|hit spark|muzzle flash|impact|enemy.*hp|damage pop|death burst|screen shake/i.test(source);
+
+        if (!hasMovementUi) {
+            throw new Error('move-and-fire validation error: missing visible movement control');
+        }
+        if (!hasFireUi) {
+            throw new Error('move-and-fire validation error: missing visible fire/attack control');
+        }
+        if (!hasCombatState) {
+            throw new Error('move-and-fire validation error: missing combat-state logic (projectiles/fire cooldown/damage)');
+        }
+        if (!hasCombatFeedback) {
+            throw new Error('move-and-fire validation error: missing readable combat feedback');
+        }
+        return;
+    }
+
+    if (controlRig === 'lane_swipe_runner') {
+        const hasLaneState = /laneIndex|targetLane|currentLane|laneWidth|lanes|runner\.lane/i.test(source);
+        const hasRunnerMotion = /auto[- ]?run|forwardSpeed|scrollSpeed|distance|trackScroll|runnerSpeed/i.test(source);
+        const hasSwipeOrRunnerControls = /swipe|JUMP|SLIDE|BOOST|lane change|jump button|slide button/i.test(source);
+        const hasLaneObstacles = /obstacle.*lane|coin line|pickup line|spawnTrack|track chunk|lane obstacle/i.test(source);
+
+        if (!hasLaneState) {
+            throw new Error('lane-swipe-runner validation error: missing discrete lane-state logic');
+        }
+        if (!hasRunnerMotion) {
+            throw new Error('lane-swipe-runner validation error: missing automatic forward runner motion');
+        }
+        if (!hasSwipeOrRunnerControls) {
+            throw new Error('lane-swipe-runner validation error: missing swipe/jump/slide control language');
+        }
+        if (!hasLaneObstacles) {
+            throw new Error('lane-swipe-runner validation error: missing lane-based obstacle or pickup structure');
+        }
+        return;
+    }
+
+    if (controlRig === 'binary_choice_story') {
+        const hasPromptText = /question|prompt|note|message|letter|answer|continue|read|watching|stay|leave|yes|no/i.test(source);
+        const hasChoiceUi = /<button|YES|NO|CONTINUE|OPEN|READ|ANSWER|STAY|LEAVE|choice/i.test(source);
+        const hasSceneState = /phase|selectedChoice|revealProgress|tension|advancePhase|handleChoice|restartExperience/i.test(source);
+        const hasAtmosphereLayer = /vignette|grain|noise|flicker|glow|ambient|texture|overlay|shadow|gradient/i.test(source);
+
+        if (!hasPromptText) {
+            throw new Error('binary-choice-story validation error: missing readable prompt or focal text');
+        }
+        if (!hasChoiceUi) {
+            throw new Error('binary-choice-story validation error: missing visible choice or continue control');
+        }
+        if (!hasSceneState) {
+            throw new Error('binary-choice-story validation error: missing scene-phase or reveal-state logic');
+        }
+        if (!hasAtmosphereLayer) {
+            throw new Error('binary-choice-story validation error: missing atmospheric scene treatment');
+        }
+        return;
+    }
+
+    if (controlRig === 'drag_drop_toybox') {
+        const hasToyboxZones = /ingredient|tool|shelf|pantry|tray|source zone|workbench|station|cauldron|machine|altar|lab/i.test(source);
+        const hasSystemState = /selectedItems|phase|progress|result|canCombine|revealResult|runReaction|resetToybox|addIngredient/i.test(source);
+        const hasTriggerUi = /MIX|COMBINE|FUSE|COOK|BREW|REVEAL|RESET|button/i.test(source);
+        const hasReactionFeedback = /bubble|spark|glow|shake|progress|reaction|reveal|transform|result modal|result card/i.test(source);
+
+        if (!hasToyboxZones) {
+            throw new Error('drag-drop-toybox validation error: missing readable source/workbench/result zones');
+        }
+        if (!hasSystemState) {
+            throw new Error('drag-drop-toybox validation error: missing toybox system-state logic');
+        }
+        if (!hasTriggerUi) {
+            throw new Error('drag-drop-toybox validation error: missing combine/reveal trigger control');
+        }
+        if (!hasReactionFeedback) {
+            throw new Error('drag-drop-toybox validation error: missing reaction or reveal feedback');
+        }
+    }
+}
+
+function validateFirstFrameContract(specSheet, html) {
+    const runtimeLane = specSheet?.runtimeLane;
+    const source = String(html || '');
+    if (!runtimeLane || !source) {
+        return;
+    }
+
+    if (runtimeLane === 'first_person_threejs') {
+        const hasForegroundOrHud = /dashboard|cockpit|crosshair|speedometer|hud|weapon/i.test(source);
+        const hasImmediateWorldRead = /floor|road|runway|wall|corridor|skyline|lane line|landmark|pickup|enemy/i.test(source);
+        if (!hasForegroundOrHud || !hasImmediateWorldRead) {
+            throw new Error('first-frame validation error: first-person lane is missing immediate foreground/HUD or world-read cues');
+        }
+        return;
+    }
+
+    if (runtimeLane === 'endless_runner_vertical') {
+        const hasRunner = /runner|player/i.test(source);
+        const hasLaneRead = /lane|laneWidth|lane marker|track stripe|three lanes/i.test(source);
+        const hasEarlyTarget = /coin|obstacle|train|barrier/i.test(source);
+        if (!hasRunner || !hasLaneRead || !hasEarlyTarget) {
+            throw new Error('first-frame validation error: runner lane is missing runner, lanes, or early obstacle/pickup read');
+        }
+        return;
+    }
+
+    if (runtimeLane === 'single_room_shooter') {
+        const hasHero = /hero|player|survivor|soldier/i.test(source);
+        const hasRoom = /room|wall|floor|cover|bunker|crate|barrel|terminal/i.test(source);
+        const hasControls = /joystick|thumbpad|move pad|FIRE|SHOOT|ATTACK/i.test(source);
+        if (!hasHero || !hasRoom || !hasControls) {
+            throw new Error('first-frame validation error: room shooter is missing immediate hero/room/control readability');
+        }
+        return;
+    }
+
+    if (runtimeLane === 'story_horror_vignette') {
+        const hasPrompt = /question|prompt|note|message|letter|answer|continue|read|yes|no/i.test(source);
+        const hasAtmosphere = /vignette|grain|noise|flicker|glow|ambient|texture|overlay|shadow|gradient/i.test(source);
+        if (!hasPrompt || !hasAtmosphere) {
+            throw new Error('first-frame validation error: story/horror vignette is missing immediate focal prompt or atmosphere');
+        }
+        return;
+    }
+
+    if (runtimeLane === 'simulation_toybox') {
+        const hasCenterpiece = /cauldron|machine|altar|workbench|station|pot|vessel|core/i.test(source);
+        const hasSourceZone = /ingredient|tool|shelf|pantry|tray|toolbar|card row/i.test(source);
+        const hasActionCue = /MIX|COMBINE|FUSE|COOK|BREW|REVEAL|ready/i.test(source);
+        if (!hasCenterpiece || !hasSourceZone || !hasActionCue) {
+            throw new Error('first-frame validation error: simulation toybox is missing immediate centerpiece/source/action readability');
+        }
+        return;
+    }
+}
+
+function buildControlRigRepairInstruction(controlRig) {
+    if (controlRig === 'cockpit_driver') {
+        return 'This game MUST preserve a cockpit-driving control rig with visible steering, accelerate, and brake controls plus dashboard-style HUD instrumentation.';
+    }
+    if (controlRig === 'move_and_fire') {
+        return 'This game MUST preserve a move-and-fire control rig with a visible movement pad or joystick, a visible fire/attack control, real projectile or attack logic, and readable hit feedback.';
+    }
+    if (controlRig === 'lane_swipe_runner') {
+        return 'This game MUST preserve a lane-swipe runner control rig with automatic forward motion, discrete lane logic, and visible swipe/jump/slide behavior or clearly labeled runner controls.';
+    }
+    if (controlRig === 'binary_choice_story') {
+        return 'This game MUST preserve a minimal story/horror interaction with a readable prompt, visible choice or continue controls, atmospheric scene treatment, and real phase/reveal changes after interaction.';
+    }
+    if (controlRig === 'drag_drop_toybox') {
+        return 'This game MUST preserve a simulation/toybox interaction with clear source and workbench zones, visible combine/reveal controls, central object reaction feedback, and a real result/reveal state.';
+    }
+    return 'Preserve the intended control fantasy.';
+}
+
+function buildFirstFrameRepairInstruction(specSheet) {
+    const checklist = Array.isArray(specSheet?.firstFrameChecklist) && specSheet.firstFrameChecklist.length > 0
+        ? specSheet.firstFrameChecklist.map((item) => `- ${item}`).join('\n')
+        : '- show a readable focal object and lane-defining cue immediately';
+
+    return [
+        'The first rendered frame must look authored immediately.',
+        'These first-frame items must already be visible when the game boots:',
+        checklist,
+        'Do not leave the player on a blank, muddy, or under-staged opening frame while waiting for later transitions.'
+    ].join('\n');
+}
+
 function parseRepairSections(aiOutput, fallbackArtistCode, fallbackEngineHtml) {
     const artistMarker = '===ARTIST_CODE===';
     const engineMarker = '===ENGINE_CODE===';
@@ -668,6 +876,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             let sandboxRes;
             try {
                 validateRuntimeLaneContract(specSheet.runtimeLane, rawGameHtml);
+                validateControlRigContract(specSheet, rawGameHtml);
+                validateFirstFrameContract(specSheet, rawGameHtml);
                 sandboxRes = await verifyGame(finalHtml, { runtimeLane: specSheet.runtimeLane });
             } catch (validationError) {
                 sandboxRes = {
@@ -688,6 +898,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     specSheet.runtimeLane === 'first_person_threejs'
                         ? 'This game MUST remain a true first-person 3D Three.js game with a PerspectiveCamera and mobile look controls. Do not downgrade it into top-down 2D.'
                         : 'Preserve the intended perspective and gameplay fantasy.',
+                    buildControlRigRepairInstruction(specSheet.controlRig),
+                    buildFirstFrameRepairInstruction(specSheet),
                     'Return the COMPLETE corrected HTML file only.',
                     'Do not explain anything.',
                 ].join('\n');

@@ -334,6 +334,8 @@ ${engineRules}
 - Touch-first controls only (pointerdown / pointermove / pointerup). No keyboard dependency.
 - Boot immediately at top level. Do NOT wait for DOMContentLoaded or window.onload.
 - Draw a visible first frame synchronously so the screen is never blank.
+- Expose a shared editable contract on \`window.gametokEditable\` with these array keys even if some are empty: \`images\`, \`music\`, \`colors\`, \`text\`, \`tune\`, \`videos\`, \`sfx\`.
+- If the game has tweakable text, art, color, audio, or tuning values, list them in \`window.gametokEditable\` using selector/path metadata so the host app can patch them later.
 - If the prompt asks for something huge, compress it into one excellent playable vertical slice.
 - Favor a strong, working game loop over sprawling ambition.
 - If this is an auto-battler or battle game, the result must be actually playable:
@@ -343,6 +345,7 @@ ${engineRules}
   - enemies spawn and can be defeated
   - a win/loss or reset path exists
 - Include score/HUD, moment-to-moment feedback, and at least a little juice.
+- Make the environment feel intentional and spacious for the lane. Avoid trapping the whole experience inside a tiny boxed composition unless the prompt explicitly wants claustrophobia or a single-room game.
 - Prefer the approved same-origin asset kit for hero/enemy/collectible silhouettes whenever it contains a usable character, creature, or prop.
 - Only fall back to fully procedural art when the attached kit truly lacks a usable match.
 - Do not rely on emojis or any third-party external image URLs.
@@ -476,7 +479,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: ${specSheet.backgroundColor || '#111111'};
+      background: var(--gametok-stage-bg, ${specSheet.backgroundColor || '#111111'});
       touch-action: none;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     }
@@ -498,6 +501,31 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
   const ctx = canvas.getContext('2d');
   const TOP_INSET = 112;
   const SIDE_PAD = 24;
+  const gameRuntimeTuning = {
+    cameraShakeDecay: 18,
+    allyDamageScale: 1,
+    enemyWaveScale: 1
+  };
+
+  window.gametokEditable = window.gametokEditable || {
+    images: [],
+    music: [],
+    colors: [
+      { id: 'stage_bg', cssVar: '--gametok-stage-bg', value: '${specSheet.backgroundColor || '#111111'}' }
+    ],
+    text: [
+      { id: 'battle_button_label', value: 'BATTLE', path: 'game.ui.battleButton.label' }
+    ],
+    tune: [
+      { id: 'camera_shake_decay', value: 18, path: 'gameRuntimeTuning.cameraShakeDecay' },
+      { id: 'ally_damage_scale', value: 1, path: 'gameRuntimeTuning.allyDamageScale' },
+      { id: 'enemy_wave_scale', value: 1, path: 'gameRuntimeTuning.enemyWaveScale' }
+    ],
+    videos: [],
+    sfx: []
+  };
+  window.gameRuntimeTuning = gameRuntimeTuning;
+  document.documentElement.style.setProperty('--gametok-stage-bg', '${specSheet.backgroundColor || '#111111'}');
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -532,7 +560,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
       side,
       hp: isKnight ? 180 : isWizard ? 90 : isArcher ? 110 : isGoblin ? 55 : 100,
       maxHp: isKnight ? 180 : isWizard ? 90 : isArcher ? 110 : isGoblin ? 55 : 100,
-      damage: isKnight ? 26 : isWizard ? 18 : isArcher ? 12 : isGoblin ? 10 : 12,
+      damage: (isKnight ? 26 : isWizard ? 18 : isArcher ? 12 : isGoblin ? 10 : 12) * gameRuntimeTuning.allyDamageScale,
       speed: isKnight ? 62 : isWizard ? 48 : isArcher ? 72 : isGoblin ? 78 : 70,
       range: isKnight ? 78 : isWizard ? 180 : isArcher ? 220 : isGoblin ? 54 : 70,
       cooldown: 0.2,
@@ -596,7 +624,8 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
     },
     spawnGoblinWave(count) {
       const enemyBlueprint = EnemyCatalog[0];
-      for (let i = 0; i < count; i++) {
+      const scaledCount = Math.max(1, Math.round(count * gameRuntimeTuning.enemyWaveScale));
+      for (let i = 0; i < scaledCount; i++) {
         const yBase = TOP_INSET + 170 + (i % 4) * 88;
         this.enemies.push(createUnitFromBlueprint(enemyBlueprint, canvas.width - 170 + (i % 2) * 18, yBase + Math.floor(i / 2) * 22, 'enemy'));
       }
@@ -681,7 +710,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
     update(dt, time) {
       this.damageNumbers.forEach((item) => { item.y -= 42 * dt; item.life -= dt; });
       this.damageNumbers = this.damageNumbers.filter((item) => item.life > 0);
-      this.camera.shake = Math.max(0, this.camera.shake - dt * 18);
+      this.camera.shake = Math.max(0, this.camera.shake - dt * gameRuntimeTuning.cameraShakeDecay);
       if (this.state !== 'BATTLE') return;
       this.battleTimer += dt;
       if (this.enemies.length < 3 && this.wave < 4) {
@@ -852,7 +881,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: ${specSheet.backgroundColor || '#111111'};
+      background: var(--gametok-stage-bg, ${specSheet.backgroundColor || '#111111'});
       touch-action: none;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     }
@@ -870,6 +899,32 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
   const DreamScaffold = ${safeScaffoldJson};
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const gameRuntimeTuning = {
+    cameraShakeDecay: 12,
+    scoreMultiplier: 1,
+    healthMultiplier: 1
+  };
+
+  window.gametokEditable = window.gametokEditable || {
+    images: [],
+    music: [],
+    colors: [
+      { id: 'stage_bg', cssVar: '--gametok-stage-bg', value: '${specSheet.backgroundColor || '#111111'}' },
+      { id: 'accent_color', value: '${specSheet.accentColor || '#ffd54a'}' }
+    ],
+    text: [
+      { id: 'battle_button_label', value: 'BATTLE', path: 'game.ui.battleButton.label' }
+    ],
+    tune: [
+      { id: 'camera_shake_decay', value: 12, path: 'gameRuntimeTuning.cameraShakeDecay' },
+      { id: 'score_multiplier', value: 1, path: 'gameRuntimeTuning.scoreMultiplier' },
+      { id: 'health_multiplier', value: 1, path: 'gameRuntimeTuning.healthMultiplier' }
+    ],
+    videos: [],
+    sfx: []
+  };
+  window.gameRuntimeTuning = gameRuntimeTuning;
+  document.documentElement.style.setProperty('--gametok-stage-bg', '${specSheet.backgroundColor || '#111111'}');
 
   const game = {
     state: DreamScaffold.initialState,
@@ -944,7 +999,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
       for (const entity of this.allies) this.renderEntity(entity, time);
       for (const entity of this.enemies) this.renderEntity(entity, time);
       this.drawBattleButton();
-      window.RenderEngine.drawHUD(ctx, canvas.width, canvas.height, this.score, this.health);
+      window.RenderEngine.drawHUD(ctx, canvas.width, canvas.height, this.score * gameRuntimeTuning.scoreMultiplier, this.health * gameRuntimeTuning.healthMultiplier);
     },
     loop(now) {
       const time = now / 1000;
@@ -995,6 +1050,13 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 
 export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaAttachments = []) {
   const isFirstPerson3D = specSheet.runtimeLane === 'first_person_threejs';
+  const isStoryHorrorVignette = specSheet.runtimeLane === 'story_horror_vignette';
+  const isSimulationToybox = specSheet.runtimeLane === 'simulation_toybox';
+  const isCockpitDriver = specSheet.controlRig === 'cockpit_driver';
+  const isMoveAndFire = specSheet.controlRig === 'move_and_fire';
+  const isLaneSwipeRunner = specSheet.controlRig === 'lane_swipe_runner';
+  const isBinaryChoiceStory = specSheet.controlRig === 'binary_choice_story';
+  const isDragDropToybox = specSheet.controlRig === 'drag_drop_toybox';
   const engineSpecBlock = buildEngineSpecBlock(specSheet);
   const assetKitBlock = buildAssetKitBlock(assetBundle);
   const userMediaBlock = buildUserMediaBlock(mediaAttachments);
@@ -1021,6 +1083,18 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Handle window resize events to update renderer size and camera aspect.
    - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
    - Render a visible world immediately: floor, walls, lighting, and at least one key landmark or enemy on the first frame.`
+    : isStoryHorrorVignette
+    ? `3. FULLSCREEN RESPONSIVE:
+   - Must fill the entire viewport (100vw, 100vh).
+   - Handle window resize cleanly and keep the focal text/choice area centered and readable on phones.
+   - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
+   - The first frame must already look intentional: typography, atmospheric backing, and the primary prompt or object should be visible immediately.`
+    : isSimulationToybox
+    ? `3. FULLSCREEN RESPONSIVE:
+   - Must fill the entire viewport (100vw, 100vh).
+   - Handle window resize cleanly and keep the central machine/workbench readable on phones.
+   - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
+   - The first frame must already show the central toybox object plus at least one source area or action area so the system reads immediately.`
     : `3. FULLSCREEN RESPONSIVE:
    - Must fill the entire viewport (100vw, 100vh).
    - Handle window resize events to update camera/canvas.
@@ -1033,6 +1107,18 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Keep the world compact but real: hallways, rooms, props, pickups, enemies, and an obvious goal.
    - The player's viewpoint is the camera. Add touch movement plus right-side drag look or similar mobile-friendly look controls.
    - Use perspective depth, collision-aware movement, and readable landmarks instead of faking 3D with flat sprites.`
+    : isStoryHorrorVignette
+    ? `4. SCENE FRAMING & FOCAL COMPOSITION (CRITICAL):
+   - This lane wins through staging, not world size.
+   - Use a single strong focal area: note, question card, terminal prompt, dialogue block, or reveal object.
+   - Negative space is welcome, but it must feel intentional. Support darkness with vignette, texture, gradients, haze, glow, or subtle motion.
+   - Keep the scene phone-readable: do not bury the main text in tiny type or thin low-contrast UI.`
+    : isSimulationToybox
+    ? `4. SCENE FRAMING & FOCAL COMPOSITION (CRITICAL):
+   - This lane wins through a readable workstation layout, not through giant world scale.
+   - Use one strong central object: cauldron, machine, altar, kitchen station, crafting bench, lab table, or fusion core.
+   - Source zones, control zones, and result zones must be visibly separate so the system feels understandable at a glance.
+   - Keep the scene phone-readable: a player should know where to drag from, where to drop, and where to trigger the result within the first second.`
     : `4. WORLD CAMERA & EXPANSIVE MOVEMENT (CRITICAL):
    - DO NOT trap the player in a single small screen box unless it's a puzzle game!
    - For RPGs, Survival, Shooters, and Platformers, the world MUST be massive or strictly infinite. 
@@ -1050,6 +1136,25 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Environments must have depth: floor plane, walls, props, pickups, and at least one strong light source.
    - Prefer chunky, stylish geometry that reads well on mobile over ultra-detailed scenes.
    - Do not represent enemies or pickups as plain spheres, cubes, or colored blobs if the asset kit already includes a usable matching model or prop.`
+    : isStoryHorrorVignette
+    ? `5. SCENE RENDERING (TYPOGRAPHY + ATMOSPHERE FIRST):
+   - This lane does NOT need a pile of sprites to feel complete.
+   - Strong typography, spacing, paper/card panels, terminal framing, gradients, grain, vignette, and subtle motion are valid primary art here.
+   - Use approved same-origin assets only if they clearly strengthen the fantasy. Do NOT dump random props into a minimal horror scene.
+   - A dark scene must still feel designed. Support it with texture, glow falloff, shadow gradients, soft borders, motion, or reveal mechanics.
+   - If you use buttons, cards, prompts, or notes, make them beautiful and deliberate rather than default browser rectangles.
+   - One strong scene gimmick is better than ten weak decorations: folding note, unsettling survey prompt, flickering monitor, confession letter, breathing void, etc.`
+    : isSimulationToybox
+    ? `5. SCENE RENDERING (TOYBOX SYSTEM FIRST):
+   - This lane does NOT need to simulate a giant world. It needs a delightful multi-zone workstation.
+   - Use approved same-origin assets when they clearly fit the machine, ingredients, shelf, tools, or result reveal. Otherwise build the station procedurally with strong shapes, panels, trays, and effects.
+   - Prioritize:
+     - one strong central vessel or machine
+     - readable ingredient/tool cards or pieces
+     - clear source shelf/tray/pantry layout
+     - a satisfying result card, modal, or transformed output
+   - If you use buttons, combine controls, or recipe chips, make them feel like part of the toy, not generic app scaffolding.
+   - Keep the number of systems small, but make every zone feel intentional and tactile.`
     : `5. ENTITY RENDERING (ARTIST-CODER GRAPHICS + APPROVED ASSETS):
    - ⚠️ ABSOLUTELY NO THIRD-PARTY IMAGES OR URLS. Do NOT attempt to load random external sprites, PNGs, or textures!
    - You SHOULD use the approved same-origin GameTok asset kit below for characters, props, backgrounds, controls, or audio whenever it contains a usable match.
@@ -1094,6 +1199,20 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - PLAYING: First-person exploration/combat loop.
    - GAMEOVER / WIN: Show the result and TAP TO RESTART.
    - Draw your HUD and touch controls as overlays without blocking the renderer.`
+    : isStoryHorrorVignette
+    ? `7. GAME STATES & BOOTING (CRITICAL FOR IOS):
+   - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
+   - INTRO: Show the prompt, note, question, or opening text immediately.
+   - INTERACTION: Use large readable buttons or clearly taught gestures. If the scene uses YES/NO or CONTINUE, those controls must be visible and tappable.
+   - REVEAL / ENDING: Transition the typography or focal object dramatically, then offer TAP TO RESTART or a clear replay affordance.
+   - If you use overlays, let the full interactive area respond to \`pointerdown\` instead of relying on tiny hit targets.`
+    : isSimulationToybox
+    ? `7. GAME STATES & BOOTING (CRITICAL FOR IOS):
+   - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
+   - SETUP: Show the workstation, ingredient/tool source area, and central combine zone immediately.
+   - INTERACTION: Let the player drag or tap ingredients/tools into the main zone using large readable targets.
+   - REACTION / REVEAL: Trigger a visible mixing, cooking, crafting, or fusion phase, then show a satisfying result with replay affordance.
+   - If you use overlays, modals, or reveal cards, keep them large, centered, and obviously interactive.`
     : `7. GAME STATES & BOOTING (CRITICAL FOR IOS):
    - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
    - MENU: Draw centered title and "TAP TO START" text directly on the Canvas.
@@ -1108,13 +1227,13 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Your HTML should include:
      - a full-screen renderer mount
      - a HUD overlay
-     - a left joystick zone
-     - a right-side look drag zone
-     - an attack/interact button if combat exists
+     - ${isCockpitDriver ? 'a steering control zone or wheel UI' : 'a left joystick zone'}
+     - ${isCockpitDriver ? 'accelerate and brake controls' : 'a right-side look drag zone'}
+     - ${isCockpitDriver ? 'dashboard or cockpit HUD instrumentation' : 'an attack/interact button if combat exists'}
    - Your JavaScript should roughly define:
      - scene, camera, renderer
-     - player = { position, velocity, yaw, pitch, hp, gold }
-     - input = { moveX, moveY, lookX, lookY, attacking }
+     - player = { position, velocity, yaw, pitch, hp, gold${isCockpitDriver ? ', speed, steering, throttle, brake' : ''} }
+     - input = { ${isCockpitDriver ? 'steer, throttle, brake' : 'moveX, moveY, lookX, lookY, attacking'} }
      - world = { walls: [], enemies: [], pickups: [] }
      - functions: buildWorld(), spawnEnemies(), updatePlayer(dt), updateEnemies(dt), collectPickups(), renderHud(), animate()
    - Keep geometry simple and low-poly: boxes, planes, cylinders, and spheres are enough.
@@ -1122,6 +1241,154 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Add visible lighting, fog, or emissive landmarks so the depth reads instantly.
    - Do NOT replace this with a top-down map, pseudo-3D raycast, or flat sprite maze.`
     : '';
+
+  const touchRigArchitectureRule = isMoveAndFire
+    ? `9B. MOVE-AND-FIRE CONTROL SHELL (FOLLOW THIS SHAPE):
+   - Your HTML/CSS should include:
+     - a fixed left-side movement zone, thumbpad, or joystick ring
+     - a fixed right-side fire control that reads immediately as ATTACK / FIRE / SHOOT
+     - a HUD showing health plus at least one combat metric such as ammo, wave, combo, or score
+   - Your JavaScript should roughly define:
+     - player = { x, y, vx, vy, facing, hp, fireCooldown }
+     - input = { moveX, moveY, firing, aimX, aimY }
+     - world = { enemies: [], projectiles: [], pickups: [], impacts: [] }
+     - functions: updatePlayer(dt), updateCombat(dt), spawnEnemyWave(), renderControls(), renderHud(), animate()
+   - The fire control must create visible projectiles, pulses, slashes, or beam attacks.
+   - Enemy hits must produce readable feedback such as flash, recoil, hit sparks, health drop, or death burst.
+   - Keep the controls pinned and readable. Do NOT hide them behind tiny icons or gesture-only guessing.`
+    : isLaneSwipeRunner
+    ? `9B. LANE-SWIPE RUNNER CONTROL SHELL (FOLLOW THIS SHAPE):
+   - Your HTML/CSS should include:
+     - a wide playable track with clearly readable left/center/right lane structure
+     - a minimal HUD with score plus distance/coins/chain or similar runner feedback
+     - optional hint chips for SWIPE / JUMP / SLIDE if the fantasy benefits from onboarding
+   - Your JavaScript should roughly define:
+     - runner = { lane: 1, targetLane: 1, x, y, vy, isJumping, isSliding, speed }
+     - input = { swipeX, swipeY, queuedAction }
+     - world = { laneWidth, obstacles: [], pickups: [], scenery: [], scroll }
+     - functions: updateRunner(dt), handleSwipe(action), spawnTrackChunk(), resolveLaneCollisions(), renderHud(), animate()
+   - Forward motion must be automatic every frame.
+   - Lane changes must snap or ease between discrete lanes. Do NOT turn this into free drag steering.
+   - Obstacles and pickups should telegraph the intended path so the lane fantasy reads instantly.`
+    : isBinaryChoiceStory
+    ? `9B. STORY / HORROR VIGNETTE SHELL (FOLLOW THIS SHAPE):
+   - Your HTML/CSS should include:
+     - a full-screen atmospheric scene layer
+     - one centered or intentionally offset focal prompt panel, note, terminal, or dialogue block
+     - one or two large readable choice controls or a very clear continue/reveal control
+     - a subtle ambient layer such as vignette, grain, breathing glow, dust, flicker, or drifting particles
+   - Your JavaScript should roughly define:
+     - state = { phase, selectedChoice, revealProgress, tension }
+     - choices = [{ label, outcome }] or a similarly small branching structure
+     - functions: renderScene(), advancePhase(), handleChoice(), updateAtmosphere(), restartExperience()
+   - The scene should reach its first interesting interaction immediately.
+   - Use timing, spacing, and state transitions to create dread instead of piling on mechanics.`
+    : isDragDropToybox
+    ? `9B. SIMULATION / TOYBOX SHELL (FOLLOW THIS SHAPE):
+   - Your HTML/CSS should include:
+     - one central workstation object or vessel
+     - a source shelf, tray, pantry, toolbar, or card row for ingredients/tools
+     - a visible action button or reaction trigger when the system is ready
+     - a result reveal area, card, or modal
+   - Your JavaScript should roughly define:
+     - state = { selectedItems, phase, progress, result, canCombine }
+     - ingredients = [...] or tools = [...]
+     - functions: renderWorkbench(), addIngredient(), removeIngredient(), canTriggerCombine(), runReaction(), revealResult(), resetToybox()
+   - The scene should support at least three readable zones:
+     - source zone
+     - interaction zone
+     - result/reveal zone
+   - Use drag-and-drop where it helps, but large tap-to-add controls are acceptable if they keep the toybox readable and satisfying.`
+    : '';
+
+  const controlRigRule = isCockpitDriver
+    ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
+   - This prompt is a cockpit-driving fantasy. Do NOT use a walking joystick + look pad as the main interaction.
+   - The player must see dedicated driving controls such as:
+     - steering wheel OR left/right steering pad
+     - accelerate pedal/button
+     - brake pedal/button
+   - The HUD should feel like a vehicle dashboard: speed, gear/boost, or lane status are welcome.
+   - The road/runway must react to steering and speed so the controls visibly matter.
+   - Follow this implementation shape closely:
+     - create a \`vehicle\` object with at least: \`speed\`, \`steering\`, \`throttle\`, \`brake\`, \`laneOffset\`
+     - create an \`input\` object with at least: \`steer\`, \`throttle\`, \`brake\`
+     - render visible DOM or canvas controls for steering + throttle + brake
+     - draw cockpit/dashboard instrumentation in the foreground every frame
+     - forward road motion must visibly change when throttle or brake is pressed
+   - Good control labels include: STEER, ACCEL, BRAKE, BOOST, KM/H, RPM.
+   - The scene should read like “I am driving this vehicle,” not “I am walking through a level with a car overlay.”`
+    : isMoveAndFire
+    ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
+   - This prompt is a move-and-fire combat fantasy. Do NOT hide the controls or reduce it to a single tap-anywhere interaction.
+   - The player must see:
+     - a movement zone, drag pad, or virtual joystick
+     - a clearly readable fire button or hold-to-fire control
+   - The combat loop must visibly respond to that rig:
+     - movement changes player position
+     - fire control actually shoots, attacks, or emits projectiles
+     - enemies react through hits, damage, knockback, or death
+   - Follow this implementation shape closely:
+     - create \`player\` state with movement, facing, and combat cooldown
+     - create \`input\` state with movement + firing
+     - create projectiles or attack events driven by the fire control
+     - render the movement control and fire control in fixed visible screen positions
+     - maintain enemy pressure so the player has a reason to move and shoot continuously
+   - Good control labels include: FIRE, SHOOT, BLAST, ATTACK.
+   - The scene should read like “I am controlling and attacking,” not “I tap random UI and things happen.”`
+    : isLaneSwipeRunner
+    ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
+   - This prompt is a lane-swipe runner fantasy. Do NOT convert it into free steering or drag-movement movement.
+   - The player must feel automatic forward motion with discrete lane decisions.
+   - The build must support:
+     - swipe left/right for lane changes
+     - swipe up to jump
+     - swipe down to slide when the lane needs it
+   - Follow this implementation shape closely:
+     - keep a fixed lane index or target lane
+     - auto-advance the world or runner forward every frame
+     - obstacles must occupy lanes clearly
+     - coin lines or pickups should guide the best lane path
+     - lane changes should be triggered by real swipe detection or clearly labeled left/right lane buttons if swipe fallback is needed
+   - Good runner labels include: SWIPE, JUMP, SLIDE, BOOST, DISTANCE.
+   - The scene should read like “I am threading lanes at speed,” not “I am dragging a character around a boxed map.”`
+    : isBinaryChoiceStory
+    ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
+   - This prompt is a minimal story / horror vignette fantasy. Do NOT turn it into a generic arcade button field or an empty black screen with one forgotten label.
+   - The player must see:
+     - a clearly readable prompt, note, question, or reveal object
+     - one or two deliberate interactive choices OR a clearly labeled continue/reveal interaction
+   - The interaction loop must visibly respond to that rig:
+     - tapping a choice changes the scene state, text, reveal, or atmosphere
+     - the scene escalates, resolves, or reveals something instead of staying static
+   - Follow this implementation shape closely:
+     - create \`state\` with phases or beats
+     - create visible choice controls or a reveal interaction
+     - use typography and atmosphere as first-class parts of the feedback
+     - make the dark space feel designed through texture, glow, vignette, or scene framing
+   - Good labels include: YES, NO, OPEN, READ, CONTINUE, ANSWER, STAY, LEAVE.
+   - The scene should read like “I am participating in an ominous interaction,” not “I am looking at a blank app mockup.”`
+    : isDragDropToybox
+    ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
+   - This prompt is a simulation / toybox fantasy. Do NOT flatten it into one generic button or one empty drag area.
+   - The player must see:
+     - a source shelf, tray, toolbar, or ingredient row
+     - a clearly readable central combine / craft / cook / fusion zone
+     - a trigger or readiness control when the recipe/state is valid
+   - The interaction loop must visibly respond to that rig:
+     - dragging or tapping items changes the workstation state
+     - the central object reacts as items are added
+     - the system reaches a visible reveal, result, or transformation state
+   - Follow this implementation shape closely:
+     - create \`state\` with selected items, phase, and result
+     - create visible multi-zone UI for source, interaction, and reveal
+     - make the central object the star of the scene
+     - use reaction feedback such as bubbles, sparks, glow, shake, progress, or morphing
+   - Good labels include: MIX, COMBINE, FUSE, COOK, BREW, REVEAL, RESET.
+   - The scene should read like “I am operating a playful system,” not “I am tapping a menu with random props.”`
+    : `CONTROL RIG:
+   - Honor the requested control model: ${specSheet.controlModel || 'Simple touch-first interaction.'}
+   - The on-screen controls should match the fantasy instead of defaulting to generic buttons.`;
 
   return `You are an expert Creative Coder and Game Engine Specialist. Build a COMPLETE, POLISHED, PRODUCTION-QUALITY mobile game as a single HTML file.
 
@@ -1134,10 +1401,12 @@ GAME SPECIFICATION:
 - Atmosphere: ${specSheet.atmosphere}
 - Pacing: ${specSheet.pacing}
 - Runtime Lane: ${specSheet.runtimeLane || 'arcade_canvas'}
+- Control Rig: ${specSheet.controlRig || 'generic_touch'}
 - Preferred Engine: ${specSheet.preferredEngine || 'AUTO'}
 - Perspective: ${specSheet.preferredPerspective || 'AUTO'}
 - Camera Perspective: ${specSheet.cameraPerspective || 'AUTO'}
 - Environment Type: ${specSheet.environmentType || 'ARENA'}
+- Environment Scale: ${specSheet.environmentScale || 'scene_with_breathing_room'}
 - Background Color: ${specSheet.backgroundColor}
 - Accent Color: ${specSheet.accentColor}
 
@@ -1160,6 +1429,12 @@ ${userMediaBlock}
 
 ${pixelArtRuleBlock}
 
+ENVIRONMENT + COMPOSITION TARGETS:
+${formatPromptList(specSheet.compositionTargets, '- give the scene breathing room and a clear focal path')}
+
+FIRST-FRAME CHECKLIST:
+${formatPromptList(specSheet.firstFrameChecklist, '- show a readable focal object immediately')}
+
 ═══════════════════════════════════════════
 CRITICAL IMPLEMENTATION RULES:
 ═══════════════════════════════════════════
@@ -1173,6 +1448,9 @@ CRITICAL IMPLEMENTATION RULES:
 
 1. SINGLE FILE: Everything in ONE HTML document. You MAY use CDNs for Three.js or p5.js if chosen.
    - You MUST include <meta charset="UTF-8"> in the <head>.
+   - You MUST define \`window.gametokEditable\` at top level using this shape:
+     \`{ images: [], music: [], colors: [], text: [], tune: [], videos: [], sfx: [] }\`
+   - If your game has editable strings, colors, asset URLs, or tunable numbers, register them in that object with \`selector\`, \`cssVar\`, or \`path\` fields so the host app can patch them later.
 
 2. MOBILE-FIRST TOUCH CONTROLS (STRICT):
    - USE 'pointerdown', 'pointermove', 'pointerup' for universal touch/mouse support.
@@ -1184,7 +1462,21 @@ ${fullscreenRule}
 
 ${cameraRule}
 
+4B. ENVIRONMENT SCALE & FRAMING (CRITICAL):
+   - The scene must feel intentionally composed for the lane, not trapped in a small accidental box.
+   - Use horizon lines, depth cues, repeated structures, negative space, background layers, distant silhouettes, or room depth to make the world feel bigger than the immediate interaction zone.
+   - If the lane is room-based, stage the room with clear foreground/midground/background depth instead of a flat boxed backdrop.
+   - If the lane is a runner/platformer/flyer, the environment should imply continuation beyond the first screen.
+
+4C. FIRST-FRAME READABILITY (CRITICAL):
+   - The first rendered frame must already communicate the lane clearly before the player touches anything.
+   - Every item in the FIRST-FRAME CHECKLIST above must be visible immediately when the game boots.
+   - Do NOT hide the key focal object, controls, or lane-defining geometry behind delayed transitions, async loading emptiness, or a blank intro state.
+   - If assets load later, render procedural placeholders or styled panels immediately so the first frame still feels authored.
+
 ${renderingRule}
+
+${controlRigRule}
 
 6. HUD & UI:
    - Score: "${specSheet.scoreLabel || 'SCORE'}"
@@ -1205,6 +1497,8 @@ ${gameStateRule}
    - Never log massive objects like 'window' or DOM events.
 
 ${starterArchitectureRule}
+
+${touchRigArchitectureRule}
 
 OUTPUT FORMAT:
 Return ONLY the complete HTML code. Do NOT wrap in markdown. No explanation. Just raw HTML starting with <!DOCTYPE html>.`;
@@ -1245,7 +1539,8 @@ RULES:
 1. Output BOTH sections every time, even if you only changed one. Copy the unchanged section exactly.
 2. NEVER abbreviate, truncate, or use "..." or "// rest of code". Output EVERY line.
 3. Do NOT wrap in markdown code blocks. Do NOT add explanation text.
-4. The ENGINE_CODE section must start with <!DOCTYPE html> and end with </html>.`;
+4. The ENGINE_CODE section must start with <!DOCTYPE html> and end with </html>.
+5. Preserve or improve any existing \`window.gametokEditable\` contract. Do not delete editable metadata unless the user explicitly asked to remove that feature.`;
   }
 
   // Fallback for legacy games without separate artist code
@@ -1265,7 +1560,8 @@ RULES:
 4. Keep everything that works — only change what the user asked for.
 5. Start with <!DOCTYPE html> and end with </html>.
 6. Do NOT wrap in markdown code blocks. Do NOT include explanation.
-7. Just output the raw HTML. Nothing else.`;
+7. Preserve or improve any existing \`window.gametokEditable\` contract so the host app can still patch text, colors, media, and tuning values later.
+8. Just output the raw HTML. Nothing else.`;
 }
 
 
@@ -1273,6 +1569,198 @@ RULES:
 // POST-PROCESSING: Inject runtime diagnostics, Juice, and Audio
 // into the raw HTML returned by the gameplay engineer
 // ─────────────────────────────────────────────────────────
+
+function buildGameTokEditableBridgeScript() {
+  return `
+    <script>
+      (function() {
+        var BRIDGE_ORIGIN = 'gametok_gaming_iframe_api';
+        var EDITABLE_KEYS = ['images', 'music', 'colors', 'text', 'tune', 'videos', 'sfx'];
+
+        function cloneEditableShape(source) {
+          var editable = {};
+          var input = source && typeof source === 'object' ? source : {};
+          EDITABLE_KEYS.forEach(function(key) {
+            editable[key] = Array.isArray(input[key]) ? input[key].map(function(item) {
+              return item && typeof item === 'object' ? Object.assign({}, item) : item;
+            }) : [];
+          });
+          return editable;
+        }
+
+        function normalizeMessage(data) {
+          if (typeof data === 'string') {
+            try {
+              return JSON.parse(data);
+            } catch (error) {
+              return null;
+            }
+          }
+          return data && typeof data === 'object' ? data : null;
+        }
+
+        function setNestedValue(root, path, value) {
+          if (!root || !path) return;
+          var parts = String(path).split('.');
+          var cursor = root;
+          for (var index = 0; index < parts.length - 1; index += 1) {
+            var key = parts[index];
+            if (!key) return;
+            if (!cursor[key] || typeof cursor[key] !== 'object') {
+              cursor[key] = {};
+            }
+            cursor = cursor[key];
+          }
+          cursor[parts[parts.length - 1]] = value;
+        }
+
+        function applySelectorValue(entry, applier) {
+          if (!entry || !entry.selector) return;
+          try {
+            document.querySelectorAll(entry.selector).forEach(function(node) {
+              applier(node, entry.value);
+            });
+          } catch (error) {}
+        }
+
+        function applyEditable(editable) {
+          editable.colors.forEach(function(entry) {
+            if (!entry) return;
+            if (entry.cssVar) document.documentElement.style.setProperty(entry.cssVar, entry.value);
+            if (entry.path) setNestedValue(window, entry.path, entry.value);
+          });
+
+          editable.text.forEach(function(entry) {
+            if (!entry) return;
+            if (entry.path) setNestedValue(window, entry.path, entry.value);
+            applySelectorValue(entry, function(node, value) {
+              var text = value == null ? '' : String(value);
+              if ('value' in node && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA')) node.value = text;
+              else node.textContent = text;
+            });
+          });
+
+          editable.images.forEach(function(entry) {
+            if (!entry) return;
+            if (entry.path) setNestedValue(window, entry.path, entry.value);
+            applySelectorValue(entry, function(node, value) {
+              if (node.tagName === 'IMG' || node.tagName === 'SOURCE') node.src = value || '';
+              else if (node.tagName === 'VIDEO') node.poster = value || '';
+              else node.style.backgroundImage = value ? 'url("' + value + '")' : '';
+            });
+          });
+
+          editable.music.forEach(function(entry) {
+            if (!entry) return;
+            if (entry.path) setNestedValue(window, entry.path, entry.value);
+            applySelectorValue(entry, function(node, value) {
+              if ('src' in node) node.src = value || '';
+            });
+          });
+
+          editable.videos.forEach(function(entry) {
+            if (!entry) return;
+            if (entry.path) setNestedValue(window, entry.path, entry.value);
+            applySelectorValue(entry, function(node, value) {
+              if ('src' in node) node.src = value || '';
+            });
+          });
+
+          editable.sfx.forEach(function(entry) {
+            if (entry && entry.path) setNestedValue(window, entry.path, entry.value);
+          });
+
+          editable.tune.forEach(function(entry) {
+            if (entry && entry.path) setNestedValue(window, entry.path, entry.value);
+          });
+        }
+
+        function postBridgeMessage(payload) {
+          try {
+            window.parent && window.parent.postMessage(payload, '*');
+          } catch (error) {}
+
+          try {
+            if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+              window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+            }
+          } catch (error) {}
+        }
+
+        var editable = cloneEditableShape(window.gametokEditable || window.sekaiEditable || window.__GAMETOK_EDITABLE__);
+
+        function syncEditableReferences() {
+          window.gametokEditable = editable;
+          window.sekaiEditable = editable;
+          window.__GAMETOK_EDITABLE__ = editable;
+        }
+
+        function emitEditableMetadata(taskId) {
+          postBridgeMessage({
+            origin: BRIDGE_ORIGIN,
+            type: 'receive_editable_metadata',
+            taskId: taskId || null,
+            data: editable
+          });
+        }
+
+        window.GameTokRuntime = Object.assign({}, window.GameTokRuntime, {
+          bridgeOrigin: BRIDGE_ORIGIN,
+          getEditableMetadata: function() {
+            return editable;
+          },
+          setEditableMetadata: function(nextEditable, options) {
+            editable = cloneEditableShape(nextEditable);
+            syncEditableReferences();
+            applyEditable(editable);
+            if (!options || options.silent !== true) emitEditableMetadata(options && options.taskId);
+            return editable;
+          },
+          applyEditablePatch: function(patch, options) {
+            editable = cloneEditableShape(Object.assign({}, editable, patch || {}));
+            syncEditableReferences();
+            applyEditable(editable);
+            if (!options || options.silent !== true) emitEditableMetadata(options && options.taskId);
+            return editable;
+          },
+          requestEditableMetadata: emitEditableMetadata,
+          send: function(type, data, extra) {
+            postBridgeMessage(Object.assign({
+              origin: BRIDGE_ORIGIN,
+              type: type,
+              data: data || {}
+            }, extra || {}));
+          }
+        });
+
+        syncEditableReferences();
+        applyEditable(editable);
+
+        window.addEventListener('message', function(event) {
+          var message = normalizeMessage(event && event.data);
+          if (!message) return;
+          if (message.origin && message.origin !== BRIDGE_ORIGIN && message.origin !== 'sekai_gaming_iframe_api') return;
+
+          if (message.type === 'request_editable_metadata') {
+            emitEditableMetadata(message.taskId);
+          } else if (message.type === 'receive_editable_patch' || message.type === 'set_editable_metadata') {
+            window.GameTokRuntime.applyEditablePatch(message.data || {}, { silent: true });
+            emitEditableMetadata(message.taskId);
+          } else if (message.type === 'receive_editable_metadata') {
+            window.GameTokRuntime.setEditableMetadata(message.data || {}, { silent: true });
+          }
+        });
+
+        postBridgeMessage({
+          origin: BRIDGE_ORIGIN,
+          type: 'gametok_iframe_ready',
+          data: { editableKeys: EDITABLE_KEYS }
+        });
+        emitEditableMetadata();
+      })();
+    </script>
+  `;
+}
 
 export function postProcessRawHtml(rawHtml) {
   const runtimeOverlayScript = `
@@ -1399,11 +1887,13 @@ export function postProcessRawHtml(rawHtml) {
     audioScript = '<script>' + audioCode + '</script>';
   } catch (e) {}
 
+  const editableBridgeScript = buildGameTokEditableBridgeScript();
+
   // Inject right before </body> or at end
   if (rawHtml.includes('</body>')) {
-    rawHtml = rawHtml.replace('</body>', runtimeOverlayScript + juiceScript + audioScript + '</body>');
+    rawHtml = rawHtml.replace('</body>', editableBridgeScript + runtimeOverlayScript + juiceScript + audioScript + '</body>');
   } else {
-    rawHtml += runtimeOverlayScript + juiceScript + audioScript;
+    rawHtml += editableBridgeScript + runtimeOverlayScript + juiceScript + audioScript;
   }
 
   // Force inject essential mobile metas and strict no-selection CSS

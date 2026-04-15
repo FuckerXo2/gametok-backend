@@ -8,6 +8,7 @@
     "dev": "node --watch src/index.js",
     "seed-bots": "node seed-bots.js",
     "check:ai-engine": "node --check src/ai-engine/routes.js && node --check src/ai-engine/promptRegistry.js && node --check src/ai-engine/sandbox.js && node --check src/db.js",
+    "benchmark:sekai": "node scripts/inspect_sekai_benchmark_suite.mjs",
     "catalog:kenney": "node scripts/build_kenney_inventory.mjs",
     "manifest:kenney-wave1": "node scripts/build_kenney_wave1_manifest.mjs",
     "stage:kenney-wave1": "node scripts/stage_kenney_wave1_assets.mjs",
