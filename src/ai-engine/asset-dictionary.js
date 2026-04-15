@@ -555,14 +555,17 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
 
     case 'pixel_platformer':
       visuals = mergeAssetGroups(
-        rankWave1Assets(`${prompt} background hills trees sky`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 2 }),
-        rankWave1Assets(`${prompt} player hero adventurer`, { lane, extraLanes: ['endless_flyer'], desiredRoles: ['player'], desiredKinds: ['sprite', 'character', 'environment'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} slime enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 2 }),
+        rankWave1Assets(`${prompt} pixel background clouds sky hills trees grass`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
+        rankWave1Assets(`${prompt} pixel player hero adventurer character`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 3 }),
+        rankWave1Assets(`${prompt} pixel slime ghost enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 2 }),
         rankWave1Assets(`${prompt} coin gem heart pickup hud`, { lane, desiredRoles: ['pickup', 'ui'], desiredKinds: ['environment', 'sprite', 'item'], limit: 2 })
       );
       controls = rankWave1Assets(`${prompt} button ui`, { lane, desiredRoles: ['ui'], desiredKinds: ['ui', 'control'], limit: 2 });
       audio = rankWave1Assets(`${prompt} jingle platformer coin`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 2 });
-      notes = enrichNotesWithCrossLaneBorrowing(lane, visuals);
+      notes = [
+        ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
+        'This lane should stay visually pixel-first. Prefer the staged pixel platformer packs over smooth or mixed-style substitutes.',
+      ];
       break;
 
     case 'auto_battler_arena':

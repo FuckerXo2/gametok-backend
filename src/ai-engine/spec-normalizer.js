@@ -22,6 +22,24 @@ function includesAny(text, keywords) {
   return keywords.some((keyword) => text.includes(keyword));
 }
 
+function wantsStrictPixelArt(promptText = '', rawSpec = {}) {
+  const visualStyle = safeText(rawSpec.visualStyle, '').toLowerCase();
+  const summary = safeText(rawSpec.summary, '').toLowerCase();
+  const genre = safeText(rawSpec.genre, '').toLowerCase();
+  const text = `${promptText} ${visualStyle} ${summary} ${genre}`.toLowerCase();
+
+  return includesAny(text, [
+    'pixel',
+    'pixel art',
+    'pixel-art',
+    '8-bit',
+    '16-bit',
+    'retro sprite',
+    'sprite sheet',
+    'tileset',
+  ]);
+}
+
 export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
   const genre = safeText(rawSpec.genre, '').toLowerCase();
   const summary = safeText(rawSpec.summary, '').toLowerCase();
@@ -123,6 +141,7 @@ export function inferRuntimeLaneFromPrompt(promptText = '') {
 
 function buildLaneSpec(lane, spec, promptText) {
   const baseEntities = spec.entities || {};
+  const strictPixelArt = wantsStrictPixelArt(promptText, spec);
 
   switch (lane) {
     case 'first_person_threejs':
@@ -247,12 +266,25 @@ function buildLaneSpec(lane, spec, promptText) {
       return {
         ...spec,
         runtimeLane: lane,
+        preferredEngine: 'CANVAS_2D',
+        visualStyle: strictPixelArt ? 'PIXEL_RETRO' : safeText(spec.visualStyle, 'PIXEL_RETRO'),
+        pixelArtStrict: strictPixelArt,
         playableSlice: 'A compact vertical or side-scrolling pixel platformer with a few platform modules, enemy hops, and coin routes.',
         sceneBlueprint: 'Small pixel character, layered skyline, simple platforms, coin arcs, and one or two enemy patterns per screen.',
         controlModel: 'Hold left/right touch zones to move and tap to jump.',
         spectacleFocus: ['coin pops', 'jump dust', 'screen shake on stomp', 'sparkle pickups'],
-        playabilityRules: ['Prefer tight platform spacing and readable jumps over giant map ambition.'],
-        visualTargets: ['8-bit or 16-bit readability', 'clean tile silhouettes', 'simple enemy tells'],
+        playabilityRules: [
+          'Prefer tight platform spacing and readable jumps over giant map ambition.',
+          'If the user asked for pixel art, treat that as a hard visual rule, not a loose retro suggestion.',
+          'Keep all gameplay sprites, tiles, pickups, and HUD readable on a phone without mixing in glossy smooth art.',
+        ],
+        visualTargets: [
+          '8-bit or 16-bit readability',
+          'clean tile silhouettes',
+          'simple enemy tells',
+          'integer-aligned movement and camera framing',
+          'nearest-neighbor sprite scaling with no blurry filtering',
+        ],
         promptEcho: promptText,
       };
 

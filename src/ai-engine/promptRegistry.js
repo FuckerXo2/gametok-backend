@@ -53,6 +53,26 @@ function requestsFirstPerson3D(userPrompt = '') {
   return perspectiveIntent && worldIntent;
 }
 
+function requestsStrictPixelArt(specSheet = {}, userPrompt = '') {
+  const text = [
+    String(userPrompt || ''),
+    String(specSheet.visualStyle || ''),
+    String(specSheet.summary || ''),
+    String(specSheet.genre || ''),
+    String(specSheet.promptEcho || ''),
+  ].join(' ').toLowerCase();
+
+  return specSheet.pixelArtStrict === true || [
+    'pixel',
+    'pixel art',
+    'pixel-art',
+    '8-bit',
+    '16-bit',
+    'retro sprite',
+    'tileset',
+  ].some((keyword) => text.includes(keyword));
+}
+
 function formatAssetLines(sectionName, assets = []) {
   if (!Array.isArray(assets) || assets.length === 0) return '';
   const lines = assets
@@ -148,6 +168,22 @@ function buildUserMediaBlock(mediaAttachments = []) {
 - If one attachment fails to load, keep the game playable and visible anyway.
 - Do not silently ignore them unless they truly conflict with bootability or readability.
 ${lines}`;
+}
+
+function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
+  if (!requestsStrictPixelArt(specSheet, userPrompt)) return '';
+
+  return `STRICT PIXEL-ART CONTRACT:
+- The user explicitly wants pixel art. Treat that as a hard visual requirement, not a loose retro vibe.
+- Use only Canvas2D for the main render path. Do not switch to glossy DOM cards, smooth vector-style scenes, or soft illustrative backgrounds.
+- If you use sprite assets, render them with nearest-neighbor scaling:
+  - canvas/context CSS should prefer crisp edges when possible
+  - disable smoothing with ctx.imageSmoothingEnabled = false
+- Keep sprite/camera movement aligned to integer pixels whenever practical. Avoid subpixel blur.
+- Do NOT use soft gradients, blurry glow blobs, glassmorphism, or modern rounded-dashboard UI styling as the primary look.
+- Prefer pixel-friendly backgrounds, tiles, characters, pickups, and HUD ornaments from the approved asset kit.
+- If you must draw missing art procedurally, make it blocky, tile-like, and pixel-readable instead of smooth or painterly.
+- Use chunky, readable pixel-style HUD text treatment. Avoid sleek modern UI panels that clash with pixel sprites.`;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -266,6 +302,7 @@ function buildEngineSpecBlock(specSheet) {
 
 export function buildLabsSoloPrototype(userPrompt, assetBundle = null, mediaAttachments = []) {
   const wants3D = requestsFirstPerson3D(userPrompt);
+  const pixelArtRuleBlock = buildPixelArtRuleBlock({}, userPrompt);
   const engineRules = wants3D
     ? `- Use Three.js via CDN as the rendering engine.
 - This request MUST remain a first-person 3D game. Do NOT downgrade it into a top-down maze, flat map, or side view.
@@ -311,6 +348,8 @@ ${engineRules}
 ${assetKitBlock}
 
 ${userMediaBlock}
+
+${pixelArtRuleBlock}
 
 BOOT + RELIABILITY:
 - Wrap initialization in try/catch and render a visible in-game error panel if something fails.
@@ -956,6 +995,7 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
   const engineSpecBlock = buildEngineSpecBlock(specSheet);
   const assetKitBlock = buildAssetKitBlock(assetBundle);
   const userMediaBlock = buildUserMediaBlock(mediaAttachments);
+  const pixelArtRuleBlock = buildPixelArtRuleBlock(specSheet, specSheet.promptEcho || '');
   const engineSelectionRules = isFirstPerson3D
     ? `You MUST use THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js) for this game.
 - This is a hard requirement because the prompt/spec requires a first-person 3D experience.
@@ -1114,6 +1154,8 @@ You MUST implement a seeded random number generator (PRNG) and use it for ALL pr
 ${assetKitBlock}
 
 ${userMediaBlock}
+
+${pixelArtRuleBlock}
 
 ═══════════════════════════════════════════
 CRITICAL IMPLEMENTATION RULES:
