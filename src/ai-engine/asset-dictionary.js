@@ -682,7 +682,20 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
       visuals = visuals.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
         const url = String(asset?.url || '').toLowerCase();
-        return !/tile_\d+\.png/.test(label) && !/\/tiles\/tile_\d+\.png/.test(url);
+        return (
+          !/tile_\d+\.png/.test(label) &&
+          !/\/tiles\/tile_\d+\.png/.test(url) &&
+          !label.includes('cloud') &&
+          !label.includes('sand tile') &&
+          !label.includes('grass tile') &&
+          !label.includes('water') &&
+          !label.includes('lava') &&
+          !url.includes('cloud') &&
+          !url.includes('sand') &&
+          !url.includes('grass') &&
+          !url.includes('liquidwater') &&
+          !url.includes('liquidlava')
+        );
       });
       if (
         !hasAnyAssetKeyword(visuals, ['knight', 'archer', 'wizard', 'mage', 'warrior', 'paladin']) ||
@@ -742,6 +755,14 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
           : `${prompt} swipe button ui lane`,
         { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 }
       ), ['left', 'right', 'arrow', 'button', 'direction', 'swipe']);
+      controls = controls.filter((asset) => {
+        const label = String(asset?.label || '').toLowerCase();
+        const url = String(asset?.url || '').toLowerCase();
+        return !label.includes('direction_') && !url.includes('direction_');
+      });
+      if (!hasAnyAssetKeyword(controls, ['swipe', 'button', 'jump', 'slide'])) {
+        controls = [];
+      }
       audio = filterAssetsByKeywords(
         rankWave1Assets(`${prompt} swoosh hit coin interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
         ['coin', 'jump', 'swoosh', 'swipe', 'pickup', 'move', 'woosh']
@@ -753,6 +774,9 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
           : []),
         ...(visuals.length === 0
           ? ['No convincing runner character/track assets were found for this prompt, so the builder should proceduralize the runner silhouette, lanes, and early obstacles instead of forcing weak sprite support.']
+          : []),
+        ...(controls.length === 0
+          ? ['No convincing lane-runner control art was found, so the builder should rely on swipe coaching, motion telegraphing, and a procedural jump/slide treatment instead of explicit arrow buttons.']
           : []),
       ];
       break;
@@ -766,10 +790,24 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         ['panel', 'frame', 'window', 'terminal', 'screen', 'card', 'paper', 'note', 'letter', 'lamp', 'candle']
       );
       controls = rankWave1Assets(`${prompt} yes no continue button ui prompt`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 2 });
-      audio = rankWave1Assets(`${prompt} ambience hum whisper click interface eerie`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
+      controls = controls.filter((asset) => {
+        const label = String(asset?.label || '').toLowerCase();
+        const url = String(asset?.url || '').toLowerCase();
+        return !label.includes('button_bean') && !label.includes('screws') && !url.includes('button_bean') && !url.includes('screws');
+      });
+      if (!hasAnyAssetKeyword(controls, ['button', 'panel', 'frame', 'card', 'tab'])) {
+        controls = [];
+      }
+      audio = filterAssetsByKeywords(
+        rankWave1Assets(`${prompt} ambience hum whisper click interface eerie`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        ['hum', 'whisper', 'click', 'interface', 'eerie', 'soft', 'ambient']
+      );
       notes = [
         ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
         'Minimal story/horror vignette detected: sparse assets are acceptable if atmosphere, typography, and one strong focal object carry the scene.',
+        ...(controls.length === 0
+          ? ['No convincing story-choice UI art was found, so the builder should render restrained procedural YES/NO or CONTINUE controls instead of using playful mobile or sci-fi button skins.']
+          : []),
       ];
       break;
 
@@ -810,12 +848,26 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         rankWave1Assets(`${prompt} soldier survivor hero player gun`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 2 }),
         rankWave1Assets(`${prompt} zombie skeleton enemy monster raider`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
         rankWave1Assets(`${prompt} bunker room wall floor table crate barrel cover terminal prop`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 5 }),
-        rankWave1Assets(`${prompt} medkit ammo coin pickup`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 2 })
+        rankWave1Assets(`${prompt} medkit ammo coin pickup`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 2 }),
+        pickLegacyAssets(`${prompt} torch door rock bunker cover`, { limit: 3, categories: ['decoration', 'environment'] })
       );
       visuals = visuals.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
         const url = String(asset?.url || '').toLowerCase();
-        return !/tile_\d+\.png/.test(label) && !/\/tiles\/tile_\d+\.png/.test(url);
+        return (
+          !/tile_\d+\.png/.test(label) &&
+          !/\/tiles\/tile_\d+\.png/.test(url) &&
+          !label.includes('cloud') &&
+          !label.includes('sand tile') &&
+          !label.includes('grass tile') &&
+          !label.includes('water') &&
+          !label.includes('lava') &&
+          !url.includes('cloud') &&
+          !url.includes('sand') &&
+          !url.includes('grass') &&
+          !url.includes('liquidwater') &&
+          !url.includes('liquidlava')
+        );
       });
       controls = rankWave1Assets(`${prompt} fire button joystick ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 });
       controls = controls.filter((asset) => {
@@ -827,8 +879,8 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} gun hit reload interface impact`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
-        ['gun', 'shot', 'hit', 'reload', 'impact', 'weapon', 'attack']
+        rankWave1Assets(`${prompt} gunshot muzzle hit reload impact combat weapon`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 4 }),
+        ['gun', 'shot', 'gunshot', 'hit', 'reload', 'impact', 'weapon', 'attack', 'combat']
       );
       audio = audio.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
