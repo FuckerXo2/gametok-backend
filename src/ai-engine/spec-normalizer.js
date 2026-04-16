@@ -200,7 +200,36 @@ function wantsSimulationToybox(promptText = '', rawSpec = {}) {
     'result',
   ]);
 
-  return toyIntent && systemIntent;
+  const stashIntent = includesAny(text, [
+    'robbery',
+    'heist',
+    'cash',
+    'money',
+    'loot',
+    'bag',
+    'money bag',
+    'duffel',
+    'sack',
+    'stash',
+    'deposit',
+    'collect',
+    'tabletop',
+    'crime scene',
+  ]);
+
+  const stashZoneIntent = includesAny(text, [
+    'drag into',
+    'drop into',
+    'collect into',
+    'into an open bag',
+    'bag zone',
+    'drop zone',
+    'open bag',
+    'clear bag zone',
+    'before time runs out',
+  ]);
+
+  return (toyIntent && systemIntent) || (stashIntent && stashZoneIntent);
 }
 
 function pickLane(promptText, rawSpec) {
