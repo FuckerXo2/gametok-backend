@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 629,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/e9a2edfe-6a06-442b-b7be-b20c7e923a06/61505972-d6c9-4f95-b7ad-aaa91aecded1/cover.large.webp",
+  "creator_name": "Melindajhc",
+  "creator_user_id": 5335614,
+  "extra": {
+    "creator_id": 5335614,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 153
+  },
+  "game_id": "cd2a25fb-a5ae-4e0c-892d-38a134704e71",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 5625,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/cd2a25fb-a5ae-4e0c-892d-38a134704e71?fromPage=feed&orientation=auto",
+  "save_count": 2683,
+  "title": "Pokemon Fusion Kitchen",
+  "version": "",
+  "version_id": "07fe687e-50d2-4d40-9a6c-8282fdd5fbe0"
+}

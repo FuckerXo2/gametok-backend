@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 460,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/542a8158-c3b4-4556-abbe-08d1156140dd/0ac25eb4-cf8d-4d3e-89e1-7cf16902d659/cover.large.webp",
+  "creator_name": "MEGALOVANIA",
+  "creator_user_id": 1853484,
+  "extra": {
+    "creator_id": 1853484,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 119
+  },
+  "game_id": "02ab279f-a2f5-47eb-9ab9-a2335e6cb6a5",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 6558,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/02ab279f-a2f5-47eb-9ab9-a2335e6cb6a5?fromPage=feed&orientation=auto",
+  "save_count": 1549,
+  "title": "Put the money in the bag",
+  "version": "",
+  "version_id": "e8e2dd65-6d56-468f-b095-5f8945ff01a7"
+}

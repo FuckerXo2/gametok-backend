@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 388,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/d1f7f39c-9f83-4550-8591-dc6a91faf88f/4c7182f4-ba54-4aef-b6f9-40d57cc509c6/cover.large.webp",
+  "creator_name": "guitarhero",
+  "creator_user_id": 13359,
+  "extra": {
+    "creator_id": 13359,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 96
+  },
+  "game_id": "aef05b34-ad48-4c61-9e77-741876cc666a",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 4146,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/aef05b34-ad48-4c61-9e77-741876cc666a?fromPage=feed&orientation=auto",
+  "save_count": 1305,
+  "title": "Slice the pizza evenly",
+  "version": "",
+  "version_id": "d1f7f39c-9f83-4550-8591-dc6a91faf88f"
+}

@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Golden Wind Piano Challenge</title>
+    <script src="vendor/tailwind.css"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0D0D0D;
+            color: #F5F5F5;
+            overflow: hidden;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Animations */
+        @keyframes pulse-beat {
+            0%, 100% { transform: scale(1.0); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+        }
+
+        .animate-pulse-beat {
+            animation: pulse-beat 0.441s ease-in-out infinite;
+        }
+
+        .animate-shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes hint-pulse {
+            0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
+            50% { transform: translateY(10px) scale(1.05); opacity: 0.9; }
+        }
+
+        .animate-hint-pulse {
+            animation: hint-pulse 1.5s ease-in-out infinite;
+        }
+
+        #key-hint {
+            position: absolute;
+            bottom: 102%;
+            left: 88%;
+            width: 12%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 50;
+            pointer-events: none;
+            color: #FFD700;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        /* Piano Keys */
+        .white-key {
+            background: linear-gradient(to bottom, #F5F5F5 0%, #E0E0E0 100%);
+            border-radius: 0 0 6px 6px;
+            box-shadow: 0 4px 0 #999;
+            transition: transform 0.1s, background-color 0.2s;
+            z-index: 10;
+        }
+        .white-key:active, .white-key.active-touch {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #999;
+            background: #FFD700;
+        }
+        .white-key.error {
+            background: #FF4444 !important;
+        }
+
+        .black-key {
+            background: linear-gradient(to bottom, #333 0%, #000 100%);
+            border-radius: 0 0 4px 4px;
+            box-shadow: 0 3px 0 #222;
+            z-index: 20;
+            transition: transform 0.1s, background-color 0.2s;
+        }
+        .black-key:active, .black-key.active-touch {
+            transform: translateY(3px);
+            box-shadow: 0 0 0 #222;
+            background: #FFD700;
+        }
+        .black-key.error {
+            background: #FF4444 !important;
+        }
+
+        /* Sequence Indicators */
+        .seq-note {
+            transition: all 0.3s ease;
+            opacity: 0.4;
+        }
+        .seq-note.current {
+            opacity: 1;
+            color: #FFD700;
+            transform: scale(1.3);
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+        .seq-note.done {
+            opacity: 0.3;
+            color: #888;
+        }
+
+        /* Celebration Image Fade */
+        .celebration-img {
+            transition: opacity 0.3s ease;
+        }
+
+        /* Rotation Prompt */
+        #rotate-overlay {
+            display: none;
+        }
+        @media (orientation: landscape) {
+            #rotate-overlay {
+                display: flex;
+            }
+        }
+    </style>
+    <!-- Audio Unlock Script -->
+    <script>
+      (function() {
+        let audioUnlocked = false;
+
+        function unlockAudioContext() {
+          if (audioUnlocked) return;
+          if ('audioSession' in window.navigator) {
+            window.navigator.audioSession.type = "playback";
+          }
+          try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+              const context = new AudioContext();
+              if (context.state === 'suspended') {
+                context.resume();
+              }
+              const buffer = context.createBuffer(1, 1, 22050);
+              const source = context.createBufferSource();
+              source.buffer = buffer;
+              source.connect(context.destination);
+              source.start(0);
+            }
+          } catch (e) {}
+          try {
+            const audio = new Audio();
+            audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+            audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+          } catch (e) {}
+          audioUnlocked = true;
+        }
+
+        window.addEventListener('message', function(event) {
+          if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+            unlockAudioContext();
+          }
+        });
+        ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+          document.addEventListener(event, unlockAudioContext, { once: true });
+        });
+      })();
+    </script>
+<!-- sekai:dvh-fix -->
+</head>
+<body class="w-screen h-[100dvh] overflow-hidden flex flex-col relative bg-[#0D0D0D]">
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+    <!-- Config & State -->
+    <script>
+        window.sekaiEditable = {
+            tune: [
+                { id: 'bpm', label: 'BPM', type: 'slider', min: 60, max: 200, step: 1, value: 136, path: 'CONFIG.bpm' },
+                { id: 'rotationMs', label: 'Rotation Speed (ms)', type: 'slider', min: 200, max: 5000, step: 100, value: 1000, path: 'CONFIG.imageRotationMs' }
+            ],
+            images: [
+                { id: 'img1', label: 'Celebration 1', type: 'image', value: "images/74f5df91-d24d-4885-b140-2675a6c32877.webp", description: "Vibrant celebration artwork", property: 'src' },
+                { id: 'img2', label: 'Celebration 2', type: 'image', value: "images/869b7883-caa4-4af6-bb0b-d5d29a82f62a.webp", description: "High energy music scene", property: 'src' },
+                { id: 'img3', label: 'Celebration 3', type: 'image', value: "images/68a308d7-d21f-49ca-b02b-8ad9287ae1dc.webp", description: "Colorful abstract celebration", property: 'src' },
+                { id: 'img4', label: 'Celebration 4', type: 'image', value: "images/80f107e3-8932-43ac-9da4-cd28476c539b.webp", description: "Victory and triumph", property: 'src' }
+            ],
+            videos: [],
+            music: [
+                { id: 'audio', label: 'Celebration Track', type: 'audio', value: "https://prod-data.sekai.chat/v3-games/chat-creation/e0d707f1-ba32-491e-aabb-513aca6f9bc8.mov", name: 'Golden Wind Theme', path: 'CONFIG.audioURL' }
+            ],
+            sfx: [],
+            colors: [
+                { id: 'primary', label: 'Primary Theme Color', type: 'color', cssVar: '--primary-color', value: '#FFD700' }
+            ],
+            text: [
+                { id: 'header', label: 'Main Header', type: 'text', value: 'Play This Sequence', selector: 'h1' },
+                { id: 'hintText', label: 'Hint Label', type: 'text', value: 'tap the key', selector: '#hint-label' }
+            ],
+            prompts: [],
+            voices: []
+        };
+
+        window.CONFIG = {
+            audioURL: "https://prod-data.sekai.chat/v3-games/chat-creation/e0d707f1-ba32-491e-aabb-513aca6f9bc8.mov",
+            images: [
+                "images/74f5df91-d24d-4885-b140-2675a6c32877.webp",
+                "images/869b7883-caa4-4af6-bb0b-d5d29a82f62a.webp",
+                "images/68a308d7-d21f-49ca-b02b-8ad9287ae1dc.webp",
+                "images/80f107e3-8932-43ac-9da4-cd28476c539b.webp"
+            ],
+            bpm: 136,
+            imageRotationMs: 1000,
+            imageFadeDurationMs: 300,
+        };
+
+        const PIANO_KEYS = [
+            { id: 1, note: 'B4', type: 'white', freq: 493.88 },
+            { id: 2, note: 'C5', type: 'white', freq: 523.25 },
+            { id: 3, note: 'C#5', type: 'black', freq: 554.37 },
+            { id: 4, note: 'D5', type: 'white', freq: 587.33 },
+            { id: 5, note: 'D#5', type: 'black', freq: 622.25 },
+            { id: 6, note: 'E5', type: 'white', freq: 659.25 },
+            { id: 7, note: 'F5', type: 'white', freq: 698.46 },
+            { id: 8, note: 'F#5', type: 'black', freq: 739.99 }
+        ];
+
+        const TARGET_SEQUENCE = [8, 4, 4, 6, 7, 6, 4, 3, 4, 6, 8];
+        
+        const state = {
+            currentNoteIndex: 0,
+            isPlaying: false,
+            audioContext: null,
+            celebrationAudio: null,
+            analyser: null,
+            dataArray: null,
+            imageIndex: 0,
+            isRotationActive: false,
+            hintVisible: true
+        };
+
+        function getConfig(cat, id) { return window.sekaiEditable[cat]?.find(i => i.id === id)?.value; }
+        function setNestedValue(obj, path, value) {
+            const parts = path.split('.'); let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) { if (!current[parts[i]]) current[parts[i]] = {}; current = current[parts[i]]; }
+            current[parts[parts.length - 1]] = value;
+        }
+        function applyAllEditableValues() {
+            window.sekaiEditable.tune?.forEach(t => { if (t.path) setNestedValue(window, t.path, t.value); });
+            window.sekaiEditable.colors?.forEach(c => { if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value); });
+            window.sekaiEditable.images?.forEach(img => { if (img.selector) { const el = document.querySelector(img.selector); if (el) { if (img.property === 'src') el.src = img.value; else if (img.property === 'backgroundImage') el.style.backgroundImage = `url('${img.value}')`; } } });
+            window.sekaiEditable.text?.forEach(t => { if (t.selector) { const el = document.querySelector(t.selector); if (el) el.textContent = t.value; } });
+        }
+        (function setupPreviewEditingAPI() {
+            window.addEventListener('message', (event) => {
+                const msg = event.data; if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+                if (msg.type === 'apply_change') { 
+                    const success = applySingleChange(msg.data.id, msg.data.value);
+                    window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_apply_change', taskId: msg.taskId, data: { success } }, '*');
+                } else if (msg.type === 'get_editable_metadata') {
+                    window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_editable_metadata', taskId: msg.taskId, data: window.sekaiEditable || {} }, '*');
+                } else if (msg.type === 'reset_changes') { location.reload(); }
+            });
+            function applySingleChange(id, value) {
+                const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+                for (const cat of categories) {
+                    const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+                    if (!item) continue;
+                    item.value = value;
+                    if (item.cssVar) document.documentElement.style.setProperty(item.cssVar, value);
+                    else if (item.path) setNestedValue(window, item.path, value);
+                    else if (item.selector) {
+                        const el = document.querySelector(item.selector);
+                        if (el) { if (item.property === 'src') el.src = value; else el.textContent = value; }
+                    }
+                    return true;
+                }
+                return false;
+            }
+        })();
+    </script>
+
+    <!-- Screen 1: Piano Challenge -->
+    <div id="screen-piano" class="w-full h-full flex flex-col items-center justify-between py-8 px-4 relative z-10">
+        
+        <!-- Header & Sequence -->
+        <div class="flex flex-col items-center gap-6 w-full mt-4">
+            <h1 class="text-[#FFD700] text-3xl font-black uppercase tracking-wider text-center drop-shadow-md">
+                Play This Sequence
+            </h1>
+            
+            <div id="sequence-display" class="flex flex-wrap justify-center gap-3 text-2xl font-bold font-mono">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Piano Container -->
+        <div id="piano-container" class="relative w-full max-w-md h-[50vh] mt-auto mb-4 bg-[#111] rounded-lg p-2 shadow-2xl border border-gray-800">
+            <!-- Keys generated by JS -->
+        </div>
+
+    </div>
+
+    <!-- Screen 2: Celebration -->
+    <div id="screen-celebration" class="fixed inset-0 bg-black z-50 opacity-0 pointer-events-none transition-opacity duration-1000 flex flex-col items-center justify-center">
+        <!-- Image Container -->
+        <div id="image-container" class="absolute inset-0 w-full h-full overflow-hidden">
+            <img id="celeb-img-1" class="celebration-img absolute inset-0 w-full h-full object-cover opacity-0 animate-pulse-beat" src="" alt="Celebration">
+            <img id="celeb-img-2" class="celebration-img absolute inset-0 w-full h-full object-cover opacity-0 animate-pulse-beat" src="" alt="Celebration">
+        </div>
+
+        <!-- Audio Visualizer -->
+        <canvas id="visualizer-canvas" class="absolute bottom-0 left-0 w-full h-1/3 z-20 opacity-80 pointer-events-none"></canvas>
+    </div>
+
+    <!-- Rotation Warning -->
+    <div id="rotate-overlay" class="fixed inset-0 bg-[#0D0D0D] z-[100] flex-col items-center justify-center text-center p-8 text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mb-4 animate-bounce">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            <path d="M19 3v4"></path>
+            <path d="M21 5h-4"></path>
+        </svg>
+        <h2 class="text-xl font-bold mb-2">Please Rotate Device</h2>
+        <p class="text-gray-400">This challenge is best played in portrait mode.</p>
+        <button id="dismiss-rotate" class="mt-8 px-6 py-2 bg-[#333] rounded-full text-sm font-bold active:scale-95 transition-transform">Dismiss</button>
+    </div>
+
+    <!-- Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
+
+        function initApp() {
+            applyAllEditableValues();
+            renderSequence();
+            renderPiano();
+            preloadAssets();
+            
+            // Rotation dismiss
+            document.getElementById('dismiss-rotate').addEventListener('click', () => {
+                document.getElementById('rotate-overlay').style.display = 'none';
+            });
+        }
+
+        // ============================================
+        // RENDER FUNCTIONS
+        // ============================================
+
+        function renderSequence() {
+            const container = document.getElementById('sequence-display');
+            container.innerHTML = '';
+            
+            TARGET_SEQUENCE.forEach((noteNum, index) => {
+                const span = document.createElement('span');
+                span.className = `seq-note ${index === 0 ? 'current' : ''}`;
+                span.textContent = noteNum;
+                span.dataset.index = index;
+                container.appendChild(span);
+                
+                if (index < TARGET_SEQUENCE.length - 1) {
+                    const dash = document.createElement('span');
+                    dash.className = 'text-gray-700 opacity-50';
+                    dash.textContent = '-';
+                    container.appendChild(dash);
+                }
+            });
+        }
+
+        function renderPiano() {
+            const container = document.getElementById('piano-container');
+            
+            // Reverted Layout: 5 White Keys (B, C, D, E, F) + 3 Black Keys
+            // Width: 100% / 5 = 20% per white key
+            
+            const whiteKeys = [
+                { id: 1, label: '1', note: 'B', left: 0 },
+                { id: 2, label: '2', note: 'C', left: 20 },
+                { id: 4, label: '4', note: 'D', left: 40 },
+                { id: 6, label: '6', note: 'E', left: 60 },
+                { id: 7, label: '7', note: 'F', left: 80 }
+            ];
+
+            whiteKeys.forEach(k => {
+                const btn = document.createElement('div');
+                btn.className = 'white-key absolute top-0 bottom-0 flex flex-col justify-end items-center pb-4 text-gray-400 font-bold select-none';
+                btn.style.left = `${k.left}%`;
+                btn.style.width = '19.5%'; // slight gap
+                btn.style.height = '100%';
+                
+                // Content
+                const label = document.createElement('span');
+                label.className = 'text-xl text-black mb-1';
+                label.textContent = k.label;
+                
+                const note = document.createElement('span');
+                note.className = 'text-xs text-gray-500 font-mono';
+                note.textContent = k.note;
+                
+                btn.appendChild(label);
+                btn.appendChild(note);
+                
+                btn.dataset.id = k.id;
+                attachTouchEvents(btn, k.id);
+                container.appendChild(btn);
+            });
+
+            // Black Keys Positioning
+            // Width ~12%
+            // 3 (C#): Between C(20-40) and D(40-60) -> Center ~40% -> Left ~34%
+            // 5 (D#): Between D(40-60) and E(60-80) -> Center ~60% -> Left ~54%
+            // 8 (F#): Right of F(80-100) -> Center ~94% -> Left ~88%
+            
+            const blackKeys = [
+                { id: 3, label: '3', note: 'C#', left: 34 },
+                { id: 5, label: '5', note: 'D#', left: 54 },
+                { id: 8, label: '8', note: 'F#', left: 88 }
+            ];
+
+            blackKeys.forEach(k => {
+                const btn = document.createElement('div');
+                btn.className = 'black-key absolute top-0 flex flex-col justify-end items-center pb-3 text-gray-500 select-none';
+                btn.style.left = `${k.left}%`;
+                btn.style.width = '12%';
+                btn.style.height = '60%';
+                
+                const label = document.createElement('span');
+                label.className = 'text-lg text-white mb-1';
+                label.textContent = k.label;
+                
+                const note = document.createElement('span');
+                note.className = 'text-[10px] text-gray-600 font-mono';
+                note.textContent = k.note;
+                
+                btn.appendChild(label);
+                btn.appendChild(note);
+                
+                btn.dataset.id = k.id;
+                attachTouchEvents(btn, k.id);
+                container.appendChild(btn);
+            });
+
+            // Add Pulsing Hint for Key 8
+            const hint = document.createElement('div');
+            hint.id = 'key-hint';
+            hint.className = 'animate-hint-pulse';
+            hint.innerHTML = `
+                <span id="hint-label" class="text-[10px] uppercase font-black mb-1 whitespace-nowrap">tap the key</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(180deg);">
+                    <path d="M10 11V6a2 2 0 0 1 4 0v7a2 2 0 0 1 4 0v-1.5a2 2 0 0 1 4 0V14a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+                    <path d="M10 11V5a2 2 0 1 0-4 0v9"/>
+                </svg>
+            `;
+            container.appendChild(hint);
+        }
+
+        function hideHint() {
+            if (!state.hintVisible) return;
+            const hint = document.getElementById('key-hint');
+            if (hint) {
+                hint.style.opacity = '0';
+                hint.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    if (hint.parentNode) hint.parentNode.removeChild(hint);
+                    state.hintVisible = false;
+                }, 300);
+            }
+        }
+
+        // ============================================
+        // AUDIO SYSTEM
+        // ============================================
+
+        function getAudioContext() {
+            if (!state.audioContext) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                state.audioContext = new AudioContext();
+            }
+            if (state.audioContext.state === 'suspended') {
+                state.audioContext.resume();
+            }
+            return state.audioContext;
+        }
+
+        function playTone(freq, type) {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'triangle'; // Clearer, game-like tone
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+            // Envelope
+            const now = ctx.currentTime;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.5, now + 0.02); // Attack
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8); // Decay
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(now);
+            osc.stop(now + 0.8);
+        }
+
+        function playErrorSound() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
+
+            const now = ctx.currentTime;
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(now);
+            osc.stop(now + 0.3);
+            
+            // Haptic
+            if (window.parent) {
+               window.parent.postMessage({
+                   origin: 'sekai_gaming_iframe_api',
+                   type: 'gen_vibration',
+                   taskId: 'vib_err',
+                   data: { duration: 200 }
+               }, '*');
+            }
+        }
+
+        // ============================================
+        // GAME LOGIC
+        // ============================================
+
+        function attachTouchEvents(element, keyId) {
+            // Use pointerdown to consolidate touch and mouse events into a single interaction
+            const handleInput = (e) => {
+                // Ignore right clicks or other buttons
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                if (state.isPlaying) return; 
+                
+                hideHint();
+
+                // Visual feedback
+                element.classList.add('active-touch');
+                setTimeout(() => element.classList.remove('active-touch'), 150);
+
+                // Logic
+                const keyData = PIANO_KEYS.find(k => k.id === keyId);
+                if (keyData) {
+                    processNote(keyId, keyData.freq, element);
+                }
+            };
+
+            element.addEventListener('pointerdown', handleInput);
+        }
+
+        function processNote(noteId, freq, element) {
+            const expectedNote = TARGET_SEQUENCE[state.currentNoteIndex];
+            
+            if (noteId === expectedNote) {
+                // Correct
+                playTone(freq);
+                handleCorrect(element);
+            } else {
+                // Wrong
+                playErrorSound();
+                handleWrong(element);
+            }
+        }
+
+        function handleCorrect(element) {
+            // Haptic
+            window.parent.postMessage({
+                origin: 'sekai_gaming_iframe_api',
+                type: 'gen_vibration',
+                taskId: 'vib_hit',
+                data: { duration: 50 }
+            }, '*');
+
+            // UI Update
+            updateSequenceDisplay(state.currentNoteIndex, true);
+            state.currentNoteIndex++;
+
+            if (state.currentNoteIndex >= TARGET_SEQUENCE.length) {
+                setTimeout(startCelebration, 500);
+            }
+        }
+
+        function handleWrong(element) {
+            element.classList.add('error');
+            setTimeout(() => element.classList.remove('error'), 300);
+
+            // Screen Shake
+            const piano = document.getElementById('screen-piano');
+            piano.classList.remove('animate-shake');
+            void piano.offsetWidth; // trigger reflow
+            piano.classList.add('animate-shake');
+
+            // Reset Sequence
+            state.currentNoteIndex = 0;
+            renderSequence(); // Reset UI
+        }
+
+        function updateSequenceDisplay(index, isCorrect) {
+            const spans = document.querySelectorAll('.seq-note');
+            
+            // Mark current as done
+            if (spans[index]) {
+                spans[index].classList.remove('current');
+                spans[index].classList.add('done');
+            }
+            
+            // Highlight next
+            if (spans[index + 1]) {
+                spans[index + 1].classList.add('current');
+            }
+        }
+
+        // ============================================
+        // CELEBRATION MODE
+        // ============================================
+
+        function preloadAssets() {
+            CONFIG.images.forEach(url => {
+                const img = new Image();
+                img.src = url;
+            });
+        }
+
+        function startCelebration() {
+            state.isPlaying = true;
+            
+            // Fade UI
+            const pianoScreen = document.getElementById('screen-piano');
+            const celebScreen = document.getElementById('screen-celebration');
+            
+            pianoScreen.style.transition = 'opacity 0.5s';
+            pianoScreen.style.opacity = '0';
+            
+            setTimeout(() => {
+                pianoScreen.style.display = 'none';
+                celebScreen.style.opacity = '1';
+                celebScreen.style.pointerEvents = 'auto';
+                
+                playCelebrationAudio();
+                startImageRotation();
+                startVisualizer();
+            }, 500);
+        }
+
+        function playCelebrationAudio() {
+            const ctx = getAudioContext();
+            const audio = new Audio(CONFIG.audioURL);
+            audio.crossOrigin = "anonymous";
+            audio.loop = true;
+            
+            state.celebrationAudio = audio;
+
+            // Connect to analyser
+            const source = ctx.createMediaElementSource(audio);
+            state.analyser = ctx.createAnalyser();
+            state.analyser.fftSize = 64;
+            
+            source.connect(state.analyser);
+            state.analyser.connect(ctx.destination);
+            
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log("Autoplay blocked or failed", e));
+        }
+
+        function startImageRotation() {
+            const img1 = document.getElementById('celeb-img-1');
+            const img2 = document.getElementById('celeb-img-2');
+            
+            // Initial Setup
+            img1.src = CONFIG.images[0];
+            img1.style.opacity = 1;
+            
+            state.imageIndex = 0;
+            let activeImg = 1; // 1 or 2
+            
+            state.isRotationActive = true;
+            
+            setInterval(() => {
+                if (!state.isRotationActive) return;
+                
+                state.imageIndex = (state.imageIndex + 1) % CONFIG.images.length;
+                const nextSrc = CONFIG.images[state.imageIndex];
+                
+                if (activeImg === 1) {
+                    // Transition to 2
+                    img2.src = nextSrc;
+                    img2.style.opacity = 1;
+                    img1.style.opacity = 0;
+                    activeImg = 2;
+                } else {
+                    // Transition to 1
+                    img1.src = nextSrc;
+                    img1.style.opacity = 1;
+                    img2.style.opacity = 0;
+                    activeImg = 1;
+                }
+                
+            }, CONFIG.imageRotationMs);
+        }
+
+        function startVisualizer() {
+            const canvas = document.getElementById('visualizer-canvas');
+            const ctx = canvas.getContext('2d');
+            const analyser = state.analyser;
+            
+            // Resize canvas
+            const resize = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight * 0.35;
+            };
+            window.addEventListener('resize', resize);
+            resize();
+            
+            state.dataArray = new Uint8Array(analyser.frequencyBinCount);
+            
+            function draw() {
+                if (!state.isPlaying) return;
+                requestAnimationFrame(draw);
+                
+                analyser.getByteFrequencyData(state.dataArray);
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / state.dataArray.length) * 2.5;
+                let barHeight;
+                let x = 0;
+                
+                // Gradient
+                const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                gradient.addColorStop(0, '#FFD700'); 
+                gradient.addColorStop(1, '#FFFACD');
+
+                for(let i = 0; i < state.dataArray.length; i++) {
+                    barHeight = state.dataArray[i]; // 0-255
+                    
+                    // Scale height to canvas
+                    const scaledHeight = (barHeight / 255) * canvas.height;
+                    
+                    if (scaledHeight > 0) {
+                        ctx.fillStyle = gradient;
+                        
+                        // Rounded Top Bar
+                        const barX = x;
+                        const barY = canvas.height - scaledHeight;
+                        const radius = Math.min(barWidth / 2, scaledHeight / 2);
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(barX, canvas.height);
+                        ctx.lineTo(barX, barY + radius);
+                        ctx.quadraticCurveTo(barX, barY, barX + radius, barY);
+                        ctx.lineTo(barX + barWidth - radius, barY);
+                        ctx.quadraticCurveTo(barX + barWidth, barY, barX + barWidth, barY + radius);
+                        ctx.lineTo(barX + barWidth, canvas.height);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    
+                    x += barWidth + 1;
+                }
+            }
+            draw();
+        }
+
+    </script>
+</body>
+</html>

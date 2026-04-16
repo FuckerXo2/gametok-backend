@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Megalovania 3D Beat Pad</title>
+    
+    <!-- AUDIO UNLOCK SCRIPT (Mute Switch Bypass) -->
+    <script>
+    (function() {
+      let audioUnlocked = false;
+      function unlockAudioContext() {
+        if (audioUnlocked) return;
+        // Set audio session type to playback
+        // it should change the audio channel to media on ios > 17
+        if ('audioSession' in window.navigator) {
+          window.navigator.audioSession.type = "playback";
+        }
+        // Unlock Web Audio API
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            const context = new AudioContext();
+            if (context.state === 'suspended') {
+              context.resume();
+            }
+            const buffer = context.createBuffer(1, 1, 22050);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            source.start(0);
+          }
+        } catch (e) {}
+        // Unlock HTML5 Audio
+        try {
+          const audio = new Audio();
+          audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+          audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+        } catch (e) {}
+        audioUnlocked = true;
+      }
+      // Listen for unlock message from parent
+      window.addEventListener('message', function(event) {
+        if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+          unlockAudioContext();
+        }
+      });
+      // Also unlock on first user interaction
+      ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+        document.addEventListener(event, unlockAudioContext, { once: true });
+      });
+    })();
+    </script>
+
+    <script src="vendor/tailwind.css"></script>
+    <script src="vendor/react.production.min.js"></script>
+    <script src="vendor/react-dom.production.min.js"></script>
+    <script src="vendor/babel.min.js"></script>
+    <script src="vendor/Tone.js"></script>
+    <!-- Three.js -->
+    <script src="vendor/three.min.js"></script>
+    <!-- Undertale-style Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        /* BASE SETTINGS */
+        body { 
+            background-color: #050505; 
+            color: #fff;
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Press Start 2P', cursive;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 50vh; /* Takes up half screen for the 3D view */
+            position: relative;
+            z-index: 10;
+        }
+
+        /* ANIMATIONS */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+        }
+        
+        .shake-screen { 
+            animation: shake 0.4s ease-in-out; 
+        }
+
+        /* Updated Float Animation */
+        @keyframes float-up {
+            0% { opacity: 0; transform: translate(-50%, 10px) scale(0.8); }
+            20% { opacity: 1; transform: translate(-50%, -5px) scale(1.1); }
+            100% { opacity: 0; transform: translate(-50%, -30px) scale(1); }
+        }
+
+        .floating-text {
+            position: absolute;
+            left: 50%;
+            top: 50%; 
+            transform: translate(-50%, -50%);
+            color: #fbbf24;
+            font-size: 1.2rem;
+            white-space: nowrap;
+            text-shadow: 2px 2px 0px #000;
+            pointer-events: none;
+            z-index: 100;
+            animation: float-up 1s ease-out forwards;
+        }
+
+        /* ERROR FLASH */
+        .error-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(255, 0, 0, 0.6);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s;
+            z-index: 50;
+        }
+        .error-overlay.visible {
+            opacity: 1;
+        }
+
+        /* HEART STYLING */
+        .pixel-heart {
+            width: 20px;
+            height: 20px;
+            image-rendering: pixelated;
+            transition: all 0.2s;
+        }
+        
+        @keyframes pulse-heart {
+            0% { transform: scale(1); filter: drop-shadow(0 0 2px #ff0000); }
+            50% { transform: scale(1.2); filter: drop-shadow(0 0 8px #ff0000); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 2px #ff0000); }
+        }
+
+        .current-heart {
+            animation: pulse-heart 0.8s infinite ease-in-out;
+            fill: #ff0000; /* Red Soul */
+        }
+        
+        .done-heart {
+            fill: #00ffff; /* Blue Soul (Sans) */
+            opacity: 0.6;
+            transform: scale(0.9);
+        }
+        
+        .future-heart {
+            fill: #333333;
+            transform: scale(0.8);
+        }
+
+        /* TUTORIAL POINTER */
+        .tutorial-container {
+            position: absolute;
+            top: 26%;
+            left: 58%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .tutorial-pulse {
+            animation: tutorial-bounce 0.6s infinite alternate ease-in-out;
+        }
+        
+        @keyframes tutorial-bounce {
+            0% { transform: translateY(0) scale(1); }
+            100% { transform: translateY(15px) scale(1.1); }
+        }
+        
+        .tutorial-label {
+            font-size: 10px;
+            color: #fbbf24;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 2px #000;
+            text-align: center;
+            white-space: nowrap;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+    <div id="root"></div>
+
+    <script>
+        // --- EDITABLE METADATA (SINGLE SOURCE OF TRUTH) ---
+        window.sekaiEditable = {
+            tune: [
+                { id: 'idleSpeed', label: 'Idle Rotation', type: 'slider', min: 0, max: 0.01, step: 0.0001, value: 0.0005, path: 'appState.idleSpeed' }
+            ],
+            images: [
+                { id: 'sans_bg', label: 'Victory Image', type: 'image', value: "images/sans_meme.webp", property: 'backgroundImage', description: 'Sans Undertale Meme', selector: '#victory-overlay' }
+            ],
+            videos: [],
+            music: [
+                { id: 'megalovania', label: 'BGM', type: 'audio', value: "https://sekai-public-access.s3.us-east-1.amazonaws.com/ugc/test/MEGALOVANIA.mp3", name: 'Megalovania', selector: '#music-bgm' }
+            ],
+            sfx: [
+                { id: 'tap_procedural', label: 'Tap Sound', type: 'audio', value: '', name: 'Procedural Synth', selector: '#sfx-tap' }
+            ],
+            colors: [
+                { id: 'highlight', label: 'Tile Highlight', type: 'color', cssVar: '--pad-color', value: '#fbbf24' },
+                { id: 'hint', label: 'Sequence Hint', type: 'color', cssVar: '--hint-color', value: '#00FFFF' }
+            ],
+            text: [
+                { id: 'tutorial', label: 'Tutorial Text', type: 'text', value: 'tap the tile', selector: '#tutorial-text' },
+                { id: 'header', label: 'Header Title', type: 'text', value: 'PLAY THE SEQUENCE', selector: '#header-title' }
+            ],
+            prompts: [],
+            voices: []
+        };
+
+        // --- GLOBAL STATE FOR PATH UPDATES ---
+        window.appState = {
+            idleSpeed: 0.0005
+        };
+
+        // --- EDITABLE HELPERS ---
+        function getConfig(category, id) {
+            return window.sekaiEditable[category]?.find(i => i.id === id)?.value;
+        }
+
+        function setNestedValue(obj, path, value) {
+            const parts = path.split('.');
+            let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) current[parts[i]] = {};
+                current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
+        }
+
+        function applyAllEditableValues() {
+            window.sekaiEditable.tune?.forEach(t => { if (t.path) setNestedValue(window, t.path, t.value); });
+            window.sekaiEditable.colors?.forEach(c => { if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value); });
+            window.sekaiEditable.images?.forEach(img => {
+                if (img.selector) {
+                    const el = document.querySelector(img.selector);
+                    if (el) {
+                        if (img.property === 'src') el.src = img.value;
+                        else if (img.property === 'backgroundImage') el.style.backgroundImage = `url('${img.value}')`;
+                    }
+                }
+            });
+            window.sekaiEditable.music?.forEach(m => {
+                if (m.selector) {
+                    const el = document.querySelector(m.selector);
+                    if (el && el.src !== m.value) { el.src = m.value; el.load(); }
+                }
+            });
+            window.sekaiEditable.text?.forEach(t => {
+                if (t.selector) {
+                    const el = document.querySelector(t.selector);
+                    if (el) el.textContent = t.value;
+                }
+            });
+        }
+
+        // --- PREVIEW EDITING API ---
+        (function setupPreviewEditingAPI() {
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+                switch (msg.type) {
+                    case 'get_editable_metadata':
+                        window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_editable_metadata', taskId: msg.taskId, data: window.sekaiEditable || {} }, '*');
+                        break;
+                    case 'apply_change':
+                        const success = applySingleChange(msg.data.id, msg.data.value);
+                        window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_apply_change', taskId: msg.taskId, data: { success } }, '*');
+                        break;
+                    case 'reset_changes': location.reload(); break;
+                }
+            });
+
+            function applySingleChange(id, value) {
+                const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+                for (const cat of categories) {
+                    const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+                    if (!item) continue;
+                    item.value = value;
+                    if (item.cssVar) document.documentElement.style.setProperty(item.cssVar, value);
+                    else if (item.path) setNestedValue(window, item.path, value);
+                    else if (item.selector) {
+                        const el = document.querySelector(item.selector);
+                        if (!el) return false;
+                        if (el.tagName === 'AUDIO') { el.src = value; el.load(); }
+                        else if (item.property === 'src') el.src = value;
+                        else if (item.property === 'backgroundImage') el.style.backgroundImage = `url('${value}')`;
+                        else el.textContent = value;
+                    }
+                    return true;
+                }
+                return false;
+            }
+        })();
+
+        // --- REACT COMPONENT (MANUAL TRANSLATION TO AVOID JSX ERROR) ---
+        const { useState, useEffect, useRef, useLayoutEffect } = React;
+        const e = React.createElement;
+
+        const SEQUENCE_NOTES = ["D4", "D4", "D5", "A4", "G#4", "G4", "F4", "D4", "F4", "G4"];
+        const PADS = [
+            { id: 0, note: "C4" }, { id: 1, note: "C#4" }, { id: 2, note: "D4" }, { id: 3, note: "D#4" },
+            { id: 4, note: "E4" }, { id: 5, note: "F4" },  { id: 6, note: "F#4" }, { id: 7, note: "G4" },
+            { id: 8, note: "G#4" }, { id: 9, note: "A4" }, { id: 10, note: "A#4" }, { id: 11, note: "B4" },
+            { id: 12, note: "C5" }, { id: 13, note: "C#5" }, { id: 14, note: "D5" }, { id: 15, note: "E5" }
+        ];
+
+        const PixelHeart = ({ className }) => e('svg', { viewBox: "0 0 10 9", className: `pixel-heart ${className}`, xmlns: "http://www.w3.org/2000/svg" },
+            e('path', { d: "M 2 1 L 2 4 L 1 4 L 1 6 L 2 6 L 2 7 L 3 7 L 3 8 L 4 8 L 4 9 L 6 9 L 6 8 L 7 8 L 7 7 L 8 7 L 8 6 L 9 6 L 9 4 L 8 4 L 8 1 L 7 1 L 7 2 L 6 2 L 6 3 L 4 3 L 4 2 L 3 2 L 3 1 L 2 1" })
+        );
+
+        const PointerDown = () => e('div', { className: "tutorial-pulse" }, 
+            e('svg', { width: "50", height: "50", viewBox: "0 0 24 24", fill: "none", stroke: "var(--pad-color, #fbbf24)", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" },
+                e('path', { d: "M12 2v16" }),
+                e('path', { d: "M12 18l-5-5" }),
+                e('path', { d: "M12 18l5-5" })
+            )
+        );
+
+        const App = () => {
+            const [step, setStep] = useState(0); 
+            const [won, setWon] = useState(false);
+            const [isError, setIsError] = useState(false);
+            const [feedbackMsg, setFeedbackMsg] = useState(null);
+            const mountRef = useRef(null);
+            const sceneManagerRef = useRef({ targetNote: SEQUENCE_NOTES[0], won: false, onPadHit: () => {} });
+            const synthRef = useRef(null);
+            const audioRef = useRef(null);
+            
+            useEffect(() => {
+                applyAllEditableValues();
+                const synth = new Tone.Synth({ oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 1 } });
+                const filter = new Tone.Filter(800, "lowpass").toDestination();
+                const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.3 }).connect(filter);
+                synth.connect(reverb);
+                synthRef.current = synth;
+                return () => { synth.dispose(); reverb.dispose(); filter.dispose(); };
+            }, []);
+
+            useLayoutEffect(() => {
+                if (!mountRef.current) return;
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(45, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 100);
+                camera.position.set(0, 8, 8); camera.lookAt(0, 0, 0);
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                mountRef.current.appendChild(renderer.domElement);
+                scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+                const p1 = new THREE.PointLight(0xffffff, 0.8); p1.position.set(5, 10, 5); scene.add(p1);
+                const padMeshes = [];
+                const geometry = new THREE.BoxGeometry(1.8, 0.5, 1.8); 
+                const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.1 });
+                const group = new THREE.Group();
+                for(let i=0; i<16; i++) {
+                    const row = Math.floor(i / 4); const col = i % 4;
+                    const mesh = new THREE.Mesh(geometry, baseMaterial.clone());
+                    mesh.position.x = (col - 1.5) * 2.1; mesh.position.z = (row - 1.5) * 2.1;
+                    mesh.userData = { id: i, isPressed: false }; group.add(mesh); padMeshes.push(mesh);
+                }
+                scene.add(group);
+                const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+                let animationFrameId;
+                const animate = () => {
+                    animationFrameId = requestAnimationFrame(animate);
+                    padMeshes.forEach(mesh => {
+                        const targetY = mesh.userData.isPressed ? -0.3 : 0;
+                        mesh.position.y += (targetY - mesh.position.y) * 0.4;
+                        const curTarget = sceneManagerRef.current.targetNote;
+                        const myNote = PADS[mesh.userData.id].note;
+                        if (mesh.userData.isPressed) {
+                            mesh.material.emissive.setHex(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--pad-color').replace('#', '0x')) || 0xfbbf24);
+                            mesh.material.emissiveIntensity = 0.8; mesh.material.color.setHex(0xffffff);
+                        } else if (curTarget === myNote && !sceneManagerRef.current.won) {
+                            const pulse = (Math.sin(Date.now() * 0.004) + 1) * 0.2 + 0.1;
+                            mesh.material.emissive.setHex(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hint-color').replace('#', '0x')) || 0x00FFFF);
+                            mesh.material.emissiveIntensity = pulse; mesh.material.color.setHex(0x333333);
+                        } else {
+                            mesh.material.emissive.setHex(0x000000); mesh.material.emissiveIntensity = 0; mesh.material.color.setHex(0x222222);
+                        }
+                    });
+                    if (!sceneManagerRef.current.won) group.rotation.y = Math.sin(Date.now() * 0.0005) * 0.05;
+                    else group.rotation.y += 0.02;
+                    renderer.render(scene, camera);
+                };
+                animate();
+                const triggerPad = (id) => {
+                     const mesh = padMeshes[id]; mesh.userData.isPressed = true;
+                     setTimeout(() => { mesh.userData.isPressed = false; }, 150);
+                     sceneManagerRef.current.onPadHit(id);
+                };
+                const onDown = (e) => {
+                    e.preventDefault();
+                    if (Tone.context.state !== 'running') Tone.start();
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                    if (clientX === undefined) return;
+                    mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+                    mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(padMeshes);
+                    if (intersects.length > 0) triggerPad(intersects[0].object.userData.id);
+                };
+                const canvas = renderer.domElement;
+                canvas.addEventListener('mousedown', onDown); canvas.addEventListener('touchstart', onDown, { passive: false });
+                const resize = () => { camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight); };
+                window.addEventListener('resize', resize);
+                return () => {
+                    window.removeEventListener('resize', resize); canvas.removeEventListener('mousedown', onDown); canvas.removeEventListener('touchstart', onDown);
+                    cancelAnimationFrame(animationFrameId); geometry.dispose(); baseMaterial.dispose(); renderer.dispose();
+                };
+            }, []); 
+
+            useEffect(() => { sceneManagerRef.current = { targetNote: SEQUENCE_NOTES[step], won: won, onPadHit: (id) => handleGameLogic(id) }; }, [step, won]);
+
+            const handleGameLogic = (padId) => {
+                if (won) return;
+                const note = PADS[padId].note;
+                if (synthRef.current) synthRef.current.triggerAttackRelease(note, "8n");
+                const targetNote = SEQUENCE_NOTES[step];
+                if (note === targetNote) {
+                    const nextStep = step + 1;
+                    if (nextStep === 1) setFeedbackMsg("TAP AGAIN!");
+                    else if (nextStep === 2) setFeedbackMsg("KEEP GOING!");
+                    else if (nextStep === 7) setFeedbackMsg("ON FIRE!");
+                    setTimeout(() => setFeedbackMsg(null), 1000);
+                    setStep(nextStep);
+                    if (nextStep === SEQUENCE_NOTES.length) {
+                        setWon(true);
+                        if (audioRef.current) audioRef.current.play().catch(()=>{});
+                    }
+                } else {
+                    setIsError(true);
+                    setTimeout(() => { setIsError(false); setStep(0); }, 400);
+                }
+            };
+
+            return e('div', { className: `relative w-screen h-screen flex flex-col bg-black overflow-hidden ${isError ? 'shake-screen' : ''}` },
+                e('div', { className: `error-overlay ${isError ? 'visible' : ''}` }),
+                e('div', { id: 'victory-overlay', className: "absolute inset-0 bg-cover bg-center pointer-events-none", style: { opacity: won ? 1 : 0, transition: 'opacity 3s ease-in', zIndex: 0 } }),
+                e('audio', { id: 'music-bgm', ref: audioRef, preload: "auto" }),
+                e('div', { className: `relative z-40 w-full h-full flex flex-col items-center justify-between py-6 px-4 transition-opacity duration-500 ${won ? 'opacity-0 pointer-events-none' : 'opacity-100'}` },
+                    e('div', { className: "w-full flex flex-col items-center justify-center mt-4" },
+                        e('div', { id: 'header-title', className: "text-xs sm:text-sm text-gray-500 uppercase tracking-[0.2em] mb-4 font-bold border-b border-gray-800 pb-2 text-center" }, "PLAY THE SEQUENCE"),
+                        e('div', { className: "flex flex-wrap justify-center gap-2 min-h-[40px]" },
+                            SEQUENCE_NOTES.map((_, idx) => e(PixelHeart, { key: idx, className: idx < step ? "done-heart" : (idx === step ? "current-heart" : "future-heart") }))
+                        )
+                    ),
+                    e('div', { className: "relative w-full h-16 flex justify-center items-center z-50" }, feedbackMsg && e('div', { className: "floating-text" }, feedbackMsg)),
+                    e('div', { className: "flex-grow flex items-center justify-center w-full relative" },
+                        e('div', { ref: mountRef, id: "canvas-container" }),
+                        step === 0 && !won && e('div', { className: "tutorial-container" },
+                            e('div', { id: 'tutorial-text', className: "tutorial-label" }, "tap the tile"),
+                            e(PointerDown)
+                        )
+                    )
+                )
+            );
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(e(App));
+        });
+    </script>
+</body>
+</html>

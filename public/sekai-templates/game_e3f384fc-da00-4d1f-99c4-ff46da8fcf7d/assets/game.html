@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>The Cursed Dentist</title>
+    <script type="module">
+        import { snapdom } from 'https://cdn.jsdelivr.net/npm/@zumer/snapdom@2.0.2/+esm';
+        window.snapdom = snapdom;
+    </script>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --door-color: #2c3e50;
+            --door-frame: #1a252f;
+            --gum-color: #d65a5a;
+            --gum-shadow: #8a2be2;
+            --tooth-healthy: #ffffff;
+            --tooth-decay: #d4c578;
+            --font-main: system-ui, -apple-system, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg-color);
+            font-family: var(--font-main);
+            color: white;
+        }
+
+        /* LAYOUT CONTAINERS */
+        #app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1000px;
+            overflow: hidden;
+        }
+
+        /* SCENE: DOOR */
+        #scene-door {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+            z-index: 50;
+            transition: transform 0.8s ease-in, opacity 0.5s ease;
+        }
+
+        .door-frame {
+            width: 70vmin;
+            height: 120vmin;
+            background: var(--door-frame);
+            padding: 2vmin;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .door {
+            width: 100%;
+            height: 100%;
+            background: var(--door-color);
+            border: 2px solid #34495e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transform-origin: left;
+            transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+            cursor: pointer;
+        }
+
+        .door:active {
+            transform: scale(0.98);
+        }
+
+        .door-window {
+            width: 60%;
+            height: 30%;
+            background: rgba(255, 255, 255, 0.1);
+            margin-bottom: 50px;
+            border: 4px solid #1a252f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .door-sign {
+            font-size: 3vmin;
+            font-weight: bold;
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        .knob {
+            width: 6vmin;
+            height: 6vmin;
+            background: #f1c40f;
+            border-radius: 50%;
+            position: absolute;
+            right: 10%;
+            top: 55%;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .click-hint {
+            margin-top: 20px;
+            opacity: 0.6;
+            animation: pulse 1.5s infinite;
+        }
+
+        /* SCENE: MOUTH */
+        #scene-mouth {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: #220000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            z-index: 40;
+        }
+
+        .mouth-aperture {
+            width: 90vmin;
+            height: 90vmin;
+            background: #4a0000;
+            border-radius: 30% 30% 40% 40%;
+            position: relative;
+            box-shadow: inset 0 0 50px #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 5vmin;
+            overflow: visible; /* Allow teeth to fly out */
+        }
+
+        .gum-line {
+            height: 30%;
+            width: 100%;
+            background: var(--gum-color);
+            border-radius: 50px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 2vmin;
+            box-shadow: inset 0 5px 15px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .gum-line.top {
+            border-bottom-left-radius: 40%;
+            border-bottom-right-radius: 40%;
+            align-items: flex-end;
+            padding-bottom: 2vmin;
+        }
+
+        .gum-line.bottom {
+            border-top-left-radius: 40%;
+            border-top-right-radius: 40%;
+            align-items: flex-start;
+            padding-top: 2vmin;
+        }
+
+        .tooth-socket {
+            width: 12%;
+            height: 60%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Default for bottom */
+        }
+
+        .gum-line.top .tooth-socket {
+            align-items: flex-end;
+        }
+
+        .tooth {
+            width: 100%;
+            height: 140%; /* Taller than socket */
+            background: var(--tooth-healthy);
+            border-radius: 10px 10px 20px 20px;
+            position: absolute;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            cursor: grab;
+            touch-action: none;
+            transform-origin: center top;
+            transition: transform 0.1s;
+            z-index: 10;
+        }
+        
+        .gum-line.top .tooth {
+            border-radius: 20px 20px 10px 10px;
+            transform-origin: center bottom;
+            bottom: 0;
+        }
+        
+        .gum-line.bottom .tooth {
+            top: 0;
+        }
+
+        .tooth.damaged {
+            background: var(--tooth-decay);
+            background-image: 
+                linear-gradient(45deg, transparent 40%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.1) 45%, transparent 45%),
+                radial-gradient(circle at 30% 30%, rgba(100,80,0,0.2) 0%, transparent 20%);
+        }
+
+        .tooth.healthy {
+            background: var(--tooth-healthy);
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        /* SCENE: REVEAL */
+        #scene-reveal {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: black;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 60;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s;
+        }
+
+        #reveal-image {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 90%;
+            object-fit: contain;
+            margin-bottom: 5px;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.4);
+            transform: scale(1.1); /* Make it bigger */
+        }
+
+        .instruction-text {
+            position: absolute;
+            top: 10%;
+            width: 100%;
+            text-align: center;
+            font-size: 5vmin;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,0,0,0.8);
+            pointer-events: none;
+            z-index: 45;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            background: white;
+            color: black;
+            border: none;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(255,255,255,0.2);
+            transition: transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-share {
+            background: #e74c3c;
+            color: white;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.6; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.6; }
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* Hidden Audio */
+        .audio-hidden {
+            display: none;
+        }
+    </style>
+<!-- sekai:backdrop-fix -->
+<style>*,::before,::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}</style>
+</head>
+<body>
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+    <!-- Sekai Editable Metadata -->
+    <script>
+        window.sekaiEditable = {
+  "tune": [
+    {
+      "id": "resistance",
+      "label": "Pull Resistance",
+      "type": "slider",
+      "min": 50,
+      "max": 200,
+      "value": 100,
+      "step": 10,
+      "path": "appState.config.resistance"
+    }
+  ],
+  "images": [
+    {
+      "id": "reveal",
+      "label": "Victory Image",
+      "type": "image",
+      "value": "images/7e14fffe-2463-4d6f-b366-0206faca2461.webp",
+      "description": "The Sukuna reveal image",
+      "selector": "#reveal-image",
+      "property": "src"
+    }
+  ],
+  "videos": [],
+  "music": [
+    {
+      "id": "bgm",
+      "label": "Tension BGM",
+      "type": "audio",
+      "value": "",
+      "name": "",
+      "selector": "#music-bgm"
+    }
+  ],
+  "sfx": [
+    {
+      "id": "door",
+      "label": "Door Sound",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/39/door_creak_01_aa6ffc5bdb11179a5c7402671f59b660.mp3",
+      "name": "Door Creak 01",
+      "selector": "#sfx-door"
+    },
+    {
+      "id": "pull",
+      "label": "Pull Sound",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/112_Pop_Sound_Effect_c3bd79d27f0d4fd58ec085be9bdf2e95.mp3",
+      "name": "Pop Sound",
+      "selector": "#sfx-pull"
+    },
+    {
+      "id": "deny",
+      "label": "Deny Sound",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/48/error_denied_01_c178c20d0f53fa00e9a822d8f7da4ee0.mp3",
+      "name": "",
+      "selector": "#sfx-deny"
+    },
+    {
+      "id": "fah",
+      "label": "Victory Sound (FAH)",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/24_FAH_Sound_35231118dfbc4c4f95f02595f14659f3.mp3",
+      "name": "FAH Sound",
+      "selector": "#sfx-fah"
+    }
+  ],
+  "colors": [
+    {
+      "id": "gum",
+      "label": "Gum Color",
+      "type": "color",
+      "cssVar": "--gum-color",
+      "value": "#d65a5a"
+    },
+    {
+      "id": "tooth_bad",
+      "label": "Decay Color",
+      "type": "color",
+      "cssVar": "--tooth-decay",
+      "value": "#d4c578"
+    }
+  ],
+  "text": [
+    {
+      "id": "door_sign",
+      "label": "Door Sign Text",
+      "type": "text",
+      "value": "Dr. Ryomen",
+      "selector": ".door-sign"
+    },
+    {
+      "id": "win_text",
+      "label": "Victory Text",
+      "type": "text",
+      "value": "Fank you",
+      "selector": "#win-text"
+    }
+  ],
+  "prompts": [],
+  "voices": []
+};
+    </script>
+
+    <div id="app-container">
+        <!-- SCENE 1: DOOR -->
+        <div id="scene-door">
+            <div class="door-frame">
+                <div class="door" id="door-interactive">
+                    <div class="door-window">
+                        <div class="door-sign">Dr. Ryomen</div>
+                    </div>
+                    <div class="knob"></div>
+                </div>
+            </div>
+            <div class="click-hint">Tap to Enter</div>
+        </div>
+
+        <!-- SCENE 2: MOUTH -->
+        <div id="scene-mouth">
+            <div class="instruction-text">Pull the damaged teeth!</div>
+            <div class="mouth-aperture">
+                <div class="gum-line top" id="gum-top">
+                    <!-- Teeth generated by JS -->
+                </div>
+                <div class="gum-line bottom" id="gum-bottom">
+                    <!-- Teeth generated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- SCENE 3: REVEAL -->
+        <div id="scene-reveal">
+            <div id="share-zone" style="background: black; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 90%; overflow: hidden;">
+                 <img id="reveal-image" src="" alt="Victory Reveal">
+                 <h2 id="win-text" style="color: red; font-family: sans-serif; text-transform: uppercase; margin-top: 10px; z-index: 10; font-size: 8vmin;">Fank you</h2>
+            </div>
+            <div class="controls" style="z-index: 70;">
+                <button class="btn" id="btn-replay">Replay</button>
+                <button class="btn btn-share" id="btn-share">Share</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="music-bgm" loop></audio>
+    <audio id="sfx-door"></audio>
+    <audio id="sfx-pull"></audio>
+    <audio id="sfx-deny"></audio>
+    <audio id="sfx-fah"></audio>
+    <input type="file" id="hidden-input" style="display:none">
+
+    <script>
+        // --- 1. Audio Unlock & Web Audio Setup ---
+        (function() {
+            let audioUnlocked = false;
+            function unlockAudioContext() {
+                if (audioUnlocked) return;
+                if ('audioSession' in window.navigator) {
+                    window.navigator.audioSession.type = "playback";
+                }
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        const context = new AudioContext();
+                        if (context.state === 'suspended') context.resume();
+                        const buffer = context.createBuffer(1, 1, 22050);
+                        const source = context.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(context.destination);
+                        source.start(0);
+                    }
+                } catch (e) {}
+                audioUnlocked = true;
+            }
+            window.addEventListener('message', function(event) {
+                if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+                    unlockAudioContext();
+                }
+            });
+            ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+                document.addEventListener(event, unlockAudioContext, { once: true });
+            });
+        })();
+
+        // --- 2. Procedural Audio Engine ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // Check for custom audio first
+            const sfxMap = {
+                'door': document.getElementById('sfx-door'),
+                'pull': document.getElementById('sfx-pull'),
+                'deny': document.getElementById('sfx-deny'),
+                'fah': document.getElementById('sfx-fah')
+            };
+            
+            if (sfxMap[type] && sfxMap[type].src) {
+                sfxMap[type].currentTime = 0;
+                sfxMap[type].play().catch(()=>{});
+                return;
+            }
+
+            // Procedural Fallbacks
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'door') {
+                // Creaky noise
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.5);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'pull') {
+                // Pop sound
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'deny') {
+                // Dull thud
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(80, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'reveal') {
+                // Dramatic chord
+                const freqs = [110, 164.8, 196, 261.6]; // Low chord
+                freqs.forEach(f => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.type = 'sawtooth';
+                    o.frequency.value = f;
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    g.gain.setValueAtTime(0.1, now);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + 2);
+                    o.start(now);
+                    o.stop(now + 2);
+                });
+            }
+        }
+
+        // --- 3. App State & Logic ---
+        window.appState = {
+            config: {
+                resistance: 100 // Drag distance to pull
+            },
+            game: {
+                badTeethCount: 0,
+                isDragging: false,
+                activeTooth: null,
+                startY: 0,
+                currentY: 0
+            }
+        };
+
+        // DOM Elements
+        const elements = {
+            sceneDoor: document.getElementById('scene-door'),
+            doorInteractive: document.getElementById('door-interactive'),
+            sceneMouth: document.getElementById('scene-mouth'),
+            gumTop: document.getElementById('gum-top'),
+            gumBottom: document.getElementById('gum-bottom'),
+            sceneReveal: document.getElementById('scene-reveal'),
+            btnReplay: document.getElementById('btn-replay'),
+            btnShare: document.getElementById('btn-share'),
+            appContainer: document.getElementById('app-container')
+        };
+
+        // --- 4. Initialization ---
+        function initApp() {
+            applyAllEditableValues();
+            initBGM();
+            setupDoor();
+            generateTeeth();
+            setupGlobalInput();
+            
+            elements.btnReplay.addEventListener('click', resetGame);
+            elements.btnShare.addEventListener('click', handleShare);
+        }
+
+        // --- 5. Door Interaction ---
+        function setupDoor() {
+            elements.doorInteractive.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                playSound('door');
+                
+                // Animate Door Opening
+                elements.doorInteractive.style.transform = "perspective(1000px) rotateY(-80deg)";
+                
+                // Transition to Mouth
+                setTimeout(() => {
+                    elements.sceneDoor.style.opacity = '0';
+                    elements.sceneDoor.style.pointerEvents = 'none';
+                    
+                    elements.sceneMouth.style.opacity = '1';
+                    elements.sceneMouth.style.pointerEvents = 'auto';
+                }, 600);
+            });
+        }
+
+        // --- 6. Teeth Generation ---
+        function generateTeeth() {
+            // Configuration: 7 teeth per quadrant -> 14 top, 14 bottom
+            const teethPerGum = 7; 
+            
+            // Clear gums
+            elements.gumTop.innerHTML = '';
+            elements.gumBottom.innerHTML = '';
+            
+            window.appState.game.badTeethCount = 0;
+
+            // Generate Top Teeth
+            for (let i = 0; i < teethPerGum; i++) {
+                createTooth(elements.gumTop, i, 'top');
+            }
+            
+            // Generate Bottom Teeth
+            for (let i = 0; i < teethPerGum; i++) {
+                createTooth(elements.gumBottom, i, 'bottom');
+            }
+        }
+
+        function createTooth(container, index, position) {
+            const socket = document.createElement('div');
+            socket.className = 'tooth-socket';
+            
+            const tooth = document.createElement('div');
+            tooth.className = 'tooth';
+            
+            // Determine if this is the Special One
+            // "Top left towards the middle" -> Viewer's perspective: Top Left side (index 0-3)
+            // Let's pick index 2 on the Top row (Assuming row fills L to R)
+            // Note: Flexbox 'justify-content: space-around' distributes them.
+            // If we append normally, index 2 is the 3rd item.
+            // 3rd item out of 7 is slightly left of middle.
+            const isSpecial = (position === 'top' && index === 2);
+            
+            if (isSpecial) {
+                tooth.classList.add('healthy');
+                tooth.dataset.type = 'healthy';
+            } else {
+                tooth.classList.add('damaged');
+                tooth.dataset.type = 'damaged';
+                window.appState.game.badTeethCount++;
+            }
+
+            // Unique ID for tracking
+            tooth.id = `tooth-${position}-${index}`;
+            
+            socket.appendChild(tooth);
+            container.appendChild(socket);
+        }
+
+        // --- 7. Physics & Interaction Engine ---
+        function setupGlobalInput() {
+            const container = document.getElementById('app-container');
+            
+            container.addEventListener('pointerdown', (e) => {
+                const tooth = e.target.closest('.tooth');
+                if (!tooth) return;
+                
+                // Prevent multi-touch chaos
+                if (window.appState.game.isDragging) return;
+
+                e.preventDefault();
+                tooth.setPointerCapture(e.pointerId);
+                
+                window.appState.game.isDragging = true;
+                window.appState.game.activeTooth = tooth;
+                window.appState.game.startY = e.clientY;
+                window.appState.game.currentY = e.clientY;
+
+                // Visual feedback
+                tooth.style.transition = 'none';
+            });
+
+            container.addEventListener('pointermove', (e) => {
+                if (!window.appState.game.isDragging || !window.appState.game.activeTooth) return;
+                
+                e.preventDefault();
+                const tooth = window.appState.game.activeTooth;
+                const dy = e.clientY - window.appState.game.startY;
+                
+                // Direction logic: Top teeth pull DOWN (+dy), Bottom teeth pull UP (-dy)
+                const isTop = tooth.parentElement.parentElement.classList.contains('top');
+                
+                // Only allow pulling in the correct direction (with slight wiggle room)
+                let pullDistance = 0;
+                if (isTop) {
+                    pullDistance = Math.max(0, dy);
+                } else {
+                    pullDistance = Math.max(0, -dy);
+                }
+
+                // Apply movement visually
+                // Add some random X jitter for "struggle"
+                const jitterX = (Math.random() - 0.5) * (pullDistance / 10);
+                
+                // Move logic
+                const translateY = isTop ? pullDistance : -pullDistance;
+                tooth.style.transform = `translate(${jitterX}px, ${translateY}px)`;
+                
+                // Feedback for Healthy Tooth
+                if (tooth.dataset.type === 'healthy' && pullDistance > 20) {
+                     // Resistance vibration if supported
+                     if (pullDistance % 10 < 2) sendMessage('gen_vibration', { duration: 10 });
+                }
+            });
+
+            container.addEventListener('pointerup', (e) => {
+                handleRelease(e);
+            });
+            
+            container.addEventListener('pointercancel', (e) => {
+                handleRelease(e);
+            });
+        }
+
+        function handleRelease(e) {
+            if (!window.appState.game.isDragging || !window.appState.game.activeTooth) return;
+            
+            const tooth = window.appState.game.activeTooth;
+            const dy = e.clientY - window.appState.game.startY;
+            const isTop = tooth.parentElement.parentElement.classList.contains('top');
+            
+            // Calculate absolute pull distance in the correct direction
+            const pullDistance = isTop ? Math.max(0, dy) : Math.max(0, -dy);
+            
+            const threshold = window.appState.config.resistance || 100;
+
+            // Logic Resolution
+            if (tooth.dataset.type === 'healthy') {
+                // Cannot pull healthy tooth
+                if (pullDistance > 20) {
+                    playSound('deny');
+                    // Shake the mouth container
+                    elements.sceneMouth.classList.add('shake');
+                    setTimeout(() => elements.sceneMouth.classList.remove('shake'), 500);
+                }
+                resetTooth(tooth);
+            } else {
+                // Damaged Tooth
+                if (pullDistance > threshold) {
+                    // SUCCESS PULL
+                    pullTooth(tooth, isTop);
+                } else {
+                    // Failed pull (didn't drag far enough)
+                    resetTooth(tooth);
+                }
+            }
+
+            window.appState.game.isDragging = false;
+            window.appState.game.activeTooth = null;
+        }
+
+        function resetTooth(tooth) {
+            tooth.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            tooth.style.transform = 'translate(0, 0)';
+        }
+
+        function pullTooth(tooth, isTop) {
+            playSound('pull');
+            sendMessage('gen_vibration', { duration: 50 });
+            
+            // Animation: Fly off screen
+            const flyDir = isTop ? 1000 : -1000;
+            tooth.style.transition = 'transform 0.5s ease-in, opacity 0.5s';
+            tooth.style.transform = `translate(${Math.random()*100 - 50}px, ${flyDir}px) rotate(${Math.random()*360}deg)`;
+            tooth.style.opacity = '0';
+            
+            // Logic update
+            window.appState.game.badTeethCount--;
+            tooth.style.pointerEvents = 'none'; // Prevent interaction
+
+            if (window.appState.game.badTeethCount <= 0) {
+                setTimeout(triggerWinSequence, 800);
+            }
+        }
+
+        // --- 8. Win State ---
+        function triggerWinSequence() {
+            playSound('fah');
+            
+            // Flash effect
+            const flash = document.createElement('div');
+            flash.style.cssText = `
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                background: white; z-index: 100; opacity: 1; transition: opacity 0.5s;
+                pointer-events: none;
+            `;
+            document.body.appendChild(flash);
+            
+            setTimeout(() => flash.style.opacity = '0', 50);
+            setTimeout(() => flash.remove(), 600);
+
+            // Hide Mouth, Show Reveal
+            elements.sceneMouth.style.opacity = '0';
+            elements.sceneMouth.style.pointerEvents = 'none';
+            
+            elements.sceneReveal.style.opacity = '1';
+            elements.sceneReveal.style.pointerEvents = 'auto';
+            
+            // Change Background to Black
+            document.body.style.background = 'black';
+        }
+
+        function resetGame() {
+            // Reset styles
+            document.body.style.background = 'var(--bg-color)';
+            
+            // Hide Reveal
+            elements.sceneReveal.style.opacity = '0';
+            elements.sceneReveal.style.pointerEvents = 'none';
+            
+            // Reset Door
+            elements.sceneDoor.style.opacity = '1';
+            elements.sceneDoor.style.pointerEvents = 'auto';
+            elements.doorInteractive.style.transform = 'perspective(1000px) rotateY(0deg)';
+            
+            // Reset Mouth State in background
+            elements.sceneMouth.style.opacity = '0';
+            elements.sceneMouth.style.pointerEvents = 'none';
+            generateTeeth();
+        }
+
+        // --- 9. Helpers & API ---
+        
+        async function handleShare() {
+            const shareBtn = document.getElementById('btn-share');
+            if (shareBtn.dataset.loading === 'true') return;
+            shareBtn.dataset.loading = 'true';
+            shareBtn.disabled = true;
+            shareBtn.textContent = '...';
+
+            try {
+                const element = document.getElementById('share-zone');
+                const jpgImg = await window.snapdom.toJpg(element, {
+                    quality: 0.7,
+                    width: element.offsetWidth * 2,
+                    height: element.offsetHeight * 2,
+                });
+
+                sendMessage('invoke_share', {
+                    title: 'The Cursed Dentist',
+                    coverImageBase64: jpgImg.src
+                }, false);
+            } catch (e) {
+                console.error('Share failed', e);
+            } finally {
+                shareBtn.dataset.loading = 'false';
+                shareBtn.disabled = false;
+                shareBtn.textContent = 'Share';
+            }
+        }
+
+        // --- Sekai Helpers ---
+        function getConfig(category, id) {
+            return window.sekaiEditable[category]?.find(i => i.id === id)?.value;
+        }
+
+        function setNestedValue(obj, path, value) {
+            const parts = path.split('.');
+            let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) current[parts[i]] = {};
+                current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
+        }
+
+        function applyAllEditableValues() {
+            window.sekaiEditable.tune?.forEach(t => {
+                if (t.path) setNestedValue(window, t.path, t.value);
+            });
+            window.sekaiEditable.colors?.forEach(c => {
+                if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value);
+            });
+            window.sekaiEditable.images?.forEach(img => {
+                if (img.selector) {
+                    const el = document.querySelector(img.selector);
+                    if (el) {
+                        if (img.property === 'src') el.src = img.value;
+                        else if (img.property === 'backgroundImage') el.style.backgroundImage = `url('${img.value}')`;
+                    }
+                }
+            });
+            window.sekaiEditable.text?.forEach(t => {
+                if (t.selector) {
+                    const el = document.querySelector(t.selector);
+                    if (el) el.textContent = t.value;
+                }
+            });
+            // Audio setup
+             window.sekaiEditable.music?.forEach(m => {
+                if (m.selector) {
+                    const el = document.querySelector(m.selector);
+                    if (el && el.src !== m.value) { el.src = m.value; el.load(); }
+                }
+            });
+            window.sekaiEditable.sfx?.forEach(s => {
+                if (s.selector) {
+                    const el = document.querySelector(s.selector);
+                    if (el && el.src !== s.value) { el.src = s.value; el.load(); }
+                }
+            });
+        }
+
+        function initBGM() {
+            const el = document.getElementById('music-bgm');
+            if (!el?.src) return;
+            el.loop = true;
+            el.volume = 0.5;
+            const playBgm = () => {
+                el.play().catch(() => {
+                    document.addEventListener('touchstart', playBgm, { once: true });
+                    document.addEventListener('click', playBgm, { once: true });
+                });
+            };
+            playBgm();
+        }
+
+        // Preview API
+        (function setupPreviewEditingAPI() {
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+
+                switch (msg.type) {
+                    case 'get_editable_metadata':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_editable_metadata',
+                            taskId: msg.taskId,
+                            data: window.sekaiEditable || {}
+                        }, '*');
+                        break;
+                    case 'apply_change':
+                        const success = applySingleChange(msg.data.id, msg.data.value);
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_apply_change',
+                            taskId: msg.taskId,
+                            data: { success }
+                        }, '*');
+                        break;
+                    case 'get_current_html':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_current_html',
+                            taskId: msg.taskId,
+                            data: { html: document.documentElement.outerHTML }
+                        }, '*');
+                        break;
+                    case 'reset_changes':
+                        location.reload();
+                        break;
+                }
+            });
+
+            function applySingleChange(id, value) {
+                const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+                for (const cat of categories) {
+                    const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+                    if (!item) continue;
+                    item.value = value;
+                    if (item.cssVar) document.documentElement.style.setProperty(item.cssVar, value);
+                    else if (item.path) setNestedValue(window, item.path, value);
+                    else if (item.selector) {
+                        const el = document.querySelector(item.selector);
+                        if (!el) return false;
+                        if (el.tagName === 'AUDIO') {
+                             const wasPlaying = !el.paused;
+                             el.src = value; 
+                             el.load();
+                             if (wasPlaying) el.play().catch(()=>{});
+                        }
+                        else if (item.property === 'src') el.src = value;
+                        else el.textContent = value;
+                    }
+                    return true;
+                }
+                return false;
+            }
+        })();
+
+        // Iframe Comms
+        function sendMessage(type, data, expectResponse = true) {
+            const taskId = crypto.randomUUID();
+            window.parent.postMessage({
+                origin: 'sekai_gaming_iframe_api',
+                type,
+                taskId,
+                data
+            }, '*');
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>

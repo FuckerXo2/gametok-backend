@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 54,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/13dc5434-b14e-49e2-9002-9f58513b6751/9e920319-ab2e-44fe-900b-0d94df91d7c7/cover.large.webp",
+  "creator_name": "✨Maria✨",
+  "creator_user_id": 7041278,
+  "extra": {
+    "creator_id": 7041278,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 4
+  },
+  "game_id": "29a0c6c8-e962-4593-9826-52e8cfa0e278",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 337,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/29a0c6c8-e962-4593-9826-52e8cfa0e278?fromPage=feed&orientation=auto",
+  "save_count": 184,
+  "title": "Sekai Mic Test.",
+  "version": "",
+  "version_id": "4bb4e047-7154-4a59-8bbc-c961d36bafa6"
+}

@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 881,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/ce25ea37-c909-474b-bebd-cd821d329f45/59afe2dd-308c-4b35-9d9e-21c55327c73f/cover.large.webp",
+  "creator_name": "WhiteGX527",
+  "creator_user_id": 2664484,
+  "extra": {
+    "creator_id": 2664484,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 5358
+  },
+  "game_id": "882ef9b7-caa3-4538-8839-8960043734a2",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 8512,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/882ef9b7-caa3-4538-8839-8960043734a2?fromPage=feed&orientation=auto",
+  "save_count": 2364,
+  "title": "Oioioiiioiii",
+  "version": "",
+  "version_id": "ce25ea37-c909-474b-bebd-cd821d329f45"
+}

@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pokemon Fusion Kitchen</title>
+    <script src="vendor/tailwind.css"></script>
+    <link rel="stylesheet" href="vendor/fontawesome/all.min.css">
+    <style>
+        :root {
+            --warm-bg: #FFF8E7;
+            --wood-dark: #5D4037;
+            --wood-light: #8D6E63;
+            --pot-color: #263238;
+            --liquid-color: #7CB342;
+            --accent-orange: #FF7043;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--warm-bg);
+            touch-action: none;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes bubble {
+            0% { transform: scale(0.8) translateY(0); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: scale(1.2) translateY(-40px); opacity: 0; }
+        }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        @keyframes poof-expand {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        .bubble {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .ingredient-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            touch-action: none; /* Changed to none to ensure custom JS drag handler captures all events */
+            cursor: pointer;
+            flex: 0 0 auto;
+        }
+        .ingredient-card:active {
+            transform: scale(0.95);
+            opacity: 0.9;
+        }
+        /* Ensure the container actually scrolls */
+        #ingredient-scroll {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
+            scroll-snap-type: x mandatory;
+            min-height: 140px;
+            touch-action: pan-x !important; /* Keep horizontal panning enabled for container */
+        }
+        .ingredient-card {
+            scroll-snap-align: start;
+        }
+
+        .shaking {
+            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both infinite;
+        }
+
+        /* Cauldron Details */
+        .cauldron-rim-highlight {
+            background: linear-gradient(to bottom, #455A64 0%, #263238 100%);
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        
+        .cauldron-glow {
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5), 0 0 60px rgba(var(--cauldron-glow-rgb, 124, 179, 66), 0.6);
+        }
+
+        .cauldron-texture {
+            background-image: 
+                radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15) 0%, transparent 60%),
+                radial-gradient(circle at 70% 70%, rgba(0,0,0,0.2) 0%, transparent 60%),
+                linear-gradient(45deg, rgba(0,0,0,0.3) 0%, transparent 100%);
+        }
+        
+        .pot-lip {
+            border: 4px solid #1a2327;
+            background: #263238;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1);
+        }
+
+        /* Stirring Challenge specific */
+        #stirring-canvas {
+            touch-action: none;
+            cursor: crosshair;
+        }
+        
+        .trace-path {
+            stroke: rgba(255, 255, 255, 0.15);
+            stroke-width: 25;
+            stroke-linecap: round;
+            fill: none;
+        }
+
+        .stirring-guide {
+            animation: pulse-guide 1.5s infinite;
+        }
+
+        @keyframes pulse-guide {
+            0%, 100% { opacity: 0.3; stroke-width: 20; }
+            50% { opacity: 0.6; stroke-width: 25; }
+        }
+
+        /* Custom Scrollbar and Scrolling */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-x;
+        }
+
+        /* Layers */
+        .layer-bg { z-index: 10; }
+        .layer-pot { z-index: 20; }
+        .layer-ingredients { z-index: 30; }
+        .layer-fx { z-index: 40; pointer-events: none; }
+        .layer-ui { z-index: 50; }
+        .layer-overlay { z-index: 60; }
+        
+        #result-modal {
+            transition: opacity 0.3s ease;
+        }
+        #result-modal.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Mini-game styles: Catch the Ingredients */
+        #catcher {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            width: 100px;
+            height: 60px;
+            transform: translateX(-50%);
+            z-index: 40;
+            touch-action: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .catcher-spoon {
+            width: 100%;
+            height: 40px;
+            background: #D7CCC8;
+            border-radius: 50% 50% 40% 40%;
+            border: 4px solid #5D4037;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .catcher-spoon::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 12px;
+            height: 40px;
+            background: #5D4037;
+            border-radius: 5px;
+            z-index: -1;
+        }
+
+        .falling-item {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 30;
+            font-size: 20px;
+            animation: fall-down linear forwards;
+        }
+
+        .score-pop {
+            position: absolute;
+            color: #FFEB3B;
+            font-weight: bold;
+            pointer-events: none;
+            animation: score-float 0.8s ease-out forwards;
+            z-index: 100;
+        }
+
+        @keyframes score-float {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+
+        @keyframes fall-down {
+            0% { transform: translateY(-50px) rotate(0deg); }
+            100% { transform: translateY(110vh) rotate(360deg); }
+        }
+    </style>
+    <script src="vendor/html2canvas.min.js"></script>
+    <script>
+      (function() {
+        let audioUnlocked = false;
+        function unlockAudioContext() {
+          if (audioUnlocked) return;
+          if ('audioSession' in window.navigator) {
+            window.navigator.audioSession.type = "playback";
+          }
+          try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+              const context = new AudioContext();
+              if (context.state === 'suspended') context.resume();
+              const buffer = context.createBuffer(1, 1, 22050);
+              const source = context.createBufferSource();
+              source.buffer = buffer;
+              source.connect(context.destination);
+              source.start(0);
+            }
+          } catch (e) {}
+          try {
+            const audio = new Audio();
+            audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+            audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+          } catch (e) {}
+          audioUnlocked = true;
+        }
+        window.addEventListener('message', function(event) {
+          if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+            unlockAudioContext();
+          }
+        });
+        ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+          document.addEventListener(event, unlockAudioContext, { once: true });
+        });
+      })();
+    </script>
+<!-- sekai:backdrop-fix -->
+<style>*,::before,::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}</style>
+<!-- sekai:dvh-fix -->
+</head>
+<body class="h-[100dvh] w-full flex flex-col items-center justify-between relative text-gray-800">
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+    <!-- AUDIO ELEMENTS (For Sekai Editable) -->
+    <audio id="bgm" loop></audio>
+    <audio id="sfx-plop"></audio>
+    <audio id="sfx-bubble"></audio>
+    <audio id="sfx-poof"></audio>
+    <audio id="sfx-success"></audio>
+
+    <!-- Background -->
+    <div class="absolute inset-0 layer-bg bg-orange-50 overflow-hidden">
+        <!-- Wood Floor -->
+        <div class="absolute bottom-0 w-full h-1/3 bg-[#5D4037]"></div>
+        <!-- Wall Pattern (CSS) -->
+        <div class="absolute top-0 w-full h-2/3 opacity-10 bg-[radial-gradient(#8D6E63_1px,transparent_1px)] [background-size:20px_20px]"></div>
+        
+        <!-- Shelves (Decor) -->
+        <div class="absolute top-10 left-0 w-full flex justify-between px-4 opacity-50">
+            <div class="w-1/3 h-2 bg-[#8D6E63] rounded shadow-sm"></div>
+            <div class="w-1/3 h-2 bg-[#8D6E63] rounded shadow-sm"></div>
+        </div>
+    </div>
+
+    <!-- FX Layer -->
+    <div id="fx-container" class="absolute inset-0 layer-fx overflow-hidden"></div>
+
+    <!-- Main Game Area -->
+    <div class="relative w-full h-full max-w-lg flex flex-col layer-pot overflow-hidden">
+        
+        <!-- Header -->
+        <div class="pt-4 px-6 text-center z-10 shrink-0">
+            <h1 class="text-2xl font-black text-[#5D4037] drop-shadow-sm" style="font-family: 'Comic Sans MS', cursive, sans-serif;">Fusion Kitchen</h1>
+            <p class="text-[10px] text-[#8D6E63] font-bold uppercase tracking-widest mt-0.5">Mix up to 4 Pokemon!</p>
+        </div>
+
+        <!-- The Pot -->
+        <div class="flex-[1_1_0%] flex flex-col items-center justify-center relative min-h-0">
+            
+            <!-- Cauldron Container -->
+            <div id="cauldron-zone" class="relative w-48 h-48 sm:w-64 sm:h-64 transition-transform duration-300">
+                
+                <!-- Back Rim -->
+                <div class="absolute top-6 left-1/2 -translate-x-1/2 w-[90%] h-12 bg-[#1a2327] rounded-[50%] z-0 border-t-4 border-[#37474F]"></div>
+                
+                <!-- Liquid -->
+                <div id="pot-liquid" class="absolute top-8 left-1/2 -translate-x-1/2 w-[88%] h-10 bg-[#7CB342] rounded-[50%] z-10 overflow-hidden shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+                    <div class="absolute inset-0 bg-[#AED581] opacity-30 animate-pulse"></div>
+                    <!-- Bubbles Surface -->
+                    <div class="absolute inset-0 overflow-hidden opacity-50 pointer-events-none" id="surface-bubbles"></div>
+                </div>
+
+                <!-- Pot Body -->
+                <div class="absolute top-10 left-0 w-full h-full bg-[#263238] rounded-b-[45%] rounded-t-[5%] shadow-2xl z-20 flex flex-col items-center justify-center overflow-hidden border-b-[10px] border-[#1a2327] cauldron-glow cauldron-texture">
+                    <!-- Shine -->
+                    <div class="absolute top-8 left-6 w-12 h-24 bg-white opacity-5 rounded-full rotate-12 blur-md"></div>
+                    
+                    <!-- Items in pot display -->
+                    <div id="items-in-pot" class="flex flex-wrap justify-center gap-1.5 z-30 px-4">
+                        <!-- Filled dynamically -->
+                    </div>
+                    
+                    <!-- Decorative Handles -->
+                    <div class="absolute -left-3 top-1/3 w-6 h-10 border-4 border-[#1a2327] rounded-full"></div>
+                    <div class="absolute -right-3 top-1/3 w-6 h-10 border-4 border-[#1a2327] rounded-full"></div>
+                </div>
+
+                <!-- Front Rim -->
+                <div class="absolute top-10 left-1/2 -translate-x-1/2 w-[104%] h-5 cauldron-rim-highlight rounded-[50%] z-20 shadow-lg"></div>
+
+                <!-- Feet -->
+                <div class="absolute -bottom-5 left-8 w-8 h-10 bg-[#1a2327] rounded-full z-10"></div>
+                <div class="absolute -bottom-5 right-8 w-8 h-10 bg-[#1a2327] rounded-full z-10"></div>
+            </div>
+
+            <!-- Combine Button -->
+            <div class="h-16 flex items-center justify-center mt-4">
+                <button id="combine-btn" class="py-3 px-8 bg-[#FF7043] text-white font-black rounded-full shadow-xl transform scale-0 transition-transform duration-300 active:scale-95 z-[60] flex items-center gap-2 border-b-4 border-orange-800 text-sm">
+                    <i class="fas fa-magic"></i> COMBINE!
+                </button>
+            </div>
+
+            <!-- Drag Target Zone Visual -->
+            <div id="drag-target-overlay" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300 z-50">
+                <div class="bg-white/30 backdrop-blur-sm rounded-full w-64 h-64 border-4 border-dashed border-white/80 flex items-center justify-center">
+                    <span class="text-white font-black text-lg drop-shadow-md">ADD TO POT!</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Ingredient Shelf (Bottom) -->
+        <div class="w-full h-44 shrink-0 bg-[#FFF3E0] rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.1)] layer-ingredients flex flex-col z-50 relative">
+            <div class="absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none animate-bounce">
+                <span class="bg-[#FF7043] text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                    DRAG <i class="fas fa-arrow-up"></i> TO POT
+                </span>
+                <i class="fas fa-arrow-up text-[#FF7043] mt-1 drop-shadow-md text-xl"></i>
+            </div>
+            <div class="w-12 h-1 bg-[#D7CCC8] rounded-full mx-auto mt-2 mb-1"></div>
+            <div class="text-center text-xs font-bold text-[#8D6E63] uppercase tracking-wider mb-2">Pantry (Use Arrows)</div>
+            
+            <div class="relative flex-grow flex items-center px-2">
+                <!-- Navigation Arrows -->
+                <button id="scroll-left" class="absolute left-2 z-[60] bg-white/80 rounded-full w-12 h-12 shadow-md flex items-center justify-center text-[#5D4037] active:scale-90 transition-transform border-2 border-orange-200">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                
+                <div id="ingredient-scroll" class="flex-grow overflow-x-hidden hide-scrollbar px-12 pb-4 flex items-center gap-4 scroll-smooth">
+                    <!-- Ingredients injected here -->
+                </div>
+
+                <button id="scroll-right" class="absolute right-2 z-[60] bg-white/80 rounded-full w-12 h-12 shadow-md flex items-center justify-center text-[#5D4037] active:scale-90 transition-transform border-2 border-orange-200">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+            
+            <!-- Hidden input for file upload (if we wanted custom images, but sticking to presets for now) -->
+            <input type="file" id="hidden-input" class="hidden" accept="image/*">
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="fixed inset-0 bg-black/90 z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl transform transition-all scale-100 relative border-4 border-[#FF7043]">
+            
+            <!-- Confetti/Light Burst BG -->
+            <div class="absolute inset-0 bg-[radial-gradient(circle,var(--warm-bg)_0%,#fff_100%)]"></div>
+            
+            <!-- Content -->
+            <div id="share-zone" class="relative p-6 flex flex-col items-center text-center">
+                <div class="w-full aspect-square bg-white rounded-2xl mb-4 overflow-hidden relative shadow-xl border-4 border-[#5D4037]">
+                    <img id="result-image" class="w-full h-full object-cover" src="" alt="Fusion Result">
+                    <div class="absolute bottom-0 left-0 right-0 bg-[#5D4037]/80 text-white text-[10px] p-1.5 text-center font-bold">
+                        POKEMON FUSION KITCHEN
+                    </div>
+                </div>
+                
+                <h2 id="result-name" class="text-2xl font-black text-[#5D4037] mb-1 italic">???</h2>
+                <div class="flex items-center gap-2 text-sm text-[#8D6E63] font-bold mb-4 bg-orange-100/50 px-4 py-1 rounded-full">
+                    <span id="parent-1-name">?</span>
+                    <i class="fas fa-plus text-[10px]"></i>
+                    <span id="parent-2-name">?</span>
+                </div>
+            </div>
+
+            <!-- Buttons - Fixed Z-index and visibility -->
+            <div class="p-4 bg-white border-t border-gray-100 flex flex-col gap-3 relative z-10">
+                <button id="share-btn" class="w-full py-4 px-4 rounded-2xl bg-[#FF7043] text-white font-black hover:bg-[#F4511E] transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 text-lg">
+                    <i class="fas fa-share-nodes"></i> SHARE RESULT
+                </button>
+                <button id="reset-btn" class="w-full py-3 px-4 rounded-2xl bg-gray-100 text-[#5D4037] font-bold hover:bg-gray-200 transition-all active:scale-95">
+                    TRY NEW MIX
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading/Mini-game Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-[#263238]/95 z-[90] hidden flex flex-col items-center justify-center backdrop-blur-md overflow-hidden">
+        <div class="absolute top-12 text-center z-20 px-6 w-full">
+            <h2 class="text-white text-2xl font-black italic tracking-tighter drop-shadow-lg mb-2 uppercase">Stir the Pot!</h2>
+            <p class="text-white/60 text-xs font-bold uppercase tracking-widest">Trace the glowing patterns to fuse</p>
+        </div>
+
+        <!-- Game Container -->
+        <div id="potion-game-container" class="relative w-full flex-grow flex items-center justify-center">
+            <!-- Silhouette in middle background -->
+            <div class="relative w-48 h-48 flex items-center justify-center opacity-20 grayscale pointer-events-none z-0">
+                <img id="fusion-silhouette" src="images/poke-ball.webp" class="w-full h-full object-contain" alt="Silhouette">
+            </div>
+            
+            <!-- Tracing Canvas -->
+            <canvas id="stirring-canvas" class="absolute inset-0 z-30"></canvas>
+        </div>
+
+        <!-- Progress/Loading Text -->
+        <div class="w-full py-8 text-center z-50 px-6 flex flex-col items-center">
+            <div id="loading-text" class="text-lg font-black text-white drop-shadow-md uppercase tracking-tighter">Cooking Fusion...</div>
+            
+            <!-- Reveal Button (Initially Hidden) -->
+            <button id="reveal-fusion-btn" class="mt-4 py-4 px-10 bg-[#AED581] text-[#1a2327] font-black rounded-full shadow-[0_6px_0_#558B2F] transform scale-0 transition-transform duration-300 active:scale-95 active:translate-y-1 z-[100] flex items-center gap-3">
+                <i class="fas fa-sparkles"></i> REVEAL FUSION!
+            </button>
+
+            <div class="w-48 h-2 bg-white/10 rounded-full mx-auto mt-6 overflow-hidden">
+                <div id="stir-progress-bar" class="h-full bg-[#AED581] transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/**
+ * POKEMON FUSION KITCHEN
+ * Complete Implementation
+ */
+
+// --- Global Config & State ---
+window.sekaiEditable = {
+  "tune": [
+    {
+      "id": "shakeIntensity",
+      "label": "Shake Intensity",
+      "type": "slider",
+      "min": 1,
+      "max": 10,
+      "value": 5
+    }
+  ],
+  "images": [],
+  "videos": [],
+  "music": [
+    {
+      "id": "bgm",
+      "label": "Kitchen Theme",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-bgm/jams/High%20Score%20Hero.mp3?AWSAccessKeyId=AKIAQE43KJDN7ARTLAVM&Signature=4%2FdOSbtNs%2FvFcu8%2BLELCbH2xMyg%3D&Expires=1767586155",
+      "selector": "#bgm"
+    }
+  ],
+  "sfx": [
+    {
+      "id": "plop",
+      "label": "Fusion Chime",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/336_BMW_Chime_Sound_6a6f353506294ac4a42149ffb908f1b6.mp3?AWSAccessKeyId=AKIAQE43KJDN7ARTLAVM&Signature=01E0LsRgbGSSsUCXVUiZ3cU6C1c%3D&Expires=1767587576",
+      "selector": "#sfx-plop"
+    },
+    {
+      "id": "bubble",
+      "label": "Bubbling Effect",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/442_Pokemon_Plink_506ae50e91694430877c135381c28b67.mp3?AWSAccessKeyId=AKIAQE43KJDN7ARTLAVM&Signature=anyTx%2F2hU6TSZqQ6pNSvGRLbrVA%3D&Expires=1767587799",
+      "selector": "#sfx-bubble"
+    },
+    {
+      "id": "poof",
+      "label": "Poof Sound",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/342_Sparkleeee_7e39ce3b3f004db0a5f2b1afc0228d31.mp3?AWSAccessKeyId=AKIAQE43KJDN7ARTLAVM&Signature=gexRklR5PfQdFLbRMoAHyL80Wyk%3D&Expires=1767587576",
+      "selector": "#sfx-poof"
+    },
+    {
+      "id": "success",
+      "label": "Success Sound",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/745_Correct_Ping_Sound_ec3f9fa9e41a45dc8041bbb8e9929562.mp3?AWSAccessKeyId=AKIAQE43KJDN7ARTLAVM&Signature=4ZnQjY4lMnorCvNRGCt%2FKxvbraQ%3D&Expires=1767587799",
+      "selector": "#sfx-success"
+    }
+  ],
+  "colors": [
+    {
+      "id": "primary",
+      "label": "Primary Color",
+      "type": "color",
+      "cssVar": "--accent-orange",
+      "value": "#FF7043"
+    },
+    {
+      "id": "liquid",
+      "label": "Liquid Color",
+      "type": "color",
+      "cssVar": "--liquid-color",
+      "value": "#7CB342"
+    }
+  ],
+  "text": [],
+  "prompts": [
+    {
+      "id": "fusionPrompt",
+      "label": "Fusion Image Prompt",
+      "type": "prompt",
+      "value": "A high-quality, professional cartoon illustration of a brand new Pokemon species. It is a fusion of these Pokemon: [NAMES]. It should incorporate distinct physical traits, colors, and elemental themes from all participants. White background, Pokemon official art style, Ken Sugimori style."
+    },
+    {
+      "id": "namingPrompt",
+      "label": "Naming System Prompt",
+      "type": "prompt",
+      "value": "You are a master Pokemon taxonomist. Combine the linguistic elements of several Pokemon names into one single cohesive and catchy new Pokemon name."
+    }
+  ],
+  "voices": []
+};
+
+// Global Prompts (Required Pattern)
+window.globalPrompts = {
+  "naming": {
+    "systemPrompt": "You are the Master Chef of the 'Fusion Kitchen,' an elite creative entity specializing in synthesizing novel concepts from disparate parts. Your current task, deeply informed by recent user iterations, is to generate a creative, descriptive, and whimsically powerful name for a newly fused entity. This name MUST strictly adhere to the established 'Pokémon Naming Style'—it should sound like it belongs in a world of collectible creatures, balancing descriptive elements with a catchy, finalized form. Avoid overly complex or generic descriptions; aim for that perfect blend of the inputs. Crucially, understand that this naming task occurs *after* image generation, so the name must stand alone as the final identifier for the newly created being.",
+    "userPrompt": "Based on the components that have been fused (or the description of the resulting concept if provided), generate one highly creative, descriptive, and quintessentially 'Pokémon-style' name for the fusion. If no input is provided, generate a placeholder name for a hypothetical fusion.",
+    "responseSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The final, officially dubbed name for the fused creation. Must be short, catchy, and sound like a canonical Pokémon name (e.g., 'Blazingshell Beast' or 'Pikaflame'). Ensure it reflects the combined essence of the inputs without being a direct, dull portmanteau."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  }
+};
+
+// State
+const state = {
+    potContents: [], // Array of ingredient objects
+    isCooking: false,
+    miniGameActive: false,
+    pendingFusion: null,
+    fusionReady: false,
+    isViewingResults: false,
+    gameScore: 0,
+    traceProgress: 0,
+    currentPattern: null,
+    isTracing: false,
+    isPausedBetweenPatterns: false,
+    tracePoints: [],
+    patterns: [
+        // 10 Tracing patterns: Array of {x, y} coordinates normalized 0-100
+        { id: 'circle', points: Array.from({length: 20}, (_, i) => ({x: 50 + 30*Math.cos(i/20*Math.PI*2), y: 50 + 30*Math.sin(i/20*Math.PI*2)})) },
+        { id: 'infinity', points: Array.from({length: 30}, (_, i) => ({x: 50 + 35*Math.cos(i/30*Math.PI*2), y: 50 + 20*Math.sin(i/30*Math.PI*4)/2})) },
+        { id: 'spiral', points: Array.from({length: 30}, (_, i) => ({x: 50 + (i*1.2)*Math.cos(i/30*Math.PI*6), y: 50 + (i*1.2)*Math.sin(i/30*Math.PI*6)})) },
+        { id: 'triangle', points: [{x:50,y:20}, {x:80,y:80}, {x:20,y:80}, {x:50,y:20}] },
+        { id: 'square', points: [{x:25,y:25}, {x:75,y:25}, {x:75,y:75}, {x:25,y:75}, {x:25,y:25}] },
+        { id: 'star', points: [{x:50,y:10}, {x:60,y:40}, {x:90,y:40}, {x:65,y:60}, {x:75,y:90}, {x:50,y:70}, {x:25,y:90}, {x:35,y:60}, {x:10,y:40}, {x:40,y:40}, {x:50,y:10}] },
+        { id: 'wave', points: Array.from({length: 20}, (_, i) => ({x: 10 + i*4, y: 50 + 20*Math.sin(i/5)})) },
+        { id: 'heart', points: Array.from({length: 30}, (_, i) => { let t = i/30*Math.PI*2; return {x: 50 + 16*Math.pow(Math.sin(t),3)*2, y: 50 - (13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t))*1.5}; }) },
+        { id: 'diamond', points: [{x:50,y:15}, {x:85,y:50}, {x:50,y:85}, {x:15,y:50}, {x:50,y:15}] },
+        { id: 'zigzag', points: [{x:20,y:20}, {x:80,y:35}, {x:20,y:50}, {x:80,y:65}, {x:20,y:80}] }
+    ],
+    ingredients: [
+        { id: 'pika', name: 'Pikachu', color: '#FDD835', img: 'images/25.webp' },
+        { id: 'char', name: 'Charizard', color: '#FF5722', img: 'images/6.webp' },
+        { id: 'squirt', name: 'Squirtle', color: '#29B6F6', img: 'images/7.webp' },
+        { id: 'bulb', name: 'Bulbasaur', color: '#66BB6A', img: 'images/1.webp' },
+        { id: 'gengar', name: 'Gengar', color: '#7E57C2', img: 'images/94.webp' },
+        { id: 'eevee', name: 'Eevee', color: '#A1887F', img: 'images/133.webp' },
+        { id: 'jiggly', name: 'Jigglypuff', color: '#F48FB1', img: 'images/39.webp' },
+        { id: 'snorlax', name: 'Snorlax', color: '#37474F', img: 'images/143.webp' },
+        { id: 'mewtwo', name: 'Mewtwo', color: '#B39DDB', img: 'images/150.webp' },
+        { id: 'lucario', name: 'Lucario', color: '#4FC3F7', img: 'images/448.webp' },
+        { id: 'greninja', name: 'Greninja', color: '#1A237E', img: 'images/658.webp' },
+        { id: 'rayquaza', name: 'Rayquaza', color: '#43A047', img: 'images/384.webp' },
+        { id: 'psyduck', name: 'Psyduck', color: '#FFF176', img: 'images/54.webp' },
+        { id: 'meowth', name: 'Meowth', color: '#D7CCC8', img: 'images/52.webp' },
+        { id: 'dragonite', name: 'Dragonite', color: '#FFB74D', img: 'images/149.webp' },
+        { id: 'magikarp', name: 'Magikarp', color: '#EF5350', img: 'images/129.webp' },
+        { id: 'mudkip', name: 'Mudkip', color: '#42A5F5', img: 'images/258.webp' },
+        { id: 'ditto', name: 'Ditto', color: '#CE93D8', img: 'images/132.webp' },
+        { id: 'togepi', name: 'Togepi', color: '#FFF9C4', img: 'images/175.webp' },
+        { id: 'lapras', name: 'Lapras', color: '#81D4FA', img: 'images/131.webp' },
+        { id: 'slowpoke', name: 'Slowpoke', color: '#F48FB1', img: 'images/79.webp' },
+        { id: 'scyther', name: 'Scyther', color: '#81C784', img: 'images/123.webp' },
+        { id: 'gyarados', name: 'Gyarados', color: '#64B5F6', img: 'images/130.webp' },
+        { id: 'vaporeon', name: 'Vaporeon', color: '#4FC3F7', img: 'images/134.webp' },
+        { id: 'jolteon', name: 'Jolteon', color: '#FFF176', img: 'images/135.webp' },
+        { id: 'flareon', name: 'Flareon', color: '#FF8A65', img: 'images/136.webp' },
+        { id: 'aerodactyl', name: 'Aerodactyl', color: '#BDBDBD', img: 'images/142.webp' },
+        { id: 'articuno', name: 'Articuno', color: '#81D4FA', img: 'images/144.webp' },
+        { id: 'zapdos', name: 'Zapdos', color: '#FFEB3B', img: 'images/145.webp' },
+        { id: 'moltres', name: 'Moltres', color: '#FF7043', img: 'images/146.webp' },
+        { id: 'mew', name: 'Mew', color: '#F48FB1', img: 'images/151.webp' },
+        { id: 'lugia', name: 'Lugia', color: '#E3F2FD', img: 'images/249.webp' },
+        { id: 'ho-oh', name: 'Ho-oh', color: '#EF5350', img: 'images/250.webp' }
+    ]
+};
+
+// --- Sekai Helpers ---
+
+function getConfig(category, id) {
+    return window.sekaiEditable[category]?.find(i => i.id === id)?.value;
+}
+
+function setNestedValue(obj, path, value) {
+    const parts = path.split('.');
+    let current = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]]) current[parts[i]] = {};
+        current = current[parts[i]];
+    }
+    current[parts[parts.length - 1]] = value;
+}
+
+function applyAllEditableValues() {
+    window.sekaiEditable.tune?.forEach(t => { if (t.path) setNestedValue(window, t.path, t.value); });
+    window.sekaiEditable.colors?.forEach(c => { if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value); });
+    window.sekaiEditable.images?.forEach(img => {
+        if (img.selector) {
+            const el = document.querySelector(img.selector);
+            if (el) {
+                if (img.property === 'src') el.src = img.value;
+                else if (img.property === 'backgroundImage') el.style.backgroundImage = `url('${img.value}')`;
+            }
+        }
+    });
+    window.sekaiEditable.music?.forEach(m => {
+        if (m.selector) { const el = document.querySelector(m.selector); if (el && el.src !== m.value) { el.src = m.value; el.load(); } }
+    });
+    window.sekaiEditable.sfx?.forEach(s => {
+        if (s.selector) { const el = document.querySelector(s.selector); if (el && el.src !== s.value) { el.src = s.value; el.load(); } }
+    });
+}
+
+// --- Messaging API ---
+const sendMessage = (type, data, expectResponse = true, customTaskId = null) => {
+    return new Promise((resolve, reject) => {
+        const taskId = customTaskId || crypto.randomUUID();
+        const handler = (event) => {
+            if (event.data?.origin !== 'sekai_gaming_iframe_api' || event.data?.taskId !== taskId) return;
+            window.removeEventListener('message', handler);
+            if (event.data.error) reject(event.data.error);
+            else resolve(event.data.data);
+        };
+        if (expectResponse) window.addEventListener('message', handler);
+        window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type, taskId, data }, '*');
+    });
+};
+
+const genText = async (systemPrompt, userPrompt, responseSchema, imageUrl) => {
+    return sendMessage('gen_text', { systemPrompt, userPrompt, responseSchema, imageUrl });
+};
+
+const genImage = async (prompt) => {
+    return sendMessage('gen_image', { prompt });
+};
+
+const invokeShare = (title, coverImgUrl) => sendMessage('invoke_share', { title, coverImgUrl }, false);
+const genVibration = (duration) => sendMessage('gen_vibration', { duration }, false);
+
+// --- Audio System ---
+// Simple procedural synths for fallback
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let actx;
+
+function initAudio() {
+    if (!actx) actx = new AudioCtx();
+    if (actx.state === 'suspended') actx.resume();
+}
+
+function playSound(type) {
+    initAudio();
+    
+    // Check for custom audio file first
+    const customMap = {
+        'plop': 'sfx-plop',
+        'bubble': 'sfx-bubble',
+        'poof': 'sfx-poof',
+        'success': 'sfx-success'
+    };
+    
+    const elId = customMap[type];
+    if (elId) {
+        const el = document.getElementById(elId);
+        if (el && el.src) {
+            el.currentTime = 0;
+            el.play().catch(e => console.log('Audio play blocked', e));
+            return;
+        }
+    }
+
+    // Procedural Fallbacks
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.connect(gain);
+    gain.connect(actx.destination);
+
+    const now = actx.currentTime;
+
+    if (type === 'plop') {
+        // High-pitched bright chime sound
+        osc.type = 'sine';
+        const freq = 1567.98; // G6
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.05);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+        osc.start(now);
+        osc.stop(now + 1.2);
+        
+        // Secondary harmonic for crystal clear chime
+        const osc2 = actx.createOscillator();
+        const gain2 = actx.createGain();
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(freq * 2.5, now);
+        osc2.connect(gain2);
+        gain2.connect(actx.destination);
+        gain2.gain.setValueAtTime(0.1, now);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc2.start(now);
+        osc2.stop(now + 0.4);
+    } else if (type === 'bubble') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600 + Math.random() * 200, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+    } else if (type === 'poof') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+    } else if (type === 'success') {
+        // Ascending major chord
+        const freqs = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        freqs.forEach((f, i) => {
+            const o = actx.createOscillator();
+            const g = actx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(f, now + (i * 0.1));
+            o.connect(g);
+            g.connect(actx.destination);
+            g.gain.setValueAtTime(0, now + (i * 0.1));
+            g.gain.linearRampToValueAtTime(0.1, now + (i * 0.1) + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, now + (i * 0.1) + 0.5);
+            o.start(now + (i * 0.1));
+            o.stop(now + (i * 0.1) + 0.5);
+        });
+    }
+}
+
+// --- Game Logic ---
+
+function initBGM() {
+    const el = document.getElementById('bgm');
+    if (!el || !el.src) return;
+    el.loop = true;
+    el.volume = 0.4;
+    const playBgm = () => {
+        el.play().catch(() => {
+            // On failure, retry on next user interaction
+            document.addEventListener('touchstart', playBgm, { once: true });
+            document.addEventListener('click', playBgm, { once: true });
+        });
+    };
+    playBgm(); // IMMEDIATE attempt - do not wait
+}
+
+function initApp() {
+    applyAllEditableValues();
+    initBGM();
+    renderIngredients();
+    startAmbientBubbles();
+    
+    // Drag Logic
+    setupDragDrop();
+    
+    // Listeners
+    document.getElementById('reset-btn').addEventListener('click', resetGame);
+    document.getElementById('share-btn').addEventListener('click', handleShare);
+    document.getElementById('reveal-fusion-btn').addEventListener('click', revealFusion);
+    document.getElementById('combine-btn').addEventListener('click', () => {
+        if (state.potContents.length >= 2) startFusionProcess();
+    });
+
+    // Pantry Arrow Navigation
+    const scrollContainer = document.getElementById('ingredient-scroll');
+    document.getElementById('scroll-left').addEventListener('click', () => {
+        // Scroll by a fixed width of cards (approx 2 cards)
+        scrollContainer.scrollBy({ left: -220, behavior: 'smooth' });
+        genVibration(15);
+        playSound('bubble');
+    });
+    document.getElementById('scroll-right').addEventListener('click', () => {
+        scrollContainer.scrollBy({ left: 220, behavior: 'smooth' });
+        genVibration(15);
+        playSound('bubble');
+    });
+
+    // Initial Audio Unlock
+    document.body.addEventListener('touchstart', initAudio, { once: true });
+    document.body.addEventListener('click', initAudio, { once: true });
+}
+
+function renderIngredients() {
+    const container = document.getElementById('ingredient-scroll');
+    container.innerHTML = '';
+    
+    state.ingredients.forEach(ing => {
+        const div = document.createElement('div');
+        div.className = 'ingredient-card flex-shrink-0 w-24 h-32 bg-white rounded-xl shadow-md border-2 border-[#EFEBE9] flex flex-col items-center justify-center p-2 relative overflow-hidden select-none touch-none';
+        div.dataset.id = ing.id;
+        
+        // Image
+        const img = document.createElement('img');
+        img.src = ing.img;
+        img.className = 'w-16 h-16 object-contain mb-1 pointer-events-none';
+        
+        // Name
+        const name = document.createElement('span');
+        name.innerText = ing.name;
+        name.className = 'text-[10px] font-bold text-center leading-tight text-gray-600 pointer-events-none';
+        
+        // Type color strip
+        const strip = document.createElement('div');
+        strip.className = 'absolute top-0 left-0 right-0 h-2 w-full';
+        strip.style.backgroundColor = ing.color;
+        
+        div.appendChild(strip);
+        div.appendChild(img);
+        div.appendChild(name);
+        
+        container.appendChild(div);
+    });
+}
+
+function setupDragDrop() {
+    let activeDrag = null;
+    let startX, startY;
+    let initialLeft, initialTop;
+    let clone = null;
+
+    const scrollContainer = document.getElementById('ingredient-scroll');
+    const cauldronZone = document.getElementById('cauldron-zone');
+    const overlay = document.getElementById('drag-target-overlay');
+
+    scrollContainer.addEventListener('touchstart', (e) => {
+        if(state.isCooking || state.potContents.length >= 4) return;
+
+        const card = e.target.closest('.ingredient-card');
+        if (!card) return;
+        
+        const id = card.dataset.id;
+        if (state.potContents.find(i => i.id === id)) return;
+
+        const touch = e.touches[0];
+        startX = touch.clientX;
+        startY = touch.clientY;
+        activeDrag = card;
+        activeDrag.dataset.dragging = "false";
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!activeDrag) return;
+        
+        const touch = e.touches[0];
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+
+        // Threshold to differentiate scroll vs drag (dragging up)
+        if (!clone && dy < -5 && Math.abs(dy) > Math.abs(dx)) {
+            activeDrag.dataset.dragging = "true";
+            const rect = activeDrag.getBoundingClientRect();
+            initialLeft = rect.left;
+            initialTop = rect.top;
+
+            overlay.style.opacity = '1';
+            activeDrag.style.opacity = '0.3';
+
+            clone = activeDrag.cloneNode(true);
+            clone.className = 'ingredient-card-clone';
+            clone.style.position = 'fixed';
+            clone.style.width = rect.width + 'px';
+            clone.style.height = rect.height + 'px';
+            clone.style.left = rect.left + 'px';
+            clone.style.top = rect.top + 'px';
+            clone.style.zIndex = '1000';
+            clone.style.transform = 'scale(1.1)';
+            clone.style.pointerEvents = 'none';
+            clone.style.boxShadow = '0 10px 20px rgba(0,0,0,0.2)';
+            document.body.appendChild(clone);
+            genVibration(20);
+        }
+
+        if (clone) {
+            if (e.cancelable) e.preventDefault();
+            clone.style.left = (initialLeft + dx) + 'px';
+            clone.style.top = (initialTop + dy) + 'px';
+            
+            const potRect = cauldronZone.getBoundingClientRect();
+            const touchX = touch.clientX;
+            const touchY = touch.clientY;
+            
+            // Expand hit area slightly for better mobile feel
+            const buffer = 30;
+            if (touchX > potRect.left - buffer && touchX < potRect.right + buffer && 
+                touchY > potRect.top - buffer && touchY < potRect.bottom + buffer) {
+                cauldronZone.style.transform = 'scale(1.1) rotate(5deg)';
+            } else {
+                cauldronZone.style.transform = 'scale(1) rotate(0deg)';
+            }
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchend', (e) => {
+        if (!activeDrag || !clone) return;
+
+        const touch = e.changedTouches[0];
+        const potRect = cauldronZone.getBoundingClientRect();
+        
+        // Check drop
+        if (touch.clientX > potRect.left && touch.clientX < potRect.right && 
+            touch.clientY > potRect.top && touch.clientY < potRect.bottom) {
+            
+            // Successful Drop
+            addIngredientToPot(activeDrag.dataset.id);
+            genVibration(50);
+        }
+
+        // Cleanup
+        clone.remove();
+        clone = null;
+        activeDrag.style.opacity = '1';
+        activeDrag = null;
+        overlay.style.opacity = '0';
+        cauldronZone.style.transform = 'scale(1)';
+
+    });
+}
+
+function addIngredientToPot(id) {
+    const ing = state.ingredients.find(i => i.id === id);
+    if (!ing || state.potContents.length >= 4) return;
+
+    state.potContents.push(ing);
+    
+    // UI Update inside Pot
+    const itemsContainer = document.getElementById('items-in-pot');
+    const miniIcon = document.createElement('img');
+    miniIcon.src = ing.img;
+    miniIcon.className = 'w-12 h-12 object-contain drop-shadow-lg animate-bounce';
+    itemsContainer.appendChild(miniIcon);
+
+    // Show combine button if enough items
+    if (state.potContents.length >= 2) {
+        document.getElementById('combine-btn').style.transform = 'scale(1)';
+    }
+
+    // FX
+    playSound('plop');
+    createSplash();
+}
+
+function createSplash() {
+    const pot = document.getElementById('pot-liquid');
+    for(let i=0; i<8; i++) {
+        const p = document.createElement('div');
+        p.className = 'absolute bg-[#AED581] rounded-full w-2 h-2 z-20';
+        p.style.left = '50%';
+        p.style.top = '20px';
+        p.style.transition = 'all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        pot.appendChild(p);
+        
+        setTimeout(() => {
+            p.style.transform = `translate(${(Math.random()-0.5)*100}px, -${30 + Math.random()*50}px) scale(0)`;
+        }, 10);
+        setTimeout(() => p.remove(), 600);
+    }
+}
+
+function startPotionMiniGame() {
+    state.miniGameActive = true;
+    state.fusionReady = false;
+    state.traceProgress = 0;
+    document.getElementById('loading-overlay').classList.remove('hidden');
+    document.getElementById('reveal-fusion-btn').style.transform = 'scale(0)';
+    document.getElementById('stir-progress-bar').style.width = '0%';
+    
+    setupStirringCanvas();
+    pickNextPattern();
+    requestAnimationFrame(renderTracingGame);
+}
+
+function setupStirringCanvas() {
+    const canvas = document.getElementById('stirring-canvas');
+    const container = document.getElementById('potion-game-container');
+    
+    const resize = () => {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const handleStart = (e) => {
+        if (!state.miniGameActive) return;
+        state.isTracing = true;
+        state.tracePoints = [];
+    };
+
+    const handleMove = (e) => {
+        if (!state.miniGameActive || !state.isTracing) return;
+        const touch = e.touches ? e.touches[0] : e;
+        const rect = canvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+        
+        state.tracePoints.push({ x, y });
+        if (state.tracePoints.length > 20) state.tracePoints.shift();
+
+        checkTracingCollision(x, y);
+        if (e.cancelable) e.preventDefault();
+    };
+
+    const handleEnd = () => {
+        state.isTracing = false;
+        state.tracePoints = [];
+    };
+
+    canvas.addEventListener('touchstart', handleStart);
+    canvas.addEventListener('touchmove', handleMove, { passive: false });
+    canvas.addEventListener('touchend', handleEnd);
+}
+
+function pickNextPattern() {
+    const unused = state.patterns.filter(p => p !== state.currentPattern);
+    state.currentPattern = unused[Math.floor(Math.random() * unused.length)];
+    state.traceProgress = 0;
+    state.patternTargetPoints = state.currentPattern.points.map(p => ({
+        x: p.x, 
+        y: p.y, 
+        hit: false 
+    }));
+}
+
+function checkTracingCollision(tx, ty) {
+    if (!state.patternTargetPoints || state.isPausedBetweenPatterns) return;
+    
+    const canvas = document.getElementById('stirring-canvas');
+    const cw = canvas.width;
+    const ch = canvas.height;
+    
+    let newlyHit = false;
+    state.patternTargetPoints.forEach(p => {
+        if (p.hit) return;
+        const px = (p.x / 100) * cw;
+        const py = (p.y / 100) * ch;
+        const dist = Math.sqrt(Math.pow(tx - px, 2) + Math.pow(ty - py, 2));
+        
+        if (dist < 45) { // Slightly increased hit radius
+            p.hit = true;
+            newlyHit = true;
+        }
+    });
+
+    if (newlyHit) {
+        const hits = state.patternTargetPoints.filter(p => p.hit).length;
+        state.traceProgress = hits / state.patternTargetPoints.length;
+        
+        if (hits % 4 === 0) {
+            playSound('bubble');
+            genVibration(8);
+        }
+
+        if (state.traceProgress >= 0.98) {
+            state.isPausedBetweenPatterns = true;
+            state.isTracing = false;
+            state.tracePoints = [];
+            
+            playSound('success');
+            genVibration(30);
+            showScorePop("STIRRED!", "#AED581");
+            
+            // Pause to allow user to feel accomplishment before next pattern
+            setTimeout(() => {
+                if (state.isCooking && !state.isViewingResults) {
+                    pickNextPattern();
+                    state.isPausedBetweenPatterns = false;
+                }
+            }, 1200); 
+        }
+    }
+}
+
+function renderTracingGame() {
+    if (!state.miniGameActive) return;
+    
+    const canvas = document.getElementById('stirring-canvas');
+    const ctx = canvas.getContext('2d');
+    const cw = canvas.width;
+    const ch = canvas.height;
+    
+    ctx.clearRect(0, 0, cw, ch);
+    
+    if (state.patternTargetPoints) {
+        // Draw path shadow/guide
+        ctx.beginPath();
+        ctx.lineWidth = 30;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        
+        state.patternTargetPoints.forEach((p, i) => {
+            const px = (p.x / 100) * cw;
+            const py = (p.y / 100) * ch;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+
+        // Draw progress path as segments to avoid jumping lines (fix continuous string issue)
+        ctx.lineWidth = 15;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = `rgba(174, 213, 129, ${0.6 + 0.4 * state.traceProgress})`;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#AED581';
+        
+        for (let i = 0; i < state.patternTargetPoints.length - 1; i++) {
+            const p1 = state.patternTargetPoints[i];
+            const p2 = state.patternTargetPoints[i+1];
+            if (p1.hit && p2.hit) {
+                ctx.beginPath();
+                ctx.moveTo((p1.x / 100) * cw, (p1.y / 100) * ch);
+                ctx.lineTo((p2.x / 100) * cw, (p2.y / 100) * ch);
+                ctx.stroke();
+            }
+        }
+        ctx.shadowBlur = 0;
+
+        // Draw points
+        state.patternTargetPoints.forEach(p => {
+            const px = (p.x / 100) * cw;
+            const py = (p.y / 100) * ch;
+            ctx.fillStyle = p.hit ? '#AED581' : 'rgba(255,255,255,0.3)';
+            ctx.beginPath();
+            ctx.arc(px, py, p.hit ? 6 : 4, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    // Draw user trail
+    if (state.tracePoints.length > 1) {
+        ctx.beginPath();
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'white';
+        ctx.moveTo(state.tracePoints[0].x, state.tracePoints[0].y);
+        for(let i=1; i<state.tracePoints.length; i++) {
+            ctx.lineTo(state.tracePoints[i].x, state.tracePoints[i].y);
+        }
+        ctx.stroke();
+    }
+
+    requestAnimationFrame(renderTracingGame);
+}
+
+function showScorePop(text, color) {
+    const container = document.getElementById('potion-game-container');
+    const pop = document.createElement('div');
+    pop.className = 'score-pop text-xl font-black italic uppercase tracking-tighter';
+    pop.style.left = '50%';
+    pop.style.bottom = '50%';
+    pop.style.transform = 'translate(-50%, -50%)';
+    pop.style.color = color || '#FFEB3B';
+    pop.innerText = text;
+    container.appendChild(pop);
+    setTimeout(() => pop.remove(), 800);
+}
+
+function stopPotionMiniGame() {
+    state.miniGameActive = false;
+    document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+function startAmbientBubbles() {
+    setInterval(() => {
+        if (Math.random() > 0.3 || state.miniGameActive) return; // not too frequent
+        const container = document.getElementById('fx-container');
+        const b = document.createElement('div');
+        b.className = 'bubble';
+        
+        // Position relative to pot
+        const liquid = document.getElementById('pot-liquid');
+        if (!liquid) return;
+        const potRect = liquid.getBoundingClientRect();
+        const left = potRect.left + Math.random() * potRect.width;
+        const top = potRect.top + Math.random() * (potRect.height/2);
+        
+        b.style.left = left + 'px';
+        b.style.top = top + 'px';
+        b.style.width = (5 + Math.random()*10) + 'px';
+        b.style.height = b.style.width;
+        b.style.animation = 'bubble 2s ease-out forwards';
+        
+        container.appendChild(b);
+        setTimeout(() => b.remove(), 2000);
+        
+        // Clean bubble sound only
+        if(Math.random() > 0.7) playSound('bubble');
+    }, 1200);
+}
+
+async function startFusionProcess() {
+    if (state.isCooking || state.potContents.length < 2) return;
+    state.isCooking = true;
+
+    const cauldron = document.getElementById('cauldron-zone');
+    const loadingText = document.getElementById('loading-text');
+    const combineBtn = document.getElementById('combine-btn');
+    const startTime = Date.now();
+
+    cauldron.classList.add('shaking');
+    combineBtn.style.transform = 'scale(0)';
+    genVibration(500);
+
+    const names = state.potContents.map(i => i.name).join(', ');
+    
+    startPotionMiniGame();
+
+    try {
+        const basePrompt = getConfig('prompts', 'fusionPrompt');
+        const finalImagePrompt = basePrompt.replace('[NAMES]', names);
+        const namingPrompt = window.globalPrompts.naming;
+        const userPrompt = namingPrompt.userPrompt + names;
+
+        let imgUrl = null;
+        let fusionName = null;
+
+        // Try AI generation first
+        try {
+            const [imgResult, textResult] = await Promise.all([
+                genImage(finalImagePrompt),
+                genText(namingPrompt.systemPrompt, userPrompt, namingPrompt.responseSchema)
+            ]);
+            imgUrl = imgResult.imageUrl;
+            fusionName = textResult.name;
+        } catch (aiError) {
+            console.warn("Primary AI failed, using randomized fallback", aiError);
+            
+            // --- ENHANCED RANDOMIZED FALLBACK ---
+            // To ensure it doesn't look like just one Pokemon, we pick a base and apply a color filter 
+            // from the secondary Pokemon to signify a true 'blend'.
+            const baseIng = state.potContents[0];
+            const blendIng = state.potContents[1];
+            
+            imgUrl = baseIng.img; // Use the primary as the silhouette base
+            
+            // Create a creative name combination
+            const p1 = baseIng.name;
+            const p2 = blendIng.name;
+            const nameChoices = [
+                p1.substring(0, Math.ceil(p1.length/2)) + p2.substring(Math.floor(p2.length/2)),
+                p2.substring(0, Math.ceil(p2.length/2)) + p1.substring(Math.floor(p1.length/2)),
+                p1.substring(0, 3) + p2.toLowerCase(),
+                "Mega " + p1.substring(0, p1.length-2) + "ius"
+            ];
+            fusionName = nameChoices[Math.floor(Math.random() * nameChoices.length)];
+            
+            // Visual indicator of fallback in silhouette
+            const sil = document.getElementById('fusion-silhouette');
+            sil.style.filter = `sepia(1) saturate(5) hue-rotate(${Math.random() * 360}deg) brightness(0.7)`;
+        }
+
+        state.pendingFusion = { 
+            image: imgUrl, 
+            name: fusionName || "Mystery Fusion", 
+            parent1: state.potContents[0].name, 
+            parent2: state.potContents.length > 2 ? `${state.potContents.length - 1} others` : state.potContents[1].name 
+        };
+        
+        const silhouette = document.getElementById('fusion-silhouette');
+        silhouette.src = state.pendingFusion.image;
+        silhouette.style.filter = 'grayscale(100%) brightness(0%)';
+        silhouette.parentElement.style.opacity = '0.4';
+
+        const checkReady = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const totalProgress = Math.min((elapsed / 8000) * 100, 100);
+            document.getElementById('stir-progress-bar').style.width = totalProgress + '%';
+            silhouette.parentElement.style.opacity = (0.4 + (totalProgress / 200)).toString();
+            
+            if (elapsed >= 8000 && state.pendingFusion) {
+                clearInterval(checkReady);
+                state.fusionReady = true;
+                document.getElementById('reveal-fusion-btn').style.transform = 'scale(1)';
+                document.getElementById('loading-text').innerText = "Ready to Reveal!";
+                genVibration(100);
+            }
+        }, 100);
+
+    } catch (e) {
+        console.error("Critical Fusion Failure", e);
+        document.getElementById('loading-text').innerText = "Kitchen Error!";
+        setTimeout(() => {
+            stopPotionMiniGame();
+            cauldron.classList.remove('shaking');
+            resetGame();
+        }, 2000);
+    }
+}
+
+function revealFusion() {
+    if (!state.fusionReady || !state.pendingFusion) return;
+    
+    // Set content first
+    const resultImg = document.getElementById('result-image');
+    const resultName = document.getElementById('result-name');
+    const p1 = document.getElementById('parent-1-name');
+    const p2 = document.getElementById('parent-2-name');
+
+    resultImg.src = state.pendingFusion.image;
+    resultName.innerText = state.pendingFusion.name;
+    p1.innerText = state.pendingFusion.parent1;
+    p2.innerText = state.pendingFusion.parent2;
+
+    // Transition UI
+    state.isViewingResults = true;
+    state.miniGameActive = false;
+    state.isCooking = false; 
+    
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('result-modal').classList.remove('hidden');
+    document.getElementById('cauldron-zone').classList.remove('shaking');
+    document.getElementById('items-in-pot').style.opacity = '0';
+    
+    playSound('success');
+    createConfetti();
+}
+
+function createConfetti() {
+    const colors = ['#FF5722', '#FFC107', '#8BC34A', '#03A9F4'];
+    const container = document.getElementById('fx-container');
+    
+    for(let i=0; i<30; i++) {
+        const p = document.createElement('div');
+        p.className = 'absolute w-3 h-3 z-50';
+        p.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
+        p.style.left = '50%';
+        p.style.top = '50%';
+        p.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 5 + Math.random() * 10;
+        const tx = Math.cos(angle) * 150;
+        const ty = Math.sin(angle) * 150;
+        
+        p.style.transition = 'all 1s cubic-bezier(0.165, 0.84, 0.44, 1)';
+        container.appendChild(p);
+        
+        setTimeout(() => {
+            p.style.transform = `translate(${tx}px, ${ty}px) rotate(${Math.random()*360}deg) scale(0)`;
+        }, 10);
+        
+        setTimeout(() => p.remove(), 1000);
+    }
+}
+
+function resetGame() {
+    state.potContents = [];
+    state.isCooking = false;
+    state.isViewingResults = false;
+    state.pendingFusion = null;
+    state.miniGameActive = false;
+    state.fusionReady = false;
+    state.isPausedBetweenPatterns = false;
+    
+    // UI Cleanup
+    document.getElementById('items-in-pot').innerHTML = '';
+    document.getElementById('items-in-pot').style.opacity = '1';
+    document.getElementById('result-modal').classList.add('hidden');
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('cauldron-zone').classList.remove('shaking');
+    document.getElementById('combine-btn').style.transform = 'scale(0)';
+    document.getElementById('reveal-fusion-btn').style.transform = 'scale(0)';
+    document.getElementById('loading-text').innerText = "Cooking Fusion...";
+    
+    // Reset silhouette
+    const sil = document.getElementById('fusion-silhouette');
+    sil.src = "images/poke-ball.webp";
+    sil.style.filter = 'grayscale(100%) brightness(0%)';
+    sil.parentElement.style.opacity = '0.2';
+    
+    // Reset progress bar
+    document.getElementById('stir-progress-bar').style.width = '0%';
+    
+    // Reset ingredients opacity
+    document.querySelectorAll('.ingredient-card').forEach(card => card.style.opacity = '1');
+}
+
+async function handleShare() {
+    const shareZone = document.getElementById('share-zone');
+    const resultName = document.getElementById('result-name').innerText;
+    
+    // Visual tweak for capture
+    const originalBg = shareZone.style.background;
+    shareZone.style.background = '#fff';
+    shareZone.style.padding = '20px';
+    
+    try {
+        const canvas = await html2canvas(shareZone, { scale: 2, backgroundColor: '#ffffff' });
+        const base64 = canvas.toDataURL('image/png');
+        
+        // Restore style
+        shareZone.style.background = originalBg;
+        shareZone.style.padding = ''; // Reset to class-based
+
+        // Upload
+        const uploadId = crypto.randomUUID();
+        const onUpload = (e) => {
+            if (e.data?.taskId !== uploadId || e.data?.type !== 'receive_upload_image') return;
+            window.removeEventListener('message', onUpload);
+            
+            sendMessage('invoke_share', {
+                title: `I cooked up a ${resultName}!`,
+                coverImgUrl: e.data.data?.hostUrl || ''
+            }, false);
+        };
+        window.addEventListener('message', onUpload);
+        sendMessage('upload_image', { image: base64 }, false, uploadId);
+        
+    } catch (e) {
+        console.error("Share failed", e);
+        // Fallback share without image
+        sendMessage('invoke_share', { title: `I created ${resultName} in Pokemon Fusion Kitchen!` }, false);
+    }
+}
+
+// Start
+document.addEventListener('DOMContentLoaded', initApp);
+
+// Preview Editing API
+(function setupPreviewEditingAPI() {
+  window.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+
+    switch (msg.type) {
+      case 'get_editable_metadata':
+        window.parent.postMessage({
+          origin: 'sekai_gaming_iframe_api',
+          type: 'receive_editable_metadata',
+          taskId: msg.taskId,
+          data: window.sekaiEditable || {}
+        }, '*');
+        break;
+
+      case 'apply_change':
+        const success = applySingleChange(msg.data.id, msg.data.value);
+        window.parent.postMessage({
+          origin: 'sekai_gaming_iframe_api',
+          type: 'receive_apply_change',
+          taskId: msg.taskId,
+          data: { success }
+        }, '*');
+        break;
+
+      case 'get_current_html':
+        window.parent.postMessage({
+          origin: 'sekai_gaming_iframe_api',
+          type: 'receive_current_html',
+          taskId: msg.taskId,
+          data: { html: document.documentElement.outerHTML }
+        }, '*');
+        break;
+
+      case 'reset_changes':
+        location.reload();
+        break;
+    }
+  });
+
+  function applySingleChange(id, value) {
+    const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+    for (const cat of categories) {
+      const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+      if (!item) continue;
+      item.value = value;
+      if (item.cssVar) {
+        document.documentElement.style.setProperty(item.cssVar, value);
+      } else if (item.path) {
+        setNestedValue(window, item.path, value);
+      } else if (item.selector) {
+        const el = document.querySelector(item.selector);
+        if (!el) return false;
+        if (el.tagName === 'AUDIO') {
+          const wasPlaying = !el.paused;
+          el.src = value;
+          el.load();
+          if (wasPlaying) el.play().catch(() => {});
+        } else if (item.property === 'src') {
+          el.src = value;
+        } else if (item.property === 'backgroundImage') {
+          el.style.backgroundImage = `url('${value}')`;
+        } else {
+          el.textContent = value;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+})();
+</script>
+</body>
+</html>

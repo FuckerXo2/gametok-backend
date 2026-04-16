@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Oiiooiii Cat Spin</title>
+  <script src="vendor/tailwind.css"></script>
+  <link rel="stylesheet" href="vendor/fontawesome/all.min.css">
+  <style>
+    :root {
+      --bg-color-1: #fdfbf7;
+      --bg-color-2: #e2e8f0;
+      --accent-color: #3b82f6;
+      --text-color: #1e293b;
+    }
+
+    body {
+      touch-action: manipulation;
+      background: radial-gradient(circle at center, var(--bg-color-1), var(--bg-color-2));
+      color: var(--text-color);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #game-container {
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* The Spinning Cat Container */
+    .cat-wrapper {
+      position: relative;
+      width: 70vmin;
+      height: 70vmin;
+      max-width: 400px;
+      max-height: 400px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 10;
+    }
+
+    .cat-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      pointer-events: none; /* Let clicks pass to wrapper/container */
+    }
+
+    /* Tap Feedback Ripple */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.4);
+      transform: scale(0);
+      animation: ripple-anim 0.6s linear;
+      pointer-events: none;
+    }
+
+    @keyframes ripple-anim {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+
+    /* UI Overlay */
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 2rem;
+    }
+
+    .counter-display {
+      font-size: 4rem;
+      font-weight: 800;
+      text-align: center;
+      text-shadow: 0 4px 0 rgba(255,255,255,0.8), 0 8px 10px rgba(0,0,0,0.1);
+      transition: transform 0.1s;
+    }
+
+    .speed-indicator {
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+      opacity: 0.7;
+      margin-top: -1rem;
+    }
+
+    .timer-display {
+      font-family: 'Courier New', monospace;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--accent-color);
+      text-align: center;
+      margin-top: 0.5rem;
+      text-shadow: 0 2px 0 rgba(255,255,255,0.8);
+    }
+
+    /* Win Modal */
+    #win-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    #win-modal.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .btn-primary {
+      background: var(--accent-color);
+      color: white;
+      padding: 1rem 2rem;
+      border-radius: 2rem;
+      font-weight: bold;
+      font-size: 1.5rem;
+      border: none;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.95);
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Tapping Finger Hint */
+    #tap-hint {
+      position: absolute;
+      top: 55%;
+      left: 55%;
+      transform: translate(-50%, -50%);
+      font-size: 3rem;
+      color: var(--accent-color);
+      z-index: 30;
+      pointer-events: none;
+      text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      animation: slide-in-then-tap 3s infinite ease-in-out;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      opacity: 0;
+    }
+
+    @keyframes slide-in-then-tap {
+      0% { transform: translate(300%, -50%); opacity: 0; }
+      20% { transform: translate(-50%, -50%); opacity: 0.9; }
+      30%, 50%, 70% { transform: translate(-50%, -50%) scale(0.8); }
+      40%, 60%, 80% { transform: translate(-50%, -50%) scale(1); }
+      90% { transform: translate(-50%, -50%) scale(1); opacity: 0.9; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+  <script>
+    // Audio Unlock Script
+    (function() {
+      let audioUnlocked = false;
+      function unlockAudioContext() {
+        if (audioUnlocked) return;
+        if ('audioSession' in window.navigator) {
+          window.navigator.audioSession.type = "playback";
+        }
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            const context = new AudioContext();
+            if (context.state === 'suspended') context.resume();
+            const buffer = context.createBuffer(1, 1, 22050);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            source.start(0);
+          }
+        } catch (e) {}
+        try {
+          const audio = new Audio();
+          audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+          audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+        } catch (e) {}
+        audioUnlocked = true;
+      }
+      window.addEventListener('message', function(event) {
+        if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+          unlockAudioContext();
+        }
+      });
+      ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+        document.addEventListener(event, unlockAudioContext, { once: true });
+      });
+    })();
+  </script>
+<!-- sekai:backdrop-fix -->
+<style>*,::before,::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}</style>
+<!-- sekai:dvh-fix -->
+</head>
+<body>
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+  <!-- Game Container -->
+  <div id="game-container">
+    <div class="ui-layer">
+      <div>
+        <div id="counter" class="counter-display">0</div>
+        <div id="speed-label" class="speed-indicator">Tap to Spin!</div>
+        <div id="timer" class="timer-display">0.00s</div>
+      </div>
+    </div>
+
+    <div class="cat-wrapper" id="cat-wrapper">
+      <img src="https://prod-data.sekai.chat/v3-games/chat-creation/9a1abdeb-aa7c-4073-8b11-77524c59ae29.gif" 
+           alt="Spinning Cat" 
+           class="cat-image" 
+           id="cat-image">
+    </div>
+
+    <!-- Tapping Finger Hint -->
+    <div id="tap-hint">
+      <i class="fas fa-hand-pointer"></i>
+    </div>
+  </div>
+
+  <!-- Win Modal -->
+  <div id="win-modal">
+    <div id="final-time-display" class="text-6xl font-bold mt-16 text-blue-600" style="font-family: 'Courier New', monospace; text-shadow: 0 0 20px rgba(255,255,255,1); z-index: 60;">0.00s</div>
+    
+    <div style="flex-grow: 1;"></div>
+
+    <div class="flex flex-col items-center mb-16 z-50">
+      <button id="challenge-btn" class="btn-primary mb-4 scale-125">
+        <i class="fas fa-share-alt"></i> Challenge a Friend
+      </button>
+      
+      <button id="replay-btn" class="text-gray-600 font-bold bg-white/50 backdrop-blur-sm px-6 py-2 rounded-xl hover:bg-white/80 transition-colors">
+        Play Again
+      </button>
+    </div>
+  </div>
+
+  <!-- Hidden File Input for Image Upload (Standard Requirement) -->
+  <input type="file" id="hidden-input" style="display:none" accept="image/*">
+
+  <script>
+    /* =========================================
+       GLOBAL PROMPTS (Required Structure)
+       ========================================= */
+    window.globalPrompts = {
+      // No gen_text used, but structure kept for standard compliance
+    };
+
+    /* =========================================
+       EDITABLE METADATA (Required)
+       ========================================= */
+    window.sekaiEditable = {
+  "tune": [
+    {
+      "id": "friction",
+      "label": "Spin Friction (0-1)",
+      "type": "slider",
+      "path": "GAME_CONFIG.friction",
+      "min": 0.9,
+      "max": 0.99,
+      "step": 0.01,
+      "value": 0.98
+    },
+    {
+      "id": "tapPower",
+      "label": "Tap Velocity Boost",
+      "type": "slider",
+      "path": "GAME_CONFIG.tapPower",
+      "min": 5,
+      "max": 50,
+      "step": 1,
+      "value": 8
+    },
+    {
+      "id": "slowThreshold",
+      "label": "Slow Music Speed",
+      "type": "slider",
+      "path": "GAME_CONFIG.thresholdSlow",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "value": 2
+    },
+    {
+      "id": "medThreshold",
+      "label": "Fast Music Speed",
+      "type": "slider",
+      "path": "GAME_CONFIG.thresholdMed",
+      "min": 10,
+      "max": 50,
+      "step": 1,
+      "value": 20
+    },
+    {
+      "id": "winCount",
+      "label": "Winning Taps",
+      "type": "slider",
+      "path": "GAME_CONFIG.winCount",
+      "min": 10,
+      "max": 500,
+      "step": 10,
+      "value": 67
+    }
+  ],
+  "images": [
+    {
+      "id": "catImg",
+      "label": "Cat Image",
+      "type": "image",
+      "selector": "#cat-image",
+      "property": "src",
+      "value": "https://prod-data.sekai.chat/v3-games/chat-creation/9a1abdeb-aa7c-4073-8b11-77524c59ae29.gif"
+    }
+  ],
+  "music": [
+    {
+      "id": "musicSlow",
+      "label": "Slow Speed Music",
+      "type": "audio",
+      "path": "AUDIO_SOURCES.slow",
+      "value": "https://prod-data.sekai.chat/v3-games/chat-creation/05dbbf08-fcb7-440d-9bf0-527a35887773.wav"
+    },
+    {
+      "id": "musicMed",
+      "label": "Fast Speed Music",
+      "type": "audio",
+      "path": "AUDIO_SOURCES.medium",
+      "value": "https://prod-data.sekai.chat/v3-games/chat-creation/7387e54b-3c9e-47cf-889c-89af548b774e.wav"
+    },
+    {
+      "id": "musicWin",
+      "label": "Victory Music",
+      "type": "audio",
+      "path": "AUDIO_SOURCES.win",
+      "value": "https://prod-data.sekai.chat/v3-games/chat-creation/4153e729-2f7b-4f23-9dcd-0efdddfd05d8.wav"
+    }
+  ],
+  "colors": [
+    {
+      "id": "bgColor1",
+      "label": "Background Center",
+      "type": "color",
+      "cssVar": "--bg-color-1",
+      "value": "#fdfbf7"
+    },
+    {
+      "id": "bgColor2",
+      "label": "Background Edge",
+      "type": "color",
+      "cssVar": "--bg-color-2",
+      "value": "#e2e8f0"
+    },
+    {
+      "id": "accentColor",
+      "label": "Accent Color",
+      "type": "color",
+      "cssVar": "--accent-color",
+      "value": "#3b82f6"
+    }
+  ],
+  "text": [
+    {
+      "id": "titleText",
+      "label": "Idle Text",
+      "type": "text",
+      "selector": "#speed-label",
+      "value": "Tap to Spin!"
+    }
+  ]
+};
+
+    // Include Preview Editing API
+    (function setupPreviewEditingAPI() {
+      window.addEventListener('message', (event) => {
+        const msg = event.data;
+        if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+        switch (msg.type) {
+          case 'get_editable_metadata':
+            window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_editable_metadata', taskId: msg.taskId, data: window.sekaiEditable || {} }, '*');
+            break;
+          case 'apply_change':
+            const result = applyChange(msg.data.id, msg.data.value);
+            window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_apply_change', taskId: msg.taskId, data: { success: result } }, '*');
+            break;
+          case 'get_current_html':
+            window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_current_html', taskId: msg.taskId, data: { html: document.documentElement.outerHTML } }, '*');
+            break;
+          case 'reset_changes':
+            location.reload();
+            break;
+        }
+      });
+      function applyChange(id, value) {
+        const categories = ['tune', 'images', 'music', 'sfx', 'colors', 'text'];
+        for (const cat of categories) {
+          const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+          if (!item) continue;
+          if (item.cssVar) document.documentElement.style.setProperty(item.cssVar, value);
+          else if (item.selector) {
+            const el = document.querySelector(item.selector);
+            if (!el) return false;
+            if (item.property === 'src') el.src = value;
+            else el.textContent = value;
+          } else if (item.path) {
+            const parts = item.path.split('.');
+            let current = window;
+            for (let i = 0; i < parts.length - 1; i++) current = current[parts[i]];
+            current[parts[parts.length - 1]] = value;
+          }
+          item.value = value;
+          return true;
+        }
+        return false;
+      }
+    })();
+
+    /* =========================================
+       GAME LOGIC
+       ========================================= */
+
+    // Helper function to get value from sekaiEditable
+    function getEditableValue(category, id) {
+      const item = window.sekaiEditable[category]?.find(i => i.id === id);
+      return item ? item.value : null;
+    }
+
+    // Config & State - Initialize from sekaiEditable
+    const GAME_CONFIG = {
+      friction: getEditableValue('tune', 'friction') || 0.98,
+      tapPower: getEditableValue('tune', 'tapPower') || 8,
+      thresholdSlow: getEditableValue('tune', 'slowThreshold') || 2,
+      thresholdMed: getEditableValue('tune', 'medThreshold') || 20,
+      winCount: getEditableValue('tune', 'winCount') || 67,
+      maxSpeed: 250
+    };
+
+    const AUDIO_SOURCES = {
+      slow: getEditableValue('music', 'musicSlow') || 'https://prod-data.sekai.chat/v3-games/chat-creation/05dbbf08-fcb7-440d-9bf0-527a35887773.wav',
+      medium: getEditableValue('music', 'musicMed') || 'https://prod-data.sekai.chat/v3-games/chat-creation/7387e54b-3c9e-47cf-889c-89af548b774e.wav',
+      win: getEditableValue('music', 'musicWin') || 'https://prod-data.sekai.chat/v3-games/chat-creation/4153e729-2f7b-4f23-9dcd-0efdddfd05d8.wav'
+    };
+
+    const state = {
+      taps: 0,
+      rotation: 0,
+      velocity: 0,
+      isWon: false,
+      started: false,
+      startTime: 0,
+      currentAudioState: 'none', // 'none', 'slow', 'medium', 'win'
+      audioObjects: {}
+    };
+
+    // DOM Elements
+    const elements = {};
+
+    function initApp() {
+      // Map elements
+      elements.container = document.getElementById('game-container');
+      elements.catWrapper = document.getElementById('cat-wrapper');
+      elements.catImage = document.getElementById('cat-image');
+      elements.counter = document.getElementById('counter');
+      elements.speedLabel = document.getElementById('speed-label');
+      elements.timer = document.getElementById('timer');
+      elements.winModal = document.getElementById('win-modal');
+      elements.challengeBtn = document.getElementById('challenge-btn');
+      elements.replayBtn = document.getElementById('replay-btn');
+      elements.tapHint = document.getElementById('tap-hint');
+
+      // Apply initial values from sekaiEditable
+      const catImgValue = getEditableValue('images', 'catImg');
+      if (catImgValue) elements.catImage.src = catImgValue;
+
+      const titleTextValue = getEditableValue('text', 'titleText');
+      if (titleTextValue) elements.speedLabel.textContent = titleTextValue;
+
+      // Preload Audio
+      preloadAudio();
+
+      // Listeners
+      // Use 'pointerdown' for better cross-device handling (touches & clicks)
+      elements.container.addEventListener('pointerdown', handleTap);
+      elements.challengeBtn.addEventListener('click', handleChallenge);
+      elements.replayBtn.addEventListener('click', resetGame);
+
+      // Start Loop
+      requestAnimationFrame(gameLoop);
+    }
+
+    function preloadAudio() {
+      // Initialize audio objects
+      state.audioObjects.slow = new Audio(AUDIO_SOURCES.slow);
+      state.audioObjects.slow.loop = true;
+      
+      state.audioObjects.medium = new Audio(AUDIO_SOURCES.medium);
+      state.audioObjects.medium.loop = true;
+      
+      state.audioObjects.win = new Audio(AUDIO_SOURCES.win);
+      state.audioObjects.win.loop = true;
+    }
+
+    function handleTap(e) {
+      if (state.isWon) return; // Ignore taps if won
+      if (e.target.closest('#win-modal')) return; // Ignore taps on modal
+
+      if (!state.started) {
+        state.started = true;
+        state.startTime = Date.now();
+        if (elements.tapHint) elements.tapHint.classList.add('hidden');
+      }
+
+      // Logic
+      state.velocity += GAME_CONFIG.tapPower;
+      // Cap velocity for sanity
+      if (state.velocity > GAME_CONFIG.maxSpeed) state.velocity = GAME_CONFIG.maxSpeed;
+      
+      state.taps++;
+      updateCounter();
+
+      // Visual Feedack
+      createRipple(e.clientX, e.clientY);
+      triggerBounce();
+
+      // Haptics
+      sendMessage('gen_vibration', { duration: 50 }, false, null);
+
+      // Check Win Condition
+      if (state.taps >= GAME_CONFIG.winCount) {
+        triggerWin();
+      }
+    }
+
+    function triggerWin() {
+      state.isWon = true;
+      state.velocity = 200; // Force very high speed for infinite spin effect
+      elements.winModal.classList.add('active');
+      
+      // Update Final Time Display
+      const elapsed = (Date.now() - state.startTime) / 1000;
+      const finalTimeStr = elapsed.toFixed(2) + 's';
+      document.getElementById('final-time-display').textContent = finalTimeStr;
+
+      // Save Result
+      sendMessage('save_app_result', {
+        score: state.taps,
+        public: true,
+        result: { timeStr: finalTimeStr }
+      }, false, null);
+
+      // Visuals - Clean up background UI
+      elements.counter.style.opacity = '0';
+      elements.speedLabel.style.opacity = '0';
+      elements.timer.style.opacity = '0';
+    }
+
+    function resetGame() {
+      state.isWon = false;
+      state.started = false;
+      state.taps = 0;
+      state.velocity = 0;
+      state.rotation = 0;
+      
+      updateCounter();
+      const titleTextValue = getEditableValue('text', 'titleText') || "Tap to Spin!";
+      elements.speedLabel.textContent = titleTextValue;
+      elements.timer.textContent = "0.00s";
+      
+      // Restore UI visibility
+      elements.counter.style.opacity = '1';
+      elements.speedLabel.style.opacity = '1';
+      elements.timer.style.opacity = '1';
+
+      elements.winModal.classList.remove('active');
+      elements.catImage.style.filter = "none";
+      elements.catWrapper.style.transform = "rotate(0deg)";
+      if (elements.tapHint) elements.tapHint.classList.remove('hidden');
+      
+      // Reset audio
+      stopAllAudio();
+      state.currentAudioState = 'none';
+    }
+
+    function handleChallenge() {
+      sendMessage('invoke_share', {
+        title: `I reached infinite velocity with ${state.taps} taps! Can you handle the spin?`,
+      }, false, null);
+    }
+
+    function updateCounter() {
+      elements.counter.textContent = state.taps;
+      // Small scale pop on text
+      elements.counter.style.transform = "scale(1.3)";
+      setTimeout(() => elements.counter.style.transform = "scale(1)", 100);
+    }
+
+    function triggerBounce() {
+      // Scale down slightly then back up
+      elements.catWrapper.style.transform = `scale(0.95) rotate(${state.rotation}deg)`;
+      setTimeout(() => {
+        elements.catWrapper.style.transform = `scale(1.0) rotate(${state.rotation}deg)`; // Will be overwritten by loop but gives momentary effect
+      }, 50);
+    }
+
+    function createRipple(x, y) {
+      const ripple = document.createElement('div');
+      ripple.className = 'ripple';
+      // If x/y undefined (e.g. keyboard), center it
+      if (!x || !y) {
+        x = window.innerWidth / 2;
+        y = window.innerHeight / 2;
+      }
+      
+      const size = 100;
+      ripple.style.width = size + 'px';
+      ripple.style.height = size + 'px';
+      ripple.style.left = (x - size/2) + 'px';
+      ripple.style.top = (y - size/2) + 'px';
+      
+      elements.container.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 600);
+    }
+
+    function updateAudio(velocity) {
+      let desiredState = 'none';
+
+      if (state.isWon) {
+        desiredState = 'win';
+      } else if (velocity > GAME_CONFIG.thresholdMed) {
+        desiredState = 'medium';
+      } else if (velocity > GAME_CONFIG.thresholdSlow) {
+        desiredState = 'slow';
+      } else {
+        desiredState = 'none';
+      }
+
+      if (desiredState !== state.currentAudioState) {
+        // Transition
+        stopAllAudio();
+        
+        if (desiredState !== 'none') {
+          const track = state.audioObjects[desiredState];
+          if (track) {
+            track.currentTime = 0;
+            track.play().catch(e => console.log('Audio play blocked', e));
+          }
+        }
+        
+        state.currentAudioState = desiredState;
+        
+        // Update label text if not won
+        if (!state.isWon) {
+          if (desiredState === 'medium') elements.speedLabel.textContent = "MAXIMUM OVERDRIVE!";
+          else if (desiredState === 'slow') elements.speedLabel.textContent = "Keep going!";
+          else {
+            const titleTextValue = getEditableValue('text', 'titleText') || "Tap to Spin!";
+            elements.speedLabel.textContent = titleTextValue;
+          }
+        }
+      }
+    }
+
+    function stopAllAudio() {
+      ['slow', 'medium', 'win'].forEach(key => {
+        const audio = state.audioObjects[key];
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      });
+    }
+
+    function gameLoop() {
+      // Timer Update
+      if (state.started && !state.isWon) {
+        const elapsed = (Date.now() - state.startTime) / 1000;
+        elements.timer.textContent = elapsed.toFixed(2) + 's';
+      }
+
+      // Physics
+      if (!state.isWon) {
+        // Apply friction
+        state.velocity *= GAME_CONFIG.friction;
+        if (state.velocity < 0.1) state.velocity = 0;
+        
+        // Apply rotation during gameplay
+        state.rotation += state.velocity;
+        state.rotation = state.rotation % 360;
+      } else {
+        // Win state: Maintain infinite high speed spin
+        state.velocity = 200;
+        state.rotation += state.velocity;
+        state.rotation = state.rotation % 360;
+      }
+
+      // Render Rotation (Always rotate based on state.rotation)
+      elements.catWrapper.style.transform = `rotate(${state.rotation}deg)`;
+
+      // Audio Logic
+      updateAudio(state.velocity);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    /* =========================================
+       COMMUNICATION HELPER
+       ========================================= */
+    function sendMessage(type, data, expectResponse, expectedType) {
+      const taskId = crypto.randomUUID();
+      window.parent.postMessage({ origin:'sekai_gaming_iframe_api', type, taskId, data }, '*');
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', initApp);
+
+  </script>
+</body>
+</html>

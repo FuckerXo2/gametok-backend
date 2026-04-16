@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>World's Hardest Button</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="vendor/tailwind.css"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="vendor/fontawesome/all.min.css">
+    
+    <!-- Snapdom -->
+    <script type="module">
+      import { snapdom } from 'https://cdn.jsdelivr.net/npm/@zumer/snapdom@2.0.2/+esm';
+      window.snapdom = snapdom;
+    </script>
+
+    <style>
+        :root {
+            --color-primary: #3b82f6;
+            --color-bg: #eff6ff;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--color-bg);
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Overlay Visibility Pattern */
+        .overlay {
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, visibility 0.3s;
+        }
+        .overlay.visible {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* End Screen Scroll */
+        #reveal-screen {
+            touch-action: pan-y !important;
+        }
+        #reveal-screen * {
+            touch-action: pan-y !important;
+        }
+
+        .btn-primary {
+            background-color: var(--color-primary);
+        }
+
+        /* Custom Button Press Animation */
+        .action-btn {
+            box-shadow: 0 12px 0 rgb(37, 99, 235);
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .action-btn:active {
+            box-shadow: 0 0px 0 rgb(37, 99, 235);
+            transform: translateY(12px) scale(0.98);
+        }
+    </style>
+<!-- sekai:backdrop-fix -->
+<style>*,::before,::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}</style>
+</head>
+<body class="flex flex-col relative text-slate-800">
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+    <!-- Audio Unlock Script (iOS Requirement) -->
+    <script>
+        (function() {
+            let audioUnlocked = false;
+            function unlockAudioContext() {
+                if (audioUnlocked) return;
+                if ('audioSession' in window.navigator) {
+                    window.navigator.audioSession.type = "playback";
+                }
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        const context = new AudioContext();
+                        if (context.state === 'suspended') context.resume();
+                        const buffer = context.createBuffer(1, 1, 22050);
+                        const source = context.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(context.destination);
+                        source.start(0);
+                    }
+                } catch (e) {}
+                try {
+                    const audio = new Audio();
+                    audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+                    audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+                } catch (e) {}
+                audioUnlocked = true;
+            }
+            window.addEventListener('message', function(event) {
+                if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+                    unlockAudioContext();
+                }
+            });
+            ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+                document.addEventListener(event, unlockAudioContext, { once: true });
+            });
+        })();
+    </script>
+
+    <!-- Hidden Audio Elements -->
+    <audio id="music-bgm" loop></audio>
+    <audio id="sfx-tap"></audio>
+    <audio id="sfx-fail"></audio>
+
+    <!-- MAIN APP AREA -->
+    <div id="app" class="w-full h-full flex flex-col relative bg-cover bg-center">
+        
+        <!-- Header -->
+        <header class="w-full p-6 flex justify-between items-center z-10 shrink-0">
+            <h1 id="game-title" class="text-xl font-black text-slate-700 tracking-tight">World's Hardest Button</h1>
+            <div class="bg-slate-800 text-white px-4 py-2 rounded-full font-bold text-sm shadow-md flex items-center">
+                <i class="fa-solid fa-layer-group mr-2 text-blue-400"></i>
+                <span id="level-display">Level 1</span>
+            </div>
+        </header>
+
+        <!-- Gameplay Area -->
+        <main class="flex-1 flex flex-col items-center justify-center p-6 space-y-16 w-full max-w-md mx-auto relative z-10">
+            
+            <!-- Timing Bar -->
+            <div class="w-full bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col space-y-6">
+                <p id="game-instruction" class="text-slate-500 font-bold text-center text-sm uppercase tracking-wide">
+                    Tap when the line is in the green zone to win.
+                </p>
+                <div class="w-full h-16 bg-slate-100 rounded-2xl relative overflow-hidden border-2 border-slate-200 shadow-inner">
+                    <div id="target-zone" class="absolute h-full w-1/5 bg-emerald-400 border-x-4 border-emerald-500 transition-all duration-150 ease-out" style="left: 40%;"></div>
+                    <div id="cursor-line" class="absolute top-0 h-full w-2 bg-rose-500 shadow-md z-10 -ml-1" style="left: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- Big Button -->
+            <div class="h-64 flex items-center justify-center relative w-full">
+                <button id="tap-btn" class="action-btn w-56 h-56 rounded-full btn-primary flex flex-col items-center justify-center outline-none touch-manipulation z-20">
+                    <span class="text-white font-black text-5xl tracking-widest drop-shadow-md pointer-events-none">TAP</span>
+                </button>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- FEEDBACK OVERLAY -->
+    <div id="feedback-overlay" class="overlay absolute inset-0 bg-slate-900/85 backdrop-blur-sm z-40 flex flex-col items-center justify-center p-6 text-center">
+        <div class="bg-white rounded-3xl p-8 w-full max-w-sm flex flex-col items-center shadow-2xl transform transition-transform scale-95 duration-300" id="feedback-card">
+            
+            <h2 id="feedback-title" class="text-4xl font-black text-red-500 drop-shadow-md mb-2 uppercase italic tracking-tighter">TOO LATE!</h2>
+            <p id="feedback-subtitle" class="text-slate-400 font-bold text-sm mb-6 uppercase tracking-widest">Almost! Try Again!</p>
+
+            <div class="bg-slate-50 rounded-2xl p-6 w-full mb-8 relative border border-slate-200 shadow-inner">
+                <i class="fa-solid fa-quote-left absolute top-4 left-4 text-xl text-slate-200"></i>
+                <p id="feedback-msg" class="text-slate-600 font-bold text-lg italic leading-snug relative z-10 px-4">Wow, that was impressively bad.</p>
+                <i class="fa-solid fa-quote-right absolute bottom-4 right-4 text-xl text-slate-200"></i>
+            </div>
+
+            <button id="next-btn" class="w-full py-5 bg-slate-800 text-white font-black rounded-2xl shadow-md hover:bg-slate-700 active:scale-95 transition-transform flex justify-center items-center text-xl tracking-wide uppercase touch-manipulation">
+                Next Level <i class="fa-solid fa-arrow-right ml-3"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- REVEAL SCREEN -->
+    <div id="reveal-screen" class="hidden flex-col items-center justify-center w-full h-full bg-slate-900 absolute inset-0 z-50 p-6 overflow-y-auto">
+        
+        <div id="share-zone" class="bg-white rounded-[2rem] p-8 w-full max-w-sm flex flex-col items-center shadow-2xl relative overflow-hidden mt-8 shrink-0">
+            <!-- Decoration Background -->
+            <div class="absolute -top-12 -right-8 text-slate-100 opacity-30 select-none">
+                <i class="fa-solid fa-face-grin-squint-tears text-9xl"></i>
+            </div>
+            <div class="absolute -bottom-8 -left-8 text-slate-100 opacity-30 select-none">
+                <i class="fa-solid fa-gamepad text-8xl"></i>
+            </div>
+
+            <!-- Content -->
+            <div class="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest mb-4 z-10 shadow-sm">
+                Official Result
+            </div>
+            
+            <h2 class="text-4xl font-black text-slate-800 text-center mb-3 z-10 uppercase tracking-tighter leading-none">
+                You Got<br><span class="text-blue-500">Pranked!</span>
+            </h2>
+            
+            <div class="w-16 h-1.5 bg-slate-200 rounded-full mb-6 z-10"></div>
+
+            <p class="text-center text-slate-600 font-bold mb-8 z-10 text-lg leading-snug">
+                There is no winning.<br>
+                The game is rigged.<br>
+                But you survived <span class="font-black text-blue-600 text-2xl" id="final-level-score">6</span> levels!
+            </p>
+
+            <div class="bg-slate-50 rounded-2xl p-4 w-full flex items-center justify-center space-x-4 z-10 border-2 border-slate-100">
+                <div class="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-award text-yellow-500 text-2xl"></i>
+                </div>
+                <div class="flex flex-col text-left flex-1">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Player Title</span>
+                    <span class="text-sm text-slate-700 font-black leading-tight">Gullible but Persistent</span>
+                </div>
+            </div>
+        </div>
+
+        <button id="share-btn" class="mt-8 mb-12 bg-blue-500 hover:bg-blue-600 text-white font-black py-5 px-8 rounded-2xl shadow-[0_8px_0_rgb(37,99,235)] active:shadow-[0_0px_0_rgb(37,99,235)] active:translate-y-2 transition-all flex items-center w-full max-w-sm justify-center text-xl tracking-wide uppercase shrink-0">
+            <i class="fa-solid fa-share-nodes mr-3 text-2xl"></i> Challenge a Friend
+        </button>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script>
+        // ==========================================
+        // SEKAI EDITABLE METADATA
+        // ==========================================
+        window.sekaiEditable = {
+  "tune": [
+    {
+      "id": "maxLevels",
+      "label": "Total Levels",
+      "type": "slider",
+      "min": 3,
+      "max": 10,
+      "step": 1,
+      "value": 6,
+      "path": "appState.config.maxLevels"
+    }
+  ],
+  "images": [
+    {
+      "id": "bgImage",
+      "label": "Background Image",
+      "type": "image",
+      "value": "images/8a57ab5d-ec83-4105-8304-2c197cc9ed74.webp",
+      "description": "Funny subtle pattern",
+      "selector": "#app",
+      "property": "backgroundImage"
+    }
+  ],
+  "videos": [],
+  "music": [
+    {
+      "id": "bgm",
+      "label": "Background Music",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/chat-creation/1dd5be47-1236-4e3d-9a02-5a7c2fdb54c6.mp3",
+      "name": "",
+      "selector": "#music-bgm"
+    }
+  ],
+  "sfx": [
+    {
+      "id": "tap",
+      "label": "Tap Sound",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/chat-creation/1927bbc4-cc2a-42be-8c61-8b63ca4d9719.mp3",
+      "name": "",
+      "selector": "#sfx-tap"
+    },
+    {
+      "id": "fail",
+      "label": "Fail Sound",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/chat-creation/ddfe7b71-966e-4a4f-be43-610ff6ee633c.mp3",
+      "name": "",
+      "selector": "#sfx-fail"
+    }
+  ],
+  "colors": [
+    {
+      "id": "primary",
+      "label": "Primary Color",
+      "type": "color",
+      "value": "#3b82f6",
+      "cssVar": "--color-primary"
+    },
+    {
+      "id": "bg",
+      "label": "Background Color",
+      "type": "color",
+      "value": "#eff6ff",
+      "cssVar": "--color-bg"
+    }
+  ],
+  "text": [
+    {
+      "id": "title",
+      "label": "Game Title",
+      "type": "text",
+      "value": "World's Hardest Button",
+      "selector": "#game-title"
+    },
+    {
+      "id": "instruction",
+      "label": "Instruction",
+      "type": "text",
+      "value": "Tap when the line is in the green zone to win.",
+      "selector": "#game-instruction"
+    }
+  ],
+  "prompts": [],
+  "voices": []
+};
+
+        // Helper: Get Config
+        function getConfig(category, id) {
+            return window.sekaiEditable[category]?.find(i => i.id === id)?.value;
+        }
+
+        // Helper: Set Nested Value
+        function setNestedValue(obj, path, value) {
+            const parts = path.split('.');
+            let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) current[parts[i]] = {};
+                current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
+        }
+
+        // Apply Config
+        function applyAllEditableValues() {
+            window.sekaiEditable.tune?.forEach(t => {
+                if (t.path) setNestedValue(window, t.path, t.value);
+            });
+            window.sekaiEditable.colors?.forEach(c => {
+                if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value);
+            });
+            window.sekaiEditable.images?.forEach(img => {
+                if (img.selector) {
+                    const el = document.querySelector(img.selector);
+                    if (el) {
+                        if (img.property === 'src') el.src = img.value;
+                        else if (img.property === 'backgroundImage' && img.value) el.style.backgroundImage = `url('${img.value}')`;
+                    }
+                }
+            });
+            window.sekaiEditable.music?.forEach(m => {
+                if (m.selector) {
+                    const el = document.querySelector(m.selector);
+                    if (el && el.src !== m.value) {
+                        el.src = m.value;
+                        el.load();
+                    }
+                }
+            });
+            window.sekaiEditable.sfx?.forEach(s => {
+                if (s.selector) {
+                    const el = document.querySelector(s.selector);
+                    if (el && el.src !== s.value) {
+                        el.src = s.value;
+                        el.load();
+                    }
+                }
+            });
+            window.sekaiEditable.text?.forEach(t => {
+                if (t.selector) {
+                    const el = document.querySelector(t.selector);
+                    if (el) {
+                        if (t.property === 'placeholder') el.placeholder = t.value;
+                        else el.textContent = t.value;
+                    }
+                }
+            });
+        }
+
+        // Preview Editing API
+        (function setupPreviewEditingAPI() {
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+
+                switch (msg.type) {
+                    case 'get_editable_metadata':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_editable_metadata',
+                            taskId: msg.taskId,
+                            data: window.sekaiEditable || {}
+                        }, '*');
+                        break;
+                    case 'apply_change':
+                        const success = applySingleChange(msg.data.id, msg.data.value);
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_apply_change',
+                            taskId: msg.taskId,
+                            data: { success }
+                        }, '*');
+                        break;
+                    case 'get_current_html':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_current_html',
+                            taskId: msg.taskId,
+                            data: { html: document.documentElement.outerHTML }
+                        }, '*');
+                        break;
+                    case 'reset_changes':
+                        location.reload();
+                        break;
+                }
+            });
+
+            function applySingleChange(id, value) {
+                const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+                for (const cat of categories) {
+                    const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+                    if (!item) continue;
+                    item.value = value;
+                    if (item.cssVar) {
+                        document.documentElement.style.setProperty(item.cssVar, value);
+                    } else if (item.path) {
+                        setNestedValue(window, item.path, value);
+                    } else if (item.selector) {
+                        const el = document.querySelector(item.selector);
+                        if (!el) return false;
+                        if (el.tagName === 'AUDIO') {
+                            const wasPlaying = !el.paused;
+                            el.src = value;
+                            el.load();
+                            if (wasPlaying) el.play().catch(() => {});
+                        } else if (el.tagName === 'VIDEO') {
+                            el.src = value;
+                            el.load();
+                        } else if (item.property === 'src') {
+                            el.src = value;
+                        } else if (item.property === 'backgroundImage') {
+                            el.style.backgroundImage = `url('${value}')`;
+                        } else if (item.property === 'placeholder') {
+                            el.placeholder = value;
+                        } else {
+                            el.textContent = value;
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            }
+        })();
+
+        // ==========================================
+        // COMMUNICATION API
+        // ==========================================
+        function sendMessage(type, data, expectsResponse = true, sessionCode = null) {
+            const taskId = crypto.randomUUID();
+            const msg = { origin: 'sekai_gaming_iframe_api', type, taskId, data };
+            if (sessionCode) msg.sessionCode = sessionCode;
+            window.parent.postMessage(msg, '*');
+            
+            if (!expectsResponse) return Promise.resolve();
+
+            return new Promise((resolve, reject) => {
+                const handler = (event) => {
+                    if (event.data?.origin !== 'sekai_gaming_iframe_api') return;
+                    if (event.data?.taskId === taskId) {
+                        window.removeEventListener('message', handler);
+                        if (event.data.error) reject(event.data.error);
+                        else resolve(event.data.data);
+                    }
+                };
+                window.addEventListener('message', handler);
+            });
+        }
+
+        // ==========================================
+        // GAME STATE & LOGIC
+        // ==========================================
+        window.appState = {
+            config: { maxLevels: 6 },
+            level: 1,
+            gameState: 'idle', // 'idle', 'playing', 'dodging', 'feedback', 'reveal'
+            cursorPos: 0,
+            dir: 1,
+            speed: 1,
+            targetPos: 40,
+            targetJumped: false,
+            buttonDodged: false,
+            lastTime: performance.now()
+        };
+
+        const state = window.appState;
+        let animationFrameId = null;
+
+        const sarcasticMessages = [
+            "Wow, that was impressively bad.",
+            "You were closer... emotionally.",
+            "This is harder than it looks, huh?",
+            "My grandma could do this. And she doesn't exist.",
+            "Are you tapping with your elbows?",
+            "Error 404: Timing not found.",
+            "Did you even look at the screen?",
+            "I've seen better reflexes on a rock.",
+            "Even autofill could tap better than that.",
+            "That attempt was a crime against gaming."
+        ];
+
+        function getRandomSarcasticMessage() {
+            return sarcasticMessages[Math.floor(Math.random() * sarcasticMessages.length)];
+        }
+
+        // ==========================================
+        // AUDIO SYSTEM (PROCEDURAL & FALLBACKS)
+        // ==========================================
+        let audioCtx;
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        }
+
+        function initBGM() {
+            const el = document.getElementById('music-bgm');
+            if (!el?.src) return;
+            el.loop = true;
+            el.volume = 0.5;
+            const playBgm = () => {
+                el.play().catch(() => {
+                    document.addEventListener('touchstart', playBgm, { once: true });
+                    document.addEventListener('click', playBgm, { once: true });
+                });
+            };
+            playBgm();
+        }
+
+        function playProceduralSound(type) {
+            const ctx = getAudioContext();
+            const customBuzzer = document.getElementById('sfx-fail');
+            const customTap = document.getElementById('sfx-tap');
+
+            if (type === 'tap') {
+                if (customTap?.src) { customTap.currentTime=0; customTap.play().catch(()=>{}); return; }
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            } else if (type === 'buzzer') {
+                if (customBuzzer?.src) { customBuzzer.currentTime=0; customBuzzer.play().catch(()=>{}); return; }
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, ctx.currentTime);
+                osc.frequency.setValueAtTime(120, ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.5);
+            } else if (type === 'woosh') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.2);
+            } else if (type === 'tada') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, ctx.currentTime);
+                osc.frequency.setValueAtTime(600, ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.2);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.6);
+            } else if (type === 'scratch') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+                osc.frequency.linearRampToValueAtTime(50, ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            }
+        }
+
+        // ==========================================
+        // RENDERING & LOOP
+        // ==========================================
+        function updateTargetUI() {
+            document.getElementById('target-zone').style.left = `${state.targetPos}%`;
+        }
+
+        function updateCursorUI() {
+            document.getElementById('cursor-line').style.left = `${state.cursorPos}%`;
+        }
+
+        function gameLoop(time) {
+            if (state.gameState !== 'playing') {
+                state.lastTime = time;
+                animationFrameId = requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            const dt = time - state.lastTime;
+            state.lastTime = time;
+
+            // Move cursor
+            const moveAmt = state.speed * (dt / 16);
+            state.cursorPos += moveAmt * state.dir;
+
+            if (state.cursorPos >= 100) {
+                state.cursorPos = 100;
+                state.dir = -1;
+            } else if (state.cursorPos <= 0) {
+                state.cursorPos = 0;
+                state.dir = 1;
+            }
+
+            // Troll 3: Target jump
+            if (state.level === 3 && !state.targetJumped) {
+                const distance = Math.abs(state.cursorPos - (state.targetPos + 10)); // +10 for center of 20% width
+                if (distance < 15) {
+                    state.targetJumped = true;
+                    state.targetPos = state.targetPos > 50 ? 10 : 70;
+                    updateTargetUI();
+                    playProceduralSound('woosh');
+                }
+            }
+
+            updateCursorUI();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function startLevel() {
+            if (state.level > state.config.maxLevels) {
+                showReveal();
+                return;
+            }
+
+            state.gameState = 'playing';
+            state.cursorPos = 0;
+            state.dir = 1;
+            state.buttonDodged = false;
+            state.targetJumped = false;
+            state.targetPos = 40; 
+            
+            const btn = document.getElementById('tap-btn');
+            btn.style.transform = 'none';
+
+            let displayLevel = `Level ${state.level}`;
+            if (state.level === 5) {
+                displayLevel = `FINAL LEVEL!`;
+                state.speed = 1.6;
+            } else if (state.level === 6) {
+                displayLevel = `ACTUAL FINAL LEVEL`;
+                state.speed = 3.5; 
+            } else {
+                state.speed = 1 + (state.level * 0.2); 
+            }
+            
+            document.getElementById('level-display').textContent = displayLevel;
+            updateTargetUI();
+            document.getElementById('feedback-overlay').classList.remove('visible');
+            
+            state.lastTime = performance.now();
+        }
+
+        // ==========================================
+        // INTERACTION
+        // ==========================================
+        function showFeedback(title, message, isFakeWin = false) {
+            state.gameState = 'feedback';
+            
+            const overlay = document.getElementById('feedback-overlay');
+            const card = document.getElementById('feedback-card');
+            const titleEl = document.getElementById('feedback-title');
+            const msgEl = document.getElementById('feedback-msg');
+            const subtitle = document.getElementById('feedback-subtitle');
+            const btn = document.getElementById('next-btn');
+
+            titleEl.textContent = title;
+            msgEl.textContent = message;
+
+            if (isFakeWin) {
+                titleEl.className = 'text-5xl font-black text-yellow-400 drop-shadow-lg uppercase italic tracking-tighter';
+                subtitle.textContent = "INCREDIBLE!";
+                btn.classList.add('hidden');
+                overlay.classList.add('visible');
+                card.classList.add('scale-100');
+
+                sendMessage('gen_vibration', { duration: 200 }, false, null);
+
+                setTimeout(() => {
+                    playProceduralSound('scratch');
+                    titleEl.textContent = "JUST KIDDING";
+                    titleEl.className = 'text-4xl font-black text-red-500 drop-shadow-md uppercase italic tracking-tighter';
+                    subtitle.textContent = "Almost! Try Again!";
+                    msgEl.textContent = "You were way off. Let's move on.";
+                    btn.classList.remove('hidden');
+                    sendMessage('gen_vibration', { duration: 100 }, false, null);
+                }, 2000);
+            } else {
+                titleEl.className = 'text-4xl font-black text-red-500 drop-shadow-md uppercase italic tracking-tighter';
+                subtitle.textContent = "Almost! Try Again!";
+                btn.classList.remove('hidden');
+                overlay.classList.add('visible');
+                card.classList.add('scale-100');
+                sendMessage('gen_vibration', { duration: 80 }, false, null);
+            }
+        }
+
+        function handleTap() {
+            if (state.gameState !== 'playing') return;
+            state.gameState = 'feedback';
+            playProceduralSound('tap');
+
+            // Evaluate fake miss
+            let title = state.cursorPos > (state.targetPos + 10) ? "TOO LATE!" : "TOO EARLY!";
+            let msg = getRandomSarcasticMessage();
+
+            // Fake win on level 5
+            if (state.level === 5) {
+                playProceduralSound('tada');
+                showFeedback("PERFECT!", "Flawless execution! You actually did it!", true);
+                return;
+            }
+
+            playProceduralSound('buzzer');
+            showFeedback(title, msg);
+        }
+
+        document.getElementById('tap-btn').addEventListener('pointerdown', (e) => {
+            if (state.gameState !== 'playing') return;
+            
+            // Troll 4: Dodging button
+            if (state.level === 4 && !state.buttonDodged) {
+                state.buttonDodged = true;
+                state.gameState = 'dodging'; // prevent further taps
+                e.preventDefault();
+                
+                const btn = document.getElementById('tap-btn');
+                const offset = Math.random() > 0.5 ? 90 : -90;
+                btn.style.transform = `translate(${offset}px, -150px) scale(0.6)`;
+                playProceduralSound('woosh');
+
+                setTimeout(() => {
+                    playProceduralSound('buzzer');
+                    showFeedback("MISSED!", "You literally missed the button. How is that possible?");
+                }, 400);
+                return;
+            }
+
+            handleTap();
+        });
+
+        document.getElementById('next-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            if (e.target.closest('button').classList.contains('hidden')) return;
+            
+            document.getElementById('feedback-card').classList.remove('scale-100');
+            state.level++;
+            startLevel();
+        });
+
+        // ==========================================
+        // REVEAL & SHARE
+        // ==========================================
+        function showReveal() {
+            state.gameState = 'reveal';
+            document.getElementById('app').classList.add('hidden');
+            const revealScreen = document.getElementById('reveal-screen');
+            revealScreen.classList.remove('hidden');
+            revealScreen.classList.add('flex');
+            
+            document.getElementById('final-level-score').textContent = state.config.maxLevels;
+            
+            playProceduralSound('tada');
+            sendMessage('gen_vibration', { duration: 300 }, false, null);
+        }
+
+        document.getElementById('share-btn').addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            if (btn.dataset.loading === 'true') return;
+            
+            btn.dataset.loading = 'true';
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-3 text-2xl"></i> Generating...';
+
+            try {
+                const element = document.getElementById('share-zone');
+                const targetScale = 2;
+                
+                // We ensure snapdom is loaded. Wait for module if needed.
+                if (!window.snapdom) await new Promise(r => setTimeout(r, 500));
+                
+                const jpgImg = await window.snapdom.toJpg(element, {
+                    quality: 0.8,
+                    width: element.offsetWidth * targetScale,
+                    height: element.offsetHeight * targetScale,
+                });
+
+                sendMessage('invoke_share', {
+                    title: "I got pranked by the World's Hardest Button! Can you beat it?",
+                    coverImageBase64: jpgImg.src
+                }, false);
+            } catch (err) {
+                console.error('Share failed', err);
+            } finally {
+                btn.dataset.loading = 'false';
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        });
+
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        function initApp() {
+            applyAllEditableValues();
+            initBGM();
+            
+            // Add interaction listeners for audio context unlocking as fallback
+            const touchStartHandler = () => { getAudioContext(); document.removeEventListener('touchstart', touchStartHandler); };
+            document.addEventListener('touchstart', touchStartHandler);
+
+            startLevel();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+
+    </script>
+</body>
+</html>

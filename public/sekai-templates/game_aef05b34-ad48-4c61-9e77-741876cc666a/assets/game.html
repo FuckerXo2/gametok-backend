@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Pizza Slice</title>
+  
+  <!-- Audio Unlock Script -->
+  <script>
+  (function() {
+    let audioUnlocked = false;
+    function unlockAudioContext() {
+      if (audioUnlocked) return;
+      if ('audioSession' in window.navigator) {
+        window.navigator.audioSession.type = "playback";
+      }
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          const context = new AudioContext();
+          if (context.state === 'suspended') context.resume();
+          const buffer = context.createBuffer(1, 1, 22050);
+          const source = context.createBufferSource();
+          source.buffer = buffer;
+          source.connect(context.destination);
+          source.start(0);
+        }
+      } catch (e) {}
+      audioUnlocked = true;
+    }
+    window.addEventListener('message', function(event) {
+      if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+        unlockAudioContext();
+      }
+    });
+    ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+      document.addEventListener(event, unlockAudioContext, { once: true });
+    });
+  })();
+  </script>
+
+  <!-- CDNs -->
+  <script src="vendor/tailwind.css"></script>
+  <link rel="stylesheet" href="vendor/fontawesome/all.min.css">
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background-color: #FFF8F0;
+      color: #3D2914;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Layers */
+    .layer-ui { z-index: 50; pointer-events: none; }
+    .layer-canvas { z-index: 10; touch-action: none; }
+    
+    .interactive { pointer-events: auto; }
+
+    /* Animations */
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+    
+    .animate-float {
+      animation: float 3s ease-in-out infinite;
+    }
+
+    /* Landscape Overlay */
+    #landscape-overlay {
+      display: none;
+    }
+    @media (orientation: landscape) {
+      #landscape-overlay {
+        display: flex;
+      }
+    }
+  </style>
+<!-- sekai:dvh-fix -->
+</head>
+<body>
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+  <!-- Game Container -->
+  <div id="game-container" class="flex flex-col items-center justify-between">
+    
+    <!-- Canvas Layer -->
+    <canvas id="gameCanvas" class="layer-canvas absolute inset-0 w-full h-full"></canvas>
+
+    <!-- UI Layer: Top -->
+    <div class="layer-ui absolute top-0 w-full pt-8 pb-4 px-4 flex justify-center items-start">
+      <div class="relative w-full flex flex-col items-center">
+        <h1 id="cta-text" class="text-3xl font-black text-[#3D2914] drop-shadow-sm text-center tracking-tight transition-all duration-300 transform">
+          TAP TO CUT
+        </h1>
+        <div id="level-badge" class="mt-2 px-4 py-1 bg-[#D4A574] text-white rounded-full text-sm font-bold shadow-sm opacity-90 transition-all duration-300">
+          LEVEL 1
+        </div>
+        <button id="retry-btn" class="absolute right-0 top-14 w-10 h-10 bg-white text-[#E85D4C] rounded-full shadow-lg flex items-center justify-center text-lg transition-all duration-300 opacity-0 scale-0 pointer-events-auto hover:scale-110 active:scale-95">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- UI Layer: Bottom (Results) -->
+    <div id="results-panel" class="layer-ui absolute bottom-0 w-full pb-12 pt-8 px-6 flex flex-col items-center opacity-0 translate-y-10 transition-all duration-500">
+      
+      <!-- Stars Container -->
+      <div id="stars-container" class="flex gap-2 text-4xl text-[#E0E0E0] mb-3">
+        <i class="fa-solid fa-star transform transition-all duration-300 scale-0"></i>
+        <i class="fa-solid fa-star transform transition-all duration-300 scale-0"></i>
+        <i class="fa-solid fa-star transform transition-all duration-300 scale-0"></i>
+        <i class="fa-solid fa-star transform transition-all duration-300 scale-0"></i>
+        <i class="fa-solid fa-star transform transition-all duration-300 scale-0"></i>
+      </div>
+
+      <!-- Rating Text -->
+      <div id="rating-text" class="text-2xl font-bold text-[#E85D4C] mb-6 drop-shadow-sm scale-0 transition-transform duration-300">
+        Perfect!
+      </div>
+
+      <!-- Continue Button -->
+      <button id="next-btn" class="interactive bg-[#4CAF50] text-white px-10 py-4 rounded-full text-xl font-black shadow-lg hover:scale-105 active:scale-95 transition-all transform pointer-events-auto">
+        NEXT PIZZA
+      </button>
+    </div>
+
+    <!-- Shake Wrapper for Canvas Effect -->
+    <div id="shake-wrapper" class="absolute inset-0 pointer-events-none"></div>
+
+    <!-- Tap Hint -->
+    <div id="tap-hint" class="layer-ui absolute inset-0 flex justify-center pointer-events-none transition-opacity duration-500">
+      <div id="hint-icon" class="absolute" style="top: 22%;">
+        <i class="fa-solid fa-hand-point-down text-5xl text-[#3D2914] drop-shadow-md animate-bounce"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Landscape Warning -->
+  <div id="landscape-overlay" class="fixed inset-0 z-[100] bg-[#FFF8F0] flex flex-col items-center justify-center p-8 text-center">
+    <div class="text-6xl text-[#E85D4C] mb-4"><i class="fa-solid fa-mobile-screen-button fa-rotate-270"></i></div>
+    <h2 class="text-2xl font-bold text-[#3D2914]">Please Rotate Device</h2>
+    <p class="text-[#B8956A] mt-2">This pizza is best served in portrait mode.</p>
+    <button onclick="document.getElementById('landscape-overlay').style.display='none'" class="mt-8 px-6 py-2 border-2 border-[#D4A574] text-[#D4A574] rounded-full font-bold">Dismiss</button>
+  </div>
+
+<script>
+/**
+ * PIZZA SLICE - GAME LOGIC
+ */
+
+// --- Global Prompts & Constants ---
+const COLORS = {
+  bg: '#FFF8F0',
+  crust: '#D4A574',
+  crustDark: '#B8956A',
+  sauce: '#E85D4C',
+  cheese: '#FFD93D',
+  pepperoni: '#C41E3A',
+  basil: '#4A7C59',
+  cutLine: '#FFFFFF',
+  text: '#3D2914'
+};
+
+function getLevelConfig(idx) {
+  const slices = (idx + 1) * 2;
+  return { slices: slices, cuts: slices / 2 };
+}
+
+// --- State Management ---
+const state = {
+  levelIndex: 0,
+  levelPassed: false,
+  currentCuts: [], // Array of angles (radians)
+  particles: [],
+  pizzaScale: 0, // For entry/exit animations
+  pizzaRotation: 0,
+  phase: 'intro', // intro, playing, cutting, result, outro
+  shake: { x: 0, y: 0, time: 0 },
+  score: 0,
+  slicesData: [], // Calculated slice percentages
+  pizzaSeed: 1234, // Random seed for toppings consistency
+  lastTime: 0
+};
+
+// --- Audio System ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const masterGain = audioCtx.createGain();
+masterGain.connect(audioCtx.destination);
+masterGain.gain.value = 0.5;
+
+function playSound(type, val) {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(masterGain);
+
+  const now = audioCtx.currentTime;
+
+  if (type === 'cut') {
+    // Slicing sound
+    const bufferSize = audioCtx.sampleRate * 0.15;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 1000;
+    const noiseGain = audioCtx.createGain();
+    
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(masterGain);
+    
+    noiseGain.gain.setValueAtTime(0.6, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    noise.start(now);
+  } else if (type === 'fail') {
+    const oscFail = audioCtx.createOscillator();
+    const gainFail = audioCtx.createGain();
+    oscFail.connect(gainFail);
+    gainFail.connect(masterGain);
+    oscFail.type = 'sawtooth';
+    oscFail.frequency.setValueAtTime(200, now);
+    oscFail.frequency.linearRampToValueAtTime(50, now + 0.6);
+    gainFail.gain.setValueAtTime(0.3, now);
+    gainFail.gain.linearRampToValueAtTime(0, now + 0.6);
+    oscFail.start(now);
+    oscFail.stop(now + 0.6);
+  } else if (type === 'star') {
+    // Ping
+    osc.type = 'sine';
+    const pitch = 440 + (val * 100);
+    osc.frequency.setValueAtTime(pitch, now);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+    osc.start(now);
+    osc.stop(now + 0.5);
+  } else if (type === 'success') {
+    // Chord
+    [0, 4, 7].forEach((interval, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g);
+      g.connect(masterGain);
+      o.type = 'triangle';
+      o.frequency.value = 440 * Math.pow(2, interval/12);
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.1, now + 0.1 + (i*0.05));
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+      o.start(now);
+      o.stop(now + 1.5);
+    });
+  }
+}
+
+// --- Haptics ---
+function vibrate(ms) {
+  window.parent.postMessage({
+    origin: 'sekai_gaming_iframe_api',
+    type: 'gen_vibration',
+    taskId: crypto.randomUUID(),
+    data: { duration: ms }
+  }, '*');
+}
+
+// --- Helper Functions ---
+function seededRandom(seed) {
+  const x = Math.sin(seed++) * 10000;
+  return x - Math.floor(x);
+}
+
+function normalizeAngle(angle) {
+  let a = angle % (Math.PI * 2);
+  if (a < 0) a += Math.PI * 2;
+  return a;
+}
+
+// --- Game Engine ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let w, h, centerX, centerY, pizzaRadius;
+
+function resize() {
+  w = canvas.width = window.innerWidth;
+  h = canvas.height = window.innerHeight;
+  centerX = w / 2;
+  centerY = h / 2;
+  // Pizza size: 85% of shortest dimension
+  pizzaRadius = Math.min(w, h) * 0.4;
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+// --- Topping Generation ---
+// Generate static toppings relative to radius 1.0
+function generateToppings(seed) {
+  let toppings = [];
+  let s = seed;
+  
+  // Pepperonis
+  for (let i = 0; i < 10; i++) {
+    const r = Math.sqrt(seededRandom(s++)) * 0.7; // Distribute area-wise
+    const theta = seededRandom(s++) * Math.PI * 2;
+    toppings.push({
+      type: 'pepperoni',
+      x: Math.cos(theta) * r,
+      y: Math.sin(theta) * r,
+      r: 0.1 + seededRandom(s++) * 0.05
+    });
+  }
+  
+  // Basil
+  for (let i = 0; i < 6; i++) {
+    const r = Math.sqrt(seededRandom(s++)) * 0.8;
+    const theta = seededRandom(s++) * Math.PI * 2;
+    toppings.push({
+      type: 'basil',
+      x: Math.cos(theta) * r,
+      y: Math.sin(theta) * r,
+      rot: seededRandom(s++) * Math.PI * 2,
+      size: 0.08 + seededRandom(s++) * 0.03
+    });
+  }
+
+  // Cheese spots
+  for (let i = 0; i < 15; i++) {
+    const r = Math.sqrt(seededRandom(s++)) * 0.85;
+    const theta = seededRandom(s++) * Math.PI * 2;
+    toppings.push({
+      type: 'cheese',
+      x: Math.cos(theta) * r,
+      y: Math.sin(theta) * r,
+      size: 0.05 + seededRandom(s++) * 0.04
+    });
+  }
+  
+  return toppings;
+}
+
+let currentToppings = [];
+
+function initLevel() {
+  const lvl = getLevelConfig(state.levelIndex);
+  state.currentCuts = [];
+  state.particles = [];
+  state.pizzaRotation = 0;
+  state.shake = { x: 0, y: 0, time: 0 };
+  state.slicesData = [];
+  state.phase = 'intro';
+  state.pizzaSeed += 1;
+  currentToppings = generateToppings(state.pizzaSeed);
+  
+  // Update UI
+  document.getElementById('cta-text').textContent = `TAP TO CUT INTO ${lvl.slices} SLICES`;
+  document.getElementById('level-badge').textContent = `LEVEL ${state.levelIndex + 1}`;
+  
+  // Reset Hint
+  document.getElementById('tap-hint').classList.remove('opacity-0');
+
+  // Reset Retry Button
+  document.getElementById('retry-btn').classList.add('opacity-0', 'scale-0');
+
+  // Reset Result UI
+  const resultPanel = document.getElementById('results-panel');
+  resultPanel.classList.remove('opacity-100', 'translate-y-0');
+  resultPanel.classList.add('opacity-0', 'translate-y-10');
+  
+  // Reset Stars
+  const stars = document.getElementById('stars-container').children;
+  Array.from(stars).forEach(s => {
+    s.classList.remove('text-[#FFB347]', 'scale-100');
+    s.classList.add('text-[#E0E0E0]', 'scale-0');
+  });
+  
+  const ratingText = document.getElementById('rating-text');
+  ratingText.classList.remove('scale-100');
+  ratingText.classList.add('scale-0');
+
+  // Animation Start
+  let startTime = Date.now();
+  const entryAnim = () => {
+    const now = Date.now();
+    const p = Math.min((now - startTime) / 600, 1);
+    // Elastic out
+    const ease = p === 0 ? 0 : p === 1 ? 1 : Math.pow(2, -10 * p) * Math.sin((p * 10 - 0.75) * (2 * Math.PI) / 3) + 1;
+    
+    state.pizzaScale = ease;
+    
+    if (p < 1) requestAnimationFrame(entryAnim);
+    else state.phase = 'playing';
+  };
+  requestAnimationFrame(entryAnim);
+}
+
+// --- Interaction ---
+canvas.addEventListener('pointerdown', (e) => {
+  if (state.phase !== 'playing') return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left - centerX;
+  const y = e.clientY - rect.top - centerY;
+  
+  // Calculate angle
+  const angle = Math.atan2(y, x);
+  
+  performCut(angle);
+});
+
+function performCut(angle) {
+  const lvl = getLevelConfig(state.levelIndex);
+  
+  // Hide hint on first tap
+  document.getElementById('tap-hint').classList.add('opacity-0');
+
+  state.currentCuts.push(angle);
+  
+  // Juice
+  state.shake.time = 10;
+  spawnParticles(angle);
+  playSound('cut');
+  vibrate(50);
+
+  // Show retry button on first cut (if not finished)
+  if (state.currentCuts.length > 0 && state.currentCuts.length < lvl.cuts) {
+    document.getElementById('retry-btn').classList.remove('opacity-0', 'scale-0');
+  }
+  
+  // Check completion
+  if (state.currentCuts.length >= lvl.cuts) {
+    document.getElementById('retry-btn').classList.add('opacity-0', 'scale-0');
+    calculateResults();
+    state.phase = 'result';
+  }
+}
+
+function spawnParticles(angle) {
+  // Spawn particles along the cut line
+  const count = 20;
+  for (let i = 0; i < count; i++) {
+    const r = (Math.random() * 2 - 1) * pizzaRadius; // Random pos along line
+    const px = Math.cos(angle) * r;
+    const py = Math.sin(angle) * r;
+    
+    // Velocity perpendicular to cut
+    const perp = angle + Math.PI/2;
+    const speed = Math.random() * 5 + 2;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    
+    state.particles.push({
+      x: px,
+      y: py,
+      vx: Math.cos(perp) * speed * dir,
+      vy: Math.sin(perp) * speed * dir,
+      life: 1.0,
+      color: Math.random() > 0.5 ? COLORS.cheese : COLORS.crust
+    });
+  }
+}
+
+function calculateResults() {
+  const lvl = getLevelConfig(state.levelIndex);
+  const targetSlices = lvl.slices;
+  
+  // Combine all cuts into a list of angles in [0, 2PI]
+  // Each diameter cut produces 2 angles: a and a+PI
+  let angles = [];
+  state.currentCuts.forEach(c => {
+    angles.push(normalizeAngle(c));
+    angles.push(normalizeAngle(c + Math.PI));
+  });
+  
+  angles.sort((a, b) => a - b);
+  
+  // Calculate slice arcs
+  let maxDev = 0;
+  state.slicesData = [];
+  const idealArc = (Math.PI * 2) / targetSlices;
+  
+  for (let i = 0; i < angles.length; i++) {
+    const start = angles[i];
+    const end = angles[(i + 1) % angles.length];
+    let arc = end - start;
+    if (arc < 0) arc += Math.PI * 2; // Wrap around
+    
+    const dev = Math.abs(arc - idealArc) / idealArc; // Percentage deviation
+    if (dev > maxDev) maxDev = dev;
+    
+    // Store for rendering
+    const centerAngle = start + arc / 2;
+    state.slicesData.push({
+      angle: centerAngle,
+      percentage: (arc / (Math.PI * 2)) * 100,
+      isGood: dev < 0.1 // Green if < 10% deviation
+    });
+  }
+  
+  // Determine Rating
+  let stars = 1;
+  let text = "Try Again";
+  
+  if (maxDev < 0.05) { stars = 5; text = "PERFECT!"; }
+  else if (maxDev < 0.10) { stars = 4; text = "Great!"; }
+  else if (maxDev < 0.20) { stars = 3; text = "Good"; }
+  else if (maxDev < 0.30) { stars = 2; text = "Okay"; }
+  
+  state.levelPassed = stars >= 3;
+  showResults(stars, text);
+}
+
+function showResults(starCount, textStr) {
+  setTimeout(() => {
+    const panel = document.getElementById('results-panel');
+    panel.classList.remove('opacity-0', 'translate-y-10');
+    panel.classList.add('opacity-100', 'translate-y-0');
+    
+    const stars = document.getElementById('stars-container').children;
+    const text = document.getElementById('rating-text');
+    
+    // Animate stars sequentially
+    for (let i = 0; i < starCount; i++) {
+      setTimeout(() => {
+        stars[i].classList.remove('text-[#E0E0E0]', 'scale-0');
+        stars[i].classList.add('text-[#FFB347]', 'scale-100');
+        playSound('star', i);
+        vibrate(20);
+      }, i * 200);
+    }
+    
+    // Show text after stars
+    setTimeout(() => {
+      text.textContent = textStr;
+      text.classList.remove('scale-0');
+      text.classList.add('scale-100');
+      
+      const btn = document.getElementById('next-btn');
+      if (state.levelPassed) {
+        playSound('success');
+        btn.textContent = "NEXT PIZZA";
+        btn.className = "interactive bg-[#4CAF50] text-white px-10 py-4 rounded-full text-xl font-black shadow-lg hover:scale-105 active:scale-95 transition-all transform pointer-events-auto";
+      } else {
+        playSound('fail');
+        btn.textContent = "TRY AGAIN";
+        btn.className = "interactive bg-[#E85D4C] text-white px-10 py-4 rounded-full text-xl font-black shadow-lg hover:scale-105 active:scale-95 transition-all transform pointer-events-auto";
+      }
+    }, starCount * 200 + 100);
+    
+  }, 500);
+}
+
+document.getElementById('next-btn').addEventListener('click', () => {
+  // Outro Animation
+  let startTime = Date.now();
+  state.phase = 'outro';
+  
+  const outroAnim = () => {
+    const now = Date.now();
+    const p = Math.min((now - startTime) / 500, 1);
+    
+    state.pizzaScale = 1 - p;
+    state.pizzaRotation = p * Math.PI * 2;
+    
+    if (p < 1) requestAnimationFrame(outroAnim);
+    else {
+      if (state.levelPassed) {
+        state.levelIndex++;
+        // Save State
+        window.parent.postMessage({
+          origin: 'sekai_gaming_iframe_api',
+          type: 'save_game_states',
+          taskId: crypto.randomUUID(),
+          data: { pageSettings: { levelIndex: state.levelIndex } }
+        }, '*');
+      }
+      initLevel();
+    }
+  };
+  requestAnimationFrame(outroAnim);
+});
+
+document.getElementById('retry-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  playSound('cut');
+  initLevel();
+});
+
+// --- Main Render Loop ---
+function drawPizza(ctx, radius) {
+  // Shadow
+  ctx.beginPath();
+  ctx.arc(5, 5, radius, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fill();
+
+  // Crust Outer
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.crustDark;
+  ctx.fill();
+
+  // Crust Inner (Main)
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.96, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.crust;
+  ctx.fill();
+
+  // Sauce
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.88, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.sauce;
+  ctx.fill();
+
+  // Toppings
+  currentToppings.forEach(t => {
+    ctx.save();
+    if (t.type === 'pepperoni') {
+      ctx.translate(t.x * radius, t.y * radius);
+      ctx.beginPath();
+      ctx.arc(0, 0, t.r * radius, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.pepperoni;
+      ctx.fill();
+      // Detail
+      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      ctx.beginPath();
+      ctx.arc(t.r*radius*0.3, t.r*radius*0.3, t.r*radius*0.2, 0, Math.PI*2);
+      ctx.fill();
+    } else if (t.type === 'basil') {
+      ctx.translate(t.x * radius, t.y * radius);
+      ctx.rotate(t.rot);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, t.size * radius, t.size * radius * 0.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.basil;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-t.size*radius, 0);
+      ctx.lineTo(t.size*radius, 0);
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else if (t.type === 'cheese') {
+      ctx.translate(t.x * radius, t.y * radius);
+      ctx.beginPath();
+      ctx.arc(0, 0, t.size * radius, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.cheese;
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+function render() {
+  // Clear
+  ctx.clearRect(0, 0, w, h);
+
+  // Shake check
+  if (state.shake.time > 0) {
+    state.shake.time--;
+    state.shake.x = (Math.random() - 0.5) * 10;
+    state.shake.y = (Math.random() - 0.5) * 10;
+  } else {
+    state.shake.x = 0;
+    state.shake.y = 0;
+  }
+
+  ctx.save();
+  ctx.translate(centerX + state.shake.x, centerY + state.shake.y);
+  
+  // Scale and Rotate for Intro/Outro
+  ctx.scale(state.pizzaScale, state.pizzaScale);
+  ctx.rotate(state.pizzaRotation);
+
+  if (state.phase === 'result' && state.currentCuts.length > 0) {
+    // Draw Separated Slices
+    // We need to clip the pizza for each slice
+    // Combine cuts to angles
+    let angles = [];
+    state.currentCuts.forEach(c => {
+      angles.push(normalizeAngle(c));
+      angles.push(normalizeAngle(c + Math.PI));
+    });
+    angles.sort((a, b) => a - b);
+
+    // Render each slice with offset
+    for (let i = 0; i < angles.length; i++) {
+      const start = angles[i];
+      const end = angles[(i + 1) % angles.length];
+      let mid = start + (end - start)/2;
+      if (end < start) mid = start + (Math.PI*2 - start + end)/2;
+
+      const sep = 15; // Separation distance
+      const dx = Math.cos(mid) * sep;
+      const dy = Math.sin(mid) * sep;
+
+      ctx.save();
+      ctx.translate(dx, dy);
+      
+      // Clipping Path for Wedge
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, pizzaRadius * 1.5, start, end);
+      ctx.lineTo(0, 0);
+      ctx.clip();
+
+      drawPizza(ctx, pizzaRadius);
+      
+      // Draw Percentage Text if result ready
+      if (state.slicesData[i]) {
+        const pData = state.slicesData[i];
+        ctx.fillStyle = pData.isGood ? '#4CAF50' : '#E85D4C';
+        ctx.font = `bold ${pizzaRadius * 0.12}px Nunito`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Position text
+        const textDist = pizzaRadius * 0.6;
+        const tx = Math.cos(pData.angle) * textDist;
+        const ty = Math.sin(pData.angle) * textDist;
+        
+        ctx.shadowColor = "white";
+        ctx.shadowBlur = 4;
+        ctx.fillText(pData.percentage.toFixed(1) + '%', tx, ty);
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.restore();
+    }
+
+  } else {
+    // Draw Whole Pizza
+    drawPizza(ctx, pizzaRadius);
+    
+    // Draw Cut Lines
+    state.currentCuts.forEach(angle => {
+      ctx.beginPath();
+      const x1 = Math.cos(angle) * pizzaRadius * 1.1;
+      const y1 = Math.sin(angle) * pizzaRadius * 1.1;
+      ctx.moveTo(-x1, -y1);
+      ctx.lineTo(x1, y1);
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = 5;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    });
+  }
+  
+  // Particles
+  for (let i = state.particles.length - 1; i >= 0; i--) {
+    const p = state.particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.2; // Gravity
+    p.life -= 0.03;
+    
+    if (p.life <= 0) {
+      state.particles.splice(i, 1);
+      continue;
+    }
+    
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, 6, 6);
+    ctx.globalAlpha = 1.0;
+  }
+
+  ctx.restore();
+  
+  requestAnimationFrame(render);
+}
+
+// Start
+function initApp() {
+  resize();
+  initLevel();
+  requestAnimationFrame(render);
+
+  // Load State
+  const taskId = crypto.randomUUID();
+  const handler = (event) => {
+    const msg = event.data;
+    if (msg?.origin !== 'sekai_gaming_iframe_api' || msg.taskId !== taskId) return;
+    window.removeEventListener('message', handler);
+    if (msg.data?.pageSettings?.levelIndex !== undefined) {
+      state.levelIndex = msg.data.pageSettings.levelIndex;
+      initLevel();
+    }
+  };
+  window.addEventListener('message', handler);
+  
+  window.parent.postMessage({
+    origin: 'sekai_gaming_iframe_api',
+    type: 'get_game_states',
+    taskId: taskId,
+    data: null
+  }, '*');
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+
+</script>
+</body>
+</html>

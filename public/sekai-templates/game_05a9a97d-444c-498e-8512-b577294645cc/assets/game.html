@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Mysterious Note</title>
+    
+    <!-- External Libraries -->
+    <script src="vendor/tailwind.css"></script>
+    <link rel="stylesheet" href="vendor/fontawesome/all.min.css">
+    <script src="vendor/confetti.browser.min.js"></script>
+
+    <!-- Audio Unlock Script -->
+    <script>
+    (function() {
+      let audioUnlocked = false;
+      function unlockAudioContext() {
+        if (audioUnlocked) return;
+        if ('audioSession' in window.navigator) {
+          window.navigator.audioSession.type = "playback";
+        }
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            const context = new AudioContext();
+            if (context.state === 'suspended') context.resume();
+            const buffer = context.createBuffer(1, 1, 22050);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            source.start(0);
+          }
+        } catch (e) {}
+        try {
+          const audio = new Audio();
+          audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+          audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+        } catch (e) {}
+        audioUnlocked = true;
+      }
+      window.addEventListener('message', function(event) {
+        if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+          unlockAudioContext();
+        }
+      });
+      ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+        document.addEventListener(event, unlockAudioContext, { once: true });
+      });
+    })();
+    </script>
+
+    <style>
+        :root {
+            /* Palette */
+            --color-bg-start: #E8D5D0;
+            --color-bg-end: #D4DDD4;
+            --color-paper: #F5F0E6;
+            --color-paper-shadow: #D4CFC5;
+            --color-accent: #C67B5C;
+            --color-text-primary: #2D2A26;
+            --color-text-secondary: #6B6560;
+            --color-white: #FFFEFA;
+
+            /* Fonts */
+            --font-serif: 'Times New Roman', serif;
+            --font-sans: system-ui, -apple-system, sans-serif;
+            
+            /* Animation */
+            --spring-easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --settle-easing: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--color-bg-start), var(--color-bg-end));
+            font-family: var(--font-sans);
+            color: var(--color-text-primary);
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        /* Paper Texture Overlay */
+        .paper-texture {
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* 3D Context */
+        .scene {
+            perspective: 1200px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .paper-container {
+            position: relative;
+            width: 60px;
+            height: 45px; /* Initial folded size - starts super small, portrait-ish packet */
+            transform-style: preserve-3d;
+            transition: transform 0.6s var(--spring-easing), width 0.5s ease, height 0.5s ease;
+        }
+        
+        /* The Note layers */
+        .note-layer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: var(--color-paper);
+            backface-visibility: hidden;
+            /* Double sided trick */
+            transform-style: preserve-3d;
+            border-radius: 2px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.02);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Fold styles */
+        .fold {
+            position: absolute;
+            background-color: var(--color-paper);
+            transform-origin: center;
+            transform-style: preserve-3d;
+            transition: transform 0.6s var(--spring-easing);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .fold-shadow {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.15), transparent);
+            transition: opacity 0.6s ease;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* Initial Folded Packet Appearance */
+        .packet-face {
+            width: 100%;
+            height: 100%;
+            background: var(--color-paper);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 40px -10px rgba(45, 42, 38, 0.2);
+            border-radius: 4px;
+            z-index: 50;
+        }
+
+        /* Content inside the note */
+        .note-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 1s ease;
+            padding: 20px;
+            text-align: center;
+            background: var(--color-paper);
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.005); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-breathe { animation: breathe 4s ease-in-out infinite; }
+        .animate-shake { animation: shake 0.3s ease-in-out; }
+        @keyframes fingerSwipeUp {
+            0% { transform: translate(30px, 30px); opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { transform: translate(30px, -30px); opacity: 0; }
+        }
+        .animate-finger-swipe { animation: fingerSwipeUp 1.8s ease-in-out infinite; }
+
+        .hidden { display: none !important; opacity: 0; pointer-events: none; }
+        .visible { opacity: 1 !important; pointer-events: auto; }
+
+        /* Typography */
+        .font-serif { font-family: var(--font-serif); }
+        .font-sans { font-family: var(--font-sans); }
+
+        /* Custom Button */
+        .btn-terracotta {
+            background-color: var(--color-accent);
+            color: var(--color-white);
+            box-shadow: 0 4px 12px rgba(198, 123, 92, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-terracotta:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 6px rgba(198, 123, 92, 0.3);
+        }
+
+        /* Main Note Structure after unfolding starts */
+        /* We simulate folds by nesting or absolute positioning. 
+           Since CSS 3D folding of a single sheet is complex, we will use a visual trick:
+           We will scale the container and animate specific divs that represent "flaps".
+        */
+        
+        .fold-flap {
+            position: absolute;
+            background: var(--color-paper);
+            backface-visibility: hidden; /* Important for clean folds */
+            transform-style: preserve-3d;
+            z-index: 10;
+        }
+
+        /* Progress Dots */
+        .progress-dots {
+            position: absolute;
+            bottom: 40px;
+            display: flex;
+            gap: 8px;
+            z-index: 60;
+            transition: opacity 0.3s;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(45, 42, 38, 0.2);
+            transition: background 0.3s ease;
+        }
+        .dot.active { background: var(--color-accent); }
+
+    </style>
+<!-- sekai:dvh-fix -->
+</head>
+<body>
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+    <!-- Editable Metadata -->
+    <script>
+    window.sekaiEditable = {
+      "tune": [
+        { "id": "animSpeed", "label": "Fold Speed (ms)", "type": "slider", "path": "CONFIG.animSpeed", "min": 300, "max": 1000, "step": 50, "value": 500 },
+        { "id": "volume", "label": "Music Volume", "type": "slider", "path": "CONFIG.volume", "min": 0, "max": 1, "step": 0.1, "value": 0.8 }
+      ],
+      "text": [
+        { "id": "introTitle", "label": "Intro Title", "type": "text", "selector": "#intro-title", "value": "Someone sent you something..." },
+        { "id": "introSub", "label": "Intro Subtitle", "type": "text", "selector": "#intro-sub", "value": "They say it's very important." },
+        { "id": "revealText", "label": "Reveal Text", "type": "text", "selector": "#reveal-text", "value": "Get Rick Rolled!" }
+      ],
+      "colors": [
+        { "id": "accent", "label": "Accent Color", "type": "color", "cssVar": "--color-accent", "value": "#C67B5C" },
+        { "id": "paper", "label": "Paper Color", "type": "color", "cssVar": "--color-paper", "value": "#F5F0E6" }
+      ],
+      "music": [
+        { "id": "bgm", "label": "Reveal Music", "type": "audio", "path": "CONFIG.musicUrl", "value": "https://prod-data.sekai.chat/v3-games/chat-creation/a0991336-ebb1-456c-8b17-69794ea4c69f.wav" }
+      ],
+      "images": [],
+      "sfx": [],
+      "prompts": [],
+      "voices": []
+    };
+
+    window.CONFIG = {
+        animSpeed: 500,
+        volume: 0.8,
+        musicUrl: 'https://prod-data.sekai.chat/v3-games/chat-creation/a0991336-ebb1-456c-8b17-69794ea4c69f.wav'
+    };
+
+    function getConfig(category, id) { return window.sekaiEditable[category]?.find(i => i.id === id)?.value; }
+
+    function setNestedValue(obj, path, value) {
+      const parts = path.split('.');
+      let current = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]]) current[parts[i]] = {};
+        current = current[parts[i]];
+      }
+      current[parts[parts.length - 1]] = value;
+    }
+
+    function applyAllEditableValues() {
+      window.sekaiEditable.tune?.forEach(t => { if (t.path) setNestedValue(window, t.path, t.value); });
+      window.sekaiEditable.colors?.forEach(c => { if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value); });
+      window.sekaiEditable.images?.forEach(img => {
+        if (img.selector) {
+          const el = document.querySelector(img.selector);
+          if (el) {
+            if (img.property === 'src') el.src = img.value;
+            else if (img.property === 'backgroundImage') el.style.backgroundImage = `url('${img.value}')`;
+          }
+        }
+      });
+      window.sekaiEditable.videos?.forEach(vid => { if (vid.path) setNestedValue(window, vid.path, vid.value); });
+      window.sekaiEditable.music?.forEach(m => { if (m.path) setNestedValue(window, m.path, m.value); });
+      window.sekaiEditable.text?.forEach(t => {
+        if (t.selector) {
+          const el = document.querySelector(t.selector);
+          if (el) el.textContent = t.value;
+        }
+      });
+    }
+
+    (function setupPreviewEditingAPI() {
+      window.addEventListener('message', (event) => {
+        const msg = event.data;
+        if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+        switch (msg.type) {
+          case 'get_editable_metadata':
+            window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_editable_metadata', taskId: msg.taskId, data: window.sekaiEditable || {} }, '*');
+            break;
+          case 'apply_change':
+            const success = applySingleChange(msg.data.id, msg.data.value);
+            window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_apply_change', taskId: msg.taskId, data: { success } }, '*');
+            break;
+          case 'get_current_html':
+            window.parent.postMessage({ origin: 'sekai_gaming_iframe_api', type: 'receive_current_html', taskId: msg.taskId, data: { html: document.documentElement.outerHTML } }, '*');
+            break;
+          case 'reset_changes':
+            location.reload();
+            break;
+        }
+      });
+
+      function applySingleChange(id, value) {
+        const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+        for (const cat of categories) {
+          const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+          if (!item) continue;
+          item.value = value;
+          if (item.cssVar) {
+            document.documentElement.style.setProperty(item.cssVar, value);
+          } else if (item.path) {
+            setNestedValue(window, item.path, value);
+          } else if (item.selector) {
+            const el = document.querySelector(item.selector);
+            if (!el) return false;
+            if (item.property === 'src') el.src = value;
+            else if (item.property === 'backgroundImage') el.style.backgroundImage = `url('${value}')`;
+            else el.textContent = value;
+          }
+          return true;
+        }
+        return false;
+      }
+    })();
+    </script>
+
+    <div class="paper-texture"></div>
+
+    <!-- Main UI Container -->
+    <div class="scene" id="scene">
+        
+        <!-- Text Above Note -->
+        <div id="intro-text-container" class="absolute top-[15%] w-full text-center z-40 transition-opacity duration-500">
+            <h1 id="intro-title" class="font-serif text-2xl text-[var(--color-text-primary)] opacity-0 translate-y-2 transition-all duration-700 delay-100 tracking-wide">Someone sent you something...</h1>
+            <p id="intro-sub" class="font-serif italic text-[var(--color-text-secondary)] mt-2 opacity-0 translate-y-2 transition-all duration-700 delay-300">They say it's very important.</p>
+        </div>
+
+        <!-- The Paper Object -->
+        <div id="paper-wrapper" class="paper-container animate-breathe cursor-pointer">
+            <!-- We build the folded paper visually using divs that will be transformed -->
+            
+            <!-- Base Sheet (The "Back" that grows) -->
+            <div id="base-sheet" class="absolute inset-0 bg-[var(--color-paper)] shadow-2xl rounded-sm transition-all duration-500 z-10 flex items-center justify-center overflow-hidden">
+                <!-- Content Revealed at End -->
+                <div id="reveal-content" class="note-content hidden opacity-0 flex flex-col items-center justify-center h-full w-full">
+                    <div class="relative w-full max-w-[90%] aspect-square mb-4 rounded-lg overflow-hidden shadow-inner bg-black">
+                        <img id="rick-gif" src="" alt="Rick Roll" class="w-full h-full object-cover opacity-0 transition-opacity duration-1000">
+                        <div class="absolute top-2 right-2 text-2xl animate-bounce text-white drop-shadow-md"><i class="fas fa-music"></i></div>
+                    </div>
+                    <h2 id="reveal-text" class="font-serif text-3xl font-bold text-[var(--color-text-primary)] mb-2 tracking-tight opacity-0 transition-opacity duration-700 delay-300">Get Rick Rolled!</h2>
+                </div>
+            </div>
+
+            <!-- Fold Flaps (Overlays that animate open) -->
+            <!-- We simulate 6 steps by having layers that rotate away/fade out -->
+            
+            <!-- Step 6 Flap (Final Right: Left opens to Right) -->
+            <div id="flap-6" class="fold-flap w-1/2 h-full left-0 top-0 origin-right border-r border-gray-100/20 shadow-[5px_0_15px_rgba(0,0,0,0.1)] z-30 transition-all duration-700 bg-[var(--color-paper)]"></div>
+
+            <!-- Step 5 Flap (Left: Right opens to Left) -->
+            <div id="flap-5" class="fold-flap w-1/2 h-full right-0 top-0 origin-left border-l border-gray-100/20 shadow-[-5px_0_15px_rgba(0,0,0,0.1)] z-30 transition-all duration-700 bg-[var(--color-paper)]"></div>
+
+            <!-- Step 4 Flap (Up: Top flap folds down) -->
+            <div id="flap-4" class="fold-flap w-full h-1/2 top-0 left-0 origin-bottom border-b border-gray-100/20 shadow-[0_4px_15px_rgba(0,0,0,0.1)] z-40 transition-all duration-700 bg-[var(--color-paper)]"></div>
+
+            <!-- Step 3 Flap (Right: Left opens to Right) -->
+            <div id="flap-3" class="fold-flap w-1/2 h-full left-0 top-0 origin-right border-r border-gray-100/20 shadow-[5px_0_15px_rgba(0,0,0,0.1)] z-50 transition-all duration-700 bg-[var(--color-paper)]"></div>
+
+            <!-- Step 2 Flap (Left: Right opens to Left) -->
+            <div id="flap-2" class="fold-flap w-1/2 h-full right-0 top-0 origin-left border-l border-gray-100/20 shadow-[-5px_0_15px_rgba(0,0,0,0.1)] z-50 transition-all duration-700 bg-[var(--color-paper)]"></div>
+
+             <!-- Step 1 Flap (Up: Top flap folds down) -->
+            <div id="flap-1" class="fold-flap w-full h-1/2 top-0 left-0 origin-bottom border-b border-gray-100/20 shadow-[0_4px_15px_rgba(0,0,0,0.15)] z-60 transition-all duration-700 bg-[var(--color-paper)] flex items-center justify-center">
+            </div>
+
+            <!-- Shadow overlay for depth during folds -->
+            <div id="fold-shadow" class="absolute inset-0 pointer-events-none z-50 opacity-0 transition-opacity duration-300 bg-black/10"></div>
+        </div>
+
+        <!-- Swipe Hint Overlay -->
+        <div id="finger-hint" class="fixed inset-0 flex items-center justify-center z-[150] pointer-events-none opacity-0 transition-opacity duration-300">
+            <div class="text-5xl text-[var(--color-accent)] animate-finger-swipe drop-shadow-2xl">
+                <i class="fas fa-hand-point-left"></i>
+            </div>
+        </div>
+
+        <!-- CTA & Feedback -->
+        <div id="cta-container" class="absolute bottom-[15%] w-full flex flex-col items-center justify-center z-[100] transition-opacity duration-500">
+            <button id="cta-btn" class="btn-terracotta px-6 py-3 rounded-full flex items-center gap-2 font-medium text-sm animate-float opacity-0 translate-y-4 transition-all duration-500 delay-1000">
+                <i id="cta-icon" class="fas fa-arrow-up"></i>
+                <span id="cta-text">Swipe up to open</span>
+            </button>
+            <div id="error-msg" class="text-xs text-[var(--color-accent)] mt-2 font-bold opacity-0 transition-opacity duration-200">Try swiping the other way!</div>
+        </div>
+
+        <!-- Progress Dots -->
+        <div class="progress-dots opacity-0 transition-opacity duration-500 delay-200" id="dots-container">
+            <div class="dot" id="dot-1"></div>
+            <div class="dot" id="dot-2"></div>
+            <div class="dot" id="dot-3"></div>
+            <div class="dot" id="dot-4"></div>
+            <div class="dot" id="dot-5"></div>
+            <div class="dot" id="dot-6"></div>
+        </div>
+
+        <!-- Final Share UI -->
+        <div id="share-ui" class="absolute bottom-[10%] w-full flex flex-col items-center justify-center z-50 hidden opacity-0 transition-all duration-700 translate-y-4">
+             <button id="share-btn" class="btn-terracotta px-8 py-4 rounded-full text-lg font-semibold flex items-center gap-2 mb-4">
+                <span>Send to a friend</span> <i class="fas fa-paper-plane"></i>
+             </button>
+        </div>
+
+    </div>
+
+    <script>
+        // State
+        const state = {
+            step: 0, // 0 to 6 (6 is open)
+            isAnimating: false,
+            isRevealed: false,
+            touchStartY: 0,
+            touchStartX: 0,
+            bgMusic: null
+        };
+
+        // DOM Elements
+        const elements = {
+            scene: document.getElementById('scene'),
+            paperWrapper: document.getElementById('paper-wrapper'),
+            introTitle: document.getElementById('intro-title'),
+            introSub: document.getElementById('intro-sub'),
+            ctaContainer: document.getElementById('cta-container'),
+            ctaBtn: document.getElementById('cta-btn'),
+            ctaText: document.getElementById('cta-text'),
+            ctaIcon: document.getElementById('cta-icon'),
+            errorMsg: document.getElementById('error-msg'),
+            dotsContainer: document.getElementById('dots-container'),
+            dots: [1,2,3,4,5,6].map(i => document.getElementById(`dot-${i}`)),
+            flaps: [1,2,3,4,5,6].map(i => document.getElementById(`flap-${i}`)),
+            fingerHint: document.getElementById('finger-hint'),
+            shareUi: document.getElementById('share-ui'),
+            revealContent: document.getElementById('reveal-content'),
+            rickGif: document.getElementById('rick-gif'),
+            revealText: document.getElementById('reveal-text'),
+            shareBtn: document.getElementById('share-btn')
+        };
+
+        // Unfold Sequence Logic
+        // The user specified: UP (bottom opens up), LEFT (right opens left), RIGHT (left opens right)
+        // We will alternate them to create an unfolding packet feel.
+        const sequence = [
+            { dir: 'up', hint: 'Swipe up to open top flap', icon: 'fa-arrow-up' },
+            { dir: 'left', hint: 'Swipe left to open right flap', icon: 'fa-arrow-left' },
+            { dir: 'right', hint: 'Swipe right to open left flap', icon: 'fa-arrow-right' },
+            { dir: 'up', hint: 'Swipe up again', icon: 'fa-arrow-up' },
+            { dir: 'left', hint: 'Swipe left again', icon: 'fa-arrow-left' },
+            { dir: 'right', hint: 'Last one! Swipe right', icon: 'fa-arrow-right' }
+        ];
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
+
+        function initApp() {
+            applyAllEditableValues();
+
+            // Intro Animation
+            setTimeout(() => {
+                elements.introTitle.classList.remove('opacity-0', 'translate-y-2');
+                elements.introSub.classList.remove('opacity-0', 'translate-y-2');
+                elements.ctaBtn.classList.remove('opacity-0', 'translate-y-4');
+                if (elements.fingerHint) elements.fingerHint.classList.remove('opacity-0');
+            }, 300);
+
+            // Bind Events
+            document.addEventListener('touchstart', handleTouchStart, { passive: false });
+            document.addEventListener('touchend', handleTouchEnd, { passive: false });
+            // Mouse support for testing in some environments
+            document.addEventListener('mousedown', handleTouchStart);
+            document.addEventListener('mouseup', handleTouchEnd);
+
+            elements.shareBtn.addEventListener('click', invokeShareAction);
+            
+            // Preload GIF (but don't show)
+            const img = new Image();
+            img.src = 'https://sekai-public-access.s3.us-east-1.amazonaws.com/ugc/rick_roll.gif';
+        }
+
+        // --- Interaction Logic ---
+
+        function handleTouchStart(e) {
+            if (state.isRevealed || state.isAnimating) return;
+            // If tapping share button, let it pass
+            if (e.target.closest('button')) return;
+            
+            e.preventDefault(); // Prevent scroll
+            
+            const touch = e.touches ? e.touches[0] : e;
+            state.touchStartX = touch.clientX;
+            state.touchStartY = touch.clientY;
+            
+            // Feedback: Depress paper
+            elements.paperWrapper.style.transform = "scale(0.98)";
+            sendHaptic(20);
+        }
+
+        function handleTouchEnd(e) {
+            if (state.isRevealed || state.isAnimating) return;
+            if (e.target.closest('button')) return;
+
+            elements.paperWrapper.style.transform = "scale(1)"; // Release press
+
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            const deltaX = touch.clientX - state.touchStartX;
+            const deltaY = touch.clientY - state.touchStartY;
+            const absX = Math.abs(deltaX);
+            const absY = Math.abs(deltaY);
+
+            // Thresholds
+            if (Math.max(absX, absY) < 40) return; // Too short
+
+            let swipeDir = '';
+            if (absY > absX) {
+                swipeDir = deltaY < 0 ? 'up' : 'down';
+            } else {
+                swipeDir = deltaX < 0 ? 'left' : 'right';
+            }
+
+            // Immediately hide hint if user swipes up
+            if (swipeDir === 'up' && elements.fingerHint) {
+                elements.fingerHint.classList.add('opacity-0');
+            }
+
+            processSwipe(swipeDir);
+        }
+
+        function processSwipe(direction) {
+            const currentStage = sequence[state.step];
+            
+            if (direction === currentStage.dir) {
+                // Correct Swipe
+                advanceStep();
+            } else {
+                // Wrong Swipe
+                triggerShake();
+            }
+        }
+
+        function triggerShake() {
+            elements.paperWrapper.classList.add('animate-shake');
+            sendHaptic(50); // Warning haptic
+            elements.errorMsg.style.opacity = '1';
+            setTimeout(() => {
+                elements.paperWrapper.classList.remove('animate-shake');
+                elements.errorMsg.style.opacity = '0';
+            }, 500);
+        }
+
+        function advanceStep() {
+            state.isAnimating = true;
+            sendHaptic(80); // Success haptic
+            playSound('rustle');
+
+            // 1. Update UI for the Fold
+            const flap = elements.flaps[state.step];
+            const nextStep = state.step + 1;
+            
+            // Visual logic for each fold type based on the step index
+            // We are "opening" flaps. Usually this means rotating them out of view or hiding them
+            // to reveal the layer underneath.
+            
+            // Logic: Rotate the covering flap 180 degrees or fade it out while scaling the container up
+            animateFlap(flap, sequence[state.step].dir);
+
+            // 2. Grow Paper
+            // Dynamic growth based on unfolding direction
+            const currentW = elements.paperWrapper.offsetWidth;
+            const currentH = elements.paperWrapper.offsetHeight;
+            const dir = sequence[state.step].dir;
+            
+            let newW = currentW;
+            let newH = currentH;
+            
+            // Grow paper significantly with each step to reach final size gradually
+            // Final target is roughly 90vw width, 65vh height (Portrait)
+            // Starting from small packet, we grow Height more aggressively to reach Portrait
+            if (dir === 'up') newH += 180;
+            else if (dir === 'left' || dir === 'right') newW += 60;
+            
+            elements.paperWrapper.style.width = `${newW}px`;
+            elements.paperWrapper.style.height = `${newH}px`;
+            
+            // 3. Update Dots
+            elements.dotsContainer.style.opacity = '1';
+            elements.dots[state.step].classList.add('active');
+
+            // 4. Update State
+            state.step++;
+
+            if (state.step >= 6) {
+                // Final Reveal
+                setTimeout(triggerReveal, 800);
+            } else {
+                // Prepare Next Step
+                setTimeout(() => {
+                    updateCTA(sequence[state.step]);
+                    state.isAnimating = false;
+                }, 600);
+            }
+        }
+
+        function animateFlap(flapEl, direction) {
+            // CSS Transform to "open" the flap
+            // We use a class or inline style.
+            flapEl.style.transition = `transform ${window.CONFIG.animSpeed}ms var(--spring-easing), opacity ${window.CONFIG.animSpeed}ms ease`;
+            
+            if (direction === 'up') {
+                flapEl.style.transform = 'rotateX(180deg)';
+                flapEl.style.opacity = '0'; // Hide after flip to prevent z-fighting
+            } else if (direction === 'left') {
+                flapEl.style.transform = 'rotateY(-180deg)';
+                flapEl.style.opacity = '0';
+            } else if (direction === 'right') {
+                flapEl.style.transform = 'rotateY(180deg)';
+                flapEl.style.opacity = '0';
+            }
+            
+            // Particle effect
+            createParticles();
+        }
+
+        function updateCTA(stepData) {
+            elements.ctaText.textContent = stepData.hint;
+            elements.ctaIcon.className = `fas ${stepData.icon}`;
+            // Pulse animation reset
+            elements.ctaBtn.classList.remove('animate-float');
+            void elements.ctaBtn.offsetWidth; // trigger reflow
+            elements.ctaBtn.classList.add('animate-float');
+        }
+
+        function triggerReveal() {
+            state.isRevealed = true;
+            elements.ctaContainer.style.opacity = '0'; // Hide swipe hints
+            elements.dotsContainer.style.opacity = '0';
+            elements.introTitle.style.opacity = '0'; // Clean up UI
+            elements.introSub.style.opacity = '0';
+
+            // Expand Base Sheet to Final Size
+            elements.paperWrapper.style.transition = 'width 0.8s var(--spring-easing), height 0.8s var(--spring-easing)';
+            elements.paperWrapper.style.width = '90vw';
+            elements.paperWrapper.style.maxWidth = '400px';
+            elements.paperWrapper.style.height = '65vh'; // Taller for content
+
+            // Play Music
+            playMusic();
+
+            setTimeout(() => {
+                // Confetti
+                fireConfetti();
+                
+                // Reveal Content
+                elements.revealContent.classList.remove('hidden');
+                // Force reflow
+                void elements.revealContent.offsetWidth;
+                elements.revealContent.classList.remove('opacity-0');
+                elements.revealContent.classList.add('visible');
+
+                // Show GIF
+                elements.rickGif.src = 'https://sekai-public-access.s3.us-east-1.amazonaws.com/ugc/rick_roll.gif';
+                elements.rickGif.onload = () => {
+                    elements.rickGif.classList.remove('opacity-0');
+                };
+                
+                // Show Text
+                elements.revealText.classList.remove('opacity-0');
+
+                // Show Share UI
+                setTimeout(() => {
+                    elements.shareUi.classList.remove('hidden');
+                    void elements.shareUi.offsetWidth;
+                    elements.shareUi.classList.remove('opacity-0', 'translate-y-4');
+                }, 1500);
+
+            }, 600);
+        }
+
+        function skipToReveal() {
+            if (state.isRevealed) return;
+            state.step = 6;
+            // Hide all flaps
+            elements.flaps.forEach(f => f.style.display = 'none');
+            triggerReveal();
+        }
+
+        // --- FX Systems ---
+
+        function fireConfetti() {
+            const colors = ['#C67B5C', '#E8D5D0', '#D4DDD4', '#F5F0E6'];
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: colors,
+                disableForReducedMotion: true
+            });
+            // Secondary burst
+            setTimeout(() => {
+                confetti({
+                    particleCount: 50,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                    colors: colors
+                });
+                confetti({
+                    particleCount: 50,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                    colors: colors
+                });
+            }, 300);
+        }
+
+        function createParticles() {
+            // Simple DOM particles for dust effect
+            for(let i=0; i<5; i++) {
+                const p = document.createElement('div');
+                p.style.position = 'absolute';
+                p.style.width = '4px';
+                p.style.height = '4px';
+                p.style.background = '#F5F0E6';
+                p.style.borderRadius = '50%';
+                p.style.left = '50%';
+                p.style.top = '50%';
+                p.style.pointerEvents = 'none';
+                p.style.zIndex = '100';
+                p.style.transition = 'transform 0.8s ease-out, opacity 0.8s ease-out';
+                elements.paperWrapper.appendChild(p);
+
+                // Random scatter
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 30 + Math.random() * 50;
+                const tx = Math.cos(angle) * dist;
+                const ty = Math.sin(angle) * dist;
+
+                requestAnimationFrame(() => {
+                    p.style.transform = `translate(${tx}px, ${ty}px)`;
+                    p.style.opacity = '0';
+                });
+
+                setTimeout(() => p.remove(), 800);
+            }
+        }
+
+        // --- Audio & Haptic Wrappers ---
+
+        function sendHaptic(duration) {
+             window.parent.postMessage({
+                origin: 'sekai_gaming_iframe_api',
+                type: 'gen_vibration',
+                taskId: 'vibe_' + Date.now(),
+                data: { duration: duration }
+            }, '*');
+        }
+
+        function playSound(type) {
+            // Synthesized paper sound using Web Audio would be ideal, but for simplicity/reliability
+            // we can try to use a very short white noise burst if no assets provided.
+            // Since user didn't provide SFX URL, we'll keep it silent or rely on the unlock script's beep trick 
+            // if we really wanted, but better to be silent than annoying.
+            // However, the prompt asked for "Sound Design (optional, muted by default)". 
+            // We will skip generative sound to avoid complexity and strict no-fetch rules.
+        }
+
+        function playMusic() {
+            if (!window.CONFIG.musicUrl) return;
+            state.bgMusic = new Audio(window.CONFIG.musicUrl);
+            state.bgMusic.volume = 0;
+            state.bgMusic.loop = true;
+            state.bgMusic.play().then(() => {
+                // Fade in
+                let vol = 0;
+                const interval = setInterval(() => {
+                    vol += 0.05;
+                    if (vol >= window.CONFIG.volume) {
+                        vol = window.CONFIG.volume;
+                        clearInterval(interval);
+                    }
+                    state.bgMusic.volume = vol;
+                }, 100);
+            }).catch(e => console.log("Audio play failed (interaction needed?):", e));
+        }
+        
+        function invokeShareAction() {
+             window.parent.postMessage({
+                origin: 'sekai_gaming_iframe_api',
+                type: 'invoke_share',
+                taskId: 'share_' + Date.now(),
+                data: {
+                    title: "I just got Rick Rolled in the most elegant way possible.",
+                    coverImgUrl: "https://sekai-public-access.s3.us-east-1.amazonaws.com/ugc/rick_roll.gif"
+                }
+            }, '*');
+        }
+
+    </script>
+</body>
+</html>

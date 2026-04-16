@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Voice Note AI</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="vendor/tailwind.css"></script>
+    
+    <!-- GSAP for Animations -->
+    <script src="vendor/gsap.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="vendor/lucide@latest"></script>
+
+    <!-- Snapdom for Share Image Generation -->
+    <script type="module">
+        import { snapdom } from 'https://cdn.jsdelivr.net/npm/@zumer/snapdom@2.0.2/+esm';
+        window.snapdom = snapdom;
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --text-color: #0f172a;
+            --accent-color: #ef4444;
+            --accent-hover: #dc2626;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none; /* Prevent browser handling of gestures */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Ensure scrollable areas work on mobile while preserving touch-action: none globally */
+        .scrollable-content {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y !important;
+        }
+        .scrollable-content * {
+            touch-action: pan-y !important;
+        }
+
+        /* Screen Management */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .screen.active {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 20;
+        }
+
+        /* Interactive Elements */
+        button {
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: transform 0.1s ease, opacity 0.1s ease;
+        }
+
+        button:active {
+            transform: scale(0.95);
+            opacity: 0.85;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        /* Custom UI Components */
+        .record-btn {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px -5px rgba(239, 68, 68, 0.4);
+            position: relative;
+        }
+        
+        .record-btn::after {
+            content: '';
+            position: absolute;
+            top: -10px; left: -10px; right: -10px; bottom: -10px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-color);
+            opacity: 0;
+        }
+
+        .recording .record-btn::after {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+
+        .audio-wave {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 40px;
+        }
+
+        .bar {
+            width: 4px;
+            height: 8px;
+            background-color: var(--accent-color);
+            border-radius: 4px;
+            transition: height 0.1s ease;
+        }
+
+        .glass-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border-radius: 1.5rem;
+        }
+
+        /* Share Zone specific styling to ensure it looks good when exported */
+        #share-zone {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        
+        .spinner {
+            border: 3px solid rgba(0,0,0,0.1);
+            border-left-color: var(--accent-color);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    </style>
+<!-- sekai:backdrop-fix -->
+<style>*,::before,::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}</style>
+</head>
+<body>
+<!-- sekai:img-src-dedup-fix -->
+<script>
+(function(){
+  var proto = HTMLImageElement && HTMLImageElement.prototype;
+  if (!proto) return;
+  var desc = Object.getOwnPropertyDescriptor(proto, 'src');
+  if (!desc || typeof desc.get !== 'function' || typeof desc.set !== 'function') return;
+
+  function resolveUrl(value) {
+    if (typeof value !== 'string' || value === '') return null;
+    try { return new URL(value, document.baseURI).href; }
+    catch (_) { return null; }
+  }
+
+  Object.defineProperty(proto, 'src', {
+    get: function() {
+      return desc.get.call(this);
+    },
+    set: function(value) {
+      if (typeof value === 'string') {
+        var currentAttr = typeof this.getAttribute === 'function' ? this.getAttribute('src') : null;
+        if (currentAttr === value) return;
+
+        var nextUrl = resolveUrl(value);
+        var currentUrl = desc.get.call(this);
+        if (nextUrl && currentUrl === nextUrl) return;
+      }
+      return desc.set.call(this, value);
+    },
+    configurable: true,
+    enumerable: desc.enumerable
+  });
+})();
+</script>
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+    <!-- Audio Elements -->
+    <audio id="music-bgm" loop></audio>
+    <audio id="sfx-start"></audio>
+    <audio id="sfx-stop"></audio>
+    <audio id="sfx-error"></audio>
+    <audio id="sfx-reveal"></audio>
+
+    <!-- UI Overlay for API errors / toast messages -->
+    <div id="toast" class="fixed top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg z-50 text-sm font-medium transition-all duration-300 opacity-0 pointer-events-none transform -translate-y-4">
+        Message
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-container" class="relative w-full h-full flex flex-col max-w-md mx-auto overflow-hidden bg-white shadow-2xl">
+        
+        <!-- HEADER -->
+        <header class="flex-shrink-0 w-full px-6 py-4 flex items-center justify-between z-30 bg-white/80 backdrop-blur-sm border-b border-slate-100">
+            <div class="flex items-center gap-2 text-slate-900 font-semibold tracking-tight text-lg">
+                <i data-lucide="mic" class="w-5 h-5 text-red-500"></i>
+                <span id="ui-title">Dictation AI</span>
+            </div>
+            <div class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">v2.4.1</div>
+        </header>
+
+        <main class="flex-1 relative w-full h-full overflow-hidden">
+            
+            <!-- SCREEN: START / RECORD -->
+            <div id="screen-record" class="screen active flex-col items-center justify-center p-6">
+                
+                <div class="flex-1 w-full flex flex-col items-center justify-center relative">
+                    
+                    <!-- Instructional Text -->
+                    <div class="text-center mb-12 transform transition-all duration-300" id="record-instructions-container">
+                        <h2 id="ui-instructions" class="text-2xl font-bold text-slate-800 mb-2">Tap to speak</h2>
+                        <p id="ui-sub-instructions" class="text-slate-500 text-sm max-w-[250px] mx-auto">Please enunciate clearly into the microphone.</p>
+                    </div>
+
+                    <!-- Visualizer (Hidden until recording) -->
+                    <div id="visualizer" class="audio-wave absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-none mt-16">
+                        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                    </div>
+
+                    <!-- Record Button -->
+                    <div class="relative z-10 mt-8" id="record-btn-container">
+                        <button id="btn-record" class="record-btn" aria-label="Start Recording">
+                            <i data-lucide="mic" class="w-10 h-10"></i>
+                        </button>
+                    </div>
+
+                    <div id="recording-status" class="absolute bottom-10 left-1/2 -translate-x-1/2 text-sm font-medium text-red-500 opacity-0 pointer-events-none flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                        Recording... <span id="recording-timer">0:00</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- SCREEN: PROCESSING -->
+            <div id="screen-processing" class="screen flex-col items-center justify-center p-6 bg-slate-50">
+                <div class="spinner mb-6"></div>
+                <h2 class="text-xl font-semibold text-slate-800 mb-2">Analyzing Audio</h2>
+                <p id="processing-text" class="text-slate-500 text-sm text-center">Applying neural models...</p>
+            </div>
+
+            <!-- SCREEN: RESULT (The Troll) -->
+            <div id="screen-result" class="screen flex-col p-6 scrollable-content bg-slate-50">
+                <div class="flex-1 flex flex-col max-w-sm mx-auto w-full pt-8 pb-24">
+                    
+                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 ml-2">Transcription Result</div>
+                    
+                    <!-- The Misheard Quote -->
+                    <div class="glass-card p-6 mb-8 relative">
+                        <i data-lucide="quote" class="absolute top-4 right-4 w-12 h-12 text-slate-100 -z-10"></i>
+                        <p id="result-misheard-text" class="text-2xl font-medium text-slate-800 leading-snug">
+                            "..."
+                        </p>
+                    </div>
+
+                    <!-- The System Pushback -->
+                    <div class="flex items-start gap-4 p-4 rounded-xl bg-orange-50 border border-orange-100">
+                        <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 text-orange-600">
+                            <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold text-orange-800 mb-1">Audio Quality Issue</h3>
+                            <p id="result-system-msg" class="text-sm text-orange-700 leading-relaxed">
+                                We didn't quite catch that.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Footer Action -->
+                <div class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent flex flex-col gap-3 justify-center items-center">
+                    <button id="btn-try-again" class="w-full py-4 rounded-xl bg-slate-900 text-white font-semibold text-lg shadow-lg shadow-slate-900/20 active:scale-[0.98]">
+                        Try Again
+                    </button>
+                    <button id="btn-feedback" class="hidden py-1.5 px-4 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-md active:scale-[0.95]">
+                        Give Feedback
+                    </button>
+                </div>
+            </div>
+
+            <!-- SCREEN: FINAL REVEAL (Shareable) -->
+            <div id="screen-final" class="screen flex-col scrollable-content bg-slate-50">
+                
+                <!-- This specific div is captured for sharing -->
+                <div id="share-zone" class="flex flex-col w-full min-h-full p-6 pb-32">
+                    
+                    <div class="flex items-center justify-center mb-8 pt-4">
+                        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-500 shadow-sm border border-green-200">
+                            <i data-lucide="check" class="w-8 h-8"></i>
+                        </div>
+                    </div>
+
+                    <h2 id="final-reveal-msg" class="text-2xl font-bold text-center text-slate-800 mb-8 px-4">
+                        We understood you perfectly. We just wanted to see how far you'd go.
+                    </h2>
+
+                    <!-- Watermark for share image -->
+                    <div class="mt-12 text-center opacity-50 flex flex-col items-center justify-center gap-1">
+                        <i data-lucide="mic" class="w-4 h-4 text-slate-500"></i>
+                        <span class="text-xs font-semibold tracking-widest uppercase text-slate-500">Sekai Mic Test Prank</span>
+                    </div>
+
+                </div>
+
+                <!-- Footer Action -->
+                <div class="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent z-50">
+                    <button id="btn-share" class="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-blue-600 text-white font-semibold text-lg shadow-lg shadow-blue-600/30 active:scale-[0.98]">
+                        <i data-lucide="share-2" class="w-5 h-5"></i>
+                        troll another
+                    </button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        // ==========================================
+        // 1. GLOBAL STATE & CONFIGURATION
+        // ==========================================
+        window.appState = {
+            attempts: 0,
+            history: [], // { real: string, fake: string }
+            isRecording: false,
+            mediaRecorder: null,
+            audioChunks: [],
+            recordStartTime: 0,
+            recordInterval: null,
+            visualizerInterval: null
+        };
+
+        // Editable Metadata (Single Source of Truth)
+        window.sekaiEditable = {
+  "tune": [
+    {
+      "id": "max_attempts",
+      "label": "Attempts Before Reveal",
+      "type": "slider",
+      "min": 2,
+      "max": 10,
+      "step": 1,
+      "value": 5,
+      "path": "appState.config.maxAttempts"
+    }
+  ],
+  "images": [],
+  "videos": [],
+  "music": [
+    {
+      "id": "bgm",
+      "label": "Background Music",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/chat-creation/1dd5be47-1236-4e3d-9a02-5a7c2fdb54c6.mp3",
+      "name": "",
+      "selector": "#music-bgm"
+    }
+  ],
+  "sfx": [
+    {
+      "id": "start",
+      "label": "Record Start",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/chat-creation/50941a76-eacd-46b5-9ad5-7d7db9673d42.wav",
+      "name": "",
+      "selector": "#sfx-start"
+    },
+    {
+      "id": "stop",
+      "label": "Record Stop",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/19/technology_electronic_vcr_press_play_and_stop_01_a990705dffcac5bd8dc41706e1676902.mp3",
+      "name": "",
+      "selector": "#sfx-stop"
+    },
+    {
+      "id": "error",
+      "label": "Error Tone",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/48/error_sound_xh_01_bf8135fce2540c5bb191244ff9bb459e.mp3",
+      "name": "",
+      "selector": "#sfx-error"
+    },
+    {
+      "id": "reveal",
+      "label": "Reveal Chime",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/aiu-music-sfx/102_Haha_Funny_Laugh_e35c739a48054509ad39171329bcb4e5.mp3",
+      "name": "",
+      "selector": "#sfx-reveal"
+    }
+  ],
+  "colors": [
+    {
+      "id": "bg",
+      "label": "Background Color",
+      "type": "color",
+      "cssVar": "--bg-color",
+      "value": "#f8fafc"
+    },
+    {
+      "id": "text",
+      "label": "Text Color",
+      "type": "color",
+      "cssVar": "--text-color",
+      "value": "#0f172a"
+    },
+    {
+      "id": "accent",
+      "label": "Accent Color",
+      "type": "color",
+      "cssVar": "--accent-color",
+      "value": "#ef4444"
+    }
+  ],
+  "text": [
+    {
+      "id": "title",
+      "label": "App Title",
+      "type": "text",
+      "value": "Sekai Mic Test",
+      "selector": "#ui-title"
+    },
+    {
+      "id": "inst",
+      "label": "Main Instruction",
+      "type": "text",
+      "value": "Tap to speak",
+      "selector": "#ui-instructions"
+    },
+    {
+      "id": "sub",
+      "label": "Sub Instruction",
+      "type": "text",
+      "value": "Please enunciate clearly into the microphone.",
+      "selector": "#ui-sub-instructions"
+    },
+    {
+      "id": "msg1",
+      "label": "System Message 1",
+      "type": "text",
+      "value": "We didn't quite catch that. Try speaking a bit louder.",
+      "path": "appState.config.msg1"
+    },
+    {
+      "id": "msg2",
+      "label": "System Message 2",
+      "type": "text",
+      "value": "Audio is fuzzy. Please bring the device closer and ENUNCIATE.",
+      "path": "appState.config.msg2"
+    },
+    {
+      "id": "msg3",
+      "label": "System Message 3",
+      "type": "text",
+      "value": "Audio levels critical. You might need to SHOUT.",
+      "path": "appState.config.msg3"
+    },
+    {
+      "id": "reveal",
+      "label": "Reveal Message",
+      "type": "text",
+      "value": "We understood you perfectly the first time. We just wanted to see how far you'd go.",
+      "selector": "#final-reveal-msg"
+    }
+  ],
+  "prompts": [
+    {
+      "id": "mishear",
+      "label": "AI Mishearing Prompt",
+      "type": "prompt",
+      "value": "You are a faulty speech-to-text AI. The user actually said: '{text}'. Generate a hilarious, phonetically somewhat similar, but completely absurd or mildly insulting 'misheard' transcription. Keep it under 15 words.",
+      "path": "appState.config.promptMishear"
+    }
+  ],
+  "voices": []
+};
+
+        // Initialize nested state structure required by paths
+        window.appState.config = {
+            maxAttempts: 5,
+            msg1: "We didn't quite catch that. Try speaking a bit louder.",
+            msg2: "Audio is fuzzy. Please bring the device closer and ENUNCIATE.",
+            msg3: "Audio levels critical. You might need to SHOUT.",
+            promptMishear: "You are a faulty speech-to-text AI. The user actually said: '{text}'. Generate a hilarious, phonetically somewhat similar, but completely absurd or mildly insulting 'misheard' transcription. Keep it under 15 words."
+        };
+
+        window.globalPrompts = {
+            mishear: {
+                systemPrompt: 'You are a humorous, slightly trollish speech-to-text AI. Your goal is to intentionally mishear what the user says to create absurd, funny transcriptions. Output ONLY JSON.',
+                responseSchema: {
+                    type: "object",
+                    properties: {
+                        misheard_text: { type: "string", description: "The funny, incorrect transcription" }
+                    },
+                    required: ["misheard_text"],
+                    additionalProperties: false
+                }
+            }
+        };
+
+        // DOM Elements Cache
+        const elements = {};
+
+        // ==========================================
+        // 2. INITIALIZATION & METADATA BINDING
+        // ==========================================
+
+        function getConfig(category, id) {
+            return window.sekaiEditable[category]?.find(i => i.id === id)?.value;
+        }
+
+        function setNestedValue(obj, path, value) {
+            const parts = path.split('.');
+            let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) current[parts[i]] = {};
+                current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
+        }
+
+        function applyAllEditableValues() {
+            window.sekaiEditable.tune?.forEach(t => { if (t.path) setNestedValue(window, t.path, t.value); });
+            window.sekaiEditable.colors?.forEach(c => { if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value); });
+            window.sekaiEditable.text?.forEach(t => {
+                if (t.path) setNestedValue(window, t.path, t.value);
+                if (t.selector) {
+                    const el = document.querySelector(t.selector);
+                    if (el) el.textContent = t.value;
+                }
+            });
+            window.sekaiEditable.music?.forEach(m => {
+                if (m.selector) {
+                    const el = document.querySelector(m.selector);
+                    if (el && el.src !== m.value) { el.src = m.value; el.load(); }
+                }
+            });
+            window.sekaiEditable.sfx?.forEach(s => {
+                if (s.selector) {
+                    const el = document.querySelector(s.selector);
+                    if (el && el.src !== s.value) { el.src = s.value; el.load(); }
+                }
+            });
+            window.sekaiEditable.prompts?.forEach(p => { if (p.path) setNestedValue(window, p.path, p.value); });
+        }
+
+        function initBGM() {
+            const el = document.getElementById('music-bgm');
+            if (!el?.src) return;
+            el.loop = true;
+            el.volume = 0.4;
+            const playBgm = () => {
+                el.play().catch(() => {
+                    document.addEventListener('touchstart', playBgm, { once: true });
+                    document.addEventListener('click', playBgm, { once: true });
+                });
+            };
+            playBgm();
+        }
+
+        // Procedural Audio Fallbacks
+        function playTone(type) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            if (type === 'start') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.2);
+            } else if (type === 'stop') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+            } else if (type === 'error') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(150, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.4);
+            } else if (type === 'reveal') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.2); // E5
+                osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.4); // G5
+                osc.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.6); // C6
+                
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.1);
+                gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.6);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.5);
+                
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 1.5);
+            }
+        }
+
+        function playSound(id, fallbackType) {
+            const el = document.getElementById(`sfx-${id}`);
+            if (el && el.src) {
+                el.currentTime = 0;
+                el.play().catch(() => playTone(fallbackType));
+            } else {
+                playTone(fallbackType);
+            }
+        }
+
+        // ==========================================
+        // 3. IFRAME API WRAPPERS
+        // ==========================================
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function sendMessage(type, data, expectsResponse = false, responseType = null) {
+            return new Promise((resolve, reject) => {
+                const taskId = generateUUID();
+                
+                if (expectsResponse && responseType) {
+                    const listener = (event) => {
+                        const msg = event.data;
+                        if (msg?.origin === 'sekai_gaming_iframe_api' && msg.type === responseType && msg.taskId === taskId) {
+                            window.removeEventListener('message', listener);
+                            if (msg.error) reject(msg.error);
+                            else resolve(msg.data);
+                        }
+                    };
+                    window.addEventListener('message', listener);
+                    // Timeout after 15s to prevent hanging
+                    setTimeout(() => {
+                        window.removeEventListener('message', listener);
+                        reject(new Error(`Timeout waiting for ${responseType}`));
+                    }, 15000);
+                }
+
+                window.parent.postMessage({
+                    origin: 'sekai_gaming_iframe_api',
+                    type: type,
+                    taskId: taskId,
+                    data: data
+                }, '*');
+
+                if (!expectsResponse) resolve();
+            });
+        }
+
+        // ==========================================
+        // 4. CORE LOGIC
+        // ==========================================
+
+        function showToast(msg) {
+            const t = elements.toast;
+            t.textContent = msg;
+            gsap.to(t, { opacity: 1, y: 0, duration: 0.3 });
+            setTimeout(() => {
+                gsap.to(t, { opacity: 0, y: -16, duration: 0.3 });
+            }, 3000);
+        }
+
+        function switchScreen(screenId) {
+            const screens = document.querySelectorAll('.screen');
+            let current = null;
+            let target = document.getElementById(screenId);
+
+            screens.forEach(s => {
+                if (s.classList.contains('active')) current = s;
+            });
+
+            if (current === target) return;
+
+            if (current) {
+                gsap.to(current, {
+                    opacity: 0,
+                    duration: 0.3,
+                    onComplete: () => {
+                        current.classList.remove('active');
+                        target.classList.add('active');
+                        gsap.fromTo(target, 
+                            { opacity: 0, scale: 0.98 }, 
+                            { opacity: 1, scale: 1, duration: 0.3 }
+                        );
+                    }
+                });
+            } else {
+                target.classList.add('active');
+                gsap.to(target, { opacity: 1, duration: 0.3 });
+            }
+        }
+
+        function updateVisualizer() {
+            if (!window.appState.isRecording) return;
+            const bars = document.querySelectorAll('.bar');
+            bars.forEach(bar => {
+                const height = 8 + Math.random() * 24; // Random height 8-32px
+                bar.style.height = `${height}px`;
+            });
+        }
+
+        async function handleRecordToggle() {
+            if (window.appState.isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                // Audio Session for iOS
+                if ('audioSession' in window.navigator) {
+                    window.navigator.audioSession.type = "play-and-record";
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                window.appState.mediaRecorder = new MediaRecorder(stream);
+                window.appState.audioChunks = [];
+
+                window.appState.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        window.appState.audioChunks.push(event.data);
+                    }
+                };
+
+                window.appState.mediaRecorder.onstop = processRecording;
+
+                window.appState.mediaRecorder.start();
+                window.appState.isRecording = true;
+                
+                playSound('start', 'start');
+                sendMessage('gen_vibration', { duration: 50 });
+
+                // UI Updates
+                elements.btnRecord.classList.add('recording');
+                elements.btnRecord.innerHTML = '<i data-lucide="square" class="w-8 h-8"></i>';
+                lucide.createIcons();
+                
+                gsap.to(elements.instructionsContainer, { opacity: 0, y: -20, duration: 0.3 });
+                gsap.to(elements.visualizer, { opacity: 1, duration: 0.3 });
+                gsap.to(elements.recordingStatus, { opacity: 1, duration: 0.3 });
+
+                // Timers
+                window.appState.recordStartTime = Date.now();
+                window.appState.visualizerInterval = setInterval(updateVisualizer, 100);
+                window.appState.recordInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - window.appState.recordStartTime) / 1000);
+                    elements.recordingTimer.textContent = `0:0${elapsed}`;
+                    
+                    // Auto-stop after 5 seconds to force progression
+                    if (elapsed >= 5) {
+                        stopRecording();
+                    }
+                }, 1000);
+
+            } catch (err) {
+                console.error('Microphone access denied or error:', err);
+                showToast("Microphone access is required.");
+                playSound('error', 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (!window.appState.isRecording || !window.appState.mediaRecorder) return;
+            
+            window.appState.mediaRecorder.stop();
+            // Stop all tracks to release mic
+            window.appState.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            
+            window.appState.isRecording = false;
+            clearInterval(window.appState.recordInterval);
+            clearInterval(window.appState.visualizerInterval);
+
+            playSound('stop', 'stop');
+            sendMessage('gen_vibration', { duration: 50 });
+
+            // Reset iOS Audio Session
+            if ('audioSession' in window.navigator) {
+                window.navigator.audioSession.type = "playback";
+            }
+
+            // UI Reset
+            elements.btnRecord.classList.remove('recording');
+            elements.btnRecord.innerHTML = '<i data-lucide="mic" class="w-10 h-10"></i>';
+            lucide.createIcons();
+            
+            gsap.to(elements.visualizer, { opacity: 0, duration: 0.2 });
+            gsap.to(elements.recordingStatus, { opacity: 0, duration: 0.2 });
+            elements.recordingTimer.textContent = "0:00";
+
+            switchScreen('screen-processing');
+        }
+
+        async function processRecording() {
+            const processingTexts = [
+                "Extracting phonemes...",
+                "Running neural models...",
+                "Consulting the dictionary...",
+                "Analyzing acoustics..."
+            ];
+            
+            let pIndex = 0;
+            const pInterval = setInterval(() => {
+                pIndex = (pIndex + 1) % processingTexts.length;
+                document.getElementById('processing-text').textContent = processingTexts[pIndex];
+            }, 1000);
+
+            try {
+                // 1. Convert to Base64
+                const audioBlob = new Blob(window.appState.audioChunks, { type: 'audio/webm' });
+                const base64Audio = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(audioBlob);
+                });
+
+                let actualText = "I mumbled something unintelligible";
+                
+                // 2. Get Real Transcript
+                try {
+                    const transcriptRes = await sendMessage('gen_transcript', { 
+                        audio: base64Audio,
+                        initialPrompt: "The user is saying a short phrase." 
+                    }, true, 'receive_gen_transcript');
+                    
+                    if (transcriptRes && transcriptRes.text && transcriptRes.text.trim().length > 0) {
+                        actualText = transcriptRes.text.trim();
+                    }
+                } catch (e) {
+                    console.warn("Transcription failed, using fallback text", e);
+                }
+
+                window.appState.attempts++;
+
+                // 3. Are we at the end of the prank?
+                if (window.appState.attempts > window.appState.config.maxAttempts) {
+                    clearInterval(pInterval);
+                    // Reveal the prank
+                    window.appState.history.push({ real: actualText, fake: "..." });
+                    showFinalReveal();
+                    return;
+                }
+
+                // 4. Generate Misheard Text
+                const promptTemplate = window.appState.config.promptMishear;
+                const userPromptText = promptTemplate.replace('{text}', actualText);
+                
+                let misheardText = "I like turtles?";
+                try {
+                    const aiRes = await sendMessage('gen_text', {
+                        systemPrompt: window.globalPrompts.mishear.systemPrompt,
+                        userPrompt: userPromptText,
+                        responseSchema: window.globalPrompts.mishear.responseSchema
+                    }, true, 'receive_gen_text');
+                    
+                    if (aiRes && aiRes.misheard_text) {
+                        misheardText = aiRes.misheard_text;
+                    }
+                } catch (e) {
+                    console.warn("AI mishear failed, using fallback.", e);
+                    const fallbacks = ["I smell pennies?", "Yellow submarines?", "My dog is an alien?", "Bacon strip?"];
+                    misheardText = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+                }
+
+                // Store in history
+                window.appState.history.push({ real: actualText, fake: misheardText });
+
+                clearInterval(pInterval);
+                showResult(misheardText);
+
+            } catch (err) {
+                console.error("Processing error:", err);
+                clearInterval(pInterval);
+                showToast("An error occurred processing the audio.");
+                resetToStart();
+            }
+        }
+
+        function showResult(misheardText) {
+            elements.resultMisheardText.textContent = `"${misheardText}"`;
+            
+            // Determine system message based on attempt
+            let sysMsg = window.appState.config.msg1;
+            if (window.appState.attempts === 2) sysMsg = window.appState.config.msg2;
+            if (window.appState.attempts >= 3) sysMsg = window.appState.config.msg3;
+            
+            elements.resultSystemMsg.textContent = sysMsg;
+
+            // Show feedback button on final attempt
+            const isLastAttempt = window.appState.attempts >= window.appState.config.maxAttempts;
+            if (isLastAttempt) {
+                elements.btnFeedback.classList.remove('hidden');
+            } else {
+                elements.btnFeedback.classList.add('hidden');
+            }
+            
+            playSound('error', 'error');
+            switchScreen('screen-result');
+        }
+
+        function resetToStart() {
+            // Adjust instructions dynamically based on attempt number
+            let sub = getConfig('text', 'sub') || "Please enunciate clearly into the microphone.";
+            if (window.appState.attempts === 1) sub = "Speak LOUDER this time.";
+            if (window.appState.attempts === 2) sub = "Closer to the mic. ENUNCIATE.";
+            if (window.appState.attempts === 3) sub = "We still can't hear you. SHOUT.";
+            if (window.appState.attempts >= 4) sub = "SCREAM into the microphone!!";
+            
+            elements.subInstructions.textContent = sub;
+            
+            // Reset opacity from previous hide
+            gsap.set(elements.instructionsContainer, { opacity: 1, y: 0 });
+            
+            switchScreen('screen-record');
+        }
+
+        function showFinalReveal() {
+            playSound('reveal', 'reveal');
+            
+            // Confetti effect using GSAP
+            createConfetti();
+            
+            switchScreen('screen-final');
+        }
+
+        function createConfetti() {
+            const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+            for(let i=0; i<50; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'absolute w-2 h-2 rounded-sm z-50 pointer-events-none';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.left = '50%';
+                conf.style.top = '20%';
+                document.getElementById('screen-final').appendChild(conf);
+                
+                gsap.to(conf, {
+                    x: (Math.random() - 0.5) * window.innerWidth,
+                    y: window.innerHeight * 0.8 + Math.random() * 200,
+                    rotation: Math.random() * 360,
+                    duration: 1.5 + Math.random() * 2,
+                    ease: "power1.out",
+                    onComplete: () => conf.remove()
+                });
+            }
+        }
+
+        async function handleShare() {
+            const shareBtn = elements.btnShare;
+            if (shareBtn.dataset.loading === 'true') return;
+            
+            shareBtn.dataset.loading = 'true';
+            shareBtn.disabled = true;
+            const originalHtml = shareBtn.innerHTML;
+            shareBtn.innerHTML = '<div class="spinner border-white border-l-transparent w-5 h-5"></div> Generating...';
+
+            try {
+                const element = document.getElementById('share-zone');
+                
+                // Snapdom screenshot
+                const jpgImg = await window.snapdom.toJpg(element, {
+                    quality: 0.8,
+                    width: element.offsetWidth * 2,
+                    height: element.offsetHeight * 2,
+                });
+
+                // Share directly
+                sendMessage('invoke_share', {
+                    title: `I just got trolled by Sekai Mic Test.`,
+                    coverImageBase64: jpgImg.src
+                }, false);
+
+            } catch (e) {
+                console.error('Share failed:', e);
+                showToast("Failed to generate share image.");
+            } finally {
+                shareBtn.dataset.loading = 'false';
+                shareBtn.disabled = false;
+                shareBtn.innerHTML = originalHtml;
+                lucide.createIcons();
+            }
+        }
+
+        // ==========================================
+        // 5. LIFECYCLE & EVENT LISTENERS
+        // ==========================================
+
+        function initApp() {
+            applyAllEditableValues();
+            initBGM();
+
+            // Cache elements
+            elements.toast = document.getElementById('toast');
+            elements.btnRecord = document.getElementById('btn-record');
+            elements.visualizer = document.getElementById('visualizer');
+            elements.recordingStatus = document.getElementById('recording-status');
+            elements.recordingTimer = document.getElementById('recording-timer');
+            elements.instructionsContainer = document.getElementById('record-instructions-container');
+            elements.subInstructions = document.getElementById('ui-sub-instructions');
+            
+            elements.resultMisheardText = document.getElementById('result-misheard-text');
+            elements.resultSystemMsg = document.getElementById('result-system-msg');
+            elements.btnTryAgain = document.getElementById('btn-try-again');
+            elements.btnFeedback = document.getElementById('btn-feedback');
+            
+            elements.btnShare = document.getElementById('btn-share');
+
+            // Attach Listeners
+            elements.btnRecord.addEventListener('pointerdown', (e) => {
+                if(e.target.closest('button')) handleRecordToggle();
+            });
+            
+            elements.btnTryAgain.addEventListener('pointerdown', (e) => {
+                if(e.target.closest('button')) {
+                    sendMessage('gen_vibration', { duration: 30 });
+                    resetToStart();
+                }
+            });
+
+            elements.btnFeedback.addEventListener('pointerdown', (e) => {
+                if(e.target.closest('button')) {
+                    sendMessage('gen_vibration', { duration: 30 });
+                    showFinalReveal();
+                }
+            });
+
+            elements.btnShare.addEventListener('pointerdown', (e) => {
+                if(e.target.closest('button')) {
+                    sendMessage('gen_vibration', { duration: 30 });
+                    handleShare();
+                }
+            });
+
+            lucide.createIcons();
+            
+            // Show start screen
+            document.getElementById('screen-record').classList.add('active');
+            gsap.to(document.getElementById('screen-record'), { opacity: 1, duration: 0.5 });
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+
+        // ==========================================
+        // 6. PREVIEW EDITING API
+        // ==========================================
+        (function setupPreviewEditingAPI() {
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+
+                switch (msg.type) {
+                    case 'get_editable_metadata':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_editable_metadata',
+                            taskId: msg.taskId,
+                            data: window.sekaiEditable || {}
+                        }, '*');
+                        break;
+
+                    case 'apply_change':
+                        const success = applySingleChange(msg.data.id, msg.data.value);
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_apply_change',
+                            taskId: msg.taskId,
+                            data: { success }
+                        }, '*');
+                        break;
+
+                    case 'get_current_html':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_current_html',
+                            taskId: msg.taskId,
+                            data: { html: document.documentElement.outerHTML }
+                        }, '*');
+                        break;
+
+                    case 'reset_changes':
+                        location.reload();
+                        break;
+                }
+            });
+
+            function applySingleChange(id, value) {
+                const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+                for (const cat of categories) {
+                    const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+                    if (!item) continue;
+
+                    item.value = value;
+
+                    if (item.cssVar) {
+                        document.documentElement.style.setProperty(item.cssVar, value);
+                    } else if (item.path) {
+                        setNestedValue(window, item.path, value);
+                    } else if (item.selector) {
+                        const el = document.querySelector(item.selector);
+                        if (!el) return false;
+
+                        if (el.tagName === 'AUDIO') {
+                            const wasPlaying = !el.paused;
+                            el.src = value;
+                            el.load();
+                            if (wasPlaying) el.play().catch(() => {});
+                        } else if (el.tagName === 'VIDEO') {
+                            el.src = value;
+                            el.load();
+                        } else if (item.property === 'src') {
+                            el.src = value;
+                        } else if (item.property === 'backgroundImage') {
+                            el.style.backgroundImage = `url('${value}')`;
+                        } else if (item.property === 'placeholder') {
+                            el.placeholder = value;
+                        } else {
+                            el.textContent = value;
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            }
+        })();
+
+        // ==========================================
+        // 7. iOS AUDIO UNLOCK FALLBACK
+        // ==========================================
+        (function() {
+            let audioUnlocked = false;
+            function unlockAudioContext() {
+                if (audioUnlocked) return;
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        const context = new AudioContext();
+                        if (context.state === 'suspended') context.resume();
+                        const buffer = context.createBuffer(1, 1, 22050);
+                        const source = context.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(context.destination);
+                        source.start(0);
+                    }
+                } catch (e) {}
+                try {
+                    const audio = new Audio();
+                    audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+                    audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+                } catch (e) {}
+                audioUnlocked = true;
+            }
+            window.addEventListener('message', function(event) {
+                if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+                    unlockAudioContext();
+                }
+            });
+            ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+                document.addEventListener(event, unlockAudioContext, { once: true });
+            });
+        })();
+
+    </script>
+</body>
+</html>

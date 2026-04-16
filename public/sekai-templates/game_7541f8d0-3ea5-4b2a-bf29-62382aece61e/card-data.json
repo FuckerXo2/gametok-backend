@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 32,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/f410eee4-f2de-40a9-9bb6-ef0151bb1a73/5b7f8e88-cec5-4ca8-aff6-742e9f233901/cover.large.webp",
+  "creator_name": "paris mee",
+  "creator_user_id": 6404487,
+  "extra": {
+    "creator_id": 6404487,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 15
+  },
+  "game_id": "7541f8d0-3ea5-4b2a-bf29-62382aece61e",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 636,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/7541f8d0-3ea5-4b2a-bf29-62382aece61e?fromPage=feed&orientation=auto",
+  "save_count": 207,
+  "title": "World's Hardest Button",
+  "version": "",
+  "version_id": "f410eee4-f2de-40a9-9bb6-ef0151bb1a73"
+}

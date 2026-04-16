@@ -14,7 +14,11 @@ import { setAssetBaseUrl, buildDreamAssetBundle } from './asset-dictionary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SEKAI_TEMPLATES_ROOT = path.resolve(__dirname, '../../../sekai-templates');
+const SEKAI_TEMPLATE_ROOT_CANDIDATES = [
+    path.resolve(__dirname, '../../public/sekai-templates'),
+    path.resolve(__dirname, '../../../sekai-templates'),
+];
+const SEKAI_TEMPLATES_ROOT = SEKAI_TEMPLATE_ROOT_CANDIDATES.find((candidate) => fs.existsSync(candidate));
 const SEKAI_TEMPLATE_PREFIX = 'sekai__';
 
 function getRequestOrigin(req) {
@@ -28,7 +32,7 @@ function toSekaiTemplateId(gameId) {
 }
 
 function listSekaiTemplates() {
-    if (!fs.existsSync(SEKAI_TEMPLATES_ROOT)) return [];
+    if (!SEKAI_TEMPLATES_ROOT || !fs.existsSync(SEKAI_TEMPLATES_ROOT)) return [];
 
     const entries = fs.readdirSync(SEKAI_TEMPLATES_ROOT, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && entry.name.startsWith('game_'))

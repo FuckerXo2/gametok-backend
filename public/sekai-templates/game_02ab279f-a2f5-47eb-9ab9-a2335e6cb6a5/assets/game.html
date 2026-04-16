@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- sekai:online-scripts -->
+<script>
+/* [1] Viewport Meta */
+(function(){
+  function e(){var m=document.querySelector('meta[name="viewport"]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.insertBefore(m,document.head.firstChild)}m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'}
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',e):e();
+})();
+
+/* [2] Click → Pointerup (iOS WKWebView) */
+(function(){
+  var oA=EventTarget.prototype.addEventListener,oR=EventTarget.prototype.removeEventListener,wm=new WeakMap();
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(!m){m=new Map();wm.set(this,m)}var ex=m.get(fn);if(ex)return oA.call(this,'pointerup',ex,o);var w=function(e){if(e.button!==0)return;try{fn.call(this,e)}catch(_){}};m.set(fn,w);return oA.call(this,'pointerup',w,o)}return oA.call(this,t,fn,o)};
+  EventTarget.prototype.removeEventListener=function(t,fn,o){if(t==='click'&&typeof fn==='function'){var m=wm.get(this);if(m){var w=m.get(fn);if(w){m.delete(fn);return oR.call(this,'pointerup',w,o)}}}return oR.call(this,t,fn,o)};
+})();
+
+/* [3] Touch Listener — passive + 拦截模拟 mouse */
+(function(){
+  var lt=0;
+  document.addEventListener('touchstart',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){lt=Date.now()},{passive:true,capture:true});
+  document.addEventListener('mousedown',function(e){if(Date.now()-lt<200){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)return;e.stopPropagation();e.preventDefault()}},{capture:true});
+  var oA=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(t,fn,o){if(t==='touchstart'||t==='touchmove')return oA.call(this,t,fn,Object.assign({},o||{},{passive:true}));return oA.call(this,t,fn,o)};
+})();
+
+/* [4] Audio Mute — 完整 patch + isMuted=true 初始化 */
+(function(){
+  var isMuted=true,mutedEls=new WeakMap(),pendingResume=[],intendedPlaying=new Set(),ctxs=[];
+  var oAC=window.AudioContext||window.webkitAudioContext;
+  if(oAC){var P=function(){var c=new oAC();ctxs.push(c);if(isMuted)c.suspend().catch(function(){});return c};P.prototype=oAC.prototype;window.AudioContext=P;if(window.webkitAudioContext)window.webkitAudioContext=P}
+  var aEls=[],oAudio=window.Audio;
+  if(oAudio){window.Audio=function(s){var a=new oAudio(s);aEls.push(a);if(isMuted)a.muted=true;return a};window.Audio.prototype=oAudio.prototype}
+  var vEls=[],oCE=document.createElement;
+  document.createElement=function(tag){var el=oCE.call(document,tag);if(typeof tag==='string'){var t=tag.toLowerCase();if(t==='audio'){aEls.push(el);if(isMuted)el.muted=true}else if(t==='video'){vEls.push(el);if(isMuted)el.muted=true}}return el};
+  if(window.HTMLMediaElement){var oP=HTMLMediaElement.prototype.play,oPa=HTMLMediaElement.prototype.pause;HTMLMediaElement.prototype.play=function(){intendedPlaying.add(this);if(isMuted&&!mutedEls.has(this)){mutedEls.set(this,this.muted);this.muted=true}return oP.apply(this,arguments)};HTMLMediaElement.prototype.pause=function(){intendedPlaying.delete(this);return oPa.apply(this,arguments)}}
+  function muteAll(){if(isMuted)return;isMuted=true;pendingResume=[];ctxs.forEach(function(c){if(c&&c.state==='running')c.suspend().catch(function(){})});document.querySelectorAll('audio,video').forEach(function(e){mutedEls.set(e,e.muted);e.muted=true});aEls.forEach(function(a){try{if(!mutedEls.has(a))mutedEls.set(a,a.muted);a.muted=true}catch(_){}});vEls.forEach(function(v){try{if(!mutedEls.has(v))mutedEls.set(v,v.muted);v.muted=true}catch(_){}})}
+  function resumeCtx(){ctxs.forEach(function(c){if(c&&(c.state==='suspended'||c.state==='interrupted'))c.resume().catch(function(){})})}
+  function unmuteAll(){if(!isMuted)return;isMuted=false;resumeCtx();document.querySelectorAll('audio,video').forEach(function(e){var w=mutedEls.get(e);e.muted=w!==undefined?w:false});aEls.forEach(function(a){try{var w=mutedEls.get(a);a.muted=w!==undefined?w:false}catch(_){}});vEls.forEach(function(v){try{var w=mutedEls.get(v);v.muted=w!==undefined?w:false}catch(_){}});intendedPlaying.forEach(function(e){pendingResume.push(e)});pendingResume.forEach(function(e){try{if(e.paused)e.play().catch(function(){})}catch(_){}})}
+  document.addEventListener('touchstart',function(){if(isMuted)return;resumeCtx();if(!pendingResume.length)return;var t=pendingResume;pendingResume=[];t.forEach(function(e){try{if(!e.paused)return;e.play().catch(function(){pendingResume.push(e)})}catch(_){pendingResume.push(e)}})},{passive:true,capture:true});
+  window.addEventListener('message',function(ev){var d=ev.data;if(typeof d==='string'){try{d=JSON.parse(d)}catch(_){return}}if(!d)return;if(d.type==='receive_audio_mute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_mute'))muteAll();if(d.type==='receive_audio_unmute'||(d.origin==='sekai_gaming_iframe_api'&&d.type==='receive_audio_unmute'))unmuteAll()});
+  window.addEventListener('DOMContentLoaded',function(){window.parent.postMessage({origin:'sekai_gaming_iframe_api',type:'sekai_iframe_dom_ready'},'*')});
+})();
+
+/* [5] Scroll Block */
+(function(){
+  var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:contain!important;height:100%!important;-webkit-user-select:none!important;user-select:none!important;touch-action:none!important;}';document.head.appendChild(s);
+  var st=null;function findScr(el){while(el&&el!==document.body&&el!==document.documentElement){var cs=window.getComputedStyle(el);if((cs.overflowY==='auto'||cs.overflowY==='scroll')&&el.scrollHeight>el.clientHeight)return el;el=el.parentElement}return null}
+  document.addEventListener('touchstart',function(e){st=e.touches.length===1?findScr(e.target):null;if(st)st.style.touchAction='pan-y'},{passive:true,capture:true});
+  document.addEventListener('touchend',function(){if(st){st.style.touchAction='';st=null}},{passive:true,capture:true});
+  document.addEventListener('focusin',function(e){var t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)window.parent.postMessage({type:'iframe-focusin'},'*')},true);
+  document.addEventListener('focusout',function(e){var t=e.target,r=e.relatedTarget;if((t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)&&!(r&&(r.tagName==='INPUT'||r.tagName==='TEXTAREA'||r.isContentEditable)))window.parent.postMessage({type:'iframe-focusout'},'*')},true);
+})();
+
+/* [6] Viewport Height */
+(function(){
+  var vs=document.createElement('style');vs.id='sekai-viewport-style';document.head.appendChild(vs);var cur=null;
+  function apply(h){if(h===cur)return;cur=h;if(typeof h==='number'&&h>0){vs.textContent=':root{--sekai-viewport-height:'+h+'px}html{height:'+h+'px!important;overflow:hidden!important}body{height:'+h+'px!important;overflow:hidden!important}#game-container{height:'+h+'px!important}';try{Object.defineProperty(window,'innerHeight',{get:function(){return h},configurable:true})}catch(_){}}else{vs.textContent=':root{--sekai-viewport-height:100%}html{height:100%!important;overflow:hidden!important}body{height:100%!important;overflow:hidden!important}'}}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='viewport_height_change')apply(typeof e.data.height==='number'?e.data.height:null)});
+  window.parent.postMessage({type:'viewport_ready'},'*');
+})();
+</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Rhythm Bag Shake</title>
+    <script src="vendor/tailwind.css"></script>
+    <link rel="stylesheet" href="vendor/fontawesome/all.min.css">
+    <script src="vendor/confetti.browser.min.js"></script>
+    <script src="vendor/html2canvas.min.js"></script>
+    <script>
+      (function() {
+        let audioUnlocked = false;
+        function unlockAudioContext() {
+          if (audioUnlocked) return;
+          if ('audioSession' in window.navigator) {
+            window.navigator.audioSession.type = "playback";
+          }
+          try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+              const context = new AudioContext();
+              if (context.state === 'suspended') context.resume();
+              const buffer = context.createBuffer(1, 1, 22050);
+              const source = context.createBufferSource();
+              source.buffer = buffer;
+              source.connect(context.destination);
+              source.start(0);
+            }
+          } catch (e) {}
+          try {
+            const audio = new Audio();
+            audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+            audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+          } catch (e) {}
+          audioUnlocked = true;
+        }
+        window.addEventListener('message', function(event) {
+          if (event.data?.origin === 'sekai_gaming_iframe_api' && event.data?.type === 'receive_audio_unlock') {
+            unlockAudioContext();
+          }
+        });
+        ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(function(event) {
+          document.addEventListener(event, unlockAudioContext, { once: true });
+        });
+      })();
+    </script>
+    <style>
+        :root {
+            --primary-color: #FF5E5E;
+            --accent-color: #4A90E2;
+            --bg-color: #F8F9FA;
+            --pulse-color: rgba(255, 94, 94, 0.2);
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            transition: background-color 0.8s ease;
+        }
+
+        body {
+            color: #333;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Pulse Animation */
+        @keyframes heartbeat {
+            0% { transform: scale(1); opacity: 0.1; }
+            50% { transform: scale(1.1); opacity: 0.4; }
+            100% { transform: scale(1); opacity: 0.1; }
+        }
+
+        .pulsing {
+            animation: heartbeat 0.4s infinite ease-in-out;
+        }
+
+        .cta-label {
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Shake Animation for User Feedback */
+        @keyframes shake-hard {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .shake-active {
+            animation: shake-hard 0.5s;
+        }
+
+        /* Physics / Movement */
+        #asset-wrapper {
+            will-change: transform;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s ease;
+            transform-origin: center center;
+        }
+        
+        #asset-wrapper:active {
+            cursor: grabbing;
+        }
+
+        /* Text Overlays */
+        #story-text-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 0 30px;
+            text-align: center;
+            pointer-events: none;
+            z-index: 40; /* Text is normally above asset */
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #story-text {
+            color: #000;
+            font-size: 4rem;
+            font-weight: 900;
+            line-height: 0.95;
+            text-transform: uppercase;
+            transition: opacity 0.3s ease;
+            word-break: break-word;
+        }
+
+        /* Class for long lyrics to be smaller */
+        #story-text.long-text {
+            font-size: 2.2rem;
+        }
+
+        @media (min-width: 640px) {
+            #story-text { font-size: 6rem; }
+            #story-text.long-text { font-size: 3.5rem; }
+        }
+
+        #instruction-text {
+            color: #fff;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 500;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            background: rgba(0,0,0,0.4);
+            padding: 8px 20px;
+            border-radius: 99px;
+            backdrop-filter: blur(8px);
+            position: absolute;
+            top: -50px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* Physics / Movement */
+        #asset-wrapper {
+            will-change: transform;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s ease, z-index 0.1s step-end;
+            transform-origin: center center;
+        }
+
+        #asset-bag { width: 100%; height: 100%; object-fit: contain; }
+        #asset-robot span { font-size: 15rem; line-height: 1; }
+        
+        /* Final asset made a bit smaller as requested */
+        #asset-final { 
+            width: 80vw; 
+            height: 70vh; 
+            object-fit: contain; 
+            object-position: center center;
+            transform-origin: center center;
+        }
+
+        /* Utility */
+        .full-screen {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .hidden-ui {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .visible-ui {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        @keyframes ripple {
+            0% { width: 0; height: 0; opacity: 1; }
+            100% { width: 300px; height: 300px; opacity: 0; }
+        }
+
+        .ripple-effect {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            animation: ripple 0.6s ease-out forwards;
+            z-index: 100;
+        }
+
+        @keyframes dragHandMove {
+            0% { transform: translate(0, 0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { transform: translate(-60px, -60px); opacity: 1; }
+            100% { transform: translate(-60px, -60px); opacity: 0; }
+        }
+        
+        .drag-hand-anim {
+            animation: dragHandMove 1.2s infinite ease-in-out;
+        }
+    </style>
+<!-- sekai:backdrop-fix -->
+<style>*,::before,::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}</style>
+</head>
+<body>
+<!-- sekai:img-fix -->
+<script>
+(function(){
+  var proto=HTMLImageElement.prototype;
+  Object.defineProperty(proto,'onload',{
+    get:function(){return this._skOnload||null},
+    set:function(fn){
+      if(this._skLoadHandler){this.removeEventListener('load',this._skLoadHandler);this._skLoadHandler=null}
+      this._skOnload=fn;if(!fn)return;
+      if(this.complete&&this.naturalWidth>0){var s=this,c=fn;Promise.resolve().then(function(){if(s._skOnload===c)c.call(s,new Event('load'))});return}
+      var s=this;this._skLoadHandler=function(e){s.removeEventListener('load',s._skLoadHandler);s._skLoadHandler=null;if(s._skOnload)s._skOnload.call(s,e)};
+      this.addEventListener('load',this._skLoadHandler);
+    },configurable:true,enumerable:true
+  });
+})();
+</script>
+
+    <!-- Audio Elements (Source of Truth for Editing) -->
+    <audio id="music-bgm" preload="auto"></audio>
+    <input type="file" id="hidden-input" style="display:none;" accept="image/*">
+
+    <!-- Main Container -->
+    <div id="game-container" class="full-screen flex flex-col items-center justify-center relative overflow-hidden">
+        
+        <!-- Background Pulse Effect -->
+        <div id="pulse-bg" class="absolute w-[150vmax] h-[150vmax] rounded-full bg-white opacity-0 transition-opacity duration-300 pointer-events-none" 
+             style="background: radial-gradient(circle, var(--pulse-color) 0%, rgba(255,255,255,0) 70%);">
+        </div>
+
+        <!-- Centered Interaction Group -->
+        <div class="relative w-full h-full flex items-center justify-center">
+            
+            <!-- Text Content (Behind or Above via Z-Index) -->
+            <div id="story-text-container">
+                <div id="story-text">Put the money in the bag</div>
+            </div>
+
+            <!-- Main Interactive Asset Wrapper -->
+            <div id="asset-wrapper" class="absolute w-[80vw] h-[80vw] max-w-[500px] max-h-[500px] z-20 pointer-events-auto flex items-center justify-center">
+                <span id="instruction-text" class="opacity-0">shake the bag</span>
+
+                <!-- Image 1 (Bag) -->
+                <img id="asset-bag" class="w-full h-full object-contain drop-shadow-2xl" src="" alt="Bag">
+                
+                <!-- Robot Emoji -->
+                <div id="asset-robot" class="absolute inset-0 flex items-center justify-center hidden">
+                    <span class="text-[12rem] sm:text-[20rem] drop-shadow-2xl select-none">🤖</span>
+                </div>
+
+                <!-- Image 2 (Final) -->
+                <img id="asset-final" class="absolute inset-0 w-full h-full object-contain drop-shadow-2xl hidden" src="" alt="Prize">
+                
+                <!-- Animated Drag Hint Icon -->
+                <div id="drag-hint" class="drag-hand-anim absolute inset-0 flex items-center justify-center text-white text-5xl sm:text-7xl pointer-events-none z-[70] drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]" style="visibility: hidden;">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Success Modal -->
+        <div id="success-modal" class="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md hidden-ui">
+            <div id="share-zone" class="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-[90%] text-center transform scale-95 transition-transform duration-300">
+                <h2 class="text-2xl font-black text-gray-800 mb-2 uppercase pt-4">Put the money in the bag</h2>
+                <p class="text-gray-600 font-bold mb-6 uppercase">ELELALAELE-BING-ALELILLELALE</p>
+                <div class="flex gap-3 w-full">
+                    <button id="btn-share" class="flex-1 py-3 bg-blue-500 text-white rounded-xl font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-share-nodes"></i> Share
+                    </button>
+                    <button id="btn-replay" class="flex-none w-12 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold shadow-sm active:scale-95 transition-transform flex items-center justify-center">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- Sekai Editable Metadata ---
+        window.sekaiEditable = {
+  "tune": [],
+  "images": [
+    {
+      "id": "bag_img",
+      "label": "Bag Image",
+      "type": "image",
+      "property": "src",
+      "value": "images/a22d7423-d8da-4eea-8e18-7615815a103f.webp",
+      "selector": "#asset-bag"
+    },
+    {
+      "id": "final_img",
+      "label": "Final Image",
+      "type": "image",
+      "property": "src",
+      "value": "images/3301ba8c-3402-4efb-af70-ba5ccd4f347c.webp",
+      "selector": "#asset-final"
+    }
+  ],
+  "videos": [],
+  "music": [
+    {
+      "id": "bgm",
+      "label": "Rhythm Track",
+      "type": "audio",
+      "value": "https://prod-data.sekai.chat/v3-games/chat-creation/17d0d67f-4e73-4fcd-8a30-e14f639ac54f.wav",
+      "selector": "#music-bgm"
+    }
+  ],
+  "sfx": [],
+  "colors": [
+    {
+      "id": "pulse",
+      "label": "Pulse Color",
+      "type": "color",
+      "cssVar": "--pulse-color",
+      "value": "#FF5E5E"
+    },
+    {
+      "id": "bg",
+      "label": "Background",
+      "type": "color",
+      "cssVar": "--bg-color",
+      "value": "#F8F9FA"
+    }
+  ],
+  "text": [
+    {
+      "id": "shake_txt",
+      "label": "Shake Instruction",
+      "type": "text",
+      "value": "drag finger to shake bag",
+      "selector": "#instruction-text"
+    },
+    {
+      "id": "success_title",
+      "label": "Success Title",
+      "type": "text",
+      "value": "Put the money in the bag",
+      "selector": "#success-modal h2"
+    }
+  ],
+  "prompts": [],
+  "voices": []
+};
+
+        // --- Helper Functions ---
+        function getConfig(category, id) {
+            return window.sekaiEditable[category]?.find(i => i.id === id)?.value;
+        }
+
+        function setNestedValue(obj, path, value) {
+            const parts = path.split('.');
+            let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) current[parts[i]] = {};
+                current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
+        }
+
+        // --- Core Application Logic ---
+        const state = {
+            isPlaying: false,
+            stage: 0, 
+            isWaiting: false,
+            audioContextUnlocked: false,
+            hasFinished: false,
+            hasInteracted: false,
+            // Physics
+            targetX: window.innerWidth / 2,
+            targetY: window.innerHeight / 2,
+            currentX: 0, // Relative displacement from center
+            currentY: 0,
+            velX: 0,
+            rotation: 0,
+            isDragging: false
+        };
+
+        const elements = {}; 
+
+        // Narrative timeline per updated requirements
+        const timeline = [
+            { stage: 0, type: 'play', start: 13.0, end: 15.0, text: "Put the money in the bag", mode: 'bag', bgColor: '#FFD600', pulseColor: '#FF6D00' },
+            { stage: 1, type: 'pause', trigger: 15.0, action: 'shake', startFrom: 15.25, playTo: 16.5, jumpTo: 17.0, instruction: "drag finger to shake bag", mode: 'bag', bgColor: '#FFD600', pulseColor: '#FF6D00' },
+            { stage: 2, type: 'play', start: 17.0, end: 18.5, text: "Oops, I just got a bag", mode: 'bag', bgColor: '#00E676', pulseColor: '#00C853' },
+            { stage: 3, type: 'pause', trigger: 18.5, action: 'shake', playTo: 20.0, jumpTo: 20.0, instruction: "drag finger to shake bag", mode: 'bag', bgColor: '#00E676', pulseColor: '#00C853' },
+            { stage: 4, type: 'play', start: 20.0, end: 21.75, text: "This is the sound of a bag", mode: 'bag', bgColor: '#00B0FF', pulseColor: '#0091EA' },
+            { stage: 5, type: 'pause', trigger: 21.75, action: 'shake', startFrom: 22.25, playTo: 23.0, jumpTo: 23.0, instruction: "drag finger to shake bag", mode: 'bag', bgColor: '#00B0FF', pulseColor: '#0091EA' },
+            { stage: 6, type: 'play', start: 23.0, end: 29.0, text: "I'm on Snapchat, I'm gettin' money I get racks, just like a crab Came from the bottom, now I'm at the top", mode: 'robot', textTrigger: 28.0, triggerText: "This is the sound of a robot", bgColor: '#D500F9', pulseColor: '#AA00FF' },
+            { stage: 7, type: 'pause', trigger: 29.0, action: 'tap', startFrom: 29.25, playTo: 31.0, jumpTo: 31.0, instruction: "tap the robot", mode: 'robot', bgColor: '#D500F9', pulseColor: '#AA00FF' },
+            { stage: 8, type: 'play', start: 31.0, end: 39.0, text: "Went to Japan and spoke to a turkey Went to Japan, brought a gingerbread cookie Jumped in the pool and turned the water brown E'rybody like \"Ay, what's that sound?\"", mode: 'final', textTrigger: 38.0, triggerText: "This is the sound of Yuno Miles", bgColor: '#FF1744', pulseColor: '#D50000' },
+            { stage: 9, type: 'pause', trigger: 39.0, action: 'tap', startFrom: 39.25, playTo: 41.0, jumpTo: 41.0, instruction: "tap the prize", mode: 'final', bgColor: '#FF1744', pulseColor: '#D50000' },
+            { stage: 10, type: 'play', start: 41.0, end: 9999.0, mode: 'final', bgColor: '#F8F9FA', pulseColor: '#FF5E5E' }
+        ];
+
+        function initBGM() {
+            const el = document.getElementById('music-bgm');
+            if (!el?.src) return;
+            el.volume = 0.6;
+            el.loop = false;
+            const playBgm = () => {
+                el.currentTime = 13.0;
+                el.play().then(() => {
+                    if (!state.isPlaying) startGame();
+                }).catch(() => {
+                    // Critical autoplay retry pattern
+                    document.addEventListener('touchstart', playBgm, { once: true });
+                    document.addEventListener('touchend', playBgm, { once: true });
+                    document.addEventListener('click', playBgm, { once: true });
+                });
+            };
+            playBgm();
+        }
+
+        let animationFrameId;
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', initApp);
+
+        function applyAllEditableValues() {
+            window.sekaiEditable.tune?.forEach(t => { if (t.path) setNestedValue(window, t.path, t.value); });
+            window.sekaiEditable.colors?.forEach(c => { if (c.cssVar) document.documentElement.style.setProperty(c.cssVar, c.value); });
+            window.sekaiEditable.images?.forEach(img => {
+                if (img.selector) {
+                    const el = document.querySelector(img.selector);
+                    if (el) {
+                        if (img.property === 'src') el.src = img.value;
+                        else if (img.property === 'backgroundImage') el.style.backgroundImage = `url('${img.value}')`;
+                    }
+                }
+            });
+            window.sekaiEditable.music?.forEach(m => {
+                if (m.selector) {
+                    const el = document.querySelector(m.selector);
+                    if (el && el.src !== m.value) { el.src = m.value; el.load(); }
+                }
+            });
+            window.sekaiEditable.text?.forEach(t => {
+                if (t.selector) {
+                    const el = document.querySelector(t.selector);
+                    if (el) el.textContent = t.value;
+                }
+            });
+            // Force final modal text as per explicit user request overrides
+            const modalTitle = document.querySelector('#success-modal h2');
+            if (modalTitle) modalTitle.textContent = "Put the money in the bag";
+            const modalSub = document.querySelector('#success-modal p');
+            if (modalSub) modalSub.textContent = "ELELALAELE-BING-ALELILLELALE";
+        }
+
+        function initApp() {
+            applyAllEditableValues();
+            
+            // Cache Elements
+            elements.music = document.getElementById('music-bgm');
+            elements.assetWrapper = document.getElementById('asset-wrapper');
+            elements.instruction = document.getElementById('instruction-text');
+            elements.storyText = document.getElementById('story-text');
+            elements.pulseBg = document.getElementById('pulse-bg');
+            elements.bag = document.getElementById('asset-bag');
+            elements.robot = document.getElementById('asset-robot');
+            elements.final = document.getElementById('asset-final');
+            elements.successModal = document.getElementById('success-modal');
+            elements.shareBtn = document.getElementById('btn-share');
+            elements.replayBtn = document.getElementById('btn-replay');
+            elements.shareZone = document.getElementById('share-zone');
+            elements.dragHint = document.getElementById('drag-hint');
+
+            // Set initial position
+            state.targetX = window.innerWidth / 2;
+            state.targetY = window.innerHeight / 2;
+            state.currentX = 0;
+            state.currentY = 0;
+
+            initBGM(); 
+            setupInputHandlers();
+            setupSocialListeners();
+            
+            elements.shareBtn.addEventListener('click', handleShare);
+            elements.replayBtn.addEventListener('click', () => location.reload());
+
+            // Start physics loop immediately
+            requestAnimationFrame(physicsLoop);
+        }
+
+        function setupSocialListeners() {
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+                if (msg.type === 'receive_social_action' && msg.data?.type === 'like') {
+                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
+                }
+            });
+        }
+
+        function physicsLoop() {
+            const current = timeline[state.stage];
+            const isBagMode = current && current.mode === 'bag';
+            const isFinalMode = current && current.mode === 'final';
+            const isRobotMode = current && current.mode === 'robot';
+            
+            if (isBagMode) {
+                const lerpSpeed = state.isDragging ? 0.25 : 0.15;
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+
+                // Displacement relative to current pos
+                let targetDX = state.isDragging ? (state.targetX - centerX) : 0;
+                let targetDY = state.isDragging ? (state.targetY - centerY) : 0;
+
+                const maxDis = 100;
+                const d = Math.sqrt(targetDX * targetDX + targetDY * targetDY);
+                if (d > maxDis) {
+                    targetDX = (targetDX / d) * maxDis;
+                    targetDY = (targetDY / d) * maxDis;
+                }
+
+                state.currentX += (targetDX - state.currentX) * lerpSpeed;
+                state.currentY += (targetDY - state.currentY) * lerpSpeed;
+
+                const vX = targetDX - state.currentX;
+                state.rotation += (vX * 0.6 - state.rotation) * 0.1;
+
+                elements.assetWrapper.style.transform = `translate3d(${state.currentX}px, ${state.currentY}px, 0) rotate(${state.rotation}deg) scale(1.1)`;
+                elements.assetWrapper.classList.remove('shake-active');
+            } else {
+                // LOCK POSITION for Emoji and Final Image - perfectly centered
+                state.currentX = 0;
+                state.currentY = 0;
+                state.rotation = 0;
+                
+                // Keep scale consistent
+                elements.assetWrapper.style.transform = `translate3d(0, 0, 0) rotate(0deg) scale(1)`;
+
+                // Only allow shaking for non-bag assets if segment is playing (interaction happening)
+                if (state.segmentComplete && !isBagMode) {
+                    elements.assetWrapper.classList.add('shake-active');
+                } else {
+                    elements.assetWrapper.classList.remove('shake-active');
+                }
+            }
+
+            // USER REQUIREMENT: Asset is in front (OPAQUE) when interacting/playing action sound.
+            // Otherwise, text is in front (ASSET SEMI-TRANSPARENT).
+            if (state.isWaiting || state.segmentComplete) {
+                elements.assetWrapper.style.opacity = "1";
+                elements.assetWrapper.style.zIndex = "60";
+                elements.storyText.style.opacity = "0.4"; // Semi-transparent lyrics behind
+            } else {
+                elements.assetWrapper.style.opacity = "0.5";
+                elements.assetWrapper.style.zIndex = "20";
+                elements.storyText.style.opacity = "1";
+            }
+
+            requestAnimationFrame(physicsLoop);
+        }
+
+        function startGame() {
+            if (state.isPlaying) return;
+            state.isPlaying = true;
+            state.stage = 0;
+            
+            const audio = elements.music;
+            audio.currentTime = 13.0;
+            audio.play().catch(() => {});
+            
+            elements.pulseBg.classList.add('pulsing');
+            elements.pulseBg.style.opacity = '1';
+
+            gameLoop();
+        }
+
+        let lastStageApplied = -1;
+
+        function gameLoop() {
+            if (!state.isPlaying) return;
+            
+            const audio = elements.music;
+            const t = audio.currentTime;
+            const current = timeline[state.stage];
+
+            if (!current) return;
+
+            // Apply round colors
+            if (state.stage !== lastStageApplied) {
+                if (current.bgColor) {
+                    document.documentElement.style.setProperty('--bg-color', current.bgColor);
+                }
+                if (current.pulseColor) {
+                    document.documentElement.style.setProperty('--pulse-color', current.pulseColor);
+                }
+                lastStageApplied = state.stage;
+            }
+
+            // Handle Lyric Text Timings
+            let activeText = current.text || "";
+            // Handle cross-stage text triggers (e.g. Robot text at 28.0 while in stage 6)
+            if (current.textTrigger && t >= current.textTrigger) {
+                activeText = current.triggerText;
+            }
+
+            // Update text display
+            if (activeText && elements.storyText.textContent !== activeText) {
+                elements.storyText.textContent = activeText;
+                if (activeText.length > 50) {
+                    elements.storyText.classList.add('long-text');
+                } else {
+                    elements.storyText.classList.remove('long-text');
+                }
+            }
+
+            // Mode Switching - Ensure visuals follow the timeline state
+            let displayMode = current.mode;
+            // Requirement: Robot stays until 0:38, then Prize (Final) shows
+            if (state.stage === 8 && t < 38.0) displayMode = 'robot';
+
+            if (displayMode === 'bag') {
+                elements.bag.classList.remove('hidden');
+                elements.robot.classList.add('hidden');
+                elements.final.classList.add('hidden');
+            } else if (displayMode === 'robot') {
+                elements.bag.classList.add('hidden');
+                elements.robot.classList.remove('hidden');
+                elements.final.classList.add('hidden');
+            } else if (displayMode === 'final') {
+                elements.bag.classList.add('hidden');
+                elements.robot.classList.add('hidden');
+                elements.final.classList.remove('hidden');
+            }
+
+            // Interaction Check (Pause for user input)
+            if (current.type === 'pause' && !state.isWaiting && !state.segmentComplete) {
+                if (t >= current.trigger) {
+                    audio.pause();
+                    audio.currentTime = current.trigger;
+                    state.isWaiting = true;
+                    showInteractionUI(current.instruction);
+                }
+            }
+
+            // Automatic segment transition
+            if (current.type === 'play' && t >= current.end) {
+                state.stage++;
+            }
+
+            // User Interaction Playback End Detection
+            if (state.segmentComplete && t >= current.playTo) {
+                audio.pause();
+                audio.currentTime = current.jumpTo;
+                state.segmentComplete = false;
+                
+                // USER REQUIREMENT: Show modal immediately after Stage 9 interaction (0:39-0:41)
+                if (state.stage === 9) {
+                    state.stage = 10;
+                    audio.play(); // Let rest of song play in background
+                    finishGame(); 
+                    return;
+                }
+                
+                state.stage++;
+                audio.play();
+            }
+
+            // Continuous loop check
+            requestAnimationFrame(gameLoop);
+        }
+
+        function showInteractionUI(instruction) {
+            elements.instruction.textContent = instruction;
+            elements.instruction.style.opacity = '1';
+            elements.instruction.style.transform = 'scale(1)';
+            
+            // Show drag hint if it's a shake instruction
+            if (instruction.toLowerCase().includes('drag')) {
+                elements.dragHint.style.visibility = 'visible';
+            }
+
+            elements.pulseBg.classList.remove('pulsing');
+            elements.pulseBg.style.opacity = '0.3';
+        }
+
+        function hideInteractionUI() {
+            elements.instruction.style.opacity = '0';
+            elements.instruction.style.transform = 'scale(0.8)';
+            
+            // Hide drag hint
+            elements.dragHint.style.visibility = 'hidden';
+
+            elements.pulseBg.classList.add('pulsing');
+            elements.pulseBg.style.opacity = '1';
+        }
+
+        function setupInputHandlers() {
+            let lastX = 0, lastY = 0;
+            let totalDist = 0;
+            const SHAKE_THRESHOLD = 300;
+
+            const handleStart = (e) => {
+                if (state.hasFinished) return;
+
+                // Requirement: Hide drag hint on interaction
+                if (elements.dragHint) {
+                    elements.dragHint.style.visibility = 'hidden';
+                }
+                state.hasInteracted = true;
+
+                const isBagVisible = !elements.bag.classList.contains('hidden');
+                const touch = e.touches ? e.touches[0] : e;
+                
+                if (isBagVisible) {
+                    state.isDragging = true;
+                    state.targetX = touch.clientX;
+                    state.targetY = touch.clientY;
+                    lastX = touch.clientX;
+                    lastY = touch.clientY;
+                    totalDist = 0;
+                } else {
+                    // For stationary assets, never update targetX/Y from touch
+                    state.targetX = window.innerWidth / 2;
+                    state.targetY = window.innerHeight / 2;
+                }
+
+                // Tap interactions (Robot/Prize)
+                if (state.isWaiting) {
+                    const current = timeline[state.stage];
+                    if (current && current.action === 'tap') {
+                        completeAction();
+                        createRipple(touch.clientX, touch.clientY);
+                    }
+                }
+            };
+
+            const handleMove = (e) => {
+                if (!state.isDragging) return;
+                const touch = e.touches ? e.touches[0] : e;
+                state.targetX = touch.clientX;
+                state.targetY = touch.clientY;
+
+                if (state.isWaiting) {
+                    const current = timeline[state.stage];
+                    if (current && current.action === 'shake') {
+                        const dx = Math.abs(touch.clientX - lastX);
+                        const dy = Math.abs(touch.clientY - lastY);
+                        totalDist += (dx + dy);
+                        lastX = touch.clientX;
+                        lastY = touch.clientY;
+
+                        if (totalDist > SHAKE_THRESHOLD) {
+                            completeAction();
+                        }
+                    }
+                }
+            };
+
+            const handleEnd = () => {
+                state.isDragging = false;
+                // Don't snap back to center, stay where released
+            };
+
+            elements.assetWrapper.addEventListener('touchstart', handleStart, { passive: false });
+            window.addEventListener('touchmove', handleMove, { passive: false });
+            window.addEventListener('touchend', handleEnd);
+
+            elements.assetWrapper.addEventListener('mousedown', handleStart);
+            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('mouseup', handleEnd);
+        }
+
+        function completeAction() {
+            if (!state.isWaiting) return;
+            
+            state.isWaiting = false;
+            state.segmentComplete = true;
+            hideInteractionUI();
+            
+            const audio = elements.music;
+            const current = timeline[state.stage];
+            
+            // Apply custom start offset if defined for this stage (e.g., 15.25 requested)
+            if (current && current.startFrom !== undefined) {
+                audio.currentTime = current.startFrom;
+            }
+            
+            audio.play();
+
+            // Haptic visual feedback for tap (robot/final)
+            if (current.action === 'tap') {
+                elements.assetWrapper.classList.add('shake-active');
+                setTimeout(() => elements.assetWrapper.classList.remove('shake-active'), 500);
+            }
+
+            // Ensure coordinates are neutral for non-bag assets
+            if (current.mode !== 'bag') {
+                state.targetX = window.innerWidth / 2;
+                state.targetY = window.innerHeight / 2;
+                state.currentX = 0;
+                state.currentY = 0;
+            }
+        }
+
+        function createRipple(x, y) {
+            const ripple = document.createElement('div');
+            ripple.className = 'ripple-effect';
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+            document.body.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        }
+
+        function finishGame() {
+            if (state.hasFinished) return;
+            state.hasFinished = true;
+            state.isPlaying = false;
+            elements.pulseBg.classList.remove('pulsing');
+            elements.pulseBg.style.opacity = '0';
+            
+            // Confetti
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+            
+            // Show Modal Immediately
+            elements.successModal.classList.remove('hidden-ui');
+            elements.successModal.classList.add('visible-ui');
+            elements.shareZone.style.transform = 'scale(1)';
+        }
+
+        // --- Sekai Iframe Message API ---
+        function generateTaskId() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
+
+        async function sendMessage(type, data, expectResponse = true, successType = null) {
+            const taskId = generateTaskId();
+            window.parent.postMessage({
+                origin: 'sekai_gaming_iframe_api',
+                type,
+                taskId,
+                data
+            }, '*');
+
+            if (!expectResponse) return null;
+
+            return new Promise((resolve, reject) => {
+                const handler = (event) => {
+                    const msg = event.data;
+                    if (msg?.origin !== 'sekai_gaming_iframe_api' || msg.taskId !== taskId) return;
+                    
+                    if (msg.type === successType) {
+                        window.removeEventListener('message', handler);
+                        resolve(msg.data);
+                    } else if (msg.error) {
+                        window.removeEventListener('message', handler);
+                        reject(msg.error);
+                    }
+                };
+                window.addEventListener('message', handler);
+                setTimeout(() => {
+                    window.removeEventListener('message', handler);
+                    reject(new Error('Timeout calling ' + type));
+                }, 15000);
+            });
+        }
+
+        async function handleShare() {
+            const shareBtn = elements.shareBtn;
+            const originalContent = shareBtn.innerHTML;
+            shareBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            shareBtn.disabled = true;
+
+            try {
+                const shareZone = document.getElementById('share-zone');
+                const canvas = await html2canvas(shareZone, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#ffffff'
+                });
+                
+                const base64 = canvas.toDataURL('image/png');
+                const uploadResult = await sendMessage('upload_image', { image: base64 }, true, 'receive_upload_image');
+
+                if (uploadResult && uploadResult.hostUrl) {
+                    sendMessage('invoke_share', {
+                        title: "I kept the rhythm! Shake the bag!",
+                        coverImgUrl: uploadResult.hostUrl
+                    }, false);
+                    
+                    // Save to leaderboard
+                    sendMessage('save_app_result', {
+                        score: 100,
+                        public: true,
+                        result: { status: 'rhythm_complete' }
+                    }, false);
+                }
+            } catch (e) {
+                console.error('Share failed:', e);
+            } finally {
+                shareBtn.innerHTML = originalContent;
+                shareBtn.disabled = false;
+            }
+        }
+
+        // --- Preview Editing API (Mandatory) ---
+        (function setupPreviewEditingAPI() {
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                if (msg?.origin !== 'sekai_gaming_iframe_api') return;
+
+                switch (msg.type) {
+                    case 'get_editable_metadata':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_editable_metadata',
+                            taskId: msg.taskId,
+                            data: window.sekaiEditable || {}
+                        }, '*');
+                        break;
+                    case 'apply_change':
+                        const success = applySingleChange(msg.data.id, msg.data.value);
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_apply_change',
+                            taskId: msg.taskId,
+                            data: { success }
+                        }, '*');
+                        break;
+                    case 'get_current_html':
+                        window.parent.postMessage({
+                            origin: 'sekai_gaming_iframe_api',
+                            type: 'receive_current_html',
+                            taskId: msg.taskId,
+                            data: { html: document.documentElement.outerHTML }
+                        }, '*');
+                        break;
+                    case 'reset_changes':
+                        location.reload();
+                        break;
+                }
+            });
+
+            function applySingleChange(id, value) {
+                const categories = ['tune', 'images', 'videos', 'music', 'sfx', 'colors', 'text', 'prompts', 'voices'];
+                for (const cat of categories) {
+                    const item = window.sekaiEditable[cat]?.find(i => i.id === id);
+                    if (!item) continue;
+                    item.value = value;
+                    if (item.cssVar) document.documentElement.style.setProperty(item.cssVar, value);
+                    else if (item.path) setNestedValue(window, item.path, value);
+                    else if (item.selector) {
+                        const el = document.querySelector(item.selector);
+                        if (!el) return false;
+                        if (el.tagName === 'AUDIO') {
+                            const wasPlaying = !el.paused;
+                            el.src = value;
+                            el.load();
+                            if (wasPlaying) el.play().catch(() => {});
+                        } else if (item.property === 'src') {
+                            el.src = value;
+                        } else if (item.property === 'backgroundImage') {
+                            el.style.backgroundImage = `url('${value}')`;
+                        } else {
+                            el.textContent = value;
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            }
+        })();
+    </script>
+</body>
+</html>

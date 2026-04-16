@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Game</title>
+  <style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#fff;display:flex;justify-content:center;min-height:100dvh}
+.feed-card{width:100%;display:flex;flex-direction:column;background:#111;height:100dvh}
+.game-area{flex:1;width:100%;overflow:hidden;min-height:0;border-radius:24px;border:1px solid rgba(255,255,255,.05);background:#1a1a1a;position:relative}
+.game-area iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+.bottom-section{flex-shrink:0;position:relative;z-index:2;background:#111}
+.bottom-bar{display:flex;align-items:center;justify-content:flex-start;padding:0 16px;height:48px;width:100%}
+.bottom-bar-left{display:flex;align-items:center;gap:16px;flex-shrink:0}
+.bottom-bar-right{display:flex;align-items:center;gap:16px;flex-shrink:0;margin-left:auto}
+.icon-btn{display:flex;align-items:center;gap:4px;height:48px;min-height:44px;background:none;border:none;cursor:pointer;padding:0;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:transform .15s ease}
+.icon-btn:active{transform:scale(.95)}
+.icon-btn svg,.icon-btn img{flex-shrink:0;pointer-events:none}
+.icon-btn .count{font-size:14px;font-weight:500;color:#999}
+.ic-default{color:#999;fill:#999}
+.ic-liked{color:#FF000E;fill:#FF000E}
+.ic-saved{fill:#FFA300;color:#FFA300}
+.creator-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;height:60px;width:100%}
+.creator-left{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0}
+.avatar-wrap{position:relative;flex-shrink:0}
+.avatar-btn{width:40px;height:40px;border-radius:50%;overflow:hidden;border:.44px solid rgba(255,255,255,.05);background:none;padding:0;cursor:pointer;transition:opacity .15s}
+.avatar-btn:active{opacity:.8}
+.avatar-btn img{width:100%;height:100%;object-fit:cover;display:block}
+.follow-indicator{position:absolute;bottom:0;right:0;width:20px;height:20px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;padding:0;transform:translate(4px,-4px);transition:transform .15s}
+.follow-indicator:not([disabled]):active{transform:translate(4px,-4px) scale(.9)}
+.follow-indicator[disabled]{cursor:default}
+.fi-svg{width:20px;height:20px}
+.fi-plus{transition:opacity .15s ease}
+.fi-check{fill:none;stroke:#28a745;stroke-dasharray:20;stroke-dashoffset:20;opacity:0;transition:stroke-dashoffset .28s ease .08s,opacity .12s ease}
+.fi-ring{stroke:#b3b3b3;transition:stroke .15s ease .1s}
+.follow-indicator.fi-active .fi-plus{opacity:0}
+.follow-indicator.fi-active .fi-check{stroke-dashoffset:0;opacity:1}
+.follow-indicator.fi-active .fi-ring{stroke:#28a745}
+@keyframes fi-pop{0%{transform:translate(4px,-4px) scale(1)}40%{transform:translate(4px,-4px) scale(1.28)}72%{transform:translate(4px,-4px) scale(.9)}100%{transform:translate(4px,-4px) scale(1)}}
+.follow-indicator.fi-pop{animation:fi-pop .42s cubic-bezier(.34,1.56,.64,1)}
+.user-info{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;min-width:0;flex:1;overflow:hidden}
+.username{width:100%;font-size:16px;font-weight:700;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;background:none;border:none;cursor:pointer;padding:0;transition:opacity .15s}
+.username:active{opacity:.8}
+.title-row{display:flex;align-items:center;gap:5px;width:100%;min-width:0;line-height:1.2}
+.remix-link{display:flex;align-items:center;gap:2px;max-width:50%;background:none;border:none;cursor:pointer;padding:0;transition:opacity .15s}
+.remix-link:active{opacity:.7}
+.remix-link span{font-size:14px;font-weight:700;color:#6B6B6B;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.game-title{font-size:14px;color:#999;line-height:1.2;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.remix-btn{display:flex;flex-direction:column;align-items:center;padding:6px 0 6px 12px;background:none;border:none;cursor:pointer;transition:opacity .15s;flex-shrink:0}
+.remix-btn:active{opacity:.7}
+.remix-btn-label{font-size:12px;font-weight:700;background:linear-gradient(152deg,#00F4FF 4.54%,#FFE754 85.02%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+@keyframes recordDotBlink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes recPillExpand{from{transform:scaleX(0.05);opacity:0}to{transform:scaleX(1);opacity:1}}
+@keyframes recPillCollapse{from{transform:scaleX(1);opacity:1}to{transform:scaleX(0.05);opacity:0}}
+@keyframes recFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes recFadeOut{from{opacity:1}to{opacity:0}}
+.rec-icon-btn{position:relative}
+.rec-pill-bar{display:none;align-items:center;justify-content:center;height:48px;padding:0 16px;width:100%}
+.rec-pill-inner{width:100%;max-width:361px;background:#242424;border-radius:9999px;padding:8px 12px;overflow:hidden;transform-origin:center}
+.rec-dot{display:block;flex-shrink:0;width:10px;height:10px;border-radius:50%;background:#E52434;animation:recordDotBlink 1s ease-in-out infinite}
+.rp-center{display:flex;align-items:center;justify-content:center;gap:8px}
+.rp-between{display:flex;align-items:center;justify-content:space-between}
+.rp-left{display:flex;align-items:center;gap:8px}
+.rp-label{color:#fff;font-size:14px;font-weight:500;line-height:1}
+.rp-timer{color:#fff;font-size:14px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.rp-stop{display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;padding:0;transition:opacity .15s;-webkit-user-select:none;user-select:none}
+.rp-stop:active{opacity:.7}
+.remix-nudge-wrap{position:relative;flex-shrink:0}
+.remix-btn.nudge-active{position:relative;z-index:65}
+.remix-nudge-overlay{position:absolute;inset:0;pointer-events:none;z-index:61;display:flex;align-items:center;justify-content:center;padding-left:12px;opacity:0;transition:opacity .3s ease-out}
+.remix-nudge-overlay.visible{opacity:1}
+.remix-nudge-ring{position:absolute;width:56px;height:56px;border-radius:50%;border:2px solid #05F0FF;box-shadow:0 0 0 9999px rgba(0,0,0,.6),0 0 20px 4px rgba(5,240,255,.5),0 0 8px 2px rgba(5,240,255,.3) inset}
+.remix-nudge-overlay.visible .remix-nudge-ring{animation:remixGlowPulse 1.6s ease-in-out infinite}
+.remix-nudge-tooltip{position:absolute;bottom:100%;right:-4px;margin-bottom:10px;white-space:nowrap;opacity:0;transform:translateY(8px);transition:opacity .3s ease-out,transform .3s ease-out}
+.remix-nudge-overlay.visible .remix-nudge-tooltip{opacity:1;transform:translateY(0);animation:remixTooltipBounce 2s ease-in-out infinite}
+.remix-nudge-bubble{background:#fff;border-radius:20px;padding:8px 16px;color:#111;font-weight:700;font-size:14px;line-height:20px;box-shadow:0 4px 20px rgba(0,0,0,.3);position:relative}
+.remix-nudge-bubble::after{content:'';position:absolute;bottom:-7px;right:16px;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid #fff}
+@keyframes remixGlowPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.6),0 0 20px 4px rgba(5,240,255,.5),0 0 8px 2px rgba(5,240,255,.3) inset;border-color:#05F0FF}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.6),0 0 28px 6px rgba(5,240,255,.7),0 0 12px 3px rgba(5,240,255,.4) inset;border-color:#00F4FF}}
+@keyframes remixTooltipBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  </style>
+</head>
+<body>
+  <div class="feed-card">
+    <div class="game-area">
+      <iframe
+        sandbox="allow-scripts allow-same-origin allow-popups allow-pointer-lock allow-modals"
+        allow="autoplay; camera; microphone; clipboard-read; clipboard-write; gyroscope; accelerometer"
+      ></iframe>
+    </div>
+    <div class="bottom-section">
+      <div id="rec-pill-bar" class="rec-pill-bar"></div>
+      <div class="bottom-bar">
+        <div class="bottom-bar-left">
+          <button type="button" class="icon-btn" aria-label="Like" data-action="like">
+            <svg class="ic-default" width="16" height="15" viewBox="0 0 16 15" xmlns="http://www.w3.org/2000/svg">
+              <path fill="currentColor" d="M8 14.1436c-.1846 0-.3675-.0325-.5487-.0974a1.31 1.31 0 0 1-.4872-.3025L5.6718 12.564C4.1949 11.217 2.8803 9.8974 1.7282 8.6051 0.5761 7.3128 0 5.9009 0 4.3692 0 3.1248.4171 2.0855 1.2513 1.2513 2.0855.4171 3.1248 0 4.3692 0c.7043 0 1.3727.1521 2.0052.4564A3.72 3.72 0 0 1 8 1.7436c.465-.5539 1.0103-.983 1.6359-1.2873C10.2615.1521 10.9265 0 11.6308 0c1.2444 0 2.2837.4171 3.1179 1.2513C15.5829 2.0855 16 3.1248 16 4.3692c0 1.5317-.5744 2.9453-1.7231 4.2411-1.1487 1.2957-2.4649 2.6137-3.9487 3.9539l-1.2923 1.1795c-.1436.1367-.306.2376-.4872.3025-.1812.0649-.3641.0974-.5487.0974Z"/>
+            </svg>
+            <span class="count">0</span>
+          </button>
+          <button type="button" class="icon-btn" aria-label="Comment" data-action="comment">
+            <svg class="ic-default" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+              <path fill="currentColor" d="M3.12 0C2.29252 0 1.49894 0.328713 0.913827 0.913827C0.328713 1.49894 0 2.29252 0 3.12V9.36C0 10.1875 0.328713 10.9811 0.913827 11.5662C1.49894 12.1513 2.29252 12.48 3.12 12.48V14.82C3.12007 14.9611 3.15841 15.0995 3.23094 15.2205C3.30346 15.3416 3.40745 15.4406 3.53184 15.5072C3.65622 15.5738 3.79634 15.6054 3.93727 15.5987C4.0782 15.592 4.21466 15.5471 4.33212 15.469L8.81556 12.48H12.48C13.3075 12.48 14.1011 12.1513 14.6862 11.5662C15.2713 10.9811 15.6 10.1875 15.6 9.36V3.12C15.6 2.29252 15.2713 1.49894 14.6862 0.913827C14.1011 0.328713 13.3075 0 12.48 0H3.12Z"/>
+            </svg>
+            <span class="count">0</span>
+          </button>
+          <button type="button" class="icon-btn" aria-label="Save" data-action="save">
+            <svg class="ic-default" width="15" height="16" viewBox="0 0 15 16" xmlns="http://www.w3.org/2000/svg">
+              <path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M14.4 7.2784V11.2728C14.4 13.7496 14.4 14.9888 13.8128 15.5296C13.5328 15.788 13.1792 15.9504 12.8024 15.9936C12.0128 16.084 11.0904 15.268 9.2464 13.6368C8.4304 12.916 8.0232 12.5552 7.552 12.4608C7.31973 12.4134 7.08027 12.4134 6.848 12.4608C6.376 12.5552 5.9688 12.916 5.1536 13.6368C3.3096 15.268 2.3872 16.084 1.5976 15.9928C1.22022 15.9494 0.866392 15.7872 0.5872 15.5296C-4.76837e-08 14.9888 0 13.7504 0 11.2728V7.2776C0 3.848 -9.53674e-08 2.1328 1.0544 1.0664C2.1088 0 3.8064 0 7.2 0C10.5936 0 12.2912 0 13.3456 1.0656C14.4 2.1312 14.4 3.848 14.4 7.2784Z"/>
+            </svg>
+            <span class="count">0</span>
+          </button>
+        </div>
+        <div class="bottom-bar-right">
+          <button type="button" class="icon-btn rec-icon-btn" aria-label="Start recording" data-action="record" style="display:none">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.525 11.149C22.3801 11.0595 22.2148 11.0085 22.0447 11.0008C21.8746 10.9931 21.7054 11.029 21.553 11.105L19 12.382V12C19 10.346 17.654 9 16 9H5C3.346 9 2 10.346 2 12V20C2 21.654 3.346 23 5 23H16C17.654 23 19 21.654 19 20V19.618L21.553 20.894C21.705 20.9711 21.8744 21.0077 22.0446 21.0001C22.2149 20.9926 22.3804 20.9412 22.525 20.851C22.82 20.668 23 20.347 23 20V12C23 11.653 22.82 11.332 22.525 11.149ZM7 17.5C6.79983 17.5052 6.60063 17.4703 6.41416 17.3974C6.22768 17.3244 6.05771 17.2148 5.91426 17.0751C5.7708 16.9354 5.65677 16.7684 5.57889 16.5839C5.501 16.3995 5.46084 16.2013 5.46078 16.001C5.46071 15.8008 5.50074 15.6025 5.5785 15.418C5.65626 15.2335 5.77018 15.0664 5.91354 14.9266C6.0569 14.7868 6.2268 14.6771 6.41323 14.604C6.59965 14.5309 6.79882 14.4959 6.999 14.501C7.38999 14.511 7.76163 14.6733 8.03469 14.9533C8.30775 15.2333 8.46065 15.6089 8.46078 16C8.46091 16.3911 8.30827 16.7668 8.03539 17.047C7.76251 17.3272 7.39099 17.4898 7 17.5Z" fill="#6B6B6B"/></svg>
+          </button>
+          <button type="button" class="icon-btn" aria-label="Screenshot" data-action="screenshot">
+            <svg class="ic-default" width="19" height="19" viewBox="0 0 19 19" xmlns="http://www.w3.org/2000/svg" fill="none">
+              <path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M5.19357 0.00600839C5.33022 -0.00865299 5.46842 0.00375768 5.60028 0.0425318C5.73214 0.0813059 5.85507 0.145684 5.96207 0.231991C6.06906 0.318298 6.15801 0.424842 6.22384 0.545542C6.28968 0.666242 6.3311 0.798733 6.34576 0.93545C6.36041 1.07217 6.34801 1.21043 6.30925 1.34236C6.27049 1.47428 6.20615 1.59727 6.11988 1.70431C6.03361 1.81135 5.92712 1.90034 5.80648 1.96621C5.68583 2.03207 5.5534 2.07352 5.41675 2.08818C4.93876 2.14028 4.46171 2.19424 3.98558 2.25007L3.88794 2.26123C3.47042 2.31048 3.08169 2.49911 2.78455 2.79665C2.4874 3.09419 2.29919 3.48326 2.25032 3.90101C2.19452 4.4062 2.13965 4.91233 2.08572 5.41938C2.0547 5.69343 1.91683 5.94416 1.70206 6.11706C1.48729 6.28997 1.21298 6.37108 0.938769 6.34276C0.664554 6.31445 0.412592 6.17899 0.237651 5.96584C0.06271 5.75269 -0.0210704 5.47907 0.00452042 5.20446C0.0593867 4.68531 0.115183 4.17268 0.171909 3.66656C0.273763 2.77869 0.672561 1.95132 1.30357 1.31875C1.93458 0.686172 2.76076 0.28553 3.64801 0.181849L3.74566 0.170684C4.22178 0.114862 4.70442 0.05997 5.19357 0.00600839ZM12.6521 0.93545C12.6667 0.798713 12.7081 0.666196 12.7739 0.545471C12.8398 0.424747 12.9287 0.318182 13.0357 0.231866C13.1427 0.14555 13.2657 0.0811762 13.3975 0.0424224C13.5294 0.00366865 13.6677 -0.00870508 13.8043 0.00600839C14.2935 0.0590396 14.7756 0.113932 15.2508 0.170684L15.3499 0.181849C16.2371 0.28553 17.0633 0.686172 17.6943 1.31875C18.3253 1.95132 18.7241 2.77869 18.826 3.66656C18.8827 4.17175 18.9385 4.68438 18.9934 5.20446C19.0089 5.34191 18.9971 5.48107 18.9586 5.61391C18.92 5.74675 18.8556 5.87064 18.7689 5.9784C18.6822 6.08616 18.575 6.17567 18.4536 6.24174C18.3321 6.30782 18.1988 6.34915 18.0612 6.36335C17.9237 6.37755 17.7847 6.36434 17.6523 6.32448C17.52 6.28462 17.3968 6.2189 17.2899 6.13112C17.1831 6.04335 17.0947 5.93525 17.0298 5.81308C16.965 5.69092 16.925 5.5571 16.9122 5.41938C16.8592 4.91233 16.8043 4.4062 16.7476 3.90101C16.6987 3.48326 16.5105 3.09419 16.2133 2.79665C15.9162 2.49911 15.5275 2.31048 15.1099 2.26123L15.0123 2.25007C14.5362 2.19331 14.0591 2.13935 13.5811 2.08818C13.4445 2.07357 13.312 2.03215 13.1913 1.96631C13.0707 1.90046 12.9641 1.81146 12.8779 1.70441C12.7916 1.59736 12.7273 1.47435 12.6885 1.3424C12.6498 1.21046 12.6374 1.07218 12.6521 0.93545ZM12.6521 18.0659C12.682 18.3418 12.8201 18.5946 13.0362 18.7686C13.2522 18.9426 13.5285 19.0237 13.8043 18.994C14.2935 18.94 14.7756 18.8856 15.2508 18.8307L15.3499 18.8181C16.2371 18.7145 17.0633 18.3138 17.6943 17.6812C18.3253 17.0487 18.7241 16.2213 18.826 15.3334C18.8827 14.8282 18.9385 14.3156 18.9934 13.7955C19.0089 13.6581 18.9971 13.5189 18.9586 13.3861C18.92 13.2532 18.8556 13.1293 18.7689 13.0216C18.6822 12.9138 18.575 12.8243 18.4536 12.7582C18.3321 12.6922 18.1988 12.6508 18.0612 12.6366C17.9237 12.6224 17.7847 12.6356 17.6523 12.6755C17.52 12.7154 17.3968 12.7811 17.2899 12.8689C17.1831 12.9566 17.0947 13.0647 17.0298 13.1869C16.965 13.3091 16.925 13.4429 16.9122 13.5806C16.8592 14.0886 16.8043 14.5947 16.7476 15.099C16.6987 15.5167 16.5105 15.9058 16.2133 16.2033C15.9162 16.5009 15.5275 16.6895 15.1099 16.7388L15.0123 16.7499C14.5362 16.8067 14.0591 16.8606 13.5811 16.9118C13.4443 16.9264 13.3117 16.9679 13.191 17.0338C13.0702 17.0997 12.9636 17.1889 12.8773 17.2961C12.791 17.4033 12.7267 17.5265 12.6881 17.6586C12.6494 17.7907 12.6372 17.9291 12.6521 18.0659ZM6.34436 18.0659C6.31452 18.3418 6.17638 18.5946 5.96032 18.7686C5.74426 18.9426 5.46796 19.0237 5.19217 18.994C4.70302 18.94 4.22085 18.8856 3.74566 18.8307L3.64662 18.8181C2.75962 18.7142 1.93376 18.3134 1.30303 17.6808C0.672298 17.0483 0.273701 16.2211 0.171909 15.3334C0.115183 14.8282 0.0593867 14.3156 0.00452042 13.7955C-0.0210704 13.5209 0.06271 13.2473 0.237651 13.0341C0.412592 12.821 0.664554 12.6855 0.938769 12.6572C1.21298 12.6289 1.48729 12.71 1.70206 12.8829C1.91683 13.0558 2.0547 13.3066 2.08572 13.5806C2.13872 14.0886 2.19359 14.5947 2.25032 15.099C2.34657 15.9531 3.03146 16.6397 3.88794 16.7388L3.98558 16.7499C4.46171 16.8067 4.93923 16.8606 5.41815 16.9118C5.55483 16.9266 5.68726 16.9682 5.80786 17.0342C5.92847 17.1002 6.03489 17.1893 6.12104 17.2965C6.20719 17.4037 6.27138 17.5268 6.30994 17.6588C6.3485 17.7909 6.35927 17.9292 6.34436 18.0659ZM7.61931 4.22757C7.49445 4.22759 7.3719 4.26114 7.26443 4.32472C7.15696 4.3883 7.06852 4.47958 7.00834 4.58902L6.25509 5.95388L6.13931 5.96365L6.07515 5.96923C5.53752 6.0161 5.03128 6.24253 4.63785 6.61209C4.24442 6.98166 3.98667 7.47288 3.90607 8.00674C3.80285 8.71429 3.70241 9.48045 3.70241 10.2731C3.70241 11.0658 3.80285 11.8334 3.90607 12.5395C3.98661 13.0732 4.24415 13.5642 4.6373 13.9338C5.03045 14.3033 5.53637 14.5299 6.07375 14.577L6.13792 14.5826H6.15187C7.2092 14.6747 8.33768 14.7724 9.49964 14.7724C10.6588 14.7724 11.7873 14.6747 12.846 14.584L12.9241 14.577C13.4613 14.5296 13.9669 14.3029 14.3597 13.9334C14.7526 13.5638 15.0099 13.0729 15.0904 12.5395C15.195 11.8334 15.2955 11.0658 15.2955 10.2731C15.2955 9.48045 15.195 8.71429 15.0904 8.00674C15.0099 7.47331 14.7526 6.98242 14.3597 6.61291C13.9669 6.24339 13.4613 6.01669 12.9241 5.96923L12.8586 5.96365L12.7442 5.95388L11.9909 4.58902C11.9308 4.47958 11.8423 4.3883 11.7348 4.32472C11.6274 4.26114 11.5048 4.22759 11.38 4.22757H7.61931ZM9.49964 12.2074C10.8387 12.2074 11.592 11.4538 11.592 10.114C11.592 8.7743 10.8387 8.0207 9.49964 8.0207C8.16053 8.0207 7.40728 8.7743 7.40728 10.114C7.40728 11.4538 8.16053 12.2074 9.49964 12.2074Z"/>
+            </svg>
+          </button>
+          <button type="button" class="icon-btn" aria-label="Share" data-action="share">
+            <svg class="ic-default" width="17" height="15" viewBox="0 0 17 15" xmlns="http://www.w3.org/2000/svg">
+              <path fill="currentColor" d="M9.333 0.902c0-.815 1.021-1.21 1.595-.618l5.533 5.705c.452.466.452 1.194 0 1.66l-5.533 5.705c-.574.592-1.595.196-1.595-.617V9.547c-7.058 0-7.526 2.248-7.496 4.584.006.446-.6.593-.826.206C0.436 13.354 0 12.012 0 10.457 0 4.546 6.533 4.092 9.333 4.092V0.902Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="creator-bar">
+        <div class="creator-left">
+          <div class="avatar-wrap">
+            <button type="button" class="avatar-btn" aria-label="View profile" data-action="profile">
+              <img src="" alt="">
+            </button>
+            <button type="button" class="follow-indicator" aria-label="Follow" data-action="follow">
+              <svg class="fi-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32" width="32" height="32" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: 100%; transform: translate3d(0px, 0px, 0px); content-visibility: visible;"><defs><clipPath id="__lottie_element_2"><rect width="32" height="32" x="0" y="0"></rect></clipPath><clipPath id="__lottie_element_4"><path d="M0,0 L800,0 L800,800 L0,800z"></path></clipPath></defs><g clip-path="url(#__lottie_element_2)"><g clip-path="url(#__lottie_element_4)" style="display: block;" transform="matrix(0.23000000417232513,0,0,0.23000000417232513,-76,-76)" opacity="1"><g style="display: block;" transform="matrix(6.690000057220459,0,0,6.690000057220459,400,400)" opacity="1"><path fill="rgb(255,255,255)" fill-opacity="1" d=" M-8.994999885559082,0 C-8.994999885559082,-4.965000152587891 -4.965000152587891,-8.994999885559082 0,-8.994999885559082 C4.965000152587891,-8.994999885559082 8.994999885559082,-4.965000152587891 8.994999885559082,0 C8.994999885559082,4.965000152587891 4.965000152587891,8.994999885559082 0,8.994999885559082 C-4.965000152587891,8.994999885559082 -8.994999885559082,4.965000152587891 -8.994999885559082,0z"></path></g><g style="display: block;" transform="matrix(6.690000057220459,0,0,6.690000057220459,400,400)" opacity="1"><path stroke-linecap="butt" stroke-linejoin="miter" fill-opacity="0" stroke-miterlimit="4" stroke="rgb(179,179,179)" stroke-opacity="1" stroke-width="2" d=" M-8.994999885559082,0 C-8.994999885559082,-4.965000152587891 -4.965000152587891,-8.994999885559082 0,-8.994999885559082 C4.965000152587891,-8.994999885559082 8.994999885559082,-4.965000152587891 8.994999885559082,0 C8.994999885559082,4.965000152587891 4.965000152587891,8.994999885559082 0,8.994999885559082 C-4.965000152587891,8.994999885559082 -8.994999885559082,4.965000152587891 -8.994999885559082,0z M6.889999866485596,-5.78000020980835 C8.204000473022461,-4.2170000076293945 8.994999885559082,-2.200000047683716 8.994999885559082,0 C8.994999885559082,4.965000152587891 4.965000152587891,8.994999885559082 0,8.994999885559082 C-4.965000152587891,8.994999885559082 -8.994999885559082,4.965000152587891 -8.994999885559082,0 C-8.994999885559082,0 -8.994999885559082,0 -8.994999885559082,0 C-8.994999885559082,-4.965000152587891 -4.965000152587891,-8.994999885559082 0,-8.994999885559082 C2.765000104904175,-8.994999885559082 5.239999771118164,-7.744999885559082 6.889999866485596,-5.78000020980835"></path><path stroke-linecap="round" stroke-linejoin="round" fill-opacity="0" stroke="rgb(0,0,0)" stroke-opacity="1" stroke-width="2" d=" M6.889999866485596,-5.78000020980835 C8.204000473022461,-4.2170000076293945 8.994999885559082,-2.200000047683716 8.994999885559082,0 C8.994999885559082,4.965000152587891 4.965000152587891,8.994999885559082 0,8.994999885559082 C-4.965000152587891,8.994999885559082 -8.994999885559082,4.965000152587891 -8.994999885559082,0 C-8.994999885559082,0 -8.994999885559082,0 -8.994999885559082,0 C-8.994999885559082,-4.965000152587891 -4.965000152587891,-8.994999885559082 0,-8.994999885559082 C2.765000104904175,-8.994999885559082 5.239999771118164,-7.744999885559082 6.889999866485596,-5.78000020980835"></path></g><g style="display: block;" transform="matrix(0.6401699781417847,0,0,0.6401699781417847,399.9602966308594,399.75994873046875)" opacity="1"><g opacity="1" transform="matrix(0.9996100068092346,0,0,0.9991499781608582,0,0)"><path stroke-linecap="round" stroke-linejoin="miter" fill-opacity="0" stroke-miterlimit="4" stroke="rgb(0,0,0)" stroke-opacity="1" stroke-width="22" d=" M-0.5440000295639038,-0.5090000033378601 C-0.5440000295639038,-0.5090000033378601 -0.2630000114440918,-0.24799999594688416 -0.2630000114440918,-0.24799999594688416"></path></g><path stroke-linecap="round" stroke-linejoin="miter" fill-opacity="0" stroke-miterlimit="4" stroke="rgb(0,0,0)" stroke-opacity="1" stroke-width="22" d=" M0.07000000029802322,-39.6879997253418 C0.07000000029802322,-39.6879997253418 0.07000000029802322,40.3120002746582 0.07000000029802322,40.3120002746582 M-40.02000045776367,0.335999995470047 C-40.02000045776367,0.335999995470047 39.97999954223633,0.335999995470047 39.97999954223633,0.335999995470047"></path><g opacity="1" transform="matrix(1,0,0,1,0,0)"></g><g opacity="1" transform="matrix(1,0,0,1,0,0)"></g></g></g></g></svg>
+            </button>
+          </div>
+          <div class="user-info">
+            <button type="button" class="username" data-action="profile"></button>
+            <div class="title-row">
+              <button type="button" class="remix-link" hidden>
+                <span></span>
+              </button>
+              <span class="game-title"></span>
+            </div>
+          </div>
+        </div>
+        <div class="remix-nudge-wrap">
+          <button type="button" class="remix-btn" data-action="remix">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3.88672 13.046V11.5006C3.88672 7.87324 6.82728 4.93268 10.4546 4.93268H18.1816M20.1133 10.7287V12.2741C20.1133 15.9014 17.1727 18.842 13.5454 18.842H5.8184M9 11.9998H12.0015M12.0015 11.9998H15M12.0015 11.9998V9.00019M12.0015 11.9998L12.0015 15.0002M17.0226 6.86378L18.9543 4.93203L17.0226 2.99969M6.6969 21.0003L4.65937 18.9627M4.65937 18.9461L6.6969 16.9086" stroke="url(#remix-icon-grad)" stroke-width="1.8" stroke-linecap="round"></path>
+              <defs>
+                <linearGradient id="remix-icon-grad" x1="5.97" y1="3.01" x2="15.8" y2="19.43" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#05F0FF"></stop>
+                  <stop offset="1" stop-color="#FFE86E"></stop>
+                </linearGradient>
+              </defs>
+            </svg>
+            <span class="remix-btn-label">0</span>
+          </button>
+          <div class="remix-nudge-overlay" id="remixNudgeOverlay">
+            <span class="remix-nudge-ring"></span>
+            <div class="remix-nudge-tooltip">
+              <div class="remix-nudge-bubble">Add your own twist to this sekai!</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>window.__CARD_DATA__={"api_host":"https://api.sekai.chat","app_url":"https://sekai.chat","avatar_path":"assets/avator.webp","comment_count":54,"cover":"https://prod-data.sekai.chat/v3-games/cover/13dc5434-b14e-49e2-9002-9f58513b6751/9e920319-ab2e-44fe-900b-0d94df91d7c7/cover.large.webp","creator_name":"✨Maria✨","creator_user_id":7041278,"extra":{"creator_id":7041278,"is_remix":false,"parent_jam_id":null,"root_jam_id":null,"parent_jam_title":null,"parent_jam_remixed_count":null,"remixed_count":4},"game_id":"29a0c6c8-e962-4593-9826-52e8cfa0e278","is_followed":false,"is_liked":false,"is_saved":false,"like_count":337,"parent_game_title":"","remix_url":"https://sekai.chat/g3-game/community/29a0c6c8-e962-4593-9826-52e8cfa0e278?fromPage=feed&orientation=auto","save_count":184,"title":"Sekai Mic Test.","version":"","version_id":"4bb4e047-7154-4a59-8bbc-c961d36bafa6"};</script>
+  <script>
+if (typeof window.receiveMessageFromFlutter === 'undefined') {
+  window.receiveMessageFromFlutter = function receiveMessageFromFlutter(message) {
+    window.dispatchEvent(new CustomEvent('flutterMessage', { detail: message }));
+  };
+}
+
+var GAME = window.__CARD_DATA__ || {};
+
+var _isFollowing = !!GAME.is_followed;
+var _authToken = null;
+var _isTourist = false;
+var _userId = null;
+var _uploadCache = {};
+
+var _isFileProtocol = window.location.protocol === 'file:';
+var _audioMuted = _isFileProtocol ? true : document.visibilityState === 'hidden';
+var _apiHost = GAME.api_host || '';
+var _appUrl = GAME.app_url || '';
+
+var _rp = 'idle', _rCd = 3, _rSecs = 30, _rCdT = null, _rST = null, _MAX_S = 30;
+var _STOP_SVG = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="9" stroke="#fff" stroke-width="1.5"/><rect x="6.5" y="6.5" width="7" height="7" rx="1" fill="#fff"/></svg>';
+var _verMaj = 0, _verMin = 0, _verPat = 0;
+if (GAME.version) {
+  try {
+    var _vp = String(GAME.version).replace(/-.*$/, '').split('.');
+    _verMaj = parseInt(_vp[0] || '0', 10);
+    _verMin = parseInt(_vp[1] || '0', 10);
+    _verPat = parseInt(_vp[2] || '0', 10);
+  } catch (_) {}
+}
+
+var _isLiked = !!GAME.is_liked;
+var _isSaved = !!GAME.is_saved;
+var _likeCount = GAME.like_count || 0;
+var _commentCount = GAME.comment_count || 0;
+var _saveCount = GAME.save_count || 0;
+
+function sendFlutterMessage(payload) {
+  var message = JSON.stringify(payload);
+
+  if (window.sendMessageToFlutter) {
+    return window.sendMessageToFlutter(message);
+  }
+
+  if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+    return window.flutter_inappwebview.callHandler('messageHandler', message);
+  }
+
+  return null;
+}
+
+function logEvent(eventName, params) {
+  var p = { eventName: eventName, offline: true, web: true };
+  for (var k in params) { if (params.hasOwnProperty(k)) p[k] = params[k]; }
+  sendFlutterMessage({ action: 'logEvent', parameters: p });
+}
+
+function getActionButton(action) {
+  return document.querySelector('[data-action="' + action + '"]');
+}
+
+function getCountNode(action) {
+  return document.querySelector('[data-action="' + action + '"] .count');
+}
+
+function getIconNode(action) {
+  return document.querySelector('[data-action="' + action + '"] svg');
+}
+
+function formatCount(value) {
+  if (!value) return '0';
+  if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(value);
+}
+
+function buildShareLink() {
+  if (_appUrl) return _appUrl + '/g3-game/community/' + GAME.game_id + '?fromPage=feed&orientation=auto';
+  return GAME.remix_url || '';
+}
+
+function buildShareContent() {
+  return 'Look! I created an ' + (GAME.title || '').replace(/["""]/g, "'") + ' using AI, and it only took 1 minute!';
+}
+
+function buildOtherActions(isCreator) {
+  var actions = [];
+
+  if (isCreator) {
+    actions.push({ name: 'Edit', icon: 'https://public-access.sekai.chat/icon/universe/icon_share_edit.png', action: 'g3Edit' });
+  }
+
+  actions.push({ name: 'Full Screen', icon: 'https://public-access.sekai.chat/icon/universe/icon_share_fullscreen2.png', action: 'g3FullScreen' });
+  actions.push({ name: 'Download', icon: 'https://public-access.sekai.chat/icon/universe/icon_share_download2.png', action: 'g3Download' });
+  actions.push({ name: 'Feedback', icon: 'https://public-access.sekai.chat/icon/universe/icon_share_feedback2.png', action: 'g3Feedback' });
+
+  return actions;
+}
+
+function getRemixedCount() {
+  return (GAME.extra && GAME.extra.remixed_count) || 0;
+}
+
+/* ── Remix Nudge ── */
+var _nudgeIsActive = false;
+var _nudgeShownSession = false;
+var _isFeedTabActive = true;
+var _isCardVisible = !_isFileProtocol && document.visibilityState !== 'hidden';
+
+function notifyRemixNudgeTriggered() {
+  sendFlutterMessage({ action: 'markRemixNudgeTriggered' });
+}
+
+var _feedCardEnteredSent = false;
+
+function requestRemixNudgeTimer() {
+  if (!GAME.game_id) return;
+  if (!_isFeedTabActive || !_isCardVisible) return;
+  if (_feedCardEnteredSent) return;
+  _feedCardEnteredSent = true;
+  sendFlutterMessage({
+    action: 'feedCardEntered',
+    data: { gameId: String(GAME.game_id || '') },
+  });
+}
+
+function onNudgeThreshold() {
+  if (_nudgeIsActive) return;
+  logEvent('g3_feed_remix_nudge_eligible', { gameId: GAME.game_id, position: 0, variant: 'treatment' });
+  showNudgeOverlay();
+}
+
+function showNudgeOverlay() {
+  var overlay = document.getElementById('remixNudgeOverlay');
+  var remixBtn = getActionButton('remix');
+  if (!overlay || !remixBtn) return;
+  _nudgeIsActive = true;
+  remixBtn.classList.add('nudge-active');
+  // 60ms 后切换到 visible 触发 CSS transition
+  setTimeout(function() { overlay.classList.add('visible'); }, 60);
+
+  if (!_nudgeShownSession) {
+    _nudgeShownSession = true;
+    logEvent('g3_feed_remix_nudge_shown', { gameId: GAME.game_id, position: 0 });
+  }
+  // 绑定 tap-outside 监听，100ms 延迟避免当次点击立即触发。
+  // 使用 click 而不是 pointerdown，避免先把引导关掉导致底层按钮点不动。
+  setTimeout(function() {
+    document.addEventListener('click', handleNudgeTapOutside);
+  }, 100);
+}
+
+function handleNudgeTapOutside(event) {
+  var wrap = document.querySelector('.remix-nudge-wrap');
+  if (wrap && wrap.contains(event.target)) return;
+  dismissNudge('tap_outside');
+}
+
+function dismissNudge(reason) {
+  var overlay = document.getElementById('remixNudgeOverlay');
+  var remixBtn = getActionButton('remix');
+  var wasActive = _nudgeIsActive;
+  if (overlay) overlay.classList.remove('visible');
+  if (remixBtn) remixBtn.classList.remove('nudge-active');
+  document.removeEventListener('click', handleNudgeTapOutside);
+  _nudgeIsActive = false;
+  if (reason === 'tap_outside') {
+    logEvent('g3_feed_remix_nudge_dismissed', { gameId: GAME.game_id, dismissType: 'tap_outside', position: 0 });
+  }
+  if (wasActive && (reason === 'tap_outside' || reason === 'accepted')) {
+    notifyRemixNudgeTriggered();
+  }
+}
+
+function renderStaticCard() {
+  document.title = GAME.title || 'Game';
+
+  var avatar = document.querySelector('.avatar-btn img');
+  if (avatar) { avatar.src = GAME.avatar_path || ''; avatar.alt = GAME.creator_name || 'Unknown'; }
+
+  var username = document.querySelector('.username');
+  if (username) username.textContent = GAME.creator_name || 'Unknown';
+
+  var gameTitle = document.querySelector('.game-title');
+  if (gameTitle) gameTitle.textContent = GAME.title || 'Game';
+
+  var remixLink = document.querySelector('.remix-link');
+  if (remixLink) {
+    var remixText = remixLink.querySelector('span');
+    if (GAME.parent_game_title) {
+      remixLink.hidden = false;
+      if (remixText) remixText.textContent = GAME.parent_game_title;
+    } else {
+      remixLink.hidden = true;
+    }
+  }
+
+  var remixLabel = document.querySelector('.remix-btn-label');
+  if (remixLabel) remixLabel.textContent = formatCount(getRemixedCount());
+
+  renderSocialState();
+  updateFollowUI(false);
+}
+
+function renderSocialState() {
+  var likeIcon = getIconNode('like');
+  var saveIcon = getIconNode('save');
+  var likeCount = getCountNode('like');
+  var commentCount = getCountNode('comment');
+  var saveCount = getCountNode('save');
+
+  if (likeIcon) likeIcon.setAttribute('class', _isLiked ? 'ic-liked' : 'ic-default');
+  if (saveIcon) saveIcon.setAttribute('class', _isSaved ? 'ic-saved' : 'ic-default');
+  if (likeCount) likeCount.textContent = formatCount(_likeCount);
+  if (commentCount) commentCount.textContent = formatCount(_commentCount);
+  if (saveCount) saveCount.textContent = formatCount(_saveCount);
+}
+
+var _followFetchGen = 0;
+
+function refreshFollowFromApi() {
+  if (!GAME.creator_user_id || _isTourist || !_authToken || !_apiHost) return;
+
+  var gen = ++_followFetchGen;
+  var token = _authToken;
+  try { token = decodeURIComponent(_authToken); } catch (_e) {}
+
+  fetch(_apiHost + '/user/v2/getUserInfo?userId=' + GAME.creator_user_id, {
+    headers: { Authorization: 'Bearer ' + token },
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(result) {
+      if (gen !== _followFetchGen || result == null) return;
+      var fs = result && result.data && result.data.followStatus;
+      _isFollowing = fs === 0 || fs === 2;
+      updateFollowUI(false);
+    })
+    .catch(function() {});
+}
+
+function requireAuth(source, triggerButton) {
+  if (!_authToken || _isTourist || !_userId) {
+    logEvent('auth_h5_page_open_trigger', { source: source, fromPage: 'feed', triggerButton: triggerButton || source });
+    sendFlutterMessage({ action: 'signout', arguments: { source: source, fromPage: 'feed' } });
+    return true;
+  }
+  return false;
+}
+
+window.addEventListener('flutterMessage', function(event) {
+  try {
+    var detail = typeof event.detail === 'string' ? JSON.parse(event.detail) : event.detail;
+    if (!detail) return;
+
+    if (detail.data && detail.data.accessToken) _authToken = detail.data.accessToken;
+    if (detail.data && detail.data.isTourist != null) _isTourist = !!detail.data.isTourist;
+    if (detail.data && detail.data.userId) _userId = detail.data.userId;
+
+    if (detail.data && detail.data.isCreatorFollowed && !_isFollowing) {
+      _isFollowing = true;
+      updateFollowUI(false);
+    }
+
+    if (detail.data && detail.data.host) {
+      _apiHost = detail.data.host.replace(/\/$/, '');
+      _appUrl =
+        (detail.data.appUrl && detail.data.appUrl.replace(/\/$/, '')) ||
+        _apiHost.replace(/\/\/([^.]+)-api\./, '//$1.').replace(/\/\/api\./, '//');
+    }
+
+    if (detail.data && detail.data.accessToken) refreshFollowFromApi();
+
+    if (detail.version) {
+      try {
+        var vp = String(detail.version).replace(/-.*$/, '').split('.');
+        _verMaj = parseInt(vp[0] || '0', 10);
+        _verMin = parseInt(vp[1] || '0', 10);
+        _verPat = parseInt(vp[2] || '0', 10);
+        updateRecordBtnVisibility();
+      } catch (_) {}
+    }
+
+    if (detail.action === 'pageReady') {
+      requestRemixNudgeTimer();
+    }
+
+    if (detail.action === 'updateFollowStatus' && detail.data) handleFollowUpdate(detail.data);
+
+    if (
+      detail.action === 'updateCommentCount' &&
+      detail.data &&
+      String(detail.data.id) === String(GAME.game_id) &&
+      detail.data.type === 'game_3'
+    ) {
+      _commentCount = typeof detail.data.value === 'number' ? detail.data.value : _commentCount;
+      renderSocialState();
+    }
+
+    if (detail.action === 'showRemixNudge') {
+      var nudgeGameId = detail.data && detail.data.gameId;
+      if (
+        String(nudgeGameId) === String(GAME.game_id) &&
+        _isFeedTabActive &&
+        _isCardVisible
+      ) {
+        onNudgeThreshold();
+      }
+    }
+
+    if (detail.action === 'g3Feedback') {
+      logEvent('share_panel_click_feedback', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed' });
+      sendFlutterMessage({
+        action: 'showFeedback',
+        arguments: { fromPage: 'g3-game', content: '', provider: 'g3_feed', content_id: GAME.game_id },
+      });
+    }
+
+    if (detail.action === 'g3FullScreen') {
+      logEvent('share_panel_click_fullscreen', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed' });
+      sendFlutterMessage({ action: 'enterFullScreen', arguments: { gameId: GAME.game_id } });
+    }
+
+    if (detail.action === 'hideFeedItem' && detail.data) {
+      sendFlutterMessage({
+        action: 'hideFeedItem',
+        arguments: { contentType: detail.data.contentType || 'g3_game', contentId: detail.data.contentId || GAME.game_id },
+      });
+    }
+
+    if (detail.action === 'didStopRecording' && _rp !== 'idle') {
+      clearRecordTimers(); _rp = 'collapsing'; renderRecordPill();
+      setTimeout(function() { _rp = 'idle'; hideRecordBar(); }, 600);
+    }
+
+    if (detail.action === 'didPauseRecording' && _rp === 'recording') {
+      clearInterval(_rST); _rST = null; _rp = 'paused'; renderRecordPill();
+    }
+
+    if (detail.action === 'didResumeRecording' && _rp === 'paused') {
+      _rp = 'recording'; renderRecordPill(); startRecordTimer();
+    }
+
+    var wantMute = null;
+
+    if (detail.action === 'switchTab') {
+      var isOnFeed = detail.data && detail.data.routeName === 'foryou';
+      _isFeedTabActive = !!isOnFeed;
+      wantMute = !isOnFeed;
+      if (window._sekaiIframeCtrl) {
+        if (isOnFeed) { window._sekaiIframeCtrl.load(); } else { window._sekaiIframeCtrl.unload(); }
+      }
+      if (typeof fireCardLeave === 'function') {
+        if (isOnFeed) { firePageExpose(); fireCardExpose(); _duration1minReported = false; start1minTimer(); }
+        else { clear1minTimer(); fireCardLeave(); firePageLeave(); }
+      }
+      if (isOnFeed) requestRemixNudgeTimer();
+      else { _feedCardEnteredSent = false; sendFlutterMessage({ action: 'feedCardLeft' }); }
+    } else if (detail.action === 'visibilityChange' || detail.action === 'visibility_change') {
+      var isVis = detail.data && detail.data.isVisible;
+      _isCardVisible = !!isVis;
+      wantMute = !isVis;
+      if (window._sekaiIframeCtrl) {
+        if (isVis) { window._sekaiIframeCtrl.load(); } else { window._sekaiIframeCtrl.unload(); }
+      }
+      if (typeof fireCardLeave === 'function') {
+        if (isVis) { firePageExpose(); fireCardExpose(); _duration1minReported = false; start1minTimer(); }
+        else { clear1minTimer(); fireCardLeave(); firePageLeave(); }
+      }
+      if (isVis) requestRemixNudgeTimer();
+      else { _feedCardEnteredSent = false; sendFlutterMessage({ action: 'feedCardLeft' }); }
+
+      if (isVis) {
+        _pageReadyRetries = 0;
+        if (!_authToken) { tryPageReady(); }
+        else if (GAME.creator_user_id) {
+          sendFlutterMessage({ action: 'pageReady', data: { creatorUserId: GAME.creator_user_id } });
+        }
+      }
+    }
+
+    if (wantMute !== null && wantMute !== _audioMuted) {
+      _audioMuted = wantMute;
+      var iframeAlive = !window._sekaiIframeCtrl || window._sekaiIframeCtrl.isActive();
+      var iframe = document.querySelector('iframe');
+
+      if (iframeAlive && iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+          origin: 'sekai_gaming_iframe_api',
+          type: wantMute ? 'receive_audio_mute' : 'receive_audio_unmute',
+          taskId: detail.action,
+          data: null,
+        }, '*');
+      }
+    }
+  } catch (_e) {}
+});
+
+document.addEventListener('visibilitychange', function() {
+  var wantMute = document.visibilityState === 'hidden';
+  if (wantMute === _audioMuted || (!wantMute && _isFileProtocol)) return;
+  _audioMuted = wantMute;
+
+  if (window._sekaiIframeCtrl && !window._sekaiIframeCtrl.isActive()) return;
+
+  var iframe = document.querySelector('iframe');
+  if (!iframe || !iframe.contentWindow) return;
+
+  iframe.contentWindow.postMessage({
+    origin: 'sekai_gaming_iframe_api',
+    type: wantMute ? 'receive_audio_mute' : 'receive_audio_unmute',
+    taskId: 'visibility_change',
+    data: null,
+  }, '*');
+});
+
+(function setupIframe() {
+  var iframe = document.querySelector('iframe');
+  if (!iframe) return;
+
+  var hasInitialLoad = false;
+  var iframeActive = false;
+
+  function loadIframe() {
+    if (iframeActive) return;
+    var gameArea = iframe.closest('.game-area') || iframe.parentElement;
+    if (!gameArea || gameArea.clientHeight <= 0) { requestAnimationFrame(loadIframe); return; }
+    iframeActive = true;
+    hasInitialLoad = true;
+    iframe.src = 'assets/game.html';
+  }
+
+  function unloadIframe() {
+    if (!iframeActive) return;
+    iframeActive = false;
+    iframe.src = 'about:blank';
+  }
+
+  function tryInitialLoad() {
+    if (hasInitialLoad || document.visibilityState !== 'visible') return;
+    loadIframe();
+  }
+
+  if (document.visibilityState === 'visible') tryInitialLoad();
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') tryInitialLoad();
+  });
+
+  window._sekaiIframeCtrl = {
+    load: loadIframe,
+    unload: unloadIframe,
+    isActive: function() { return iframeActive; },
+  };
+
+  function sendViewportHeight() {
+    if (!iframe.contentWindow) return;
+    var gameArea = iframe.closest('.game-area') || iframe.parentElement;
+    var height = gameArea ? gameArea.clientHeight : 0;
+    if (height > 0) iframe.contentWindow.postMessage({ type: 'viewport_height_change', height: height }, '*');
+  }
+
+  window.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'viewport_ready') sendViewportHeight();
+  });
+
+  iframe.addEventListener('load', function() {
+    if (!iframe.contentWindow || !iframeActive) return;
+    iframe.contentWindow.postMessage({
+      origin: 'sekai_gaming_iframe_api',
+      type: _audioMuted ? 'receive_audio_mute' : 'receive_audio_unmute',
+      taskId: 'iframe_init',
+      data: null,
+    }, '*');
+    sendViewportHeight();
+  });
+})();
+
+window.addEventListener('message', function(event) {
+  var data = event.data;
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_e) { return; } }
+  if (!data || data.origin !== 'sekai_gaming_iframe_api') return;
+
+  var iframe = document.querySelector('iframe');
+
+  /* ── 统一回复辅助：支持成功 / 错误两种形式 ── */
+  function reply(taskId, type, payload, errCode, errMsg) {
+    if (!iframe || !iframe.contentWindow) return;
+    var msg = { origin: 'sekai_gaming_iframe_api', type: type, taskId: taskId };
+    if (errCode) {
+      msg.data = null;
+      msg.error = { code: errCode, message: errMsg || 'Error' };
+    } else {
+      msg.data = payload !== undefined ? payload : null;
+    }
+    iframe.contentWindow.postMessage(msg, '*');
+  }
+
+  /* ── 从后端统一响应体中提取 data 字段 ── */
+  function extractData(result) {
+    return (result && result.data !== undefined) ? result.data : result;
+  }
+
+  switch (data.type) {
+
+    /* ────────────── DOM 就绪 ────────────── */
+    case 'sekai_iframe_dom_ready': {
+      break;
+    }
+
+    /* ────────────── 状态存取 ────────────── */
+    case 'get_app_states':
+    case 'get_game_states': {
+      var statesRsp = data.type === 'get_game_states' ? 'receive_game_states' : 'receive_app_states';
+      var statesSessionCode = data.sessionCode;
+      var statesParams = { gameId: GAME.game_id, versionId: GAME.version_id };
+      if (statesSessionCode) statesParams.sessionCode = statesSessionCode;
+      callApiGet('/game/game-states', statesParams)
+        .then(function(r) {
+          if (r.status === 404) { reply(data.taskId, statesRsp, null, 400, 'No saved state found'); return null; }
+          return r.json();
+        })
+        .then(function(result) {
+          if (!result) return;
+          var states = extractData(result);
+          if (!states) { reply(data.taskId, statesRsp, null, 400, 'No saved state found'); return; }
+          var msg = { origin: 'sekai_gaming_iframe_api', type: statesRsp, taskId: data.taskId, data: states };
+          if (statesSessionCode) msg.sessionCode = statesSessionCode;
+          if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(msg, '*');
+        })
+        .catch(function() { reply(data.taskId, statesRsp, null, 500, 'Failed to load app states'); });
+      break;
+    }
+
+    case 'save_app_states':
+    case 'save_game_states': {
+      var saveStatesData = data.data;
+      if (!saveStatesData || typeof saveStatesData !== 'object') break;
+      var saveStatesBody = { pageSettings: saveStatesData.pageSettings, gameId: GAME.game_id, versionId: GAME.version_id };
+      callApi('/game/game-states', saveStatesBody).catch(function() {});
+      break;
+    }
+
+    /* ────────────── 结果读写 ────────────── */
+    case 'get_app_result':
+    case 'get_game_result': {
+      var resultRsp = data.type === 'get_game_result' ? 'receive_game_result' : 'receive_app_result';
+      callApiGet('/game/result', { gameId: GAME.game_id, versionId: GAME.version_id })
+        .then(function(r) { return r.json(); })
+        .then(function(result) { reply(data.taskId, resultRsp, extractData(result)); })
+        .catch(function() { reply(data.taskId, resultRsp, null, 500, 'Failed to get app result'); });
+      break;
+    }
+
+    case 'save_app_result':
+    case 'save_game_result': {
+      var saveResultBody = Object.assign({ gameId: GAME.game_id, versionId: GAME.version_id }, data.data || {});
+      callApi('/game/result', saveResultBody).catch(function() {});
+      break;
+    }
+
+    case 'get_app_top_results':
+    case 'get_game_top_results': {
+      var topRsp = data.type === 'get_game_top_results' ? 'receive_game_top_results' : 'receive_app_top_results';
+      var topPage = (data.data && data.data.page) ? Math.max(1, data.data.page) : 1;
+      var topPageSize = Math.min(100, Math.max(1, (data.data && data.data.pageSize) ? data.data.pageSize : 50));
+      callApiGet('/game/top-results', { gameId: GAME.game_id, versionId: GAME.version_id, page: topPage, page_size: topPageSize })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+          var payload = extractData(result);
+          var items = (payload && payload.items) ? payload.items : (Array.isArray(payload) ? payload : []);
+          /* 向后兼容：在线 handler 会把 items 挂为数组自身属性 */
+          items.items = items;
+          reply(data.taskId, topRsp, items);
+        })
+        .catch(function() { reply(data.taskId, topRsp, []); });
+      break;
+    }
+
+    /* ────────────── AI 生成 ────────────── */
+    case 'call_llm':
+    case 'gen_text': {
+      var genTextRsp = data.type === 'call_llm' ? 'receive_call_llm' : 'receive_gen_text';
+      var gtd = data.data || {};
+      if (!gtd.systemPrompt || !gtd.userPrompt) { reply(data.taskId, genTextRsp, null, 400, 'Missing systemPrompt or userPrompt'); break; }
+      var schema = gtd.responseSchema;
+      if (!schema || typeof schema !== 'object' || !Object.keys(schema).length) { reply(data.taskId, genTextRsp, null, 400, 'Invalid response schema'); break; }
+      var genTextBody = {
+        messages: [{ role: 'system', content: gtd.systemPrompt }, { role: 'user', content: gtd.userPrompt }],
+        responseSchema: schema, gameId: GAME.game_id, versionId: GAME.version_id,
+      };
+      if (gtd.imageUrl) genTextBody.imageUrl = gtd.imageUrl;
+      callApi('/game/gen-text', genTextBody)
+        .then(function(r) { return r.json(); })
+        .then(function(result) { reply(data.taskId, genTextRsp, extractData(result)); })
+        .catch(function(err) { reply(data.taskId, genTextRsp, null, 500, (err && err.message) || 'LLM API call failed'); });
+      break;
+    }
+
+    case 'gen_image': {
+      var gid = data.data || {};
+      if (!gid.prompt || typeof gid.prompt !== 'string') { reply(data.taskId, 'receive_gen_image', null, 400, 'Missing or invalid prompt'); break; }
+      var genImageBody = { userPrompt: gid.prompt, gameId: GAME.game_id, versionId: GAME.version_id };
+      if (gid.imageUrl) genImageBody.imageUrl = gid.imageUrl;
+      if (gid.aspectRatio) genImageBody.aspectRatio = gid.aspectRatio;
+      if (gid.cutout !== undefined) genImageBody.cutout = gid.cutout;
+      callApi('/game/gen-image', genImageBody)
+        .then(function(r) { return r.json(); })
+        .then(function(result) { reply(data.taskId, 'receive_gen_image', extractData(result)); })
+        .catch(function(err) {
+          var code = (err && err.status) || 500;
+          reply(data.taskId, 'receive_gen_image', null, code, code === 429 ? 'Daily image generation limit reached' : 'Image generation failed');
+        });
+      break;
+    }
+
+    case 'gen_voice': {
+      var gvd = data.data || {};
+      if (!gvd.text || !gvd.voiceId) { reply(data.taskId, 'receive_gen_voice', null, 400, 'Missing text or voiceId'); break; }
+      callApiBlob('/audio/gen-audio', { text: gvd.text, voiceId: String(gvd.voiceId) })
+        .then(function(blob) {
+          return new Promise(function(resolve, reject) {
+            var reader = new FileReader();
+            reader.onloadend = function() { resolve(reader.result); };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        })
+        .then(function(audioBase64) { reply(data.taskId, 'receive_gen_voice', { audioBase64: audioBase64 }); })
+        .catch(function() { reply(data.taskId, 'receive_gen_voice', null, 500, 'Voice generation failed'); });
+      break;
+    }
+
+    case 'gen_transcript': {
+      var gtrData = data.data || {};
+      var audio = gtrData.audio;
+      if (!audio || typeof audio !== 'string' || audio.indexOf('data:audio/') !== 0) {
+        reply(data.taskId, 'receive_gen_transcript', null, 400, 'Missing or invalid audio data'); break;
+      }
+      uploadBase64ToS3(audio, 'audio')
+        .then(function(hostUrl) {
+          return callApi('/game/gen-transcript', { audioUrl: hostUrl, initialPrompt: gtrData.initialPrompt || '' });
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(result) { reply(data.taskId, 'receive_gen_transcript', extractData(result)); })
+        .catch(function() { reply(data.taskId, 'receive_gen_transcript', null, 500, 'Transcription failed'); });
+      break;
+    }
+
+    /* ────────────── 社交 & 用户信息 ────────────── */
+    case 'get_social_summary': {
+      Promise.all([
+        callApiGet('/game/likers', { game_id: GAME.game_id, page: 1, page_size: 20 }).then(function(r) { return r.json(); }).catch(function() { return null; }),
+        callApiGet('/game/commenters', { game_id: GAME.game_id, page: 1, page_size: 20 }).then(function(r) { return r.json(); }).catch(function() { return null; }),
+      ]).then(function(results) {
+        var likers = (results[0] && results[0].data && results[0].data.items) || (results[0] && results[0].items) || [];
+        var commenters = (results[1] && results[1].data && results[1].data.items) || (results[1] && results[1].items) || [];
+        reply(data.taskId, 'receive_social_summary', {
+          likes: _likeCount, comments: _commentCount, isLiked: _isLiked,
+          likers: likers, commenters: commenters,
+        });
+      });
+      break;
+    }
+
+    case 'get_player_info': {
+      if (!_authToken || _isTourist || !_userId) { reply(data.taskId, 'receive_player_info', null); break; }
+      callApiGet('/user/v2/getUserInfo', { userId: _userId })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+          var user = result && result.data && result.data.user;
+          if (!user) { reply(data.taskId, 'receive_player_info', null); return; }
+          reply(data.taskId, 'receive_player_info', {
+            userId: String(user.userId),
+            username: user.userName,
+            avatar: user.avatarUrl,
+            countryCode: user.countryCode || 'US',
+            isCreator: !!(user.userId && String(user.userId) === String(GAME.creator_user_id)),
+          });
+        })
+        .catch(function() { reply(data.taskId, 'receive_player_info', null); });
+      break;
+    }
+
+    case 'invoke_select_characters': {
+      reply(data.taskId, 'receive_select_characters', null, 400, 'Character selection not supported');
+      break;
+    }
+
+    /* ────────────── 分享 ────────────── */
+    case 'invoke_share': {
+      var shareData = data.data || {};
+      var shareLink = buildShareLink();
+      if (shareData.appStates) {
+        try { shareLink += '&appStates=' + encodeURIComponent(btoa(JSON.stringify(shareData.appStates))); } catch (_e) {}
+      }
+
+      var sharePayload = {
+        title: 'Share to', contentType: 'g3_game', contentId: GAME.game_id,
+        fromPage: 'feed', link: shareLink, needWatermark: false, type: 'share_only',
+        extra: { creatorId: GAME.creator_user_id, shareContent: buildShareContent() },
+      };
+
+      if (shareData.coverImageBase64) {
+        sharePayload.imageB64 = shareData.coverImageBase64;
+      } else if (shareData.coverImgUrl && typeof shareData.coverImgUrl === 'string' && shareData.coverImgUrl.startsWith('sekai-local://')) {
+        var cacheKey = shareData.coverImgUrl.replace('sekai-local://', '');
+        var cachedImage = _uploadCache[cacheKey];
+        if (cachedImage) sharePayload.imageB64 = cachedImage;
+        else sharePayload.imageUrl = GAME.cover;
+      } else {
+        sharePayload.imageUrl = shareData.coverImgUrl || GAME.cover;
+      }
+
+      sendFlutterMessage({ action: 'showSharePanel', arguments: sharePayload });
+      break;
+    }
+
+    /* ────────────── 社交操作 ────────────── */
+    case 'invoke_social': {
+      var socialData = data.data || {};
+      var action = socialData.action;
+
+      if (!action) { reply(data.taskId, 'receive_social_action_result', { action: action, success: false }); break; }
+
+      if (action === 'like' || action === 'unlike') {
+        _isLiked = action === 'like';
+        _likeCount += _isLiked ? 1 : -1;
+        renderSocialState();
+        callApi(_isLiked ? '/user/v2/like' : '/user/v2/unlike', { elementType: 'game_3', elementId: GAME.game_id })
+          .then(function() { reply(data.taskId, 'receive_social_action_result', { action: action, success: true, isLiked: _isLiked, likeCount: _likeCount }); })
+          .catch(function() {
+            _isLiked = !_isLiked; _likeCount += _isLiked ? 1 : -1; renderSocialState();
+            reply(data.taskId, 'receive_social_action_result', { action: action, success: false });
+          });
+        break;
+      }
+
+      if (action === 'comment') {
+        sendFlutterMessage({
+          action: 'showCommentPanel',
+          arguments: { type: 'game_3', id: GAME.game_id, commentCount: _commentCount, fromPage: 'feed', showShot: true },
+        });
+        reply(data.taskId, 'receive_social_action_result', { action: 'comment', success: true, commentCount: _commentCount });
+        break;
+      }
+
+      if (action === 'remix') {
+        sendFlutterMessage({
+          action: 'showCommentPanel',
+          arguments: {
+            type: 'game_3', id: GAME.game_id, commentCount: _commentCount,
+            fromPage: 'feed', showShot: true, extra: { remixed_count: getRemixedCount() },
+          },
+        });
+        reply(data.taskId, 'receive_social_action_result', { action: 'remix', success: true, commentCount: _commentCount });
+        break;
+      }
+
+      reply(data.taskId, 'receive_social_action_result', null, 400, 'Unknown action: ' + action);
+      break;
+    }
+
+    /* ────────────── 私有会话（离线 feed 壳不支持，需完整 Firestore 集成） ────────────── */
+    case 'create_app_private_session':
+      reply(data.taskId, 'receive_create_app_private_session', null, 400, 'Private sessions not supported'); break;
+    case 'get_app_private_sessions':
+      reply(data.taskId, 'receive_app_private_sessions', null, 400, 'Private sessions not supported'); break;
+    case 'join_app_private_session':
+      reply(data.taskId, 'receive_join_app_private_session', null, 400, 'Private sessions not supported'); break;
+
+    /* ────────────── 多人游戏（离线 feed 壳不支持，需 Agora relay） ────────────── */
+    case 'multiplayer_get_session':
+      reply(data.taskId, 'multiplayer_receive_session', null, 400, 'Multiplayer not supported'); break;
+    case 'multiplayer_get_players':
+      reply(data.taskId, 'multiplayer_receive_players', null, 400, 'Multiplayer not supported'); break;
+    case 'multiplayer_send_data':
+      /* fire-and-forget，静默忽略 */
+      break;
+
+    /* ────────────── 工具 ────────────── */
+    case 'gen_vibration':
+      sendFlutterMessage({ action: 'vibrate', data: { type: 'light', duration: (data.data || {}).duration } });
+      break;
+
+    case 'upload_image': {
+      var image = (data.data || {}).image;
+      if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
+        reply(data.taskId, 'receive_upload_image', { error: 'Invalid' }); break;
+      }
+      var imageId = 'img_' + Date.now();
+      _uploadCache[imageId] = image;
+      reply(data.taskId, 'receive_upload_image', { hostUrl: 'sekai-local://' + imageId });
+      break;
+    }
+  }
+});
+
+var _pageReadyRetries = 0;
+
+function tryPageReady() {
+  if (_authToken) return;
+  var hasFlutterHandler = typeof window.sendMessageToFlutter === 'function' || (window.flutter_inappwebview && window.flutter_inappwebview.callHandler);
+  if (!hasFlutterHandler) {
+    _pageReadyRetries += 1;
+    if (_pageReadyRetries < 20) setTimeout(tryPageReady, 300);
+    return;
+  }
+  sendFlutterMessage({ action: 'pageReady', data: { creatorUserId: GAME.creator_user_id } });
+}
+
+document.addEventListener('DOMContentLoaded', tryPageReady);
+
+/* ── HTTP 辅助：POST（原始 callApi 保留，供按钮事件使用） ── */
+function callApi(endpoint, body) {
+  var headers = { 'Content-Type': 'application/json' };
+  if (_authToken) {
+    var token = _authToken;
+    try { token = decodeURIComponent(_authToken); } catch (_e) {}
+    headers.Authorization = 'Bearer ' + token;
+  }
+  return fetch(_apiHost + endpoint, { method: 'POST', headers: headers, body: JSON.stringify(body) })
+    .then(function(r) {
+      if (r.status === 401) {
+        sendFlutterMessage({ action: 'signout', arguments: { source: 'api_401', fromPage: 'feed' } });
+        return Promise.reject(new Error('unauthorized'));
+      }
+      return r;
+    });
+}
+
+/* ── HTTP 辅助：GET（带 query params） ── */
+function callApiGet(endpoint, params) {
+  var qs = '';
+  if (params) {
+    var parts = [];
+    for (var k in params) {
+      if (Object.prototype.hasOwnProperty.call(params, k) && params[k] !== undefined && params[k] !== null) {
+        parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])));
+      }
+    }
+    if (parts.length) qs = '?' + parts.join('&');
+  }
+  var headers = { 'Content-Type': 'application/json' };
+  if (_authToken) {
+    var token = _authToken;
+    try { token = decodeURIComponent(_authToken); } catch (_e) {}
+    headers.Authorization = 'Bearer ' + token;
+  }
+  return fetch(_apiHost + endpoint + qs, { method: 'GET', headers: headers })
+    .then(function(r) {
+      if (r.status === 401) {
+        sendFlutterMessage({ action: 'signout', arguments: { source: 'api_401', fromPage: 'feed' } });
+        return Promise.reject(new Error('unauthorized'));
+      }
+      return r;
+    });
+}
+
+/* ── HTTP 辅助：POST，返回 Blob（用于流式音频） ── */
+function callApiBlob(endpoint, body) {
+  var headers = { 'Content-Type': 'application/json' };
+  if (_authToken) {
+    var token = _authToken;
+    try { token = decodeURIComponent(_authToken); } catch (_e) {}
+    headers.Authorization = 'Bearer ' + token;
+  }
+  return fetch(_apiHost + endpoint, { method: 'POST', headers: headers, body: JSON.stringify(body) })
+    .then(function(r) {
+      if (r.status === 401) {
+        sendFlutterMessage({ action: 'signout', arguments: { source: 'api_401', fromPage: 'feed' } });
+        return Promise.reject(new Error('unauthorized'));
+      }
+      if (!r.ok) return Promise.reject({ status: r.status, message: 'HTTP ' + r.status });
+      return r.blob();
+    });
+}
+
+/* ── S3 上传：base64 data URL → 预签名 URL → 返回 CDN hostUrl ── */
+function uploadBase64ToS3(dataUrl, fileType) {
+  var mimeMatch = dataUrl.match(/data:([^;]+);base64,/);
+  var mimeType = mimeMatch ? mimeMatch[1] : (fileType === 'audio' ? 'audio/webm' : 'image/png');
+  var base64Data = dataUrl.indexOf(',') !== -1 ? dataUrl.split(',')[1] : dataUrl;
+  var ext = mimeType.split('/')[1] || (fileType === 'audio' ? 'webm' : 'png');
+  var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+  var folder = fileType === 'audio' ? 'audio' : 'images';
+  var fileName = 'v3-games/dist/' + GAME.game_id + '/' + folder + '/' + uuid + '.' + ext;
+
+  return callApi('/s3/generatePresignedUrl', { fileName: fileName, method: 'put_object' })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      var presignedUrl = (result && result.presignedUrl) ||
+        (result && result.data && result.data.presignedUrl);
+      if (!presignedUrl) return Promise.reject(new Error('No presigned URL returned'));
+
+      /* atob → Uint8Array → ArrayBuffer，避免 TextEncoder 破坏二进制 */
+      var binary = atob(base64Data);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+      return fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: bytes.buffer,
+      }).then(function(r) {
+        if (!r.ok) return Promise.reject(new Error('S3 upload failed: ' + r.status));
+        var url = new URL(presignedUrl);
+        return url.origin + url.pathname;
+      });
+    });
+}
+
+var likeButton = getActionButton('like');
+if (likeButton) {
+  likeButton.addEventListener('click', function() {
+    if (requireAuth('g3_feed_like_button', 'like')) return;
+    _isLiked = !_isLiked; _likeCount += _isLiked ? 1 : -1; if (_likeCount < 0) _likeCount = 0;
+    renderSocialState();
+    sendFlutterMessage({ action: 'vibrate', data: { type: _isLiked ? 'medium' : 'light' } });
+    var ed = { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed', source: 'toolbar', isLiked: _isLiked, tabName: 'home' };
+    logEvent('g3_interaction_page_click_like', ed);
+    callApi(_isLiked ? '/user/v2/like' : '/user/v2/unlike', { elementType: 'game_3', elementId: GAME.game_id })
+      .catch(function() { _isLiked = !_isLiked; _likeCount += _isLiked ? 1 : -1; if (_likeCount < 0) _likeCount = 0; renderSocialState(); });
+  });
+}
+
+var commentButton = getActionButton('comment');
+if (commentButton) {
+  commentButton.addEventListener('click', function() {
+    logEvent('g3_interaction_page_click_comment', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed', source: 'toolbar', tabName: 'home' });
+    sendFlutterMessage({
+      action: 'showCommentPanel',
+      arguments: { type: 'game_3', id: GAME.game_id, commentCount: _commentCount, fromPage: 'feed', showShot: true },
+    });
+  });
+}
+
+var saveButton = getActionButton('save');
+if (saveButton) {
+  saveButton.addEventListener('click', function() {
+    if (requireAuth('g3_feed_save_button', 'save')) return;
+    _isSaved = !_isSaved; _saveCount += _isSaved ? 1 : -1; if (_saveCount < 0) _saveCount = 0;
+    renderSocialState();
+    sendFlutterMessage({ action: 'vibrate', data: { type: _isSaved ? 'medium' : 'light' } });
+    logEvent('g3_interaction_page_click_save', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed', source: 'toolbar', isSaved: _isSaved, tabName: 'home' });
+    callApi(_isSaved ? '/game/save' : '/game/unsave', { elementType: 'game_3', elementId: GAME.game_id })
+      .catch(function() { _isSaved = !_isSaved; _saveCount += _isSaved ? 1 : -1; if (_saveCount < 0) _saveCount = 0; renderSocialState(); });
+  });
+}
+
+var _screenshotLock = false;
+
+var screenshotButton = getActionButton('screenshot');
+if (screenshotButton) {
+  screenshotButton.addEventListener('click', function() {
+    if (_screenshotLock) return;
+    _screenshotLock = true;
+    logEvent('g3_interaction_page_click_share', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed', source: 'toolbar_screenshot', tabName: 'home' });
+    var shareLink = buildShareLink();
+    var promise = sendFlutterMessage({ action: 'takeScreenshotOnWeb' });
+
+    if (!promise || typeof promise.then !== 'function') { _screenshotLock = false; return; }
+
+    promise
+      .then(function(base64) {
+        _screenshotLock = false;
+        sendFlutterMessage({
+          action: 'showSharePanel',
+          arguments: {
+            title: 'Share to', contentType: 'g3_game', contentId: GAME.game_id,
+            fromPage: 'feed', link: shareLink, imageB64: base64 || null,
+            showComment: true, needCut: !!base64, needWatermark: false, type: 'comments',
+            extra: { cutBottom: 110, cutTop: 0, creatorId: GAME.creator_user_id, shareContent: buildShareContent() },
+            commentBody: {
+              action: 'showCommentPanel',
+              arguments: {
+                type: 'game_3', id: GAME.game_id, commentCount: _commentCount,
+                sekaiCreatorId: GAME.creator_user_id, fromPage: 'feed', imageB64: base64 || null, showShot: true,
+              },
+            },
+          },
+        });
+      })
+      .catch(function() {
+        _screenshotLock = false;
+        var isCreator = _userId && String(_userId) === String(GAME.creator_user_id);
+        sendFlutterMessage({
+          action: 'showSharePanel',
+          arguments: {
+            title: 'Share to', contentType: 'g3_game', contentId: GAME.game_id,
+            imageUrl: GAME.cover, link: shareLink, fromPage: 'feed',
+            needWatermark: false, type: 'share_only',
+            extra: { shareContent: buildShareContent(), creatorId: GAME.creator_user_id },
+            other_actions: buildOtherActions(isCreator),
+          },
+        });
+      });
+  });
+}
+
+var shareButton = getActionButton('share');
+if (shareButton) {
+  shareButton.addEventListener('click', function() {
+    logEvent('g3_interaction_page_click_share', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed', source: 'toolbar', tabName: 'home' });
+    var isCreator = _userId && String(_userId) === String(GAME.creator_user_id);
+    sendFlutterMessage({
+      action: 'showSharePanel',
+      arguments: {
+        title: 'Share to', contentType: 'g3_game', contentId: GAME.game_id,
+        imageUrl: GAME.cover, link: buildShareLink(), fromPage: 'feed',
+        needWatermark: false, type: 'share_only',
+        extra: { shareContent: buildShareContent(), creatorId: GAME.creator_user_id },
+        other_actions: buildOtherActions(isCreator),
+      },
+    });
+  });
+}
+
+var followButton = getActionButton('follow');
+if (followButton) {
+  followButton.addEventListener('click', function() {
+    if (_isFollowing || requireAuth('g3_feed_follow_button', 'follow')) return;
+    _isFollowing = true;
+    updateFollowUI(true);
+    logEvent('g3_interaction_page_click_follow', { contentId: GAME.game_id, fromPage: 'feed', source: 'profile', creatorId: GAME.creator_user_id, action: 'follow' });
+    sendFlutterMessage({ action: 'vibrate', data: { type: 'medium' } });
+    callApi('/user/v2/followOperation', { userId: GAME.creator_user_id, operate: 'follow' })
+      .then(function() { sendFlutterMessage({ action: 'updateFollowStatus', data: { userId: GAME.creator_user_id, followed: true } }); })
+      .catch(function() { _isFollowing = false; updateFollowUI(false); followButton.disabled = false; });
+  });
+}
+
+function handleFollowUpdate(payload) {
+  if (payload && String(payload.userId) === String(GAME.creator_user_id) && typeof payload.followed === 'boolean') {
+    _isFollowing = payload.followed;
+    updateFollowUI(false);
+  }
+}
+
+function updateFollowUI(animate) {
+  var fi = getActionButton('follow');
+  if (!fi) return;
+  if (_isFollowing) {
+    fi.disabled = true;
+    if (animate) {
+      fi.classList.add('fi-pop');
+      fi.addEventListener('animationend', function() { fi.classList.remove('fi-pop'); }, { once: true });
+    }
+    fi.classList.add('fi-active');
+    return;
+  }
+  fi.disabled = false;
+  fi.classList.remove('fi-active', 'fi-pop');
+}
+
+document.querySelectorAll('[data-action="profile"]').forEach(function(node) {
+  node.addEventListener('click', function() {
+    if (requireAuth('g3_feed_creator_profile', 'creator_profile')) return;
+    logEvent('g3_interaction_page_click_author_profile', { contentId: GAME.game_id, contentType: 'g3_game', creatorId: GAME.creator_user_id, fromPage: 'feed', tabName: 'home' });
+    sendFlutterMessage({ action: 'openCreatorProfile', arguments: { userId: GAME.creator_user_id } });
+  });
+});
+
+var titleNode = document.querySelector('.game-title');
+if (titleNode) {
+  titleNode.style.cursor = 'pointer';
+  titleNode.addEventListener('click', function() {
+    if (requireAuth('g3_feed_title', 'title')) return;
+    logEvent('g3_interaction_page_click_title', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed', tabName: 'home' });
+    sendFlutterMessage({ action: 'openUrl', url: buildShareLink(), pushType: 'push' });
+  });
+}
+
+var remixButton = getActionButton('remix');
+if (remixButton) {
+  remixButton.addEventListener('click', function() {
+    var isNudgeClick = _nudgeIsActive;
+
+    if (requireAuth('g3_feed_remix_button', 'remix')) return;
+
+    if (isNudgeClick) {
+      logEvent('g3_feed_remix_nudge_accepted', { gameId: GAME.game_id, position: 0 });
+      dismissNudge('accepted');
+    }
+
+    if (!isNudgeClick) {
+      logEvent('g3_interaction_page_click_remix', { contentId: GAME.game_id, contentType: 'g3_game', fromPage: 'feed', tabName: 'home' });
+    }
+
+    var args = {
+      type: 'game_3', id: GAME.game_id, remixId: GAME.game_id,
+      commentCount: _commentCount, fromPage: 'feed', showShot: true, tabIndex: 1,
+      extra: { remixed_count: getRemixedCount(), game: GAME },
+    };
+    if (isNudgeClick) {
+      args.guide = { gameId: GAME.game_id, position: 0, source: 'feed_remix_nudge' };
+    }
+
+    sendFlutterMessage({ action: 'showCommentPanel', arguments: args });
+  });
+}
+
+function updateRecordBtnVisibility() {
+  var show = (_verMaj > 1) || (_verMaj === 1 && _verMin > 62) || (_verMaj === 1 && _verMin === 62 && _verPat >= 1);
+  var btn = getActionButton('record');
+  if (btn) btn.style.display = show ? 'flex' : 'none';
+}
+
+function formatRecordTime(s) {
+  return '00:' + String(s).padStart(2, '0');
+}
+
+function clearRecordTimers() {
+  if (_rCdT) { clearInterval(_rCdT); _rCdT = null; }
+  if (_rST) { clearInterval(_rST); _rST = null; }
+}
+
+function getRecordBar() { return document.getElementById('rec-pill-bar'); }
+
+function showRecordBar() {
+  var b = getRecordBar();
+  if (b) b.style.display = 'flex';
+  var bb = document.querySelector('.bottom-bar');
+  if (bb) bb.style.display = 'none';
+}
+
+function hideRecordBar() {
+  var b = getRecordBar();
+  if (b) { b.style.display = 'none'; b.innerHTML = ''; }
+  var bb = document.querySelector('.bottom-bar');
+  if (bb) bb.style.display = 'flex';
+}
+
+function renderRecordPill() {
+  var b = getRecordBar();
+  if (!b) return;
+  var dot = '<span class="rec-dot"></span>';
+  var stopBtn;
+  if (_rp === 'countdown') {
+    b.innerHTML = '<div class="rec-pill-inner" style="animation:recPillExpand .68s cubic-bezier(.16,1,.3,1) forwards"><div class="rp-center" style="animation:recFadeIn .6s ease forwards">' + dot + '<span class="rp-label" id="rec-cd-num">Recording in ' + _rCd + '</span></div></div>';
+  } else if (_rp === 'recording') {
+    b.innerHTML = '<div class="rec-pill-inner"><div class="rp-between" style="animation:recFadeIn .4s ease forwards"><div class="rp-left">' + dot + '<span class="rp-timer" id="rec-timer">' + formatRecordTime(_rSecs) + '</span></div><button class="rp-stop" id="rec-stop" type="button">' + _STOP_SVG + '<span class="rp-label">Screen Recording</span></button></div></div>';
+    stopBtn = document.getElementById('rec-stop');
+    if (stopBtn) stopBtn.addEventListener('click', function() { stopRecord(); });
+  } else if (_rp === 'paused') {
+    b.innerHTML = '<div class="rec-pill-inner"><div class="rp-between" style="animation:recFadeIn .4s ease forwards"><div class="rp-left"><span class="rec-dot" style="animation:none;opacity:.4"></span><span class="rp-timer">' + formatRecordTime(_rSecs) + '</span></div><button class="rp-stop" id="rec-stop" type="button">' + _STOP_SVG + '<span class="rp-label">Screen Recording</span></button></div></div>';
+    stopBtn = document.getElementById('rec-stop');
+    if (stopBtn) stopBtn.addEventListener('click', function() { stopRecord(); });
+  } else if (_rp === 'collapsing') {
+    b.innerHTML = '<div class="rec-pill-inner" style="animation:recPillCollapse .5s cubic-bezier(.32,0,.67,0) forwards"><div class="rp-between" style="animation:recFadeOut .35s ease forwards"><div class="rp-left">' + dot + '<span class="rp-timer">' + formatRecordTime(_rSecs) + '</span></div><div class="rp-stop">' + _STOP_SVG + '<span class="rp-label">Screen Recording</span></div></div></div>';
+  }
+}
+
+function startRecordTimer() {
+  _rST = setInterval(function() {
+    _rSecs--;
+    if (_rSecs <= 0) { clearInterval(_rST); _rST = null; stopRecord(); return; }
+    var el = document.getElementById('rec-timer');
+    if (el) el.textContent = formatRecordTime(_rSecs);
+  }, 1000);
+}
+
+function startRecord() {
+  if (_rp !== 'idle') return;
+  clearRecordTimers();
+  _rCd = 3; _rSecs = _MAX_S; _rp = 'countdown';
+  showRecordBar(); renderRecordPill();
+  sendFlutterMessage({ action: 'startVideoRecord', data: { gameId: GAME.game_id, source: 'feed' } });
+  _rCdT = setInterval(function() {
+    _rCd--;
+    if (_rCd <= 0) {
+      clearInterval(_rCdT); _rCdT = null;
+      _rp = 'recording'; renderRecordPill(); startRecordTimer();
+    } else {
+      var el = document.getElementById('rec-cd-num');
+      if (el) el.textContent = 'Recording in ' + _rCd;
+    }
+  }, 1000);
+}
+
+function stopRecord() {
+  if (_rp === 'idle') return;
+  clearRecordTimers();
+  _rp = 'collapsing'; renderRecordPill();
+  sendFlutterMessage({ action: 'stopVideoRecord', data: { gameId: GAME.game_id, source: 'feed' } });
+  setTimeout(function() { _rp = 'idle'; hideRecordBar(); }, 600);
+}
+
+var recordButton = getActionButton('record');
+if (recordButton) {
+  recordButton.addEventListener('click', function() { startRecord(); });
+}
+
+updateRecordBtnVisibility();
+
+renderStaticCard();
+
+/* ── Page & Card Lifecycle Analytics ── */
+var _pageEnterTime = Date.now();
+var _hasTrackedExpose = false;
+var _duration1minReported = false;
+var _duration1minTimer = null;
+
+function firePageExpose() {
+  if (_hasTrackedExpose) return;
+  _hasTrackedExpose = true;
+  _pageEnterTime = Date.now();
+  logEvent('g3_feed_page_expose', { fromPage: 'feed', needFlush: true });
+}
+
+function fireCardExpose() {
+}
+
+function fireCardLeave() {
+}
+
+function firePageLeave() {
+  if (!_hasTrackedExpose) return;
+  var dur = Date.now() - _pageEnterTime;
+  logEvent('g3_feed_page_leave', { fromPage: 'feed', tabName: 'home', duration: dur });
+  _hasTrackedExpose = false;
+}
+
+function start1minTimer() {
+  clear1minTimer();
+  _duration1minTimer = setTimeout(function() {
+    if (_duration1minReported) return;
+    _duration1minReported = true;
+    logEvent('g3_play_over_1min', { contentId: GAME.game_id, contentType: 'g3_game', tabName: 'feed', position: 0 });
+  }, 60000);
+}
+
+function clear1minTimer() {
+  if (_duration1minTimer) { clearTimeout(_duration1minTimer); _duration1minTimer = null; }
+}
+
+firePageExpose();
+fireCardExpose();
+start1minTimer();
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    clear1minTimer();
+    fireCardLeave();
+    firePageLeave();
+  } else {
+    firePageExpose();
+    fireCardExpose();
+    _duration1minReported = false;
+    start1minTimer();
+  }
+});
+  </script>
+</body>
+</html>

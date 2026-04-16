@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 140,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/bd0d07f7-bde9-4fad-848e-25d989ea0865/1948663a-b7bb-40d5-ba96-36eeadeaa0d8/cover.large.webp",
+  "creator_name": "Carl Z.",
+  "creator_user_id": 5768139,
+  "extra": {
+    "creator_id": 5768139,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 30
+  },
+  "game_id": "e3f384fc-da00-4d1f-99c4-ff46da8fcf7d",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 2234,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/e3f384fc-da00-4d1f-99c4-ff46da8fcf7d?fromPage=feed&orientation=auto",
+  "save_count": 790,
+  "title": "The Dentist",
+  "version": "",
+  "version_id": "be38d39e-3fd6-4ab1-9f27-85d954fca0d9"
+}

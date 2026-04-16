@@ -1,0 +1,29 @@
+{
+  "api_host": "https://api.sekai.chat",
+  "app_url": "https://sekai.chat",
+  "avatar_path": "assets/avator.webp",
+  "comment_count": 1147,
+  "cover": "https://prod-data.sekai.chat/v3-games/cover/d8ba0320-9d48-4e98-9299-47b10176c3e5/d14cfb94-e8e6-4103-9408-73b45f3dfebc/cover.large.webp",
+  "creator_name": "catwhispurr",
+  "creator_user_id": 13385,
+  "extra": {
+    "creator_id": 13385,
+    "is_remix": false,
+    "parent_jam_id": null,
+    "root_jam_id": null,
+    "parent_jam_title": null,
+    "parent_jam_remixed_count": null,
+    "remixed_count": 102
+  },
+  "game_id": "432df152-0523-4d67-943b-601a91aaed79",
+  "is_followed": false,
+  "is_liked": false,
+  "is_saved": false,
+  "like_count": 12975,
+  "parent_game_title": "",
+  "remix_url": "https://sekai.chat/g3-game/community/432df152-0523-4d67-943b-601a91aaed79?fromPage=feed&orientation=auto",
+  "save_count": 2293,
+  "title": "Guess the song  ☆",
+  "version": "",
+  "version_id": "d8ba0320-9d48-4e98-9299-47b10176c3e5"
+}
