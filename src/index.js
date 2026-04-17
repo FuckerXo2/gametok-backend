@@ -1195,6 +1195,28 @@ app.delete('/api/admin/games/:id', async (req, res) => {
   }
 });
 
+// Delete all external games (games with embed_url)
+app.delete('/api/admin/games-external/bulk', async (req, res) => {
+  try {
+    // First get count and list
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM games WHERE embed_url IS NOT NULL');
+    const listResult = await pool.query('SELECT id, name, embed_url FROM games WHERE embed_url IS NOT NULL ORDER BY name');
+    
+    // Delete all external games
+    const deleteResult = await pool.query('DELETE FROM games WHERE embed_url IS NOT NULL RETURNING id, name');
+    
+    res.json({ 
+      success: true, 
+      deleted: deleteResult.rows.length,
+      games: deleteResult.rows,
+      message: `Deleted ${deleteResult.rows.length} external games`
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to delete external games' });
+  }
+});
+
 // Add a new game
 app.post('/api/admin/games', async (req, res) => {
   try {
