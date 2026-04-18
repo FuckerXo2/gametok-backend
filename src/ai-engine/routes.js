@@ -11,6 +11,7 @@ import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, bu
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle } from './asset-dictionary.js';
+import { capturePreviewVideo } from './preview-video.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1025,9 +1026,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         // ── SAVE TO DB ──
         const finalTitle = extractHtmlTitle(rawGameHtml) || specSheet.title || 'DreamStream Game';
+        const previewVideoUrl = await capturePreviewVideo(finalHtml, jobId);
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5 WHERE id = $6`,
-            [finalTitle, finalHtml, rawGameHtml, null, finalScreenshot, jobId]
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, preview_video_url = $6 WHERE id = $7`,
+            [finalTitle, finalHtml, rawGameHtml, null, finalScreenshot, previewVideoUrl, jobId]
         );
         console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved for job ${jobId}`);
 
@@ -1149,10 +1151,11 @@ Output ONLY the complete fixed HTML document.`;
 
         // 5. Save with updated edit history (memory for next edit)
         const newHistory = [...editHistory, instructions];
+        const previewVideoUrl = await capturePreviewVideo(finalHtml, parentDraftId);
         
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, edit_history = $6 WHERE id = $7`,
-            [finalTitle, finalHtml, editedHtml, null, finalScreenshot, JSON.stringify(newHistory), parentDraftId]
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, preview_video_url = $6, edit_history = $7 WHERE id = $8`,
+            [finalTitle, finalHtml, editedHtml, null, finalScreenshot, previewVideoUrl, JSON.stringify(newHistory), parentDraftId]
         );
         markEphemeralJob(newJobId, { status: 'complete', draftId: parentDraftId });
         console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} -> updated draft ${parentDraftId} (history now has ${newHistory.length} edits)`);
@@ -1367,8 +1370,13 @@ router.post('/publish/:draftId', async (req, res) => {
         if (publishRes.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         const globalId = `gm-ai-${req.params.draftId.substring(0, 8)}`;
         await pool.query(
-            `INSERT INTO games (id, name, description, icon, color, category, developer, embed_url, thumbnail) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
-            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userId, `/api/ai/play/${req.params.draftId}`, publishRes.rows[0].thumbnail]
+            `INSERT INTO games (id, name, description, icon, color, category, developer, embed_url, thumbnail, preview_video_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                thumbnail = EXCLUDED.thumbnail,
+                preview_video_url = EXCLUDED.preview_video_url`,
+            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userId, `/api/ai/play/${req.params.draftId}`, publishRes.rows[0].thumbnail, publishRes.rows[0].preview_video_url]
         );
         res.json({ success: true, gameId: globalId });
     } catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }

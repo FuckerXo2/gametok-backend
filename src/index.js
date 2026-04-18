@@ -26,6 +26,10 @@ const STATIC_UPLOAD_ROOTS = [
   path.join(__dirname, '../public/uploads'),
   STORAGE_ROOT,
 ];
+const GAME_PREVIEW_ROOTS = [
+  path.join(__dirname, '../public/game-previews'),
+  path.join(STORAGE_ROOT, 'game-previews'),
+];
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,7 +54,9 @@ if (SEKAI_TEMPLATES_ROOT) {
 
 // Serve static thumbnails
 app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thumbnails')));
-app.use('/game-previews', express.static(path.join(__dirname, '../public/game-previews')));
+for (const previewRoot of GAME_PREVIEW_ROOTS) {
+  app.use('/game-previews', express.static(previewRoot));
+}
 
 // Landing page
 app.get('/', (req, res) => {
