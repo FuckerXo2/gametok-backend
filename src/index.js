@@ -50,6 +50,7 @@ if (SEKAI_TEMPLATES_ROOT) {
 
 // Serve static thumbnails
 app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thumbnails')));
+app.use('/game-previews', express.static(path.join(__dirname, '../public/game-previews')));
 
 // Landing page
 app.get('/', (req, res) => {
@@ -1474,6 +1475,7 @@ function formatGame(row) {
     icon: row.icon,
     color: row.color,
     thumbnail: row.thumbnail,
+    previewVideoUrl: row.preview_video_url || row.previewVideoUrl || null,
     category: row.category,
     embedUrl: row.embed_url,
     plays: row.plays,

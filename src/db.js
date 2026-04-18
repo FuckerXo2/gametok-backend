@@ -45,6 +45,7 @@ export const initDB = async () => {
         icon VARCHAR(10),
         color VARCHAR(20),
         thumbnail TEXT,
+        preview_video_url TEXT,
         category VARCHAR(50),
         embed_url TEXT,
         plays INTEGER DEFAULT 0,
@@ -164,6 +165,8 @@ export const initDB = async () => {
         html_payload TEXT NOT NULL,
         raw_code TEXT NOT NULL,
         artist_code TEXT,
+        thumbnail TEXT,
+        preview_video_url TEXT,
         edit_history JSONB DEFAULT '[]'::jsonb,
         is_draft BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT NOW()
@@ -210,8 +213,14 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'multiplayer_only') THEN
           ALTER TABLE games ADD COLUMN multiplayer_only BOOLEAN DEFAULT FALSE;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'preview_video_url') THEN
+          ALTER TABLE games ADD COLUMN preview_video_url TEXT;
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'thumbnail') THEN
           ALTER TABLE ai_games ADD COLUMN thumbnail TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'preview_video_url') THEN
+          ALTER TABLE ai_games ADD COLUMN preview_video_url TEXT;
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'is_template') THEN
           ALTER TABLE ai_games ADD COLUMN is_template BOOLEAN DEFAULT FALSE;
