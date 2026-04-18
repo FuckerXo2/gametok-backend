@@ -2632,7 +2632,7 @@ app.get('/api/feed/activity', async (req, res) => {
     const userId = userResult.rows[0].id;
 
     const result = await pool.query(
-      `SELECT s.*, u.username, u.display_name, u.avatar, g.name as game_name, g.icon as game_icon, g.thumbnail as game_thumbnail, g.color as game_color
+      `SELECT s.*, u.username, u.display_name, u.avatar, g.name as game_name, g.icon as game_icon, g.thumbnail as game_thumbnail, g.preview_video_url as game_preview_video_url, g.color as game_color
        FROM scores s
        JOIN users u ON s.user_id = u.id
        JOIN games g ON s.game_id = g.id
@@ -2645,7 +2645,7 @@ app.get('/api/feed/activity', async (req, res) => {
       activity: result.rows.map(r => ({
         type: 'score', id: r.id,
         user: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.avatar },
-        game: { id: r.game_id, name: r.game_name, icon: r.game_icon, thumbnail: r.game_thumbnail, color: r.game_color },
+        game: { id: r.game_id, name: r.game_name, icon: r.game_icon, thumbnail: r.game_thumbnail, previewVideoUrl: r.game_preview_video_url, color: r.game_color },
         score: r.score, createdAt: r.created_at
       }))
     });
@@ -2669,7 +2669,7 @@ app.get('/api/feed/global', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT s.*, u.username, u.display_name, u.avatar, g.name as game_name, g.icon as game_icon, g.thumbnail as game_thumbnail, g.color as game_color
+      `SELECT s.*, u.username, u.display_name, u.avatar, g.name as game_name, g.icon as game_icon, g.thumbnail as game_thumbnail, g.preview_video_url as game_preview_video_url, g.color as game_color
        FROM scores s
        JOIN users u ON s.user_id = u.id
        JOIN games g ON s.game_id = g.id
@@ -2682,7 +2682,7 @@ app.get('/api/feed/global', async (req, res) => {
       activity: result.rows.map(r => ({
         type: 'score', id: r.id,
         user: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.avatar },
-        game: { id: r.game_id, name: r.game_name, icon: r.game_icon, thumbnail: r.game_thumbnail, color: r.game_color },
+        game: { id: r.game_id, name: r.game_name, icon: r.game_icon, thumbnail: r.game_thumbnail, previewVideoUrl: r.game_preview_video_url, color: r.game_color },
         score: r.score, createdAt: r.created_at
       }))
     });
