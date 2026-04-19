@@ -1319,6 +1319,7 @@ app.get('/api/games', async (req, res) => {
          WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL
          ORDER BY
            CASE WHEN id LIKE 'gm-ai-%' THEN 0 ELSE 1 END,
+           CASE WHEN id LIKE 'gm-ai-%' THEN created_at END DESC,
            COALESCE(classification_confidence, 0) DESC,
            COALESCE(plays, 0) DESC,
            created_at DESC
