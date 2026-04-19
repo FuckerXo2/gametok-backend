@@ -1303,13 +1303,29 @@ app.get('/api/admin/games', async (req, res) => {
 app.get('/api/games', async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const offset = parseInt(req.query.offset) || 0;
+  const sort = String(req.query.sort || '').toLowerCase();
 
   try {
     // Exclude multiplayer-only games from main feed
-    const result = await pool.query(
-      'SELECT * FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL ORDER BY RANDOM() LIMIT $1 OFFSET $2',
-      [limit, offset]
-    );
+    let result;
+    if (sort === 'discover') {
+      result = await pool.query(
+        `SELECT * FROM games
+         WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL
+         ORDER BY
+           CASE WHEN id LIKE 'gm-ai-%' THEN 0 ELSE 1 END,
+           COALESCE(classification_confidence, 0) DESC,
+           COALESCE(plays, 0) DESC,
+           created_at DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      );
+    } else {
+      result = await pool.query(
+        'SELECT * FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL ORDER BY RANDOM() LIMIT $1 OFFSET $2',
+        [limit, offset]
+      );
+    }
     const countResult = await pool.query('SELECT COUNT(*) FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL');
     res.json({ games: result.rows.map(formatGame), total: parseInt(countResult.rows[0].count) });
   } catch (e) {
