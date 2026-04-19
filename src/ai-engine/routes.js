@@ -1740,6 +1740,53 @@ router.get('/admin/backfill-preview-videos', async (req, res) => {
     }
 });
 
+router.get('/admin/backfill-classifications', async (req, res) => {
+    try {
+        const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+        const draftId = req.query.draftId ? String(req.query.draftId) : null;
+
+        const params = [];
+        let whereClause = "WHERE is_draft = false AND html_payload != ''";
+        if (draftId) {
+            params.push(draftId);
+            whereClause += ` AND id = $${params.length}`;
+        }
+        params.push(limit);
+
+        const draftsRes = await pool.query(
+            `SELECT id, user_id, title, prompt, html_payload, thumbnail, preview_video_url
+             FROM ai_games
+             ${whereClause}
+             ORDER BY created_at DESC
+             LIMIT $${params.length}`,
+            params
+        );
+
+        if (!draftsRes.rows.length) {
+            return res.json({ success: true, count: 0, updated: [] });
+        }
+
+        const updated = [];
+        for (const draft of draftsRes.rows) {
+            const { globalId, classification } = await upsertPublishedAIGame({
+                draftId: draft.id,
+                userId: draft.user_id,
+                draft,
+            });
+            updated.push({
+                draftId: draft.id,
+                gameId: globalId,
+                title: draft.title,
+                classification,
+            });
+        }
+
+        res.json({ success: true, count: updated.length, updated });
+    } catch (e) {
+        res.status(e.statusCode || 500).json({ error: e.message });
+    }
+});
+
 // ========================================================
 // 🧪 LABS: Experimental alternate provider path
 // ========================================================
