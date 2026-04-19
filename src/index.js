@@ -1303,12 +1303,17 @@ app.get('/api/admin/games', async (req, res) => {
 app.get('/api/games', async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const offset = parseInt(req.query.offset) || 0;
-  const sort = String(req.query.sort || '').toLowerCase();
+  const sort = String(req.query.sort || 'discover').toLowerCase();
 
   try {
     // Exclude multiplayer-only games from main feed
     let result;
-    if (sort === 'discover') {
+    if (sort === 'random') {
+      result = await pool.query(
+        'SELECT * FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL ORDER BY RANDOM() LIMIT $1 OFFSET $2',
+        [limit, offset]
+      );
+    } else {
       result = await pool.query(
         `SELECT * FROM games
          WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL
@@ -1318,11 +1323,6 @@ app.get('/api/games', async (req, res) => {
            COALESCE(plays, 0) DESC,
            created_at DESC
          LIMIT $1 OFFSET $2`,
-        [limit, offset]
-      );
-    } else {
-      result = await pool.query(
-        'SELECT * FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL ORDER BY RANDOM() LIMIT $1 OFFSET $2',
         [limit, offset]
       );
     }
