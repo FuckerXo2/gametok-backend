@@ -47,6 +47,10 @@ export const initDB = async () => {
         thumbnail TEXT,
         preview_video_url TEXT,
         category VARCHAR(50),
+        primary_tab VARCHAR(32),
+        interaction_type VARCHAR(64),
+        classification_confidence REAL,
+        classification_tags JSONB DEFAULT '[]'::jsonb,
         embed_url TEXT,
         plays INTEGER DEFAULT 0,
         like_count INTEGER DEFAULT 0,
@@ -215,6 +219,18 @@ export const initDB = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'preview_video_url') THEN
           ALTER TABLE games ADD COLUMN preview_video_url TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'primary_tab') THEN
+          ALTER TABLE games ADD COLUMN primary_tab VARCHAR(32);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'interaction_type') THEN
+          ALTER TABLE games ADD COLUMN interaction_type VARCHAR(64);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'classification_confidence') THEN
+          ALTER TABLE games ADD COLUMN classification_confidence REAL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'classification_tags') THEN
+          ALTER TABLE games ADD COLUMN classification_tags JSONB DEFAULT '[]'::jsonb;
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'thumbnail') THEN
           ALTER TABLE ai_games ADD COLUMN thumbnail TEXT;

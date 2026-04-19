@@ -208,6 +208,175 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     return JSON.parse(extractJson(raw));
 }
 
+const DISCOVERY_TABS = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'];
+const DISCOVERY_CATEGORIES = ['arcade', 'action', 'simulation', 'horror', 'quiz', 'puzzle', 'roleplay', 'story', 'creative', 'tool'];
+const INTERACTION_TYPES = ['arcade_loop', 'choice_story', 'drawing_tool', 'music_toy', 'quiz_challenge', 'simulator', 'horror_vignette', 'roleplay_story', 'sandbox', 'experimental'];
+
+function clampClassifierConfidence(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0.5;
+    return Math.min(1, Math.max(0, numeric));
+}
+
+function normalizeClassifierTags(tags) {
+    if (!Array.isArray(tags)) return [];
+    return tags
+        .map((tag) => String(tag || '').trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 8);
+}
+
+function heuristicClassifyGame({ title = '', prompt = '', description = '', htmlPayload = '' }) {
+    const text = `${title} ${prompt} ${description} ${htmlPayload}`.toLowerCase();
+    const matches = (keywords = []) => keywords.reduce((count, keyword) => count + (text.includes(keyword) ? 1 : 0), 0);
+
+    const horrorScore = matches(['horror', 'scary', 'creepy', 'ghost', 'haunted', 'dark', 'monster', 'fear', 'void', 'survey']);
+    const quizScore = matches(['quiz', 'trivia', 'puzzle', 'question', 'guess', 'memory', 'atlas', 'answer']);
+    const roleplayScore = matches(['romance', 'dating', 'love', 'episode', 'dress', 'fashion', 'anime', 'boyfriend', 'girlfriend', 'story']);
+    const toolScore = matches(['draw', 'mirror draw', 'paint', 'generator', 'tool', 'create pattern', 'lissajous', 'music toy']);
+    const gameScore = matches(['drive', 'driving', 'car', 'runner', 'jump', 'platform', 'enemy', 'score', 'arcade', 'shooter', 'steering']);
+
+    let primaryTab = 'Explore';
+    let category = 'creative';
+    let interactionType = 'experimental';
+    let tags = ['interactive'];
+
+    const ranked = [
+        { tab: 'Horror', score: horrorScore, category: 'horror', interactionType: 'horror_vignette', tags: ['dark', 'story', 'choice'] },
+        { tab: 'Quiz', score: quizScore, category: 'quiz', interactionType: 'quiz_challenge', tags: ['brain', 'trivia', 'puzzle'] },
+        { tab: 'Roleplay', score: roleplayScore, category: 'roleplay', interactionType: 'roleplay_story', tags: ['story', 'social', 'character'] },
+        { tab: 'Games', score: Math.max(gameScore, toolScore > 0 ? 0 : gameScore), category: gameScore > 2 ? 'action' : 'simulation', interactionType: gameScore > 2 ? 'arcade_loop' : 'simulator', tags: ['playable', 'loop', 'interactive'] },
+        { tab: 'Explore', score: toolScore, category: toolScore > 0 ? 'tool' : 'creative', interactionType: toolScore > 0 ? 'drawing_tool' : 'experimental', tags: toolScore > 0 ? ['creative', 'tool', 'playful'] : ['interactive'] },
+    ].sort((a, b) => b.score - a.score);
+
+    if (ranked[0] && ranked[0].score > 0) {
+        primaryTab = ranked[0].tab;
+        category = ranked[0].category;
+        interactionType = ranked[0].interactionType;
+        tags = ranked[0].tags;
+    } else if (text.includes('story') || text.includes('choice') || text.includes('note')) {
+        primaryTab = 'Explore';
+        category = 'story';
+        interactionType = 'choice_story';
+        tags = ['story', 'choice', 'interactive'];
+    }
+
+    return {
+        primaryTab,
+        category,
+        interactionType,
+        tags,
+        confidence: 0.45,
+    };
+}
+
+async function classifyPublishedGame({ title = '', prompt = '', description = '', htmlPayload = '' }) {
+    const heuristic = heuristicClassifyGame({ title, prompt, description, htmlPayload });
+    const model = process.env.DREAMSTREAM_CLASSIFIER_MODEL || DREAM_MODELS.spec;
+    const htmlSignal = String(htmlPayload || '')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 1800);
+
+    try {
+        const res = await nvidiaClient.chat.completions.create({
+            model,
+            messages: [
+                {
+                    role: 'system',
+                    content: `You classify short-form interactive games for a discovery feed.
+Return raw JSON only with this exact schema:
+{
+  "primaryTab": "Explore|Games|Horror|Quiz|Roleplay",
+  "category": "arcade|action|simulation|horror|quiz|puzzle|roleplay|story|creative|tool",
+  "interactionType": "arcade_loop|choice_story|drawing_tool|music_toy|quiz_challenge|simulator|horror_vignette|roleplay_story|sandbox|experimental",
+  "tags": ["lowercase-tag"],
+  "confidence": 0.0
+}
+Choose the tab based on the actual experience, not marketing words. Horror is only for genuinely unsettling or fear-driven experiences. Quiz is for question/puzzle/trivia-driven experiences. Roleplay is for character/social/story fantasies. Games is for action/arcade/driving/platformer/simulation play. Explore is for creative tools, experimental pieces, toys, generators, and things that do not fit the other lanes cleanly.`
+                },
+                {
+                    role: 'user',
+                    content: JSON.stringify({
+                        title,
+                        prompt,
+                        description,
+                        htmlSignal,
+                        allowedTabs: DISCOVERY_TABS,
+                        allowedCategories: DISCOVERY_CATEGORIES,
+                        allowedInteractionTypes: INTERACTION_TYPES,
+                    }),
+                },
+            ],
+            temperature: 0.1,
+            max_tokens: 220,
+        });
+
+        const raw = res?.choices?.[0]?.message?.content || '';
+        const parsed = JSON.parse(extractJson(raw));
+        const primaryTab = DISCOVERY_TABS.includes(parsed?.primaryTab) ? parsed.primaryTab : heuristic.primaryTab;
+        const category = DISCOVERY_CATEGORIES.includes(parsed?.category) ? parsed.category : heuristic.category;
+        const interactionType = INTERACTION_TYPES.includes(parsed?.interactionType) ? parsed.interactionType : heuristic.interactionType;
+        const tags = normalizeClassifierTags(parsed?.tags);
+
+        return {
+            primaryTab,
+            category,
+            interactionType,
+            tags: tags.length ? tags : heuristic.tags,
+            confidence: clampClassifierConfidence(parsed?.confidence),
+        };
+    } catch (error) {
+        console.warn('[classifier] Falling back to heuristic classification:', error?.message || error);
+        return heuristic;
+    }
+}
+
+async function upsertPublishedAIGame({ draftId, userId, draft }) {
+    const globalId = `gm-ai-${String(draftId).substring(0, 8)}`;
+    const description = "Multi-Engine AI Creation: " + draft.prompt;
+    const classification = await classifyPublishedGame({
+        title: draft.title,
+        prompt: draft.prompt,
+        description,
+        htmlPayload: draft.html_payload,
+    });
+
+    await pool.query(
+        `INSERT INTO games (id, name, description, icon, color, category, primary_tab, interaction_type, classification_confidence, classification_tags, developer, embed_url, thumbnail, preview_video_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            category = EXCLUDED.category,
+            primary_tab = EXCLUDED.primary_tab,
+            interaction_type = EXCLUDED.interaction_type,
+            classification_confidence = EXCLUDED.classification_confidence,
+            classification_tags = EXCLUDED.classification_tags,
+            thumbnail = EXCLUDED.thumbnail,
+            preview_video_url = EXCLUDED.preview_video_url`,
+        [
+            globalId,
+            draft.title,
+            description,
+            "✨",
+            "#050505",
+            classification.category,
+            classification.primaryTab,
+            classification.interactionType,
+            classification.confidence,
+            JSON.stringify(classification.tags),
+            userId,
+            `/api/ai/play/${draftId}`,
+            draft.thumbnail,
+            draft.preview_video_url,
+        ]
+    );
+
+    return { globalId, classification };
+}
+
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -874,6 +1043,55 @@ function normalizeMediaAttachmentType(type = '') {
     }
 }
 
+function normalizeMediaAttachmentRole(role = '', type = '') {
+    const normalized = String(role || '').trim().toLowerCase();
+    const normalizedType = normalizeMediaAttachmentType(type);
+
+    if (!normalized) {
+        switch (normalizedType) {
+            case 'video':
+                return 'background';
+            case 'bgm':
+                return 'bgm';
+            case 'sfx':
+                return 'sfx';
+            default:
+                return 'hero';
+        }
+    }
+
+    switch (normalized) {
+        case 'main':
+        case 'hero':
+        case 'focal':
+            return 'hero';
+        case 'background':
+        case 'backdrop':
+            return 'background';
+        case 'overlay':
+        case 'sticker':
+        case 'meme':
+            return 'overlay';
+        case 'panel':
+        case 'screen':
+            return 'panel';
+        case 'prop':
+        case 'collectible':
+            return 'prop';
+        case 'bgm':
+        case 'music':
+            return 'bgm';
+        case 'sfx':
+        case 'audio':
+            return 'sfx';
+        case 'reference':
+        case 'inspiration':
+            return 'reference';
+        default:
+            return normalized;
+    }
+}
+
 function sanitizeMediaAttachments(rawAttachments = []) {
     if (!Array.isArray(rawAttachments)) {
         return [];
@@ -882,6 +1100,7 @@ function sanitizeMediaAttachments(rawAttachments = []) {
     return rawAttachments
         .map((asset) => ({
             type: normalizeMediaAttachmentType(asset?.type),
+            role: normalizeMediaAttachmentRole(asset?.role, asset?.type),
             url: typeof asset?.url === 'string' ? asset.url.trim() : '',
             title: typeof asset?.title === 'string' ? asset.title.trim() : '',
             label: typeof asset?.label === 'string' ? asset.label.trim() : '',
@@ -899,7 +1118,7 @@ function buildMediaAttachmentSummary(mediaAttachments = []) {
 
     return mediaAttachments.map((asset, index) => {
         const label = asset.title || asset.label || `Attachment ${index + 1}`;
-        return `${index + 1}. [${asset.type}] ${label} -> ${asset.url}\n   user intent: ${asset.instruction}`;
+        return `${index + 1}. [${asset.type}] ${label} -> ${asset.url}\n   role: ${asset.role || 'hero'}\n   user intent: ${asset.instruction}`;
     }).join('\n');
 }
 
@@ -1368,17 +1587,61 @@ router.post('/publish/:draftId', async (req, res) => {
         const userId = await getUserIdFromToken(token, 'Unauthorized');
         const publishRes = await pool.query("UPDATE ai_games SET is_draft = false WHERE id = $1 AND user_id = $2 RETURNING *", [req.params.draftId, userId]);
         if (publishRes.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
-        const globalId = `gm-ai-${req.params.draftId.substring(0, 8)}`;
-        await pool.query(
-            `INSERT INTO games (id, name, description, icon, color, category, developer, embed_url, thumbnail, preview_video_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (id) DO UPDATE SET
-                name = EXCLUDED.name,
-                description = EXCLUDED.description,
-                thumbnail = EXCLUDED.thumbnail,
-                preview_video_url = EXCLUDED.preview_video_url`,
-            [globalId, publishRes.rows[0].title, "Multi-Engine AI Creation: " + publishRes.rows[0].prompt, "✨", "#00E5FF", "ai-remix", userId, `/api/ai/play/${req.params.draftId}`, publishRes.rows[0].thumbnail, publishRes.rows[0].preview_video_url]
+        const draft = publishRes.rows[0];
+        const { globalId, classification } = await upsertPublishedAIGame({
+            draftId: req.params.draftId,
+            userId,
+            draft,
+        });
+        res.json({ success: true, gameId: globalId, classification });
+    } catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
+});
+
+router.post('/reclassify-published', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        const userId = await getUserIdFromToken(token, 'Unauthorized');
+        const limit = Math.min(50, Math.max(1, Number(req.body?.limit || 20)));
+        const draftId = req.body?.draftId ? String(req.body.draftId) : null;
+
+        const params = [userId];
+        let whereClause = "WHERE user_id = $1 AND is_draft = false AND html_payload != ''";
+        if (draftId) {
+            params.push(draftId);
+            whereClause += ` AND id = $${params.length}`;
+        }
+        params.push(limit);
+
+        const draftsRes = await pool.query(
+            `SELECT id, title, prompt, html_payload, thumbnail, preview_video_url
+             FROM ai_games
+             ${whereClause}
+             ORDER BY created_at DESC
+             LIMIT $${params.length}`,
+            params
         );
-        res.json({ success: true, gameId: globalId });
+
+        if (!draftsRes.rows.length) {
+            return res.json({ success: true, updated: [], count: 0 });
+        }
+
+        const updated = [];
+        for (const draft of draftsRes.rows) {
+            const { globalId, classification } = await upsertPublishedAIGame({
+                draftId: draft.id,
+                userId,
+                draft,
+            });
+            updated.push({
+                draftId: draft.id,
+                gameId: globalId,
+                title: draft.title,
+                classification,
+            });
+        }
+
+        res.json({ success: true, count: updated.length, updated });
     } catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
@@ -1459,6 +1722,21 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
         });
     } catch(e) {
         console.error("Backfill Trigger Error:", e);
+    }
+});
+
+router.get('/admin/backfill-preview-videos', async (req, res) => {
+    try {
+        res.json({ status: "bg-process-started", msg: "Capturing short preview videos for AI games in the background. Check your Railway logs for progress." });
+
+        const { exec } = await import('child_process');
+        exec('node scripts/backfill-preview-videos.js', (err, stdout, stderr) => {
+            if (err) console.error("Preview video backfill failed:", err);
+            if (stdout) console.log("Preview video backfill log:", stdout);
+            if (stderr) console.error("Preview video backfill stderr:", stderr);
+        });
+    } catch(e) {
+        console.error("Preview Video Backfill Trigger Error:", e);
     }
 });
 
