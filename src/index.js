@@ -1315,12 +1315,45 @@ app.get('/api/games', async (req, res) => {
       );
     } else {
       result = await pool.query(
-        `SELECT * FROM games
-         WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL
+        `WITH score_activity AS (
+           SELECT
+             game_id,
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') AS recent_score_events,
+             COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) AS recent_unique_scorers,
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') * 5 +
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') * 2 +
+             COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) * 3 AS recent_activity_score
+           FROM scores
+           GROUP BY game_id
+         )
+         SELECT
+           g.*,
+           u.display_name AS creator_display_name,
+           u.username AS creator_username,
+           COALESCE(sa.recent_score_events, 0) AS recent_score_events,
+           COALESCE(sa.recent_unique_scorers, 0) AS recent_unique_scorers,
+           COALESCE(sa.recent_activity_score, 0) AS recent_activity_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 35 +
+             LEAST(COALESCE(g.plays, 0) / 4000.0, 28) +
+             COALESCE(sa.recent_activity_score, 0) +
+             CASE
+               WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 14
+               WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 8
+               WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
+               ELSE 0
+             END
+           ) AS discover_score
+         FROM games g
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+         LEFT JOIN score_activity sa ON sa.game_id = g.id
+         WHERE g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL
          ORDER BY
-           COALESCE(classification_confidence, 0) DESC,
-           COALESCE(plays, 0) DESC,
-           created_at DESC
+           discover_score DESC,
+           COALESCE(sa.recent_activity_score, 0) DESC,
+           COALESCE(g.plays, 0) DESC,
+           g.created_at DESC
          LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
@@ -1328,6 +1361,391 @@ app.get('/api/games', async (req, res) => {
     const countResult = await pool.query('SELECT COUNT(*) FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL');
     res.json({ games: result.rows.map(formatGame), total: parseInt(countResult.rows[0].count) });
   } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/games/discover-lanes', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 12, 24);
+  const rawTab = String(req.query.tab || 'Explore').trim();
+  const normalizedTab = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'].includes(rawTab) ? rawTab : 'Explore';
+
+  try {
+    const result = await pool.query(
+      `WITH score_activity AS (
+         SELECT
+           game_id,
+           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') AS recent_score_events,
+           COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) AS recent_unique_scorers,
+           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') * 5 +
+           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') * 2 +
+           COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) * 3 AS recent_activity_score
+         FROM scores
+         GROUP BY game_id
+       ),
+       discover_pool AS (
+         SELECT
+           g.*,
+           u.display_name AS creator_display_name,
+           u.username AS creator_username,
+           COALESCE(sa.recent_score_events, 0) AS recent_score_events,
+           COALESCE(sa.recent_unique_scorers, 0) AS recent_unique_scorers,
+           COALESCE(sa.recent_activity_score, 0) AS recent_activity_score,
+           EXTRACT(EPOCH FROM (NOW() - g.created_at)) / 3600.0 AS age_hours,
+           (
+             COALESCE(g.classification_confidence, 0) * 35 +
+             LEAST(COALESCE(g.plays, 0) / 4000.0, 28) +
+             COALESCE(sa.recent_activity_score, 0) +
+             CASE
+               WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 14
+               WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 8
+               WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
+               ELSE 0
+             END
+           ) AS discover_score,
+           (
+             COALESCE(sa.recent_activity_score, 0) * 1.9 +
+             LEAST(COALESCE(g.plays, 0) / 8000.0, 16) +
+             CASE
+               WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 12
+               WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 6
+               ELSE 0
+             END
+           ) AS rising_score,
+           (
+             CASE
+               WHEN g.created_at >= NOW() - INTERVAL '24 hours' THEN 24
+               WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 18
+               WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 10
+               WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
+               ELSE 0
+             END +
+             COALESCE(sa.recent_activity_score, 0) * 0.9 +
+             COALESCE(g.classification_confidence, 0) * 10
+           ) AS fresh_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 18 +
+             LEAST(COALESCE(g.plays, 0) / 5000.0, 22) +
+             CASE
+               WHEN g.created_at <= NOW() - INTERVAL '7 days' THEN 8
+               WHEN g.created_at <= NOW() - INTERVAL '3 days' THEN 4
+               ELSE 0
+             END
+           ) AS evergreen_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 22 +
+             LEAST(COALESCE(g.plays, 0) / 14000.0, 10) +
+             CASE
+               WHEN g.created_at <= NOW() - INTERVAL '7 days' THEN 12
+               WHEN g.created_at <= NOW() - INTERVAL '3 days' THEN 6
+               ELSE 0
+             END +
+             GREATEST(0, 12 - LEAST(COALESCE(sa.recent_activity_score, 0), 12))
+           ) AS sleeper_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 30 +
+             LEAST(COALESCE(g.plays, 0) / 7000.0, 16) +
+             COALESCE(sa.recent_activity_score, 0) * 0.7 +
+             CASE
+               WHEN COALESCE(g.primary_tab, 'Explore') = 'Roleplay' THEN 6
+               WHEN COALESCE(g.primary_tab, 'Explore') = 'Horror' THEN 4
+               ELSE 0
+             END +
+             CASE
+               WHEN COALESCE(g.subcategory, '') IN ('romance', 'fantasy', 'immersive_world', 'school_drama', 'psychological', 'creative_tool', 'experimental', 'geography', 'trivia', 'anime') THEN 8
+               ELSE 0
+             END
+           ) AS featured_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 26 +
+             LEAST(COALESCE(g.plays, 0) / 9000.0, 14) +
+             CASE
+               WHEN COALESCE(g.primary_tab, 'Explore') = 'Roleplay' THEN 12
+               ELSE 0
+             END +
+             CASE
+               WHEN COALESCE(g.subcategory, '') IN ('immersive_world', 'fantasy', 'school_drama', 'romance', 'boyfriend', 'girlfriend') THEN 16
+               ELSE 0
+             END +
+             CASE
+               WHEN g.created_at <= NOW() - INTERVAL '3 days' THEN 6
+               ELSE 0
+             END
+           ) AS worldbuilding_score
+         FROM games g
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+         LEFT JOIN score_activity sa ON sa.game_id = g.id
+         WHERE
+           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND
+           ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+       ),
+       ranked AS (
+         SELECT
+           *,
+           ROW_NUMBER() OVER (ORDER BY rising_score DESC, discover_score DESC, plays DESC, created_at DESC) AS rising_rank,
+           ROW_NUMBER() OVER (ORDER BY fresh_score DESC, discover_score DESC, plays DESC, created_at DESC) AS fresh_rank,
+           ROW_NUMBER() OVER (ORDER BY sleeper_score DESC, evergreen_score DESC, discover_score DESC, created_at DESC) AS sleeper_rank,
+           ROW_NUMBER() OVER (ORDER BY evergreen_score DESC, discover_score DESC, plays DESC, created_at DESC) AS evergreen_rank,
+           ROW_NUMBER() OVER (ORDER BY featured_score DESC, discover_score DESC, plays DESC, created_at DESC) AS featured_rank,
+           ROW_NUMBER() OVER (ORDER BY worldbuilding_score DESC, evergreen_score DESC, discover_score DESC, plays DESC, created_at DESC) AS worldbuilding_rank
+         FROM discover_pool
+       )
+       SELECT
+         *,
+         CASE
+           WHEN rising_rank <= $2 THEN 'rising'
+           WHEN fresh_rank <= $2 THEN 'fresh'
+           WHEN sleeper_rank <= $2 THEN 'sleepers'
+           WHEN evergreen_rank <= $2 THEN 'evergreen'
+           WHEN featured_rank <= $2 THEN 'featured'
+           WHEN worldbuilding_rank <= $2 THEN 'worldbuilding'
+           ELSE NULL
+         END AS lane_bucket
+       FROM ranked
+       WHERE
+         rising_rank <= $2 OR
+         fresh_rank <= $2 OR
+         sleeper_rank <= $2 OR
+         evergreen_rank <= $2 OR
+         featured_rank <= $2 OR
+         worldbuilding_rank <= $2`,
+      [normalizedTab, limit],
+    );
+
+    const lanes = {
+      rising: [],
+      fresh: [],
+      sleepers: [],
+      evergreen: [],
+      featured: [],
+      worldbuilding: [],
+    };
+    const usedByLane = {
+      rising: new Set(),
+      fresh: new Set(),
+      sleepers: new Set(),
+      evergreen: new Set(),
+      featured: new Set(),
+      worldbuilding: new Set(),
+    };
+
+    const rows = result.rows;
+
+    const pushLaneGames = (laneName, rankField) => {
+      rows
+        .filter((row) => row[rankField] <= limit)
+        .sort((a, b) => a[rankField] - b[rankField])
+        .forEach((row) => {
+          if (lanes[laneName].length >= limit) return;
+          if (usedByLane[laneName].has(row.id)) return;
+          usedByLane[laneName].add(row.id);
+          lanes[laneName].push(formatGame(row));
+        });
+    };
+
+    pushLaneGames('rising', 'rising_rank');
+    pushLaneGames('fresh', 'fresh_rank');
+    pushLaneGames('sleepers', 'sleeper_rank');
+    pushLaneGames('evergreen', 'evergreen_rank');
+    pushLaneGames('featured', 'featured_rank');
+    pushLaneGames('worldbuilding', 'worldbuilding_rank');
+
+    res.json({
+      tab: normalizedTab,
+      lanes,
+    });
+  } catch (e) {
+    console.error('Discover lanes error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/games/discover-debug', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 25, 100);
+  const rawTab = String(req.query.tab || 'Explore').trim();
+  const normalizedTab = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'].includes(rawTab) ? rawTab : 'Explore';
+
+  try {
+    const result = await pool.query(
+      `WITH score_activity AS (
+         SELECT
+           game_id,
+           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') AS recent_score_events,
+           COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) AS recent_unique_scorers,
+           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') * 5 +
+           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') * 2 +
+           COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) * 3 AS recent_activity_score
+         FROM scores
+         GROUP BY game_id
+       ),
+       discover_pool AS (
+         SELECT
+           g.*,
+           u.display_name AS creator_display_name,
+           u.username AS creator_username,
+           COALESCE(sa.recent_score_events, 0) AS recent_score_events,
+           COALESCE(sa.recent_unique_scorers, 0) AS recent_unique_scorers,
+           COALESCE(sa.recent_activity_score, 0) AS recent_activity_score,
+           EXTRACT(EPOCH FROM (NOW() - g.created_at)) / 3600.0 AS age_hours,
+           (
+             COALESCE(g.classification_confidence, 0) * 35 +
+             LEAST(COALESCE(g.plays, 0) / 4000.0, 28) +
+             COALESCE(sa.recent_activity_score, 0) +
+             CASE
+               WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 14
+               WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 8
+               WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
+               ELSE 0
+             END
+           ) AS discover_score,
+           (
+             COALESCE(sa.recent_activity_score, 0) * 1.9 +
+             LEAST(COALESCE(g.plays, 0) / 8000.0, 16) +
+             CASE
+               WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 12
+               WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 6
+               ELSE 0
+             END
+           ) AS rising_score,
+           (
+             CASE
+               WHEN g.created_at >= NOW() - INTERVAL '24 hours' THEN 24
+               WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 18
+               WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 10
+               WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
+               ELSE 0
+             END +
+             COALESCE(sa.recent_activity_score, 0) * 0.9 +
+             COALESCE(g.classification_confidence, 0) * 10
+           ) AS fresh_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 18 +
+             LEAST(COALESCE(g.plays, 0) / 5000.0, 22) +
+             CASE
+               WHEN g.created_at <= NOW() - INTERVAL '7 days' THEN 8
+               WHEN g.created_at <= NOW() - INTERVAL '3 days' THEN 4
+               ELSE 0
+             END
+           ) AS evergreen_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 22 +
+             LEAST(COALESCE(g.plays, 0) / 14000.0, 10) +
+             CASE
+               WHEN g.created_at <= NOW() - INTERVAL '7 days' THEN 12
+               WHEN g.created_at <= NOW() - INTERVAL '3 days' THEN 6
+               ELSE 0
+             END +
+             GREATEST(0, 12 - LEAST(COALESCE(sa.recent_activity_score, 0), 12))
+           ) AS sleeper_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 30 +
+             LEAST(COALESCE(g.plays, 0) / 7000.0, 16) +
+             COALESCE(sa.recent_activity_score, 0) * 0.7 +
+             CASE
+               WHEN COALESCE(g.primary_tab, 'Explore') = 'Roleplay' THEN 6
+               WHEN COALESCE(g.primary_tab, 'Explore') = 'Horror' THEN 4
+               ELSE 0
+             END +
+             CASE
+               WHEN COALESCE(g.subcategory, '') IN ('romance', 'fantasy', 'immersive_world', 'school_drama', 'psychological', 'creative_tool', 'experimental', 'geography', 'trivia', 'anime') THEN 8
+               ELSE 0
+             END
+           ) AS featured_score,
+           (
+             COALESCE(g.classification_confidence, 0) * 26 +
+             LEAST(COALESCE(g.plays, 0) / 9000.0, 14) +
+             CASE
+               WHEN COALESCE(g.primary_tab, 'Explore') = 'Roleplay' THEN 12
+               ELSE 0
+             END +
+             CASE
+               WHEN COALESCE(g.subcategory, '') IN ('immersive_world', 'fantasy', 'school_drama', 'romance', 'boyfriend', 'girlfriend') THEN 16
+               ELSE 0
+             END +
+             CASE
+               WHEN g.created_at <= NOW() - INTERVAL '3 days' THEN 6
+               ELSE 0
+             END
+           ) AS worldbuilding_score
+         FROM games g
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+         LEFT JOIN score_activity sa ON sa.game_id = g.id
+         WHERE
+           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND
+           ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+       ),
+       ranked AS (
+         SELECT
+           *,
+           ROW_NUMBER() OVER (ORDER BY discover_score DESC, plays DESC, created_at DESC) AS discover_rank,
+           ROW_NUMBER() OVER (ORDER BY rising_score DESC, discover_score DESC, plays DESC, created_at DESC) AS rising_rank,
+           ROW_NUMBER() OVER (ORDER BY fresh_score DESC, discover_score DESC, plays DESC, created_at DESC) AS fresh_rank,
+           ROW_NUMBER() OVER (ORDER BY sleeper_score DESC, evergreen_score DESC, discover_score DESC, created_at DESC) AS sleeper_rank,
+           ROW_NUMBER() OVER (ORDER BY evergreen_score DESC, discover_score DESC, plays DESC, created_at DESC) AS evergreen_rank,
+           ROW_NUMBER() OVER (ORDER BY featured_score DESC, discover_score DESC, plays DESC, created_at DESC) AS featured_rank,
+           ROW_NUMBER() OVER (ORDER BY worldbuilding_score DESC, evergreen_score DESC, discover_score DESC, plays DESC, created_at DESC) AS worldbuilding_rank
+         FROM discover_pool
+       )
+       SELECT * FROM ranked
+       ORDER BY discover_rank ASC
+       LIMIT $2`,
+      [normalizedTab, limit],
+    );
+
+    const games = result.rows.map((row) => {
+      const laneMemberships = [];
+      if (row.rising_rank <= limit) laneMemberships.push('rising');
+      if (row.fresh_rank <= limit) laneMemberships.push('fresh');
+      if (row.sleeper_rank <= limit) laneMemberships.push('sleepers');
+      if (row.evergreen_rank <= limit) laneMemberships.push('evergreen');
+      if (row.featured_rank <= limit) laneMemberships.push('featured');
+      if (row.worldbuilding_rank <= limit) laneMemberships.push('worldbuilding');
+
+      return {
+        game: formatGame(row),
+        scores: {
+          discover: Number(row.discover_score || 0),
+          rising: Number(row.rising_score || 0),
+          fresh: Number(row.fresh_score || 0),
+          sleepers: Number(row.sleeper_score || 0),
+          evergreen: Number(row.evergreen_score || 0),
+          featured: Number(row.featured_score || 0),
+          worldbuilding: Number(row.worldbuilding_score || 0),
+        },
+        ranks: {
+          discover: row.discover_rank,
+          rising: row.rising_rank,
+          fresh: row.fresh_rank,
+          sleepers: row.sleeper_rank,
+          evergreen: row.evergreen_rank,
+          featured: row.featured_rank,
+          worldbuilding: row.worldbuilding_rank,
+        },
+        laneMemberships,
+        signals: {
+          primaryTab: row.primary_tab || 'Explore',
+          category: row.category || null,
+          subcategory: row.subcategory || null,
+          interactionType: row.interaction_type || null,
+          classificationConfidence: row.classification_confidence ?? null,
+          recentScoreEvents: row.recent_score_events ?? 0,
+          recentUniqueScorers: row.recent_unique_scorers ?? 0,
+          recentActivityScore: row.recent_activity_score ?? 0,
+          plays: row.plays ?? 0,
+          ageHours: Number(row.age_hours || 0),
+        },
+      };
+    });
+
+    res.json({
+      tab: normalizedTab,
+      count: games.length,
+      games,
+    });
+  } catch (e) {
+    console.error('Discover debug error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1381,7 +1799,17 @@ app.get('/api/games/multiplayer', async (req, res) => {
 
 app.get('/api/games/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM games WHERE id = $1', [req.params.id]);
+    const result = await pool.query(
+      `SELECT
+         g.*,
+         u.display_name AS creator_display_name,
+         u.username AS creator_username
+       FROM games g
+       LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+       LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+       WHERE g.id = $1`,
+      [req.params.id],
+    );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
     res.json({ game: formatGame(result.rows[0]) });
   } catch (e) {
@@ -1498,16 +1926,24 @@ function formatGame(row) {
     thumbnail: row.thumbnail,
     previewVideoUrl: row.preview_video_url || row.previewVideoUrl || null,
     category: row.category,
+    subcategory: row.subcategory || null,
     primaryTab: row.primary_tab || row.primaryTab || null,
     interactionType: row.interaction_type || row.interactionType || null,
     classificationConfidence: row.classification_confidence ?? row.classificationConfidence ?? null,
     classificationTags: Array.isArray(row.classification_tags) ? row.classification_tags : (row.classificationTags || []),
+    discoveryChips: Array.isArray(row.discovery_chips) ? row.discovery_chips : (row.discoveryChips || []),
     embedUrl: row.embed_url,
+    creatorDisplayName: row.creator_display_name || row.creatorDisplayName || null,
+    creatorUsername: row.creator_username || row.creatorUsername || null,
     plays: row.plays,
     likes: row.like_count,
     saves: row.save_count || 0,
     fileSize: row.file_size,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    recentScoreEvents: row.recent_score_events ?? row.recentScoreEvents ?? 0,
+    recentUniqueScorers: row.recent_unique_scorers ?? row.recentUniqueScorers ?? 0,
+    recentActivityScore: row.recent_activity_score ?? row.recentActivityScore ?? 0,
+    discoverScore: row.discover_score ?? row.discoverScore ?? null
   };
 }
 

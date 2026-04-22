@@ -47,10 +47,12 @@ export const initDB = async () => {
         thumbnail TEXT,
         preview_video_url TEXT,
         category VARCHAR(50),
+        subcategory VARCHAR(64),
         primary_tab VARCHAR(32),
         interaction_type VARCHAR(64),
         classification_confidence REAL,
         classification_tags JSONB DEFAULT '[]'::jsonb,
+        discovery_chips JSONB DEFAULT '[]'::jsonb,
         embed_url TEXT,
         plays INTEGER DEFAULT 0,
         like_count INTEGER DEFAULT 0,
@@ -171,6 +173,13 @@ export const initDB = async () => {
         artist_code TEXT,
         thumbnail TEXT,
         preview_video_url TEXT,
+        category VARCHAR(50),
+        subcategory VARCHAR(64),
+        primary_tab VARCHAR(32),
+        interaction_type VARCHAR(64),
+        classification_confidence REAL,
+        classification_tags JSONB DEFAULT '[]'::jsonb,
+        discovery_chips JSONB DEFAULT '[]'::jsonb,
         edit_history JSONB DEFAULT '[]'::jsonb,
         is_draft BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT NOW()
@@ -223,6 +232,9 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'primary_tab') THEN
           ALTER TABLE games ADD COLUMN primary_tab VARCHAR(32);
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'subcategory') THEN
+          ALTER TABLE games ADD COLUMN subcategory VARCHAR(64);
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'interaction_type') THEN
           ALTER TABLE games ADD COLUMN interaction_type VARCHAR(64);
         END IF;
@@ -232,11 +244,35 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'classification_tags') THEN
           ALTER TABLE games ADD COLUMN classification_tags JSONB DEFAULT '[]'::jsonb;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'discovery_chips') THEN
+          ALTER TABLE games ADD COLUMN discovery_chips JSONB DEFAULT '[]'::jsonb;
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'thumbnail') THEN
           ALTER TABLE ai_games ADD COLUMN thumbnail TEXT;
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'preview_video_url') THEN
           ALTER TABLE ai_games ADD COLUMN preview_video_url TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'category') THEN
+          ALTER TABLE ai_games ADD COLUMN category VARCHAR(50);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'subcategory') THEN
+          ALTER TABLE ai_games ADD COLUMN subcategory VARCHAR(64);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'primary_tab') THEN
+          ALTER TABLE ai_games ADD COLUMN primary_tab VARCHAR(32);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'interaction_type') THEN
+          ALTER TABLE ai_games ADD COLUMN interaction_type VARCHAR(64);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'classification_confidence') THEN
+          ALTER TABLE ai_games ADD COLUMN classification_confidence REAL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'classification_tags') THEN
+          ALTER TABLE ai_games ADD COLUMN classification_tags JSONB DEFAULT '[]'::jsonb;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'discovery_chips') THEN
+          ALTER TABLE ai_games ADD COLUMN discovery_chips JSONB DEFAULT '[]'::jsonb;
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'is_template') THEN
           ALTER TABLE ai_games ADD COLUMN is_template BOOLEAN DEFAULT FALSE;

@@ -210,7 +210,87 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
 
 const DISCOVERY_TABS = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'];
 const DISCOVERY_CATEGORIES = ['arcade', 'action', 'simulation', 'horror', 'quiz', 'puzzle', 'roleplay', 'story', 'creative', 'tool'];
+const DISCOVERY_SUBCATEGORIES = [
+    'brainrot',
+    'casual',
+    'satisfying',
+    'creative_tool',
+    'experimental',
+    'meme',
+    'arcade',
+    'runner',
+    'racing',
+    'simulator',
+    'shooter',
+    'platformer',
+    'psychological',
+    'paranormal',
+    'escape',
+    'found_footage',
+    'cursed_feed',
+    'night_shift',
+    'trivia',
+    'geography',
+    'anime',
+    'word',
+    'memory',
+    'impossible',
+    'romance',
+    'fantasy',
+    'school_drama',
+    'boyfriend',
+    'girlfriend',
+    'immersive_world',
+];
 const INTERACTION_TYPES = ['arcade_loop', 'choice_story', 'drawing_tool', 'music_toy', 'quiz_challenge', 'simulator', 'horror_vignette', 'roleplay_story', 'sandbox', 'experimental'];
+const DISCOVERY_CHIP_LOOKUP = {
+    Explore: {
+        creative_tool: ['For You', 'Satisfying'],
+        experimental: ['For You'],
+        casual: ['For You', 'Casual'],
+        satisfying: ['Satisfying', 'For You'],
+        meme: ['Meme', 'Brainrot'],
+        brainrot: ['Brainrot', '67 Energy'],
+        immersive_world: ['NPC Core', 'For You'],
+        romance: ['NPC Core', 'For You'],
+        boyfriend: ['NPC Core', 'For You'],
+        girlfriend: ['NPC Core', 'For You'],
+    },
+    Games: {
+        arcade: ['Arcade', 'For You'],
+        runner: ['Speedrun', 'Arcade'],
+        racing: ['Simulator', 'Speedrun'],
+        simulator: ['Simulator', 'Cozy'],
+        platformer: ['Arcade', 'Speedrun'],
+        shooter: ['Boss Rush', 'Chaotic'],
+        casual: ['Cozy', 'For You'],
+        brainrot: ['Chaotic', 'For You'],
+    },
+    Horror: {
+        psychological: ['Psychological', 'For You'],
+        paranormal: ['Paranormal', 'For You'],
+        escape: ['Escape', 'For You'],
+        found_footage: ['Found Footage', 'For You'],
+        cursed_feed: ['Cursed Feed', 'For You'],
+        night_shift: ['Night Shift', 'For You'],
+    },
+    Quiz: {
+        trivia: ['Trivia', 'For You'],
+        geography: ['Geography', 'For You'],
+        anime: ['Anime', 'School Break'],
+        word: ['Brain Tease', 'School Break'],
+        memory: ['Brain Tease', 'For You'],
+        impossible: ['Impossible', 'Brain Tease'],
+    },
+    Roleplay: {
+        romance: ['Romance', 'Recommend'],
+        fantasy: ['Fantasy', 'Immersive Worlds'],
+        school_drama: ['Drama', 'Recommend'],
+        boyfriend: ['Boyfriend', 'Recommend'],
+        girlfriend: ['Girlfriend', 'Recommend'],
+        immersive_world: ['Immersive Worlds', 'Recommend'],
+    },
+};
 
 function clampClassifierConfidence(value) {
     const numeric = Number(value);
@@ -226,6 +306,35 @@ function normalizeClassifierTags(tags) {
         .slice(0, 8);
 }
 
+function deriveDiscoveryChips({ primaryTab = 'Explore', subcategory = '', tags = [] }) {
+    const normalizedTab = String(primaryTab || 'Explore');
+    const normalizedSubcategory = String(subcategory || '').trim();
+    const tagSet = new Set(normalizeClassifierTags(tags));
+    const derived = new Set();
+
+    const tabLookup = DISCOVERY_CHIP_LOOKUP[normalizedTab];
+    if (tabLookup?.[normalizedSubcategory]) {
+        tabLookup[normalizedSubcategory].forEach((chip) => derived.add(chip));
+    }
+
+    if (normalizedTab === 'Explore') {
+        if (tagSet.has('meme')) derived.add('Meme');
+        if (tagSet.has('chaotic')) derived.add('67 Energy');
+        if (tagSet.has('creative')) derived.add('For You');
+    }
+
+    if (normalizedTab === 'Games') {
+        if (tagSet.has('cozy')) derived.add('Cozy');
+        if (tagSet.has('adrenaline')) derived.add('Chaotic');
+    }
+
+    if (normalizedTab === 'Roleplay' && tagSet.has('story')) {
+        derived.add('Recommend');
+    }
+
+    return Array.from(derived).slice(0, 4);
+}
+
 function heuristicClassifyGame({ title = '', prompt = '', description = '', htmlPayload = '' }) {
     const text = `${title} ${prompt} ${description} ${htmlPayload}`.toLowerCase();
     const matches = (keywords = []) => keywords.reduce((count, keyword) => count + (text.includes(keyword) ? 1 : 0), 0);
@@ -238,6 +347,7 @@ function heuristicClassifyGame({ title = '', prompt = '', description = '', html
 
     let primaryTab = 'Explore';
     let category = 'creative';
+    let subcategory = 'experimental';
     let interactionType = 'experimental';
     let tags = ['interactive'];
 
@@ -261,9 +371,48 @@ function heuristicClassifyGame({ title = '', prompt = '', description = '', html
         tags = ['story', 'choice', 'interactive'];
     }
 
+    if (primaryTab === 'Horror') {
+        if (matches(['camera', 'recording', 'footage', 'vhs', 'tape']) > 0) subcategory = 'found_footage';
+        else if (matches(['feed', 'post', 'message', 'phone', 'survey']) > 0) subcategory = 'cursed_feed';
+        else if (matches(['escape', 'maze', 'door', 'locked', 'room']) > 0) subcategory = 'escape';
+        else if (matches(['ghost', 'spirit', 'haunted', 'ritual', 'paranormal']) > 0) subcategory = 'paranormal';
+        else if (matches(['night', 'shift', 'clerk', 'late', 'work']) > 0) subcategory = 'night_shift';
+        else subcategory = 'psychological';
+    } else if (primaryTab === 'Quiz') {
+        if (matches(['geo', 'map', 'country', 'flag', 'atlas']) > 0) subcategory = 'geography';
+        else if (matches(['anime', 'manga', 'vocaloid', 'character']) > 0) subcategory = 'anime';
+        else if (matches(['word', 'letters', 'spelling', 'anagram']) > 0) subcategory = 'word';
+        else if (matches(['memory', 'remember', 'match']) > 0) subcategory = 'memory';
+        else if (matches(['impossible', 'trick', 'bait', 'backwards']) > 0) subcategory = 'impossible';
+        else subcategory = 'trivia';
+    } else if (primaryTab === 'Roleplay') {
+        if (matches(['boyfriend', 'male lead', 'him']) > 0) subcategory = 'boyfriend';
+        else if (matches(['girlfriend', 'female lead', 'her']) > 0) subcategory = 'girlfriend';
+        else if (matches(['fantasy', 'magic', 'spirit', 'myth']) > 0) subcategory = 'fantasy';
+        else if (matches(['school', 'academy', 'student', 'class']) > 0) subcategory = 'school_drama';
+        else if (matches(['world', 'kingdom', 'universe', 'guild']) > 0) subcategory = 'immersive_world';
+        else subcategory = 'romance';
+    } else if (primaryTab === 'Games') {
+        if (matches(['drive', 'driving', 'car', 'steering', 'drift']) > 0) subcategory = 'racing';
+        else if (matches(['run', 'runner', 'dash', 'speed']) > 0) subcategory = 'runner';
+        else if (matches(['shoot', 'gun', 'enemy', 'fps', 'bullet']) > 0) subcategory = 'shooter';
+        else if (matches(['jump', 'platform', 'obby']) > 0) subcategory = 'platformer';
+        else if (matches(['sim', 'simulator', 'tycoon', 'manage']) > 0) subcategory = 'simulator';
+        else if (matches(['cozy', 'farm', 'merge', 'idle']) > 0) subcategory = 'casual';
+        else subcategory = 'arcade';
+    } else {
+        if (matches(['meme', 'shitpost', 'funny', 'cat tv']) > 0) subcategory = 'meme';
+        else if (matches(['draw', 'mirror draw', 'paint', 'tool']) > 0) subcategory = 'creative_tool';
+        else if (matches(['lissajous', 'pattern', 'harmonic', 'mirror']) > 0) subcategory = 'satisfying';
+        else if (matches(['brainrot', 'absurd', 'chaos']) > 0) subcategory = 'brainrot';
+        else if (matches(['casual', 'light', 'quick']) > 0) subcategory = 'casual';
+        else subcategory = 'experimental';
+    }
+
     return {
         primaryTab,
         category,
+        subcategory,
         interactionType,
         tags,
         confidence: 0.45,
@@ -291,6 +440,7 @@ Return raw JSON only with this exact schema:
 {
   "primaryTab": "Explore|Games|Horror|Quiz|Roleplay",
   "category": "arcade|action|simulation|horror|quiz|puzzle|roleplay|story|creative|tool",
+  "subcategory": "brainrot|casual|satisfying|creative_tool|experimental|meme|arcade|runner|racing|simulator|shooter|platformer|psychological|paranormal|escape|found_footage|cursed_feed|night_shift|trivia|geography|anime|word|memory|impossible|romance|fantasy|school_drama|boyfriend|girlfriend|immersive_world",
   "interactionType": "arcade_loop|choice_story|drawing_tool|music_toy|quiz_challenge|simulator|horror_vignette|roleplay_story|sandbox|experimental",
   "tags": ["lowercase-tag"],
   "confidence": 0.0
@@ -306,6 +456,7 @@ Choose the tab based on the actual experience, not marketing words. Horror is on
                         htmlSignal,
                         allowedTabs: DISCOVERY_TABS,
                         allowedCategories: DISCOVERY_CATEGORIES,
+                        allowedSubcategories: DISCOVERY_SUBCATEGORIES,
                         allowedInteractionTypes: INTERACTION_TYPES,
                     }),
                 },
@@ -318,14 +469,21 @@ Choose the tab based on the actual experience, not marketing words. Horror is on
         const parsed = JSON.parse(extractJson(raw));
         const primaryTab = DISCOVERY_TABS.includes(parsed?.primaryTab) ? parsed.primaryTab : heuristic.primaryTab;
         const category = DISCOVERY_CATEGORIES.includes(parsed?.category) ? parsed.category : heuristic.category;
+        const subcategory = DISCOVERY_SUBCATEGORIES.includes(parsed?.subcategory) ? parsed.subcategory : heuristic.subcategory;
         const interactionType = INTERACTION_TYPES.includes(parsed?.interactionType) ? parsed.interactionType : heuristic.interactionType;
         const tags = normalizeClassifierTags(parsed?.tags);
 
         return {
             primaryTab,
             category,
+            subcategory,
             interactionType,
             tags: tags.length ? tags : heuristic.tags,
+            discoveryChips: deriveDiscoveryChips({
+                primaryTab,
+                subcategory,
+                tags: tags.length ? tags : heuristic.tags,
+            }),
             confidence: clampClassifierConfidence(parsed?.confidence),
         };
     } catch (error) {
@@ -334,26 +492,86 @@ Choose the tab based on the actual experience, not marketing words. Horror is on
     }
 }
 
-async function upsertPublishedAIGame({ draftId, userId, draft }) {
+function getStoredDraftClassification(draft = {}) {
+    const primaryTab = DISCOVERY_TABS.includes(draft?.primary_tab) ? draft.primary_tab : null;
+    const category = DISCOVERY_CATEGORIES.includes(draft?.category) ? draft.category : null;
+    const subcategory = DISCOVERY_SUBCATEGORIES.includes(draft?.subcategory) ? draft.subcategory : null;
+    const interactionType = INTERACTION_TYPES.includes(draft?.interaction_type) ? draft.interaction_type : null;
+    if (!primaryTab || !category || !interactionType) return null;
+
+    const tags = normalizeClassifierTags(draft?.classification_tags);
+    const discoveryChips = Array.isArray(draft?.discovery_chips)
+        ? draft.discovery_chips.map((chip) => String(chip || '').trim()).filter(Boolean).slice(0, 6)
+        : deriveDiscoveryChips({ primaryTab, subcategory, tags });
+    return {
+        primaryTab,
+        category,
+        subcategory,
+        interactionType,
+        tags,
+        discoveryChips,
+        confidence: clampClassifierConfidence(draft?.classification_confidence),
+    };
+}
+
+async function classifyAndStoreDraft({ draftId, title = '', prompt = '', htmlPayload = '' }) {
+    const description = "Multi-Engine AI Creation: " + prompt;
+    const classification = await classifyPublishedGame({
+        title,
+        prompt,
+        description,
+        htmlPayload,
+    });
+
+    await pool.query(
+        `UPDATE ai_games
+         SET category = $1,
+             subcategory = $2,
+             primary_tab = $3,
+             interaction_type = $4,
+             classification_confidence = $5,
+             classification_tags = $6,
+             discovery_chips = $7
+         WHERE id = $8`,
+        [
+            classification.category,
+            classification.subcategory,
+            classification.primaryTab,
+            classification.interactionType,
+            classification.confidence,
+            JSON.stringify(classification.tags),
+            JSON.stringify(classification.discoveryChips || []),
+            draftId,
+        ]
+    );
+
+    return classification;
+}
+
+async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClassification = false }) {
     const globalId = `gm-ai-${String(draftId).substring(0, 8)}`;
     const description = "Multi-Engine AI Creation: " + draft.prompt;
-    const classification = await classifyPublishedGame({
+    const storedClassification = !forceRefreshClassification ? getStoredDraftClassification(draft) : null;
+    const classification = storedClassification || await classifyAndStoreDraft({
+        draftId,
         title: draft.title,
         prompt: draft.prompt,
-        description,
         htmlPayload: draft.html_payload,
     });
 
     await pool.query(
-        `INSERT INTO games (id, name, description, icon, color, category, primary_tab, interaction_type, classification_confidence, classification_tags, developer, embed_url, thumbnail, preview_video_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        `INSERT INTO games (id, name, description, icon, color, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips, developer, embed_url, thumbnail, preview_video_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
             category = EXCLUDED.category,
+            subcategory = EXCLUDED.subcategory,
             primary_tab = EXCLUDED.primary_tab,
             interaction_type = EXCLUDED.interaction_type,
             classification_confidence = EXCLUDED.classification_confidence,
             classification_tags = EXCLUDED.classification_tags,
+            discovery_chips = EXCLUDED.discovery_chips,
+            developer = EXCLUDED.developer,
             thumbnail = EXCLUDED.thumbnail,
             preview_video_url = EXCLUDED.preview_video_url`,
         [
@@ -363,10 +581,12 @@ async function upsertPublishedAIGame({ draftId, userId, draft }) {
             "✨",
             "#050505",
             classification.category,
+            classification.subcategory,
             classification.primaryTab,
             classification.interactionType,
             classification.confidence,
             JSON.stringify(classification.tags),
+            JSON.stringify(classification.discoveryChips || []),
             userId,
             `/api/ai/play/${draftId}`,
             draft.thumbnail,
@@ -1246,11 +1466,46 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         // ── SAVE TO DB ──
         const finalTitle = extractHtmlTitle(rawGameHtml) || specSheet.title || 'DreamStream Game';
         const previewVideoUrl = await capturePreviewVideo(finalHtml, jobId);
+        const classification = await classifyPublishedGame({
+            title: finalTitle,
+            prompt,
+            description: "Multi-Engine AI Creation: " + prompt,
+            htmlPayload: finalHtml,
+        });
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, preview_video_url = $6 WHERE id = $7`,
-            [finalTitle, finalHtml, rawGameHtml, null, finalScreenshot, previewVideoUrl, jobId]
+            `UPDATE ai_games
+             SET title = $1,
+                 html_payload = $2,
+                 raw_code = $3,
+                 artist_code = $4,
+                 thumbnail = $5,
+                 preview_video_url = $6,
+                 category = $7,
+                 subcategory = $8,
+                 primary_tab = $9,
+                 interaction_type = $10,
+                 classification_confidence = $11,
+                 classification_tags = $12,
+                 discovery_chips = $13
+             WHERE id = $14`,
+            [
+                finalTitle,
+                finalHtml,
+                rawGameHtml,
+                null,
+                finalScreenshot,
+                previewVideoUrl,
+                classification.category,
+                classification.subcategory,
+                classification.primaryTab,
+                classification.interactionType,
+                classification.confidence,
+                JSON.stringify(classification.tags),
+                JSON.stringify(classification.discoveryChips || []),
+                jobId,
+            ]
         );
-        console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved for job ${jobId}`);
+        console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
 
     } catch (err) {
         console.error("❌ [DREAM JOB] Error:", err);
@@ -1265,7 +1520,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
         markEphemeralJob(newJobId, { status: 'pending', draftId: parentDraftId });
         
         // 1. Fetch parent draft with all context
-        const parentRes = await pool.query('SELECT raw_code, html_payload, artist_code, title, edit_history FROM ai_games WHERE id = $1', [parentDraftId]);
+        const parentRes = await pool.query('SELECT prompt, raw_code, html_payload, artist_code, title, edit_history FROM ai_games WHERE id = $1', [parentDraftId]);
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
         
         const parentDraft = parentRes.rows[0];
@@ -1371,13 +1626,50 @@ Output ONLY the complete fixed HTML document.`;
         // 5. Save with updated edit history (memory for next edit)
         const newHistory = [...editHistory, instructions];
         const previewVideoUrl = await capturePreviewVideo(finalHtml, parentDraftId);
+        const classification = await classifyPublishedGame({
+            title: finalTitle,
+            prompt: parentDraft.prompt || '',
+            description: `Edited AI game: ${instructions}`,
+            htmlPayload: finalHtml,
+        });
         
         await pool.query(
-            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, artist_code = $4, thumbnail = $5, preview_video_url = $6, edit_history = $7 WHERE id = $8`,
-            [finalTitle, finalHtml, editedHtml, null, finalScreenshot, previewVideoUrl, JSON.stringify(newHistory), parentDraftId]
+            `UPDATE ai_games
+             SET title = $1,
+                 html_payload = $2,
+                 raw_code = $3,
+                 artist_code = $4,
+                 thumbnail = $5,
+                 preview_video_url = $6,
+                 edit_history = $7,
+                 category = $8,
+                 subcategory = $9,
+                 primary_tab = $10,
+                 interaction_type = $11,
+                 classification_confidence = $12,
+                 classification_tags = $13,
+                 discovery_chips = $14
+             WHERE id = $15`,
+            [
+                finalTitle,
+                finalHtml,
+                editedHtml,
+                null,
+                finalScreenshot,
+                previewVideoUrl,
+                JSON.stringify(newHistory),
+                classification.category,
+                classification.subcategory,
+                classification.primaryTab,
+                classification.interactionType,
+                classification.confidence,
+                JSON.stringify(classification.tags),
+                JSON.stringify(classification.discoveryChips || []),
+                parentDraftId,
+            ]
         );
         markEphemeralJob(newJobId, { status: 'complete', draftId: parentDraftId });
-        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} -> updated draft ${parentDraftId} (history now has ${newHistory.length} edits)`);
+        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} -> updated draft ${parentDraftId} (history now has ${newHistory.length} edits, ${classification.primaryTab}/${classification.category})`);
 
     } catch (err) {
         console.error("❌ [EDIT JOB] Error:", err);
@@ -1504,7 +1796,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             }
 
             const targetDraftId = ephemeralJob.draftId;
-            const editResult = await pool.query('SELECT title, html_payload, raw_code FROM ai_games WHERE id = $1', [targetDraftId]);
+            const editResult = await pool.query('SELECT title, html_payload, raw_code, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [targetDraftId]);
             if (editResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Draft not found' });
             }
@@ -1519,11 +1811,12 @@ router.get('/dream/status/:jobId', async (req, res) => {
                 status: 'complete',
                 draftId: targetDraftId,
                 title: row.title,
-                htmlPreview: row.html_payload
+                htmlPreview: row.html_payload,
+                classification: getStoredDraftClassification(row),
             });
         }
 
-        const result = await pool.query('SELECT title, html_payload, raw_code FROM ai_games WHERE id = $1', [jobId]);
+        const result = await pool.query('SELECT title, html_payload, raw_code, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
         if (result.rows.length === 0) {
             const pendingBoot = pendingJobBoots.get(jobId);
             if (pendingBoot?.status === 'error') {
@@ -1551,7 +1844,8 @@ router.get('/dream/status/:jobId', async (req, res) => {
             status: 'complete',
             draftId: jobId,
             title: row.title,
-            htmlPreview: row.html_payload
+            htmlPreview: row.html_payload,
+            classification: getStoredDraftClassification(row),
         });
 
     } catch(e) { 
@@ -1564,7 +1858,7 @@ router.get('/drafts', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userId]);
+        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userId]);
         res.json({ drafts: drafts.rows });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
@@ -1574,7 +1868,7 @@ router.get('/drafts/:id', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const draft = await pool.query("SELECT id, title, prompt, html_payload, created_at FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
+        const draft = await pool.query("SELECT id, title, prompt, html_payload, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
         if (draft.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         res.json({ draft: draft.rows[0] });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
@@ -1632,6 +1926,7 @@ router.post('/reclassify-published', async (req, res) => {
                 draftId: draft.id,
                 userId,
                 draft,
+                forceRefreshClassification: true,
             });
             updated.push({
                 draftId: draft.id,

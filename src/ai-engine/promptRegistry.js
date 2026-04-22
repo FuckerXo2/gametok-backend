@@ -141,6 +141,31 @@ function describeMediaAttachmentUsage(type) {
   }
 }
 
+function describeMediaAttachmentRole(role, type) {
+  switch (String(role || '').trim().toLowerCase()) {
+    case 'hero':
+      return 'Treat this as a primary focal asset. Build visible interaction or composition around it.';
+    case 'background':
+      return 'Treat this as a backdrop, atmosphere layer, or looping background panel.';
+    case 'overlay':
+      return 'Treat this as a meme/sticker/overlay layer used for humor, reactions, decals, or popups.';
+    case 'panel':
+      return 'Treat this as an in-world screen, card, modal, billboard, or framed content panel.';
+    case 'prop':
+      return 'Treat this as a tangible prop, collectible, tool, ingredient, or scene object.';
+    case 'bgm':
+      return 'Treat this as the main looping background music choice.';
+    case 'sfx':
+      return 'Treat this as a triggered sound effect or moment-based audio cue.';
+    case 'reference':
+      return 'Treat this as a visual/style reference or optional supporting media, not necessarily a required on-screen element.';
+    default:
+      return type === 'video'
+        ? 'Use this video intentionally rather than as random decoration.'
+        : 'Use this asset intentionally rather than as random decoration.';
+  }
+}
+
 function buildUserMediaBlock(mediaAttachments = []) {
   if (!Array.isArray(mediaAttachments) || mediaAttachments.length === 0) {
     return `USER-PROVIDED MEDIA:
@@ -149,22 +174,27 @@ function buildUserMediaBlock(mediaAttachments = []) {
 
   const lines = mediaAttachments.map((asset, index) => {
     const type = normalizeMediaAttachmentType(asset?.type);
+    const role = asset?.role || 'hero';
     const title = asset?.title || asset?.label || `Attachment ${index + 1}`;
     const url = asset?.url || 'missing-url';
     const instruction = asset?.instruction || 'No extra instruction provided.';
     const usage = describeMediaAttachmentUsage(type);
+    const roleGuidance = describeMediaAttachmentRole(role, type);
     return [
       `- Attachment ${index + 1}: ${title}`,
       `  - type: ${type}`,
+      `  - role: ${role}`,
       `  - url: ${url}`,
       `  - user intent: ${instruction}`,
       `  - usage guidance: ${usage}`,
+      `  - role guidance: ${roleGuidance}`,
     ].join('\n');
   }).join('\n');
 
   return `USER-PROVIDED MEDIA:
 - These attachments are part of the user's request and should be honored when practical.
 - Prefer them over generic decorative substitutes when they clearly fit the game.
+- If the user assigns a role like hero/background/overlay/panel, preserve that role unless it would completely break readability or bootability.
 - If one attachment fails to load, keep the game playable and visible anyway.
 - Do not silently ignore them unless they truly conflict with bootability or readability.
 ${lines}`;
