@@ -1818,10 +1818,143 @@ app.get('/api/games/:id', async (req, res) => {
 });
 
 app.post('/api/games/:id/play', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const clientId = String(req.headers['x-client-id'] || '').trim();
+  const cooldownHours = 6;
   try {
-    await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
+    const shouldCountByCooldown = async (lastPlayedAt) => {
+      const cooldownResult = await pool.query(
+        `SELECT CASE
+           WHEN $1::timestamp <= NOW() - INTERVAL '6 hours' THEN TRUE
+           ELSE FALSE
+         END AS should_count`,
+        [lastPlayedAt],
+      );
+      return Boolean(cooldownResult.rows[0]?.should_count);
+    };
+
+    if (!token) {
+      if (!clientId) {
+        await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        return res.json({ success: true, counted: true, mode: 'anonymous-no-client' });
+      }
+
+      const existingAnonymousPlay = await pool.query(
+        'SELECT play_count, last_played_at FROM anonymous_game_plays WHERE client_id = $1 AND game_id = $2',
+        [clientId, req.params.id],
+      );
+
+      if (existingAnonymousPlay.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO anonymous_game_plays (client_id, game_id, play_count, first_played_at, last_played_at)
+           VALUES ($1, $2, 1, NOW(), NOW())`,
+          [clientId, req.params.id],
+        );
+        await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        return res.json({ success: true, counted: true, mode: 'anonymous', cooldownHours });
+      }
+
+      const shouldCount = await shouldCountByCooldown(existingAnonymousPlay.rows[0].last_played_at);
+      if (shouldCount) {
+        await pool.query(
+          `UPDATE anonymous_game_plays
+           SET play_count = COALESCE(play_count, 0) + 1,
+               last_played_at = NOW()
+           WHERE client_id = $1 AND game_id = $2`,
+          [clientId, req.params.id],
+        );
+        await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        return res.json({ success: true, counted: true, mode: 'anonymous', cooldownHours });
+      }
+
+      await pool.query(
+        'UPDATE anonymous_game_plays SET last_played_at = NOW() WHERE client_id = $1 AND game_id = $2',
+        [clientId, req.params.id],
+      );
+      return res.json({ success: true, counted: false, mode: 'anonymous', cooldownHours });
+    }
+
+    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userResult.rows.length === 0) {
+      if (!clientId) {
+        await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        return res.json({ success: true, counted: true, mode: 'anonymous-fallback-no-client' });
+      }
+
+      const existingAnonymousPlay = await pool.query(
+        'SELECT play_count, last_played_at FROM anonymous_game_plays WHERE client_id = $1 AND game_id = $2',
+        [clientId, req.params.id],
+      );
+
+      if (existingAnonymousPlay.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO anonymous_game_plays (client_id, game_id, play_count, first_played_at, last_played_at)
+           VALUES ($1, $2, 1, NOW(), NOW())`,
+          [clientId, req.params.id],
+        );
+        await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        return res.json({ success: true, counted: true, mode: 'anonymous-fallback', cooldownHours });
+      }
+
+      const shouldCount = await shouldCountByCooldown(existingAnonymousPlay.rows[0].last_played_at);
+      if (shouldCount) {
+        await pool.query(
+          `UPDATE anonymous_game_plays
+           SET play_count = COALESCE(play_count, 0) + 1,
+               last_played_at = NOW()
+           WHERE client_id = $1 AND game_id = $2`,
+          [clientId, req.params.id],
+        );
+        await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        return res.json({ success: true, counted: true, mode: 'anonymous-fallback', cooldownHours });
+      }
+
+      await pool.query(
+        'UPDATE anonymous_game_plays SET last_played_at = NOW() WHERE client_id = $1 AND game_id = $2',
+        [clientId, req.params.id],
+      );
+      return res.json({ success: true, counted: false, mode: 'anonymous-fallback', cooldownHours });
+    }
+
+    const userId = userResult.rows[0].id;
+    const existingPlay = await pool.query(
+      'SELECT play_count, last_played_at FROM game_plays WHERE user_id = $1 AND game_id = $2',
+      [userId, req.params.id],
+    );
+
+    if (existingPlay.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO game_plays (user_id, game_id, play_count, first_played_at, last_played_at)
+         VALUES ($1, $2, 1, NOW(), NOW())`,
+        [userId, req.params.id],
+      );
+      await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+      await pool.query('UPDATE users SET games_played = COALESCE(games_played, 0) + 1 WHERE id = $1', [userId]);
+      return res.json({ success: true, counted: true, mode: 'user', cooldownHours });
+    }
+
+    const shouldCount = await shouldCountByCooldown(existingPlay.rows[0].last_played_at);
+
+    if (shouldCount) {
+      await pool.query(
+        `UPDATE game_plays
+         SET play_count = COALESCE(play_count, 0) + 1,
+             last_played_at = NOW()
+         WHERE user_id = $1 AND game_id = $2`,
+        [userId, req.params.id],
+      );
+      await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+      await pool.query('UPDATE users SET games_played = COALESCE(games_played, 0) + 1 WHERE id = $1', [userId]);
+      return res.json({ success: true, counted: true, mode: 'user', cooldownHours });
+    }
+
+    await pool.query(
+      'UPDATE game_plays SET last_played_at = NOW() WHERE user_id = $1 AND game_id = $2',
+      [userId, req.params.id],
+    );
+    res.json({ success: true, counted: false, mode: 'user', cooldownHours });
   } catch (e) {
+    console.error('Record play error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });

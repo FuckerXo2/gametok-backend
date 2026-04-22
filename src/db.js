@@ -68,6 +68,24 @@ export const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS game_plays (
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        play_count INTEGER DEFAULT 1,
+        first_played_at TIMESTAMP DEFAULT NOW(),
+        last_played_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (user_id, game_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS anonymous_game_plays (
+        client_id VARCHAR(255) NOT NULL,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        play_count INTEGER DEFAULT 1,
+        first_played_at TIMESTAMP DEFAULT NOW(),
+        last_played_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (client_id, game_id)
+      );
+
       CREATE TABLE IF NOT EXISTS likes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -187,6 +205,10 @@ export const initDB = async () => {
 
       CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
+      CREATE INDEX IF NOT EXISTS idx_game_plays_game ON game_plays(game_id);
+      CREATE INDEX IF NOT EXISTS idx_game_plays_user ON game_plays(user_id);
+      CREATE INDEX IF NOT EXISTS idx_anonymous_game_plays_game ON anonymous_game_plays(game_id);
+      CREATE INDEX IF NOT EXISTS idx_anonymous_game_plays_client ON anonymous_game_plays(client_id);
       CREATE INDEX IF NOT EXISTS idx_users_token ON users(token);
       CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
