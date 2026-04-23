@@ -12,6 +12,7 @@ import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } fr
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle } from './asset-dictionary.js';
 import { capturePreviewVideo } from './preview-video.js';
+import { notifyGameReady } from '../notifications.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1506,6 +1507,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             ]
         );
         console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
+        pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
+            .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
+            .catch((error) => console.log('[Notifications] Game ready notify error:', error));
 
     } catch (err) {
         console.error("❌ [DREAM JOB] Error:", err);
@@ -2169,6 +2173,9 @@ Output ONLY the complete fixed HTML document.`;
             [gameTitle, finalHtml, rawEngineHtml, finalScreenshot, jobId]
         );
         console.log(`✅ [LABS JOB] Complete! "${gameTitle}" saved for job ${jobId}`);
+        pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
+            .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, gameTitle))
+            .catch((error) => console.log('[Notifications] Labs ready notify error:', error));
 
     } catch (err) {
         console.error("❌ [LABS JOB] Error:", err);

@@ -2109,6 +2109,11 @@ app.post('/api/games/:id/play', async (req, res) => {
   const clientId = String(req.headers['x-client-id'] || '').trim();
   const cooldownHours = 6;
   try {
+    const notifyCountedPlay = (userId = null, anonymous = false) => {
+      notifications.notifyGamePlayed(req.params.id, userId, anonymous)
+        .catch(e => console.log('[Notifications] Play notify error:', e));
+    };
+
     const shouldCountByCooldown = async (lastPlayedAt) => {
       const cooldownResult = await pool.query(
         `SELECT CASE
@@ -2123,6 +2128,7 @@ app.post('/api/games/:id/play', async (req, res) => {
     if (!token) {
       if (!clientId) {
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        notifyCountedPlay(null, true);
         return res.json({ success: true, counted: true, mode: 'anonymous-no-client' });
       }
 
@@ -2138,6 +2144,7 @@ app.post('/api/games/:id/play', async (req, res) => {
           [clientId, req.params.id],
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        notifyCountedPlay(null, true);
         return res.json({ success: true, counted: true, mode: 'anonymous', cooldownHours });
       }
 
@@ -2151,6 +2158,7 @@ app.post('/api/games/:id/play', async (req, res) => {
           [clientId, req.params.id],
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        notifyCountedPlay(null, true);
         return res.json({ success: true, counted: true, mode: 'anonymous', cooldownHours });
       }
 
@@ -2165,6 +2173,7 @@ app.post('/api/games/:id/play', async (req, res) => {
     if (userResult.rows.length === 0) {
       if (!clientId) {
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        notifyCountedPlay(null, true);
         return res.json({ success: true, counted: true, mode: 'anonymous-fallback-no-client' });
       }
 
@@ -2180,6 +2189,7 @@ app.post('/api/games/:id/play', async (req, res) => {
           [clientId, req.params.id],
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        notifyCountedPlay(null, true);
         return res.json({ success: true, counted: true, mode: 'anonymous-fallback', cooldownHours });
       }
 
@@ -2193,6 +2203,7 @@ app.post('/api/games/:id/play', async (req, res) => {
           [clientId, req.params.id],
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
+        notifyCountedPlay(null, true);
         return res.json({ success: true, counted: true, mode: 'anonymous-fallback', cooldownHours });
       }
 
@@ -2217,6 +2228,7 @@ app.post('/api/games/:id/play', async (req, res) => {
       );
       await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
       await pool.query('UPDATE users SET games_played = COALESCE(games_played, 0) + 1 WHERE id = $1', [userId]);
+      notifyCountedPlay(userId, false);
       return res.json({ success: true, counted: true, mode: 'user', cooldownHours });
     }
 
@@ -2232,6 +2244,7 @@ app.post('/api/games/:id/play', async (req, res) => {
       );
       await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
       await pool.query('UPDATE users SET games_played = COALESCE(games_played, 0) + 1 WHERE id = $1', [userId]);
+      notifyCountedPlay(userId, false);
       return res.json({ success: true, counted: true, mode: 'user', cooldownHours });
     }
 
@@ -2825,7 +2838,8 @@ app.post('/api/likes', async (req, res) => {
 
       res.json({ liked: true, likeCount: newLikeCount });
 
-      // Like notifications removed — games don't have owners to notify
+      notifications.notifyGameLiked(gameId, userId)
+        .catch(e => console.log('[Notifications] Like notify error:', e));
     }
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -4156,7 +4170,7 @@ app.delete('/api/stories/:storyId', async (req, res) => {
 import * as notifications from './notifications.js';
 import * as db from './db.js';
 
-// Get notifications inbox (likes, follows, comments on your stuff)
+// Get notifications inbox (real notification events + active creation jobs)
 app.get('/api/notifications', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
@@ -4166,57 +4180,65 @@ app.get('/api/notifications', async (req, res) => {
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
 
-    // Get likes on your games (scores)
-    const likes = await pool.query(
-      `SELECT l.created_at, u.id as user_id, u.username, u.display_name, u.avatar,
-              g.id as game_id, g.name as game_name, g.icon as game_icon, g.thumbnail as game_thumbnail
-       FROM likes l
-       JOIN users u ON l.user_id = u.id
-       JOIN games g ON l.game_id = g.id
-       WHERE l.game_id IN (SELECT DISTINCT game_id FROM scores WHERE user_id = $1)
-         AND l.user_id != $1
-       ORDER BY l.created_at DESC LIMIT 20`,
-      [userId]
-    );
+    const [events, cooking] = await Promise.all([
+      pool.query(
+        `SELECT ne.*, u.username, u.display_name, u.avatar,
+                g.name AS game_name, g.icon AS game_icon, g.thumbnail AS game_thumbnail
+         FROM notification_events ne
+         LEFT JOIN users u ON ne.actor_user_id = u.id
+         LEFT JOIN games g ON ne.game_id = g.id
+         WHERE ne.user_id = $1
+         ORDER BY ne.created_at DESC
+         LIMIT 50`,
+        [userId],
+      ),
+      pool.query(
+        `SELECT id, title, prompt, created_at
+         FROM ai_games
+         WHERE user_id = $1
+           AND is_draft = true
+           AND COALESCE(html_payload, '') = ''
+           AND title NOT LIKE 'ERROR:%'
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [userId],
+      ),
+    ]);
 
-    // Get new followers
-    const follows = await pool.query(
-      `SELECT f.created_at, u.id as user_id, u.username, u.display_name, u.avatar
-       FROM followers f
-       JOIN users u ON f.follower_id = u.id
-       WHERE f.following_id = $1
-       ORDER BY f.created_at DESC LIMIT 20`,
-      [userId]
-    );
-
-    // Get comments on your games
-    const comments = await pool.query(
-      `SELECT c.created_at, c.text, u.id as user_id, u.username, u.display_name, u.avatar,
-              g.id as game_id, g.name as game_name, g.icon as game_icon, g.thumbnail as game_thumbnail
-       FROM comments c
-       JOIN users u ON c.user_id = u.id
-       JOIN games g ON c.game_id = g.id
-       WHERE c.game_id IN (SELECT DISTINCT game_id FROM scores WHERE user_id = $1)
-         AND c.user_id != $1
-       ORDER BY c.created_at DESC LIMIT 20`,
-      [userId]
-    );
-
-    // Combine and sort by time
     const all = [
-      ...likes.rows.map(r => ({
-        type: 'like', createdAt: r.created_at,
-        user: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.avatar },
-        game: { id: r.game_id, name: r.game_name, icon: r.game_icon, thumbnail: r.game_thumbnail },
+      ...cooking.rows.map(r => ({
+        id: `cooking:${r.id}`,
+        type: 'creation',
+        action: 'game_cooking',
+        title: 'Still cooking',
+        body: `"${r.prompt?.slice(0, 60) || r.title || 'Your game'}" is being assembled in the background.`,
+        createdAt: r.created_at,
+        draftId: r.id,
+        game: null,
+        user: null,
+        data: { type: 'creation', action: 'game_cooking', draftId: r.id },
       })),
-      ...follows.rows.map(r => ({
-        type: 'follow', createdAt: r.created_at,
-        user: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.avatar },
-      })),
-      ...comments.rows.map(r => ({
-        type: 'comment', createdAt: r.created_at, text: r.text,
-        user: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.avatar },
-        game: { id: r.game_id, name: r.game_name, icon: r.game_icon, thumbnail: r.game_thumbnail },
+      ...events.rows.map(r => ({
+        id: r.id,
+        type: r.type,
+        action: r.action,
+        title: r.title,
+        body: r.body,
+        createdAt: r.created_at,
+        readAt: r.read_at,
+        data: r.data || {},
+        user: r.actor_user_id ? {
+          id: r.actor_user_id,
+          username: r.username,
+          displayName: r.display_name,
+          avatar: r.avatar,
+        } : null,
+        game: r.game_id ? {
+          id: r.game_id,
+          name: r.game_name,
+          icon: r.game_icon,
+          thumbnail: r.game_thumbnail,
+        } : null,
       })),
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50);
 
@@ -4312,7 +4334,8 @@ app.post('/api/notifications/test', async (req, res) => {
       [user.id],
       '🎮 GameTok',
       'Push notifications are working! 🔔',
-      { type: 'test' }
+      { type: 'test', action: 'test' },
+      { action: 'test', bypassThrottle: true, inApp: false }
     );
     res.json({ success: true, message: `Test notification sent to ${user.username}` });
   } catch (e) {
@@ -4339,30 +4362,6 @@ app.post('/api/notifications/unregister', async (req, res) => {
   }
 });
 
-// Test notification (for debugging)
-app.post('/api/notifications/test', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'Not authenticated' });
-
-  try {
-    const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-    if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-    const userId = userResult.rows[0].id;
-
-    await notifications.sendPushNotification(
-      [userId],
-      '🎮 Test Notification',
-      'If you see this, push notifications are working!',
-      { type: 'test' }
-    );
-
-    res.json({ success: true, message: 'Test notification sent' });
-  } catch (e) {
-    console.error('Test notification error:', e);
-    res.status(500).json({ error: 'Failed to send test notification' });
-  }
-});
-
 // Admin: blast test notification to ALL registered devices
 app.post('/api/admin/test-push', async (req, res) => {
   try {
@@ -4374,7 +4373,8 @@ app.post('/api/admin/test-push', async (req, res) => {
       userIds,
       '🎮 GameTOK',
       'Push notifications are working! 🔔🎉',
-      { type: 'test' }
+      { type: 'test', action: 'test' },
+      { action: 'test', bypassThrottle: true, inApp: false }
     );
 
     res.json({ success: true, message: `Test sent to ${userIds.length} users` });
@@ -4440,8 +4440,10 @@ const runAnonymousTokensMigration = async () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         token TEXT NOT NULL UNIQUE,
         last_seen_at TIMESTAMP DEFAULT NOW(),
+        last_notified_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      ALTER TABLE anonymous_push_tokens ADD COLUMN IF NOT EXISTS last_notified_at TIMESTAMP;
       
       CREATE INDEX IF NOT EXISTS idx_anonymous_push_tokens_token ON anonymous_push_tokens(token);
     `);
@@ -4483,17 +4485,18 @@ const start = async () => {
   console.log('💬 Chat Socket initialized for messaging');
 
   // ============================================
-  // SCHEDULED NOTIFICATIONS (every 2 hours)
+  // SCHEDULED NOTIFICATIONS (daily, with per-user throttles inside notifications.js)
   // ============================================
-  const TWO_HOURS = 2 * 60 * 60 * 1000;
+  const ONE_DAY = 24 * 60 * 60 * 1000;
 
   // Helper: send re-engagement to anonymous users (no account)
   const sendAnonymousReEngagement = async () => {
     try {
-      // Get anonymous tokens that haven't been seen in 24+ hours
+      // Get anonymous tokens that haven't been seen recently and were not pinged today.
       const result = await pool.query(
         `SELECT token FROM anonymous_push_tokens 
          WHERE last_seen_at < NOW() - INTERVAL '24 hours'
+           AND (last_notified_at IS NULL OR last_notified_at < NOW() - INTERVAL '24 hours')
          LIMIT 100`
       );
       if (result.rows.length === 0) return;
@@ -4524,6 +4527,12 @@ const start = async () => {
         for (const chunk of chunks) {
           await expo.sendPushNotificationsAsync(chunk);
         }
+        await pool.query(
+          `UPDATE anonymous_push_tokens
+           SET last_notified_at = NOW()
+           WHERE token = ANY($1::text[])`,
+          [pushMessages.map(message => message.to)]
+        );
         console.log(`[Scheduler] Sent re-engagement to ${pushMessages.length} anonymous users`);
       }
     } catch (e) {
@@ -4536,24 +4545,27 @@ const start = async () => {
     try {
       await notifications.sendDailyInactiveNotifications();
       await notifications.sendDailyRewardNotifications();
+      await notifications.sendTrendingGameSuggestions();
       await sendAnonymousReEngagement();
       console.log('[Scheduler] Re-engagement notifications sent');
     } catch (e) {
       console.error('[Scheduler] Error:', e);
     }
-  }, TWO_HOURS);
+  }, ONE_DAY);
 
-  // Run once on startup after a 30s delay (let server settle)
-  setTimeout(async () => {
-    console.log('[Scheduler] Initial re-engagement check...');
-    try {
-      await notifications.sendDailyInactiveNotifications();
-      await notifications.sendDailyRewardNotifications();
-      await sendAnonymousReEngagement();
-    } catch (e) {
-      console.error('[Scheduler] Initial run error:', e);
-    }
-  }, 30000);
+  if (process.env.RUN_NOTIFICATION_STARTUP_CHECK === 'true') {
+    setTimeout(async () => {
+      console.log('[Scheduler] Initial re-engagement check...');
+      try {
+        await notifications.sendDailyInactiveNotifications();
+        await notifications.sendDailyRewardNotifications();
+        await notifications.sendTrendingGameSuggestions();
+        await sendAnonymousReEngagement();
+      } catch (e) {
+        console.error('[Scheduler] Initial run error:', e);
+      }
+    }, 10 * 60 * 1000);
+  }
 };
 
 start().catch(console.error);

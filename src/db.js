@@ -191,6 +191,22 @@ export const initDB = async () => {
         UNIQUE(user_id, token)
       );
 
+      CREATE TABLE IF NOT EXISTS notification_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        type VARCHAR(40) NOT NULL,
+        action VARCHAR(60) NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        data JSONB DEFAULT '{}'::jsonb,
+        dedupe_key TEXT,
+        push_sent_at TIMESTAMP,
+        read_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS ai_games (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -228,6 +244,9 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(blocker_id);
       CREATE INDEX IF NOT EXISTS idx_saved_games_user ON saved_games(user_id);
       CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_notification_events_user_created ON notification_events(user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_notification_events_dedupe ON notification_events(user_id, dedupe_key, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_notification_events_push_sent ON notification_events(user_id, push_sent_at DESC);
       CREATE INDEX IF NOT EXISTS idx_ai_games_user ON ai_games(user_id);
       
       -- Insert initial scan progress row

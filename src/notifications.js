@@ -1,116 +1,374 @@
-// Push Notifications Service - All 4 Types
+// Push + in-app notification service.
+// Everything routes through notifyUser so we can cap, dedupe, and avoid blast storms.
 import { Expo } from 'expo-server-sdk';
+import pool from './db.js';
 import * as db from './db.js';
-import pg from 'pg';
-const { Pool } = pg;
 
 const expo = new Expo();
 
-// Send push notification to user(s)
-async function sendPushNotification(userIds, title, body, data = {}) {
+const DEFAULT_DAILY_LIMIT = Number(process.env.NOTIFICATION_DAILY_LIMIT || 8);
+const DEFAULT_MIN_GAP_MINUTES = Number(process.env.NOTIFICATION_MIN_GAP_MINUTES || 10);
+
+const RULES = {
+  message: { dailyLimit: 30, minGapMinutes: 1, cooldownMinutes: 1 },
+  follow: { dailyLimit: 12, minGapMinutes: 4, cooldownMinutes: 60 },
+  game_liked: { dailyLimit: 12, minGapMinutes: 6, cooldownMinutes: 20 },
+  game_played: { dailyLimit: 10, minGapMinutes: 10, cooldownMinutes: 240 },
+  game_ready: { dailyLimit: 20, minGapMinutes: 0, cooldownMinutes: 0, priority: 'high' },
+  trending: { dailyLimit: 3, minGapMinutes: 90, cooldownMinutes: 720 },
+  reengagement: { dailyLimit: 1, minGapMinutes: 240, cooldownMinutes: 1440 },
+  reward: { dailyLimit: 1, minGapMinutes: 240, cooldownMinutes: 1440 },
+  test: { dailyLimit: 99, minGapMinutes: 0, cooldownMinutes: 0, bypassThrottle: true },
+};
+
+function compactName(user) {
+  return user?.displayName || user?.username || 'Someone';
+}
+
+function pick(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function mergeRules(action, overrides = {}) {
+  return {
+    dailyLimit: DEFAULT_DAILY_LIMIT,
+    minGapMinutes: DEFAULT_MIN_GAP_MINUTES,
+    cooldownMinutes: 60,
+    priority: 'normal',
+    inApp: true,
+    ...RULES[action],
+    ...overrides,
+  };
+}
+
+async function getNotificationDecision(userId, dedupeKey, rules) {
+  if (rules.bypassThrottle) return { ok: true };
+
+  const dailyLimit = Number(rules.dailyLimit ?? DEFAULT_DAILY_LIMIT);
+  const minGapMinutes = Number(rules.minGapMinutes ?? DEFAULT_MIN_GAP_MINUTES);
+  const cooldownMinutes = Number(rules.cooldownMinutes ?? 60);
+
+  if (dedupeKey && cooldownMinutes > 0) {
+    const recentSame = await pool.query(
+      `SELECT id FROM notification_events
+       WHERE user_id = $1
+         AND dedupe_key = $2
+         AND created_at > NOW() - ($3::text || ' minutes')::interval
+       LIMIT 1`,
+      [userId, dedupeKey, cooldownMinutes],
+    );
+    if (recentSame.rows.length > 0) return { ok: false, reason: 'dedupe_cooldown' };
+  }
+
+  if (minGapMinutes > 0 && rules.priority !== 'high') {
+    const recentAny = await pool.query(
+      `SELECT id FROM notification_events
+       WHERE user_id = $1
+         AND push_sent_at IS NOT NULL
+         AND push_sent_at > NOW() - ($2::text || ' minutes')::interval
+       LIMIT 1`,
+      [userId, minGapMinutes],
+    );
+    if (recentAny.rows.length > 0) return { ok: false, reason: 'min_gap' };
+  }
+
+  if (dailyLimit > 0) {
+    const today = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM notification_events
+       WHERE user_id = $1
+         AND push_sent_at IS NOT NULL
+         AND push_sent_at > NOW() - INTERVAL '24 hours'`,
+      [userId],
+    );
+    if (Number(today.rows[0]?.count || 0) >= dailyLimit) return { ok: false, reason: 'daily_limit' };
+  }
+
+  return { ok: true };
+}
+
+async function insertNotificationEvent(userId, payload, pushSentAt = null) {
+  await pool.query(
+    `INSERT INTO notification_events
+       (user_id, actor_user_id, game_id, type, action, title, body, data, dedupe_key, push_sent_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)`,
+    [
+      userId,
+      payload.actorUserId || null,
+      payload.gameId || null,
+      payload.type || 'system',
+      payload.action || 'notification',
+      payload.title,
+      payload.body,
+      JSON.stringify(payload.data || {}),
+      payload.dedupeKey || null,
+      pushSentAt,
+    ],
+  );
+}
+
+async function sendExpoPushToUsers(userIds, title, body, data = {}) {
+  const tokens = await db.getPushTokens(userIds);
+  if (!tokens || tokens.length === 0) {
+    console.log('[Notifications] No push tokens found for users:', userIds);
+    return [];
+  }
+
+  const messages = tokens
+    .filter((token) => Expo.isExpoPushToken(token))
+    .map((token) => ({
+      to: token,
+      sound: 'default',
+      title,
+      body,
+      data,
+      badge: 1,
+      channelId: 'default',
+    }));
+
+  if (messages.length === 0) {
+    console.log('[Notifications] No valid Expo push tokens');
+    return [];
+  }
+
+  const tickets = [];
+  for (const chunk of expo.chunkPushNotifications(messages)) {
+    try {
+      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      tickets.push(...ticketChunk);
+    } catch (error) {
+      console.error('[Notifications] Error sending chunk:', error);
+    }
+  }
+
+  console.log('[Notifications] Sent:', tickets.length, 'push tickets');
+  return tickets;
+}
+
+async function notifyUser(userId, payload, ruleOverrides = {}) {
+  if (!userId || !payload?.title || !payload?.body) return { sent: false, reason: 'invalid_payload' };
+
+  const rules = mergeRules(payload.action, ruleOverrides);
+  const decision = await getNotificationDecision(userId, payload.dedupeKey, rules);
+  if (!decision.ok) {
+    if (rules.inApp === true && ruleOverrides.persistWhenThrottled === true) {
+      await insertNotificationEvent(userId, payload, null);
+    }
+    console.log('[Notifications] Throttled:', { userId, action: payload.action, reason: decision.reason });
+    return { sent: false, reason: decision.reason };
+  }
+
+  let tickets = [];
   try {
-    // Get push tokens for users
-    const tokens = await db.getPushTokens(userIds);
-    if (!tokens || tokens.length === 0) {
-      console.log('[Notifications] No push tokens found for users:', userIds);
-      return;
+    tickets = await sendExpoPushToUsers([userId], payload.title, payload.body, payload.data || {});
+  } finally {
+    if (rules.inApp !== false) {
+      await insertNotificationEvent(userId, payload, tickets.length > 0 ? new Date() : null);
     }
+  }
 
-    // Create messages
-    const messages = tokens
-      .filter(token => Expo.isExpoPushToken(token))
-      .map(token => ({
-        to: token,
-        sound: 'default',
-        title,
-        body,
-        data,
-        badge: 1,
-      }));
+  return { sent: tickets.length > 0, tickets };
+}
 
-    if (messages.length === 0) {
-      console.log('[Notifications] No valid Expo push tokens');
-      return;
-    }
+// Kept for old callers, but now protected by the same governor.
+async function sendPushNotification(userIds, title, body, data = {}, options = {}) {
+  const ids = Array.isArray(userIds) ? userIds : [userIds];
+  const results = [];
+  for (const userId of ids) {
+    const action = options.action || data.action || data.type || 'notification';
+    results.push(await notifyUser(userId, {
+      type: data.type || options.type || 'system',
+      action,
+      title,
+      body,
+      data,
+      dedupeKey: options.dedupeKey || `${action}:${JSON.stringify(data).slice(0, 160)}`,
+      actorUserId: options.actorUserId || data.userId || null,
+      gameId: options.gameId || data.gameId || null,
+    }, options));
+  }
+  return results;
+}
 
-    // Send in chunks
-    const chunks = expo.chunkPushNotifications(messages);
-    const tickets = [];
+async function getGameWithOwner(gameId) {
+  const result = await pool.query(
+    `SELECT g.id, g.name, g.thumbnail, g.plays, g.like_count,
+            ag.user_id AS owner_id
+     FROM games g
+     LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+     WHERE g.id = $1`,
+    [gameId],
+  );
+  return result.rows[0] || null;
+}
 
-    for (const chunk of chunks) {
-      try {
-        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-        tickets.push(...ticketChunk);
-      } catch (error) {
-        console.error('[Notifications] Error sending chunk:', error);
-      }
-    }
+async function notifyGameLiked(gameId, likedByUserId) {
+  try {
+    const [actor, game] = await Promise.all([
+      db.getUserById(likedByUserId),
+      getGameWithOwner(gameId),
+    ]);
+    if (!actor || !game?.owner_id || game.owner_id === likedByUserId) return;
 
-    console.log('[Notifications] Sent:', tickets.length, 'notifications');
-    return tickets;
+    const lines = [
+      `${compactName(actor)} tapped heart on "${game.name}". tiny shrine behavior.`,
+      `${compactName(actor)} liked "${game.name}". the algorithm heard that.`,
+      `${compactName(actor)} just gave "${game.name}" a little electricity.`,
+    ];
+
+    await notifyUser(game.owner_id, {
+      type: 'social',
+      action: 'game_liked',
+      title: 'Your game got liked',
+      body: pick(lines),
+      actorUserId: likedByUserId,
+      gameId,
+      data: { type: 'social', action: 'game_liked', gameId, userId: likedByUserId },
+      dedupeKey: `game_liked:${gameId}:${likedByUserId}`,
+    }, { cooldownMinutes: 10080, minGapMinutes: 4 });
   } catch (error) {
-    console.error('[Notifications] Send error:', error);
+    console.error('[Notifications] Game like notification error:', error);
   }
 }
 
-// ============================================
-// TYPE 1: SOCIAL NOTIFICATIONS
-// ============================================
+async function notifyGamePlayed(gameId, playedByUserId = null, anonymous = false) {
+  try {
+    const [actor, game] = await Promise.all([
+      playedByUserId ? db.getUserById(playedByUserId) : Promise.resolve(null),
+      getGameWithOwner(gameId),
+    ]);
+    if (!game?.owner_id || game.owner_id === playedByUserId) return;
+
+    const subject = actor ? compactName(actor) : 'Someone';
+    const lines = anonymous
+      ? [
+          `"${game.name}" just pulled in a quiet visitor.`,
+          `Someone wandered into "${game.name}". mysterious little traffic.`,
+          `"${game.name}" got played. no name, just footprints.`,
+        ]
+      : [
+          `${subject} just played "${game.name}". your world is moving.`,
+          `${subject} entered "${game.name}" and left the lights on.`,
+          `${subject} checked out "${game.name}". tiny audience forming.`,
+        ];
+
+    await notifyUser(game.owner_id, {
+      type: 'social',
+      action: 'game_played',
+      title: 'Someone played your game',
+      body: pick(lines),
+      actorUserId: playedByUserId,
+      gameId,
+      data: { type: 'social', action: 'game_played', gameId, userId: playedByUserId, anonymous },
+      dedupeKey: `game_played:${gameId}`,
+    });
+  } catch (error) {
+    console.error('[Notifications] Game play notification error:', error);
+  }
+}
+
+async function notifyGameReady(userId, draftId, title) {
+  try {
+    await notifyUser(userId, {
+      type: 'creation',
+      action: 'game_ready',
+      title: 'Your game finished cooking',
+      body: `"${title || 'Your game'}" is out of the forge. Come inspect the chaos.`,
+      gameId: null,
+      data: { type: 'creation', action: 'game_ready', draftId },
+      dedupeKey: `game_ready:${draftId}`,
+    }, { priority: 'high', minGapMinutes: 0 });
+  } catch (error) {
+    console.error('[Notifications] Game ready notification error:', error);
+  }
+}
+
+async function notifyTrendingGame(userIds, gameName, playerCount, gameId = null) {
+  const lines = [
+    `"${gameName}" is doing numbers right now. suspiciously playable.`,
+    `${playerCount}+ people found "${gameName}" before you did.`,
+    `"${gameName}" has that weird pull today. go see why.`,
+  ];
+  return sendPushNotification(
+    userIds,
+    'Trending game spotted',
+    pick(lines),
+    { type: 'fomo', action: 'trending', gameName, gameId },
+    { action: 'trending', gameId, dedupeKey: `trending:${gameId || gameName}` },
+  );
+}
+
+async function sendTrendingGameSuggestions() {
+  try {
+    const gameRes = await pool.query(
+      `SELECT g.id, g.name, g.plays, ag.user_id AS owner_id
+       FROM games g
+       JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+       WHERE COALESCE(g.plays, 0) > 0
+       ORDER BY COALESCE(g.plays, 0) DESC, g.created_at DESC
+       LIMIT 1`,
+    );
+    const game = gameRes.rows[0];
+    if (!game) return;
+
+    const users = await db.getAllUsersWithTokens();
+    const recipients = users
+      .map((user) => user.id)
+      .filter((id) => id && id !== game.owner_id)
+      .slice(0, 250);
+
+    if (recipients.length === 0) return;
+    await notifyTrendingGame(recipients, game.name, Math.max(Number(game.plays || 0), 1), game.id);
+  } catch (error) {
+    console.error('[Notifications] Trending suggestions error:', error);
+  }
+}
 
 async function notifyLike(gameId, likedByUserId, gameOwnerId) {
-  try {
-    const likedByUser = await db.getUserById(likedByUserId);
-    if (!likedByUser) return;
-
-    await sendPushNotification(
-      [gameOwnerId],
-      likedByUser.displayName || likedByUser.username,
-      'liked your game',
-      { type: 'social', action: 'like', gameId, userId: likedByUserId }
-    );
-  } catch (error) {
-    console.error('[Notifications] Like notification error:', error);
+  if (gameOwnerId) {
+    const actor = await db.getUserById(likedByUserId);
+    return notifyUser(gameOwnerId, {
+      type: 'social',
+      action: 'game_liked',
+      title: 'Your game got liked',
+      body: `${compactName(actor)} liked your game.`,
+      actorUserId: likedByUserId,
+      gameId,
+      data: { type: 'social', action: 'game_liked', gameId, userId: likedByUserId },
+      dedupeKey: `game_liked:${gameId}:${likedByUserId}`,
+    }, { cooldownMinutes: 10080 });
   }
+  return notifyGameLiked(gameId, likedByUserId);
 }
 
 async function notifyComment(gameId, commentedByUserId, gameOwnerId, commentText) {
-  try {
-    const commentedByUser = await db.getUserById(commentedByUserId);
-    if (!commentedByUser) return;
-
-    await sendPushNotification(
-      [gameOwnerId],
-      '💬 New Comment',
-      `${commentedByUser.displayName || commentedByUser.username}: ${commentText.substring(0, 50)}${commentText.length > 50 ? '...' : ''}`,
-      { type: 'social', action: 'comment', gameId, userId: commentedByUserId }
-    );
-  } catch (error) {
-    console.error('[Notifications] Comment notification error:', error);
-  }
+  const actor = await db.getUserById(commentedByUserId);
+  if (!actor || !gameOwnerId || gameOwnerId === commentedByUserId) return;
+  return notifyUser(gameOwnerId, {
+    type: 'social',
+    action: 'comment',
+    title: 'New comment',
+    body: `${compactName(actor)}: ${String(commentText || '').slice(0, 70)}`,
+    actorUserId: commentedByUserId,
+    gameId,
+    data: { type: 'social', action: 'comment', gameId, userId: commentedByUserId },
+    dedupeKey: `comment:${gameId}:${commentedByUserId}:${String(commentText || '').slice(0, 40)}`,
+  }, { dailyLimit: 12, minGapMinutes: 4, cooldownMinutes: 30 });
 }
 
 async function notifyFollow(followerId, followedUserId) {
   try {
     const follower = await db.getUserById(followerId);
-    if (!follower) return;
+    if (!follower || followerId === followedUserId) return;
 
-    // Check if it's a follow-back (they already follow the follower)
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-    const followBackCheck = await pool.query(
-      'SELECT * FROM followers WHERE follower_id = $1 AND following_id = $2',
-      [followedUserId, followerId]
-    );
-
-    const isFollowBack = followBackCheck.rows.length > 0;
-    const action = isFollowBack ? 'started following you back' : 'just followed you';
-
-    await sendPushNotification(
-      [followedUserId],
-      follower.displayName || follower.username,
-      action,
-      { type: 'social', action: 'follow', userId: followerId, isFollowBack }
-    );
+    await notifyUser(followedUserId, {
+      type: 'social',
+      action: 'follow',
+      title: compactName(follower),
+      body: 'started following you',
+      actorUserId: followerId,
+      data: { type: 'social', action: 'follow', userId: followerId },
+      dedupeKey: `follow:${followerId}:${followedUserId}`,
+    });
   } catch (error) {
     console.error('[Notifications] Follow notification error:', error);
   }
@@ -118,290 +376,182 @@ async function notifyFollow(followerId, followedUserId) {
 
 async function notifyMessage(senderId, recipientId, messagePreview) {
   try {
-    console.log('[Notifications] notifyMessage called:', { senderId, recipientId, messagePreview });
-
     const sender = await db.getUserById(senderId);
-    if (!sender) {
-      console.log('[Notifications] Sender not found:', senderId);
-      return;
-    }
+    if (!sender || senderId === recipientId) return;
 
-    console.log('[Notifications] Sending message notification from:', sender.displayName, 'to:', recipientId);
-
-    const result = await sendPushNotification(
-      [recipientId],
-      sender.displayName || sender.username,
-      messagePreview.substring(0, 100),
-      { type: 'message', userId: senderId, avatar: sender.avatar }
-    );
-
-    console.log('[Notifications] Message notification result:', result);
+    await notifyUser(recipientId, {
+      type: 'message',
+      action: 'message',
+      title: compactName(sender),
+      body: String(messagePreview || '').slice(0, 100),
+      actorUserId: senderId,
+      data: { type: 'message', userId: senderId, avatar: sender.avatar },
+      dedupeKey: `message:${senderId}:${recipientId}`,
+    });
   } catch (error) {
     console.error('[Notifications] Message notification error:', error);
   }
 }
 
 async function notifyScoreBeaten(gameId, beatenByUserId, originalUserId, newScore) {
-  try {
-    const beatenByUser = await db.getUserById(beatenByUserId);
-    if (!beatenByUser) return;
-
-    const messages = [
-      { title: '🏆 Score Beaten!', body: `${beatenByUser.displayName || beatenByUser.username} just beat your high score with ${newScore} points!` },
-      { title: '😱 Oh No!', body: `${beatenByUser.displayName || beatenByUser.username} crushed your record: ${newScore} points` },
-      { title: '🔥 Challenge Accepted?', body: `${beatenByUser.displayName || beatenByUser.username} scored ${newScore}. Can you beat it?` },
-      { title: '⚡ New High Score', body: `${beatenByUser.displayName || beatenByUser.username} just took your #1 spot with ${newScore}!` },
-      { title: '💪 Game On!', body: `${beatenByUser.displayName || beatenByUser.username} beat you: ${newScore} points. Your move!` },
-    ];
-
-    const message = messages[Math.floor(Math.random() * messages.length)];
-
-    await sendPushNotification(
-      [originalUserId],
-      message.title,
-      message.body,
-      { type: 'social', action: 'score_beaten', gameId, userId: beatenByUserId }
-    );
-  } catch (error) {
-    console.error('[Notifications] Score beaten notification error:', error);
-  }
+  const actor = await db.getUserById(beatenByUserId);
+  if (!actor || beatenByUserId === originalUserId) return;
+  return notifyUser(originalUserId, {
+    type: 'social',
+    action: 'score_beaten',
+    title: 'Score got sniped',
+    body: `${compactName(actor)} beat your score with ${newScore}.`,
+    actorUserId: beatenByUserId,
+    gameId,
+    data: { type: 'social', action: 'score_beaten', gameId, userId: beatenByUserId },
+    dedupeKey: `score_beaten:${gameId}:${originalUserId}`,
+  }, { dailyLimit: 8, cooldownMinutes: 120 });
 }
 
-// ============================================
-// TYPE 2: ENGAGEMENT NOTIFICATIONS
-// ============================================
-
 async function notifyNewGames(userIds, gameCount) {
-  try {
-    const messages = [
-      { title: '🎮 New Games Added!', body: `${gameCount} fresh games just dropped. Check them out now!` },
-      { title: '🔥 Hot Off the Press', body: `${gameCount} brand new games are waiting for you!` },
-      { title: '✨ Fresh Content', body: `We just added ${gameCount} awesome games. Play now!` },
-      { title: '🚀 New Arrivals', body: `${gameCount} new games just landed. Don't miss out!` },
-      { title: '🎯 Game Update', body: `${gameCount} new games added today. Time to play!` },
-    ];
-
-    const message = messages[Math.floor(Math.random() * messages.length)];
-
-    await sendPushNotification(
-      userIds,
-      message.title,
-      message.body,
-      { type: 'engagement', action: 'new_games' }
-    );
-  } catch (error) {
-    console.error('[Notifications] New games notification error:', error);
-  }
+  return sendPushNotification(
+    userIds,
+    'Fresh games dropped',
+    `${gameCount} new worlds just appeared. browse carefully.`,
+    { type: 'engagement', action: 'new_games' },
+    { action: 'trending', dedupeKey: `new_games:${new Date().toISOString().slice(0, 10)}` },
+  );
 }
 
 async function notifyStreak(userId, streakDays) {
-  try {
-    const emojis = ['🔥', '💪', '⚡', '🌟', '🚀'];
-    const emoji = emojis[Math.min(streakDays - 1, emojis.length - 1)];
-
-    await sendPushNotification(
-      [userId],
-      `${emoji} ${streakDays}-Day Streak!`,
-      `You're on fire! Don't break your streak today.`,
-      { type: 'engagement', action: 'streak', days: streakDays }
-    );
-  } catch (error) {
-    console.error('[Notifications] Streak notification error:', error);
-  }
+  return notifyUser(userId, {
+    type: 'engagement',
+    action: 'streak',
+    title: `${streakDays}-day streak`,
+    body: `Still alive. keep the streak weird.`,
+    data: { type: 'engagement', action: 'streak', days: streakDays },
+    dedupeKey: `streak:${userId}:${new Date().toISOString().slice(0, 10)}`,
+  }, { dailyLimit: 1, cooldownMinutes: 1440 });
 }
 
 async function notifyLeaderboardPosition(userId, gameId, position) {
-  try {
-    const messages = {
-      1: { title: '🥇 You\'re #1!', body: 'You\'re at the top of the leaderboard!' },
-      2: { title: '🥈 You\'re #2!', body: 'So close to #1! Keep playing!' },
-      3: { title: '🥉 You\'re #3!', body: 'You\'re in the top 3! Can you reach #1?' },
-    };
-
-    const message = messages[position] || {
-      title: `🏆 You're #${position}!`,
-      body: `You're climbing the leaderboard. Keep it up!`
-    };
-
-    await sendPushNotification(
-      [userId],
-      message.title,
-      message.body,
-      { type: 'engagement', action: 'leaderboard', gameId, position }
-    );
-  } catch (error) {
-    console.error('[Notifications] Leaderboard notification error:', error);
-  }
+  return notifyUser(userId, {
+    type: 'engagement',
+    action: 'leaderboard',
+    title: `You're #${position}`,
+    body: 'The board noticed you. defend the spot.',
+    gameId,
+    data: { type: 'engagement', action: 'leaderboard', gameId, position },
+    dedupeKey: `leaderboard:${gameId}:${userId}:${position}`,
+  }, { dailyLimit: 4, cooldownMinutes: 360 });
 }
 
 async function notifyDailyChallenge(userIds, challengeDescription) {
-  try {
-    await sendPushNotification(
-      userIds,
-      '🎯 Daily Challenge',
-      challengeDescription,
-      { type: 'engagement', action: 'daily_challenge' }
-    );
-  } catch (error) {
-    console.error('[Notifications] Daily challenge notification error:', error);
-  }
+  return sendPushNotification(
+    userIds,
+    'Daily challenge',
+    challengeDescription,
+    { type: 'engagement', action: 'daily_challenge' },
+    { action: 'reengagement', dedupeKey: `daily_challenge:${new Date().toISOString().slice(0, 10)}` },
+  );
 }
 
-// ============================================
-// TYPE 3: RE-ENGAGEMENT NOTIFICATIONS
-// ============================================
-
 async function notifyInactive(userId, hoursInactive) {
-  try {
-    const messages = [
-      { title: '🎮 Your games miss you!', body: 'Hop back in — new games are waiting!' },
-      { title: '🔥 Don\'t break your streak!', body: 'Play now to keep your streak alive!' },
-      { title: '⚡ Quick game?', body: 'Just 5 minutes. You know you want to!' },
-      { title: '🎯 Daily challenge is live!', body: 'Complete it before it expires for bonus coins!' },
-      { title: '💰 Free coins waiting!', body: 'Come back and claim your rewards!' },
-      { title: '🚀 You\'re falling behind!', body: 'Your friends are leveling up. Are you?' },
-      { title: '🎮 Bored?', body: 'We\'ve got the cure. Tap to play!' },
-      { title: '👀 Don\'t miss out!', body: 'New games just dropped. Check them out!' },
-      { title: '🏆 Leaderboard update!', body: 'See where you rank — you might be surprised!' },
-      { title: '🎁 Bonus reward inside!', body: 'Open the app to claim your surprise!' },
-    ];
-
-    const message = messages[Math.floor(Math.random() * messages.length)];
-
-    await sendPushNotification(
-      [userId],
-      message.title,
-      message.body,
-      { type: 're-engagement', action: 'inactive', hours: hoursInactive }
-    );
-  } catch (error) {
-    console.error('[Notifications] Inactive notification error:', error);
-  }
+  const lines = [
+    'A few strange games appeared while you were gone.',
+    'Your feed got weirder. come inspect it.',
+    'There is new playable nonsense waiting for you.',
+  ];
+  return notifyUser(userId, {
+    type: 're-engagement',
+    action: 'reengagement',
+    title: 'GameTok shifted a little',
+    body: pick(lines),
+    data: { type: 're-engagement', action: 'inactive', hours: hoursInactive },
+    dedupeKey: `inactive:${userId}`,
+  });
 }
 
 async function notifyDailyReward(userId, rewardAmount) {
-  try {
-    await sendPushNotification(
-      [userId],
-      '🎁 Daily Reward Ready!',
-      `Claim your ${rewardAmount} coins now!`,
-      { type: 're-engagement', action: 'daily_reward', amount: rewardAmount }
-    );
-  } catch (error) {
-    console.error('[Notifications] Daily reward notification error:', error);
-  }
+  return notifyUser(userId, {
+    type: 're-engagement',
+    action: 'reward',
+    title: 'Reward waiting',
+    body: `${rewardAmount} coins are sitting there looking unemployed.`,
+    data: { type: 're-engagement', action: 'daily_reward', amount: rewardAmount },
+    dedupeKey: `daily_reward:${userId}:${new Date().toISOString().slice(0, 10)}`,
+  });
 }
 
 async function notifyFriendsPlaying(userId, friendNames) {
-  try {
-    const friendList = friendNames.slice(0, 3).join(', ');
-    const others = friendNames.length > 3 ? ` and ${friendNames.length - 3} others` : '';
-
-    await sendPushNotification(
-      [userId],
-      '👥 Friends are playing!',
-      `${friendList}${others} are online right now`,
-      { type: 're-engagement', action: 'friends_playing' }
-    );
-  } catch (error) {
-    console.error('[Notifications] Friends playing notification error:', error);
-  }
+  const friendList = (friendNames || []).slice(0, 3).join(', ');
+  return notifyUser(userId, {
+    type: 're-engagement',
+    action: 'reengagement',
+    title: 'Friends are active',
+    body: `${friendList || 'Someone you follow'} is playing right now.`,
+    data: { type: 're-engagement', action: 'friends_playing' },
+    dedupeKey: `friends_playing:${userId}`,
+  }, { cooldownMinutes: 360, dailyLimit: 2 });
 }
 
-// ============================================
-// TYPE 4: FOMO NOTIFICATIONS
-// ============================================
-
 async function notifyLimitedTimeEvent(userIds, eventName, hoursLeft) {
-  try {
-    await sendPushNotification(
-      userIds,
-      `⏰ ${eventName} - ${hoursLeft}h left!`,
-      `Don't miss out! This event ends soon.`,
-      { type: 'fomo', action: 'limited_event', event: eventName, hoursLeft }
-    );
-  } catch (error) {
-    console.error('[Notifications] Limited event notification error:', error);
-  }
+  return sendPushNotification(
+    userIds,
+    eventName,
+    `${hoursLeft}h left. if you blink, it leaves.`,
+    { type: 'fomo', action: 'limited_event', event: eventName, hoursLeft },
+    { action: 'trending', dedupeKey: `event:${eventName}` },
+  );
 }
 
 async function notifyDoubleXP(userIds, minutesLeft) {
-  try {
-    await sendPushNotification(
-      userIds,
-      '⚡ Double XP Active!',
-      `Earn 2x XP for the next ${minutesLeft} minutes. Play now!`,
-      { type: 'fomo', action: 'double_xp', minutesLeft }
-    );
-  } catch (error) {
-    console.error('[Notifications] Double XP notification error:', error);
-  }
-}
-
-async function notifyTrendingGame(userIds, gameName, playerCount) {
-  try {
-    await sendPushNotification(
-      userIds,
-      '🔥 Trending Now',
-      `${playerCount}+ players are playing ${gameName} right now!`,
-      { type: 'fomo', action: 'trending', gameName }
-    );
-  } catch (error) {
-    console.error('[Notifications] Trending game notification error:', error);
-  }
+  return sendPushNotification(
+    userIds,
+    'Double XP is live',
+    `${minutesLeft} minutes of boosted chaos.`,
+    { type: 'fomo', action: 'double_xp', minutesLeft },
+    { action: 'trending', dedupeKey: `double_xp:${new Date().toISOString().slice(0, 10)}` },
+  );
 }
 
 async function notifyFriendAchievement(userId, friendName, achievementName) {
-  try {
-    await sendPushNotification(
-      [userId],
-      '🏅 Friend Achievement',
-      `${friendName} just unlocked "${achievementName}". Can you do it too?`,
-      { type: 'fomo', action: 'friend_achievement', achievement: achievementName }
-    );
-  } catch (error) {
-    console.error('[Notifications] Friend achievement notification error:', error);
-  }
+  return notifyUser(userId, {
+    type: 'fomo',
+    action: 'friend_achievement',
+    title: `${friendName} unlocked something`,
+    body: `"${achievementName}". your move.`,
+    data: { type: 'fomo', action: 'friend_achievement', achievement: achievementName },
+    dedupeKey: `friend_achievement:${userId}:${friendName}:${achievementName}`,
+  }, { dailyLimit: 3, cooldownMinutes: 360 });
 }
 
-// ============================================
-// SCHEDULED NOTIFICATIONS (Cron Jobs)
-// ============================================
-
-// Run every 2 hours to re-engage users
 async function sendDailyInactiveNotifications() {
   try {
-    const inactiveUsers = await db.getInactiveUsers(2); // 2+ hours inactive
+    const inactiveUsers = await db.getInactiveUsers(24);
     console.log(`[Notifications] Found ${inactiveUsers.length} inactive users to ping`);
     for (const user of inactiveUsers) {
-      await notifyInactive(user.id, user.hours_inactive || 2);
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await notifyInactive(user.id, user.hours_inactive || 24);
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
   } catch (error) {
     console.error('[Notifications] Re-engagement error:', error);
   }
 }
 
-// Run daily at 10 AM to notify about daily rewards
 async function sendDailyRewardNotifications() {
   try {
     const users = await db.getUsersWithPendingRewards();
     for (const user of users) {
-      await notifyDailyReward(user.id, user.rewardAmount);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await notifyDailyReward(user.id, user.reward_amount || user.rewardAmount || 100);
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
   } catch (error) {
     console.error('[Notifications] Daily reward error:', error);
   }
 }
 
-// Run every hour to check for friends playing
 async function sendFriendsPlayingNotifications() {
   try {
     const users = await db.getUsersWithActiveFriends();
     for (const user of users) {
-      await notifyFriendsPlaying(user.id, user.activeFriendNames);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await notifyFriendsPlaying(user.id, user.active_friend_names || user.activeFriendNames || []);
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
   } catch (error) {
     console.error('[Notifications] Friends playing error:', error);
@@ -410,27 +560,27 @@ async function sendFriendsPlayingNotifications() {
 
 export {
   sendPushNotification,
-  // Social
+  notifyUser,
   notifyLike,
+  notifyGameLiked,
+  notifyGamePlayed,
   notifyComment,
   notifyFollow,
   notifyMessage,
   notifyScoreBeaten,
-  // Engagement
+  notifyGameReady,
   notifyNewGames,
   notifyStreak,
   notifyLeaderboardPosition,
   notifyDailyChallenge,
-  // Re-engagement
   notifyInactive,
   notifyDailyReward,
   notifyFriendsPlaying,
-  // FOMO
   notifyLimitedTimeEvent,
   notifyDoubleXP,
   notifyTrendingGame,
+  sendTrendingGameSuggestions,
   notifyFriendAchievement,
-  // Scheduled
   sendDailyInactiveNotifications,
   sendDailyRewardNotifications,
   sendFriendsPlayingNotifications,
