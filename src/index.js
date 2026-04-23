@@ -1751,6 +1751,72 @@ app.get('/api/games/discover-debug', async (req, res) => {
 });
 
 // Search games - searches full database
+const normalizeSearchQuery = (value = '') =>
+  String(value)
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+app.post('/api/search/track', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const clientId = String(req.headers['x-client-id'] || '').trim() || null;
+  const query = String(req.body?.query || '');
+  const source = String(req.body?.source || 'explore').trim() || 'explore';
+  const normalizedQuery = normalizeSearchQuery(query);
+
+  if (!normalizedQuery || normalizedQuery.length < 2) {
+    return res.json({ success: true, tracked: false });
+  }
+
+  try {
+    let userId = null;
+    if (token) {
+      const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+      userId = userResult.rows[0]?.id || null;
+    }
+
+    await pool.query(
+      `INSERT INTO search_events (user_id, client_id, query, normalized_query, source)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, clientId, query.trim(), normalizedQuery, source]
+    );
+
+    res.json({ success: true, tracked: true });
+  } catch (e) {
+    console.error('Track search error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/search/trending', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 12, 30);
+
+  try {
+    const result = await pool.query(
+      `SELECT normalized_query, MIN(query) AS display_query, COUNT(*)::int AS search_count
+       FROM search_events
+       WHERE created_at > NOW() - INTERVAL '14 days'
+         AND LENGTH(normalized_query) >= 2
+       GROUP BY normalized_query
+       ORDER BY search_count DESC, MAX(created_at) DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    res.json({
+      topics: result.rows.map((row) => ({
+        query: row.display_query,
+        normalizedQuery: row.normalized_query,
+        count: row.search_count,
+      })),
+    });
+  } catch (e) {
+    console.error('Trending search topics error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/games/search', async (req, res) => {
   const query = req.query.q || '';
   const limit = parseInt(req.query.limit) || 50;
@@ -1761,14 +1827,33 @@ app.get('/api/games/search', async (req, res) => {
 
   try {
     const searchPattern = `%${query.toLowerCase()}%`;
-    // Exclude multiplayer-only games from search
     const result = await pool.query(
-      `SELECT * FROM games 
-       WHERE (LOWER(name) LIKE $1 OR LOWER(category) LIKE $1 OR LOWER(description) LIKE $1)
-       AND (multiplayer_only = FALSE OR multiplayer_only IS NULL)
+      `SELECT
+         g.*,
+         u.display_name AS creator_display_name,
+         u.username AS creator_username
+       FROM games g
+       LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+       LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+       WHERE (
+         LOWER(g.name) LIKE $1 OR
+         LOWER(COALESCE(g.category, '')) LIKE $1 OR
+         LOWER(COALESCE(g.subcategory, '')) LIKE $1 OR
+         LOWER(COALESCE(g.primary_tab, '')) LIKE $1 OR
+         LOWER(COALESCE(g.description, '')) LIKE $1 OR
+         LOWER(COALESCE(u.username, '')) LIKE $1 OR
+         LOWER(COALESCE(u.display_name, '')) LIKE $1
+       )
+       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
        ORDER BY 
-         CASE WHEN LOWER(name) LIKE $2 THEN 0 ELSE 1 END,
-         plays DESC
+         CASE
+           WHEN LOWER(g.name) LIKE $2 THEN 0
+           WHEN LOWER(COALESCE(u.username, '')) LIKE $2 THEN 1
+           WHEN LOWER(COALESCE(u.display_name, '')) LIKE $2 THEN 2
+           WHEN LOWER(COALESCE(g.subcategory, '')) LIKE $2 THEN 3
+           ELSE 4
+         END,
+         g.plays DESC
        LIMIT $3`,
       [searchPattern, `${query.toLowerCase()}%`, limit]
     );

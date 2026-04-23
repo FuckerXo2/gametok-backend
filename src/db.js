@@ -86,6 +86,16 @@ export const initDB = async () => {
         PRIMARY KEY (client_id, game_id)
       );
 
+      CREATE TABLE IF NOT EXISTS search_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        client_id VARCHAR(255),
+        query TEXT NOT NULL,
+        normalized_query TEXT NOT NULL,
+        source VARCHAR(32) DEFAULT 'explore',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS likes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -209,6 +219,8 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_game_plays_user ON game_plays(user_id);
       CREATE INDEX IF NOT EXISTS idx_anonymous_game_plays_game ON anonymous_game_plays(game_id);
       CREATE INDEX IF NOT EXISTS idx_anonymous_game_plays_client ON anonymous_game_plays(client_id);
+      CREATE INDEX IF NOT EXISTS idx_search_events_normalized_query ON search_events(normalized_query);
+      CREATE INDEX IF NOT EXISTS idx_search_events_created_at ON search_events(created_at);
       CREATE INDEX IF NOT EXISTS idx_users_token ON users(token);
       CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
@@ -250,6 +262,17 @@ export const initDB = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'preview_video_url') THEN
           ALTER TABLE games ADD COLUMN preview_video_url TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_events') THEN
+          CREATE TABLE search_events (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+            client_id VARCHAR(255),
+            query TEXT NOT NULL,
+            normalized_query TEXT NOT NULL,
+            source VARCHAR(32) DEFAULT 'explore',
+            created_at TIMESTAMP DEFAULT NOW()
+          );
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'primary_tab') THEN
           ALTER TABLE games ADD COLUMN primary_tab VARCHAR(32);
