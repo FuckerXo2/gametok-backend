@@ -360,6 +360,13 @@ function formatUser(row) {
 
 app.post('/api/admin/reseed', async (req, res) => {
   try {
+    if (process.env.ALLOW_LEGACY_RESEED !== 'true') {
+      return res.status(410).json({
+        error: 'Legacy reseed is disabled',
+        message: 'Explore now uses published AI games, not built-in seed games.'
+      });
+    }
+
     await seedGames();
     const result = await pool.query('SELECT COUNT(*) FROM games');
     res.json({ success: true, gamesCount: parseInt(result.rows[0].count) });
@@ -1476,9 +1483,10 @@ app.get('/api/games/discover-lanes', async (req, res) => {
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
-         WHERE
-           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND
-           ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+	         WHERE
+	           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND
+	           ag.id IS NOT NULL AND
+	           ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
        ),
        ranked AS (
          SELECT
@@ -1817,6 +1825,199 @@ app.get('/api/search/trending', async (req, res) => {
   }
 });
 
+app.get('/api/games/trending-summary', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 5, 10);
+  const rawTab = String(req.query.tab || 'Explore').trim();
+  const normalizedTab = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'].includes(rawTab) ? rawTab : 'Explore';
+
+  try {
+    const [searchHeatResult, creatorsRisingResult, gamesPoppingResult, topSearchesResult, topCreatorsResult, topGamesResult] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int AS total
+         FROM search_events
+         WHERE created_at > NOW() - INTERVAL '14 days'`
+      ),
+      pool.query(
+        `WITH score_activity AS (
+           SELECT
+             game_id,
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') * 5 +
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') * 2 +
+             COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) * 3 AS recent_activity_score
+           FROM scores
+           GROUP BY game_id
+         )
+         SELECT COUNT(DISTINCT u.id)::int AS total
+         FROM games g
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+         LEFT JOIN score_activity sa ON sa.game_id = g.id
+	         WHERE u.id IS NOT NULL
+	           AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	           AND ag.id IS NOT NULL
+	           AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+           AND COALESCE(sa.recent_activity_score, 0) > 0`,
+        [normalizedTab]
+      ),
+      pool.query(
+        `WITH score_activity AS (
+           SELECT
+             game_id,
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') * 5 +
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') * 2 +
+             COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) * 3 AS recent_activity_score
+           FROM scores
+           GROUP BY game_id
+         )
+         SELECT COUNT(*)::int AS total
+	         FROM games g
+	         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+	         LEFT JOIN score_activity sa ON sa.game_id = g.id
+	         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	           AND ag.id IS NOT NULL
+	           AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+           AND (
+             COALESCE(sa.recent_activity_score, 0) > 0 OR
+             g.created_at >= NOW() - INTERVAL '7 days'
+           )`,
+        [normalizedTab]
+      ),
+      pool.query(
+        `SELECT normalized_query, MIN(query) AS display_query, COUNT(*)::int AS search_count
+         FROM search_events
+         WHERE created_at > NOW() - INTERVAL '14 days'
+           AND LENGTH(normalized_query) >= 2
+         GROUP BY normalized_query
+         ORDER BY search_count DESC, MAX(created_at) DESC
+         LIMIT $1`,
+        [limit]
+      ),
+      pool.query(
+        `WITH score_activity AS (
+           SELECT
+             game_id,
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') * 5 +
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') * 2 +
+             COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) * 3 AS recent_activity_score
+           FROM scores
+           GROUP BY game_id
+         ),
+         creator_pool AS (
+           SELECT
+             u.id,
+             u.username,
+             u.display_name,
+             u.avatar,
+             COUNT(g.id)::int AS game_count,
+             COALESCE(SUM(g.plays), 0)::int AS total_plays,
+             COALESCE(SUM(sa.recent_activity_score), 0)::int AS recent_activity_score,
+             (
+               COALESCE(SUM(sa.recent_activity_score), 0) * 1.8 +
+               LEAST(COALESCE(SUM(g.plays), 0) / 6000.0, 18) +
+               COUNT(g.id) * 1.5
+             ) AS creator_score
+           FROM games g
+           LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+           LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+           LEFT JOIN score_activity sa ON sa.game_id = g.id
+	           WHERE u.id IS NOT NULL
+	             AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	             AND ag.id IS NOT NULL
+	             AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+           GROUP BY u.id, u.username, u.display_name, u.avatar
+         )
+         SELECT *
+         FROM creator_pool
+         ORDER BY creator_score DESC, total_plays DESC, game_count DESC
+         LIMIT $2`,
+        [normalizedTab, limit]
+      ),
+      pool.query(
+        `WITH score_activity AS (
+           SELECT
+             game_id,
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') * 5 +
+             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days') * 2 +
+             COUNT(DISTINCT user_id) FILTER (WHERE created_at >= NOW() - INTERVAL '3 days' AND user_id IS NOT NULL) * 3 AS recent_activity_score
+           FROM scores
+           GROUP BY game_id
+         ),
+         discover_pool AS (
+           SELECT
+             g.*,
+             u.display_name AS creator_display_name,
+             u.username AS creator_username,
+             COALESCE(sa.recent_activity_score, 0) AS recent_activity_score,
+             (
+               COALESCE(g.classification_confidence, 0) * 35 +
+               LEAST(COALESCE(g.plays, 0) / 4000.0, 28) +
+               COALESCE(sa.recent_activity_score, 0) +
+               CASE
+                 WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 14
+                 WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 8
+                 WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
+                 ELSE 0
+               END
+             ) AS discover_score,
+             (
+               COALESCE(sa.recent_activity_score, 0) * 1.9 +
+               LEAST(COALESCE(g.plays, 0) / 8000.0, 16) +
+               CASE
+                 WHEN g.created_at >= NOW() - INTERVAL '3 days' THEN 12
+                 WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN 6
+                 ELSE 0
+               END
+             ) AS rising_score
+           FROM games g
+           LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+           LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+           LEFT JOIN score_activity sa ON sa.game_id = g.id
+	           WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	             AND ag.id IS NOT NULL
+	             AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+         )
+         SELECT *
+         FROM discover_pool
+         ORDER BY rising_score DESC, discover_score DESC, plays DESC, created_at DESC
+         LIMIT $2`,
+        [normalizedTab, limit]
+      ),
+    ]);
+
+    res.json({
+      tab: normalizedTab,
+      pulses: {
+        searchHeat: Number(searchHeatResult.rows[0]?.total || 0),
+        creatorsRising: Number(creatorsRisingResult.rows[0]?.total || 0),
+        gamesPopping: Number(gamesPoppingResult.rows[0]?.total || 0),
+      },
+      topSearches: topSearchesResult.rows.map((row) => ({
+        query: row.display_query,
+        normalizedQuery: row.normalized_query,
+        count: Number(row.search_count || 0),
+      })),
+      topCreators: topCreatorsResult.rows.map((row) => ({
+        id: row.id,
+        username: row.username,
+        displayName: row.display_name,
+        avatar: row.avatar || null,
+        gameCount: Number(row.game_count || 0),
+        totalPlays: Number(row.total_plays || 0),
+        recentActivityScore: Number(row.recent_activity_score || 0),
+      })),
+      topGames: topGamesResult.rows.map((row) => ({
+        game: formatGame(row),
+        recentActivityScore: Number(row.recent_activity_score || 0),
+        discoverScore: Number(row.discover_score || 0),
+        risingScore: Number(row.rising_score || 0),
+      })),
+    });
+  } catch (e) {
+    console.error('Trending summary error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/games/search', async (req, res) => {
   const query = req.query.q || '';
   const limit = parseInt(req.query.limit) || 50;
@@ -1843,9 +2044,10 @@ app.get('/api/games/search', async (req, res) => {
          LOWER(COALESCE(g.description, '')) LIKE $1 OR
          LOWER(COALESCE(u.username, '')) LIKE $1 OR
          LOWER(COALESCE(u.display_name, '')) LIKE $1
-       )
-       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
-       ORDER BY 
+	       )
+	       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	       AND ag.id IS NOT NULL
+	       ORDER BY 
          CASE
            WHEN LOWER(g.name) LIKE $2 THEN 0
            WHEN LOWER(COALESCE(u.username, '')) LIKE $2 THEN 1
@@ -3710,8 +3912,8 @@ const checkAchievements = async (userId) => {
 // ============================================
 
 const seedGames = async () => {
-  // This is the SINGLE SOURCE OF TRUTH for games
-  // Games not in this list will be DELETED from the database
+	  // Legacy seed list for old manually embedded games. Disabled unless
+	  // ALLOW_LEGACY_RESEED=true so it cannot pollute AI-game discovery.
   const games = [
     // Puzzle
     { id: '2048', name: '2048', description: 'Swipe to merge tiles!', icon: '🔢', color: '#edc22e', category: 'puzzle' },
@@ -3775,14 +3977,7 @@ const seedGames = async () => {
     },
   ];
 
-  // First, delete any games NOT in our list
-  const gameIds = games.map(g => g.id);
-  await pool.query(
-    `DELETE FROM games WHERE id != ALL($1::text[])`,
-    [gameIds]
-  );
-
-  // Then upsert all games (insert or update)
+	  // Upsert only. Never delete user-created or AI-published games here.
   for (const g of games) {
     await pool.query(
       `INSERT INTO games (id, name, description, icon, color, category, embed_url) 
