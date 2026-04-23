@@ -1825,6 +1825,47 @@ app.get('/api/search/trending', async (req, res) => {
   }
 });
 
+app.get('/api/games/top', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 10, 30);
+  const rawTab = String(req.query.tab || 'Explore').trim();
+  const normalizedTab = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'].includes(rawTab) ? rawTab : 'Explore';
+
+  try {
+    const result = await pool.query(
+      `SELECT
+         g.*,
+         u.display_name AS creator_display_name,
+         u.username AS creator_username,
+         (
+           COALESCE(g.plays, 0) * 3 +
+           COALESCE(g.like_count, 0) * 5 +
+           COALESCE(g.save_count, 0) * 4
+         ) AS top_score
+       FROM games g
+       LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+       LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+         AND ag.id IS NOT NULL
+         AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
+       ORDER BY top_score DESC, COALESCE(g.plays, 0) DESC, COALESCE(g.like_count, 0) DESC, COALESCE(g.save_count, 0) DESC, g.created_at DESC
+       LIMIT $2`,
+      [normalizedTab, limit]
+    );
+
+    res.json({
+      tab: normalizedTab,
+      games: result.rows.map((row, index) => ({
+        rank: index + 1,
+        score: Number(row.top_score || 0),
+        game: formatGame(row),
+      })),
+    });
+  } catch (e) {
+    console.error('Top games error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/games/trending-summary', async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 5, 10);
   const rawTab = String(req.query.tab || 'Explore').trim();
