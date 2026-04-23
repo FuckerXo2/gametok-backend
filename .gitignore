@@ -1,8 +1,10 @@
 node_modules/
 .env
+.DS_Store
 *.cjs
 query_db.js
 check_ai.js
 dump.js
 test-gemini.js
 test_db.js
+public/uploads/kenney-wave1/
