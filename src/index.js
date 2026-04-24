@@ -2629,6 +2629,52 @@ app.get('/api/users/:id/played', async (req, res) => {
   }
 });
 
+app.get('/api/users/:id/created', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const currentUserResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (currentUserResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+
+    const currentUserId = currentUserResult.rows[0].id;
+    const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(req.params.id);
+
+    let targetUserResult;
+    if (isUUID) {
+      targetUserResult = await pool.query('SELECT id FROM users WHERE id = $1', [req.params.id]);
+    } else {
+      targetUserResult = await pool.query('SELECT id FROM users WHERE username = $1', [req.params.id]);
+    }
+
+    if (targetUserResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const targetUserId = targetUserResult.rows[0].id;
+    if (targetUserId !== currentUserId) return res.status(403).json({ error: 'Not authorized' });
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 60);
+    const result = await pool.query(
+      `SELECT g.*,
+              u.display_name AS creator_display_name,
+              u.username AS creator_username
+         FROM games g
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+        WHERE COALESCE(NULLIF(g.developer, ''), ag.user_id::text) = $1
+        ORDER BY g.created_at DESC
+        LIMIT $2`,
+      [targetUserId, limit]
+    );
+
+    res.json({
+      games: result.rows.map(formatGame),
+    });
+  } catch (e) {
+    console.error('Get created games error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.put('/api/users/:id', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const { displayName, bio, avatar, username } = req.body;
@@ -2974,7 +3020,15 @@ app.post('/api/likes/check', async (req, res) => {
 app.get('/api/likes/user/:userId', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT g.* FROM games g JOIN likes l ON g.id = l.game_id WHERE l.user_id = $1`,
+      `SELECT g.*,
+              u.display_name AS creator_display_name,
+              u.username AS creator_username
+         FROM games g
+         JOIN likes l ON g.id = l.game_id
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+        WHERE l.user_id = $1
+        ORDER BY l.created_at DESC NULLS LAST, g.created_at DESC`,
       [req.params.userId]
     );
     res.json({ games: result.rows.map(formatGame) });
