@@ -2577,6 +2577,58 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
+app.get('/api/users/:id/played', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const currentUserResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (currentUserResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+
+    const currentUserId = currentUserResult.rows[0].id;
+    const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(req.params.id);
+
+    let targetUserResult;
+    if (isUUID) {
+      targetUserResult = await pool.query('SELECT id FROM users WHERE id = $1', [req.params.id]);
+    } else {
+      targetUserResult = await pool.query('SELECT id FROM users WHERE username = $1', [req.params.id]);
+    }
+
+    if (targetUserResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const targetUserId = targetUserResult.rows[0].id;
+    if (targetUserId !== currentUserId) return res.status(403).json({ error: 'Not authorized' });
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 60);
+    const result = await pool.query(
+      `SELECT g.*,
+              gp.play_count,
+              gp.last_played_at,
+              u.display_name AS creator_display_name,
+              u.username AS creator_username
+         FROM game_plays gp
+         JOIN games g ON g.id = gp.game_id
+         LEFT JOIN users u ON u.id = g.user_id
+        WHERE gp.user_id = $1
+        ORDER BY gp.last_played_at DESC
+        LIMIT $2`,
+      [targetUserId, limit]
+    );
+
+    res.json({
+      games: result.rows.map((row) => ({
+        ...formatGame(row),
+        playCount: Number(row.play_count || 0),
+        lastPlayedAt: row.last_played_at,
+      })),
+    });
+  } catch (e) {
+    console.error('Get played games error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.put('/api/users/:id', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const { displayName, bio, avatar, username } = req.body;
