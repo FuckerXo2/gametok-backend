@@ -835,6 +835,29 @@ function validateRuntimeLaneContract(runtimeLane, html) {
     if (/onclick\s*=|addEventListener\(\s*['"]click['"]/i.test(source) && !/pointerdown/i.test(source)) {
         throw new Error('first-person 3D validation error: relies on click without pointerdown fallback');
     }
+    const hasRenderLoop = /requestAnimationFrame|renderer\.render\s*\(|function\s+animate\s*\(|const\s+animate\s*=\s*\(/i.test(source);
+    const hasSceneGeometry =
+        /new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry|SphereGeometry|CapsuleGeometry|BufferGeometry)/i.test(source) &&
+        /scene\.add\s*\(/i.test(source);
+    const hasWorldBuilder = /buildWorld|spawnEnemies|spawnEnemy|createRoom|createCorridor|createArena|createLevel|world\s*=\s*\{[^}]*walls/i.test(source);
+    const hasLight = /AmbientLight|DirectionalLight|PointLight|HemisphereLight|SpotLight/i.test(source);
+    const hasMovementState = /moveX|moveY|velocity|player\.position|camera\.position|yaw|pitch/i.test(source);
+
+    if (!hasRenderLoop) {
+        throw new Error('first-person 3D validation error: missing active render loop');
+    }
+    if (!hasSceneGeometry) {
+        throw new Error('first-person 3D validation error: missing real scene geometry added to the world');
+    }
+    if (!hasWorldBuilder) {
+        throw new Error('first-person 3D validation error: missing world-construction logic');
+    }
+    if (!hasLight) {
+        throw new Error('first-person 3D validation error: missing scene lighting');
+    }
+    if (!hasMovementState) {
+        throw new Error('first-person 3D validation error: missing playable movement/camera state');
+    }
 }
 
 function validateControlRigContract(specSheet, html) {
@@ -967,8 +990,11 @@ function validateFirstFrameContract(specSheet, html) {
     if (runtimeLane === 'first_person_threejs') {
         const hasForegroundOrHud = /dashboard|cockpit|crosshair|speedometer|hud|weapon/i.test(source);
         const hasImmediateWorldRead = /floor|road|runway|wall|corridor|skyline|lane line|landmark|pickup|enemy/i.test(source);
-        if (!hasForegroundOrHud || !hasImmediateWorldRead) {
-            throw new Error('first-frame validation error: first-person lane is missing immediate foreground/HUD or world-read cues');
+        const hasWorldMeshes =
+            /scene\.add\s*\([^)]*(floor|ground|wall|corridor|room|crate|barrel|enemy|pickup)/i.test(source) ||
+            /new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry)/i.test(source);
+        if (!hasForegroundOrHud || !hasImmediateWorldRead || !hasWorldMeshes) {
+            throw new Error('first-frame validation error: first-person lane is missing immediate foreground/HUD, world-read cues, or real world meshes');
         }
         return;
     }
@@ -2096,6 +2122,14 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
         console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
         const requested3DLane = wantsFirstPerson3D(prompt, {});
         const inferredLane = requested3DLane ? 'first_person_threejs' : inferRuntimeLaneFromPrompt(prompt);
+        const labsSpecSheet = normalizeDreamSpec(
+            {
+                title: prompt,
+                summary: prompt,
+                runtimeLane: inferredLane,
+            },
+            prompt
+        );
         const assetBundle = buildDreamAssetBundle({ runtimeLane: inferredLane, summary: prompt, title: prompt }, prompt);
         if (assetBundle) {
             const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
@@ -2120,8 +2154,10 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
             let sandboxRes;
             try {
                 validateGeneratedBuild('', rawEngineHtml, rawEngineHtml);
-                validateRuntimeLaneContract(requested3DLane ? 'first_person_threejs' : null, rawEngineHtml);
-                sandboxRes = await verifyGame(finalHtml, { runtimeLane: requested3DLane ? 'first_person_threejs' : inferredLane });
+                validateRuntimeLaneContract(labsSpecSheet.runtimeLane, rawEngineHtml);
+                validateControlRigContract(labsSpecSheet, rawEngineHtml);
+                validateFirstFrameContract(labsSpecSheet, rawEngineHtml);
+                sandboxRes = await verifyGame(finalHtml, { runtimeLane: labsSpecSheet.runtimeLane });
             } catch (validationError) {
                 sandboxRes = {
                     success: false,
@@ -2146,7 +2182,9 @@ FATAL ERROR: ${sandboxRes.crashes[0]}
 
 You must rewrite the FULL HTML document so it boots and remains playable.
 Keep the same game fantasy, but prioritize a working game over ambition.
-${requested3DLane ? 'This request MUST remain a true first-person 3D Three.js game with a PerspectiveCamera. Do not convert it into a top-down maze or flat 2D view.\n' : ''}
+${labsSpecSheet.runtimeLane === 'first_person_threejs' ? 'This request MUST remain a true first-person 3D Three.js game with a PerspectiveCamera. Do not convert it into a top-down maze or flat 2D view. The opening frame must already show a real 3D world with floor, walls, lighting, and at least one visible landmark, enemy, or pickup.\n' : ''}
+${buildControlRigRepairInstruction(labsSpecSheet.controlRig)}
+${buildFirstFrameRepairInstruction(labsSpecSheet)}
 
 BROKEN HTML:
 \`\`\`html
