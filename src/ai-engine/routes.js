@@ -135,10 +135,10 @@ const router = express.Router();
 
 const DREAM_MODELS = {
     spec: "meta/llama-3.3-70b-instruct",
-    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "deepseek-ai/deepseek-v4-pro",
+    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "z-ai/glm-5.1",
     artist: "qwen/qwen3.5-397b-a17b",
     engineer: "qwen/qwen3-coder-480b-a35b-instruct",
-    labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || "deepseek-ai/deepseek-v4-pro",
+    labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || "z-ai/glm-5.1",
     narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
 
@@ -154,6 +154,7 @@ const JOB_TITLES = {
 const nvidiaClient = new OpenAI({
     baseURL: 'https://integrate.api.nvidia.com/v1',
     apiKey: process.env.NVIDIA_API_KEY,
+    timeout: Number(process.env.NVIDIA_API_TIMEOUT_MS || 900000),
 });
 
 const claudeClient = new Anthropic({
