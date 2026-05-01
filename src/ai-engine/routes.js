@@ -135,13 +135,13 @@ const router = express.Router();
 
 const DREAM_MODELS = {
     spec: "meta/llama-3.3-70b-instruct",
-    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "moonshotai/kimi-k2.5",
+    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "deepseek-ai/deepseek-v4-pro",
     artist: "qwen/qwen3.5-397b-a17b",
     engineer: "qwen/qwen3-coder-480b-a35b-instruct",
-    labsBuilder: "moonshotai/kimi-k2.5",
+    labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || "deepseek-ai/deepseek-v4-pro",
 };
 
-const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 32000);
+const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 16000);
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 
 const JOB_TITLES = {
@@ -672,6 +672,32 @@ function isAnthropicModel(model) {
     return typeof model === 'string' && model.startsWith('claude-');
 }
 
+function isDeepSeekV4Model(model) {
+    return typeof model === 'string' && model.startsWith('deepseek-ai/deepseek-v4');
+}
+
+function getMaxTokensForModel(model, requestedMaxTokens) {
+    if (isDeepSeekV4Model(model)) {
+        return Math.min(Number(requestedMaxTokens || 8192), 16384);
+    }
+    return requestedMaxTokens;
+}
+
+function getNvidiaChatOptions(model, requestedMaxTokens) {
+    const options = {
+        model,
+        max_tokens: getMaxTokensForModel(model, requestedMaxTokens),
+        temperature: 0.25,
+        stream: true,
+    };
+
+    if (isDeepSeekV4Model(model)) {
+        options.reasoning_effort = process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high';
+    }
+
+    return options;
+}
+
 function hasClosedHtmlDocument(html) {
     return html.toLowerCase().includes('</html>');
 }
@@ -723,11 +749,8 @@ async function requestBuilderMessage(userPrompt, { label }) {
     let finishReason = null;
     const text = await withNvidiaRetries(async () => {
         const stream = await nvidiaClient.chat.completions.create({
-            model: DREAM_MODELS.premiumBuilder,
+            ...getNvidiaChatOptions(DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
             messages: [{ role: 'user', content: userPrompt }],
-            max_tokens: BUILDER_MAX_TOKENS,
-            temperature: 0.25,
-            stream: true,
         });
 
         let output = "";
@@ -1166,14 +1189,12 @@ async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }
 async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature, retryLabel }) {
     return withNvidiaRetries(async () => {
         const stream = await nvidiaClient.chat.completions.create({
-            model,
+            ...getNvidiaChatOptions(model, maxTokens),
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
             ],
-            max_tokens: maxTokens,
             temperature,
-            stream: true
         });
 
         let output = "";
