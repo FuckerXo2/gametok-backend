@@ -139,6 +139,7 @@ const DREAM_MODELS = {
     artist: "qwen/qwen3.5-397b-a17b",
     engineer: "qwen/qwen3-coder-480b-a35b-instruct",
     labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || "deepseek-ai/deepseek-v4-pro",
+    narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
 
 const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 16000);
@@ -678,6 +679,10 @@ function extractAnthropicText(response) {
 
 function isAnthropicModel(model) {
     return typeof model === 'string' && model.startsWith('claude-');
+}
+
+function extractText(response) {
+    return response?.choices?.[0]?.message?.content?.trim() || '';
 }
 
 function isDeepSeekV4Model(model) {
@@ -1781,6 +1786,72 @@ router.post('/generate-asset', async (req, res) => {
     } catch(e) {
         console.error("Asset Gen Error:", e);
         res.status(500).json({ error: "System Error" });
+    }
+});
+
+router.post('/narrative/chat', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        await getUserIdFromToken(token, 'Expired session');
+
+        const messages = Array.isArray(req.body?.messages)
+            ? req.body.messages
+                .filter((message) => ['ai', 'user'].includes(message?.role) && typeof message?.text === 'string')
+                .slice(-14)
+                .map((message) => ({
+                    role: message.role === 'ai' ? 'assistant' : 'user',
+                    content: message.text.slice(0, 1200),
+                }))
+            : [];
+
+        if (messages.length === 0) {
+            return res.status(400).json({ error: 'Messages are required' });
+        }
+
+        const systemPrompt = [
+            'You are Dream Forge AI inside GameTok.',
+            'You are not a generic chatbot. Your job is to help the user shape a playable narrative game by chatting naturally.',
+            'Respond like a sharp creative director: warm, concise, specific, and useful.',
+            'If the user is confused, acknowledge it and ask one better question. Do not continue a rigid questionnaire.',
+            'When enough detail exists, summarize what you can build and invite them to forge it.',
+            'Always output JSON only with this shape:',
+            '{"reply":"short chat response","brief":"complete game brief for the builder","ready":false}',
+            'The brief should be a builder-ready prompt for an interactive narrative game with setting, player role, mechanics, choices, tone, and ending direction.',
+        ].join('\n');
+
+        const response = await withNvidiaRetries(() => nvidiaClient.chat.completions.create({
+            model: DREAM_MODELS.narrativeChat,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                ...messages,
+            ],
+            max_tokens: 900,
+            temperature: 0.55,
+        }), { label: 'Narrative Chat', maxAttempts: 2, baseDelayMs: 1000 });
+
+        const raw = extractText(response);
+        let parsed;
+        try {
+            parsed = JSON.parse(extractJson(raw));
+        } catch (error) {
+            parsed = {
+                reply: raw || 'I’m with you. Tell me the world you want, the player role, and what should make it playable.',
+                brief: '',
+                ready: false,
+            };
+        }
+
+        res.json({
+            success: true,
+            reply: String(parsed.reply || '').slice(0, 1200),
+            brief: String(parsed.brief || '').slice(0, 5000),
+            ready: Boolean(parsed.ready),
+            model: DREAM_MODELS.narrativeChat,
+        });
+    } catch (error) {
+        console.error('[NARRATIVE CHAT] Error:', error);
+        res.status(error.statusCode || error.status || 500).json({ error: error.message || 'Narrative chat failed' });
     }
 });
 
