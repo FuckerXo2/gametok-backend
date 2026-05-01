@@ -11,8 +11,8 @@ import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, bu
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle } from './asset-dictionary.js';
-import { capturePreviewVideo } from './preview-video.js';
 import { notifyGameReady } from '../notifications.js';
+import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,8 +50,8 @@ function listSekaiTemplates() {
                 const card = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
                 return {
                     id: toSekaiTemplateId(gameId),
-                    title: card.title || `Sekai Template ${gameId.slice(0, 8)}`,
-                    prompt: `Imported Sekai template by ${card.creator_name || 'Unknown creator'}`,
+                    title: card.title || `Template ${gameId.slice(0, 8)}`,
+                    prompt: card.creator_name ? `Template by ${card.creator_name}` : 'Template',
                     thumbnail: card.cover || null,
                     created_at: null,
                     source: 'sekai',
@@ -76,7 +76,7 @@ function getSekaiTemplateById(templateId) {
 function buildSekaiTemplateHtml(req, template) {
     const origin = getRequestOrigin(req);
     const iframeSrc = `${origin}/sekai-templates/${template.sekaiDirName}/assets/game.html`;
-    const escapedTitle = String(template.title || 'Sekai Template')
+    const escapedTitle = String(template.title || 'Template')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -152,7 +152,7 @@ const JOB_TITLES = {
 
 const nvidiaClient = new OpenAI({
     baseURL: 'https://integrate.api.nvidia.com/v1',
-    apiKey: process.env.NVIDIA_API_KEY || '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',
+    apiKey: process.env.NVIDIA_API_KEY,
 });
 
 const claudeClient = new Anthropic({
@@ -591,9 +591,17 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
             userId,
             `/api/ai/play/${draftId}`,
             draft.thumbnail,
-            draft.preview_video_url,
+            null,
         ]
     );
+
+    enqueueCoverGeneration(pool, {
+        draftId,
+        gameId: globalId,
+        title: draft.title,
+        prompt: draft.prompt,
+        classification,
+    });
 
     return { globalId, classification };
 }
@@ -1513,7 +1521,6 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         // ── SAVE TO DB ──
         const finalTitle = extractHtmlTitle(rawGameHtml) || specSheet.title || 'DreamStream Game';
-        const previewVideoUrl = await capturePreviewVideo(finalHtml, jobId);
         const classification = await classifyPublishedGame({
             title: finalTitle,
             prompt,
@@ -1542,7 +1549,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 rawGameHtml,
                 null,
                 finalScreenshot,
-                previewVideoUrl,
+                null,
                 classification.category,
                 classification.subcategory,
                 classification.primaryTab,
@@ -1676,7 +1683,6 @@ Output ONLY the complete fixed HTML document.`;
 
         // 5. Save with updated edit history (memory for next edit)
         const newHistory = [...editHistory, instructions];
-        const previewVideoUrl = await capturePreviewVideo(finalHtml, parentDraftId);
         const classification = await classifyPublishedGame({
             title: finalTitle,
             prompt: parentDraft.prompt || '',
@@ -1707,7 +1713,7 @@ Output ONLY the complete fixed HTML document.`;
                 editedHtml,
                 null,
                 finalScreenshot,
-                previewVideoUrl,
+                null,
                 JSON.stringify(newHistory),
                 classification.category,
                 classification.subcategory,
@@ -1925,6 +1931,21 @@ router.get('/drafts/:id', async (req, res) => {
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
+router.delete('/drafts/:id', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Auth failed' });
+        const userId = await getUserIdFromToken(token, 'Invalid token');
+        const deleted = await pool.query(
+            "DELETE FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true RETURNING id, thumbnail",
+            [req.params.id, userId]
+        );
+        if (deleted.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
+        await deleteCoverAsset(deleted.rows[0].thumbnail);
+        res.json({ success: true, deletedId: deleted.rows[0].id });
+    } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
+});
+
 router.post('/publish/:draftId', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
@@ -2072,18 +2093,7 @@ router.get('/admin/backfill-thumbnails', async (req, res) => {
 });
 
 router.get('/admin/backfill-preview-videos', async (req, res) => {
-    try {
-        res.json({ status: "bg-process-started", msg: "Capturing short preview videos for AI games in the background. Check your Railway logs for progress." });
-
-        const { exec } = await import('child_process');
-        exec('node scripts/backfill-preview-videos.js', (err, stdout, stderr) => {
-            if (err) console.error("Preview video backfill failed:", err);
-            if (stdout) console.log("Preview video backfill log:", stdout);
-            if (stderr) console.error("Preview video backfill stderr:", stderr);
-        });
-    } catch(e) {
-        console.error("Preview Video Backfill Trigger Error:", e);
-    }
+    res.status(410).json({ error: 'Preview video backfill is disabled.' });
 });
 
 router.get('/admin/backfill-classifications', async (req, res) => {
@@ -2272,5 +2282,14 @@ router.post('/dream-labs', async (req, res) => {
         res.status(outerError.statusCode || 500).json({ error: outerError.message || "Labs System Error" });
     }
 });
+
+// Internal exports for in-process callers (e.g., the bot engine running
+// the same Dream pipeline real users go through). Keep these as the only
+// non-default exports so the public surface stays intentional.
+export {
+    executeDreamJob,
+    upsertPublishedAIGame,
+    createPendingJob,
+};
 
 export default router;

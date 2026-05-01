@@ -127,9 +127,12 @@ export const initDB = async () => {
         game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
+        gif_url TEXT,
         likes INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW()
       );
+
+      ALTER TABLE comments ADD COLUMN IF NOT EXISTS gif_url TEXT;
 
       CREATE TABLE IF NOT EXISTS comment_likes (
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -264,6 +267,10 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'email_verified') THEN
           ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'verified') THEN
+          ALTER TABLE users ADD COLUMN verified BOOLEAN DEFAULT FALSE;
+        END IF;
+        UPDATE users SET verified = TRUE WHERE LOWER(username) = 'gametok' AND verified IS DISTINCT FROM TRUE;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'embed_url') THEN
           ALTER TABLE games ADD COLUMN embed_url TEXT;
         END IF;

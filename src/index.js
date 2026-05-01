@@ -11,8 +11,13 @@ import { runMultiplayerMigration } from './migrations/multiplayer-tables.js';
 import { initializePkSocket } from './pk-socket.js';
 import { initializeLobbySocket } from './lobby-socket.js';
 import { initializeChatSocket } from './chat-socket.js';
+import { initializePresenceSocket, presenceRouter } from './presence-socket.js';
+import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } from './score-lobby-socket.js';
 import aiRouter from './ai.js';
 import assetsRouter from './assets-router.js';
+import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
+import coverArtRouter from './cover-art-router.js';
+import { deleteCoverAsset } from './cover-art.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,6 +50,10 @@ app.use('/api/ai', aiRouter);
 
 // Global Media & Assets Pool
 app.use('/api/assets', assetsRouter);
+app.use('/api/admin/bots', botRouter);
+app.use('/api/admin/covers', coverArtRouter);
+app.use('/api/presence', presenceRouter);
+app.use('/api/score-lobbies', scoreLobbyRouter);
 for (const uploadRoot of STATIC_UPLOAD_ROOTS) {
   app.use('/uploads', express.static(uploadRoot));
 }
@@ -347,6 +356,7 @@ function formatUser(row) {
     bio: row.bio,
     totalScore: row.total_score,
     gamesPlayed: row.games_played,
+    verified: Boolean(row.verified),
     followers: [],
     following: [],
     createdAt: row.created_at
@@ -1198,10 +1208,11 @@ app.post('/api/admin/delete-landscape-games', async (req, res) => {
 // Delete a game from database
 app.delete('/api/admin/games/:id', async (req, res) => {
   try {
-    const result = await pool.query('DELETE FROM games WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await pool.query('DELETE FROM games WHERE id = $1 RETURNING id, thumbnail', [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Game not found' });
     }
+    await deleteCoverAsset(result.rows[0].thumbnail);
     res.json({ success: true, deleted: req.params.id });
   } catch (e) {
     console.error(e);
@@ -1336,6 +1347,8 @@ app.get('/api/games', async (req, res) => {
          SELECT
            g.*,
            u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
            u.username AS creator_username,
            COALESCE(sa.recent_score_events, 0) AS recent_score_events,
            COALESCE(sa.recent_unique_scorers, 0) AS recent_unique_scorers,
@@ -1394,6 +1407,8 @@ app.get('/api/games/discover-lanes', async (req, res) => {
          SELECT
            g.*,
            u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
            u.username AS creator_username,
            COALESCE(sa.recent_score_events, 0) AS recent_score_events,
            COALESCE(sa.recent_unique_scorers, 0) AS recent_unique_scorers,
@@ -1591,6 +1606,8 @@ app.get('/api/games/discover-debug', async (req, res) => {
          SELECT
            g.*,
            u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
            u.username AS creator_username,
            COALESCE(sa.recent_score_events, 0) AS recent_score_events,
            COALESCE(sa.recent_unique_scorers, 0) AS recent_unique_scorers,
@@ -1835,6 +1852,8 @@ app.get('/api/games/top', async (req, res) => {
       `SELECT
          g.*,
          u.display_name AS creator_display_name,
+         u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
          u.username AS creator_username,
          (
            COALESCE(g.plays, 0) * 3 +
@@ -1987,6 +2006,8 @@ app.get('/api/games/trending-summary', async (req, res) => {
            SELECT
              g.*,
              u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
              u.username AS creator_username,
              COALESCE(sa.recent_activity_score, 0) AS recent_activity_score,
              (
@@ -2073,6 +2094,8 @@ app.get('/api/games/search', async (req, res) => {
       `SELECT
          g.*,
          u.display_name AS creator_display_name,
+         u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
          u.username AS creator_username
        FROM games g
        LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
@@ -2131,6 +2154,8 @@ app.get('/api/games/:id', async (req, res) => {
       `SELECT
          g.*,
          u.display_name AS creator_display_name,
+         u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
          u.username AS creator_username
        FROM games g
        LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
@@ -2408,6 +2433,8 @@ function formatGame(row) {
     discoveryChips: Array.isArray(row.discovery_chips) ? row.discovery_chips : (row.discoveryChips || []),
     embedUrl: row.embed_url,
     creatorDisplayName: row.creator_display_name || row.creatorDisplayName || null,
+    creatorVerified: Boolean(row.creator_verified),
+    creatorAvatar: row.creator_avatar || row.creatorAvatar || null,
     creatorUsername: row.creator_username || row.creatorUsername || null,
     plays: row.plays,
     likes: row.like_count,
@@ -2470,7 +2497,7 @@ app.get('/api/users/recommended', async (req, res) => {
     }
 
     let query = `
-      SELECT id, username, display_name, avatar 
+      SELECT id, username, display_name, avatar, verified
       FROM users 
       WHERE username IS NOT NULL
     `;
@@ -2485,7 +2512,7 @@ app.get('/api/users/recommended', async (req, res) => {
 
     const result = await pool.query(query, params);
 
-    res.json({ users: result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })) });
+    res.json({ users: result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar, verified: Boolean(r.verified) })) });
   } catch (e) {
     console.error('Recommended users error:', e);
     res.status(500).json({ error: 'Server error' });
@@ -2495,11 +2522,11 @@ app.get('/api/users/recommended', async (req, res) => {
 app.get('/api/users/search/:query', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, display_name, avatar FROM users 
+      `SELECT id, username, display_name, avatar, verified FROM users 
        WHERE username ILIKE $1 OR display_name ILIKE $1 LIMIT 20`,
       [`%${req.params.query}%`]
     );
-    res.json({ users: result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar })) });
+    res.json({ users: result.rows.map(r => ({ id: r.id, username: r.username, displayName: r.display_name, avatar: r.avatar, verified: Boolean(r.verified) })) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -2606,10 +2633,13 @@ app.get('/api/users/:id/played', async (req, res) => {
               gp.play_count,
               gp.last_played_at,
               u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
               u.username AS creator_username
          FROM game_plays gp
          JOIN games g ON g.id = gp.game_id
-         LEFT JOIN users u ON u.id = g.user_id
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
         WHERE gp.user_id = $1
         ORDER BY gp.last_played_at DESC
         LIMIT $2`,
@@ -2656,6 +2686,8 @@ app.get('/api/users/:id/created', async (req, res) => {
     const result = await pool.query(
       `SELECT g.*,
               u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
               u.username AS creator_username
          FROM games g
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
@@ -2772,7 +2804,7 @@ app.get('/api/users/:id/followers', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT u.id, u.username, u.display_name, u.avatar,
+      `SELECT u.id, u.username, u.display_name, u.avatar, u.verified,
        CASE WHEN EXISTS (
          SELECT 1 FROM followers f2 
          WHERE f2.follower_id = $2 AND f2.following_id = u.id
@@ -2787,6 +2819,7 @@ app.get('/api/users/:id/followers', async (req, res) => {
       username: r.username, 
       displayName: r.display_name, 
       avatar: r.avatar,
+      verified: Boolean(r.verified),
       isFollowing: r.is_following
     })));
   } catch (e) {
@@ -2798,7 +2831,7 @@ app.get('/api/users/:id/followers', async (req, res) => {
 app.get('/api/users/:id/pending-requests', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.username, u.display_name, u.avatar, f.created_at,
+      `SELECT u.id, u.username, u.display_name, u.avatar, u.verified, f.created_at,
        CASE WHEN EXISTS (
          SELECT 1 FROM followers f2 
          WHERE f2.follower_id = $1 AND f2.following_id = u.id
@@ -2815,6 +2848,7 @@ app.get('/api/users/:id/pending-requests', async (req, res) => {
       username: r.username,
       displayName: r.display_name,
       avatar: r.avatar,
+      verified: Boolean(r.verified),
       isMutual: r.is_mutual,
       createdAt: r.created_at
     })));
@@ -2854,7 +2888,7 @@ app.get('/api/users/:id/following', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT u.id, u.username, u.display_name, u.avatar,
+      `SELECT u.id, u.username, u.display_name, u.avatar, u.verified,
        CASE WHEN EXISTS (
          SELECT 1 FROM followers f2 
          WHERE f2.follower_id = $2 AND f2.following_id = u.id
@@ -2869,6 +2903,7 @@ app.get('/api/users/:id/following', async (req, res) => {
       username: r.username, 
       displayName: r.display_name, 
       avatar: r.avatar,
+      verified: Boolean(r.verified),
       isFollowing: r.is_following
     })));
   } catch (e) {
@@ -3022,6 +3057,8 @@ app.get('/api/likes/user/:userId', async (req, res) => {
     const result = await pool.query(
       `SELECT g.*,
               u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
               u.username AS creator_username
          FROM games g
          JOIN likes l ON g.id = l.game_id
@@ -3442,9 +3479,16 @@ app.get('/api/comments/:gameId', async (req, res) => {
 
     res.json({
       comments: result.rows.map(r => ({
-        id: r.id, text: r.text, userId: r.user_id, username: r.username,
-        displayName: r.display_name, avatarUrl: r.avatar, likes: r.likes,
-        liked: r.liked, createdAt: r.created_at
+        id: r.id,
+        text: r.text,
+        gifUrl: r.gif_url,
+        userId: r.user_id,
+        username: r.username,
+        displayName: r.display_name,
+        avatar: r.avatar,
+        likes: r.likes,
+        liked: r.liked,
+        createdAt: r.created_at
       })),
       total: result.rows.length
     });
@@ -3456,9 +3500,13 @@ app.get('/api/comments/:gameId', async (req, res) => {
 
 app.post('/api/comments', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  const { gameId, text } = req.body;
+  const { gameId, text, gifUrl } = req.body;
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
-  if (!gameId || !text) return res.status(400).json({ error: 'gameId and text required' });
+  const cleanText = typeof text === 'string' ? text.trim() : '';
+  const cleanGifUrl = typeof gifUrl === 'string' ? gifUrl.trim() : '';
+  if (!gameId || (!cleanText && !cleanGifUrl)) {
+    return res.status(400).json({ error: 'gameId and either text or gifUrl required' });
+  }
 
   try {
     const userResult = await pool.query('SELECT * FROM users WHERE token = $1', [token]);
@@ -3466,8 +3514,8 @@ app.post('/api/comments', async (req, res) => {
     const user = userResult.rows[0];
 
     const result = await pool.query(
-      'INSERT INTO comments (game_id, user_id, text) VALUES ($1, $2, $3) RETURNING *',
-      [gameId, user.id, text.trim()]
+      'INSERT INTO comments (game_id, user_id, text, gif_url) VALUES ($1, $2, $3, $4) RETURNING *',
+      [gameId, user.id, cleanText || '', cleanGifUrl || null]
     );
 
     // Update challenge progress for post_comments
@@ -3482,9 +3530,15 @@ app.post('/api/comments', async (req, res) => {
 
     res.json({
       comment: {
-        id: result.rows[0].id, text: result.rows[0].text, userId: user.id,
-        username: user.username, displayName: user.display_name, avatar: user.avatar,
-        likes: 0, createdAt: result.rows[0].created_at
+        id: result.rows[0].id,
+        text: result.rows[0].text,
+        gifUrl: result.rows[0].gif_url,
+        userId: user.id,
+        username: user.username,
+        displayName: user.display_name,
+        avatar: user.avatar,
+        likes: 0,
+        createdAt: result.rows[0].created_at
       }
     });
 
@@ -4614,6 +4668,7 @@ const start = async () => {
   await runStoriesMigration();
   await runMultiplayerMigration();
   await runAnonymousTokensMigration();
+  await ensureBotTables();
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
@@ -4630,6 +4685,17 @@ const start = async () => {
   // Initialize Chat Socket for real-time messaging
   initializeChatSocket(server);
   console.log('💬 Chat Socket initialized for messaging');
+
+  // Initialize Presence Socket for online/in-game/idle status
+  initializePresenceSocket(server);
+  console.log('🟢 Presence Socket initialized');
+
+  // Initialize Score Lobby Socket for shared live leaderboards
+  await ensureScoreLobbyColumn();
+  initializeScoreLobbySocket(server);
+  console.log('🏆 Score Lobby Socket initialized');
+
+  startBotEngineScheduler();
 
   // ============================================
   // SCHEDULED NOTIFICATIONS (daily, with per-user throttles inside notifications.js)

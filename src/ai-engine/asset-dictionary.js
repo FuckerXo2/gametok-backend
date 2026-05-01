@@ -232,7 +232,9 @@ const ASSET_LIBRARY = [
 let assetEmbeddingsCache = null;
 
 async function getEmbedding(text) {
-  const napiKey = process.env.NVIDIA_API_KEY || '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';
+  const napiKey = process.env.NVIDIA_API_KEY;
+  if (!napiKey) return null;
+
   try {
     const res = await fetch('https://integrate.api.nvidia.com/v1/embeddings', {
       method: 'POST',
