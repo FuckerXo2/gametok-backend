@@ -44,24 +44,91 @@ const NVIDIA_KEY = process.env.NVIDIA_API_KEY;
 // --- Prompt engineering -----------------------------------------------------
 
 const STYLE_BY_CATEGORY = {
-    Action: 'dynamic action poster, cinematic lighting, motion blur, high contrast, neon highlights',
-    Adventure: 'epic fantasy book cover illustration, lush environment, atmospheric lighting',
-    Puzzle: 'minimalist isometric illustration, soft pastel palette, clean geometric composition',
-    Arcade: 'retro arcade flyer art, bold pixel-inspired shapes, vibrant CMYK palette, halftone texture',
-    Strategy: 'tabletop board-game cover art, top-down composition, painted textures, rich detail',
-    Sports: 'energetic sports promo art, dramatic perspective, kinetic motion lines, vibrant colors',
-    Casual: 'friendly chibi-style illustration, rounded shapes, cheerful palette, soft shadows',
-    Story: 'graphic novel splash page, dramatic character pose, painterly lighting, cinematic mood',
-    Music: 'concert poster art, neon glow, equalizer waveforms, flowing rhythmic shapes',
-    Horror: 'dark moody illustration, gothic palette, eerie fog, candlelight, painterly texture',
-    Racing: 'motion-blurred racing cover art, low-angle shot, neon trails, cinematic speed',
-    Simulation: 'detailed isometric scene, cozy warm lighting, painterly miniature look',
-    default: 'vibrant illustrated mobile game cover art, dynamic composition, painterly detail, bold contrasting palette',
+    Action: [
+        'cinematic action-game screenshot, dramatic pose, debris, rim lighting, sharp composition',
+        'comic-book combat panel, bold inked shapes, explosive timing, saturated accents',
+        'third-person adventure key frame, readable hero silhouette, layered environment depth',
+    ],
+    Adventure: [
+        'hand-painted storybook world, lush environment, atmospheric lighting',
+        'wide fantasy travel poster, tiny explorer, sweeping landscape scale',
+        'bright 3D adventure key art, playful proportions, clear path into the world',
+    ],
+    Puzzle: [
+        'minimalist isometric puzzle diorama, soft pastel palette, clean geometric composition',
+        'tactile tabletop puzzle scene, cards and tokens, warm desk lamp, shallow depth of field',
+        'graphic brain-teaser art, crisp symbols, matte colors, elegant negative space',
+    ],
+    Arcade: [
+        'retro arcade flyer art, bold pixel-inspired shapes, vibrant CMYK palette, halftone texture',
+        'toy-like mobile arcade scene, floating collectibles, clean clay render, cheerful lighting',
+        'pixel-art inspired gameplay scene, chunky silhouettes, limited palette, old-school energy',
+    ],
+    Strategy: [
+        'tabletop board-game cover art, top-down composition, painted textures, rich detail',
+        'miniature battlefield diorama, strategic pieces, soft overhead light',
+        'clean tactical map illustration, icons as physical tokens, readable lanes',
+    ],
+    Sports: [
+        'energetic sports promo art, dramatic perspective, kinetic motion lines, vibrant colors',
+        'stadium action still, shallow depth of field, sweat and speed',
+        'graphic sports-card illustration, bold shapes, clean team-color palette',
+    ],
+    Casual: [
+        'friendly chibi-style illustration, rounded shapes, cheerful palette, soft shadows',
+        'cozy casual-game diorama, warm sunlight, charming tiny details',
+        'flat playful app-store art, simple forms, candy colors, strong focal object',
+    ],
+    Story: [
+        'graphic novel splash page, dramatic character pose, painterly lighting, cinematic mood',
+        'visual novel key scene, expressive character close-up, soft background depth',
+        'moody interactive-fiction cover, symbolic object foreground, atmospheric setting',
+    ],
+    Music: [
+        'concert poster art, neon glow, equalizer waveforms, flowing rhythmic shapes',
+        'rhythm-game stage scene, spotlights, speakers, musical objects in motion',
+        'bold abstract sound visualizer art, pulsing shapes, crisp contrast',
+    ],
+    Horror: [
+        'grainy psychological horror still, desaturated blue black palette, lonely hallway, uneasy negative space',
+        'found-footage horror frame, dim flashlight beam, VHS noise, realistic shadows',
+        'gothic survival-horror illustration, fog, candlelight, restrained crimson accents',
+    ],
+    Racing: [
+        'low-angle racing photo-illustration, wet asphalt, motion blur, chrome reflections',
+        'arcade racing splash screen, dynamic car chase, sunset road, exaggerated perspective',
+        'futuristic cockpit racing scene, glowing dashboard, tunnel lights, long exposure streaks',
+    ],
+    Simulation: [
+        'detailed isometric scene, cozy warm lighting, painterly miniature look',
+        'management-game diorama, clean interface-free scene, delightful objects',
+        'life-sim illustration, friendly town corner, natural light, relaxed inviting mood',
+    ],
+    default: [
+        'distinctive mobile-game scene, clear focal subject, polished composition',
+        'stylized game world snapshot, unique subject matter, readable action',
+        'premium illustrated gameplay moment, bold silhouette, balanced colors',
+    ],
 };
 
-function styleForClassification(classification = {}) {
+function hashSeed(value) {
+    let hash = 2166136261;
+    const text = String(value || 'gametok-cover');
+    for (let i = 0; i < text.length; i += 1) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return Math.abs(hash >>> 0);
+}
+
+function pick(items, seed) {
+    return items[Math.abs(seed) % items.length];
+}
+
+function styleForClassification(classification = {}, seed = 0) {
     const category = classification.category || 'default';
-    return STYLE_BY_CATEGORY[category] || STYLE_BY_CATEGORY.default;
+    const styles = STYLE_BY_CATEGORY[category] || STYLE_BY_CATEGORY.default;
+    return pick(styles, seed);
 }
 
 /**
@@ -70,13 +137,31 @@ function styleForClassification(classification = {}) {
  * the model can't visualize and inject style cues based on classification.
  */
 export function buildCoverPrompt({ title, prompt, classification }) {
+    const seed = hashSeed(`${title || ''} ${prompt || ''} ${classification?.category || ''} ${classification?.subcategory || ''}`);
     const cleanedPrompt = String(prompt || '')
         .replace(/\bhtml\b|\bcanvas\b|\bjavascript\b|\bjs\b|\bcss\b|\bgame mechanic[s]?\b|\bscoring\b|\btap to\b|\bswipe\b|\bdrag\b|\bbuttons?\b/gi, '')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 380);
 
-    const styleHint = styleForClassification(classification);
+    const styleHint = styleForClassification(classification, seed);
+    const mediumHint = pick([
+        'cinematic 3D key art',
+        'flat graphic poster illustration',
+        'pixel-art inspired scene',
+        'clay-render mobile-game diorama',
+        'hand-painted storybook illustration',
+        'anime key visual',
+        'realistic atmospheric still',
+        'clean isometric game-board art',
+    ], Math.floor(seed / 3));
+    const cameraHint = pick([
+        'close-up composition',
+        'wide establishing composition',
+        'top-down readable composition',
+        'low-angle dramatic composition',
+        'centered character-and-environment composition',
+    ], Math.floor(seed / 7));
     const tagHint = Array.isArray(classification?.tags) && classification.tags.length
         ? classification.tags.slice(0, 4).join(', ')
         : '';
@@ -88,13 +173,15 @@ export function buildCoverPrompt({ title, prompt, classification }) {
 
     return [
         `Mobile game key art for: ${subjectLine}.`,
+        mediumHint + '.',
         styleHint + '.',
+        cameraHint + '.',
         tagHint ? `Visual themes: ${tagHint}.` : '',
         moodHint,
         'Pure illustration. Vertical poster composition. Strong focal subject, dramatic depth, leave breathing room at the top.',
         'Absolutely NO text, NO letters, NO words, NO signage, NO captions, NO logo, NO watermark, NO UI, NO buttons, NO HUD.',
         'Environmental and character art only — like a movie poster background, no titling.',
-        'Colorful, glossy, premium illustration suitable for a TikTok-style portrait game card.',
+        'Each cover must feel visually distinct from other games; avoid default neon fantasy poster sameness.',
     ]
         .filter(Boolean)
         .join(' ');
