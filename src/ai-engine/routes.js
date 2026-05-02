@@ -613,12 +613,23 @@ function sleep(ms) {
 }
 
 function isRetryableProviderError(error) {
-    const message = String(error?.message || error || '').toLowerCase();
+    const message = [
+        error?.message,
+        error?.code,
+        error?.cause?.message,
+        error?.cause?.code,
+        String(error || ''),
+    ].filter(Boolean).join(' ').toLowerCase();
     return Boolean(
         error?.status >= 500 ||
         message.includes('timed out') ||
         message.includes('timeout') ||
         message.includes('econnreset') ||
+        message.includes('terminated') ||
+        message.includes('und_err_socket') ||
+        message.includes('socket') ||
+        message.includes('other side closed') ||
+        message.includes('fetch failed') ||
         message.includes('connection error') ||
         message.includes('overloaded') ||
         message.includes('rate limit')
@@ -873,10 +884,14 @@ function validateRuntimeLaneContract(runtimeLane, html) {
         throw new Error('first-person 3D validation error: relies on click without pointerdown fallback');
     }
     const hasRenderLoop = /requestAnimationFrame|renderer\.render\s*\(|function\s+animate\s*\(|const\s+animate\s*=\s*\(/i.test(source);
+    const geometryCount = (source.match(/new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry|SphereGeometry|CapsuleGeometry|BufferGeometry|RingGeometry|TorusGeometry|ConeGeometry)/gi) || []).length;
+    const sceneAddCount = (source.match(/scene\.add\s*\(/gi) || []).length;
     const hasSceneGeometry =
         /new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry|SphereGeometry|CapsuleGeometry|BufferGeometry)/i.test(source) &&
         /scene\.add\s*\(/i.test(source);
-    const hasWorldBuilder = /buildWorld|spawnEnemies|spawnEnemy|createRoom|createCorridor|createArena|createLevel|world\s*=\s*\{[^}]*walls/i.test(source);
+    const hasWorldBuilder =
+        /buildWorld|buildTrack|createTrack|spawnTrack|spawnRoad|createRoad|spawnRoadSegment|createRoadSegment|spawnObstacles|spawnEnemies|spawnEnemy|createRoom|createCorridor|createArena|createLevel|world\s*=\s*\{[^}]*walls/i.test(source) ||
+        (geometryCount >= 3 && sceneAddCount >= 5 && /road|track|lane|barrier|wall|floor|ground|checkpoint|obstacle/i.test(source));
     const hasLight = /AmbientLight|DirectionalLight|PointLight|HemisphereLight|SpotLight/i.test(source);
     const hasMovementState = /moveX|moveY|velocity|player\.position|camera\.position|yaw|pitch/i.test(source);
 
