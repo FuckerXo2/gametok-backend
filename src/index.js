@@ -2548,6 +2548,12 @@ app.get('/api/users/:id', async (req, res) => {
     const user = result.rows[0];
     const followers = await pool.query('SELECT COUNT(*) FROM followers WHERE following_id = $1', [user.id]);
     const following = await pool.query('SELECT COUNT(*) FROM followers WHERE follower_id = $1', [user.id]);
+    const likes = await pool.query(
+      `SELECT COALESCE(SUM(COALESCE(like_count, 0)), 0)::int AS count
+         FROM games
+        WHERE developer = $1`,
+      [user.id]
+    );
 
     // Check if the requesting user follows this profile
     let isFollowing = false;
@@ -2591,6 +2597,7 @@ app.get('/api/users/:id', async (req, res) => {
       stats: {
         followers: parseInt(followers.rows[0].count),
         following: parseInt(following.rows[0].count),
+        likes: parseInt(likes.rows[0].count),
         gamesPlayed: user.games_played,
         totalScore: user.total_score,
         level: levelData.level,
@@ -2612,7 +2619,6 @@ app.get('/api/users/:id/played', async (req, res) => {
     const currentUserResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
     if (currentUserResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
 
-    const currentUserId = currentUserResult.rows[0].id;
     const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(req.params.id);
 
     let targetUserResult;
@@ -2625,7 +2631,6 @@ app.get('/api/users/:id/played', async (req, res) => {
     if (targetUserResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const targetUserId = targetUserResult.rows[0].id;
-    if (targetUserId !== currentUserId) return res.status(403).json({ error: 'Not authorized' });
 
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 60);
     const result = await pool.query(
