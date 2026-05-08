@@ -7,10 +7,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db.js';
-import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase1B_Scaffold, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase2B_Engineer, buildPhase2C_Critic, buildPhase2D_ArtistRevision, buildPhase2E_EngineerRevision, buildPhase2F_Integrator, buildPhase3_Repair, buildSharedScaffoldShell, postProcessRawHtml, buildPhase2A_Artist, compileMultiAgentGame } from './promptRegistry.js';
+import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase3_Repair, postProcessRawHtml } from './promptRegistry.js';
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
-import { setAssetBaseUrl, buildDreamAssetBundle } from './asset-dictionary.js';
+import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, getAssetRuntimeDiagnostics } from './asset-dictionary.js';
 import { notifyGameReady } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 
@@ -133,12 +133,12 @@ function extractJson(text) {
 
 const router = express.Router();
 
+const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.6";
+
 const DREAM_MODELS = {
     spec: "meta/llama-3.3-70b-instruct",
-    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || "z-ai/glm-5.1",
-    artist: "qwen/qwen3.5-397b-a17b",
-    engineer: "qwen/qwen3-coder-480b-a35b-instruct",
-    labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || "z-ai/glm-5.1",
+    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || DEFAULT_KIMI_BUILDER_MODEL,
+    labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || DEFAULT_KIMI_BUILDER_MODEL,
     narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
 
@@ -172,6 +172,38 @@ const openRouterClient = new OpenAI({
 });
 
 const pendingJobBoots = new Map();
+const cancelledJobs = new Map();
+
+class DreamJobCancelledError extends Error {
+    constructor(jobId) {
+        super('Generation cancelled by user');
+        this.name = 'DreamJobCancelledError';
+        this.code = 'DREAM_JOB_CANCELLED';
+        this.jobId = jobId;
+    }
+}
+
+function rememberCancelledJob(jobId) {
+    cancelledJobs.set(jobId, Date.now());
+}
+
+function forgetCancelledJob(jobId) {
+    cancelledJobs.delete(jobId);
+}
+
+function isJobCancelled(jobId) {
+    return cancelledJobs.has(jobId) || pendingJobBoots.get(jobId)?.status === 'canceled';
+}
+
+function assertJobNotCancelled(jobId) {
+    if (isJobCancelled(jobId)) {
+        throw new DreamJobCancelledError(jobId);
+    }
+}
+
+function isCancellationError(error) {
+    return error?.code === 'DREAM_JOB_CANCELLED' || error?.name === 'DreamJobCancelledError';
+}
 
 function rememberPendingBoot(jobId, update) {
     pendingJobBoots.set(jobId, {
@@ -190,6 +222,12 @@ setInterval(() => {
     for (const [jobId, state] of pendingJobBoots.entries()) {
         if ((state?.createdAt || 0) < cutoff) {
             pendingJobBoots.delete(jobId);
+        }
+    }
+    const cancelledCutoff = Date.now() - (60 * 60 * 1000);
+    for (const [jobId, cancelledAt] of cancelledJobs.entries()) {
+        if ((cancelledAt || 0) < cancelledCutoff) {
+            cancelledJobs.delete(jobId);
         }
     }
 }, 60 * 1000).unref?.();
@@ -753,16 +791,20 @@ function buildBuilderContinuationPrompt(partialHtml) {
     ].join('\n');
 }
 
-async function requestBuilderMessage(userPrompt, { label }) {
+async function requestBuilderMessage(userPrompt, { label, jobId = null } = {}) {
+    assertJobNotCancelled(jobId);
     if (isAnthropicModel(DREAM_MODELS.premiumBuilder)) {
         const response = await withClaudeRetries(async () => {
+            assertJobNotCancelled(jobId);
             const stream = claudeClient.messages.stream({
                 model: DREAM_MODELS.premiumBuilder,
                 max_tokens: BUILDER_MAX_TOKENS,
                 thinking: { type: 'adaptive' },
                 messages: [{ role: 'user', content: userPrompt }],
             });
-            return await stream.finalMessage();
+            const finalMessage = await stream.finalMessage();
+            assertJobNotCancelled(jobId);
+            return finalMessage;
         }, { label, maxAttempts: 2, baseDelayMs: 2000 });
 
         return {
@@ -773,6 +815,7 @@ async function requestBuilderMessage(userPrompt, { label }) {
 
     let finishReason = null;
     const text = await withNvidiaRetries(async () => {
+        assertJobNotCancelled(jobId);
         const stream = await nvidiaClient.chat.completions.create({
             ...getNvidiaChatOptions(DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
             messages: [{ role: 'user', content: userPrompt }],
@@ -780,6 +823,7 @@ async function requestBuilderMessage(userPrompt, { label }) {
 
         let output = "";
         for await (const chunk of stream) {
+            assertJobNotCancelled(jobId);
             const delta = chunk.choices?.[0]?.delta?.content;
             if (delta) {
                 output += delta;
@@ -798,17 +842,21 @@ async function requestBuilderMessage(userPrompt, { label }) {
     };
 }
 
-async function generateCompleteHtmlWithBuilder(initialPrompt, { label }) {
-    let { text, stopReason } = await requestBuilderMessage(initialPrompt, { label });
+async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = null } = {}) {
+    assertJobNotCancelled(jobId);
+    let { text, stopReason } = await requestBuilderMessage(initialPrompt, { label, jobId });
+    assertJobNotCancelled(jobId);
     let html = normalizeHtmlDocument(text);
     console.log(`🧾 [${label}] stop_reason=${stopReason || 'unknown'} chars=${html.length}`);
 
     let continuationCount = 0;
     while (!hasClosedHtmlDocument(html) && continuationCount < BUILDER_MAX_CONTINUATIONS) {
+        assertJobNotCancelled(jobId);
         continuationCount += 1;
         console.warn(`⚠️ [${label}] Output truncated or incomplete. Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
         const continuationPrompt = buildBuilderContinuationPrompt(html);
-        const continuation = await requestBuilderMessage(continuationPrompt, { label: `${label} Continue` });
+        const continuation = await requestBuilderMessage(continuationPrompt, { label: `${label} Continue`, jobId });
+        assertJobNotCancelled(jobId);
         const continuationText = cleanBuilderContinuation(continuation.text);
         console.log(`🧾 [${label} Continue] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
         if (!continuationText) {
@@ -853,29 +901,39 @@ function validateGeneratedBuild(artistCode, engineHtml, compiledHtml) {
 }
 
 function validateRuntimeLaneContract(runtimeLane, html) {
-    if (runtimeLane !== 'first_person_threejs') {
+    if (runtimeLane !== 'first_person_threejs' && runtimeLane !== 'third_person_threejs') {
         return;
     }
 
     const source = String(html || '');
     if (!source) {
-        throw new Error('first-person 3D validation error: empty HTML output');
+        throw new Error(`${runtimeLane} validation error: empty HTML output`);
     }
 
     if (!/three(\.min)?\.js/i.test(source) && !/\bTHREE\./.test(source)) {
-        throw new Error('first-person 3D validation error: missing Three.js runtime');
+        throw new Error(`${runtimeLane} validation error: missing Three.js runtime`);
     }
     if (!/PerspectiveCamera/i.test(source)) {
-        throw new Error('first-person 3D validation error: missing THREE.PerspectiveCamera');
+        throw new Error(`${runtimeLane} validation error: missing THREE.PerspectiveCamera`);
     }
     if (!/WebGLRenderer/i.test(source)) {
-        throw new Error('first-person 3D validation error: missing THREE.WebGLRenderer');
+        throw new Error(`${runtimeLane} validation error: missing THREE.WebGLRenderer`);
     }
     if (/OrthographicCamera/i.test(source)) {
-        throw new Error('first-person 3D validation error: used OrthographicCamera instead of first-person perspective');
+        throw new Error(`${runtimeLane} validation error: used OrthographicCamera instead of perspective 3D`);
     }
-    if (!/camera\.rotation|camera\.lookAt|yaw|pitch|lookDelta|lookSensitivity/i.test(source)) {
+    if (runtimeLane === 'first_person_threejs' && !/camera\.rotation|camera\.lookAt|yaw|pitch|lookDelta|lookSensitivity/i.test(source)) {
         throw new Error('first-person 3D validation error: missing first-person look/camera control logic');
+    }
+    if (runtimeLane === 'third_person_threejs') {
+        const hasVisiblePlayer = /player(Mesh|Group|Body|Vehicle)|vehicle(Mesh|Group|Body)|hero(Mesh|Group|Body)|car(Mesh|Group|Body)|scene\.add\s*\(\s*(player|vehicle|hero|car)/i.test(source);
+        const hasFollowCamera = /followCamera|chaseCamera|cameraOffset|cameraTarget|camera\.lookAt|lerp\s*\(|over[-_ ]?the[-_ ]?shoulder|third[-_ ]?person/i.test(source);
+        if (!hasVisiblePlayer) {
+            throw new Error('third-person 3D validation error: missing visible player/vehicle mesh or group');
+        }
+        if (!hasFollowCamera) {
+            throw new Error('third-person 3D validation error: missing chase/follow camera logic');
+        }
     }
     if (!/pointerdown/i.test(source)) {
         throw new Error('first-person 3D validation error: missing pointerdown-based start/input flow');
@@ -896,19 +954,19 @@ function validateRuntimeLaneContract(runtimeLane, html) {
     const hasMovementState = /moveX|moveY|velocity|player\.position|camera\.position|yaw|pitch/i.test(source);
 
     if (!hasRenderLoop) {
-        throw new Error('first-person 3D validation error: missing active render loop');
+        throw new Error(`${runtimeLane} validation error: missing active render loop`);
     }
     if (!hasSceneGeometry) {
-        throw new Error('first-person 3D validation error: missing real scene geometry added to the world');
+        throw new Error(`${runtimeLane} validation error: missing real scene geometry added to the world`);
     }
     if (!hasWorldBuilder) {
-        throw new Error('first-person 3D validation error: missing world-construction logic');
+        throw new Error(`${runtimeLane} validation error: missing world-construction logic`);
     }
     if (!hasLight) {
-        throw new Error('first-person 3D validation error: missing scene lighting');
+        throw new Error(`${runtimeLane} validation error: missing scene lighting`);
     }
     if (!hasMovementState) {
-        throw new Error('first-person 3D validation error: missing playable movement/camera state');
+        throw new Error(`${runtimeLane} validation error: missing playable movement/camera state`);
     }
 }
 
@@ -944,6 +1002,38 @@ function validateControlRigContract(specSheet, html) {
         }
         if (!hasCockpitHud) {
             throw new Error('cockpit-driver validation error: missing cockpit/dashboard HUD language');
+        }
+        return;
+    }
+
+    if (controlRig === 'chase_camera_driver') {
+        const hasDriveControls = /STEER|ACCEL|THROTTLE|GAS|BRAKE|DRIFT|BOOST|steering|throttle|brake|drift/i.test(source);
+        const hasVehicleState = /vehicle|car|speed|steering|throttle|brake|drift|wheel/i.test(source);
+        const hasChaseCamera = /chaseCamera|followCamera|cameraOffset|cameraTarget|camera\.lookAt|lerp\s*\(|third[-_ ]?person/i.test(source);
+        if (!hasDriveControls) {
+            throw new Error('chase-camera-driver validation error: missing visible driving controls');
+        }
+        if (!hasVehicleState) {
+            throw new Error('chase-camera-driver validation error: missing vehicle driving-state logic');
+        }
+        if (!hasChaseCamera) {
+            throw new Error('chase-camera-driver validation error: missing chase/follow camera logic');
+        }
+        return;
+    }
+
+    if (controlRig === 'third_person_joystick') {
+        const hasMovementUi = /joystick|thumbpad|move pad|move-zone|movement zone|move stick|left-pad|virtual joystick|MOVE/i.test(source);
+        const hasActionUi = /ACTION|ATTACK|INTERACT|FIRE|SHOOT|id=["'][^"']*(action|attack|interact|fire)|class=["'][^"']*(action|attack|interact|fire)/i.test(source);
+        const hasFollowCamera = /chaseCamera|followCamera|cameraOffset|cameraTarget|camera\.lookAt|lerp\s*\(|third[-_ ]?person/i.test(source);
+        if (!hasMovementUi) {
+            throw new Error('third-person-joystick validation error: missing visible movement control');
+        }
+        if (!hasActionUi) {
+            throw new Error('third-person-joystick validation error: missing visible action/interact/attack control');
+        }
+        if (!hasFollowCamera) {
+            throw new Error('third-person-joystick validation error: missing follow camera logic');
         }
         return;
     }
@@ -1032,6 +1122,112 @@ function validateControlRigContract(specSheet, html) {
     }
 }
 
+function validateCapabilityContracts(specSheet, html) {
+    const capabilities = Array.isArray(specSheet?.capabilities)
+        ? specSheet.capabilities.map((capability) => capability?.id).filter(Boolean)
+        : [];
+    if (capabilities.length === 0) return;
+
+    const hasCapability = (id) => capabilities.includes(id);
+    const source = String(html || '');
+    const fail = (id, message) => {
+        throw new Error(`${id} capability validation error: ${message}`);
+    };
+
+    if (hasCapability('chase_camera_driver')) {
+        if (!/chaseCamera|followCamera|cameraOffset|cameraTarget|camera\.lookAt|third[-_ ]?person/i.test(source)) {
+            fail('chase_camera_driver', 'missing chase/follow camera logic');
+        }
+        if (!/vehicle|car|player(Mesh|Group|Body)|speed|steering|throttle|brake|drift/i.test(source)) {
+            fail('chase_camera_driver', 'missing visible vehicle/player driving state');
+        }
+    }
+
+    if (hasCapability('touch_driving_controls')) {
+        if (!/STEER|ACCEL|GAS|THROTTLE|BRAKE|DRIFT|BOOST|steer|throttle|brake/i.test(source)) {
+            fail('touch_driving_controls', 'missing visible steering, accelerate/gas, brake, or drift controls');
+        }
+    }
+
+    if (hasCapability('projectile_ballistics')) {
+        if (!/angle|power|trajectory|gravity|projectile|velocity|vx|vy|arc/i.test(source)) {
+            fail('projectile_ballistics', 'missing angle/power projectile physics');
+        }
+    }
+
+    if (hasCapability('turn_based_duel')) {
+        if (!/turn|YOUR TURN|ENEMY TURN|currentTurn|playerTurn|enemyTurn/i.test(source)) {
+            fail('turn_based_duel', 'missing explicit turn state or turn label');
+        }
+    }
+
+    if (hasCapability('weapon_cards')) {
+        if (!/weapon|card|selectedWeapon|CHOOSE WEAPON|ammo|hail|pogo|wrecking/i.test(source)) {
+            fail('weapon_cards', 'missing weapon cards or selected weapon state');
+        }
+    }
+
+    if (hasCapability('rope_path_puzzle')) {
+        if (!/rope|path|line|arm|drag|pointermove|goal|gem|target/i.test(source)) {
+            fail('rope_path_puzzle', 'missing draggable rope/path and goal interaction');
+        }
+    }
+
+    if (hasCapability('survival_stats')) {
+        if (!/health|hunger|fire|thirst|stamina|sanity|day/i.test(source)) {
+            fail('survival_stats', 'missing survival meters or day/status UI');
+        }
+    }
+
+    if (hasCapability('inventory_hotbar')) {
+        if (!/inventory|hotbar|slot|selectedItem|itemSlots|tool/i.test(source)) {
+            fail('inventory_hotbar', 'missing inventory or hotbar state');
+        }
+    }
+
+    if (hasCapability('brush_canvas')) {
+        if (!/pointermove|draw|brush|stroke|lineTo|canvas|clear/i.test(source)) {
+            fail('brush_canvas', 'missing real pointer drawing/brush canvas behavior');
+        }
+    }
+
+    if (hasCapability('decorate_surface')) {
+        if (!/decorate|surface|target|nail|painting|canvas|selectedColor|pattern|finish/i.test(source)) {
+            fail('decorate_surface', 'missing editable decoration target or selected style state');
+        }
+    }
+
+    if (hasCapability('palette_unlocks')) {
+        if (!/locked|unlock|palette|color|pattern|finish|decor/i.test(source)) {
+            fail('palette_unlocks', 'missing locked/unlocked palette or cosmetic options');
+        }
+    }
+
+    if (hasCapability('shop_economy')) {
+        if (!/coin|cash|money|sell|buy|shop|price|currency|unlock/i.test(source)) {
+            fail('shop_economy', 'missing currency and buy/sell/unlock loop');
+        }
+    }
+
+    if (hasCapability('bubble_grid')) {
+        if (!/bubble|grid|match|pop|row|col|color/i.test(source)) {
+            fail('bubble_grid', 'missing bubble grid or match/pop state');
+        }
+    }
+
+    if (hasCapability('aim_trajectory')) {
+        if (!/trajectory|aim|guide|dashed|arc|bounce|lineTo|reticle/i.test(source)) {
+            fail('aim_trajectory', 'missing visible aim trajectory or guide logic');
+        }
+    }
+
+    if (hasCapability('image_slice_puzzle')) {
+        if (!/slice|piece|puzzle|image|panel|next puzzle|progress/i.test(source)) {
+            fail('image_slice_puzzle', 'missing image slice/puzzle progress structure');
+        }
+    }
+}
+
 function validateFirstFrameContract(specSheet, html) {
     const runtimeLane = specSheet?.runtimeLane;
     const source = String(html || '');
@@ -1047,6 +1243,16 @@ function validateFirstFrameContract(specSheet, html) {
             /new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry)/i.test(source);
         if (!hasForegroundOrHud || !hasImmediateWorldRead || !hasWorldMeshes) {
             throw new Error('first-frame validation error: first-person lane is missing immediate foreground/HUD, world-read cues, or real world meshes');
+        }
+        return;
+    }
+
+    if (runtimeLane === 'third_person_threejs') {
+        const hasVisiblePlayer = /player|hero|vehicle|car/i.test(source);
+        const hasWorldDepth = /floor|ground|road|arena|lane|wall|landmark|checkpoint|pickup|enemy|hazard/i.test(source);
+        const hasFollowCue = /chase|follow|third[-_ ]?person|camera\.lookAt|cameraOffset|cameraTarget/i.test(source);
+        if (!hasVisiblePlayer || !hasWorldDepth || !hasFollowCue) {
+            throw new Error('first-frame validation error: third-person lane is missing visible player/vehicle, world depth, or follow-camera cue');
         }
         return;
     }
@@ -1095,6 +1301,12 @@ function buildControlRigRepairInstruction(controlRig) {
     if (controlRig === 'cockpit_driver') {
         return 'This game MUST preserve a cockpit-driving control rig with visible steering, accelerate, and brake controls plus dashboard-style HUD instrumentation.';
     }
+    if (controlRig === 'chase_camera_driver') {
+        return 'This game MUST preserve a chase-camera driving rig with a visible vehicle, follow camera, steering, accelerate, brake, and drift/boost feedback.';
+    }
+    if (controlRig === 'third_person_joystick') {
+        return 'This game MUST preserve a third-person character rig with a visible hero, follow camera, left movement control, action/interact button, and readable world objectives.';
+    }
     if (controlRig === 'move_and_fire') {
         return 'This game MUST preserve a move-and-fire control rig with a visible movement pad or joystick, a visible fire/attack control, real projectile or attack logic, and readable hit feedback.';
     }
@@ -1121,98 +1333,6 @@ function buildFirstFrameRepairInstruction(specSheet) {
         checklist,
         'Do not leave the player on a blank, muddy, or under-staged opening frame while waiting for later transitions.'
     ].join('\n');
-}
-
-function parseRepairSections(aiOutput, fallbackArtistCode, fallbackEngineHtml) {
-    const artistMarker = '===ARTIST_CODE===';
-    const engineMarker = '===ENGINE_CODE===';
-    if (!aiOutput.includes(artistMarker) || !aiOutput.includes(engineMarker)) {
-        return {
-            artistCode: fallbackArtistCode,
-            engineHtml: normalizeHtmlDocument(aiOutput || fallbackEngineHtml)
-        };
-    }
-
-    const artistCode = stripMarkdownFences(aiOutput.split(artistMarker)[1]?.split(engineMarker)[0]?.trim() || fallbackArtistCode);
-    const engineHtml = normalizeHtmlDocument(aiOutput.split(engineMarker)[1]?.trim() || fallbackEngineHtml);
-    return { artistCode, engineHtml };
-}
-
-async function runScaffoldedCollaboration({ specSheet, scaffold, scaffoldShell }) {
-    const artistPrompt = buildPhase2A_Artist(specSheet, scaffold);
-
-    console.log(`🎨 Phase 2A: Qwen 3.5 on NIM sketching the RenderEngine...`);
-    const rawArtistCode = await streamNvidiaText({
-        model: DREAM_MODELS.artist,
-        systemPrompt: "You are an elite procedural HTML5 Canvas Artist.",
-        userPrompt: artistPrompt,
-        maxTokens: 4000,
-        temperature: 0.5,
-        retryLabel: 'Phase 2A Artist'
-    });
-    let currentArtistCode = stripMarkdownFences(rawArtistCode);
-
-    const enginePrompt = buildPhase2B_Engineer(specSheet, currentArtistCode, scaffold, scaffoldShell);
-
-    console.log(`⚙️ Phase 2B: Qwen 3 Coder on NIM writing gameplay HTML...`);
-    let rawEngineHtml = await streamNvidiaText({
-        model: DREAM_MODELS.engineer,
-        systemPrompt: "You are an elite HTML5 Game Engineer.",
-        userPrompt: enginePrompt,
-        maxTokens: 8000,
-        temperature: 0.2,
-        retryLabel: 'Phase 2B Engineer'
-    });
-    rawEngineHtml = normalizeHtmlDocument(rawEngineHtml);
-
-    console.log(`🧪 Phase 2C: Collaboration critic reviewing drafts...`);
-    const criticPrompt = buildPhase2C_Critic(specSheet, scaffold, scaffoldShell, currentArtistCode, rawEngineHtml);
-    const criticNotes = await callAI(criticPrompt.system, criticPrompt.user, 1200, 0.2);
-
-    if (criticNotes?.shouldRevise) {
-        console.log(`🔁 Phase 2D: Applying critic feedback to artist draft...`);
-        const artistRevisionPrompt = buildPhase2D_ArtistRevision(specSheet, scaffold, currentArtistCode, criticNotes);
-        currentArtistCode = stripMarkdownFences(await streamNvidiaText({
-            model: DREAM_MODELS.artist,
-            systemPrompt: "You are an elite procedural HTML5 Canvas Artist revising your work after teammate feedback.",
-            userPrompt: artistRevisionPrompt,
-            maxTokens: 4500,
-            temperature: 0.35,
-            retryLabel: 'Phase 2D Artist Revision'
-        }));
-
-        console.log(`🔁 Phase 2E: Applying critic feedback to engineer draft...`);
-        const engineerRevisionPrompt = buildPhase2E_EngineerRevision(specSheet, scaffold, scaffoldShell, currentArtistCode, rawEngineHtml, criticNotes);
-        rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
-            model: DREAM_MODELS.engineer,
-            systemPrompt: "You are an elite HTML5 Game Engineer revising your build after teammate feedback.",
-            userPrompt: engineerRevisionPrompt,
-            maxTokens: 9000,
-            temperature: 0.15,
-            retryLabel: 'Phase 2E Engineer Revision'
-        }));
-    }
-
-    console.log(`🧠 Phase 2F: Intelligent integrator reconciling artist + engineer...`);
-    const integratorPrompt = buildPhase2F_Integrator(specSheet, scaffold, scaffoldShell, currentArtistCode, rawEngineHtml, criticNotes);
-    const integratedOutput = await streamNvidiaText({
-        model: DREAM_MODELS.engineer,
-        systemPrompt: "You are an elite integration architect producing a coherent final artist+engine pair.",
-        userPrompt: integratorPrompt,
-        maxTokens: 12000,
-        temperature: 0.12,
-        retryLabel: 'Phase 2F Integrator'
-    });
-    const integratedSections = parseRepairSections(integratedOutput, currentArtistCode, rawEngineHtml);
-    currentArtistCode = stripMarkdownFences(integratedSections.artistCode);
-    rawEngineHtml = normalizeHtmlDocument(integratedSections.engineHtml);
-
-    console.log(`✅ Multi-Agent Generated: Artist (${currentArtistCode.length} chars) | Engine (${rawEngineHtml.length} chars)`);
-    return {
-        artistCode: currentArtistCode,
-        engineHtml: rawEngineHtml,
-        criticNotes,
-    };
 }
 
 async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature, retryLabel }) {
@@ -1288,6 +1408,19 @@ async function markJobError(jobId, fallbackMessage, err) {
     );
 }
 
+async function markJobCanceled(jobId) {
+    rememberCancelledJob(jobId);
+    rememberPendingBoot(jobId, { status: 'canceled', error: 'Generation cancelled by user' });
+    try {
+        await pool.query(
+            `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3 WHERE id = $4`,
+            ['CANCELLED: Generation stopped', '', '', jobId]
+        );
+    } catch (error) {
+        console.warn(`[DREAM JOB] Could not mark ${jobId} canceled in DB yet:`, error?.message || error);
+    }
+}
+
 function markEphemeralJob(jobId, update) {
     rememberPendingBoot(jobId, update);
 }
@@ -1304,16 +1437,23 @@ async function createPendingJob(userId, prompt, title, jobId = randomUUID()) {
 }
 
 function queuePendingJobBootstrap({ jobId, userId, prompt, title, logLabel, run, runArgs = [] }) {
-    rememberPendingBoot(jobId, { status: 'pending' });
+    rememberPendingBoot(jobId, { status: 'pending', userId });
 
     setImmediate(() => {
         void (async () => {
             try {
+                assertJobNotCancelled(jobId);
                 console.log(`🚀 [${logLabel}] Bootstrapping pending job ${jobId}`);
                 await createPendingJob(userId, prompt, title, jobId);
+                assertJobNotCancelled(jobId);
                 forgetPendingBoot(jobId);
                 await run(jobId, prompt, ...runArgs);
             } catch (error) {
+                if (isCancellationError(error)) {
+                    console.log(`🛑 [${logLabel}] Job ${jobId} was canceled before or during bootstrap.`);
+                    await markJobCanceled(jobId);
+                    return;
+                }
                 console.error(`❌ [${logLabel}] Bootstrap failed for ${jobId}:`, error);
                 rememberPendingBoot(jobId, {
                     status: 'error',
@@ -1448,6 +1588,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // ═══════════════════════════════════════════════════════════
 async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
     try {
+        assertJobNotCancelled(jobId);
         if (isAnthropicModel(DREAM_MODELS.premiumBuilder) && !process.env.ANTHROPIC_API_KEY) {
             throw new Error('ANTHROPIC_API_KEY is not configured for main DreamStream.');
         }
@@ -1458,10 +1599,17 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         console.log(`📋 Phase 1/3: Llama 3.3 70B Instruct on NIM extracting a playable game spec...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
+        assertJobNotCancelled(jobId);
         const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
         console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle}) [lane=${specSheet.runtimeLane}]`);
 
-        const assetBundle = buildDreamAssetBundle(specSheet, prompt);
+        // Use AI-driven asset selection (with fallback to rule-based)
+        const useAIDrivenAssets = process.env.ENABLE_AI_DRIVEN_ASSETS !== 'false';
+        const assetBundle = useAIDrivenAssets 
+          ? await buildDreamAssetBundleWithAI(specSheet, prompt, nvidiaClient)
+          : buildDreamAssetBundle(specSheet, prompt);
+        
+        assertJobNotCancelled(jobId);
         if (assetBundle) {
             const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
             console.log(`📦 Asset Brain: attached ${bundleCount} curated assets for lane ${assetBundle.lane}`);
@@ -1472,7 +1620,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         // ── PHASE 2: SINGLE-AGENT PREMIUM BUILD ──
         console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building the complete game in one pass...`);
         const buildPrompt = buildPhase2_BuildPrototype(specSheet, assetBundle, mediaAttachments);
-        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Builder Build' });
+        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Builder Build', jobId });
+        assertJobNotCancelled(jobId);
 
         if (!rawGameHtml) {
             throw new Error('Main builder returned empty game output.');
@@ -1492,11 +1641,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         let p3Success = false;
         
         while (maxRetries > 0 && !p3Success) {
+            assertJobNotCancelled(jobId);
             console.log(`📸 [Attempt ${3 - maxRetries}/2] Verifying game in sandbox...`);
             let sandboxRes;
             try {
                 validateRuntimeLaneContract(specSheet.runtimeLane, rawGameHtml);
                 validateControlRigContract(specSheet, rawGameHtml);
+                validateCapabilityContracts(specSheet, rawGameHtml);
                 validateFirstFrameContract(specSheet, rawGameHtml);
                 sandboxRes = await verifyGame(finalHtml, { runtimeLane: specSheet.runtimeLane });
             } catch (validationError) {
@@ -1517,14 +1668,18 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     'Repair the game so it boots and remains playable on mobile.',
                     specSheet.runtimeLane === 'first_person_threejs'
                         ? 'This game MUST remain a true first-person 3D Three.js game with a PerspectiveCamera and mobile look controls. Do not downgrade it into top-down 2D.'
+                        : specSheet.runtimeLane === 'third_person_threejs'
+                        ? 'This game MUST remain a true third-person/chase-camera 3D Three.js game with a visible player or vehicle and follow camera. Do not downgrade it into first-person, top-down, or flat 2D.'
                         : 'Preserve the intended perspective and gameplay fantasy.',
+                    'If any error mentions viewport overflow, bounds, canvas sizing, or off-screen controls, rewrite the layout with responsive innerWidth/innerHeight sizing, safe-area clamped HUD, and resize recomputation. The final game must fit a 390x844 phone viewport without horizontal scrolling.',
                     buildControlRigRepairInstruction(specSheet.controlRig),
                     buildFirstFrameRepairInstruction(specSheet),
                     'Return the COMPLETE corrected HTML file only.',
                     'Do not explain anything.',
                 ].join('\n');
                 const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
-                rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Builder Repair' });
+                rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Builder Repair', jobId });
+                assertJobNotCancelled(jobId);
                 if (!hasClosedHtmlDocument(rawGameHtml)) {
                     throw new Error('Builder repair output is missing </html> and appears truncated.');
                 }
@@ -1541,6 +1696,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         }
 
         // ── SAVE TO DB ──
+        assertJobNotCancelled(jobId);
         const finalTitle = extractHtmlTitle(rawGameHtml) || specSheet.title || 'DreamStream Game';
         const classification = await classifyPublishedGame({
             title: finalTitle,
@@ -1548,6 +1704,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             description: "Multi-Engine AI Creation: " + prompt,
             htmlPayload: finalHtml,
         });
+        assertJobNotCancelled(jobId);
         await pool.query(
             `UPDATE ai_games
              SET title = $1,
@@ -1582,11 +1739,17 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             ]
         );
         console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
+        forgetCancelledJob(jobId);
         pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
             .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
             .catch((error) => console.log('[Notifications] Game ready notify error:', error));
 
     } catch (err) {
+        if (isCancellationError(err)) {
+            console.log(`🛑 [DREAM JOB] Canceled job ${jobId}.`);
+            await markJobCanceled(jobId);
+            return;
+        }
         console.error("❌ [DREAM JOB] Error:", err);
         await markJobError(jobId, "DreamStream generation failed", err);
     }
@@ -1927,10 +2090,39 @@ router.post('/edit', async (req, res) => {
     }
 });
 
+router.post('/dream/cancel/:jobId', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        const userId = await getUserIdFromToken(token, 'Expired session');
+
+        const pendingBoot = pendingJobBoots.get(jobId);
+        const existing = await pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId]);
+        const ownerId = existing.rows[0]?.user_id || pendingBoot?.userId || null;
+
+        if (!ownerId && !pendingBoot) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+        if (ownerId && String(ownerId) !== String(userId)) {
+            return res.status(403).json({ error: 'Not allowed to cancel this job' });
+        }
+
+        await markJobCanceled(jobId);
+        res.json({ success: true, status: 'canceled', jobId });
+    } catch (error) {
+        console.error('[DREAM CANCEL] Error:', error);
+        res.status(error.statusCode || error.status || 500).json({ error: error.message || 'Cancel failed' });
+    }
+});
+
 router.get('/dream/status/:jobId', async (req, res) => {
     try {
         const { jobId } = req.params;
         const ephemeralJob = pendingJobBoots.get(jobId);
+        if (ephemeralJob?.status === 'canceled' || isJobCancelled(jobId)) {
+            return res.json({ success: false, status: 'canceled', error: ephemeralJob?.error || 'Generation cancelled by user' });
+        }
         if (ephemeralJob?.draftId) {
             if (ephemeralJob.status === 'error') {
                 return res.json({ status: 'error', error: ephemeralJob.error || 'Job failed' });
@@ -1976,6 +2168,9 @@ router.get('/dream/status/:jobId', async (req, res) => {
         
         // If html_payload is still empty, check if it's a hard error or just pending
         if (!row.html_payload || row.html_payload === '') {
+            if (row.title && row.title.startsWith('CANCELLED:')) {
+                return res.json({ success: false, status: 'canceled', error: row.title.replace('CANCELLED: ', '') });
+            }
             if (row.title && row.title.startsWith('ERROR:')) {
                 return res.json({ status: 'error', error: row.title.replace('ERROR: ', '') });
             }
@@ -2038,7 +2233,14 @@ router.post('/publish/:draftId', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Unauthorized');
-        const publishRes = await pool.query("UPDATE ai_games SET is_draft = false WHERE id = $1 AND user_id = $2 RETURNING *", [req.params.draftId, userId]);
+        const { title, privacy } = req.body || {};
+
+        // Update title if provided
+        if (title && title.trim()) {
+            await pool.query("UPDATE ai_games SET title = $1 WHERE id = $2 AND user_id = $3", [title.trim(), req.params.draftId, userId]);
+        }
+
+        const publishRes = await pool.query("UPDATE ai_games SET is_draft = false, privacy = $3 WHERE id = $1 AND user_id = $2 RETURNING *", [req.params.draftId, userId, privacy || 'public']);
         if (publishRes.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         const draft = publishRes.rows[0];
         const { globalId, classification } = await upsertPublishedAIGame({
@@ -2161,6 +2363,15 @@ router.post('/admin/set-template', async (req, res) => {
 router.post('/admin/rebuild-assets', async (req, res) => {
     res.json({ status: "bg-process-started", msg: "Scraping Omni-Engine assets into Postgres Vector DB..." });
     // ...
+});
+
+router.get('/admin/assets/diagnostics', async (req, res) => {
+    try {
+        setAssetBaseUrl(req);
+        res.json(getAssetRuntimeDiagnostics());
+    } catch (e) {
+        res.status(500).json({ error: e.message || 'Asset diagnostics failed' });
+    }
 });
 
 router.get('/admin/backfill-thumbnails', async (req, res) => {

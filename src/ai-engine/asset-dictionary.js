@@ -1,11 +1,8 @@
 /**
- * DreamStream Asset Dictionary v4.0 — SELF-HOSTED KENNEY SPRITES
- * 
- * 838 hand-picked, CC0-licensed 2D game sprites from Kenney.nl,
- * hosted directly on our own Railway backend at /uploads/kenney/.
- * 
- * No more broken external URLs. No more CORS. No more 404s.
- * These files live on OUR server and are served via Express static middleware.
+ * DreamStream Asset Dictionary v4.0
+ *
+ * Runtime asset brain for generated games. Assets can be served from local dev,
+ * Railway static folders, or Cloudflare R2 public buckets.
  */
 
 import fs from 'fs';
@@ -22,15 +19,57 @@ const DEFAULT_BASE = process.env.RAILWAY_PUBLIC_DOMAIN
   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
   : 'http://localhost:3000';
 const ASSET_STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
-const WAVE1_STAGE_CANDIDATES = [
+const KENNEY_STAGE_CANDIDATES = [
+  path.join(REPO_ROOT, 'public', 'uploads', 'kenney'),
+  path.join(ASSET_STORAGE_ROOT, 'kenney'),
   path.join(REPO_ROOT, 'public', 'uploads', 'kenney-wave1'),
   path.join(ASSET_STORAGE_ROOT, 'kenney-wave1'),
 ];
-const WAVE1_CATALOG_PATH = path.join(REPO_ROOT, 'docs', 'kenney-wave1-catalog.json');
-const WAVE1_INTELLIGENCE_PATH = path.join(REPO_ROOT, 'docs', 'kenney-wave1-intelligence.json');
+const KENNEY_CATALOG_PATH_CANDIDATES = [
+  process.env.KENNEY_CATALOG_PATH,
+  process.env.KENNEY_INTELLIGENCE_PATH,
+  path.join(REPO_ROOT, 'docs', 'kenney-catalog.json'),
+  path.join(REPO_ROOT, 'docs', 'kenney-intelligence.json'),
+  path.join(REPO_ROOT, 'docs', 'kenney-full-catalog.json'),
+  path.join(REPO_ROOT, 'docs', 'kenney-full-intelligence.json'),
+  path.join(REPO_ROOT, 'docs', 'kenney-wave1-intelligence.json'),
+  path.join(REPO_ROOT, 'docs', 'kenney-wave1-catalog.json'),
+].filter(Boolean);
+const PHASER_MANIFEST_PATH = path.join(REPO_ROOT, 'docs', 'phaser-assets-manifest.json');
 
-let ASSET_BASE_URL = `${DEFAULT_BASE}/uploads/kenney`;
-let WAVE1_BASE_URL = `${DEFAULT_BASE}/uploads/kenney-wave1`;
+function cleanBaseUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function resolveAssetBaseUrls(origin = DEFAULT_BASE) {
+  const cleanOrigin = cleanBaseUrl(origin);
+  const fallbackKenneyPath = fs.existsSync(path.join(REPO_ROOT, 'public', 'uploads', 'kenney'))
+    ? '/uploads/kenney'
+    : '/uploads/kenney-wave1';
+  return {
+    legacyKenney: cleanBaseUrl(process.env.KENNEY_LEGACY_ASSET_BASE
+      || process.env.KENNEY_LEGACY_ASSET_URL
+      || process.env.KENNEY_ASSET_BASE
+      || process.env.KENNEY_ASSET_URL
+      || `${cleanOrigin}/uploads/kenney`),
+    kenney: cleanBaseUrl(process.env.KENNEY_ASSET_BASE
+      || process.env.KENNEY_ASSET_URL
+      || process.env.KENNEY_FULL_ASSET_BASE
+      || process.env.KENNEY_FULL_ASSET_URL
+      || process.env.KENNEY_WAVE1_ASSET_BASE
+      || process.env.KENNEY_WAVE1_ASSET_URL
+      || `${cleanOrigin}${fallbackKenneyPath}`),
+    phaser: cleanBaseUrl(process.env.PHASER_ASSET_BASE
+      || process.env.PHASER_ASSET_URL
+      || `${cleanOrigin}/assets`),
+  };
+}
+
+let {
+  legacyKenney: ASSET_BASE_URL,
+  kenney: KENNEY_BASE_URL,
+  phaser: PHASER_BASE_URL,
+} = resolveAssetBaseUrls();
 
 const NIM_RETRIEVAL_MODELS = Object.freeze({
   embed: process.env.NIM_ASSET_EMBED_MODEL || 'nvidia/llama-nemotron-embed-1b-v2',
@@ -46,6 +85,7 @@ const LANE_SUPPORT_GRAPH = {
   pixel_platformer: ['endless_flyer', 'topdown_arcade', 'auto_battler_arena'],
   auto_battler_arena: ['pixel_platformer', 'topdown_arcade'],
   first_person_threejs: ['topdown_arcade', 'pixel_platformer'],
+  third_person_threejs: ['first_person_threejs', 'topdown_arcade', 'pixel_platformer'],
 };
 
 const LANE_NOTES = {
@@ -91,6 +131,11 @@ const LANE_NOTES = {
   first_person_threejs: [
     'Use same-origin GLB models only if they actually help readability; otherwise keep geometry procedural and use the kit for landmarks.',
   ],
+  third_person_threejs: [
+    'This lane needs a visible player body or vehicle, not an invisible camera and not a top-down marker.',
+    'Use simple 3D primitives and same-origin models for road/world landmarks, hazards, pickups, and silhouettes when they improve readability.',
+    'The first frame should already read as chase/follow camera: player anchored in the lower third, world depth ahead, controls safely visible.',
+  ],
 };
 
 /**
@@ -99,8 +144,11 @@ const LANE_NOTES = {
 export function setAssetBaseUrl(req) {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
   const host = req.headers['x-forwarded-host'] || req.get('host');
-  ASSET_BASE_URL = `${protocol}://${host}/uploads/kenney`;
-  WAVE1_BASE_URL = `${protocol}://${host}/uploads/kenney-wave1`;
+  const origin = `${protocol}://${host}`;
+  const bases = resolveAssetBaseUrls(origin);
+  ASSET_BASE_URL = bases.legacyKenney;
+  KENNEY_BASE_URL = bases.kenney;
+  PHASER_BASE_URL = bases.phaser;
 }
 
 export function getRetrievalModelConfig() {
@@ -276,7 +324,9 @@ function cosineSimilarity(A, B) {
  */
 
 let precomputedEmbeddings = null;
-let wave1Catalog = null;
+let kenneyCatalog = null;
+let kenneyCatalogInfo = null;
+let phaserManifest = null;
 
 try {
   const jsonPath = path.join(__dirname, 'asset-embeddings.json');
@@ -289,29 +339,63 @@ try {
 }
 
 try {
-  const wave1StageRoot = WAVE1_STAGE_CANDIDATES.find((candidate) => fs.existsSync(candidate));
-  const preferredCatalogPath = fs.existsSync(WAVE1_INTELLIGENCE_PATH) ? WAVE1_INTELLIGENCE_PATH : WAVE1_CATALOG_PATH;
-  if (fs.existsSync(preferredCatalogPath) && wave1StageRoot) {
-    wave1Catalog = JSON.parse(fs.readFileSync(preferredCatalogPath, 'utf8'));
+  const kenneyStageRoot = KENNEY_STAGE_CANDIDATES.find((candidate) => fs.existsSync(candidate));
+  const hasRemoteKenneyBase = Boolean(
+    process.env.KENNEY_ASSET_BASE
+    || process.env.KENNEY_ASSET_URL
+    || process.env.KENNEY_FULL_ASSET_BASE
+    || process.env.KENNEY_FULL_ASSET_URL
+    || process.env.KENNEY_WAVE1_ASSET_BASE
+    || process.env.KENNEY_WAVE1_ASSET_URL
+  );
+  const preferredCatalogPath = KENNEY_CATALOG_PATH_CANDIDATES.find((candidate) => fs.existsSync(candidate));
+  if (preferredCatalogPath && (kenneyStageRoot || hasRemoteKenneyBase)) {
+    kenneyCatalog = JSON.parse(fs.readFileSync(preferredCatalogPath, 'utf8'));
+    kenneyCatalogInfo = {
+      path: preferredCatalogPath,
+      source: preferredCatalogPath.includes('wave1') ? 'legacy-wave1-catalog' : 'kenney-catalog',
+      servingRoot: kenneyStageRoot || KENNEY_BASE_URL,
+    };
     console.log(
-      `✅ Loaded Wave 1 Kenney catalog with ${wave1Catalog?.summary?.totals?.usefulAssets || wave1Catalog?.totals?.assets || 0} staged assets from ${wave1StageRoot}.`
+      `✅ Loaded Kenney catalog with ${kenneyCatalog?.summary?.totals?.usefulAssets || kenneyCatalog?.totals?.assets || 0} assets from ${kenneyCatalogInfo.servingRoot}.`
     );
   }
 } catch (e) {
-  console.warn("⚠️ Failed to load Wave 1 Kenney catalog:", e.message);
+  console.warn("⚠️ Failed to load Kenney catalog:", e.message);
 }
 
-function toAbsoluteWave1Url(url) {
+try {
+  if (fs.existsSync(PHASER_MANIFEST_PATH)) {
+    phaserManifest = JSON.parse(fs.readFileSync(PHASER_MANIFEST_PATH, 'utf8'));
+    console.log(`✅ Loaded Phaser asset manifest with ${phaserManifest?.entries?.length || 0} files.`);
+  }
+} catch (e) {
+  console.warn("⚠️ Failed to load Phaser asset manifest:", e.message);
+}
+
+function toAbsoluteKenneyUrl(url) {
   if (!url) return url;
   if (/^https?:\/\//i.test(url)) return url;
-  return `${WAVE1_BASE_URL}${url.replace(/^\/uploads\/kenney-wave1/, '')}`;
+  return `${KENNEY_BASE_URL}${url
+    .replace(/^\/uploads\/kenney-wave1/, '')
+    .replace(/^\/uploads\/kenney/, '')}`;
+}
+
+function toAbsolutePhaserUrl(relativePathOrUrl) {
+  if (!relativePathOrUrl) return relativePathOrUrl;
+  if (/^https?:\/\//i.test(relativePathOrUrl)) return relativePathOrUrl;
+  const pathPart = String(relativePathOrUrl)
+    .replace(/^\/?phaser-assets\//, '')
+    .replace(/^\/?assets\//, '')
+    .replace(/^\/+/, '');
+  return `${cleanBaseUrl(PHASER_BASE_URL)}/${pathPart}`;
 }
 
 function toAbsoluteLegacyUrl(file) {
   return `${ASSET_BASE_URL}/${file}`;
 }
 
-function mapWave1Asset(asset) {
+function mapKenneyAsset(asset) {
   return {
     id: `${asset.lane}:${asset.packSlug}:${asset.filename}`,
     file: asset.targetPath,
@@ -319,6 +403,7 @@ function mapWave1Asset(asset) {
     category: asset.kind || asset.role || asset.runtime || 'asset',
     label: `${asset.packName} — ${asset.filename}`,
     lane: asset.lane,
+    lanes: asset.lanes || (asset.lane ? [asset.lane] : []),
     runtime: asset.runtime,
     role: asset.role,
     packName: asset.packName,
@@ -326,17 +411,125 @@ function mapWave1Asset(asset) {
     useful: asset.useful !== false,
     semanticRoles: asset.semanticRoles || [],
     qualityHint: asset.qualityHint || 'support',
-    url: toAbsoluteWave1Url(asset.url),
+    url: toAbsoluteKenneyUrl(asset.url),
   };
 }
 
-function getWave1Assets({ lane = null, category = null, includeNoise = false } = {}) {
-  const assets = wave1Catalog?.assets || [];
+function assetMatchesLane(asset, lane) {
+  if (!lane) return true;
+  const lanes = new Set([
+    asset.lane,
+    ...(asset.lanes || []),
+  ].filter(Boolean));
+  return lanes.has(lane) || lanes.has('general');
+}
+
+const PHASER_ROLE_KEYWORDS = [
+  ['player', ['player', 'hero', 'ship', 'car', 'tank', 'robot', 'knight', 'character', 'person']],
+  ['enemy', ['enemy', 'zombie', 'monster', 'alien', 'ghost', 'spider', 'skull', 'boss', 'creep', 'bug']],
+  ['pickup', ['coin', 'gem', 'diamond', 'star', 'heart', 'ammo', 'medkit', 'powerup', 'bonus', 'key']],
+  ['control', ['button', 'joystick', 'dpad', 'cursor', 'pointer', 'touch', 'gamepad', 'pad']],
+  ['audio', ['audio', 'music', 'sfx', 'sound', 'loop', 'theme', 'impact', 'shoot', 'jump', 'coin']],
+  ['environment', ['tiles', 'tilemap', 'map', 'background', 'sky', 'wall', 'floor', 'terrain', 'tree', 'road', 'city', 'dungeon', 'water', 'space']],
+  ['ui', ['ui', 'font', 'panel', 'hud', 'icon', 'menu', 'dialog', 'window', 'text']],
+  ['prop', ['barrel', 'crate', 'box', 'door', 'chest', 'rock', 'torch', 'house', 'weapon', 'gun', 'laser', 'bullet']],
+];
+
+function prettyPhaserLabel(asset) {
+  const rawName = String(asset?.filename || asset?.relativePath || 'asset')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return rawName.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function inferPhaserRole(asset) {
+  const haystack = String(asset?.searchableText || `${asset?.relativePath || ''} ${(asset?.tags || []).join(' ')}`).toLowerCase();
+  for (const [role, keywords] of PHASER_ROLE_KEYWORDS) {
+    if (keywords.some((keyword) => haystack.includes(keyword))) return role;
+  }
+  if (asset?.kind === 'audio') return 'audio';
+  if (asset?.category === 'ui') return 'ui';
+  if (asset?.category === 'model3d') return 'prop';
+  if (asset?.category === 'tilemap' || asset?.category === 'environment') return 'environment';
+  return 'asset';
+}
+
+function inferPhaserKind(asset) {
+  if (asset?.extension === 'mtl') return 'material';
+  if (asset?.kind === 'model3d') return 'model';
+  if (asset?.kind === 'audio') return 'audio';
+  if (asset?.kind === 'video') return 'video';
+  if (asset?.category === 'tilemap') return 'tilemap';
+  if (asset?.category === 'ui') return 'ui';
+  if (asset?.category === 'sprite') return 'sprite';
+  if (asset?.category === 'environment') return 'environment';
+  if (asset?.category === 'shader') return 'shader';
+  if (asset?.kind === 'image') return 'sprite';
+  return asset?.kind || asset?.category || 'asset';
+}
+
+function inferPhaserRuntime(asset) {
+  if (asset?.extension === 'mtl') return 'asset';
+  if (asset?.kind === 'model3d') return 'threejs';
+  if (asset?.category === 'tilemap' || asset?.category === 'shader') return 'phaser';
+  return 'canvas';
+}
+
+function phaserQualityHint(asset, role, kind) {
+  const haystack = String(asset?.searchableText || '').toLowerCase();
+  if (['player', 'enemy', 'pickup'].includes(role) || kind === 'model') return 'hero';
+  if (haystack.includes('background') || haystack.includes('tiles') || haystack.includes('audio')) return 'support';
+  return 'support';
+}
+
+function mapPhaserAsset(asset) {
+  const role = inferPhaserRole(asset);
+  const kind = inferPhaserKind(asset);
+  const category = asset.category || kind;
+  const semanticRoles = [...new Set([
+    role,
+    kind,
+    category,
+    asset.kind,
+    ...(asset.tags || []),
+  ].filter(Boolean))];
+
+  return {
+    id: asset.id || `phaser:${asset.relativePath}`,
+    file: asset.relativePath,
+    tags: asset.tags || [],
+    category,
+    label: `Phaser — ${prettyPhaserLabel(asset)}`,
+    lane: null,
+    runtime: inferPhaserRuntime(asset),
+    role,
+    packName: 'Phaser Examples',
+    kind,
+    useful: true,
+    semanticRoles,
+    qualityHint: phaserQualityHint(asset, role, kind),
+    licenseNote: asset.licenseNote,
+    url: toAbsolutePhaserUrl(asset.relativePath || asset.url),
+  };
+}
+
+function getKenneyAssets({ lane = null, category = null, includeNoise = false } = {}) {
+  const assets = kenneyCatalog?.assets || [];
   return assets
-    .filter((asset) => !lane || asset.lane === lane)
+    .filter((asset) => assetMatchesLane(asset, lane))
     .filter((asset) => !category || asset.kind === category || asset.role === category || asset.runtime === category)
     .filter((asset) => includeNoise || asset.useful !== false)
-    .map(mapWave1Asset);
+    .map(mapKenneyAsset);
+}
+
+function getPhaserAssets({ category = null, includeNoise = false } = {}) {
+  const assets = phaserManifest?.entries || [];
+  return assets
+    .filter((asset) => !category || asset.category === category || asset.kind === category || asset.extension === category)
+    .filter((asset) => includeNoise || asset.sizeBytes > 0)
+    .map(mapPhaserAsset);
 }
 
 function tokenize(text) {
@@ -389,6 +582,12 @@ function kindMatches(asset, desiredKinds = []) {
   return desiredKinds.some((kind) => normalizedKinds.has(kind));
 }
 
+function strictKindMatches(asset, desiredKinds = []) {
+  if (!Array.isArray(desiredKinds) || desiredKinds.length === 0) return true;
+  const normalizedKinds = new Set([asset.kind, asset.category].filter(Boolean));
+  return desiredKinds.some((kind) => normalizedKinds.has(kind));
+}
+
 function roleExcluded(asset, forbiddenRoles = []) {
   if (!Array.isArray(forbiddenRoles) || forbiddenRoles.length === 0) return false;
   const normalizedRoles = new Set([
@@ -418,7 +617,7 @@ function laneBonus(laneIndex = 0) {
   return 1;
 }
 
-function rankWave1Assets(query, options = {}) {
+function rankKenneyAssets(query, options = {}) {
   const {
     lane = null,
     extraLanes = [],
@@ -433,7 +632,7 @@ function rankWave1Assets(query, options = {}) {
 
   const lanes = lane ? expandLaneCandidates(lane, extraLanes) : [];
   const candidates = (lanes.length > 0 ? lanes : [null])
-    .flatMap((laneName, laneIndex) => getWave1Assets({ lane: laneName }).map((asset) => ({ ...asset, __laneIndex: laneIndex })))
+    .flatMap((laneName, laneIndex) => getKenneyAssets({ lane: laneName }).map((asset) => ({ ...asset, __laneIndex: laneIndex })))
     .filter((asset) => !runtime || asset.runtime === runtime)
     .filter((asset) => roleMatches(asset, desiredRoles))
     .filter((asset) => kindMatches(asset, desiredKinds));
@@ -465,7 +664,63 @@ function rankWave1Assets(query, options = {}) {
     )
     .map(({ asset }) => asset);
 
-  return dedupeAssets(ranked).slice(0, limit);
+  // Add randomization: pick from top candidates for variety
+  const dedupedRanked = dedupeAssets(ranked);
+  const topCandidates = dedupedRanked.slice(0, Math.min(limit * 3, dedupedRanked.length));
+  return shuffleArray(topCandidates).slice(0, limit);
+}
+
+function rankPhaserAssets(query, options = {}) {
+  const {
+    desiredRoles = [],
+    desiredKinds = [],
+    forbiddenRoles = [],
+    forbiddenKinds = [],
+    runtime = null,
+    preferHero = false,
+    limit = 6,
+  } = options;
+
+  const candidates = getPhaserAssets()
+    .filter((asset) => !runtime || asset.runtime === runtime || (runtime === 'threejs' && asset.kind === 'model'))
+    .filter((asset) => roleMatches(asset, desiredRoles))
+    // Phaser's examples bundle is broad; keep kind matching strict so support files
+    // like .mtl materials do not masquerade as visible sprites or environments.
+    .filter((asset) => strictKindMatches(asset, desiredKinds))
+    .filter((asset) => !roleExcluded(asset, forbiddenRoles))
+    .filter((asset) => !kindExcluded(asset, forbiddenKinds))
+    .filter((asset) => desiredKinds.includes('material') || asset.kind !== 'material')
+    .filter((asset) => desiredKinds.length === 0 || desiredKinds.includes('model') || asset.kind !== 'model');
+
+  const queryTokens = tokenize(query);
+  const ranked = candidates
+    .map((asset) => {
+      const haystack = getAssetSearchText(asset);
+      const matchedTokens = queryTokens.filter((token) => haystack.includes(token));
+      const matchScore = matchedTokens.reduce((score, token) => score + (token.length >= 5 ? 2 : 1), 0);
+      const semanticScore = desiredRoles.length > 0 && roleMatches(asset, desiredRoles) ? 5 : 0;
+      const kindScore = desiredKinds.length > 0 && strictKindMatches(asset, desiredKinds) ? 4 : 0;
+      const runtimeScore = runtime && asset.runtime === runtime ? 3 : 0;
+      const phaserCoverageScore = ['audio', 'model', 'tilemap', 'shader', 'video'].includes(asset.kind) ? 2 : 0;
+      const score = matchScore + semanticScore + kindScore + runtimeScore + phaserCoverageScore + qualityBonus(asset, preferHero);
+      return { asset, score, matchedTokens: matchedTokens.length };
+    })
+    .filter(({ asset, score, matchedTokens }) => {
+      if (!asset?.useful) return false;
+      if (queryTokens.length === 0) return score > 0;
+      return matchedTokens > 0 || score >= 8;
+    })
+    .sort((a, b) =>
+      b.score - a.score ||
+      (b.asset.qualityHint === 'hero') - (a.asset.qualityHint === 'hero') ||
+      a.asset.label.localeCompare(b.asset.label)
+    )
+    .map(({ asset }) => asset);
+
+  // Add randomization: pick from top candidates for variety
+  const dedupedRanked = dedupeAssets(ranked);
+  const topCandidates = dedupedRanked.slice(0, Math.min(limit * 3, dedupedRanked.length));
+  return shuffleArray(topCandidates).slice(0, limit);
 }
 
 function scoreLegacyAsset(asset, query) {
@@ -500,6 +755,15 @@ function dedupeAssets(assets = []) {
     seen.add(key);
     return true;
   });
+}
+
+function shuffleArray(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 function filterAssetsByKeywords(assets = [], keywords = []) {
@@ -556,6 +820,98 @@ function enrichNotesWithCrossLaneBorrowing(lane, assets = []) {
   ];
 }
 
+function augmentBundleWithPhaser({
+  lane,
+  prompt,
+  visuals = [],
+  controls = [],
+  audio = [],
+  models = [],
+  isCockpitDriver = false,
+} = {}) {
+  let nextVisuals = visuals;
+  let nextControls = controls;
+  let nextAudio = audio;
+  let nextModels = models;
+  const notes = [];
+
+  const visualRoles = lane === 'story_horror_vignette'
+    ? ['environment', 'prop', 'ui']
+    : ['player', 'enemy', 'pickup', 'environment', 'prop', 'ui'];
+  const visualKinds = lane === 'first_person_threejs' || lane === 'third_person_threejs'
+    ? ['environment', 'sprite', 'ui']
+    : ['sprite', 'environment', 'item', 'ui', 'tilemap'];
+
+  if (nextVisuals.length < 5) {
+    nextVisuals = mergeAssetGroups(
+      nextVisuals,
+      rankPhaserAssets(prompt, {
+        desiredRoles: visualRoles,
+        desiredKinds: visualKinds,
+        forbiddenRoles: ['audio'],
+        limit: Math.max(2, 5 - nextVisuals.length),
+      })
+    );
+  }
+
+  if (nextControls.length < 2) {
+    nextControls = mergeAssetGroups(
+      nextControls,
+      rankPhaserAssets(`${prompt} button ui touch joystick menu hud`, {
+        desiredRoles: ['control', 'ui'],
+        desiredKinds: ['control', 'ui', 'sprite'],
+        limit: Math.max(1, 2 - nextControls.length),
+      })
+    );
+  }
+
+  if (nextAudio.length < 3) {
+    nextAudio = mergeAssetGroups(
+      nextAudio,
+      rankPhaserAssets(`${prompt} sound effect music impact shoot jump pickup ambience`, {
+        desiredRoles: ['audio'],
+        desiredKinds: ['audio'],
+        limit: Math.max(1, 3 - nextAudio.length),
+      })
+    );
+  }
+
+  if (lane === 'first_person_threejs' || lane === 'third_person_threejs' || isCockpitDriver) {
+    const modelPrompt = isCockpitDriver
+      ? `${prompt} car vehicle road city obstacle pickup dashboard model`
+      : lane === 'third_person_threejs'
+      ? `${prompt} visible player vehicle hero enemy road arena obstacle pickup chase camera model`
+      : `${prompt} zombie enemy weapon dungeon room wall prop model`;
+    nextModels = mergeAssetGroups(
+      nextModels,
+      rankPhaserAssets(modelPrompt, {
+        runtime: 'threejs',
+        desiredRoles: ['enemy', 'player', 'pickup', 'environment', 'prop'],
+        desiredKinds: ['model'],
+        preferHero: true,
+        limit: Math.max(2, 5 - nextModels.length),
+      })
+    );
+  }
+
+  const phaserCount = [...nextVisuals, ...nextControls, ...nextAudio, ...nextModels]
+    .filter((asset) => asset?.packName === 'Phaser Examples')
+    .length;
+  if (phaserCount > 0) {
+    notes.push(
+      'Phaser examples assets are available as a secondary library for sprites, audio, tilemaps, shaders, videos, and 3D models. Use them alongside Kenney when they fit the prompt, and verify per-asset licensing before commercial redistribution.'
+    );
+  }
+
+  return {
+    visuals: nextVisuals,
+    controls: nextControls,
+    audio: nextAudio,
+    models: nextModels,
+    notes,
+  };
+}
+
 function wantsGeneratedPixelArt(specSheet = {}, promptText = '') {
   const text = [
     promptText,
@@ -581,6 +937,238 @@ function wantsGeneratedPixelArt(specSheet = {}, promptText = '') {
   ].some((keyword) => text.includes(keyword));
 }
 
+/**
+ * AI-Driven Asset Selection (Two-Stage Generation)
+ * 
+ * Stage 1: Ask Kimi what assets it needs
+ * Stage 2: Search for those exact assets using semantic search
+ * 
+ * This gives Kimi full control over asset selection while still using
+ * our 84K asset library intelligently.
+ */
+export async function buildDreamAssetBundleWithAI(specSheet = {}, promptText = '', nvidiaClient) {
+  const lane = specSheet?.runtimeLane || 'arcade_canvas';
+  
+  console.log(`🤖 AI-Driven Asset Selection: Asking Kimi what assets it needs...`);
+  
+  try {
+    // Stage 1: Ask Kimi to describe what assets it needs
+    const assetRequirementsPrompt = {
+      system: `You are an expert game designer analyzing asset requirements.
+
+Given a game prompt and specifications, describe exactly what assets are needed to build this game.
+
+Return a JSON object with these categories:
+- player: { description, style, count }
+- enemies: { description, style, count }
+- environment: { description, style, count }
+- pickups: { description, style, count }
+- audio: { description, mood, count }
+- controls: { description, style, count }
+- models: { description, style, count } (for 3D games only)
+
+Be specific about:
+- Visual style (realistic, pixel art, cartoon, horror, etc.)
+- Mood/atmosphere (dark, cheerful, tense, etc.)
+- Gameplay requirements (fast-paced, strategic, etc.)
+
+Example for "zombie survival shooter":
+{
+  "player": {
+    "description": "Rugged zombie survivor with tactical gear, holding assault rifle",
+    "style": "realistic, gritty, post-apocalyptic",
+    "count": 6
+  },
+  "enemies": {
+    "description": "Various zombie types: slow walkers, fast runners, tank zombies with rotting flesh",
+    "style": "horrific, gore, blood splatter, undead",
+    "count": 10
+  },
+  "environment": {
+    "description": "Destroyed urban environment, abandoned buildings, debris, broken cars, dark streets",
+    "style": "dark, moody, post-apocalyptic city, desolate",
+    "count": 15
+  },
+  "pickups": {
+    "description": "Ammo boxes, medkits, health packs, weapon upgrades",
+    "style": "military, tactical, survival gear",
+    "count": 6
+  },
+  "audio": {
+    "description": "Gunshots, zombie groans, ambient horror, footsteps, reload sounds",
+    "mood": "tense, scary, action-packed, survival horror",
+    "count": 10
+  },
+  "controls": {
+    "description": "Joystick for movement, fire button, reload button, tactical UI",
+    "style": "military HUD, dark theme, combat interface",
+    "count": 6
+  }
+}`,
+      user: `Game prompt: "${promptText}"
+Game type: ${lane}
+Genre: ${specSheet?.genre || 'action'}
+Visual style: ${specSheet?.visualStyle || 'dynamic'}
+Control rig: ${specSheet?.controlRig || 'standard'}
+
+Analyze this game and describe exactly what assets are needed. Be specific and detailed.`
+    };
+
+    const response = await nvidiaClient.chat.completions.create({
+      model: 'meta/llama-3.3-70b-instruct',
+      messages: [
+        { role: 'system', content: assetRequirementsPrompt.system },
+        { role: 'user', content: assetRequirementsPrompt.user }
+      ],
+      max_tokens: 2000,
+      temperature: 0.7,
+      response_format: { type: 'json_object' }
+    });
+
+    if (!response?.choices?.[0]?.message?.content) {
+      console.warn('⚠️ AI asset requirements failed, falling back to rule-based selection');
+      return buildDreamAssetBundle(specSheet, promptText);
+    }
+
+    const requirements = JSON.parse(response.choices[0].message.content);
+    console.log(`✅ Kimi described asset needs:`, JSON.stringify(requirements, null, 2));
+
+    // Stage 2: Search for assets based on AI's requirements
+    const bundle = {
+      lane,
+      visuals: [],
+      controls: [],
+      audio: [],
+      models: [],
+      notes: ['Assets selected by AI-driven semantic search based on Kimi\'s requirements']
+    };
+
+    // Search for each category
+    if (requirements.player) {
+      console.log(`🔍 Searching for player assets: "${requirements.player.description}"`);
+      const playerAssets = await searchAssets(
+        `${requirements.player.description} ${requirements.player.style || ''}`,
+        requirements.player.count || 6,
+        { 
+          lane,
+          desiredRoles: ['player', 'hero'],
+          desiredKinds: ['sprite', 'character', 'model'],
+          preferHero: true
+        }
+      );
+      bundle.visuals.push(...playerAssets);
+      console.log(`  ✓ Found ${playerAssets.length} player assets`);
+    }
+
+    if (requirements.enemies) {
+      console.log(`🔍 Searching for enemy assets: "${requirements.enemies.description}"`);
+      const enemyAssets = await searchAssets(
+        `${requirements.enemies.description} ${requirements.enemies.style || ''}`,
+        requirements.enemies.count || 8,
+        { 
+          lane,
+          desiredRoles: ['enemy', 'obstacle'],
+          desiredKinds: ['sprite', 'character', 'model'],
+          preferHero: true
+        }
+      );
+      bundle.visuals.push(...enemyAssets);
+      console.log(`  ✓ Found ${enemyAssets.length} enemy assets`);
+    }
+
+    if (requirements.environment) {
+      console.log(`🔍 Searching for environment assets: "${requirements.environment.description}"`);
+      const envAssets = await searchAssets(
+        `${requirements.environment.description} ${requirements.environment.style || ''}`,
+        requirements.environment.count || 12,
+        { 
+          lane,
+          desiredRoles: ['environment', 'prop', 'background'],
+          desiredKinds: ['environment', 'sprite', 'model']
+        }
+      );
+      bundle.visuals.push(...envAssets);
+      console.log(`  ✓ Found ${envAssets.length} environment assets`);
+    }
+
+    if (requirements.pickups) {
+      console.log(`🔍 Searching for pickup assets: "${requirements.pickups.description}"`);
+      const pickupAssets = await searchAssets(
+        `${requirements.pickups.description} ${requirements.pickups.style || ''}`,
+        requirements.pickups.count || 5,
+        { 
+          lane,
+          desiredRoles: ['pickup', 'item'],
+          desiredKinds: ['item', 'sprite', 'environment']
+        }
+      );
+      bundle.visuals.push(...pickupAssets);
+      console.log(`  ✓ Found ${pickupAssets.length} pickup assets`);
+    }
+
+    if (requirements.audio) {
+      console.log(`🔍 Searching for audio assets: "${requirements.audio.description}"`);
+      const audioAssets = await searchAssets(
+        `${requirements.audio.description} ${requirements.audio.mood || ''}`,
+        requirements.audio.count || 8,
+        { 
+          lane,
+          desiredKinds: ['audio']
+        }
+      );
+      bundle.audio.push(...audioAssets);
+      console.log(`  ✓ Found ${audioAssets.length} audio assets`);
+    }
+
+    if (requirements.controls) {
+      console.log(`🔍 Searching for control assets: "${requirements.controls.description}"`);
+      const controlAssets = await searchAssets(
+        `${requirements.controls.description} ${requirements.controls.style || ''}`,
+        requirements.controls.count || 6,
+        { 
+          lane,
+          desiredRoles: ['control', 'ui'],
+          desiredKinds: ['control', 'ui']
+        }
+      );
+      bundle.controls.push(...controlAssets);
+      console.log(`  ✓ Found ${controlAssets.length} control assets`);
+    }
+
+    if (requirements.models && (lane === 'first_person_threejs' || lane === 'third_person_threejs')) {
+      console.log(`🔍 Searching for 3D model assets: "${requirements.models.description}"`);
+      const modelAssets = await searchAssets(
+        `${requirements.models.description} ${requirements.models.style || ''}`,
+        requirements.models.count || 8,
+        { 
+          lane,
+          desiredKinds: ['model'],
+          runtime: 'threejs'
+        }
+      );
+      bundle.models.push(...modelAssets);
+      console.log(`  ✓ Found ${modelAssets.length} 3D model assets`);
+    }
+
+    // Deduplicate and format
+    bundle.visuals = summarizeBundleSection(dedupeAssets(bundle.visuals), 'visual');
+    bundle.controls = summarizeBundleSection(dedupeAssets(bundle.controls), 'control');
+    bundle.audio = summarizeBundleSection(dedupeAssets(bundle.audio), 'audio');
+    bundle.models = summarizeBundleSection(dedupeAssets(bundle.models), 'model');
+
+    const totalAssets = bundle.visuals.length + bundle.controls.length + bundle.audio.length + bundle.models.length;
+    console.log(`🎉 AI-Driven Asset Selection complete: ${totalAssets} assets selected`);
+    console.log(`   Visuals: ${bundle.visuals.length}, Controls: ${bundle.controls.length}, Audio: ${bundle.audio.length}, Models: ${bundle.models.length}`);
+
+    return totalAssets > 0 ? bundle : null;
+
+  } catch (error) {
+    console.error('❌ AI-driven asset selection failed:', error.message);
+    console.log('⚠️ Falling back to rule-based asset selection');
+    return buildDreamAssetBundle(specSheet, promptText);
+  }
+}
+
 export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
   const lane = specSheet?.runtimeLane || 'arcade_canvas';
   const controlRig = specSheet?.controlRig || null;
@@ -598,7 +1186,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     specSheet?.entities?.collectible,
   ].filter(Boolean).join(' ');
 
-  if (!wave1Catalog?.assets?.length && !ASSET_LIBRARY.length) {
+  if (!kenneyCatalog?.assets?.length && !phaserManifest?.entries?.length && !ASSET_LIBRARY.length) {
     return null;
   }
 
@@ -611,34 +1199,34 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
   switch (lane) {
     case 'endless_flyer':
       visuals = mergeAssetGroups(
-        rankWave1Assets(`${prompt} plane flyer bird player`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], forbiddenRoles: ['ui', 'control'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} obstacle cloud sky pipe gate tower`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 2 }),
-        rankWave1Assets(`${prompt} coin star pickup score`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 2 })
+        rankKenneyAssets(`${prompt} plane flyer bird player`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], forbiddenRoles: ['ui', 'control'], preferHero: true, limit: 6 }),
+        rankKenneyAssets(`${prompt} obstacle cloud sky pipe gate tower`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 8 }),
+        rankKenneyAssets(`${prompt} coin star pickup score`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 5 })
       );
-      controls = rankWave1Assets(`${prompt} button joystick tap ui`, { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 });
-      audio = rankWave1Assets(`${prompt} jingle impact interface`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
+      controls = rankKenneyAssets(`${prompt} button joystick tap ui`, { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 });
+      audio = rankKenneyAssets(`${prompt} jingle impact interface`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 });
       notes = enrichNotesWithCrossLaneBorrowing(lane, visuals);
       break;
 
     case 'topdown_arcade':
       visuals = mergeAssetGroups(
-        rankWave1Assets(`${prompt} survivor soldier hero player gun blaster fighter`, { lane, desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} road parking lot tile barricade crate barrel floor curb wall`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
-        rankWave1Assets(`${prompt} skyline horizon tree building fence sign streetlight background`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 2 }),
-        rankWave1Assets(`${prompt} coin ammo medkit pickup`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], limit: 2 })
+        rankKenneyAssets(`${prompt} survivor soldier hero player gun blaster fighter`, { lane, desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 6 }),
+        rankKenneyAssets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 8 }),
+        rankKenneyAssets(`${prompt} road parking lot tile barricade crate barrel floor curb wall`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 10 }),
+        rankKenneyAssets(`${prompt} skyline horizon tree building fence sign streetlight background`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 6 }),
+        rankKenneyAssets(`${prompt} coin ammo medkit pickup`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], limit: 5 })
       );
-      controls = rankWave1Assets(
+      controls = rankKenneyAssets(
         isMoveAndFire
           ? `${prompt} joystick thumbpad fire button attack ui combat`
           : `${prompt} button shoot joystick ui`,
-        { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 }
+        { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 }
       );
-      audio = rankWave1Assets(
+      audio = rankKenneyAssets(
         isMoveAndFire
           ? `${prompt} gun hit muzzle impact combat interface`
           : `${prompt} impact interface gun hit`,
-        { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }
+        { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 10 }
       );
       notes = [
         ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
@@ -652,15 +1240,15 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
       visuals = wantsStrictGeneratedPixel
         ? []
         : mergeAssetGroups(
-            rankWave1Assets(`${prompt} pixel background clouds sky hills trees grass`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
-            rankWave1Assets(`${prompt} pixel player hero adventurer character`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 3 }),
-            rankWave1Assets(`${prompt} pixel slime ghost enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 2 }),
-            rankWave1Assets(`${prompt} coin gem heart pickup hud`, { lane, desiredRoles: ['pickup', 'ui'], desiredKinds: ['environment', 'sprite', 'item'], limit: 2 })
+            rankKenneyAssets(`${prompt} pixel background clouds sky hills trees grass`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 10 }),
+            rankKenneyAssets(`${prompt} pixel player hero adventurer character`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 8 }),
+            rankKenneyAssets(`${prompt} pixel slime ghost enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 8 }),
+            rankKenneyAssets(`${prompt} coin gem heart pickup hud`, { lane, desiredRoles: ['pickup', 'ui'], desiredKinds: ['environment', 'sprite', 'item'], limit: 6 })
           );
       controls = wantsStrictGeneratedPixel
         ? []
-        : rankWave1Assets(`${prompt} button ui`, { lane, desiredRoles: ['ui'], desiredKinds: ['ui', 'control'], limit: 2 });
-      audio = rankWave1Assets(`${prompt} jingle platformer coin`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 2 });
+        : rankKenneyAssets(`${prompt} button ui`, { lane, desiredRoles: ['ui'], desiredKinds: ['ui', 'control'], limit: 5 });
+      audio = rankKenneyAssets(`${prompt} jingle platformer coin`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 });
       notes = [
         ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
         ...(wantsStrictGeneratedPixel
@@ -672,12 +1260,12 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'auto_battler_arena':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankWave1Assets(`${prompt} knight archer wizard ally warrior paladin mage`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 3 }),
-          rankWave1Assets(`${prompt} goblin orc zombie skeleton enemy monster`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer', 'first_person_threejs'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite', 'model'], preferHero: true, limit: 3 }),
-          rankWave1Assets(`${prompt} battlefield arena board prep grid fantasy tile banner frame floor`, { lane, desiredRoles: ['environment', 'ui', 'prop'], desiredKinds: ['environment', 'ui', 'sprite'], limit: 4 }),
-          rankWave1Assets(`${prompt} gate castle torch crowd stand wall statue horizon backdrop`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
-          pickLegacyAssets(`${prompt} knight archer wizard fantasy`, { limit: 4, categories: ['character', 'weapon'] }),
-          pickLegacyAssets(`${prompt} goblin orc zombie skeleton ghost enemy`, { limit: 3, categories: ['enemy'] })
+          rankKenneyAssets(`${prompt} knight archer wizard ally warrior paladin mage`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 10 }),
+          rankKenneyAssets(`${prompt} goblin orc zombie skeleton enemy monster`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer', 'first_person_threejs'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite', 'model'], preferHero: true, limit: 10 }),
+          rankKenneyAssets(`${prompt} battlefield arena board prep grid fantasy tile banner frame floor`, { lane, desiredRoles: ['environment', 'ui', 'prop'], desiredKinds: ['environment', 'ui', 'sprite'], limit: 12 }),
+          rankKenneyAssets(`${prompt} gate castle torch crowd stand wall statue horizon backdrop`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 8 }),
+          pickLegacyAssets(`${prompt} knight archer wizard fantasy`, { limit: 6, categories: ['character', 'weapon'] }),
+          pickLegacyAssets(`${prompt} goblin orc zombie skeleton ghost enemy`, { limit: 6, categories: ['enemy'] })
         ),
         ['knight', 'archer', 'wizard', 'mage', 'warrior', 'paladin', 'goblin', 'orc', 'skeleton', 'enemy', 'banner', 'gate', 'castle', 'arena', 'battle', 'grid', 'frame', 'tile']
       );
@@ -707,7 +1295,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         visuals = [];
       }
       controls = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} battle button deploy ui frame`, { lane, desiredRoles: ['ui', 'control'], desiredKinds: ['ui', 'control', 'environment'], limit: 3 }),
+        rankKenneyAssets(`${prompt} battle button deploy ui frame`, { lane, desiredRoles: ['ui', 'control'], desiredKinds: ['ui', 'control', 'environment'], limit: 3 }),
         ['battle', 'button', 'frame', 'panel', 'banner', 'deploy']
       );
       controls = controls.filter((asset) => {
@@ -719,7 +1307,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} impact sword magic battle interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        rankKenneyAssets(`${prompt} impact sword magic battle interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
         ['impact', 'sword', 'magic', 'battle', 'hit', 'attack']
       );
       notes = [
@@ -736,26 +1324,26 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'endless_runner_vertical':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankWave1Assets(`${prompt} runner player hero skater surfer character`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
-          rankWave1Assets(`${prompt} train barrier cone obstacle sign crate hazard`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 3 }),
-          rankWave1Assets(
+          rankKenneyAssets(`${prompt} runner player hero skater surfer character`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 6 }),
+          rankKenneyAssets(`${prompt} train barrier cone obstacle sign crate hazard`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 8 }),
+          rankKenneyAssets(
             isLaneSwipeRunner
               ? `${prompt} road lane marker track stripe divider arrow skyline city building fence horizon background`
               : `${prompt} road lane marker track stripe skyline city building fence horizon background`,
-            { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 4 }
+            { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 10 }
           ),
-          rankWave1Assets(`${prompt} coin gem pickup score`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 2 })
+          rankKenneyAssets(`${prompt} coin gem pickup score`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 5 })
         ),
         ['runner', 'run', 'track', 'lane', 'road', 'stripe', 'barrier', 'train', 'coin', 'gem', 'pickup', 'sign', 'cone', 'arrow']
       );
       if (!hasAnyAssetKeyword(visuals, ['runner', 'track', 'lane', 'road', 'barrier', 'train', 'sign', 'cone'])) {
         visuals = [];
       }
-      controls = filterAssetsByKeywords(rankWave1Assets(
+      controls = filterAssetsByKeywords(rankKenneyAssets(
         isLaneSwipeRunner
           ? `${prompt} swipe left right jump slide ui lane runner`
           : `${prompt} swipe button ui lane`,
-        { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 }
+        { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 }
       ), ['left', 'right', 'arrow', 'button', 'direction', 'swipe']);
       controls = controls.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
@@ -766,7 +1354,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} swoosh hit coin interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        rankKenneyAssets(`${prompt} swoosh hit coin interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 }),
         ['coin', 'jump', 'swoosh', 'swipe', 'pickup', 'move', 'woosh']
       );
       notes = [
@@ -786,12 +1374,12 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'story_horror_vignette':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankWave1Assets(`${prompt} paper note letter terminal frame card panel eerie prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'ui', 'item', 'sprite'], limit: 3 }),
-          rankWave1Assets(`${prompt} candle lamp glow dust smoke shadow frame background`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite', 'item'], limit: 2 })
+          rankKenneyAssets(`${prompt} paper note letter terminal frame card panel eerie prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'ui', 'item', 'sprite'], limit: 6 }),
+          rankKenneyAssets(`${prompt} candle lamp glow dust smoke shadow frame background`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite', 'item'], limit: 5 })
         ),
         ['panel', 'frame', 'window', 'terminal', 'screen', 'card', 'paper', 'note', 'letter', 'lamp', 'candle']
       );
-      controls = rankWave1Assets(`${prompt} yes no continue button ui prompt`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 2 });
+      controls = rankKenneyAssets(`${prompt} yes no continue button ui prompt`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 5 });
       controls = controls.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
         const url = String(asset?.url || '').toLowerCase();
@@ -801,7 +1389,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} ambience hum whisper click interface eerie`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        rankKenneyAssets(`${prompt} ambience hum whisper click interface eerie`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 }),
         ['hum', 'whisper', 'click', 'interface', 'eerie', 'soft', 'ambient']
       );
       notes = [
@@ -816,9 +1404,9 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'simulation_toybox':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankWave1Assets(`${prompt} ingredient card pantry shelf tray bottle jar fruit gem reagent item`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['pickup', 'item', 'prop', 'ui'], desiredKinds: ['item', 'ui', 'sprite', 'environment'], limit: 4 }),
-          rankWave1Assets(`${prompt} cauldron pot machine altar lab table workbench station core vessel`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'sprite', 'ui', 'item'], limit: 4 }),
-          rankWave1Assets(`${prompt} result card badge reveal modal frame spark bubble glow`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['ui', 'prop'], desiredKinds: ['ui', 'environment', 'item', 'sprite'], limit: 3 })
+          rankKenneyAssets(`${prompt} ingredient card pantry shelf tray bottle jar fruit gem reagent item`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['pickup', 'item', 'prop', 'ui'], desiredKinds: ['item', 'ui', 'sprite', 'environment'], limit: 8 }),
+          rankKenneyAssets(`${prompt} cauldron pot machine altar lab table workbench station core vessel`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'sprite', 'ui', 'item'], limit: 8 }),
+          rankKenneyAssets(`${prompt} result card badge reveal modal frame spark bubble glow`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['ui', 'prop'], desiredKinds: ['ui', 'environment', 'item', 'sprite'], limit: 6 })
         ),
         ['card', 'panel', 'tray', 'shelf', 'bottle', 'jar', 'potion', 'gem', 'item', 'machine', 'station', 'workbench', 'altar', 'pot', 'cauldron', 'frame', 'badge']
       );
@@ -826,14 +1414,14 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         visuals = [];
       }
       controls = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} drag button combine mix fuse cook brew reveal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 }),
+        rankKenneyAssets(`${prompt} drag button combine mix fuse cook brew reveal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 }),
         ['button', 'panel', 'frame', 'card', 'tab']
       );
       if (visuals.length === 0) {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} bubble pop sparkle reveal success interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        rankKenneyAssets(`${prompt} bubble pop sparkle reveal success interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 }),
         ['bubble', 'pop', 'sparkle', 'success', 'confirm', 'magic', 'reveal']
       );
       notes = [
@@ -847,11 +1435,11 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
 
     case 'single_room_shooter':
       visuals = mergeAssetGroups(
-        rankWave1Assets(`${prompt} soldier survivor hero player gun`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} zombie skeleton enemy monster raider`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 2 }),
-        rankWave1Assets(`${prompt} bunker room wall floor table crate barrel cover terminal prop`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 5 }),
-        rankWave1Assets(`${prompt} medkit ammo coin pickup`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 2 }),
-        pickLegacyAssets(`${prompt} torch door rock bunker cover`, { limit: 3, categories: ['decoration', 'environment'] })
+        rankKenneyAssets(`${prompt} soldier survivor hero player gun`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 6 }),
+        rankKenneyAssets(`${prompt} zombie skeleton enemy monster raider`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 8 }),
+        rankKenneyAssets(`${prompt} bunker room wall floor table crate barrel cover terminal prop`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 10 }),
+        rankKenneyAssets(`${prompt} medkit ammo coin pickup`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 5 }),
+        pickLegacyAssets(`${prompt} torch door rock bunker cover`, { limit: 5, categories: ['decoration', 'environment'] })
       );
       visuals = visuals.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
@@ -871,7 +1459,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
           !url.includes('liquidlava')
         );
       });
-      controls = rankWave1Assets(`${prompt} fire button joystick ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 });
+      controls = rankKenneyAssets(`${prompt} fire button joystick ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 });
       controls = controls.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
         const url = String(asset?.url || '').toLowerCase();
@@ -881,7 +1469,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankWave1Assets(`${prompt} gunshot muzzle hit reload impact combat weapon`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 4 }),
+        rankKenneyAssets(`${prompt} gunshot muzzle hit reload impact combat weapon`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 }),
         ['gun', 'shot', 'gunshot', 'hit', 'reload', 'impact', 'weapon', 'attack', 'combat']
       );
       audio = audio.filter((asset) => {
@@ -903,41 +1491,67 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'first_person_threejs':
       if (isCockpitDriver) {
         models = mergeAssetGroups(
-          rankWave1Assets(`${prompt} road barrier traffic cone pillar tunnel prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', limit: 4 }),
-          rankWave1Assets(`${prompt} boost pickup checkpoint coin`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 2 }),
-          rankWave1Assets(`${prompt} vehicle car chassis cockpit dashboard prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 2 })
+          rankKenneyAssets(`${prompt} road barrier traffic cone pillar tunnel prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', limit: 8 }),
+          rankKenneyAssets(`${prompt} boost pickup checkpoint coin`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 5 }),
+          rankKenneyAssets(`${prompt} vehicle car chassis cockpit dashboard prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 5 })
         );
         controls = filterAssetsByKeywords(mergeAssetGroups(
-          rankWave1Assets(`${prompt} steering wheel dashboard speedometer pedal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 4 }),
-          pickLegacyAssets(`${prompt} speedometer dashboard steering`, { limit: 2, categories: ['decoration', 'item'] })
+          rankKenneyAssets(`${prompt} steering wheel dashboard speedometer pedal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 8 }),
+          pickLegacyAssets(`${prompt} speedometer dashboard steering`, { limit: 4, categories: ['decoration', 'item'] })
         ), ['steer', 'wheel', 'dashboard', 'speed', 'pedal', 'meter', 'rpm', 'gauge']);
-        audio = rankWave1Assets(`${prompt} engine rev brake swoosh interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
+        audio = rankKenneyAssets(`${prompt} engine rev brake swoosh interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 });
         notes = [
           ...enrichNotesWithCrossLaneBorrowing(lane, [...models, ...controls]),
           'Cockpit-driver control rig detected: prioritize dashboard, steering, pedals, road cues, and horizon props over dungeon-style first-person set dressing.',
         ];
       } else {
         models = mergeAssetGroups(
-          rankWave1Assets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 2 }),
-          rankWave1Assets(`${prompt} chest coin pickup treasure`, { lane, desiredRoles: ['pickup'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 2 }),
-          rankWave1Assets(`${prompt} wall floor dungeon graveyard barrel torch prop`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['model'], runtime: 'threejs', limit: 4 })
+          rankKenneyAssets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 6 }),
+          rankKenneyAssets(`${prompt} chest coin pickup treasure`, { lane, desiredRoles: ['pickup'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 5 }),
+          rankKenneyAssets(`${prompt} wall floor dungeon graveyard barrel torch prop`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['model'], runtime: 'threejs', limit: 8 })
         );
-        controls = rankWave1Assets(`${prompt} button joystick ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 3 });
-        audio = rankWave1Assets(`${prompt} impact interface horror hit`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 });
+        controls = rankKenneyAssets(`${prompt} button joystick ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 });
+        audio = rankKenneyAssets(`${prompt} impact interface horror hit`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 });
         notes = enrichNotesWithCrossLaneBorrowing(lane, models);
       }
       break;
 
+    case 'third_person_threejs':
+      models = mergeAssetGroups(
+        rankKenneyAssets(`${prompt} visible player hero character car vehicle body`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'character', 'sprite'], runtime: 'threejs', preferHero: true, limit: 6 }),
+        rankKenneyAssets(`${prompt} enemy traffic hazard monster drone obstacle`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['model', 'environment', 'sprite'], runtime: 'threejs', preferHero: true, limit: 8 }),
+        rankKenneyAssets(`${prompt} road arena floor wall cover checkpoint pickup landmark horizon`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'pickup', 'prop'], desiredKinds: ['model', 'environment', 'item', 'sprite'], runtime: 'threejs', limit: 10 })
+      );
+      controls = rankKenneyAssets(`${prompt} joystick action attack accelerate brake drift ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 8 });
+      audio = rankKenneyAssets(`${prompt} impact engine hit pickup boost interface`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 });
+      notes = enrichNotesWithCrossLaneBorrowing(lane, [...models, ...controls]);
+      break;
+
     default:
       visuals = mergeAssetGroups(
-        rankWave1Assets(prompt, { desiredKinds: ['character', 'sprite', 'environment', 'item', 'weapon'], preferHero: true, limit: 6 }),
-        pickLegacyAssets(prompt, { limit: 4, categories: ['character', 'enemy', 'environment', 'item', 'weapon'] })
+        rankKenneyAssets(prompt, { desiredKinds: ['character', 'sprite', 'environment', 'item', 'weapon'], preferHero: true, limit: 12 }),
+        pickLegacyAssets(prompt, { limit: 8, categories: ['character', 'enemy', 'environment', 'item', 'weapon'] })
       );
       notes = [
         'This lane has no dedicated bundle recipe yet, so the asset brain searched the whole organized Kenney library and then fell back to the legacy curated set.',
       ];
       break;
   }
+
+  const phaserAugment = augmentBundleWithPhaser({
+    lane,
+    prompt,
+    visuals,
+    controls,
+    audio,
+    models,
+    isCockpitDriver,
+  });
+  visuals = phaserAugment.visuals;
+  controls = phaserAugment.controls;
+  audio = phaserAugment.audio;
+  models = phaserAugment.models;
+  notes = [...notes, ...phaserAugment.notes];
 
   const bundle = {
     lane,
@@ -953,12 +1567,20 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
 }
 
 /**
- * Search assets using the curated Wave 1 intelligence index first, then fall back
- * to the legacy precomputed vector store when needed.
+ * Search assets using the Kenney catalog first, then fall back to Phaser and the
+ * legacy precomputed vector store when needed.
  */
 export async function searchAssets(query, maxResults = 8, options = {}) {
-  if (wave1Catalog?.assets?.length) {
-    const ranked = rankWave1Assets(query, {
+  const phaserRanked = rankPhaserAssets(query, {
+    desiredRoles: options?.desiredRoles || (options?.category ? [options.category] : []),
+    desiredKinds: options?.desiredKinds || [],
+    runtime: options?.runtime || null,
+    preferHero: options?.preferHero !== false,
+    limit: maxResults,
+  });
+
+  if (kenneyCatalog?.assets?.length) {
+    const ranked = rankKenneyAssets(query, {
       lane: options?.lane || null,
       extraLanes: options?.lanes || [],
       desiredRoles: options?.desiredRoles || (options?.category ? [options.category] : []),
@@ -968,9 +1590,14 @@ export async function searchAssets(query, maxResults = 8, options = {}) {
       limit: maxResults,
     });
 
-    if (ranked.length) {
-      return ranked;
+    const combinedRanked = dedupeAssets([...ranked, ...phaserRanked]).slice(0, maxResults);
+    if (combinedRanked.length) {
+      return combinedRanked;
     }
+  }
+
+  if (phaserRanked.length) {
+    return phaserRanked.slice(0, maxResults);
   }
 
   if (!precomputedEmbeddings) {
@@ -1000,20 +1627,104 @@ export async function searchAssets(query, maxResults = 8, options = {}) {
  * Get all available assets (for admin/debug)
  */
 export function getAllAssets() {
-  if (wave1Catalog?.assets?.length) {
-    return getWave1Assets();
+  return dedupeAssets([
+    ...(kenneyCatalog?.assets?.length ? getKenneyAssets() : []),
+    ...getPhaserAssets(),
+    ...ASSET_LIBRARY.map(a => ({ ...a, url: `${ASSET_BASE_URL}/${a.file}` })),
+  ]);
+}
+
+function publicUrlForDiagnostics(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    parsed.username = '';
+    parsed.password = '';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return String(url).replace(/[?#].*$/, '');
   }
-  return ASSET_LIBRARY.map(a => ({ ...a, url: `${ASSET_BASE_URL}/${a.file}` }));
+}
+
+function envFlag(name) {
+  return Boolean(String(process.env[name] || '').trim());
+}
+
+export function getAssetRuntimeDiagnostics() {
+  const kenneyAssets = kenneyCatalog?.assets?.length ? getKenneyAssets({ includeNoise: true }) : [];
+  const phaserAssets = getPhaserAssets({ includeNoise: true });
+  const legacyAssets = ASSET_LIBRARY.map(a => ({ ...a, url: `${ASSET_BASE_URL}/${a.file}` }));
+  const sampleKenney = kenneyAssets.slice(0, 5).map((asset) => ({
+    id: asset.id,
+    label: asset.label,
+    kind: asset.kind,
+    role: asset.role,
+    runtime: asset.runtime,
+    url: publicUrlForDiagnostics(asset.url),
+  }));
+
+  return {
+    bases: {
+      kenney: publicUrlForDiagnostics(KENNEY_BASE_URL),
+      legacyKenney: publicUrlForDiagnostics(ASSET_BASE_URL),
+      phaser: publicUrlForDiagnostics(PHASER_BASE_URL),
+    },
+    env: {
+      KENNEY_ASSET_BASE: envFlag('KENNEY_ASSET_BASE'),
+      KENNEY_ASSET_URL: envFlag('KENNEY_ASSET_URL'),
+      KENNEY_FULL_ASSET_BASE: envFlag('KENNEY_FULL_ASSET_BASE'),
+      KENNEY_FULL_ASSET_URL: envFlag('KENNEY_FULL_ASSET_URL'),
+      KENNEY_WAVE1_ASSET_BASE: envFlag('KENNEY_WAVE1_ASSET_BASE'),
+      KENNEY_WAVE1_ASSET_URL: envFlag('KENNEY_WAVE1_ASSET_URL'),
+      KENNEY_CATALOG_PATH: envFlag('KENNEY_CATALOG_PATH'),
+      KENNEY_INTELLIGENCE_PATH: envFlag('KENNEY_INTELLIGENCE_PATH'),
+      R2_PUBLIC_URL: envFlag('R2_PUBLIC_URL'),
+      R2_BUCKET_NAME: envFlag('R2_BUCKET_NAME'),
+      R2_ACCOUNT_ID: envFlag('R2_ACCOUNT_ID'),
+      R2_ACCESS_KEY_ID: envFlag('R2_ACCESS_KEY_ID'),
+      R2_SECRET_ACCESS_KEY: envFlag('R2_SECRET_ACCESS_KEY'),
+    },
+    catalogs: {
+      kenney: {
+        loaded: Boolean(kenneyCatalog?.assets?.length),
+        source: kenneyCatalogInfo?.source || null,
+        path: kenneyCatalogInfo?.path || null,
+        servingRoot: publicUrlForDiagnostics(kenneyCatalogInfo?.servingRoot),
+        assets: kenneyCatalog?.assets?.length || 0,
+        usefulAssets: kenneyCatalog?.summary?.totals?.usefulAssets || null,
+      },
+      phaser: {
+        loaded: Boolean(phaserManifest?.entries?.length),
+        path: PHASER_MANIFEST_PATH,
+        assets: phaserManifest?.entries?.length || 0,
+      },
+      legacyCurated: {
+        assets: legacyAssets.length,
+      },
+    },
+    totals: {
+      kenney: kenneyAssets.length,
+      phaser: phaserAssets.length,
+      legacyCurated: legacyAssets.length,
+      allDeduped: getAllAssets().length,
+    },
+    samples: {
+      kenney: sampleKenney,
+    },
+  };
 }
 
 /**
  * Get assets by category
  */
 export function getAssetsByCategory(category) {
-  if (wave1Catalog?.assets?.length) {
-    return getWave1Assets({ category });
-  }
-  return ASSET_LIBRARY
-    .filter(a => a.category === category)
-    .map(a => ({ ...a, url: `${ASSET_BASE_URL}/${a.file}` }));
+  return dedupeAssets([
+    ...(kenneyCatalog?.assets?.length ? getKenneyAssets({ category }) : []),
+    ...getPhaserAssets({ category }),
+    ...ASSET_LIBRARY
+      .filter(a => a.category === category)
+      .map(a => ({ ...a, url: `${ASSET_BASE_URL}/${a.file}` })),
+  ]);
 }
