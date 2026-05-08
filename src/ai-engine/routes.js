@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db.js';
-import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase3_Repair, postProcessRawHtml } from './promptRegistry.js';
+import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase3_Repair, buildPhase3_SelfCritique, postProcessRawHtml } from './promptRegistry.js';
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, getAssetRuntimeDiagnostics } from './asset-dictionary.js';
@@ -1704,6 +1704,34 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         if (!p3Success) {
             throw new Error('Sandbox verification failed after 2 builder repair attempts.');
+        }
+
+        // ── PHASE 3B: SELF-CRITIQUE + QUALITY IMPROVEMENT ──
+        assertJobNotCancelled(jobId);
+        console.log(`🔍 Phase 3B: Kimi reviewing its own output for quality...`);
+        const critiquePrompt = buildPhase3_SelfCritique(prompt, rawGameHtml);
+        const improvedHtml = await generateCompleteHtmlWithBuilder(critiquePrompt, { label: 'Phase 3B Self-Critique', jobId });
+        assertJobNotCancelled(jobId);
+
+        if (improvedHtml && hasClosedHtmlDocument(improvedHtml) && improvedHtml.length > rawGameHtml.length * 0.7) {
+            // Verify the improved version still boots
+            let improvedSandboxRes;
+            try {
+                improvedSandboxRes = await verifyGame(postProcessRawHtml(improvedHtml), {});
+            } catch (e) {
+                improvedSandboxRes = { success: false };
+            }
+
+            if (improvedSandboxRes.success) {
+                console.log(`✅ Phase 3B: Improved version passes sandbox — using it`);
+                rawGameHtml = improvedHtml;
+                finalHtml = postProcessRawHtml(improvedHtml);
+                if (improvedSandboxRes.screenshot) finalScreenshot = improvedSandboxRes.screenshot;
+            } else {
+                console.log(`⚠️ Phase 3B: Improved version failed sandbox — keeping original`);
+            }
+        } else {
+            console.log(`⚠️ Phase 3B: Self-critique output invalid — keeping original`);
         }
 
         // ── SAVE TO DB ──

@@ -366,6 +366,41 @@ QUALITY BAR:
 OUTPUT: The complete HTML file only.`;
 }
 
+// ─────────────────────────────────────────────────────────
+// PHASE 3: SELF-CRITIQUE + IMPROVEMENT PASS
+// Kimi reads its own output, judges quality, rewrites weak parts
+// ─────────────────────────────────────────────────────────
+
+export function buildPhase3_SelfCritique(originalPrompt, currentHtml) {
+  return `You are a senior game developer doing a quality review of a game you just built.
+
+ORIGINAL CONCEPT:
+"${originalPrompt}"
+
+YOUR CURRENT BUILD:
+\`\`\`html
+${currentHtml}
+\`\`\`
+
+REVIEW CHECKLIST - be brutally honest:
+1. Does it actually match the concept? (right genre, right feel, right theme)
+2. Do the visuals look good? (proper sprites loaded, not ugly shapes or placeholders)
+3. Is the gameplay fun and responsive? (controls work, feedback is satisfying)
+4. Is there visual juice? (particles, animations, screen shake, impact effects)
+5. Does audio work? (real sounds loaded, not silence or oscillator beeps)
+6. Is the UI readable on mobile? (not tiny text, not overlapping elements)
+7. Are there any broken features? (things that don't work as intended)
+
+Based on your review, rewrite the COMPLETE improved HTML file that fixes every issue you found.
+
+RULES:
+- If something is already good, keep it exactly as is.
+- Only rewrite parts that are genuinely weak or broken.
+- Do NOT downgrade working features while fixing others.
+- The game must still boot immediately and work on mobile touch.
+- Output ONLY the complete HTML file. No explanation.`;
+}
+
 export function buildPhase1B_Scaffold(specSheet) {
   return {
     system: `You are the Technical Design Lead for a mobile HTML5 Canvas game studio.
