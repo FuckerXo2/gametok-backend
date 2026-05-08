@@ -391,9 +391,9 @@ function buildEngineSpecBlock(specSheet) {
 - Prefer this only for UI-heavy non-action games.`;
   }
 
-  return `ENGINE SPEC: PHASER 3 WITH WEBGL
+  return `ENGINE SPEC: PHASER 3 WITH AUTO RENDERER
 - Use Phaser 3 via CDN (https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js)
-- Force WebGL renderer for GPU acceleration: type: Phaser.WEBGL
+- Use AUTO renderer for compatibility: type: Phaser.AUTO
 - Keep the game compact, touch-first, and readable on mobile.
 - Use Phaser's built-in physics, sprites, and animations for better performance.`;
 }
@@ -425,7 +425,7 @@ export function buildLabsSoloPrototype(userPrompt, qualityIntent = {}, assetBund
   } else {
     engineRules = `ENGINE: PHASER 3 FOR 2D GAMES (REQUIRED - DO NOT USE CANVAS 2D!)
 - Import: <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
-- Force WebGL renderer: type: Phaser.WEBGL
+- Use AUTO renderer: type: Phaser.AUTO (tries WebGL, falls back to Canvas if needed)
 - Load PNG/sprite assets from the provided asset kit using Phaser's preload system
 - Use Phaser's sprite system for ALL visual elements (characters, enemies, items, backgrounds)
 - Use Phaser's arcade physics for collisions and movement
@@ -1230,11 +1230,11 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
 - You MUST preserve the requested camera perspective. Do NOT downgrade to top-down, side-view, orthographic, or fake-2D.
 - If you use provided self-hosted GLB models, you MAY additionally load GLTFLoader from the official Three.js examples CDN.`
     : `You MUST choose one of the following engines:
-1. PHASER 3 WITH WEBGL (via CDN: https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js)
+1. PHASER 3 WITH AUTO RENDERER (via CDN: https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js)
    - REQUIRED for: ALL 2D games (arcade, platformers, shooters, puzzles, etc.)
    - Loads PNG/sprite assets from URLs (use the provided asset kit!)
    - Has built-in physics, animations, particle systems
-   - Force WebGL renderer: type: Phaser.WEBGL
+   - Use AUTO renderer: type: Phaser.AUTO
    - DO NOT use Canvas 2D - Phaser is better and uses our assets!
 2. THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js)
    - REQUIRED for: ALL 3D games (first-person, third-person, isometric 3D)
