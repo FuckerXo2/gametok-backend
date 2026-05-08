@@ -1595,23 +1595,22 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
 
-        // ── PHASE 1: QUALITY-FOCUSED INTENT EXTRACTION ──
-        console.log(`📋 Phase 1/3: Llama 3.3 70B Instruct extracting quality-focused game intent...`);
+        // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
+        console.log(`📋 Phase 1/3: Llama 3.3 extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
-        const qualityIntent = await callAI(phase1.system, phase1.user, 2000, 0.5);
+        const qualityIntent = await callAI(phase1.system, phase1.user, 800, 0.4);
         assertJobNotCancelled(jobId);
         
-        console.log(`✅ Phase 1 complete: "${qualityIntent.title}"`);
-        console.log(`   Intent: ${qualityIntent.userIntent}`);
-        console.log(`   Quality: ${qualityIntent.qualityTarget?.level || 'high'} (${qualityIntent.qualityTarget?.mood || 'engaging'})`);
-        console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'} via ${qualityIntent.technicalRequirements?.engine || 'PHASER_3'}`);
+        console.log(`✅ Phase 1: "${qualityIntent.title}" — ${qualityIntent.userIntent}`);
+        console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
 
-        // Use asset needs from Phase 1 for better asset selection
+        // Build asset search terms from Phase 1
         const assetSearchTerms = [
             prompt,
-            ...(qualityIntent.assetNeeds?.characters || []),
-            ...(qualityIntent.assetNeeds?.environment || []),
-            ...(qualityIntent.assetNeeds?.effects || []),
+            ...(qualityIntent.assetSearchTerms?.characters || []),
+            ...(qualityIntent.assetSearchTerms?.environment || []),
+            ...(qualityIntent.assetSearchTerms?.effects || []),
+            ...(qualityIntent.assetSearchTerms?.audio || []),
         ].join(' ');
         
         const useAIDrivenAssets = process.env.ENABLE_AI_DRIVEN_ASSETS !== 'false';
@@ -1622,15 +1621,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         assertJobNotCancelled(jobId);
         if (assetBundle) {
             const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
-            console.log(`📦 Asset Brain: attached ${bundleCount} curated assets based on quality intent`);
-        } else {
-            console.log(`📦 Asset Brain: no curated asset bundle available`);
+            console.log(`📦 Assets: ${bundleCount} curated assets ready`);
         }
 
-        // ── PHASE 2: QUALITY-GUIDED BUILD ──
-        console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building with quality guidance...`);
+        // ── PHASE 2: KIMI BUILDS THE GAME ──
+        console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building...`);
         const buildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, assetBundle, mediaAttachments);
-        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Quality Build', jobId });
+        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Build', jobId });
         assertJobNotCancelled(jobId);
 
         if (!rawGameHtml) {
