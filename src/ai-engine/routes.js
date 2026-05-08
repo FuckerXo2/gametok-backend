@@ -1595,32 +1595,42 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
 
-        // ── PHASE 1: SPEC EXTRACTION ──
-        console.log(`📋 Phase 1/3: Llama 3.3 70B Instruct on NIM extracting a playable game spec...`);
+        // ── PHASE 1: QUALITY-FOCUSED INTENT EXTRACTION ──
+        console.log(`📋 Phase 1/3: Llama 3.3 70B Instruct extracting quality-focused game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
-        const rawSpecSheet = await callAI(phase1.system, phase1.user, 1500, 0.5);
+        const qualityIntent = await callAI(phase1.system, phase1.user, 2000, 0.5);
         assertJobNotCancelled(jobId);
-        const specSheet = normalizeDreamSpec(rawSpecSheet, prompt);
-        console.log(`✅ Phase 1 complete: "${specSheet.title}" (${specSheet.genre}, ${specSheet.visualStyle}) [lane=${specSheet.runtimeLane}]`);
+        
+        console.log(`✅ Phase 1 complete: "${qualityIntent.title}"`);
+        console.log(`   Intent: ${qualityIntent.userIntent}`);
+        console.log(`   Quality: ${qualityIntent.qualityTarget?.level || 'high'} (${qualityIntent.qualityTarget?.mood || 'engaging'})`);
+        console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'} via ${qualityIntent.technicalRequirements?.engine || 'PHASER_3'}`);
 
-        // Use AI-driven asset selection (with fallback to rule-based)
+        // Use asset needs from Phase 1 for better asset selection
+        const assetSearchTerms = [
+            prompt,
+            ...(qualityIntent.assetNeeds?.characters || []),
+            ...(qualityIntent.assetNeeds?.environment || []),
+            ...(qualityIntent.assetNeeds?.effects || []),
+        ].join(' ');
+        
         const useAIDrivenAssets = process.env.ENABLE_AI_DRIVEN_ASSETS !== 'false';
         const assetBundle = useAIDrivenAssets 
-          ? await buildDreamAssetBundleWithAI(specSheet, prompt, nvidiaClient)
-          : buildDreamAssetBundle(specSheet, prompt);
+          ? await buildDreamAssetBundleWithAI({ userIntent: assetSearchTerms }, prompt, nvidiaClient)
+          : buildDreamAssetBundle({ userIntent: assetSearchTerms }, prompt);
         
         assertJobNotCancelled(jobId);
         if (assetBundle) {
             const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
-            console.log(`📦 Asset Brain: attached ${bundleCount} curated assets for lane ${assetBundle.lane}`);
+            console.log(`📦 Asset Brain: attached ${bundleCount} curated assets based on quality intent`);
         } else {
-            console.log(`📦 Asset Brain: no curated asset bundle available for lane ${specSheet.runtimeLane}`);
+            console.log(`📦 Asset Brain: no curated asset bundle available`);
         }
 
-        // ── PHASE 2: SINGLE-AGENT PREMIUM BUILD ──
-        console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building the complete game in one pass...`);
-        const buildPrompt = buildPhase2_BuildPrototype(specSheet, assetBundle, mediaAttachments);
-        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Builder Build', jobId });
+        // ── PHASE 2: QUALITY-GUIDED BUILD ──
+        console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building with quality guidance...`);
+        const buildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, assetBundle, mediaAttachments);
+        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Quality Build', jobId });
         assertJobNotCancelled(jobId);
 
         if (!rawGameHtml) {
@@ -1645,11 +1655,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             console.log(`📸 [Attempt ${3 - maxRetries}/2] Verifying game in sandbox...`);
             let sandboxRes;
             try {
-                validateRuntimeLaneContract(specSheet.runtimeLane, rawGameHtml);
-                validateControlRigContract(specSheet, rawGameHtml);
-                validateCapabilityContracts(specSheet, rawGameHtml);
-                validateFirstFrameContract(specSheet, rawGameHtml);
-                sandboxRes = await verifyGame(finalHtml, { runtimeLane: specSheet.runtimeLane });
+                const runtimeLane = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'first_person'
+                    ? 'first_person_threejs'
+                    : qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'third_person'
+                    ? 'third_person_threejs'
+                    : null;
+                sandboxRes = await verifyGame(finalHtml, { runtimeLane });
             } catch (validationError) {
                 sandboxRes = {
                     success: false,
@@ -1661,24 +1672,27 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
                 console.log(`⚠️ Sandbox CRASH DETECTED. Asking main builder to repair... (${sandboxRes.crashes[0]})`);
+                const is3DFirstPerson = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'first_person';
+                const is3DThirdPerson = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'third_person';
+                
                 const repairInstructions = [
-                    `The sandbox crashed with these errors:`,
-                    sandboxRes.crashes.join('\n'),
+                    `The mobile HTML5 game below failed verification after build.`,
+                    `FATAL ERROR: ${sandboxRes.crashes[0]}`,
                     '',
                     'Repair the game so it boots and remains playable on mobile.',
-                    specSheet.runtimeLane === 'first_person_threejs'
+                    is3DFirstPerson
                         ? 'This game MUST remain a true first-person 3D Three.js game with a PerspectiveCamera and mobile look controls. Do not downgrade it into top-down 2D.'
-                        : specSheet.runtimeLane === 'third_person_threejs'
+                        : is3DThirdPerson
                         ? 'This game MUST remain a true third-person/chase-camera 3D Three.js game with a visible player or vehicle and follow camera. Do not downgrade it into first-person, top-down, or flat 2D.'
                         : 'Preserve the intended perspective and gameplay fantasy.',
                     'If any error mentions viewport overflow, bounds, canvas sizing, or off-screen controls, rewrite the layout with responsive innerWidth/innerHeight sizing, safe-area clamped HUD, and resize recomputation. The final game must fit a 390x844 phone viewport without horizontal scrolling.',
-                    buildControlRigRepairInstruction(specSheet.controlRig),
-                    buildFirstFrameRepairInstruction(specSheet),
+                    `Preserve the quality target: ${qualityIntent.qualityTarget?.level || 'high'} quality with ${qualityIntent.qualityTarget?.mood || 'engaging'} mood.`,
+                    `Maintain polish priorities: ${Array.isArray(qualityIntent.qualityTarget?.polishPriorities) ? qualityIntent.qualityTarget.polishPriorities.join(', ') : 'smooth animations, visual feedback'}`,
                     'Return the COMPLETE corrected HTML file only.',
                     'Do not explain anything.',
                 ].join('\n');
                 const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
-                rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Builder Repair', jobId });
+                rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Quality Repair', jobId });
                 assertJobNotCancelled(jobId);
                 if (!hasClosedHtmlDocument(rawGameHtml)) {
                     throw new Error('Builder repair output is missing </html> and appears truncated.');
@@ -1697,7 +1711,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         // ── SAVE TO DB ──
         assertJobNotCancelled(jobId);
-        const finalTitle = extractHtmlTitle(rawGameHtml) || specSheet.title || 'DreamStream Game';
+        const finalTitle = extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game';
         const classification = await classifyPublishedGame({
             title: finalTitle,
             prompt,
@@ -1778,7 +1792,31 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
         
         console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — html: ${existingHtml.length} chars, history: ${editHistory.length} past edits`);
 
+        // 2. Search for NEW assets based on edit instructions
+        console.log(`🔍 [EDIT JOB] Searching for assets matching edit request: "${instructions}"`);
+        const editAssetBundle = {
+            visuals: mergeAssetGroups(
+                rankKenneyAssets(instructions, { desiredRoles: ['player', 'enemy', 'environment', 'prop'], desiredKinds: ['sprite', 'character', 'environment'], limit: 30 }),
+                rankPhaserAssets(instructions, { desiredRoles: ['player', 'enemy', 'environment', 'prop'], desiredKinds: ['sprite', 'character', 'environment'], limit: 30 })
+            ),
+            controls: mergeAssetGroups(
+                rankKenneyAssets(instructions, { desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 15 }),
+                rankPhaserAssets(instructions, { desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 15 })
+            ),
+            audio: mergeAssetGroups(
+                rankKenneyAssets(instructions, { desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 20 }),
+                rankPhaserAssets(instructions, { desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 20 })
+            ),
+            models: rankPhaserAssets(instructions, { desiredKinds: ['model'], runtime: 'threejs', limit: 15 }),
+            notes: [`Assets searched based on edit request: "${instructions}"`],
+            lane: 'edit_request'
+        };
+        
+        const assetCount = editAssetBundle.visuals.length + editAssetBundle.controls.length + editAssetBundle.audio.length + editAssetBundle.models.length;
+        console.log(`📦 [EDIT JOB] Found ${assetCount} relevant assets for edit request`);
+
         const attachmentSummary = buildMediaAttachmentSummary(mediaAttachments);
+        const assetKitBlock = buildAssetKitBlock(editAssetBundle);
         const enrichedInstructions = [
             `Apply this user edit request to the current game: "${instructions}"`,
             '',
@@ -1788,6 +1826,9 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
             '- Return the COMPLETE updated HTML document.',
             '- Do not rename the game unless the instruction explicitly asks for it.',
             '- Do not remove working controls, HUD, or core gameplay unless requested.',
+            '',
+            assetKitBlock,
+            '',
             attachmentSummary
                 ? `User-provided media to use if practical:\n${attachmentSummary}`
                 : 'No user-provided media attachments were included for this edit.',

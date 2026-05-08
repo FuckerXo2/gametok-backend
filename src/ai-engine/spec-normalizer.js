@@ -1,3 +1,5 @@
+import { inferCapabilities } from './capability-graph.js';
+
 function clampManifest(manifest, fallback) {
   const source = Array.isArray(manifest) ? manifest : fallback;
   const clean = [];
@@ -44,30 +46,24 @@ export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
   const genre = safeText(rawSpec.genre, '').toLowerCase();
   const summary = safeText(rawSpec.summary, '').toLowerCase();
   const cameraPerspective = safeText(rawSpec.cameraPerspective, '').toLowerCase();
-  const preferredEngine = safeText(rawSpec.preferredEngine, '').toLowerCase();
-  const text = `${promptText} ${genre} ${summary}`.toLowerCase();
+  const runtimeLane = safeText(rawSpec.runtimeLane, '').toLowerCase();
+  const text = `${promptText} ${genre} ${summary} ${cameraPerspective} ${runtimeLane}`.toLowerCase();
 
   const hasPerspectiveIntent = includesAny(text, [
     'first-person',
     'first person',
+    'first_person',
     'fps',
-    'three.js',
-    'threejs',
-    '3d',
-    'voxel',
-    'block world',
+    'cockpit',
+    'dashboard',
+    'behind the wheel',
   ]);
 
-  const hasDirect3DIntent =
-    includesAny(promptText.toLowerCase(), ['first-person', 'first person', 'fps']) &&
-    includesAny(promptText.toLowerCase(), ['3d', 'three.js', 'threejs']);
-
-  const hasSpec3DIntent = includesAny(`${cameraPerspective} ${preferredEngine}`, [
+  const hasSpec3DIntent = includesAny(`${runtimeLane} ${cameraPerspective}`, [
+    'first_person_threejs',
     'first_person',
     'first-person',
-    'three_js',
-    'three.js',
-    'threejs',
+    'fps',
   ]);
 
   const hasWorldIntent = includesAny(text, [
@@ -85,9 +81,15 @@ export function wantsFirstPerson3D(promptText = '', rawSpec = {}) {
     'explore',
     'arena',
     'wasteland',
+    'drive',
+    'driving',
+    'car',
+    'vehicle',
+    'road',
+    'highway',
   ]);
 
-  return hasDirect3DIntent || hasSpec3DIntent || (hasPerspectiveIntent && hasWorldIntent);
+  return hasSpec3DIntent || (hasPerspectiveIntent && hasWorldIntent);
 }
 
 function wantsCockpitDriving(promptText = '', rawSpec = {}) {
@@ -121,7 +123,56 @@ function wantsCockpitDriving(promptText = '', rawSpec = {}) {
     'behind the wheel',
   ]);
 
-  return hasVehicleIntent && (hasFirstPersonIntent || includesAny(text, ['3d', 'three.js', 'threejs']));
+  return hasVehicleIntent && hasFirstPersonIntent;
+}
+
+export function wantsThirdPerson3D(promptText = '', rawSpec = {}) {
+  const genre = safeText(rawSpec.genre, '').toLowerCase();
+  const summary = safeText(rawSpec.summary, '').toLowerCase();
+  const cameraPerspective = safeText(rawSpec.cameraPerspective, '').toLowerCase();
+  const runtimeLane = safeText(rawSpec.runtimeLane, '').toLowerCase();
+  const preferredEngine = safeText(rawSpec.preferredEngine, '').toLowerCase();
+  const text = `${promptText} ${genre} ${summary} ${cameraPerspective} ${runtimeLane} ${preferredEngine}`.toLowerCase();
+
+  if (runtimeLane === 'third_person_threejs' || cameraPerspective === 'third_person') {
+    return true;
+  }
+
+  if (includesAny(text, [
+    'first-person',
+    'first person',
+    'first_person',
+    'fps',
+    'cockpit',
+    'dashboard',
+    'behind the wheel',
+  ])) {
+    return false;
+  }
+
+  const explicitThirdPerson = includesAny(text, [
+    'third-person',
+    'third person',
+    'third_person',
+    'chase camera',
+    'follow camera',
+    'behind the player',
+    'behind player',
+    'over the shoulder',
+    'over-the-shoulder',
+    'behind the car',
+    'behind car',
+  ]);
+
+  const vehicle3D =
+    includesAny(text, ['car', 'vehicle', 'driving', 'driver', 'racing', 'race', 'drift', 'highway', 'road', 'motorbike', 'bike']) &&
+    includesAny(text, ['3d', 'three.js', 'threejs', 'chase camera', 'third-person', 'third person', 'behind the car']);
+
+  const character3D =
+    includesAny(text, ['adventure', 'survival', 'explore', 'zombie', 'shooter', 'arena', 'open world']) &&
+    includesAny(text, ['third-person', 'third person', 'over the shoulder', '3d character']);
+
+  return explicitThirdPerson || vehicle3D || character3D;
 }
 
 function wantsStoryHorrorVignette(promptText = '', rawSpec = {}) {
@@ -248,6 +299,10 @@ function pickLane(promptText, rawSpec) {
     return 'first_person_threejs';
   }
 
+  if (wantsThirdPerson3D(text, rawSpec)) {
+    return 'third_person_threejs';
+  }
+
   if (
     includesAny(text, ['auto-battler', 'autobattler', 'knight', 'archer', 'wizard', 'goblin', 'battle grid']) ||
     (includesAny(text, ['battle']) && includesAny(text, ['grid', 'strategy']))
@@ -299,6 +354,102 @@ function buildLaneSpec(lane, spec, promptText) {
   const strictPixelArt = wantsStrictPixelArt(promptText, spec);
 
   switch (lane) {
+    case 'third_person_threejs': {
+      const thirdPersonText = `${promptText} ${spec.genre} ${spec.summary}`.toLowerCase();
+      const isVehicleThirdPerson = includesAny(thirdPersonText, [
+        'car',
+        'vehicle',
+        'driving',
+        'driver',
+        'racing',
+        'race',
+        'drift',
+        'highway',
+        'road',
+        'motorbike',
+        'bike',
+      ]);
+
+      return {
+        ...spec,
+        runtimeLane: lane,
+        preferredEngine: 'THREE_JS',
+        preferredPerspective: 'THIRD_PERSON',
+        cameraPerspective: 'third_person',
+        genre: safeText(spec.genre, isVehicleThirdPerson ? 'Third-Person 3D Driver' : 'Third-Person 3D Action'),
+        levelDesign: 'Compact 3D Stage',
+        summary: safeText(
+          spec.summary,
+          isVehicleThirdPerson
+            ? 'A chase-camera 3D driving game with a visible vehicle, road depth, hazards, and tactile driving controls.'
+            : 'A third-person 3D action game with a visible hero, follow camera, enemies, pickups, and readable mobile controls.'
+        ),
+        coreMechanics: uniqueList([
+          ...(isVehicleThirdPerson
+            ? [
+                'drive a visible vehicle from a chase camera',
+                'accelerate, brake, and drift with large on-screen controls',
+                'dodge traffic and road hazards across a readable 3D route',
+                'collect boosts or checkpoints while the camera follows behind',
+              ]
+            : [
+                'move a visible hero with a left joystick',
+                'use an action button to attack or interact',
+                'fight enemies or collect pickups in a compact 3D arena',
+                'keep a follow camera behind or over the shoulder of the hero',
+              ]),
+          ...(Array.isArray(spec.coreMechanics) ? spec.coreMechanics : []),
+        ]).slice(0, 6),
+        entities: {
+          hero: safeText(baseEntities.hero, isVehicleThirdPerson ? 'a visible drivable vehicle seen from a chase camera' : 'a visible third-person hero character'),
+          enemy: safeText(baseEntities.enemy, isVehicleThirdPerson ? 'traffic, barriers, rival cars, or road hazards' : 'enemies, drones, monsters, or patrols in the arena'),
+          collectible: safeText(baseEntities.collectible, isVehicleThirdPerson ? 'boost rings, coins, fuel, or checkpoints' : 'coins, ammo, health, keys, or objective pickups'),
+          obstacle: safeText(baseEntities.obstacle, isVehicleThirdPerson ? 'traffic cones, lane blockers, billboards, walls, and road gaps' : 'cover blocks, walls, traps, crates, and arena hazards'),
+        },
+        renderManifest: clampManifest(spec.renderManifest, isVehicleThirdPerson
+          ? ['drawChaseVehicleHud', 'drawRoadDepth', 'drawTrafficHazards', 'drawBoostPickupGlow', 'drawDriftTrail', 'drawSpeedFeedback']
+          : ['drawThirdPersonHero', 'drawEnemySilhouettes', 'drawPickupGlow', 'drawArenaLandmarks', 'drawActionFeedback', 'drawFollowCameraHud']),
+        playableSlice: isVehicleThirdPerson
+          ? 'One chase-camera driving run with a visible vehicle, road hazards, acceleration/braking, and clear checkpoints.'
+          : 'One compact third-person action arena with a visible hero, enemies, pickups, and a follow camera.',
+        sceneBlueprint: isVehicleThirdPerson
+          ? 'A deep 3D roadway with lane lines, roadside props, traffic, checkpoints, horizon depth, and the player vehicle anchored in the lower third.'
+          : 'A compact 3D arena with floor, landmarks, cover pieces, enemies, pickups, and a visible hero framed by a chase/follow camera.',
+        controlModel: isVehicleThirdPerson
+          ? 'Use large accelerate, brake, and drift/steering controls. The camera follows behind the visible vehicle.'
+          : 'Use a left joystick for movement and a large action/interact/attack button. The camera follows behind or over the shoulder.',
+        controlRig: isVehicleThirdPerson ? 'chase_camera_driver' : 'third_person_joystick',
+        spectacleFocus: isVehicleThirdPerson
+          ? ['visible vehicle body', 'road depth', 'drift trail', 'speed feedback', 'traffic dodges']
+          : ['visible hero', 'follow camera', 'enemy pressure', 'pickup glow', 'impact feedback'],
+        playabilityRules: isVehicleThirdPerson
+          ? [
+              'This must feel like driving a visible vehicle from a chase camera, not a cockpit and not a top-down map.',
+              'The road, hazards, and controls must be visible on the first frame.',
+              'Acceleration, braking, steering, and drift/boost must affect the vehicle immediately.',
+            ]
+          : [
+              'This must feel like controlling a visible third-person character, not an invisible first-person camera or top-down dot.',
+              'The follow camera must track the player and keep enemies or objectives readable.',
+              'Movement and action controls must be visible and functional immediately.',
+            ],
+        visualTargets: isVehicleThirdPerson
+          ? ['visible car in lower third', 'deep road perspective', 'traffic/hazard silhouettes', 'speed/drift feedback']
+          : ['visible hero in lower third', 'readable 3D arena', 'enemy/pickup silhouettes', 'follow camera depth'],
+        firstFrameChecklist: [
+          isVehicleThirdPerson ? 'visible player vehicle in the foreground or lower third' : 'visible player character in the foreground or lower third',
+          isVehicleThirdPerson ? 'road, lane, traffic, or horizon depth visible immediately' : 'arena floor, cover, enemies, pickups, or landmarks visible immediately',
+          isVehicleThirdPerson ? 'accelerate, brake, and drift/steering controls already on screen' : 'left joystick plus action/interact control already on screen',
+          'camera framing clearly reads as third-person chase/follow view',
+        ],
+        environmentScale: isVehicleThirdPerson ? 'deep_forward_roadway' : 'compact_follow_camera_arena',
+        compositionTargets: isVehicleThirdPerson
+          ? ['show long road depth and horizon', 'anchor player vehicle in lower third', 'keep controls inside safe mobile bounds']
+          : ['keep hero visible and centered by camera', 'place enemies/pickups immediately readable', 'keep controls inside safe mobile bounds'],
+        promptEcho: promptText,
+      };
+    }
+
     case 'first_person_threejs':
       if (wantsCockpitDriving(promptText, spec)) {
         return {
@@ -899,8 +1050,26 @@ export function normalizeDreamSpec(rawSpec, userPrompt = '') {
     entities: rawSpec.entities || {},
     renderManifest: clampManifest(rawSpec.renderManifest, ['drawHero', 'drawEnemy', 'drawObstacle', 'drawProjectile']),
     firstFrameChecklist: Array.isArray(rawSpec.firstFrameChecklist) ? rawSpec.firstFrameChecklist : [],
+    capabilityIntents: Array.isArray(rawSpec.capabilityIntents) ? rawSpec.capabilityIntents : [],
   };
 
   const lane = pickLane(promptText, baseSpec);
-  return buildLaneSpec(lane, baseSpec, promptText);
+  const laneSpec = buildLaneSpec(lane, baseSpec, promptText);
+  const capabilities = inferCapabilities(promptText, {
+    ...baseSpec,
+    runtimeLane: laneSpec.runtimeLane,
+    controlRig: laneSpec.controlRig,
+  });
+  const capabilityFirstFrame = capabilities
+    .flatMap((capability) => capability.firstFrame || [])
+    .filter(Boolean);
+
+  return {
+    ...laneSpec,
+    capabilities,
+    firstFrameChecklist: uniqueList([
+      ...(Array.isArray(laneSpec.firstFrameChecklist) ? laneSpec.firstFrameChecklist : []),
+      ...capabilityFirstFrame,
+    ]).slice(0, 12),
+  };
 }

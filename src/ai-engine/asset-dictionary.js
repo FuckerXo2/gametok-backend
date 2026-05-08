@@ -627,7 +627,7 @@ function rankKenneyAssets(query, options = {}) {
     forbiddenKinds = [],
     runtime = null,
     preferHero = false,
-    limit = 6,
+    limit = 20,  // Increased from 6 - give AI more asset variety
   } = options;
 
   const lanes = lane ? expandLaneCandidates(lane, extraLanes) : [];
@@ -678,7 +678,7 @@ function rankPhaserAssets(query, options = {}) {
     forbiddenKinds = [],
     runtime = null,
     preferHero = false,
-    limit = 6,
+    limit = 20,  // Increased from 6 - give AI more Phaser asset variety
   } = options;
 
   const candidates = getPhaserAssets()
@@ -1280,34 +1280,34 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
   switch (lane) {
     case 'endless_flyer':
       visuals = mergeAssetGroups(
-        rankKenneyAssets(`${prompt} plane flyer bird player`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], forbiddenRoles: ['ui', 'control'], preferHero: true, limit: 6 }),
-        rankKenneyAssets(`${prompt} obstacle cloud sky pipe gate tower`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 8 }),
-        rankKenneyAssets(`${prompt} coin star pickup score`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 5 })
+        rankKenneyAssets(`${prompt} plane flyer bird player`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], forbiddenRoles: ['ui', 'control'], preferHero: true, limit: 30 }),
+        rankKenneyAssets(`${prompt} obstacle cloud sky pipe gate tower`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 35 }),
+        rankKenneyAssets(`${prompt} coin star pickup score`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], forbiddenRoles: ['ui', 'control'], limit: 25 })
       );
-      controls = rankKenneyAssets(`${prompt} button joystick tap ui`, { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 });
-      audio = rankKenneyAssets(`${prompt} jingle impact interface`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 });
+      controls = rankKenneyAssets(`${prompt} button joystick tap ui`, { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 30 });
+      audio = rankKenneyAssets(`${prompt} jingle impact interface`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 35 });
       notes = enrichNotesWithCrossLaneBorrowing(lane, visuals);
       break;
 
     case 'topdown_arcade':
       visuals = mergeAssetGroups(
-        rankKenneyAssets(`${prompt} survivor soldier hero player gun blaster fighter`, { lane, desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 6 }),
-        rankKenneyAssets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 8 }),
-        rankKenneyAssets(`${prompt} road parking lot tile barricade crate barrel floor curb wall`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 10 }),
-        rankKenneyAssets(`${prompt} skyline horizon tree building fence sign streetlight background`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 6 }),
-        rankKenneyAssets(`${prompt} coin ammo medkit pickup`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], limit: 5 })
+        rankKenneyAssets(`${prompt} survivor soldier hero player gun blaster fighter`, { lane, desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 30 }),
+        rankKenneyAssets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 35 }),
+        rankKenneyAssets(`${prompt} road parking lot tile barricade crate barrel floor curb wall`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 40 }),
+        rankKenneyAssets(`${prompt} skyline horizon tree building fence sign streetlight background`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 30 }),
+        rankKenneyAssets(`${prompt} coin ammo medkit pickup`, { lane, desiredRoles: ['pickup'], desiredKinds: ['environment', 'item', 'sprite'], limit: 25 })
       );
       controls = rankKenneyAssets(
         isMoveAndFire
           ? `${prompt} joystick thumbpad fire button attack ui combat`
           : `${prompt} button shoot joystick ui`,
-        { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 }
+        { lane, desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 30 }
       );
       audio = rankKenneyAssets(
         isMoveAndFire
           ? `${prompt} gun hit muzzle impact combat interface`
           : `${prompt} impact interface gun hit`,
-        { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 10 }
+        { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 40 }
       );
       notes = [
         ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
@@ -1321,15 +1321,15 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
       visuals = wantsStrictGeneratedPixel
         ? []
         : mergeAssetGroups(
-            rankKenneyAssets(`${prompt} pixel background clouds sky hills trees grass`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 10 }),
-            rankKenneyAssets(`${prompt} pixel player hero adventurer character`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 8 }),
-            rankKenneyAssets(`${prompt} pixel slime ghost enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 8 }),
-            rankKenneyAssets(`${prompt} coin gem heart pickup hud`, { lane, desiredRoles: ['pickup', 'ui'], desiredKinds: ['environment', 'sprite', 'item'], limit: 6 })
+            rankKenneyAssets(`${prompt} pixel background clouds sky hills trees grass`, { lane, desiredRoles: ['environment'], desiredKinds: ['environment', 'sprite'], limit: 40 }),
+            rankKenneyAssets(`${prompt} pixel player hero adventurer character`, { lane, desiredRoles: ['player'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 35 }),
+            rankKenneyAssets(`${prompt} pixel slime ghost enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['sprite', 'character'], preferHero: true, limit: 35 }),
+            rankKenneyAssets(`${prompt} coin gem heart pickup hud`, { lane, desiredRoles: ['pickup', 'ui'], desiredKinds: ['environment', 'sprite', 'item'], limit: 30 })
           );
       controls = wantsStrictGeneratedPixel
         ? []
-        : rankKenneyAssets(`${prompt} button ui`, { lane, desiredRoles: ['ui'], desiredKinds: ['ui', 'control'], limit: 5 });
-      audio = rankKenneyAssets(`${prompt} jingle platformer coin`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 });
+        : rankKenneyAssets(`${prompt} button ui`, { lane, desiredRoles: ['ui'], desiredKinds: ['ui', 'control'], limit: 25 });
+      audio = rankKenneyAssets(`${prompt} jingle platformer coin`, { lane, desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 35 });
       notes = [
         ...enrichNotesWithCrossLaneBorrowing(lane, visuals),
         ...(wantsStrictGeneratedPixel
@@ -1341,12 +1341,12 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'auto_battler_arena':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankKenneyAssets(`${prompt} knight archer wizard ally warrior paladin mage`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 10 }),
-          rankKenneyAssets(`${prompt} goblin orc zombie skeleton enemy monster`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer', 'first_person_threejs'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite', 'model'], preferHero: true, limit: 10 }),
-          rankKenneyAssets(`${prompt} battlefield arena board prep grid fantasy tile banner frame floor`, { lane, desiredRoles: ['environment', 'ui', 'prop'], desiredKinds: ['environment', 'ui', 'sprite'], limit: 12 }),
-          rankKenneyAssets(`${prompt} gate castle torch crowd stand wall statue horizon backdrop`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 8 }),
-          pickLegacyAssets(`${prompt} knight archer wizard fantasy`, { limit: 6, categories: ['character', 'weapon'] }),
-          pickLegacyAssets(`${prompt} goblin orc zombie skeleton ghost enemy`, { limit: 6, categories: ['enemy'] })
+          rankKenneyAssets(`${prompt} knight archer wizard ally warrior paladin mage`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 40 }),
+          rankKenneyAssets(`${prompt} goblin orc zombie skeleton enemy monster`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer', 'first_person_threejs'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite', 'model'], preferHero: true, limit: 40 }),
+          rankKenneyAssets(`${prompt} battlefield arena board prep grid fantasy tile banner frame floor`, { lane, desiredRoles: ['environment', 'ui', 'prop'], desiredKinds: ['environment', 'ui', 'sprite'], limit: 45 }),
+          rankKenneyAssets(`${prompt} gate castle torch crowd stand wall statue horizon backdrop`, { lane, extraLanes: ['pixel_platformer', 'topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 35 }),
+          pickLegacyAssets(`${prompt} knight archer wizard fantasy`, { limit: 30, categories: ['character', 'weapon'] }),
+          pickLegacyAssets(`${prompt} goblin orc zombie skeleton ghost enemy`, { limit: 30, categories: ['enemy'] })
         ),
         ['knight', 'archer', 'wizard', 'mage', 'warrior', 'paladin', 'goblin', 'orc', 'skeleton', 'enemy', 'banner', 'gate', 'castle', 'arena', 'battle', 'grid', 'frame', 'tile']
       );
@@ -1376,7 +1376,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         visuals = [];
       }
       controls = filterAssetsByKeywords(
-        rankKenneyAssets(`${prompt} battle button deploy ui frame`, { lane, desiredRoles: ['ui', 'control'], desiredKinds: ['ui', 'control', 'environment'], limit: 3 }),
+        rankKenneyAssets(`${prompt} battle button deploy ui frame`, { lane, desiredRoles: ['ui', 'control'], desiredKinds: ['ui', 'control', 'environment'], limit: 15 }),
         ['battle', 'button', 'frame', 'panel', 'banner', 'deploy']
       );
       controls = controls.filter((asset) => {
@@ -1388,7 +1388,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankKenneyAssets(`${prompt} impact sword magic battle interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 3 }),
+        rankKenneyAssets(`${prompt} impact sword magic battle interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 15 }),
         ['impact', 'sword', 'magic', 'battle', 'hit', 'attack']
       );
       notes = [
@@ -1405,15 +1405,15 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'endless_runner_vertical':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankKenneyAssets(`${prompt} runner player hero skater surfer character`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 6 }),
-          rankKenneyAssets(`${prompt} train barrier cone obstacle sign crate hazard`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 8 }),
+          rankKenneyAssets(`${prompt} runner player hero skater surfer character`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 30 }),
+          rankKenneyAssets(`${prompt} train barrier cone obstacle sign crate hazard`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 35 }),
           rankKenneyAssets(
             isLaneSwipeRunner
               ? `${prompt} road lane marker track stripe divider arrow skyline city building fence horizon background`
               : `${prompt} road lane marker track stripe skyline city building fence horizon background`,
-            { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 10 }
+            { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 40 }
           ),
-          rankKenneyAssets(`${prompt} coin gem pickup score`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 5 })
+          rankKenneyAssets(`${prompt} coin gem pickup score`, { lane, extraLanes: ['pixel_platformer'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 25 })
         ),
         ['runner', 'run', 'track', 'lane', 'road', 'stripe', 'barrier', 'train', 'coin', 'gem', 'pickup', 'sign', 'cone', 'arrow']
       );
@@ -1424,7 +1424,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         isLaneSwipeRunner
           ? `${prompt} swipe left right jump slide ui lane runner`
           : `${prompt} swipe button ui lane`,
-        { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 }
+        { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 30 }
       ), ['left', 'right', 'arrow', 'button', 'direction', 'swipe']);
       controls = controls.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
@@ -1435,7 +1435,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankKenneyAssets(`${prompt} swoosh hit coin interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 }),
+        rankKenneyAssets(`${prompt} swoosh hit coin interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 35 }),
         ['coin', 'jump', 'swoosh', 'swipe', 'pickup', 'move', 'woosh']
       );
       notes = [
@@ -1455,12 +1455,12 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'story_horror_vignette':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankKenneyAssets(`${prompt} paper note letter terminal frame card panel eerie prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'ui', 'item', 'sprite'], limit: 6 }),
-          rankKenneyAssets(`${prompt} candle lamp glow dust smoke shadow frame background`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite', 'item'], limit: 5 })
+          rankKenneyAssets(`${prompt} paper note letter terminal frame card panel eerie prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'ui', 'item', 'sprite'], limit: 30 }),
+          rankKenneyAssets(`${prompt} candle lamp glow dust smoke shadow frame background`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite', 'item'], limit: 25 })
         ),
         ['panel', 'frame', 'window', 'terminal', 'screen', 'card', 'paper', 'note', 'letter', 'lamp', 'candle']
       );
-      controls = rankKenneyAssets(`${prompt} yes no continue button ui prompt`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 5 });
+      controls = rankKenneyAssets(`${prompt} yes no continue button ui prompt`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 25 });
       controls = controls.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
         const url = String(asset?.url || '').toLowerCase();
@@ -1470,7 +1470,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankKenneyAssets(`${prompt} ambience hum whisper click interface eerie`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 }),
+        rankKenneyAssets(`${prompt} ambience hum whisper click interface eerie`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 30 }),
         ['hum', 'whisper', 'click', 'interface', 'eerie', 'soft', 'ambient']
       );
       notes = [
@@ -1485,9 +1485,9 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'simulation_toybox':
       visuals = filterAssetsByKeywords(
         mergeAssetGroups(
-          rankKenneyAssets(`${prompt} ingredient card pantry shelf tray bottle jar fruit gem reagent item`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['pickup', 'item', 'prop', 'ui'], desiredKinds: ['item', 'ui', 'sprite', 'environment'], limit: 8 }),
-          rankKenneyAssets(`${prompt} cauldron pot machine altar lab table workbench station core vessel`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'sprite', 'ui', 'item'], limit: 8 }),
-          rankKenneyAssets(`${prompt} result card badge reveal modal frame spark bubble glow`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['ui', 'prop'], desiredKinds: ['ui', 'environment', 'item', 'sprite'], limit: 6 })
+          rankKenneyAssets(`${prompt} ingredient card pantry shelf tray bottle jar fruit gem reagent item`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['pickup', 'item', 'prop', 'ui'], desiredKinds: ['item', 'ui', 'sprite', 'environment'], limit: 35 }),
+          rankKenneyAssets(`${prompt} cauldron pot machine altar lab table workbench station core vessel`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop', 'ui'], desiredKinds: ['environment', 'sprite', 'ui', 'item'], limit: 35 }),
+          rankKenneyAssets(`${prompt} result card badge reveal modal frame spark bubble glow`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['ui', 'prop'], desiredKinds: ['ui', 'environment', 'item', 'sprite'], limit: 30 })
         ),
         ['card', 'panel', 'tray', 'shelf', 'bottle', 'jar', 'potion', 'gem', 'item', 'machine', 'station', 'workbench', 'altar', 'pot', 'cauldron', 'frame', 'badge']
       );
@@ -1495,14 +1495,14 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         visuals = [];
       }
       controls = filterAssetsByKeywords(
-        rankKenneyAssets(`${prompt} drag button combine mix fuse cook brew reveal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 }),
+        rankKenneyAssets(`${prompt} drag button combine mix fuse cook brew reveal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 30 }),
         ['button', 'panel', 'frame', 'card', 'tab']
       );
       if (visuals.length === 0) {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankKenneyAssets(`${prompt} bubble pop sparkle reveal success interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 }),
+        rankKenneyAssets(`${prompt} bubble pop sparkle reveal success interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 30 }),
         ['bubble', 'pop', 'sparkle', 'success', 'confirm', 'magic', 'reveal']
       );
       notes = [
@@ -1516,11 +1516,11 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
 
     case 'single_room_shooter':
       visuals = mergeAssetGroups(
-        rankKenneyAssets(`${prompt} soldier survivor hero player gun`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 6 }),
-        rankKenneyAssets(`${prompt} zombie skeleton enemy monster raider`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 8 }),
-        rankKenneyAssets(`${prompt} bunker room wall floor table crate barrel cover terminal prop`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 10 }),
-        rankKenneyAssets(`${prompt} medkit ammo coin pickup`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 5 }),
-        pickLegacyAssets(`${prompt} torch door rock bunker cover`, { limit: 5, categories: ['decoration', 'environment'] })
+        rankKenneyAssets(`${prompt} soldier survivor hero player gun`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player'], desiredKinds: ['character', 'sprite', 'weapon'], preferHero: true, limit: 30 }),
+        rankKenneyAssets(`${prompt} zombie skeleton enemy monster raider`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['enemy'], desiredKinds: ['character', 'sprite'], preferHero: true, limit: 35 }),
+        rankKenneyAssets(`${prompt} bunker room wall floor table crate barrel cover terminal prop`, { lane, extraLanes: ['topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'prop'], desiredKinds: ['environment', 'sprite'], limit: 40 }),
+        rankKenneyAssets(`${prompt} medkit ammo coin pickup`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['item', 'sprite', 'environment'], limit: 25 }),
+        pickLegacyAssets(`${prompt} torch door rock bunker cover`, { limit: 25, categories: ['decoration', 'environment'] })
       );
       visuals = visuals.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
@@ -1540,7 +1540,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
           !url.includes('liquidlava')
         );
       });
-      controls = rankKenneyAssets(`${prompt} fire button joystick ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 });
+      controls = rankKenneyAssets(`${prompt} fire button joystick ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 30 });
       controls = controls.filter((asset) => {
         const label = String(asset?.label || '').toLowerCase();
         const url = String(asset?.url || '').toLowerCase();
@@ -1550,7 +1550,7 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
         controls = [];
       }
       audio = filterAssetsByKeywords(
-        rankKenneyAssets(`${prompt} gunshot muzzle hit reload impact combat weapon`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 }),
+        rankKenneyAssets(`${prompt} gunshot muzzle hit reload impact combat weapon`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 35 }),
         ['gun', 'shot', 'gunshot', 'hit', 'reload', 'impact', 'weapon', 'attack', 'combat']
       );
       audio = audio.filter((asset) => {
@@ -1572,46 +1572,46 @@ export function buildDreamAssetBundle(specSheet = {}, promptText = '') {
     case 'first_person_threejs':
       if (isCockpitDriver) {
         models = mergeAssetGroups(
-          rankKenneyAssets(`${prompt} road barrier traffic cone pillar tunnel prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', limit: 8 }),
-          rankKenneyAssets(`${prompt} boost pickup checkpoint coin`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 5 }),
-          rankKenneyAssets(`${prompt} vehicle car chassis cockpit dashboard prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 5 })
+          rankKenneyAssets(`${prompt} road barrier traffic cone pillar tunnel prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['environment', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', limit: 35 }),
+          rankKenneyAssets(`${prompt} boost pickup checkpoint coin`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['pickup'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 25 }),
+          rankKenneyAssets(`${prompt} vehicle car chassis cockpit dashboard prop`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'environment'], runtime: 'threejs', preferHero: true, limit: 25 })
         );
         controls = filterAssetsByKeywords(mergeAssetGroups(
-          rankKenneyAssets(`${prompt} steering wheel dashboard speedometer pedal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 8 }),
+          rankKenneyAssets(`${prompt} steering wheel dashboard speedometer pedal ui`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 35 }),
           pickLegacyAssets(`${prompt} speedometer dashboard steering`, { limit: 4, categories: ['decoration', 'item'] })
         ), ['steer', 'wheel', 'dashboard', 'speed', 'pedal', 'meter', 'rpm', 'gauge']);
-        audio = rankKenneyAssets(`${prompt} engine rev brake swoosh interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 });
+        audio = rankKenneyAssets(`${prompt} engine rev brake swoosh interface`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 30 });
         notes = [
           ...enrichNotesWithCrossLaneBorrowing(lane, [...models, ...controls]),
           'Cockpit-driver control rig detected: prioritize dashboard, steering, pedals, road cues, and horizon props over dungeon-style first-person set dressing.',
         ];
       } else {
         models = mergeAssetGroups(
-          rankKenneyAssets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 6 }),
-          rankKenneyAssets(`${prompt} chest coin pickup treasure`, { lane, desiredRoles: ['pickup'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 5 }),
-          rankKenneyAssets(`${prompt} wall floor dungeon graveyard barrel torch prop`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['model'], runtime: 'threejs', limit: 8 })
+          rankKenneyAssets(`${prompt} zombie skeleton enemy monster`, { lane, desiredRoles: ['enemy'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 30 }),
+          rankKenneyAssets(`${prompt} chest coin pickup treasure`, { lane, desiredRoles: ['pickup'], desiredKinds: ['model'], runtime: 'threejs', preferHero: true, limit: 25 }),
+          rankKenneyAssets(`${prompt} wall floor dungeon graveyard barrel torch prop`, { lane, desiredRoles: ['environment', 'prop'], desiredKinds: ['model'], runtime: 'threejs', limit: 35 })
         );
-        controls = rankKenneyAssets(`${prompt} button joystick ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 6 });
-        audio = rankKenneyAssets(`${prompt} impact interface horror hit`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 6 });
+        controls = rankKenneyAssets(`${prompt} button joystick ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 30 });
+        audio = rankKenneyAssets(`${prompt} impact interface horror hit`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 30 });
         notes = enrichNotesWithCrossLaneBorrowing(lane, models);
       }
       break;
 
     case 'third_person_threejs':
       models = mergeAssetGroups(
-        rankKenneyAssets(`${prompt} visible player hero character car vehicle body`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'character', 'sprite'], runtime: 'threejs', preferHero: true, limit: 6 }),
-        rankKenneyAssets(`${prompt} enemy traffic hazard monster drone obstacle`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['model', 'environment', 'sprite'], runtime: 'threejs', preferHero: true, limit: 8 }),
-        rankKenneyAssets(`${prompt} road arena floor wall cover checkpoint pickup landmark horizon`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'pickup', 'prop'], desiredKinds: ['model', 'environment', 'item', 'sprite'], runtime: 'threejs', limit: 10 })
+        rankKenneyAssets(`${prompt} visible player hero character car vehicle body`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['player', 'prop'], desiredKinds: ['model', 'character', 'sprite'], runtime: 'threejs', preferHero: true, limit: 30 }),
+        rankKenneyAssets(`${prompt} enemy traffic hazard monster drone obstacle`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['enemy', 'obstacle', 'prop'], desiredKinds: ['model', 'environment', 'sprite'], runtime: 'threejs', preferHero: true, limit: 35 }),
+        rankKenneyAssets(`${prompt} road arena floor wall cover checkpoint pickup landmark horizon`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade', 'pixel_platformer'], desiredRoles: ['environment', 'pickup', 'prop'], desiredKinds: ['model', 'environment', 'item', 'sprite'], runtime: 'threejs', limit: 40 })
       );
-      controls = rankKenneyAssets(`${prompt} joystick action attack accelerate brake drift ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 8 });
-      audio = rankKenneyAssets(`${prompt} impact engine hit pickup boost interface`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 8 });
+      controls = rankKenneyAssets(`${prompt} joystick action attack accelerate brake drift ui touch`, { lane, extraLanes: ['topdown_arcade'], desiredRoles: ['control', 'ui'], desiredKinds: ['control', 'ui'], limit: 35 });
+      audio = rankKenneyAssets(`${prompt} impact engine hit pickup boost interface`, { lane, extraLanes: ['first_person_threejs', 'topdown_arcade'], desiredRoles: ['audio'], desiredKinds: ['audio'], limit: 35 });
       notes = enrichNotesWithCrossLaneBorrowing(lane, [...models, ...controls]);
       break;
 
     default:
       visuals = mergeAssetGroups(
-        rankKenneyAssets(prompt, { desiredKinds: ['character', 'sprite', 'environment', 'item', 'weapon'], preferHero: true, limit: 12 }),
-        pickLegacyAssets(prompt, { limit: 8, categories: ['character', 'enemy', 'environment', 'item', 'weapon'] })
+        rankKenneyAssets(prompt, { desiredKinds: ['character', 'sprite', 'environment', 'item', 'weapon'], preferHero: true, limit: 45 }),
+        pickLegacyAssets(prompt, { limit: 35, categories: ['character', 'enemy', 'environment', 'item', 'weapon'] })
       );
       notes = [
         'This lane has no dedicated bundle recipe yet, so the asset brain searched the whole organized Kenney library and then fell back to the legacy curated set.',
