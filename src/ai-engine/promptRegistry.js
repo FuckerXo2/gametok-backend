@@ -19,6 +19,8 @@ import path from 'path';
 // VISUAL STYLE REFERENCE
 // ─────────────────────────────────────────────────────────
 
+import { buildCapabilityPromptBlock } from './capability-graph.js';
+
 const VISUAL_STYLES = [
   'NEON_CYBERPUNK', 'PIXEL_RETRO', 'FLAT_VECTOR', 'DARK_HORROR',
   'PASTEL_CUTE', 'NATURE_ORGANIC', 'SPACE_COSMIC', 'OCEAN_AQUATIC',
@@ -33,7 +35,7 @@ const ATMOSPHERES = [
 const PACING = ['Fast / Arcade', 'Medium / Balanced', 'Slow / Strategic', 'Turn-Based'];
 const CAMERA_PERSPECTIVES = ['FIRST_PERSON', 'THIRD_PERSON', 'ISOMETRIC', 'TOP_DOWN', 'SIDE_VIEW'];
 const ENVIRONMENT_TYPES = ['DUNGEON', 'ARENA', 'CORRIDOR', 'OPEN_FIELD', 'CITY', 'SPACE', 'INTERIOR'];
-const ENGINE_PREFERENCES = ['THREE_JS', 'CANVAS_2D', 'DOM_UI', 'P5_JS'];
+const ENGINE_PREFERENCES = ['THREE_JS', 'PHASER_WEBGL', 'DOM_UI', 'P5_JS'];
 
 function formatPromptList(items, fallback = 'none provided') {
   if (!Array.isArray(items) || items.length === 0) return fallback;
@@ -205,10 +207,11 @@ function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
 
   return `STRICT PIXEL-ART CONTRACT:
 - The user explicitly wants pixel art. Treat that as a hard visual requirement, not a loose retro vibe.
-- Use only Canvas2D for the main render path. Do not switch to glossy DOM cards, smooth vector-style scenes, or soft illustrative backgrounds.
-- If you use sprite assets, render them with nearest-neighbor scaling:
-  - canvas/context CSS should prefer crisp edges when possible
-  - disable smoothing with ctx.imageSmoothingEnabled = false
+- Use Phaser 3 with WebGL renderer (type: Phaser.WEBGL) for GPU acceleration.
+- Configure Phaser for pixel-perfect rendering:
+  - Set pixelArt: true in the game config
+  - Use NEAREST texture filtering: Phaser.Textures.FilterMode.NEAREST
+  - Disable antialiasing: antialias: false
 - Keep sprite/camera movement aligned to integer pixels whenever practical. Avoid subpixel blur.
 - Use consistent tile sizing such as 16x16, 24x24, or 32x32. Platforms, pickups, enemies, and HUD ornaments should respect that pixel grid.
 - Do NOT use soft gradients, blurry glow blobs, glassmorphism, or modern rounded-dashboard UI styling as the primary look.
@@ -237,6 +240,7 @@ IMPORTANT RULES:
 - Games should be touch-friendly (tap, swipe, drag — no keyboard required).
 - The spec must describe a game the engineer can ship as one self-contained mobile HTML experience.
 - If the user explicitly asks for first-person 3D, FPS, voxel, or a Three.js-style world, preserve that request in the spec instead of flattening it into top-down 2D.
+- If the user asks for a specific mechanic, tool, puzzle, control scheme, economy, editor, camera, or simulation system, preserve it as a capability intent instead of flattening it into a generic genre.
 - If the user's ask is too large, scale it into a strong playable vertical slice instead of describing an impossible full production game.
 - renderManifest MUST be specific to the requested game. Never use a fixed default list from some unrelated genre.
 
@@ -270,6 +274,7 @@ Extract a Game Spec Sheet as JSON:
     "collectible": "What the player collects (e.g. 'glowing TV screens', or null)",
     "obstacle": "Environmental hazards (e.g. 'dark fog patches', or null)"
   },
+  "capabilityIntents": ["snake_case capability names such as chase_camera_driver, projectile_ballistics, brush_canvas, palette_unlocks, inventory_hotbar, bubble_grid"],
   "renderManifest": ["drawHero", "drawEnemy", "drawObstacle", "drawProjectile", "drawPickup", "drawParticle"],
   "heroEmoji": "Single emoji representing the hero (e.g. 👦, 🚀, 🐱)",
   "enemyEmoji": "Single emoji representing the enemy (e.g. 👹, 👾, 🧟)",
@@ -289,11 +294,38 @@ renderManifest rules:
 - Good example for a racing game: ["drawPlayerCar", "drawTrafficCar", "drawBarrier", "drawBoostPickup", "drawSmokeParticle"]
 - Bad example: reusing knight/goblin names for every game no matter the prompt.
 
+capabilityIntents rules:
+- Use capabilityIntents to preserve mechanics and product surfaces. They are NOT genre labels.
+- Include 2 to 8 capability names only when clearly relevant.
+- Good capability examples: chase_camera_driver, road_depth_world, touch_driving_controls, projectile_ballistics, terrain_profile, weapon_cards, rope_path_puzzle, isometric_actor_world, survival_stats, inventory_hotbar, creator_tool_ui, brush_canvas, decorate_surface, palette_unlocks, shop_economy, bubble_grid, aim_trajectory, projectile_launcher, image_slice_puzzle.
+- Do not force a capability if the prompt does not ask for it.
+
 Output ONLY the JSON.`
   };
 }
 
 function buildEngineSpecBlock(specSheet) {
+  if (specSheet.runtimeLane === 'third_person_threejs') {
+    return `ENGINE SPEC: THREE.JS THIRD-PERSON / CHASE CAMERA
+- Imports:
+  - <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+- Required setup:
+  1. const scene = new THREE.Scene()
+  2. const camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 300)
+  3. const renderer = new THREE.WebGLRenderer({ antialias: true })
+  4. renderer.setSize(window.innerWidth, window.innerHeight)
+  5. add ambient light + directional/hemisphere light
+  6. build a visible player/vehicle group and floor/road/arena geometry
+- Camera:
+  - camera follows a target behind or over the shoulder
+  - updateCamera(dt) should smooth position and call camera.lookAt(target)
+- Controls:
+  - driving prompts: steering + ACCEL/GAS + BRAKE + optional DRIFT/BOOST
+  - character prompts: left joystick + action/interact/attack button
+- World style:
+  - compact but real 3D space with readable hazards, pickups, landmarks, and depth`;
+  }
+
   if (specSheet.runtimeLane === 'first_person_threejs' || specSheet.preferredEngine === 'THREE_JS') {
     return `ENGINE SPEC: THREE.JS FIRST-PERSON
 - Imports:
@@ -328,9 +360,11 @@ function buildEngineSpecBlock(specSheet) {
 - Prefer this only for UI-heavy non-action games.`;
   }
 
-  return `ENGINE SPEC: CANVAS 2D
-- Use native Canvas2D.
-- Keep the loop compact, touch-first, and readable on mobile.`;
+  return `ENGINE SPEC: PHASER 3 WITH WEBGL
+- Use Phaser 3 via CDN (https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js)
+- Force WebGL renderer for GPU acceleration: type: Phaser.WEBGL
+- Keep the game compact, touch-first, and readable on mobile.
+- Use Phaser's built-in physics, sprites, and animations for better performance.`;
 }
 
 export function buildLabsSoloPrototype(userPrompt, assetBundle = null, mediaAttachments = []) {
@@ -344,8 +378,12 @@ export function buildLabsSoloPrototype(userPrompt, assetBundle = null, mediaAtta
 - Support touch-first controls: left joystick for movement, right drag area for camera look, plus a tap attack/interact button if needed.
 - Use procedural low-poly or blocky geometry/materials unless the approved self-hosted asset kit below gives you same-origin GLB models or UI sprites you can safely load.
 - If you use provided GLB models, you MAY also include GLTFLoader via the official Three.js examples CDN.`
-    : `- Use native Canvas2D only unless the approved self-hosted asset kit below gives you same-origin sprites/audio you can preload.
-- No external libraries or third-party remote assets.`;
+    : `- Use Phaser 3 via CDN (https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js) as the rendering engine.
+- Force WebGL renderer for GPU acceleration: type: Phaser.WEBGL
+- Use Phaser's physics system (arcade physics) for collisions and movement.
+- Load the approved self-hosted asset kit below using Phaser's preload system.
+- Use Phaser's sprite system for all visual elements.
+- Keep mobile-first with touch controls using Phaser's input system.`;
 
   const assetKitBlock = buildAssetKitBlock(assetBundle);
   const userMediaBlock = buildUserMediaBlock(mediaAttachments);
@@ -1080,9 +1118,12 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 
 export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaAttachments = []) {
   const isFirstPerson3D = specSheet.runtimeLane === 'first_person_threejs';
+  const isThirdPerson3D = specSheet.runtimeLane === 'third_person_threejs';
   const isStoryHorrorVignette = specSheet.runtimeLane === 'story_horror_vignette';
   const isSimulationToybox = specSheet.runtimeLane === 'simulation_toybox';
   const isCockpitDriver = specSheet.controlRig === 'cockpit_driver';
+  const isChaseCameraDriver = specSheet.controlRig === 'chase_camera_driver';
+  const isThirdPersonJoystick = specSheet.controlRig === 'third_person_joystick';
   const isMoveAndFire = specSheet.controlRig === 'move_and_fire';
   const isLaneSwipeRunner = specSheet.controlRig === 'lane_swipe_runner';
   const isBinaryChoiceStory = specSheet.controlRig === 'binary_choice_story';
@@ -1090,12 +1131,13 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
   const engineSpecBlock = buildEngineSpecBlock(specSheet);
   const assetKitBlock = buildAssetKitBlock(assetBundle);
   const userMediaBlock = buildUserMediaBlock(mediaAttachments);
+  const capabilityBlock = buildCapabilityPromptBlock(specSheet.capabilities || []);
   const pixelArtRuleBlock = buildPixelArtRuleBlock(specSheet, specSheet.promptEcho || '');
-  const engineSelectionRules = isFirstPerson3D
+  const engineSelectionRules = isFirstPerson3D || isThirdPerson3D
     ? `You MUST use THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js) for this game.
-- This is a hard requirement because the prompt/spec requires a first-person 3D experience.
+- This is a hard requirement because the prompt/spec requires a real 3D experience.
 - You MUST use THREE.WebGLRenderer and THREE.PerspectiveCamera.
-- You MUST keep the camera in first-person view. Do NOT downgrade to top-down, side-view, orthographic, or fake-2D.
+- You MUST preserve the requested camera perspective. Do NOT downgrade to top-down, side-view, orthographic, or fake-2D.
 - If you use provided self-hosted GLB models, you MAY additionally load GLTFLoader from the official Three.js examples CDN.`
     : `You MUST choose one of the following engines based on the game genre and visuals:
 1. THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js)
@@ -1107,12 +1149,12 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
 4. DOM/CSS (Native)
    - Best for: Card games, puzzles, trivia, word games.`;
 
-  const fullscreenRule = isFirstPerson3D
+  const fullscreenRule = isFirstPerson3D || isThirdPerson3D
     ? `3. FULLSCREEN RESPONSIVE:
    - Must fill the entire viewport (100vw, 100vh).
    - Handle window resize events to update renderer size and camera aspect.
    - CSS: body { margin: 0; overflow: hidden; background: ${specSheet.backgroundColor}; touch-action: none; }
-   - Render a visible world immediately: floor, walls, lighting, and at least one key landmark or enemy on the first frame.`
+   - Render a visible world immediately: floor/road, walls or landmarks, lighting, player/vehicle framing, and at least one objective, hazard, pickup, or enemy on the first frame.`
     : isStoryHorrorVignette
     ? `3. FULLSCREEN RESPONSIVE:
    - Must fill the entire viewport (100vw, 100vh).
@@ -1137,6 +1179,13 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Keep the world compact but real: hallways, rooms, props, pickups, enemies, and an obvious goal.
    - The player's viewpoint is the camera. Add touch movement plus right-side drag look or similar mobile-friendly look controls.
    - Use perspective depth, collision-aware movement, and readable landmarks instead of faking 3D with flat sprites.`
+    : isThirdPerson3D
+    ? `4. THIRD-PERSON WORLD CAMERA & EXPANSIVE MOVEMENT (CRITICAL):
+   - This must be a true third-person/chase-camera 3D game, not a top-down map and not a first-person camera.
+   - The player body or vehicle must be visible at all times, anchored in the lower third or center-lower frame.
+   - Use a PerspectiveCamera that follows behind or over the shoulder of the player with smoothing.
+   - Build a compact but real 3D world: road/arena floor, depth landmarks, hazards, pickups, enemies or traffic, and readable lighting.
+   - Movement must visibly move the player/vehicle through the world while the camera follows.`
     : isStoryHorrorVignette
     ? `4. SCENE FRAMING & FOCAL COMPOSITION (CRITICAL):
    - This lane wins through staging, not world size.
@@ -1166,6 +1215,15 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Environments must have depth: floor plane, walls, props, pickups, and at least one strong light source.
    - Prefer chunky, stylish geometry that reads well on mobile over ultra-detailed scenes.
    - Do not represent enemies or pickups as plain spheres, cubes, or colored blobs if the asset kit already includes a usable matching model or prop.`
+    : isThirdPerson3D
+    ? `5. THIRD-PERSON ENTITY RENDERING (PROCEDURAL 3D + APPROVED ASSETS):
+   - ⚠️ ABSOLUTELY NO THIRD-PARTY IMAGES OR TEXTURES. Do NOT load random remote sprites, PNGs, or material maps.
+   - You SHOULD use the approved same-origin GameTok asset kit below when it contains useful models, road/world props, pickups, hazards, UI, or audio.
+   - The hero/vehicle description is: ${specSheet.entities?.hero || "Visible player avatar or vehicle"}
+   - The enemy/hazard description is: ${specSheet.entities?.enemy || "Adversary, traffic, or obstacle"}
+   - Always render a visible player body or vehicle with enough shape detail to read instantly.
+   - Environments must have depth: floor/road plane, landmarks or walls, hazards, pickups/checkpoints, lighting, fog or atmosphere, and shadows where practical.
+   - Prefer chunky, stylish low-poly geometry over tiny placeholder dots. If no asset fits, build the hero/vehicle from grouped Three.js meshes.`
     : isStoryHorrorVignette
     ? `5. SCENE RENDERING (TYPOGRAPHY + ATMOSPHERE FIRST):
    - This lane does NOT need a pile of sprites to feel complete.
@@ -1217,7 +1275,7 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
      \`\`\`
    - Each entity type MUST be at least 30x30 pixels and visually distinct.`;
 
-  const gameStateRule = isFirstPerson3D
+  const gameStateRule = isFirstPerson3D || isThirdPerson3D
     ? `7. GAME STATES & BOOTING (CRITICAL FOR IOS):
    - ⚠️ DO NOT wrap your initialization code in \`window.onload\` or \`document.addEventListener('DOMContentLoaded')\`. It will fail in iOS WebViews! Execute your setup IMMEDIATELY at the top level.
    - MENU: Show a readable title and TAP TO START overlay before entering the level.
@@ -1226,7 +1284,7 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Define a top-level \`startGame()\` function that hides the menu overlay, marks gameplay as active, and resumes audio if needed.
    - Do NOT rely on the \`click\` event for the start flow. It is unreliable in iOS WebViews.
    - If you render a start overlay, make the full overlay react to \`pointerdown\`, not a tiny HTML button.
-   - PLAYING: First-person exploration/combat loop.
+   - PLAYING: ${isThirdPerson3D ? 'Third-person chase/follow camera action or driving loop.' : 'First-person exploration/combat loop.'}
    - GAMEOVER / WIN: Show the result and TAP TO RESTART.
    - Draw your HUD and touch controls as overlays without blocking the renderer.`
     : isStoryHorrorVignette
@@ -1267,9 +1325,27 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
      - world = { walls: [], enemies: [], pickups: [] }
      - functions: buildWorld(), spawnEnemies(), updatePlayer(dt), updateEnemies(dt), collectPickups(), renderHud(), animate()
    - Keep geometry simple and low-poly: boxes, planes, cylinders, and spheres are enough.
+   - The first frame must never be a flat blank field with only HUD text. buildWorld() must create at minimum: a floor plane, 4+ walls/cover pieces, 3+ enemies or targets when combat exists, 2+ pickups/landmarks, lighting/fog, and a weapon/hand/crosshair cue.
+   - For zombie/FPS shooter prompts, enemies must be visible and damageable quickly, FIRE/SHOOT must spawn projectiles or raycast hits, and health/ammo must update from real collisions.
    - Add collision checks so the player cannot walk through walls.
    - Add visible lighting, fog, or emissive landmarks so the depth reads instantly.
    - Do NOT replace this with a top-down map, pseudo-3D raycast, or flat sprite maze.`
+    : isThirdPerson3D
+    ? `9. THIRD-PERSON THREE.JS STARTER ARCHITECTURE (FOLLOW THIS SHAPE):
+   - Your HTML should include:
+     - a full-screen renderer mount
+     - a HUD overlay
+     - ${isChaseCameraDriver ? 'accelerate, brake, and steering/drift controls' : 'a left joystick zone'}
+     - ${isChaseCameraDriver ? 'speed/drift/checkpoint HUD instrumentation' : 'a large action/interact/attack button'}
+   - Your JavaScript should roughly define:
+     - scene, camera, renderer
+     - player = { position, velocity, yaw, hp${isChaseCameraDriver ? ', speed, steering, throttle, brake' : ', actionCooldown'} }
+     - input = { ${isChaseCameraDriver ? 'steer, throttle, brake, drift' : 'moveX, moveY, action'} }
+     - world = { hazards: [], enemies: [], pickups: [], landmarks: [] }
+     - functions: buildWorld(), updatePlayer(dt), updateCamera(dt), updateWorld(dt), resolveCollisions(), renderHud(), animate()
+   - Build the visible player/vehicle from grouped meshes or same-origin models; never make the player an invisible camera.
+   - The first frame must show: visible player/vehicle, floor/road/arena depth, at least 3 hazards/enemies/pickups/landmarks, lighting, and safe mobile controls.
+   - Do NOT replace this with first-person, top-down, pseudo-3D raycast, or flat 2D lane art.`
     : '';
 
   const touchRigArchitectureRule = isMoveAndFire
@@ -1348,6 +1424,19 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
      - forward road motion must visibly change when throttle or brake is pressed
    - Good control labels include: STEER, ACCEL, BRAKE, BOOST, KM/H, RPM.
    - The scene should read like “I am driving this vehicle,” not “I am walking through a level with a car overlay.”`
+    : isChaseCameraDriver
+    ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
+   - This prompt is a chase-camera driving fantasy. Do NOT use cockpit-only view, top-down view, or an invisible camera.
+   - The player must see a visible vehicle in the lower third with a camera following behind it.
+   - The player must see dedicated driving controls such as steering, accelerate, brake, and optional drift/boost.
+   - Acceleration, braking, steering, and drift/boost must visibly affect the vehicle and road hazards immediately.
+   - Good control labels include: STEER, ACCEL, BRAKE, DRIFT, BOOST, KM/H.`
+    : isThirdPersonJoystick
+    ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
+   - This prompt is a third-person character/action fantasy. Do NOT use first-person view, top-down dots, or gesture-only guessing.
+   - The player must see a visible hero controlled by a left joystick or movement pad.
+   - The player must see a large action/interact/attack button when combat or interaction exists.
+   - The follow camera must track behind or over the shoulder and keep enemies/objectives readable.`
     : isMoveAndFire
     ? `CONTROL RIG (MANDATORY FOR THIS BUILD):
    - This prompt is a move-and-fire combat fantasy. Do NOT hide the controls or reduce it to a single tap-anywhere interaction.
@@ -1420,6 +1509,18 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
    - Honor the requested control model: ${specSheet.controlModel || 'Simple touch-first interaction.'}
    - The on-screen controls should match the fantasy instead of defaulting to generic buttons.`;
 
+  const mobileViewportRule = `4D. MOBILE VIEWPORT + SAFE BOUNDS CONTRACT (NON-NEGOTIABLE):
+   - Target screen is a phone viewport around 390x844 CSS pixels, but your code must adapt to any viewport.
+   - Define viewport dimensions from window.innerWidth / window.innerHeight or window.visualViewport when available. Do not hard-code desktop game dimensions such as 800x600, 1024x768, or fixed world-to-screen assumptions.
+   - CSS must keep html, body, root containers, and the main canvas/renderer constrained to the phone: width: 100vw; height: 100dvh or 100vh fallback; margin: 0; overflow: hidden; touch-action: none.
+   - Treat the top 44px and bottom 34px as unsafe areas unless CSS env(safe-area-inset-*) gives larger values.
+   - HUD, labels, menus, joysticks, fire buttons, and interactive controls must be clamped inside the viewport. Nothing important may render beyond left/right/top/bottom screen edges.
+   - Controls must be large enough for touch and pinned to safe areas, usually in the lower third. Never place controls partly outside the visible viewport.
+   - Gameplay-critical entities visible on the first frame must be inside the visible camera/viewport, or intentionally in world coordinates that the camera can reach immediately. Do not spawn the player/objective off-screen.
+   - Add a resize() function and call it immediately plus on resize/orientationchange. Resize the renderer/canvas AND recompute HUD/control positions.
+   - Use a clamp(value, min, max) helper for screen-space positions. After any ctx.translate/world camera draw, restore the canvas transform before drawing HUD/controls.
+   - The page must not create horizontal scrolling. documentElement.scrollWidth and body.scrollWidth should stay within the viewport width.`;
+
   return `You are an expert Creative Coder and Game Engine Specialist. Build a COMPLETE, POLISHED, PRODUCTION-QUALITY mobile game as a single HTML file.
 
 GAME SPECIFICATION:
@@ -1439,6 +1540,7 @@ GAME SPECIFICATION:
 - Environment Scale: ${specSheet.environmentScale || 'scene_with_breathing_room'}
 - Background Color: ${specSheet.backgroundColor}
 - Accent Color: ${specSheet.accentColor}
+- Capabilities: ${(specSheet.capabilities || []).map((capability) => capability.id).join(', ') || 'none'}
 
 ENTITIES (use attached same-origin character/prop assets whenever possible; only fall back to procedural stand-ins if the kit truly has no usable match):
 - Hero: ${specSheet.entities?.hero}
@@ -1458,6 +1560,10 @@ ${assetKitBlock}
 ${userMediaBlock}
 
 ${pixelArtRuleBlock}
+
+CAPABILITY GRAPH CONTRACT:
+These capabilities are composable building blocks. They are not hard genre lanes. Implement all selected capabilities while preserving the user's original fantasy.
+${capabilityBlock}
 
 ENVIRONMENT + COMPOSITION TARGETS:
 ${formatPromptList(specSheet.compositionTargets, '- give the scene breathing room and a clear focal path')}
@@ -1503,6 +1609,8 @@ ${cameraRule}
    - Every item in the FIRST-FRAME CHECKLIST above must be visible immediately when the game boots.
    - Do NOT hide the key focal object, controls, or lane-defining geometry behind delayed transitions, async loading emptiness, or a blank intro state.
    - If assets load later, render procedural placeholders or styled panels immediately so the first frame still feels authored.
+
+${mobileViewportRule}
 
 ${renderingRule}
 
