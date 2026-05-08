@@ -967,12 +967,18 @@ Return a JSON object with these categories:
 - controls: { description, style, count }
 - models: { description, style, count } (for 3D games only)
 
+IMPORTANT: The "count" field should reflect the game's complexity:
+- Simple games (Pong, Snake): 2-5 assets per category
+- Medium games (platformers, shooters): 6-12 assets per category
+- Complex games (RPGs, open world): 15-30 assets per category
+
 Be specific about:
 - Visual style (realistic, pixel art, cartoon, horror, etc.)
 - Mood/atmosphere (dark, cheerful, tense, etc.)
 - Gameplay requirements (fast-paced, strategic, etc.)
+- Asset count based on game complexity (simple, medium, complex)
 
-Example for "zombie survival shooter":
+Example for "zombie survival shooter" (COMPLEX GAME):
 {
   "player": {
     "description": "Rugged zombie survivor with tactical gear, holding assault rifle",
@@ -1004,6 +1010,74 @@ Example for "zombie survival shooter":
     "style": "military HUD, dark theme, combat interface",
     "count": 6
   }
+}
+
+Example for "Pong clone" (SIMPLE GAME):
+{
+  "player": {
+    "description": "Two paddles, simple rectangular shapes",
+    "style": "minimalist, retro, clean",
+    "count": 2
+  },
+  "enemies": {
+    "description": "None needed",
+    "style": "N/A",
+    "count": 0
+  },
+  "environment": {
+    "description": "Simple background, center line",
+    "style": "minimalist, retro, black and white",
+    "count": 2
+  },
+  "pickups": {
+    "description": "None needed",
+    "style": "N/A",
+    "count": 0
+  },
+  "audio": {
+    "description": "Ball hit sound, score sound, background music",
+    "mood": "retro, arcade, simple",
+    "count": 3
+  },
+  "controls": {
+    "description": "Up/down buttons for paddle movement",
+    "style": "simple, minimal UI",
+    "count": 2
+  }
+}
+
+Example for "platformer adventure" (MEDIUM GAME):
+{
+  "player": {
+    "description": "Adventurer character with running, jumping animations",
+    "style": "cartoon, colorful, friendly",
+    "count": 4
+  },
+  "enemies": {
+    "description": "Various enemies: slimes, bats, spiders",
+    "style": "cartoon, cute but dangerous",
+    "count": 6
+  },
+  "environment": {
+    "description": "Platforms, trees, rocks, grass, clouds",
+    "style": "colorful, nature-themed, adventure",
+    "count": 8
+  },
+  "pickups": {
+    "description": "Coins, power-ups, health hearts",
+    "style": "shiny, collectible, rewarding",
+    "count": 4
+  },
+  "audio": {
+    "description": "Jump sound, collect coin, enemy hit, background music",
+    "mood": "upbeat, adventurous, fun",
+    "count": 6
+  },
+  "controls": {
+    "description": "Left/right movement, jump button",
+    "style": "simple, clear, responsive",
+    "count": 3
+  }
 }`,
       user: `Game prompt: "${promptText}"
 Game type: ${lane}
@@ -1011,7 +1085,14 @@ Genre: ${specSheet?.genre || 'action'}
 Visual style: ${specSheet?.visualStyle || 'dynamic'}
 Control rig: ${specSheet?.controlRig || 'standard'}
 
-Analyze this game and describe exactly what assets are needed. Be specific and detailed.`
+Analyze this game and describe exactly what assets are needed.
+
+IMPORTANT: Adjust the asset counts based on game complexity:
+- If this is a SIMPLE game (Pong, Snake, Tic-Tac-Toe): Use 2-5 assets per category
+- If this is a MEDIUM game (platformer, shooter, puzzle): Use 6-12 assets per category  
+- If this is a COMPLEX game (RPG, open world, strategy): Use 15-30 assets per category
+
+Be specific and detailed about descriptions and styles.`
     };
 
     const response = await nvidiaClient.chat.completions.create({
