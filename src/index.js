@@ -60,6 +60,7 @@ for (const uploadRoot of STATIC_UPLOAD_ROOTS) {
 if (SEKAI_TEMPLATES_ROOT) {
   app.use('/sekai-templates', express.static(SEKAI_TEMPLATES_ROOT));
 }
+app.use('/assets', express.static(path.join(__dirname, '../public/assets')));
 
 // Serve static thumbnails
 app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thumbnails')));
@@ -795,36 +796,6 @@ app.post('/api/admin/clear-deleted-games', async (req, res) => {
   } catch (e) {
     console.error('Clear deleted games error:', e);
     res.status(500).json({ error: 'Failed to clear deleted games: ' + e.message });
-  }
-});
-
-// Fix multiplayer_only flag for Loops games (games with loops_ prefix)
-app.post('/api/admin/fix-multiplayer-games', async (req, res) => {
-  try {
-    // Set multiplayer_only = TRUE for all games with loops_ prefix
-    const result = await pool.query(
-      "UPDATE games SET multiplayer_only = TRUE WHERE id LIKE 'loops_%' AND (multiplayer_only IS NULL OR multiplayer_only = FALSE)"
-    );
-
-    // Get count of multiplayer games
-    const countResult = await pool.query(
-      "SELECT COUNT(*) FROM games WHERE multiplayer_only = TRUE"
-    );
-
-    // Get list of affected games
-    const gamesResult = await pool.query(
-      "SELECT id, name FROM games WHERE id LIKE 'loops_%'"
-    );
-
-    res.json({
-      success: true,
-      updated: result.rowCount,
-      totalMultiplayerGames: parseInt(countResult.rows[0].count),
-      games: gamesResult.rows
-    });
-  } catch (e) {
-    console.error('Fix multiplayer games error:', e);
-    res.status(500).json({ error: 'Failed to fix multiplayer games: ' + e.message });
   }
 });
 

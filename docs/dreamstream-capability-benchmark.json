@@ -1,0 +1,42 @@
+[
+  {
+    "id": "chase-camera-racer",
+    "prompt": "Make a mobile 3D chase-camera racing game where I drive a golden sports car down a foggy highway. It needs gas, brake, drift, speed HUD, distance progress, traffic, and checkpoints.",
+    "expectedCapabilities": ["chase_camera_driver", "visible_player_vehicle", "road_depth_world", "touch_driving_controls", "speed_hud"]
+  },
+  {
+    "id": "turn-based-tank-ballistics",
+    "prompt": "Build a turn-based tank duel on hilly terrain. Player and enemy take turns. I choose angle and power, pick weapon cards like hail stone or wrecking ball, then fire a projectile arc affected by gravity.",
+    "expectedCapabilities": ["projectile_ballistics", "terrain_profile", "weapon_cards", "turn_based_duel", "aim_trajectory"]
+  },
+  {
+    "id": "rope-tight-squeeze-puzzle",
+    "prompt": "Create a level puzzle called Tight Squeeze where a stick figure stretches a bendy arm or rope through narrow gaps around blocks to grab a diamond without touching obstacles.",
+    "expectedCapabilities": ["rope_path_puzzle", "obstacle_layout", "level_title_card"]
+  },
+  {
+    "id": "isometric-survival-camp",
+    "prompt": "Make an isometric blocky survival camp game. Three survivors stand near a campfire, day 1 starts, health hunger and fire meters drain, I use an axe from the hotbar to chop trees and gather resources.",
+    "expectedCapabilities": ["isometric_actor_world", "survival_stats", "inventory_hotbar", "resource_node"]
+  },
+  {
+    "id": "painting-studio-economy",
+    "prompt": "Build a cozy painting studio creator game. I draw on a canvas with brushes and colors, unlock more palettes and frame styles, clear or sell the painting for coins, and use shop buttons.",
+    "expectedCapabilities": ["creator_tool_ui", "brush_canvas", "decorate_surface", "palette_unlocks", "shop_economy"]
+  },
+  {
+    "id": "nail-decorator-tool",
+    "prompt": "Create a nail salon decorating tool with a large hand, nail surface, color sliders, patterns, finishes, decor tabs, locked cosmetics, undo redo mirror new and save controls.",
+    "expectedCapabilities": ["creator_tool_ui", "decorate_surface", "palette_unlocks"]
+  },
+  {
+    "id": "bubble-shooter",
+    "prompt": "Make a polished bubble shooter with a staggered grid of glossy colored bubbles, score and best HUD, next bubble preview, launcher at the bottom, and a dotted bounce aim trajectory.",
+    "expectedCapabilities": ["bubble_grid", "aim_trajectory", "projectile_launcher"]
+  },
+  {
+    "id": "image-slice-puzzle",
+    "prompt": "Make a cute glamour image slice puzzle where the player slides or reveals split panels of a portrait image, sees 1/2 progress, completes the picture, then taps next puzzle.",
+    "expectedCapabilities": ["image_slice_puzzle"]
+  }
+]

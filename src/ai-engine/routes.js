@@ -13,6 +13,7 @@ import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, getAssetRuntimeDiagnostics } from './asset-dictionary.js';
 import { notifyGameReady } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
+import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -136,7 +137,7 @@ const router = express.Router();
 const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.6";
 
 const DREAM_MODELS = {
-    spec: "meta/llama-3.3-70b-instruct",
+    spec: process.env.DREAMSTREAM_SPEC_MODEL || DEFAULT_KIMI_BUILDER_MODEL, // Use Kimi for Phase 1 too
     premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || DEFAULT_KIMI_BUILDER_MODEL,
     labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || DEFAULT_KIMI_BUILDER_MODEL,
     narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
@@ -1604,29 +1605,131 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         console.log(`✅ Phase 1: "${qualityIntent.title}" — ${qualityIntent.userIntent}`);
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
 
-        // Build asset search terms from Phase 1
-        const assetSearchTerms = [
-            prompt,
-            ...(qualityIntent.assetSearchTerms?.characters || []),
-            ...(qualityIntent.assetSearchTerms?.environment || []),
-            ...(qualityIntent.assetSearchTerms?.effects || []),
-            ...(qualityIntent.assetSearchTerms?.audio || []),
-        ].join(' ');
+        // ── ARTIST AGENT: Generate ALL visual assets with AI ──
+        const useArtistAgent = process.env.DISABLE_ARTIST_AGENT !== 'true';
+        let generatedAssets = null;
         
-        const useAIDrivenAssets = process.env.ENABLE_AI_DRIVEN_ASSETS !== 'false';
-        const assetBundle = useAIDrivenAssets 
-          ? await buildDreamAssetBundleWithAI({ userIntent: assetSearchTerms }, prompt, nvidiaClient)
-          : buildDreamAssetBundle({ userIntent: assetSearchTerms }, prompt);
+        if (useArtistAgent && qualityIntent.visualAssets) {
+            try {
+                console.log(`🎨 Artist Agent: Planning visual asset generation...`);
+                
+                // Build asset request list from Phase 1 plan
+                const assetRequests = [];
+                
+                // Player
+                if (qualityIntent.visualAssets.player) {
+                    assetRequests.push({
+                        id: 'player',
+                        assetType: 'sprite',
+                        description: qualityIntent.visualAssets.player.description,
+                        category: 'player',
+                        size: qualityIntent.visualAssets.player.size || 128,
+                        transparent: qualityIntent.visualAssets.player.transparent !== false,
+                    });
+                }
+                
+                // Enemies
+                if (Array.isArray(qualityIntent.visualAssets.enemies)) {
+                    qualityIntent.visualAssets.enemies.forEach((enemy, idx) => {
+                        assetRequests.push({
+                            id: enemy.id || `enemy${idx + 1}`,
+                            assetType: 'sprite',
+                            description: enemy.description,
+                            category: 'enemy',
+                            size: enemy.size || 128,
+                            transparent: enemy.transparent !== false,
+                        });
+                    });
+                }
+                
+                // Items
+                if (Array.isArray(qualityIntent.visualAssets.items)) {
+                    qualityIntent.visualAssets.items.forEach((item, idx) => {
+                        assetRequests.push({
+                            id: item.id || `item${idx + 1}`,
+                            assetType: 'sprite',
+                            description: item.description,
+                            category: 'item',
+                            size: item.size || 64,
+                            transparent: item.transparent !== false,
+                        });
+                    });
+                }
+                
+                // Backgrounds
+                if (Array.isArray(qualityIntent.visualAssets.backgrounds)) {
+                    qualityIntent.visualAssets.backgrounds.forEach((bg, idx) => {
+                        assetRequests.push({
+                            id: bg.id || `background${idx + 1}`,
+                            assetType: 'sprite',
+                            description: bg.description,
+                            category: 'environment',
+                            size: bg.size || 512,
+                            transparent: bg.transparent === true,
+                        });
+                    });
+                }
+                
+                // UI elements
+                if (Array.isArray(qualityIntent.visualAssets.ui)) {
+                    qualityIntent.visualAssets.ui.forEach((ui, idx) => {
+                        assetRequests.push({
+                            id: ui.id || `ui${idx + 1}`,
+                            assetType: 'sprite',
+                            description: ui.description,
+                            category: 'ui',
+                            size: ui.size || 32,
+                            transparent: ui.transparent !== false,
+                        });
+                    });
+                }
+                
+                // Props
+                if (Array.isArray(qualityIntent.visualAssets.props)) {
+                    qualityIntent.visualAssets.props.forEach((prop, idx) => {
+                        assetRequests.push({
+                            id: prop.id || `prop${idx + 1}`,
+                            assetType: 'sprite',
+                            description: prop.description,
+                            category: 'prop',
+                            size: prop.size || 96,
+                            transparent: prop.transparent !== false,
+                        });
+                    });
+                }
+                
+                console.log(`🎨 Artist Agent: Generating ${assetRequests.length} visual assets...`);
+                
+                // Generate all assets
+                generatedAssets = await batchArtistAgent(assetRequests);
+                assertJobNotCancelled(jobId);
+                
+                console.log(`✅ Artist Agent: Generated ${Object.keys(generatedAssets.assets).length} custom assets`);
+                if (generatedAssets.errors) {
+                    console.warn(`⚠️ Artist Agent: ${generatedAssets.errors.length} assets used fallbacks`);
+                }
+            } catch (error) {
+                console.error(`❌ Artist Agent failed:`, error.message);
+                console.log(`   Falling back to procedural generation`);
+                generatedAssets = null;
+            }
+        }
+
+        // Legacy asset bundle (disabled by default, only used as fallback)
+        const assetBundle = null; // Completely disabled
         
         assertJobNotCancelled(jobId);
-        if (assetBundle) {
-            const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
-            console.log(`📦 Assets: ${bundleCount} curated assets ready`);
-        }
 
         // ── PHASE 2: KIMI BUILDS THE GAME ──
         console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building...`);
-        const buildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, assetBundle, mediaAttachments);
+        
+        // Build audio asset bundle from library (keep audio from library)
+        const audioBundle = qualityIntent.audioNeeds ? {
+            audio: [], // TODO: Select audio from library based on audioNeeds
+            music: [], // TODO: Select music from library based on audioNeeds
+        } : null;
+        
+        const buildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, audioBundle, mediaAttachments, generatedAssets);
         let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Build', jobId });
         assertJobNotCancelled(jobId);
 
@@ -2525,11 +2628,8 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
             },
             prompt
         );
-        const assetBundle = buildDreamAssetBundle({ runtimeLane: inferredLane, summary: prompt, title: prompt }, prompt);
-        if (assetBundle) {
-            const bundleCount = assetBundle.visuals.length + assetBundle.controls.length + assetBundle.audio.length + assetBundle.models.length;
-            console.log(`📦 [LABS JOB] Asset Brain attached ${bundleCount} curated assets for lane ${assetBundle.lane}`);
-        }
+        // Asset bundle disabled - all visual assets generated by Artist Agent
+        const assetBundle = null;
         const soloPrompt = buildLabsSoloPrototype(prompt, assetBundle, mediaAttachments);
         let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
             model: DREAM_MODELS.labsBuilder,

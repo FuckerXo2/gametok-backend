@@ -1,0 +1,454 @@
+{
+  "gameName": "89.9KLeevai",
+  "url": "https://www.astrocade.com/games/counter-strike-knife-idle/01KPTZ43BAY6Y2W2SA6WH8MYQ1",
+  "scrapedAt": "2026-05-08T03:50:24.212Z",
+  "frameworks": {
+    "hasThreeJs": false,
+    "hasPhaser": false,
+    "hasPixi": false,
+    "hasBabylon": false,
+    "hasP5": false
+  },
+  "rendering": {
+    "canvasCount": 0,
+    "canvasContexts": []
+  },
+  "metadata": {
+    "title": "Counter-strike Knife IDLE | Astrocade",
+    "metaTags": [
+      {
+        "content": ""
+      },
+      {
+        "name": "viewport",
+        "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+      },
+      {
+        "name": "theme-color",
+        "content": "#090214"
+      },
+      {
+        "name": "description",
+        "content": "Collect knives that generate passive gold! Buy cases, wait for opening, and watch your income grow while you relax and complete your collection. Created with Astrocade"
+      },
+      {
+        "name": "keywords",
+        "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+      },
+      {
+        "name": "application-name",
+        "content": "Astrocade"
+      },
+      {
+        "content": "Counter-strike Knife IDLE by Leevai"
+      },
+      {
+        "content": "Collect knives that generate passive gold! Buy cases, wait for opening, and watch your income grow while you relax and complete your collection. Created with Astrocade"
+      },
+      {
+        "content": "https://www.astrocade.com/games/counter-strike-knife-idle/01KPTZ43BAY6Y2W2SA6WH8MYQ1"
+      },
+      {
+        "content": "Astrocade"
+      },
+      {
+        "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_31bb3bbf-48bb-481c-8a1e-b78fe9ababfc.webp"
+      },
+      {
+        "content": "website"
+      },
+      {
+        "name": "twitter:card",
+        "content": "summary_large_image"
+      },
+      {
+        "name": "twitter:title",
+        "content": "Counter-strike Knife IDLE by Leevai"
+      },
+      {
+        "name": "twitter:description",
+        "content": "Collect knives that generate passive gold! Buy cases, wait for opening, and watch your income grow while you relax and complete your collection. Created with Astrocade"
+      },
+      {
+        "name": "twitter:image",
+        "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_31bb3bbf-48bb-481c-8a1e-b78fe9ababfc.webp"
+      },
+      {
+        "name": "next-size-adjust",
+        "content": ""
+      }
+    ],
+    "hasEditor": false,
+    "hasRemix": true
+  },
+  "scripts": {
+    "total": 56,
+    "external": [
+      "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+      "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45111-434a4b47ea5c8f39.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+      "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212213013&cv=11&fst=1778212213013&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938466~115938469~117227714~118131809~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fcounter-strike-knife-idle%2F01KPTZ43BAY6Y2W2SA6WH8MYQ1&rcb=1&frm=0&tiba=Counter-strike%20Knife%20IDLE%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=510533722.1778212210&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+      "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212213022&cv=11&fst=1778212213022&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938466~115938469~117227714~118131809~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fcounter-strike-knife-idle%2F01KPTZ43BAY6Y2W2SA6WH8MYQ1&rcb=1&frm=0&tiba=Counter-strike%20Knife%20IDLE%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=510533722.1778212210&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+    ],
+    "inlineCount": 45,
+    "analysis": [
+      {
+        "length": 427,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 359,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 682,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 104,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 895,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 414,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 662,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2242,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2238,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2218,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 540,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 12647,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 2809,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 2369,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 1650,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 16359,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": true,
+        "hasPhysics": true,
+        "hasControls": true
+      },
+      {
+        "length": 12746,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 10206,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 177189,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": true,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 101582,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 246146,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": true,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 8531,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 6986,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 3028,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 1784,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2462,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2107,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2105,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2145,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2124,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2142,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 742,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 265110,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": true,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 368,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 148,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      }
+    ]
+  },
+  "htmlSize": 1364541
+}

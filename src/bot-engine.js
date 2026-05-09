@@ -568,7 +568,7 @@ export async function seedBots({ targetCount = 10000, onProgress } = {}) {
   for (let i = 0; i < toCreate; i += 1) {
     const index = existingCount + i + 1;
     const username = makeBotUsername(index);
-    const displayName = `${pick(BOT_FIRST_NAMES)} ${pick(['plays', 'arcade', 'loops', 'tok', 'bits', 'dash'])}`;
+    const displayName = `${pick(BOT_FIRST_NAMES)} ${pick(['plays', 'arcade', 'gamer', 'tok', 'bits', 'dash'])}`;
     const persona = pick(BOT_VIBES);
     const avatar = makeBotAvatar(username);
     const email = `${username}@${BOT_EMAIL_DOMAIN}`;

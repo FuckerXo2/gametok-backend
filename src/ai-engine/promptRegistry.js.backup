@@ -202,115 +202,6 @@ function buildUserMediaBlock(mediaAttachments = []) {
 ${lines}`;
 }
 
-function buildAudioKitBlock(audioBundle = null) {
-  if (!audioBundle || (!audioBundle.audio?.length && !audioBundle.music?.length)) {
-    return `AUDIO ASSETS:
-- No curated audio assets were attached for this run.
-- You may use procedural audio (Web Audio API oscillators) for simple sound effects.
-- Keep the game playable without audio.`;
-  }
-
-  const audioLines = (audioBundle.audio || []).map((asset) => `- ${asset.label}: ${asset.url}`).join('\n');
-  const musicLines = (audioBundle.music || []).map((asset) => `- ${asset.label}: ${asset.url}`).join('\n');
-
-  return `AUDIO ASSETS FROM LIBRARY:
-- These are curated same-origin audio assets you MAY use.
-- Preload them gracefully and keep the game playable if they fail to load.
-
-Sound Effects:
-${audioLines || '- No sound effects provided'}
-
-Background Music:
-${musicLines || '- No background music provided'}`;
-}
-
-function buildAIAssetsBlock(generatedAssets = null) {
-  if (!generatedAssets || !generatedAssets.assets) {
-    return `AI-GENERATED ASSETS:
-- No AI-generated assets were created for this run.
-- You MUST generate all visual assets procedurally using canvas drawing, Phaser graphics, or Three.js geometry.
-- Do NOT use external image URLs or fetch third-party assets.`;
-  }
-
-  const assets = generatedAssets.assets;
-  
-  // Group assets by type
-  const player = Object.entries(assets).filter(([id]) => id === 'player');
-  const enemies = Object.entries(assets).filter(([id]) => id.startsWith('enemy'));
-  const items = Object.entries(assets).filter(([id]) => id.startsWith('item'));
-  const backgrounds = Object.entries(assets).filter(([id]) => id.startsWith('background'));
-  const ui = Object.entries(assets).filter(([id]) => id.startsWith('ui'));
-  const props = Object.entries(assets).filter(([id]) => id.startsWith('prop'));
-  
-  const formatAssetList = (assetArray) => {
-    return assetArray.map(([id, dataUri]) => {
-      const sizeKB = Math.round(dataUri.length / 1024);
-      return `  - ${id}: ${dataUri.slice(0, 60)}... (${sizeKB}KB)`;
-    }).join('\n');
-  };
-
-  return `AI-GENERATED CUSTOM VISUAL ASSETS:
-- These assets were generated specifically for THIS game using NVIDIA FLUX AI.
-- They are embedded as base64 data URIs and ready to use immediately.
-- You MUST use these assets as your PRIMARY visual assets for the game.
-- Load them directly in your game code using their data URIs.
-- These are CUSTOM assets made for this exact game concept — use them prominently!
-
-${player.length > 0 ? `PLAYER CHARACTER:
-${formatAssetList(player)}
-` : ''}
-${enemies.length > 0 ? `ENEMIES/OPPONENTS:
-${formatAssetList(enemies)}
-` : ''}
-${items.length > 0 ? `ITEMS/COLLECTIBLES:
-${formatAssetList(items)}
-` : ''}
-${backgrounds.length > 0 ? `BACKGROUNDS/ENVIRONMENTS:
-${formatAssetList(backgrounds)}
-` : ''}
-${ui.length > 0 ? `UI ELEMENTS:
-${formatAssetList(ui)}
-` : ''}
-${props.length > 0 ? `PROPS/OBSTACLES:
-${formatAssetList(props)}
-` : ''}
-
-CRITICAL INSTRUCTIONS:
-1. Load ALL these assets using their data URIs (they start with "data:image/png;base64,...")
-2. Use the player asset for the main character/hero
-3. Use enemy assets for obstacles/opponents/monsters
-4. Use item assets for collectibles/pickups/power-ups
-5. Use background assets for environment/scenery layers
-6. Use UI assets for health bars, buttons, icons
-7. Use prop assets for obstacles, decorations, interactive objects
-8. All sprites have transparent backgrounds (except backgrounds)
-9. If an asset fails to load, fall back to procedural shapes but TRY THE ASSETS FIRST
-10. Do NOT fetch external images — these embedded assets are ALL you need for visuals
-
-Example Phaser 3 usage:
-\`\`\`javascript
-// In preload()
-${player.length > 0 ? `this.load.image('player', '${player[0][1].slice(0, 80)}...');` : ''}
-${enemies.length > 0 ? `this.load.image('${enemies[0][0]}', '${enemies[0][1].slice(0, 80)}...');` : ''}
-${items.length > 0 ? `this.load.image('${items[0][0]}', '${items[0][1].slice(0, 80)}...');` : ''}
-${backgrounds.length > 0 ? `this.load.image('${backgrounds[0][0]}', '${backgrounds[0][1].slice(0, 80)}...');` : ''}
-
-// In create()
-${player.length > 0 ? `this.player = this.add.sprite(100, 100, 'player');` : ''}
-${enemies.length > 0 ? `this.enemy = this.add.sprite(300, 100, '${enemies[0][0]}');` : ''}
-${backgrounds.length > 0 ? `this.add.image(0, 0, '${backgrounds[0][0]}').setOrigin(0, 0);` : ''}
-\`\`\`
-
-Example Three.js usage:
-\`\`\`javascript
-const textureLoader = new THREE.TextureLoader();
-${player.length > 0 ? `const playerTexture = textureLoader.load('${player[0][1].slice(0, 80)}...');
-const playerMaterial = new THREE.MeshBasicMaterial({ map: playerTexture, transparent: true });
-const playerMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), playerMaterial);
-scene.add(playerMesh);` : ''}
-\`\`\``;
-}
-
 function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
   if (!requestsStrictPixelArt(specSheet, userPrompt)) return '';
 
@@ -332,136 +223,82 @@ function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
 }
 
 // ─────────────────────────────────────────────────────────
-// PHASE 1: MINIMAL INTENT EXTRACTION (runs on Llama 3.3 70B Instruct)
-// Extract only what's needed: user intent, 2D/3D, asset search terms
+// PHASE 1: QUANTIZE REQUIREMENTS (runs on Llama 3.3 70B Instruct)
+// AI acts as Lead Game Designer — extracts structured spec
 // ─────────────────────────────────────────────────────────
 
 export function buildPhase1_Quantize(userPrompt) {
   return {
-    system: `You are a game design analyst. Extract the core intent and plan ALL visual assets needed.
+    system: `You are a Lead Game Designer for a mobile HTML5 game studio.
+Your job is to analyze a user's casual game idea and extract a precise, structured Game Spec Sheet.
 
-RULES:
+IMPORTANT RULES:
 - Output ONLY raw JSON, no markdown, no explanation.
-- Plan 10-20 visual assets that the game will need.
-- Be specific with descriptions - these will be used to generate AI art.
-- Preserve the user's creative vision.`,
+- Be creative but realistic for a mobile casual game.
+- The visual style MUST match the mood of the game (horror = dark, cute = pastel, etc.)
+- Choose a background color that FITS the game theme. DO NOT default to dark/black unless the game is actually dark-themed.
+- Games should be touch-friendly (tap, swipe, drag — no keyboard required).
+- The spec must describe a game the engineer can ship as one self-contained mobile HTML experience.
+- If the user explicitly asks for first-person 3D, FPS, voxel, or a Three.js-style world, preserve that request in the spec instead of flattening it into top-down 2D.
+- If the user asks for a specific mechanic, tool, puzzle, control scheme, economy, editor, camera, or simulation system, preserve it as a capability intent instead of flattening it into a generic genre.
+- If the user's ask is too large, scale it into a strong playable vertical slice instead of describing an impossible full production game.
+- renderManifest MUST be specific to the requested game. Never use a fixed default list from some unrelated genre.
+
+Available Visual Styles: ${VISUAL_STYLES.join(', ')}
+Available Atmospheres: ${ATMOSPHERES.join(', ')}
+Available Pacing: ${PACING.join(', ')}
+Available Camera Perspectives: ${CAMERA_PERSPECTIVES.join(', ')}
+Available Environment Types: ${ENVIRONMENT_TYPES.join(', ')}
+Available Engine Preferences: ${ENGINE_PREFERENCES.join(', ')}`,
 
     user: `USER PROMPT: "${userPrompt}"
 
-Extract this JSON with ALL visual assets needed:
+Extract a Game Spec Sheet as JSON:
 {
   "title": "Creative game title",
-  "userIntent": "One sentence: what does the user want to experience?",
-  "technicalRequirements": {
-    "dimension": "2D | 3D",
-    "perspective": "first_person | third_person | top_down | side_view | isometric"
+  "genre": "Best fitting genre",
+  "summary": "2-3 sentence game description with clear mechanics",
+  "coreMechanics": ["mechanic1", "mechanic2", "mechanic3"],
+  "visualStyle": "ONE from the Visual Styles list",
+  "atmosphere": "ONE from the Atmospheres list",
+  "pacing": "ONE from the Pacing list",
+  "cameraPerspective": "ONE from the Camera Perspectives list",
+  "environmentType": "ONE from the Environment Types list",
+  "preferredEngine": "ONE from the Engine Preferences list",
+  "levelDesign": "Endless | Single Screen Arena | Linear Levels",
+  "backgroundColor": "#hex color that matches the theme and visual style",
+  "accentColor": "#hex secondary color for UI elements",
+  "entities": {
+    "hero": "What the player controls (be specific and visual — e.g. 'a small glowing boy')",
+    "enemy": "What threatens the player (be specific — e.g. 'a tall dark priest with red eyes')",
+    "collectible": "What the player collects (e.g. 'glowing TV screens', or null)",
+    "obstacle": "Environmental hazards (e.g. 'dark fog patches', or null)"
   },
-  "visualAssets": {
-    "player": {
-      "description": "detailed visual description of main character",
-      "type": "character",
-      "size": 128,
-      "transparent": true,
-      "postProcess": {
-        "removeBackground": true,
-        "downscale": true
-      }
-    },
-    "enemies": [
-      {
-        "id": "enemy1",
-        "description": "detailed visual description",
-        "type": "enemy",
-        "size": 128,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
-      }
-    ],
-    "items": [
-      {
-        "id": "item1",
-        "description": "detailed visual description",
-        "type": "item",
-        "size": 64,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
-      }
-    ],
-    "backgrounds": [
-      {
-        "id": "bg1",
-        "description": "detailed scene description",
-        "type": "background",
-        "size": 512,
-        "transparent": false,
-        "postProcess": {
-          "removeBackground": false,
-          "downscale": true
-        }
-      }
-    ],
-    "ui": [
-      {
-        "id": "ui1",
-        "description": "UI element description",
-        "type": "ui",
-        "size": 32,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
-      }
-    ],
-    "props": [
-      {
-        "id": "prop1",
-        "description": "prop/obstacle description",
-        "type": "prop",
-        "size": 96,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
-      }
-    ]
-  },
-  "audioNeeds": {
-    "music": ["background music style"],
-    "sfx": ["sound effect types needed"]
-  }
+  "capabilityIntents": ["snake_case capability names such as chase_camera_driver, projectile_ballistics, brush_canvas, palette_unlocks, inventory_hotbar, bubble_grid"],
+  "renderManifest": ["drawHero", "drawEnemy", "drawObstacle", "drawProjectile", "drawPickup", "drawParticle"],
+  "heroEmoji": "Single emoji representing the hero (e.g. 👦, 🚀, 🐱)",
+  "enemyEmoji": "Single emoji representing the enemy (e.g. 👹, 👾, 🧟)",
+  "collectibleEmoji": "Single emoji for collectible (e.g. 📺, 💎, ⭐) or null",
+  "scoreLabel": "What to call the score (e.g. TVS COLLECTED, COINS, KILLS)",
+  "healthLabel": "What to call health/lives (e.g. SANITY, LIVES, HEALTH)",
+  "gameOverTitle": "Thematic game over message",
+  "difficulty": "easy | medium | hard",
+  "seed": "A random alphanumeric string (e.g. 'f9a2b7')"
 }
 
-IMPORTANT:
-- Include 1 player
-- Include 2-3 enemies
-- Include 2-3 items/collectibles
-- Include 1-2 backgrounds
-- Include 2-4 UI elements
-- Include 2-5 props/obstacles
-- Be specific with descriptions (colors, style, details)
-- Total: 10-20 visual assets
+renderManifest rules:
+- Always include drawBackground and drawHUD implicitly through the shared API; do NOT list them in renderManifest.
+- Include 3 to 8 function names only.
+- Function names must match the actual fantasy of the prompt.
+- Good example for an auto-battler: ["drawKnight", "drawArcher", "drawWizard", "drawGoblin", "drawExplosion", "drawDamageNumber"]
+- Good example for a racing game: ["drawPlayerCar", "drawTrafficCar", "drawBarrier", "drawBoostPickup", "drawSmokeParticle"]
+- Bad example: reusing knight/goblin names for every game no matter the prompt.
 
-POST-PROCESSING RULES:
-- Set "transparent": true for sprites that need background removal (characters, items, UI, props)
-- Set "transparent": false for backgrounds and full-scene images
-- Set "removeBackground": true for sprites that should have transparent backgrounds
-- Set "removeBackground": false for backgrounds and environmental scenes
-- All assets will be downscaled from 768px to their target size
-
-SIZE GUIDELINES:
-- Characters/enemies: 128px (medium detail)
-- Items/collectibles: 64px (small, simple)
-- Backgrounds: 512px (large, detailed)
-- UI elements: 32px (tiny, icon-sized)
-- Props/obstacles: 96px (medium, environmental)
+capabilityIntents rules:
+- Use capabilityIntents to preserve mechanics and product surfaces. They are NOT genre labels.
+- Include 2 to 8 capability names only when clearly relevant.
+- Good capability examples: chase_camera_driver, road_depth_world, touch_driving_controls, projectile_ballistics, terrain_profile, weapon_cards, rope_path_puzzle, isometric_actor_world, survival_stats, inventory_hotbar, creator_tool_ui, brush_canvas, decorate_surface, palette_unlocks, shop_economy, bubble_grid, aim_trajectory, projectile_launcher, image_slice_puzzle.
+- Do not force a capability if the prompt does not ask for it.
 
 Output ONLY the JSON.`
   };
@@ -523,93 +360,100 @@ function buildEngineSpecBlock(specSheet) {
 - Prefer this only for UI-heavy non-action games.`;
   }
 
-  return `ENGINE SPEC: PHASER 3 WITH AUTO RENDERER
+  return `ENGINE SPEC: PHASER 3 WITH WEBGL
 - Use Phaser 3 via CDN (https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js)
-- Use AUTO renderer for compatibility: type: Phaser.AUTO
+- Force WebGL renderer for GPU acceleration: type: Phaser.WEBGL
 - Keep the game compact, touch-first, and readable on mobile.
 - Use Phaser's built-in physics, sprites, and animations for better performance.`;
 }
 
-export function buildLabsSoloPrototype(userPrompt, qualityIntent = {}, audioBundle = null, mediaAttachments = [], generatedAssets = null) {
-  const wants3D = qualityIntent?.technicalRequirements?.dimension === '3D';
-  const wantsFirstPerson = qualityIntent?.technicalRequirements?.perspective === 'first_person';
-  const wantsThirdPerson = qualityIntent?.technicalRequirements?.perspective === 'third_person';
+export function buildLabsSoloPrototype(userPrompt, assetBundle = null, mediaAttachments = []) {
+  const wants3D = requestsFirstPerson3D(userPrompt);
+  const pixelArtRuleBlock = buildPixelArtRuleBlock({}, userPrompt);
+  const engineRules = wants3D
+    ? `- Use Three.js via CDN as the rendering engine.
+- This request MUST remain a first-person 3D game. Do NOT downgrade it into a top-down maze, flat map, or side view.
+- Use THREE.WebGLRenderer and THREE.PerspectiveCamera.
+- Create real 3D depth with floors, walls, props, enemies, pickups, and lighting.
+- Support touch-first controls: left joystick for movement, right drag area for camera look, plus a tap attack/interact button if needed.
+- Use procedural low-poly or blocky geometry/materials unless the approved self-hosted asset kit below gives you same-origin GLB models or UI sprites you can safely load.
+- If you use provided GLB models, you MAY also include GLTFLoader via the official Three.js examples CDN.`
+    : `- Use Phaser 3 via CDN (https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js) as the rendering engine.
+- Force WebGL renderer for GPU acceleration: type: Phaser.WEBGL
+- Use Phaser's physics system (arcade physics) for collisions and movement.
+- Load the approved self-hosted asset kit below using Phaser's preload system.
+- Use Phaser's sprite system for all visual elements.
+- Keep mobile-first with touch controls using Phaser's input system.`;
 
-  const audioKitBlock = buildAudioKitBlock(audioBundle);
+  const assetKitBlock = buildAssetKitBlock(assetBundle);
   const userMediaBlock = buildUserMediaBlock(mediaAttachments);
-  const aiAssetsBlock = buildAIAssetsBlock(generatedAssets);
 
-  const engineNote = wants3D
-    ? `Use Three.js (https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js). ${wantsFirstPerson ? 'First-person camera.' : wantsThirdPerson ? 'Third-person chase camera.' : 'Choose the best camera for the game.'}`
-    : `Use Phaser 3 (https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js) with type: Phaser.AUTO. Load ALL visuals from the AI-GENERATED ASSETS section below as base64 data URIs.`;
+  return `You are an elite solo HTML5 game engineer-artist.
+Build a COMPLETE mobile-first HTML5 game as a single self-contained HTML file.
+You are working alone: you must handle gameplay logic, rendering, HUD, interactions, and game feel yourself.
 
-  return `You are an expert HTML5 game developer. Build a complete, polished, mobile-first game as a single self-contained HTML file.
-
-GAME CONCEPT:
+USER PROMPT:
 "${userPrompt}"
 
-ENGINE:
-${engineNote}
+CORE RULES:
+- Output ONLY raw HTML starting with <!DOCTYPE html>.
+${engineRules}
+- Prefer the approved self-hosted asset kit below when it improves quality and clarity.
+- Touch-first controls only (pointerdown / pointermove / pointerup). No keyboard dependency.
+- Boot immediately at top level. Do NOT wait for DOMContentLoaded or window.onload.
+- Draw a visible first frame synchronously so the screen is never blank.
+- Expose a shared editable contract on \`window.gametokEditable\` with these array keys even if some are empty: \`images\`, \`music\`, \`colors\`, \`text\`, \`tune\`, \`videos\`, \`sfx\`.
+- If the game has tweakable text, art, color, audio, or tuning values, list them in \`window.gametokEditable\` using selector/path metadata so the host app can patch them later.
+- If the prompt asks for something huge, compress it into one excellent playable vertical slice.
+- Favor a strong, working game loop over sprawling ambition.
+- If this is an auto-battler or battle game, the result must be actually playable:
+  - visible prep/setup or immediate combat
+  - obvious interaction
+  - real state changes
+  - enemies spawn and can be defeated
+  - a win/loss or reset path exists
+- Include score/HUD, moment-to-moment feedback, and at least a little juice.
+- Make the environment feel intentional and spacious for the lane. Avoid trapping the whole experience inside a tiny boxed composition unless the prompt explicitly wants claustrophobia or a single-room game.
+- Prefer the approved same-origin asset kit for hero/enemy/collectible silhouettes whenever it contains a usable character, creature, or prop.
+- Only fall back to fully procedural art when the attached kit truly lacks a usable match.
+- Do not rely on emojis or any third-party external image URLs.
+- Keep it phone-readable and avoid tiny UI.
 
-REQUIREMENTS:
-- Output ONLY raw HTML starting with <!DOCTYPE html>. No markdown, no explanation.
-- Touch controls only (pointerdown/pointermove/pointerup). No keyboard.
-- Boot immediately — no DOMContentLoaded or window.onload wrappers.
-- First frame must be visible and themed immediately.
-- Complete game loop: start, play, win/lose, restart.
-- Score, HUD, and moment-to-moment feedback.
-- Expose window.gametokEditable = { images:[], music:[], colors:[], text:[], tune:[], videos:[], sfx:[] } with any tweakable values.
-- Wrap init in try/catch with a visible error panel fallback.
-
-${aiAssetsBlock}
-
-${audioKitBlock}
+${assetKitBlock}
 
 ${userMediaBlock}
 
-QUALITY BAR:
-- This must look and feel like a REAL published mobile game.
-- Use the AI-generated assets as your PRIMARY visual assets. They are custom-made for this exact game.
-- Add particles, screen shake, smooth animations, satisfying audio feedback.
-- Make it fun to play for at least 2 minutes.
-- No placeholder art, no empty screens, no broken controls.
+${pixelArtRuleBlock}
 
-OUTPUT: The complete HTML file only.`;
-}
+BOOT + RELIABILITY:
+- Wrap initialization in try/catch and render a visible in-game error panel if something fails.
+- The opening frame must already show the theme, background, and at least one important interactive or playable element.
+- Never leave placeholder comments for core gameplay.
 
-// ─────────────────────────────────────────────────────────
-// PHASE 3: SELF-CRITIQUE + IMPROVEMENT PASS
-// Kimi reads its own output, judges quality, rewrites weak parts
-// ─────────────────────────────────────────────────────────
+${wants3D ? `FIRST-PERSON 3D RULES:
+- The player viewpoint must be the camera. Do not show the player as a top-down icon.
+- The world must read as three-dimensional within the first second: perspective depth, walls, floor, and horizon or room depth.
+- Use mobile-friendly sensitivity and keep the play space compact.
+- Include a simple HUD overlay for health, score/gold, and objective.
+- Build from this starter architecture:
+  1. create scene, PerspectiveCamera, and WebGLRenderer
+  2. add ambient light plus one warm key light
+  3. build a compact room/corridor/maze using box and plane meshes
+  4. track player = { position, velocity, yaw, pitch, hp, score/gold }
+  5. track input = { moveX, moveY, lookX, lookY, attacking }
+  6. add world-space enemies and pickups
+  7. render HUD and touch controls as overlays
+  8. run update() then render() inside requestAnimationFrame
+- The opening frame must already show a real 3D room or corridor, not a fake map or abstract loading screen.` : ''}
 
-export function buildPhase3_SelfCritique(originalPrompt, currentHtml) {
-  return `You are a senior game developer doing a quality review of a game you just built.
+PERFORMANCE:
+- Keep it efficient enough for a mobile WebView.
+- Fake scale with waves, particles, layered enemies, and damage numbers instead of simulating absurdly huge systems.
 
-ORIGINAL CONCEPT:
-"${originalPrompt}"
-
-YOUR CURRENT BUILD:
-\`\`\`html
-${currentHtml}
-\`\`\`
-
-REVIEW CHECKLIST - be brutally honest:
-1. Does it actually match the concept? (right genre, right feel, right theme)
-2. Do the visuals look good? (proper sprites loaded, not ugly shapes or placeholders)
-3. Is the gameplay fun and responsive? (controls work, feedback is satisfying)
-4. Is there visual juice? (particles, animations, screen shake, impact effects)
-5. Does audio work? (real sounds loaded, not silence or oscillator beeps)
-6. Is the UI readable on mobile? (not tiny text, not overlapping elements)
-7. Are there any broken features? (things that don't work as intended)
-
-Based on your review, rewrite the COMPLETE improved HTML file that fixes every issue you found.
-
-RULES:
-- If something is already good, keep it exactly as is.
-- Only rewrite parts that are genuinely weak or broken.
-- Do NOT downgrade working features while fixing others.
-- The game must still boot immediately and work on mobile touch.
-- Output ONLY the complete HTML file. No explanation.`;
+OUTPUT:
+- Return ONLY the complete HTML document.
+- No markdown fences.
+- No explanation.`;
 }
 
 export function buildPhase1B_Scaffold(specSheet) {
@@ -1295,23 +1139,15 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
 - You MUST use THREE.WebGLRenderer and THREE.PerspectiveCamera.
 - You MUST preserve the requested camera perspective. Do NOT downgrade to top-down, side-view, orthographic, or fake-2D.
 - If you use provided self-hosted GLB models, you MAY additionally load GLTFLoader from the official Three.js examples CDN.`
-    : `You MUST choose one of the following engines:
-1. PHASER 3 WITH AUTO RENDERER (via CDN: https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js)
-   - REQUIRED for: ALL 2D games (arcade, platformers, shooters, puzzles, etc.)
-   - Loads PNG/sprite assets from URLs (use the provided asset kit!)
-   - Has built-in physics, animations, particle systems
-   - Use AUTO renderer: type: Phaser.AUTO
-   - DO NOT use Canvas 2D - Phaser is better and uses our assets!
-2. THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js)
-   - REQUIRED for: ALL 3D games (first-person, third-person, isometric 3D)
-   - Loads GLB 3D models from URLs (use the provided 3D models!)
-   - Use THREE.WebGLRenderer and THREE.PerspectiveCamera
-3. DOM/CSS (Native HTML/CSS)
-   - ONLY for: Text-heavy games (trivia, word games, visual novels, story games)
-   - Can display images from URLs but no game physics
-
-CRITICAL: DO NOT use native Canvas 2D (ctx.fillRect, ctx.arc, etc.) - it creates ugly procedural shapes.
-ALWAYS use Phaser for 2D games or Three.js for 3D games so you can load our high-quality assets!`;
+    : `You MUST choose one of the following engines based on the game genre and visuals:
+1. THREE.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js)
+   - Best for: 3D games, immersive environments, first-person or third-person perspectives.
+2. P5.JS (via CDN: https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js)
+   - Best for: Creative art games, complex 2D physics, generative visuals.
+3. CANVAS 2D (Native)
+   - Best for: Classic 2D arcade games, platformers, top-down shooters.
+4. DOM/CSS (Native)
+   - Best for: Card games, puzzles, trivia, word games.`;
 
   const fullscreenRule = isFirstPerson3D || isThirdPerson3D
     ? `3. FULLSCREEN RESPONSIVE:

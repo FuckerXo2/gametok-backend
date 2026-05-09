@@ -1,0 +1,1000 @@
+                </style><span class="absolute inset-[-20%] pointer-events-none opacity-0 group-hover:[animation:big-cta-shine_1600ms_cubic-bezier(0.22,0.61,0.36,1)_forwards]" style="background: linear-gradient(90deg, transparent 0%, var(--color-white-opacity-5) 35%, var(--color-white-opacity-10) 45%, var(--color-white-opacity-10) 55%, var(--color-white-opacity-5) 65%, transparent 100%);"></span><span data-slot="icon" class="[color:var(--color-foreground-primary)] [&amp;&gt;svg]:w-full [&amp;&gt;svg]:h-full shrink-0 w-[var(--metric-icon-size-medium)] h-[var(--metric-icon-size-medium)] [&amp;_svg_path]:fill-[var(--icon-fill)] [&amp;_svg_rect]:fill-[var(--icon-fill)] [&amp;_svg_circle]:fill-[var(--icon-fill)]" data-optical-center="play" style="color: var(--color-foreground-primary); --icon-fill: var(--color-foreground-primary); transform: translate(0.085em, 0px);"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 17.334V6.667c0-.88 0-1.32.185-1.58a1 1 0 0 1 .687-.412c.317-.04.705.166 1.48.58l10 5.333.004.002c.857.457 1.286.686 1.427.99.122.266.122.573 0 .839-.141.305-.571.535-1.43.993l-10 5.333c-.777.414-1.164.62-1.48.58a1 1 0 0 1-.688-.412C5 18.653 5 18.213 5 17.333"></path></svg></span></button><div class="w-full"><div data-orientation="horizontal" role="none" class="shrink-0 h-[1px] w-full self-stretch bg-[var(--color-border-tertiary)]" data-sentry-element="Separator" data-sentry-source-file="desktop-play-sidebar.tsx"></div></div><div class="inline-flex items-start flex-col self-stretch gap-[var(--gap-2)]" data-sentry-element="Group" data-sentry-source-file="desktop-play-sidebar.tsx"><a type="button" data-slot="button" data-variant="sidebar" data-size="base" class="inline-flex whitespace-nowrap select-none outline-none shrink-0 [&amp;&gt;svg]:shrink-0 [&amp;&gt;svg]:pointer-events-none [&amp;&gt;svg:not([class*='size-'])]:size-4 [&amp;_[data-slot='icon']]:text-[inherit] group/button transition-[color,border-color] disabled:pointer-events-none border-[length:var(--border-1)] bg-clip-padding [font-family:var(--type-heading-font)] [font-size:var(--type-body-sm-size)] [font-weight:var(--type-weight-base)] [line-height:160%] [letter-spacing:0] bg-transparent [color:var(--color-foreground-primary)] border-transparent [@media(hover:hover)]:hover:bg-[var(--color-white-opacity-5)] [@media(hover:hover)]:hover:[color:var(--color-foreground-primary)] [@media(hover:hover)]:hover:border-transparent active:bg-[var(--color-white-opacity-20)] active:[color:var(--color-foreground-primary)] active:border-transparent disabled:bg-transparent disabled:[color:var(--color-foreground-disabled)] disabled:border-transparent items-center justify-start self-stretch h-[var(--page-sidebar-item-height)] p-[var(--padding-3)] gap-[var(--gap-4)] rounded-[var(--radius-2)]" data-state="closed" href="/"><span data-slot="icon" class="[color:var(--color-foreground-primary)] [&amp;&gt;svg]:w-full [&amp;&gt;svg]:h-full shrink-0 w-[var(--metric-icon-size-medium)] h-[var(--metric-icon-size-medium)]"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 17v-5.548c0-.534 0-.801-.065-1.05a2 2 0 0 0-.28-.617c-.145-.213-.345-.39-.748-.741l-4.8-4.2c-.746-.653-1.12-.98-1.54-1.104-.37-.11-.764-.11-1.135 0-.42.124-.792.45-1.538 1.102L5.093 9.044c-.402.352-.603.528-.747.74a2 2 0 0 0-.281.618C4 10.65 4 10.918 4 11.452V17c0 .932 0 1.398.152 1.765a2 2 0 0 0 1.082 1.083C5.602 20 6.068 20 7 20s1.398 0 1.766-.152a2 2 0 0 0 1.082-1.083C10 18.398 10 17.932 10 17v-1a2 2 0 1 1 4 0v1c0 .932 0 1.398.152 1.765a2 2 0 0 0 1.082 1.083C15.602 20 16.068 20 17 20s1.398 0 1.766-.152a2 2 0 0 0 1.082-1.083C20 18.398 20 17.932 20 17"></path></svg></span></a><a type="button" data-slot="button" data-variant="sidebar" data-size="base" class="inline-flex whitespace-nowrap select-none outline-none shrink-0 [&amp;&gt;svg]:shrink-0 [&amp;&gt;svg]:pointer-events-none [&amp;&gt;svg:not([class*='size-'])]:size-4 [&amp;_[data-slot='icon']]:text-[inherit] group/button transition-[color,border-color] disabled:pointer-events-none border-[length:var(--border-1)] bg-clip-padding [font-family:var(--type-heading-font)] [font-size:var(--type-body-sm-size)] [font-weight:var(--type-weight-base)] [line-height:160%] [letter-spacing:0] bg-transparent [color:var(--color-foreground-primary)] border-transparent [@media(hover:hover)]:hover:bg-[var(--color-white-opacity-5)] [@media(hover:hover)]:hover:[color:var(--color-foreground-primary)] [@media(hover:hover)]:hover:border-transparent active:bg-[var(--color-white-opacity-20)] active:[color:var(--color-foreground-primary)] active:border-transparent disabled:bg-transparent disabled:[color:var(--color-foreground-disabled)] disabled:border-transparent items-center justify-start self-stretch h-[var(--page-sidebar-item-height)] p-[var(--padding-3)] gap-[var(--gap-4)] rounded-[var(--radius-2)]" data-state="closed" href="/create"><span data-slot="icon" class="[color:var(--color-foreground-primary)] [&amp;&gt;svg]:w-full [&amp;&gt;svg]:h-full shrink-0 w-[var(--metric-icon-size-medium)] h-[var(--metric-icon-size-medium)]"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h4m0 0h4m-4 0v4m0-4V8m-8 8.8V7.2c0-1.12 0-1.68.218-2.108.192-.377.497-.682.874-.874C5.52 4 6.08 4 7.2 4h9.6c1.12 0 1.68 0 2.108.218a2 2 0 0 1 .874.874C20 5.52 20 6.08 20 7.2v9.6c0 1.12 0 1.68-.218 2.108a2 2 0 0 1-.874.874c-.428.218-.986.218-2.104.218H7.197c-1.118 0-1.678 0-2.105-.218a2 2 0 0 1-.874-.874C4 18.48 4 17.92 4 16.8"></path></svg></span></a><button type="button" data-slot="button" data-variant="sidebar" data-size="base" class="inline-flex whitespace-nowrap select-none outline-none shrink-0 [&amp;&gt;svg]:shrink-0 [&amp;&gt;svg]:pointer-events-none [&amp;&gt;svg:not([class*='size-'])]:size-4 [&amp;_[data-slot='icon']]:text-[inherit] group/button transition-[color,border-color] disabled:pointer-events-none border-[length:var(--border-1)] bg-clip-padding [font-family:var(--type-heading-font)] [font-size:var(--type-body-sm-size)] [font-weight:var(--type-weight-base)] [line-height:160%] [letter-spacing:0] bg-transparent [color:var(--color-foreground-primary)] border-transparent [@media(hover:hover)]:hover:bg-[var(--color-white-opacity-5)] [@media(hover:hover)]:hover:[color:var(--color-foreground-primary)] [@media(hover:hover)]:hover:border-transparent active:bg-[var(--color-white-opacity-20)] active:[color:var(--color-foreground-primary)] active:border-transparent disabled:bg-transparent disabled:[color:var(--color-foreground-disabled)] disabled:border-transparent items-center justify-start self-stretch h-[var(--page-sidebar-item-height)] p-[var(--padding-3)] gap-[var(--gap-4)] rounded-[var(--radius-2)]" data-state="closed"><span data-slot="icon" class="[color:var(--color-foreground-primary)] [&amp;&gt;svg]:w-full [&amp;&gt;svg]:h-full shrink-0 w-[var(--metric-icon-size-medium)] h-[var(--metric-icon-size-medium)]"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 19c0-2.21-2.686-4-6-4s-6 1.79-6 4m6-7a4 4 0 1 1 0-8 4 4 0 0 1 0 8"></path></svg></span></button><button type="button" data-slot="button" data-variant="sidebar" data-size="base" class="inline-flex whitespace-nowrap select-none outline-none shrink-0 [&amp;&gt;svg]:shrink-0 [&amp;&gt;svg]:pointer-events-none [&amp;&gt;svg:not([class*='size-'])]:size-4 [&amp;_[data-slot='icon']]:text-[inherit] group/button transition-[color,border-color] disabled:pointer-events-none border-[length:var(--border-1)] bg-clip-padding [font-family:var(--type-heading-font)] [font-size:var(--type-body-sm-size)] [font-weight:var(--type-weight-base)] [line-height:160%] [letter-spacing:0] bg-transparent [color:var(--color-foreground-primary)] border-transparent [@media(hover:hover)]:hover:bg-[var(--color-white-opacity-5)] [@media(hover:hover)]:hover:[color:var(--color-foreground-primary)] [@media(hover:hover)]:hover:border-transparent active:bg-[var(--color-white-opacity-20)] active:[color:var(--color-foreground-primary)] active:border-transparent disabled:bg-transparent disabled:[color:var(--color-foreground-disabled)] disabled:border-transparent items-center justify-start self-stretch h-[var(--page-sidebar-item-height)] p-[var(--padding-3)] gap-[var(--gap-4)] rounded-[var(--radius-2)]" data-state="closed"><span data-slot="icon" class="[color:var(--color-foreground-primary)] [&amp;&gt;svg]:w-full [&amp;&gt;svg]:h-full shrink-0 w-[var(--metric-icon-size-medium)] h-[var(--metric-icon-size-medium)]" data-optical-center="signIn" style="transform: translate(0.085em, 0px) rotate(180deg);"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m12 15 3-3m0 0-3-3m3 3H4m5-4.751V7.2c0-1.12 0-1.68.218-2.108.192-.377.497-.682.874-.874C10.52 4 11.08 4 12.2 4h4.6c1.12 0 1.68 0 2.107.218.377.192.683.497.875.874.218.427.218.987.218 2.105v9.607c0 1.118 0 1.677-.218 2.104a2 2 0 0 1-.875.874c-.427.218-.986.218-2.104.218h-4.606c-1.118 0-1.678 0-2.105-.218a2 2 0 0 1-.874-.874C9 18.48 9 17.92 9 16.8v-.05"></path></svg></span></button><button type="button" data-slot="button" data-variant="sidebar" data-size="base" class="inline-flex whitespace-nowrap select-none outline-none shrink-0 [&amp;&gt;svg]:shrink-0 [&amp;&gt;svg]:pointer-events-none [&amp;&gt;svg:not([class*='size-'])]:size-4 [&amp;_[data-slot='icon']]:text-[inherit] group/button transition-[color,border-color] disabled:pointer-events-none border-[length:var(--border-1)] bg-clip-padding [font-family:var(--type-heading-font)] [font-size:var(--type-body-sm-size)] [font-weight:var(--type-weight-base)] [line-height:160%] [letter-spacing:0] bg-transparent [color:var(--color-foreground-primary)] border-transparent [@media(hover:hover)]:hover:bg-[var(--color-white-opacity-5)] [@media(hover:hover)]:hover:[color:var(--color-foreground-primary)] [@media(hover:hover)]:hover:border-transparent active:bg-[var(--color-white-opacity-20)] active:[color:var(--color-foreground-primary)] active:border-transparent disabled:bg-transparent disabled:[color:var(--color-foreground-disabled)] disabled:border-transparent items-center justify-start self-stretch h-[var(--page-sidebar-item-height)] p-[var(--padding-3)] gap-[var(--gap-4)] rounded-[var(--radius-2)]" data-sidebar-sheet="true" data-state="closed"><span data-slot="icon" class="[color:var(--color-foreground-primary)] [&amp;&gt;svg]:w-full [&amp;&gt;svg]:h-full shrink-0 w-[var(--metric-icon-size-medium)] h-[var(--metric-icon-size-medium)]" data-optical-center="moreGrid" style="transform: translate(-0.085em, 0px);"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M17 18a1 1 0 1 0 2 0 1 1 0 0 0-2 0M11 18a1 1 0 1 0 2 0 1 1 0 0 0-2 0M5 18a1 1 0 1 0 2 0 1 1 0 0 0-2 0M17 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0M11 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0M5 12a1 1 0 1 0 2 0 1 1 0 0 0-2 0M17 6a1 1 0 1 0 2 0 1 1 0 0 0-2 0M11 6a1 1 0 1 0 2 0 1 1 0 0 0-2 0M5 6a1 1 0 1 0 2 0 1 1 0 0 0-2 0"></path></g></svg></span></button></div></div></div></div></div></div><main class="flex flex-col items-start relative flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&amp;::-webkit-scrollbar]:hidden"><h1 class="sr-only">Pixel Merge Mania<!-- --> - Free Online Game on Astrocade</h1><script id="schema-org-game" type="application/ld+json" data-sentry-component="GameSchema" data-sentry-source-file="GamePageContent.tsx">{"@context":"https://schema.org","@type":"VideoGame","name":"Pixel Merge Mania","url":"https://www.astrocade.com/games/pixel-merge-mania/01KNMYWV7FVTQ7B5QN393W2FZP","image":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_9009bb78-ad90-4e52-be7b-206e96ae0d31.webp","description":"Merge identical pixel art on a 5×5 grid to create bigger, better items and rack up your highest score!","genre":"Arcade","applicationCategory":"Game","operatingSystem":"HTML5","gamePlatform":"Web","datePublished":"2026-04-07T21:52:06.000Z","dateModified":"2026-05-07T20:30:17.886Z","author":{"@type":"Person","name":"SkulHunter","url":"https://www.astrocade.com/profile/SkulHunter"},"publisher":{"@type":"Organization","name":"Astrocade"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"playMode":["SinglePlayer"]}</script><script id="breadcrumb-schema" type="application/ld+json" data-sentry-component="BreadcrumbSchema" data-sentry-source-file="GamePageContent.tsx">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://www.astrocade.com"},{"@type":"ListItem","position":2,"name":"Games","item":"https://www.astrocade.com/games"},{"@type":"ListItem","position":3,"name":"Pixel Merge Mania","item":"https://www.astrocade.com/games/pixel-merge-mania/01KNMYWV7FVTQ7B5QN393W2FZP"}]}</script><div data-slot="feed-root" class="h-dvh w-full flex flex-col items-start md:items-center justify-center [background:var(--color-main-bg)] md:pt-[var(--page-main-padding-top)] md:pr-[var(--page-main-padding-right)] pb-[env(safe-area-inset-bottom)] md:pb-[var(--page-main-padding-bottom)] md:pl-[var(--page-main-padding-left)] md:gap-[var(--gap-5)] md:flex-1 md:self-stretch"><div class="w-full flex-1 min-h-0 flex flex-col md:items-stretch md:w-auto md:h-full md:flex-none md:flex-row md:gap-[var(--gap-3)]"><div class="w-full flex-1 min-h-0 relative md:h-full md:aspect-[9/16]"><div class="w-full h-full relative z-[var(--z-feed-scroll-container)]" data-sentry-component="FeedScrollContainer" data-sentry-source-file="FeedScrollContainer.tsx"><div data-testid="virtuoso-scroller" data-virtuoso-scroller="true" tabindex="0" class="scrollbar-hide snap-y snap-mandatory" style="height: 100%; outline: none; overflow-y: auto; position: relative;"><div data-viewport-type="element" style="height: 100%; position: absolute; top: 0px; width: 100%;"><div data-testid="virtuoso-item-list" style="box-sizing: border-box; margin-top: 0px; padding-bottom: 11040px; padding-top: 0px;"><div data-index="0" data-item-index="0" data-known-size="552" style="overflow-anchor: none;"><div class="snap-start" style="height: 552px;"><div class="w-full h-full relative" data-sentry-component="FeedGameSlot" data-sentry-source-file="FeedGameSlot.tsx"><div class="absolute inset-0 z-[var(--z-feed-game-iframe)]" data-iframe-slot="" data-game-id="01KNMYWV7FVTQ7B5QN393W2FZP"><div style="position: absolute; inset: 0px;"><div class="absolute inset-0 flex items-center justify-center z-[var(--z-feed-game-iframe)] bg-site-background" data-tag="feedIframeContainer"><div class="w-full h-full flex items-center justify-center"><div style="width: 310.5px; height: 552px; position: relative;"><iframe sandbox="allow-scripts allow-pointer-lock" title="Astrocade Game" data-game-iframe="" data-game-state="ready" srcdoc="&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;
+    &lt;meta charset=&quot;UTF-8&quot;&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;
+    &lt;meta name=&quot;description&quot; content=&quot;Pixel Merge Mania - Build your dream castle! A charming pixel art puzzle game where you merge wooden planks to construct houses. Start with a simple plank and merge your way through 9 tiers to build a magnificent castle!&quot;&gt;
+    &lt;meta name=&quot;keywords&quot; content=&quot;puzzle game, merge game, pixel art, building game, construction game, castle builder, casual game, mobile game, HTML5, house building, merge puzzle&quot;&gt;
+    &lt;meta name=&quot;author&quot; content=&quot;Astrocade&quot;&gt;
+    &lt;meta name=&quot;theme-color&quot; content=&quot;#8B7355&quot;&gt;
+    &lt;meta name=&quot;robots&quot; content=&quot;index, follow&quot;&gt;
+    
+    &lt;!-- Open Graph / Social Media --&gt;
+    &lt;meta property=&quot;og:type&quot; content=&quot;website&quot;&gt;
+    &lt;meta property=&quot;og:title&quot; content=&quot;Pixel Merge Mania - Build Your Castle&quot;&gt;
+    &lt;meta property=&quot;og:description&quot; content=&quot;A charming pixel art building game where you merge wooden planks to construct houses. Start with a simple plank and merge your way through 9 tiers to build a magnificent castle!&quot;&gt;
+    &lt;meta property=&quot;og:site_name&quot; content=&quot;Pixel Merge Mania&quot;&gt;
+    
+    &lt;!-- Twitter Card --&gt;
+    &lt;meta name=&quot;twitter:card&quot; content=&quot;summary_large_image&quot;&gt;
+    &lt;meta name=&quot;twitter:title&quot; content=&quot;Pixel Merge Mania - Build Your Castle&quot;&gt;
+    &lt;meta name=&quot;twitter:description&quot; content=&quot;A charming pixel art building game where you merge wooden planks to construct houses. Start with a simple plank and merge your way through 9 tiers to build a magnificent castle!&quot;&gt;
+    
+    &lt;!-- Accessibility --&gt;
+    &lt;meta name=&quot;color-scheme&quot; content=&quot;light&quot;&gt;
+    &lt;meta name=&quot;apple-mobile-web-app-capable&quot; content=&quot;yes&quot;&gt;
+    &lt;meta name=&quot;apple-mobile-web-app-status-bar-style&quot; content=&quot;black-translucent&quot;&gt;
+    &lt;meta name=&quot;apple-mobile-web-app-title&quot; content=&quot;Pixel Merge Mania&quot;&gt;
+    
+    &lt;title&gt;Pixel Merge Mania - Build Your Castle | House Building Puzzle Game&lt;/title&gt;
+    &lt;link href=&quot;https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;amp;family=VT323&amp;amp;display=swap&quot; rel=&quot;stylesheet&quot;&gt;
+    &lt;style&gt;:root {
+            --transition-fast: 150ms;
+            --transition-normal: 300ms;
+            --transition-slow: 500ms;
+            --ease-out: cubic-bezier(0.0, 0, 0.2, 1);
+            --ease-bounce: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+            --space-xs: 8px;
+            --space-sm: 16px;
+            --space-md: 24px;
+            --space-lg: 32px;
+            --space-xl: 48px;
+        }
+
+* {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: &quot;VT323&quot;, monospace;
+        }
+
+#game-world {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #87CEEB 0%, #E0F4FF 50%, #FFFEF0 100%);
+        }
+
+#game-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+.ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+.ui-overlay &gt; * {
+            pointer-events: auto;
+        }
+
+.progress-bar-container {
+            position: absolute;
+            top: var(--space-md);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: var(--space-sm);
+            border-radius: 16px;
+            border: 3px solid #8B7355;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 20;
+        }
+
+.restart-btn {
+            display: none;
+        }
+
+.spawn-btn { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 120px; background: linear-gradient(180deg, #FF6B35 0%, #E85A2A 100%); border: 4px solid #C74A21; border-radius: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 0 #A03818, 0 8px 16px rgba(0,0,0,0.4); transition: transform var(--transition-fast) var(--ease-out),
+                        box-shadow var(--transition-fast) var(--ease-out); z-index: 20; }
+
+.spawn-btn:hover {
+            transform: translateX(-50%) translateY(-4px);
+            box-shadow: 0 8px 0 #A03818, 0 10px 20px rgba(0,0,0,0.4);
+        }
+
+.spawn-btn:active {
+            transform: translateX(-50%) translateY(2px);
+            box-shadow: 0 3px 0 #A03818, 0 5px 12px rgba(0,0,0,0.4);
+        }
+
+.spawn-btn:focus-visible {
+            outline: 3px solid #FFD700;
+            outline-offset: 3px;
+        }
+
+.spawn-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: translateX(-50%);
+        }
+
+.spawn-btn svg {
+            width: 64px;
+            height: 64px;
+            fill: white;
+            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.3));
+        }
+
+@keyframes spawn {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+@keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+@media (prefers-reduced-motion: reduce) {
+            .restart-btn {
+                transition: none;
+            }
+        }
+
+.loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #87CEEB 0%, #7EC8A3 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-content {
+            text-align: center;
+            padding: var(--space-lg);
+        }
+
+        .loading-icon {
+            font-size: 80px;
+            margin-bottom: var(--space-md);
+            animation: loadingBounce 1s ease-in-out infinite;
+        }
+
+        @keyframes loadingBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .loading-title {
+            font-family: &quot;Press Start 2P&quot;, monospace;
+            font-size: 24px;
+            color: #4A3728;
+            margin-bottom: var(--space-lg);
+            text-shadow: 2px 2px 0 rgba(255,255,255,0.5);
+        }
+
+        .loading-bar-container {
+            width: 280px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.5);
+            border: 3px solid #4A3728;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 0 auto var(--space-md);
+        }
+
+        .loading-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #FF6B35, #FFD700);
+            border-radius: 8px;
+            transition: width 0.3s ease-out;
+        }
+
+        .loading-text {
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 24px;
+            color: #4A3728;
+        }
+
+        .edit-info {
+            position: absolute;
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: &quot;VT323&quot;, monospace;
+            font-size: 24px;
+            color: #4A3728;
+            background: rgba(255, 255, 255, 0.9);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: 8px;
+            border: 2px solid #4A3728;
+            text-align: center;
+        }&lt;/style&gt;
+&lt;style data-astrocade-injected=&quot;styles&quot;&gt;
+/* Astrocade injected styles */
+
+/* Disable tap highlight and text selection on Android */
+* {
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+body {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -khtml-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    /* Prevent double-tap zoom on the game area */
+    touch-action: manipulation !important;
+}
+
+/* Allow normal touch behavior for text inputs and editable content */
+input,
+textarea,
+[contenteditable=&quot;true&quot;],
+[contenteditable=&quot;&quot;] {
+    touch-action: auto !important;
+    -webkit-user-select: text !important;
+    -khtml-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+}
+
+/* Disable context menu on images and canvas */
+img, canvas {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -webkit-user-drag: none !important;
+    -khtml-user-drag: none !important;
+    -moz-user-drag: none !important;
+    -o-user-drag: none !important;
+    user-drag: none !important;
+    /* Prevent double-tap zoom on images and canvas elements */
+    touch-action: manipulation !important;
+}
+&lt;/style&gt;&lt;script data-astrocade-injected=&quot;error-handlers&quot;&gt;
+// Astrocade error handlers
+
+// Patterns to ignore in error reporting (shared across all error services)
+var IGNORED_ERROR_PATTERNS = [&quot;Script error.&quot;,&quot;Script error&quot;,&quot;flag.lab.amplitude&quot;,&quot;amplitude.com&quot;,&quot;Failed to fetch&quot;,&quot;network error&quot;,&quot;NetworkError&quot;,&quot;Load failed&quot;];
+
+function shouldIgnoreError(message) {
+    if (!message) return false;
+    return IGNORED_ERROR_PATTERNS.some(function(pattern) {
+        return message.includes(pattern);
+    });
+}
+
+// Disable context menu (right-click/long-press)
+document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    return false;
+});
+
+// Disable drag on images
+document.addEventListener('dragstart', function(e) {
+    if (e.target.tagName === 'IMG') {
+        e.preventDefault();
+        return false;
+    }
+});
+
+// Intercept console.error calls
+(function() {
+    const originalConsoleError = console.error;
+    console.error = function(...args) {
+        // Call original console.error
+        originalConsoleError.apply(console, args);
+
+        // Report to parent
+        window.parent.postMessage({
+            type: 'GAME_ERROR',
+            error: {
+                message: args.map(arg =&gt; {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg);
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }
+                    return String(arg);
+                }).join(' '),
+                timestamp: Date.now()
+            }
+        }, '*');
+    };
+})();
+
+window.addEventListener('error', function(event) {
+    // Filter out ignored errors (CORS-obscured &quot;Script error.&quot;, network errors, etc.)
+    if (shouldIgnoreError(event.message)) {
+        return; // Don't report - not actionable
+    }
+
+    // Report error back to parent for UI display
+    window.parent.postMessage({
+        type: 'GAME_ERROR',
+        error: {
+            message: event.message || 'Unknown error',
+            stack: event.error?.stack,
+            line: event.lineno,
+            column: event.colno,
+            filename: event.filename,
+            timestamp: Date.now()
+        }
+    }, '*');
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+    // Try to extract line number from the rejection reason's stack trace.
+    // Stack traces look like: &quot;at functionName (about:srcdoc:123:45)&quot;
+    var line = null;
+    var column = null;
+    var stack = null;
+
+    if (event.reason &amp;&amp; event.reason.stack) {
+        stack = event.reason.stack;
+        // Match patterns like &quot;about:srcdoc:123:45&quot; or &quot;:123:45&quot;
+        var match = stack.match(/about:srcdoc:(\d+):(\d+)/);
+        if (match) {
+            line = parseInt(match[1], 10);
+            column = parseInt(match[2], 10);
+        }
+    }
+
+    // Report promise rejection back to parent
+    window.parent.postMessage({
+        type: 'GAME_ERROR',
+        error: {
+            message: event.reason?.message || 'Unhandled promise rejection',
+            stack: stack,
+            line: line,
+            column: column,
+            timestamp: Date.now()
+        }
+    }, '*');
+});
+&lt;/script&gt;&lt;script data-astrocade-injected=&quot;gesture-tracking&quot;&gt;
+// Astrocade gesture tracking
+(function() {
+    if (window.__gestureTrackingInitialized) return;
+    window.__gestureTrackingInitialized = true;
+
+    console.log('[GestureTracking] Initializing gesture detection in iframe');
+
+    // Track touch/mouse state
+    let touchStartTime = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let longPressTimer = null;
+    let isDragging = false;
+    let lastActivityTime = Date.now();
+
+    // Prevent ghost clicks on mobile - track last touch end time
+    let lastTouchEndTime = 0;
+
+    // Helper to send gesture event to parent
+    function sendGesture(gestureData) {
+        window.parent.postMessage({
+            type: 'GAME_GESTURE_EVENT',
+            gesture: gestureData
+        }, '*');
+        lastActivityTime = Date.now();
+    }
+
+    // Helper to calculate swipe direction
+    function getSwipeDirection(deltaX, deltaY) {
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+
+        if (absX &gt; absY) {
+            return deltaX &gt; 0 ? 'right' : 'left';
+        } else {
+            return deltaY &gt; 0 ? 'down' : 'up';
+        }
+    }
+
+    // Track drag state
+    let dragDistance = 0;
+
+    // Touch event handlers
+    document.addEventListener('touchstart', function(e) {
+        touchStartTime = Date.now();
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        isDragging = false;
+        dragDistance = 0;
+
+        // Setup long press detection
+        longPressTimer = setTimeout(() =&gt; {
+            if (!isDragging) {
+                sendGesture({
+                    type: 'long_press',
+                    timestamp: Date.now(),
+                    x: touchStartX,
+                    y: touchStartY,
+                    duration: Date.now() - touchStartTime
+                });
+            }
+        }, 500);
+
+        // Handle multi-touch (pinch detection)
+        if (e.touches.length &gt; 1) {
+            sendGesture({
+                type: 'pinch',
+                timestamp: touchStartTime,
+                touches: e.touches.length
+            });
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function(e) {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+
+        if (!isDragging &amp;&amp; e.touches.length === 1) {
+            const deltaX = e.touches[0].clientX - touchStartX;
+            const deltaY = e.touches[0].clientY - touchStartY;
+            const currentDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            // Mark as dragging but don't send event yet
+            if (currentDistance &gt; 10) {
+                isDragging = true;
+            }
+            dragDistance = currentDistance;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+
+        const touchEndTime = Date.now();
+        const touchDuration = touchEndTime - touchStartTime;
+
+        // Get the last touch position
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        // Log drag on end if it was a drag
+        if (isDragging &amp;&amp; distance &gt; 10) {
+            sendGesture({
+                type: 'drag',
+                timestamp: touchEndTime,
+                x: touchEndX,
+                y: touchEndY,
+                deltaX: deltaX,
+                deltaY: deltaY,
+                distance: Math.round(distance),
+                duration: touchDuration
+            });
+        }
+        // Detect swipe (fast movement over distance)
+        else if (distance &gt; 50 &amp;&amp; touchDuration &lt; 500) {
+            sendGesture({
+                type: 'swipe',
+                timestamp: touchEndTime,
+                x: touchEndX,
+                y: touchEndY,
+                deltaX: deltaX,
+                deltaY: deltaY,
+                direction: getSwipeDirection(deltaX, deltaY),
+                duration: touchDuration
+            });
+        }
+        // Detect tap (short touch without much movement)
+        else if (distance &lt; 10 &amp;&amp; touchDuration &lt; 200) {
+            sendGesture({
+                type: 'tap',
+                timestamp: touchEndTime,
+                x: touchEndX,
+                y: touchEndY,
+                duration: touchDuration
+            });
+        }
+
+        isDragging = false;
+        dragDistance = 0;
+
+        // Record touch end time to prevent ghost clicks
+        lastTouchEndTime = touchEndTime;
+    }, { passive: true });
+
+    // Mouse event handlers for desktop
+    let mouseDown = false;
+    let mouseStartX = 0;
+    let mouseStartY = 0;
+    let mouseStartTime = 0;
+    let mouseDragging = false;
+
+    document.addEventListener('mousedown', function(e) {
+        mouseDown = true;
+        mouseStartX = e.clientX;
+        mouseStartY = e.clientY;
+        mouseStartTime = Date.now();
+        mouseDragging = false;
+
+        // Setup long press for mouse
+        longPressTimer = setTimeout(() =&gt; {
+            if (mouseDown &amp;&amp; !mouseDragging) {
+                sendGesture({
+                    type: 'long_press',
+                    timestamp: Date.now(),
+                    x: mouseStartX,
+                    y: mouseStartY,
+                    duration: Date.now() - mouseStartTime
+                });
+            }
+        }, 500);
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (mouseDown) {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+
+            const deltaX = e.clientX - mouseStartX;
+            const deltaY = e.clientY - mouseStartY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            // Mark as dragging but don't send event yet
+            if (distance &gt; 10) {
+                mouseDragging = true;
+            }
+        }
+        // Removed mouse_move tracking when not dragging (too noisy)
+    });
+
+    document.addEventListener('mouseup', function(e) {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+
+        if (mouseDown) {
+            mouseDown = false;
+            const mouseEndTime = Date.now();
+            const mouseDuration = mouseEndTime - mouseStartTime;
+
+            // Check if this is a ghost click (mouse event shortly after touch event)
+            const isGhostClick = (mouseEndTime - lastTouchEndTime) &lt; 500;
+
+            if (isGhostClick) {
+                // Ignore ghost clicks on mobile devices
+                mouseDragging = false;
+                return;
+            }
+
+            const deltaX = e.clientX - mouseStartX;
+            const deltaY = e.clientY - mouseStartY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            // Log drag on end if it was a drag
+            if (mouseDragging &amp;&amp; distance &gt; 10) {
+                sendGesture({
+                    type: 'drag',
+                    timestamp: mouseEndTime,
+                    x: e.clientX,
+                    y: e.clientY,
+                    deltaX: deltaX,
+                    deltaY: deltaY,
+                    distance: Math.round(distance),
+                    duration: mouseDuration
+                });
+            }
+            // Detect click (short press without much movement)
+            else if (distance &lt; 10 &amp;&amp; mouseDuration &lt; 200) {
+                sendGesture({
+                    type: 'click',
+                    timestamp: mouseEndTime,
+                    x: e.clientX,
+                    y: e.clientY,
+                    duration: mouseDuration
+                });
+            }
+            mouseDragging = false;
+        }
+    });
+
+    // Keyboard events for activity tracking
+    document.addEventListener('keydown', function(e) {
+        // Only log if significant time has passed since last activity
+        if (Date.now() - lastActivityTime &gt; 1000) {
+            sendGesture({
+                type: 'keyboard',
+                timestamp: Date.now(),
+                key: e.key
+            });
+        }
+    });
+
+    // Detect scroll events
+    let scrollThrottle = null;
+    document.addEventListener('scroll', function(e) {
+        if (!scrollThrottle) {
+            scrollThrottle = setTimeout(() =&gt; {
+                sendGesture({
+                    type: 'scroll',
+                    timestamp: Date.now(),
+                    scrollY: window.scrollY,
+                    scrollX: window.scrollX
+                });
+                scrollThrottle = null;
+            }, 200);
+        }
+    }, { passive: true });
+
+    console.log('[GestureTracking] Gesture detection initialized successfully');
+})();
+&lt;/script&gt;&lt;/head&gt;
+&lt;body&gt;&lt;script data-astrocade-injected=&quot;game-library&quot;&gt;&quot;use strict&quot;;
+/*
+ * SECURITY: Everything is wrapped in an IIFE (Immediately Invoked Function Expression)
+ * to ensure that internal functions and classes are completely private.
+ *
+ * Only the `lib` object is exposed to the global scope (window.lib).
+ * This prevents AI-generated code from accessing internal implementation details
+ * like createProxiedConfig, commitState, or the CallbackManager class.
+ *
+ * This is important for:
+ * - Security: Prevents tampering with internal state tracking
+ * - Encapsulation: Keeps implementation details private
+ * - Future-proofing: Allows us to add sensitive internal logic safely
+ */
+(() =&gt; {
+    // Callback management with support for persistent keys
+    class CallbackManager {
+        constructor() {
+            this.callbacks = new Map();
+            this.idCounter = 0;
+        }
+        register(callback, key) {
+            // Use provided key or generate one
+            const id = key || `cb_${this.idCounter++}_${crypto.randomUUID()}`;
+            // If using a key and callback already exists, replace it
+            // Silently replace without logging
+            this.callbacks.set(id, callback);
+            return id;
+        }
+        invoke(id, ...args) {
+            const callback = this.callbacks.get(id);
+            if (callback) {
+                try {
+                    callback(...args);
+                }
+                catch (error) {
+                    // Error in callback - will be logged when lib is available
+                }
+            }
+            else {
+                // Callback not found - will be logged when lib is available
+            }
+        }
+        unregister(id) {
+            if (this.callbacks.has(id)) {
+                this.callbacks.delete(id);
+            }
+        }
+        clear() {
+            this.callbacks.clear();
+        }
+        has(key) {
+            return this.callbacks.has(key);
+        }
+    }
+    // ============================================================================
+    // OPTIMIZED ANIMATION SYSTEM - Embedded directly to avoid imports
+    // ============================================================================
+    // Animation Player Factory - Manages sprite sheets and creates animation instances
+    class AnimationPlayerFactory {
+        constructor() {
+            // Sprite sheet management (integrated from SpriteSheetManager)
+            this.imageCache = new Map();
+            this.loadingPromises = new Map();
+            // Frame data cache
+            this.frameDataCache = new Map();
+        }
+        static getInstance() {
+            if (!AnimationPlayerFactory.instance) {
+                AnimationPlayerFactory.instance = new AnimationPlayerFactory();
+            }
+            return AnimationPlayerFactory.instance;
+        }
+        // Sprite sheet management methods (integrated)
+        async loadImage(url) {
+            // Return cached image if available
+            if (this.imageCache.has(url)) {
+                return this.imageCache.get(url);
+            }
+            // Return existing loading promise to avoid duplicate requests
+            if (this.loadingPromises.has(url)) {
+                return this.loadingPromises.get(url);
+            }
+            // Create new loading promise
+            const loadPromise = new Promise((resolve, reject) =&gt; {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () =&gt; {
+                    // Store the image in cache
+                    this.imageCache.set(url, img);
+                    this.loadingPromises.delete(url);
+                    resolve(img);
+                };
+                img.onerror = () =&gt; {
+                    this.loadingPromises.delete(url);
+                    reject(new Error(`Failed to load: ${url}`));
+                };
+                img.src = url;
+            });
+            this.loadingPromises.set(url, loadPromise);
+            return loadPromise;
+        }
+        getImage(url) {
+            return this.imageCache.get(url) || null;
+        }
+        isLoaded(url) {
+            return this.imageCache.has(url);
+        }
+        // Frame data preprocessing and caching with optional scaling
+        preprocessFrames(rawFrames) {
+            return rawFrames.map((frame) =&gt; ({
+                sx: frame.x || 0,
+                sy: frame.y || 0,
+                sw: frame.width || 0,
+                sh: frame.height || 0,
+                hasCrop: !!(frame.original_width &amp;&amp;
+                    frame.original_height &amp;&amp;
+                    frame.crop_x !== undefined &amp;&amp;
+                    frame.crop_y !== undefined),
+                cropX: frame.crop_x || 0,
+                cropY: frame.crop_y || 0,
+                originalWidth: frame.original_width || 0,
+                originalHeight: frame.original_height || 0,
+            }));
+        }
+        // Preload an animation's sprite sheet and cache frame data
+        async preloadAnimation(assetId, url, frames) {
+            const cacheKey = `${assetId}:${url}`;
+            // Preload sprite sheet first to get actual dimensions
+            await this.loadImage(url);
+            // Preprocess and cache frame data with scaling
+            if (!this.frameDataCache.has(cacheKey)) {
+                this.frameDataCache.set(cacheKey, this.preprocessFrames(frames));
+            }
+        }
+        // Create a lightweight animation player instance
+        createPlayer(assetId, url, frames, fps, loop) {
+            const cacheKey = `${assetId}:${url}`;
+            // Get sprite sheet (may not be loaded yet)
+            const spriteSheet = this.getImage(url);
+            // Get or create processed frames with proper scaling
+            let processedFrames = this.frameDataCache.get(cacheKey);
+            if (!processedFrames) {
+                processedFrames = this.preprocessFrames(frames);
+                this.frameDataCache.set(cacheKey, processedFrames);
+            }
+            // Create instance - it will handle dynamic loading if needed
+            return new AnimationPlayerInstance(this, url, processedFrames, fps, loop, spriteSheet);
+        }
+    }
+    // Lightweight Animation Player Instance
+    class AnimationPlayerInstance {
+        constructor(factory, url, frames, fps, loop, spriteSheet) {
+            // Instance-specific playback state
+            this.currentFrame = 0;
+            this.lastUpdateTime = 0;
+            this.accumulatedTime = 0;
+            this.isPlaying = true;
+            this.isLoaded = false;
+            this.factory = factory;
+            this.spriteSheetUrl = url;
+            this.frames = frames; // Shared reference from factory
+            this.loop = loop;
+            this.frameDuration = 1000 / fps;
+            this.spriteSheet = spriteSheet;
+            this.isLoaded = spriteSheet !== null;
+            // Load sprite sheet if not already loaded
+            if (!this.isLoaded) {
+                this.loadSpriteSheet();
+            }
+        }
+        async loadSpriteSheet() {
+            try {
+                // Check if already loaded in factory
+                this.spriteSheet = this.factory.getImage(this.spriteSheetUrl);
+                if (this.spriteSheet) {
+                    this.isLoaded = true;
+                    return;
+                }
+                // Load through factory with aspect ratio correction
+                this.spriteSheet = await this.factory.loadImage(this.spriteSheetUrl);
+                this.isLoaded = true;
+            }
+            catch (error) {
+                console.error('Failed to load sprite sheet:', error);
+            }
+        }
+        update(timestamp) {
+            if (!this.isPlaying || !this.isLoaded)
+                return;
+            // Initialize timing on first update
+            if (this.lastUpdateTime === 0) {
+                this.lastUpdateTime = timestamp;
+                return;
+            }
+            const deltaTime = timestamp - this.lastUpdateTime;
+            this.lastUpdateTime = timestamp;
+            this.accumulatedTime += deltaTime;
+            // Frame skipping if we're behind
+            while (this.accumulatedTime &gt;= this.frameDuration) {
+                this.accumulatedTime -= this.frameDuration;
+                this.currentFrame++;
+                if (this.currentFrame &gt;= this.frames.length) {
+                    if (this.loop) {
+                        this.currentFrame = 0;
+                    }
+                    else {
+                        this.currentFrame = this.frames.length - 1;
+                        this.isPlaying = false;
+                        break;
+                    }
+                }
+            }
+        }
+        draw(ctx, x, y, width, height) {
+            if (!this.isLoaded || !this.spriteSheet)
+                return;
+            const frame = this.frames[this.currentFrame];
+            if (!frame || frame.sw &lt;= 0 || frame.sh &lt;= 0)
+                return;
+            try {
+                if (frame.hasCrop &amp;&amp; frame.originalWidth &amp;&amp; frame.originalHeight) {
+                    // Handle cropped frames - restore to original position
+                    const scaleX = width / frame.originalWidth;
+                    const scaleY = height / frame.originalHeight;
+                    const destX = x + frame.cropX * scaleX;
+                    const destY = y + frame.cropY * scaleY;
+                    const destW = frame.sw * scaleX;
+                    const destH = frame.sh * scaleY;
+                    ctx.drawImage(this.spriteSheet, frame.sx, frame.sy, frame.sw, frame.sh, destX, destY, destW, destH);
+                }
+                else {
+                    // Simple draw for non-cropped frames
+                    ctx.drawImage(this.spriteSheet, frame.sx, frame.sy, frame.sw, frame.sh, x, y, width, height);
+                }
+            }
+            catch (error) {
+                // Silently handle drawing errors
+            }
+        }
+        getCurrentFrame() {
+            const frame = this.frames[this.currentFrame];
+            return {
+                index: this.currentFrame,
+                frame: frame
+                    ? {
+                        x: frame.sx,
+                        y: frame.sy,
+                        w: frame.sw,
+                        h: frame.sh,
+                    }
+                    : undefined,
+                total: this.frames.length,
+            };
+        }
+        reset() {
+            this.currentFrame = 0;
+            this.lastUpdateTime = 0;
+            this.accumulatedTime = 0;
+            this.isPlaying = true;
+        }
+        isReady() {
+            return this.isLoaded;
+        }
+    }
+    // Global factory instance
+    let globalAnimationFactory = null;
+    /**
+     * Creates a deep proxy that detects any changes to the gameConfig
+     */
+    function createProxiedConfig(config, path = '') {
+        if (typeof config !== 'object' || config === null) {
+            return config;
+        }
+        if (Array.isArray(config)) {
+            return new Proxy(config, {
+                get(target, prop) {
+                    if (typeof prop === 'symbol' || prop === 'length') {
+                        return target[prop];
+                    }
+                    const value = target[prop];
+                    const currentPath = path ? `${path}[${String(prop)}]` : `[${String(prop)}]`;
+                    return createProxiedConfig(value, currentPath);
+                },
+                set(target, prop, value) {
+                    const oldValue = target[prop];
+                    const isNewProperty = !(prop in target);
+                    target[prop] = value;
+                    const currentPath = path ? `${path}[${String(prop)}]` : `[${String(prop)}]`;
+                    handleProxyChange(currentPath, isNewProperty ? 'add' : 'change', oldValue);
+                    return true;
+                },
+                deleteProperty(target, prop) {
+                    const oldValue = target[prop];
+                    delete target[prop];
+                    const currentPath = path ? `${path}[${String(prop)}]` : `[${String(prop)}]`;
+                    handleProxyChange(currentPath, 'delete', oldValue);
+                    return true;
+                },
+            });
+        }
+        return new Proxy(config, {
+            get(target, prop) {
+                if (typeof prop === 'symbol') {
+                    return target[prop];
+                }
+                const value = target[prop];
+                const currentPath = path ? `${path}.${String(prop)}` : String(prop);
+                return createProxiedConfig(value, currentPath);
+            },
+            set(target, prop, value) {
+                const oldValue = target[prop];
+                const isNewProperty = !(prop in target);
+                target[prop] = value;
+                const currentPath = path ? `${path}.${String(prop)}` : String(prop);
+                handleProxyChange(currentPath, isNewProperty ? 'add' : 'change', oldValue);
+                return true;
+            },
+            deleteProperty(target, prop) {
+                const oldValue = target[prop];
+                delete target[prop];
+                const currentPath = path ? `${path}.${String(prop)}` : String(prop);
+                handleProxyChange(currentPath, 'delete', oldValue);
+                return true;
+            },
+        });
+    }
+    // Global mode tracking
+    let currentMode = 'play';
+    // Smart commit timing
+    let commitTimer = null;
+    let isDragging = false;
+    let isBatchOperation = false;
+    // Debounced commit function - delays commit until user stops making changes
+    function debouncedCommit(delay = 500) {
+        if (commitTimer !== null) {
+            clearTimeout(commitTimer);
+        }
+        commitTimer = setTimeout(() =&gt; {
+            if (currentMode === 'edit' &amp;&amp; !isDragging &amp;&amp; !isBatchOperation) {
+                commitState();
+            }
+            commitTimer = null;
+        }, delay);
+    }

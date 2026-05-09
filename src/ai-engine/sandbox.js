@@ -17,7 +17,9 @@ export async function verifyGame(htmlString, options = {}) {
     let browser = null;
     const crashes = [];
     const runtimeLane = options?.runtimeLane || null;
-    const expectsThreeJs = runtimeLane === 'first_person_threejs' || isLikelyThreeJsBuild(htmlString);
+    const expectsThreeJs = runtimeLane === 'first_person_threejs'
+        || runtimeLane === 'third_person_threejs'
+        || isLikelyThreeJsBuild(htmlString);
 
     try {
         console.log("🕵️  Sandbox: Booting Headless Environment...");
@@ -73,17 +75,97 @@ export async function verifyGame(htmlString, options = {}) {
         await new Promise(r => setTimeout(r, 1000));
 
         const renderState = await page.evaluate(() => {
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 390;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 844;
+            const doc = document.documentElement;
+            const body = document.body;
             const canvases = Array.from(document.querySelectorAll('canvas'));
             const visibleCanvases = canvases.filter((canvas) => {
                 const rect = canvas.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
             });
 
+            const canvasIssues = visibleCanvases
+                .map((canvas, index) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const left = Math.round(rect.left);
+                    const top = Math.round(rect.top);
+                    const right = Math.round(rect.right);
+                    const bottom = Math.round(rect.bottom);
+                    const outside = left < -4 || top < -4 || right > viewportWidth + 4 || bottom > viewportHeight + 4;
+                    const oversizedBackingStore = canvas.width > 1800 || canvas.height > 2600;
+                    if (!outside && !oversizedBackingStore) return null;
+                    return {
+                        index,
+                        rect: {
+                            left,
+                            top,
+                            right,
+                            bottom,
+                            width: Math.round(rect.width),
+                            height: Math.round(rect.height),
+                        },
+                        backingStore: { width: canvas.width, height: canvas.height },
+                        outside,
+                        oversizedBackingStore,
+                    };
+                })
+                .filter(Boolean)
+                .slice(0, 5);
+
+            const visibleOutOfBoundsElements = Array.from(document.body?.querySelectorAll('*') || [])
+                .slice(0, 500)
+                .map((node) => {
+                    const style = window.getComputedStyle(node);
+                    if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return null;
+                    const rect = node.getBoundingClientRect();
+                    if (rect.width < 12 || rect.height < 12) return null;
+                    const isCanvas = node.tagName === 'CANVAS';
+                    const isCritical = isCanvas
+                        || node.matches('button, input, textarea, select, a, [role="button"], [data-control], [data-hud], [class*="hud" i], [class*="control" i], [class*="joystick" i], [class*="button" i], [id*="hud" i], [id*="control" i], [id*="joystick" i], [id*="button" i]');
+                    if (!isCritical) return null;
+                    const left = Math.round(rect.left);
+                    const top = Math.round(rect.top);
+                    const right = Math.round(rect.right);
+                    const bottom = Math.round(rect.bottom);
+                    const outside = left < -8 || top < -8 || right > viewportWidth + 8 || bottom > viewportHeight + 8;
+                    if (!outside) return null;
+                    const label = (node.textContent || node.getAttribute('aria-label') || node.id || node.className || node.tagName || '')
+                        .toString()
+                        .trim()
+                        .replace(/\s+/g, ' ')
+                        .slice(0, 80);
+                    return {
+                        tag: node.tagName.toLowerCase(),
+                        label,
+                        rect: {
+                            left,
+                            top,
+                            right,
+                            bottom,
+                            width: Math.round(rect.width),
+                            height: Math.round(rect.height),
+                        },
+                    };
+                })
+                .filter(Boolean)
+                .slice(0, 8);
+
+            const scrollWidth = Math.max(doc?.scrollWidth || 0, body?.scrollWidth || 0);
+            const scrollHeight = Math.max(doc?.scrollHeight || 0, body?.scrollHeight || 0);
+            const horizontalOverflow = Math.max(0, Math.round(scrollWidth - viewportWidth));
+            const verticalOverflow = Math.max(0, Math.round(scrollHeight - viewportHeight));
             const bodyText = (document.body?.innerText || '').trim().slice(0, 400);
 
             return {
+                viewportWidth,
+                viewportHeight,
                 canvasCount: canvases.length,
                 visibleCanvasCount: visibleCanvases.length,
+                canvasIssues,
+                horizontalOverflow,
+                verticalOverflow,
+                visibleOutOfBoundsElements,
                 bodyText,
             };
         });
@@ -92,6 +174,28 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push('No canvas element was rendered.');
         } else if (renderState.visibleCanvasCount === 0) {
             crashes.push('Canvas elements were created but none were visible.');
+        }
+
+        if (renderState.horizontalOverflow > 4) {
+            crashes.push(`Viewport overflow detected: page is ${renderState.horizontalOverflow}px wider than the ${renderState.viewportWidth}px mobile viewport. Generated games must fit the phone width without horizontal scrolling.`);
+        }
+
+        if (Array.isArray(renderState.canvasIssues) && renderState.canvasIssues.length > 0) {
+            const summary = renderState.canvasIssues.map((issue) => {
+                const reason = [
+                    issue.outside ? 'outside viewport' : null,
+                    issue.oversizedBackingStore ? `oversized backing store ${issue.backingStore.width}x${issue.backingStore.height}` : null,
+                ].filter(Boolean).join(', ');
+                return `canvas#${issue.index} ${reason} rect=${issue.rect.left},${issue.rect.top},${issue.rect.right},${issue.rect.bottom}`;
+            }).join('; ');
+            crashes.push(`Canvas sizing issue: ${summary}. Canvas/renderers must be constrained to the mobile viewport and resize responsively.`);
+        }
+
+        if (Array.isArray(renderState.visibleOutOfBoundsElements) && renderState.visibleOutOfBoundsElements.length > 0) {
+            const summary = renderState.visibleOutOfBoundsElements
+                .map((item) => `${item.tag}${item.label ? ` "${item.label}"` : ''} rect=${item.rect.left},${item.rect.top},${item.rect.right},${item.rect.bottom}`)
+                .join('; ');
+            crashes.push(`Viewport bounds issue: important UI/control elements are outside the ${renderState.viewportWidth}x${renderState.viewportHeight} viewport: ${summary}. Clamp HUD and touch controls into safe visible bounds.`);
         }
 
         if (/error|exception|failed/i.test(renderState.bodyText)) {

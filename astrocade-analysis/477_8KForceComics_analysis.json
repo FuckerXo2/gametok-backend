@@ -1,0 +1,308 @@
+{
+  "gameName": "477.8KForceComics",
+  "url": "https://www.astrocade.com/games/high-power-street-justice/01KB1HYNZ7AVENZQXV2EAMXTQW",
+  "scrapedAt": "2026-05-08T03:52:48.622Z",
+  "frameworks": {
+    "hasThreeJs": false,
+    "hasPhaser": false,
+    "hasPixi": false,
+    "hasBabylon": false,
+    "hasP5": false
+  },
+  "rendering": {
+    "canvasCount": 0,
+    "canvasContexts": []
+  },
+  "metadata": {
+    "title": "High-power: Street Justice | Astrocade",
+    "metaTags": [
+      {
+        "content": ""
+      },
+      {
+        "name": "viewport",
+        "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+      },
+      {
+        "name": "theme-color",
+        "content": "#090214"
+      },
+      {
+        "name": "description",
+        "content": "Created with Astrocade!"
+      },
+      {
+        "name": "keywords",
+        "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+      },
+      {
+        "name": "application-name",
+        "content": "Astrocade"
+      },
+      {
+        "content": "High-power: Street Justice by ForceComics"
+      },
+      {
+        "content": "Created with Astrocade!"
+      },
+      {
+        "content": "https://www.astrocade.com/games/high-power-street-justice/01KB1HYNZ7AVENZQXV2EAMXTQW"
+      },
+      {
+        "content": "Astrocade"
+      },
+      {
+        "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/8828be73-2808-4eff-a5ed-3c3512a371b2.webp"
+      },
+      {
+        "content": "website"
+      },
+      {
+        "name": "twitter:card",
+        "content": "summary_large_image"
+      },
+      {
+        "name": "twitter:title",
+        "content": "High-power: Street Justice by ForceComics"
+      },
+      {
+        "name": "twitter:description",
+        "content": "Created with Astrocade!"
+      },
+      {
+        "name": "twitter:image",
+        "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/8828be73-2808-4eff-a5ed-3c3512a371b2.webp"
+      },
+      {
+        "name": "next-size-adjust",
+        "content": ""
+      }
+    ],
+    "hasEditor": false,
+    "hasRemix": true
+  },
+  "scripts": {
+    "total": 38,
+    "external": [
+      "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+      "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45111-434a4b47ea5c8f39.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+      "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212359417&cv=11&fst=1778212359417&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938466~115938468~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fhigh-power-street-justice%2F01KB1HYNZ7AVENZQXV2EAMXTQW&rcb=6&frm=0&tiba=High-power%3A%20Street%20Justice%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1167978741.1778212358&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+      "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212359422&cv=11&fst=1778212359422&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938466~115938468~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fhigh-power-street-justice%2F01KB1HYNZ7AVENZQXV2EAMXTQW&rcb=6&frm=0&tiba=High-power%3A%20Street%20Justice%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1167978741.1778212358&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/47497.087d71fbf288ba54.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/52038.519ee3582bd2fa46.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/90166.9b8ffec239841fc0.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/47293.4fba1d5cf54ed4dd.js",
+      "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+    ],
+    "inlineCount": 23,
+    "analysis": [
+      {
+        "length": 427,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 359,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 682,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 104,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 752,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 415,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 662,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2231,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2244,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 2230,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 701,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 13538,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 2373,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 2228,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 1672,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 112256,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": true,
+        "hasGameLoop": true,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 4243,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 64660,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": true
+      },
+      {
+        "length": 368,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      },
+      {
+        "length": 148,
+        "hasPhaser": false,
+        "hasThree": false,
+        "hasWebGL": false,
+        "hasCanvas2D": false,
+        "hasGameLoop": false,
+        "hasPhysics": false,
+        "hasControls": false
+      }
+    ]
+  },
+  "htmlSize": 548517
+}

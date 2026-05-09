@@ -167,21 +167,17 @@ export function buildCoverPrompt({ title, prompt, classification }) {
         : '';
 
     const subjectLine = cleanedPrompt;
-    const moodHint = title
-        ? `Inspired by the concept of ${title.replace(/[^A-Za-z0-9 \-']/g, ' ')} but never showing the name.`
-        : '';
+    const titleText = title ? title.replace(/[^A-Za-z0-9 \-']/g, '') : 'PLAY NOW';
 
     return [
-        `Mobile game key art for: ${subjectLine}.`,
-        mediumHint + '.',
-        styleHint + '.',
-        cameraHint + '.',
+        `High-end mobile game promotional poster for a game titled "${titleText}".`,
+        `The exact words "${titleText}" MUST be written prominently at the very top of the image in huge, bold, glowing, 3D extruded cinematic typography.`,
+        `The art style below the text should be ${styleHint}, ${mediumHint}.`,
+        `${cameraHint}, featuring ${subjectLine}.`,
         tagHint ? `Visual themes: ${tagHint}.` : '',
-        moodHint,
-        'Pure illustration. Vertical poster composition. Strong focal subject, dramatic depth, leave breathing room at the top.',
-        'Absolutely NO text, NO letters, NO words, NO signage, NO captions, NO logo, NO watermark, NO UI, NO buttons, NO HUD.',
-        'Environmental and character art only — like a movie poster background, no titling.',
-        'Each cover must feel visually distinct from other games; avoid default neon fantasy poster sameness.',
+        'Extremely vibrant, high contrast, insanely polished app-store promotional art.',
+        'Portrait composition. The background should be dynamic and match the theme (e.g. voxel for minecraft-like, moody for horror, bright skies for hypercasual).',
+        'Make the 3D text logo pop out with rim lighting and strong drop shadows.',
     ]
         .filter(Boolean)
         .join(' ');
@@ -250,37 +246,55 @@ async function saveCoverBuffer(gameId, buffer) {
     const safeId = String(gameId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
     const filename = `${safeId}.jpg`;
     
-    try {
-        const command = new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: `covers/${filename}`,
-            Body: buffer,
-            ContentType: 'image/jpeg',
-        });
-        
-        await s3Client.send(command);
-        
-        // Return the public URL formatted with the R2_PUBLIC_URL from env
-        const publicUrlBase = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
-        return `${publicUrlBase.replace(/\/$/, '')}/covers/${filename}`;
-    } catch (err) {
-        console.error('[cover-art] S3/R2 upload failed:', err.message);
-        // Fallback to local save if R2 fails or is misconfigured
-        const fsPath = path.join(COVER_ROOT, filename);
-        fs.writeFileSync(fsPath, buffer);
-        return `/uploads/covers/${filename}`;
+    // Only try R2 if properly configured
+    if (process.env.R2_BUCKET_NAME && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
+        try {
+            const command = new PutObjectCommand({
+                Bucket: process.env.R2_BUCKET_NAME,
+                Key: `covers/${filename}`,
+                Body: buffer,
+                ContentType: 'image/jpeg',
+            });
+            
+            await s3Client.send(command);
+            
+            const publicUrlBase = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
+            return `${publicUrlBase.replace(/\/$/, '')}/covers/${filename}`;
+        } catch (err) {
+            console.error('[cover-art] S3/R2 upload failed:', err.message);
+        }
     }
+
+    // No R2? Use a Pollinations URL directly (survives Railway redeploys)
+    console.warn('[cover-art] R2 not configured, returning Pollinations URL instead of saving locally');
+    return null; // Signal caller to use Pollinations URL
 }
 
 // --- Public API -------------------------------------------------------------
 
 /**
+ * Build a permanent Pollinations URL for a game (no download needed).
+ */
+function buildPollinationsUrl({ title, prompt, classification, gameId }) {
+    const finalPrompt = buildCoverPrompt({ title, prompt, classification });
+    const seed = hashSeed(`${gameId || ''} ${title || ''}`);
+    return `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=512&height=768&nologo=true&enhance=true&model=flux&seed=${seed}`;
+}
+
+/**
  * Generate a cover-art image and return its public URL, or null.
- * Tries FLUX.1-schnell first, falls back to Pollinations.
+ * Tries FLUX.1-schnell → R2 first. If R2 isn't configured, returns a
+ * permanent Pollinations URL (no local disk needed).
  */
 export async function generateCoverArtImage({ title, prompt, classification, gameId }) {
-    const finalPrompt = buildCoverPrompt({ title, prompt, classification });
+    // Fast path: if R2 isn't configured, skip downloading entirely
+    // and just return a Pollinations URL that the frontend can load directly
+    if (!process.env.R2_BUCKET_NAME || !process.env.R2_ACCESS_KEY_ID) {
+        return buildPollinationsUrl({ title, prompt, classification, gameId });
+    }
 
+    // R2 is configured — try to generate and upload a real image
+    const finalPrompt = buildCoverPrompt({ title, prompt, classification });
     let buffer;
     try {
         buffer = await callFluxSchnell(finalPrompt);
@@ -290,16 +304,19 @@ export async function generateCoverArtImage({ title, prompt, classification, gam
             buffer = await callPollinationsFallback(finalPrompt);
         } catch (err2) {
             console.warn('[cover-art] Pollinations fallback failed:', err2.message);
-            return null;
+            // Even if download fails, return a URL the frontend can load
+            return buildPollinationsUrl({ title, prompt, classification, gameId });
         }
     }
 
     if (!buffer || buffer.length < 1024) {
-        console.warn('[cover-art] empty/too-small buffer, skipping');
-        return null;
+        console.warn('[cover-art] empty/too-small buffer, using Pollinations URL');
+        return buildPollinationsUrl({ title, prompt, classification, gameId });
     }
 
-    return await saveCoverBuffer(gameId, buffer);
+    const savedUrl = await saveCoverBuffer(gameId, buffer);
+    // If R2 save failed (returned null), use Pollinations URL
+    return savedUrl || buildPollinationsUrl({ title, prompt, classification, gameId });
 }
 
 /**

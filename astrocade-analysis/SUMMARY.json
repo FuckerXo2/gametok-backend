@@ -1,0 +1,3727 @@
+{
+  "totalGames": 10,
+  "scrapedAt": "2026-05-08T03:53:31.414Z",
+  "frameworks": {
+    "threeJs": 0,
+    "phaser": 0,
+    "pixi": 0,
+    "babylon": 0,
+    "p5": 0
+  },
+  "rendering": {
+    "webgl": 0,
+    "canvas2d": 0
+  },
+  "features": {
+    "hasEditor": 0,
+    "hasRemix": 10
+  },
+  "games": [
+    {
+      "gameName": "591.7KSkulHunter",
+      "url": "https://www.astrocade.com/games/pixel-merge-mania/01KNMYWV7FVTQ7B5QN393W2FZP",
+      "scrapedAt": "2026-05-08T03:49:56.989Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Pixel Merge Mania | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Merge identical pixel art on a 5×5 grid to create bigger, better items and rack up your highest score!"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Pixel Merge Mania by SkulHunter"
+          },
+          {
+            "content": "Merge identical pixel art on a 5×5 grid to create bigger, better items and rack up your highest score!"
+          },
+          {
+            "content": "https://www.astrocade.com/games/pixel-merge-mania/01KNMYWV7FVTQ7B5QN393W2FZP"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_9009bb78-ad90-4e52-be7b-206e96ae0d31.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Pixel Merge Mania by SkulHunter"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Merge identical pixel art on a 5×5 grid to create bigger, better items and rack up your highest score!"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_9009bb78-ad90-4e52-be7b-206e96ae0d31.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 33,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212188161&cv=11&fst=1778212188161&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938465~115938469~118463261~118851534&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fpixel-merge-mania%2F01KNMYWV7FVTQ7B5QN393W2FZP&rcb=13&frm=0&tiba=Pixel%20Merge%20Mania%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=776217509.1778212183&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212188166&cv=11&fst=1778212188166&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938465~115938469~118463261~118851534&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fpixel-merge-mania%2F01KNMYWV7FVTQ7B5QN393W2FZP&rcb=13&frm=0&tiba=Pixel%20Merge%20Mania%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=776217509.1778212183&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 23,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 822,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 398,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2231,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2244,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2230,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 693,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 13514,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2582,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2272,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1672,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 80844,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 7763,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 46794,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 418669
+    },
+    {
+      "gameName": "89.9KLeevai",
+      "url": "https://www.astrocade.com/games/counter-strike-knife-idle/01KPTZ43BAY6Y2W2SA6WH8MYQ1",
+      "scrapedAt": "2026-05-08T03:50:24.212Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Counter-strike Knife IDLE | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Collect knives that generate passive gold! Buy cases, wait for opening, and watch your income grow while you relax and complete your collection. Created with Astrocade"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Counter-strike Knife IDLE by Leevai"
+          },
+          {
+            "content": "Collect knives that generate passive gold! Buy cases, wait for opening, and watch your income grow while you relax and complete your collection. Created with Astrocade"
+          },
+          {
+            "content": "https://www.astrocade.com/games/counter-strike-knife-idle/01KPTZ43BAY6Y2W2SA6WH8MYQ1"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_31bb3bbf-48bb-481c-8a1e-b78fe9ababfc.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Counter-strike Knife IDLE by Leevai"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Collect knives that generate passive gold! Buy cases, wait for opening, and watch your income grow while you relax and complete your collection. Created with Astrocade"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_31bb3bbf-48bb-481c-8a1e-b78fe9ababfc.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 56,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45111-434a4b47ea5c8f39.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212213013&cv=11&fst=1778212213013&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938466~115938469~117227714~118131809~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fcounter-strike-knife-idle%2F01KPTZ43BAY6Y2W2SA6WH8MYQ1&rcb=1&frm=0&tiba=Counter-strike%20Knife%20IDLE%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=510533722.1778212210&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212213022&cv=11&fst=1778212213022&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938466~115938469~117227714~118131809~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fcounter-strike-knife-idle%2F01KPTZ43BAY6Y2W2SA6WH8MYQ1&rcb=1&frm=0&tiba=Counter-strike%20Knife%20IDLE%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=510533722.1778212210&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 45,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 895,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 414,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2242,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2238,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2218,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 540,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 12647,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2809,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2369,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1650,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 16359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 12746,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 10206,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 177189,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 101582,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 246146,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 8531,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 6986,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 3028,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1784,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2462,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2107,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2105,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2145,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2124,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2142,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 742,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 265110,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 1364541
+    },
+    {
+      "gameName": "697.9Kchukinice",
+      "url": "https://www.astrocade.com/games/pengu-adventure/01KMBMNGHA8AD9PAZ48BV66RD9",
+      "scrapedAt": "2026-05-08T03:50:51.320Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Pengu Adventure | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Join the Pengu adventure and complete 6 different levels"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Pengu Adventure by chukinice"
+          },
+          {
+            "content": "Join the Pengu adventure and complete 6 different levels"
+          },
+          {
+            "content": "https://www.astrocade.com/games/pengu-adventure/01KMBMNGHA8AD9PAZ48BV66RD9"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_eef37a02-b8f5-45b3-9d97-1257d5c0e8bd.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Pengu Adventure by chukinice"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Join the Pengu adventure and complete 6 different levels"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_eef37a02-b8f5-45b3-9d97-1257d5c0e8bd.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 37,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6570h2",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45111-434a4b47ea5c8f39.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212241542&cv=11&fst=1778212241542&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6570h2v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616985~115938465~115938469~118463261&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fpengu-adventure%2F01KMBMNGHA8AD9PAZ48BV66RD9&rcb=13&frm=0&tiba=Pengu%20Adventure%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1580341666.1778212237&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212241547&cv=11&fst=1778212241547&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6570h2v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616985~115938465~115938469~118463261&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fpengu-adventure%2F01KMBMNGHA8AD9PAZ48BV66RD9&rcb=13&frm=0&tiba=Pengu%20Adventure%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1580341666.1778212237&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 26,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 770,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 394,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2242,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2238,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2218,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 530,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 12617,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2432,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2214,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1651,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 625825,
+            "hasPhaser": true,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 10074,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1304,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 30991,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 1528910
+    },
+    {
+      "gameName": "380.2KSturmjager",
+      "url": "https://www.astrocade.com/games/dirtbike/01KN0ADVE3RMBDGWQD02304EA7",
+      "scrapedAt": "2026-05-08T03:51:17.394Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Dirtbike | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Hit the gas and land those jumps, then race against your best times for ultimate track domination!"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Dirtbike by Sturmjager"
+          },
+          {
+            "content": "Hit the gas and land those jumps, then race against your best times for ultimate track domination!"
+          },
+          {
+            "content": "https://www.astrocade.com/games/dirtbike/01KN0ADVE3RMBDGWQD02304EA7"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d16qq0o35va7kz.cloudfront.net/images/Google_117287408362923581223/1777153261344_01KQ39DFS0JPRQAKHJYVVB4PTN.Dirtbike_Thumbnail.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Dirtbike by Sturmjager"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Hit the gas and land those jumps, then race against your best times for ultimate track domination!"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d16qq0o35va7kz.cloudfront.net/images/Google_117287408362923581223/1777153261344_01KQ39DFS0JPRQAKHJYVVB4PTN.Dirtbike_Thumbnail.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 66,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45111-434a4b47ea5c8f39.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212265607&cv=11&fst=1778212265607&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938466~115938468~118463262~118719170&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fdirtbike%2F01KN0ADVE3RMBDGWQD02304EA7&rcb=18&frm=0&tiba=Dirtbike%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1499525831.1778212264&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212265613&cv=11&fst=1778212265613&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938466~115938468~118463262~118719170&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fdirtbike%2F01KN0ADVE3RMBDGWQD02304EA7&rcb=18&frm=0&tiba=Dirtbike%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1499525831.1778212264&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 55,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 835,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 380,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2231,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2244,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2230,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 684,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 13487,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2258,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1672,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 499897,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 5987,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 12978,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 9166,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 32466,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 7152,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2763,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2259,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2143,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2124,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 2131,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 545,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 3075,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 3143,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 2354,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 2142,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 981,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 2239,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 3012,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 2412,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 3327,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 3913,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 393609,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 2595,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 1694486
+    },
+    {
+      "gameName": "1.1Mblackwidowink",
+      "url": "https://www.astrocade.com/games/ultimate-carrom/01KMS7J9A19E5ATMBNYKFD123A",
+      "scrapedAt": "2026-05-08T03:51:43.958Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Ultimate Carrom | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Flick the striker to pocket carrom men in this realistic 3D physics game with smooth touch controls and authentic gameplay!\n\n---"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Ultimate Carrom by blackwidowink"
+          },
+          {
+            "content": "Flick the striker to pocket carrom men in this realistic 3D physics game with smooth touch controls and authentic gameplay!\n\n---"
+          },
+          {
+            "content": "https://www.astrocade.com/games/ultimate-carrom/01KMS7J9A19E5ATMBNYKFD123A"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d16qq0o35va7kz.cloudfront.net/images/Google_116089529532852572437/1775105793767_01KN68SQQ7A2PKS37612MKY8D2.IMG_4239.jpeg"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Ultimate Carrom by blackwidowink"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Flick the striker to pocket carrom men in this realistic 3D physics game with smooth touch controls and authentic gameplay!\n\n---"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d16qq0o35va7kz.cloudfront.net/images/Google_116089529532852572437/1775105793767_01KN68SQQ7A2PKS37612MKY8D2.IMG_4239.jpeg"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 42,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212293384&cv=11&fst=1778212293384&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938465~115938468~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fultimate-carrom%2F01KMS7J9A19E5ATMBNYKFD123A&rcb=6&frm=0&tiba=Ultimate%20Carrom%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=730145086.1778212290&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212293390&cv=11&fst=1778212293390&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115938465~115938468~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fultimate-carrom%2F01KMS7J9A19E5ATMBNYKFD123A&rcb=6&frm=0&tiba=Ultimate%20Carrom%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=730145086.1778212290&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 32,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 877,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 394,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2231,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2244,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2230,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 691,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 13508,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2718,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 2327,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 1672,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 267478,
+            "hasPhaser": false,
+            "hasThree": true,
+            "hasWebGL": true,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 15617,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": true,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 1559,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 2484,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 2730,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 1301,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 3427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1969,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 3169,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1170,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 114318,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 887533
+    },
+    {
+      "gameName": "14.1Kgelat",
+      "url": "https://www.astrocade.com/games/demon-slayer-memory-match/01KQBRZ3EG55RPH3YTNCQZQFW7",
+      "scrapedAt": "2026-05-08T03:52:10.465Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Demon Slayer Memory Match | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Challenge iconic Demon Slayers in a memory card battle! Choose your opponent and flip cards to find matching pairs before they do."
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Demon Slayer Memory Match by gelat"
+          },
+          {
+            "content": "Challenge iconic Demon Slayers in a memory card battle! Choose your opponent and flip cards to find matching pairs before they do."
+          },
+          {
+            "content": "https://www.astrocade.com/games/demon-slayer-memory-match/01KQBRZ3EG55RPH3YTNCQZQFW7"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_a1470174-86cc-4ce6-adac-48e37f9dcc14.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Demon Slayer Memory Match by gelat"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Challenge iconic Demon Slayers in a memory card battle! Choose your opponent and flip cards to find matching pairs before they do."
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_a1470174-86cc-4ce6-adac-48e37f9dcc14.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 33,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212320393&cv=11&fst=1778212320393&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938465~115938469~118463262~118719171&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fdemon-slayer-memory-match%2F01KQBRZ3EG55RPH3YTNCQZQFW7&rcb=7&frm=0&tiba=Demon%20Slayer%20Memory%20Match%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1122059744.1778212317&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212320400&cv=11&fst=1778212320400&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938465~115938469~118463262~118719171&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fdemon-slayer-memory-match%2F01KQBRZ3EG55RPH3YTNCQZQFW7&rcb=7&frm=0&tiba=Demon%20Slayer%20Memory%20Match%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1122059744.1778212317&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 23,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 856,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 414,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2231,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2244,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2230,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 701,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 13538,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2696,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2330,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1672,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 87134,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2192,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 11502,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 45773,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 465860
+    },
+    {
+      "gameName": "297.0KLeevai",
+      "url": "https://www.astrocade.com/games/99-days-as-a-boxer/01KPTX5Z2C9NQAT3WJ90WP8KQE",
+      "scrapedAt": "2026-05-08T03:52:25.131Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "99 DAYS AS A BOXER | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Train, fight, and grow stronger in this incremental boxing gym simulator. Can you become the CHAMPION in 99 days?"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "99 DAYS AS A BOXER by Leevai"
+          },
+          {
+            "content": "Train, fight, and grow stronger in this incremental boxing gym simulator. Can you become the CHAMPION in 99 days?"
+          },
+          {
+            "content": "https://www.astrocade.com/games/99-days-as-a-boxer/01KPTX5Z2C9NQAT3WJ90WP8KQE"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_de6930c8-7536-499b-8a65-8d156141e119.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "99 DAYS AS A BOXER by Leevai"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Train, fight, and grow stronger in this incremental boxing gym simulator. Can you become the CHAMPION in 99 days?"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_de6930c8-7536-499b-8a65-8d156141e119.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 79,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45111-434a4b47ea5c8f39.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/90670-c0bcb9b67ffd6f13.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/89186-db6b45d3d5d25a05.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/87816-6fb845b5107f12d3.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/17620-d42c52d4ab0a7a73.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-play-sidebar)/(mobile-bottom-bar-and-platform-top-bar)/exp/%5B%5B...segments%5D%5D/page-3dc1192e9cfa0725.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/71700-1107559545f33063.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/1968-661aebfca358b64c.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/21614-690716466019b210.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/86031-71ada9cb30ef0823.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/44471-f7bb4f5d1b86c3d8.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-hub)/create/my-games/page-be163fe93e0a69bb.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/76316-fac8f390265b6f0b.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/82611-1b1667b738b53275.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/28798-a474d37318609526.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/65503-80b0b30a3d668eab.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-hub)/layout-25f099b6e191aed9.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45787-e51716978ca51d57.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-play-sidebar)/(mobile-custom-bottom-bar)/feed/page-dbc8b372f473b2d0.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-top-bar-and-bottom-bar)/layout-b0dbb7ea4e047415.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/24763-1c77ed06dacde744.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-top-bar-and-bottom-bar)/create/page-c5d5ca9400e9d0ac.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/66562-be95ca6f3a517a41.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/65129-a0035b61089c79d5.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/(mobile-landing-top-bar)/about-us/page-3a4969ff42aa9272.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/88439-d4a442b406235cae.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/77208-95c3d8ef12f2ad52.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/5217-225f010250bb6d54.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/(mobile-landing-top-bar)/layout-9a3239e6f628ca00.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/layout-d714e50fbad5b1b4.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/66108-bab4ad522b917425.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/98203-b2f713425a61f1b3.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/97536-f1915a5c77c6e919.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/(mobile-landing-top-bar)/blog/page-beb4d6f6e42a81f4.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 37,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 827,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 400,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2242,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2238,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2218,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 533,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 12626,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2280,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1650,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 23199,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 6059,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 16640,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 222965,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 40918,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 220776,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 5953,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 11439,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2128,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1890,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 247405,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 2612,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 1259600
+    },
+    {
+      "gameName": "477.8KForceComics",
+      "url": "https://www.astrocade.com/games/high-power-street-justice/01KB1HYNZ7AVENZQXV2EAMXTQW",
+      "scrapedAt": "2026-05-08T03:52:48.622Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "High-power: Street Justice | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Created with Astrocade!"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "High-power: Street Justice by ForceComics"
+          },
+          {
+            "content": "Created with Astrocade!"
+          },
+          {
+            "content": "https://www.astrocade.com/games/high-power-street-justice/01KB1HYNZ7AVENZQXV2EAMXTQW"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/8828be73-2808-4eff-a5ed-3c3512a371b2.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "High-power: Street Justice by ForceComics"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Created with Astrocade!"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/8828be73-2808-4eff-a5ed-3c3512a371b2.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 38,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45111-434a4b47ea5c8f39.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212359417&cv=11&fst=1778212359417&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938466~115938468~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fhigh-power-street-justice%2F01KB1HYNZ7AVENZQXV2EAMXTQW&rcb=6&frm=0&tiba=High-power%3A%20Street%20Justice%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1167978741.1778212358&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212359422&cv=11&fst=1778212359422&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938466~115938468~118463262&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fhigh-power-street-justice%2F01KB1HYNZ7AVENZQXV2EAMXTQW&rcb=6&frm=0&tiba=High-power%3A%20Street%20Justice%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1167978741.1778212358&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/47497.087d71fbf288ba54.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/52038.519ee3582bd2fa46.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/90166.9b8ffec239841fc0.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/47293.4fba1d5cf54ed4dd.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 23,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 752,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 415,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2231,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2244,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2230,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 701,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 13538,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2373,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2228,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1672,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 112256,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 4243,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 64660,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 548517
+    },
+    {
+      "gameName": "46.7Kdbzactions",
+      "url": "https://www.astrocade.com/games/baki-dou-arena-clash/01KJ574BZFCVPEC87ATTN24WWS",
+      "scrapedAt": "2026-05-08T03:53:03.991Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Baki-Dou Arena Clash | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Brutal 1v1 underground fighting where martial arts meets legendary swordplay in intense best-of-3 rounds!"
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Baki-Dou Arena Clash by dbzactions"
+          },
+          {
+            "content": "Brutal 1v1 underground fighting where martial arts meets legendary swordplay in intense best-of-3 rounds!"
+          },
+          {
+            "content": "https://www.astrocade.com/games/baki-dou-arena-clash/01KJ574BZFCVPEC87ATTN24WWS"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_3f43026e-066d-4734-8cd8-53b4a3cb020c.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Baki-Dou Arena Clash by dbzactions"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Brutal 1v1 underground fighting where martial arts meets legendary swordplay in intense best-of-3 rounds!"
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_3f43026e-066d-4734-8cd8-53b4a3cb020c.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 71,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/67645.61db347aa7dc77de.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/46807.570cf153973f1864.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/83889-c654a330e83b6d18.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/47850-68d2ec3b3616fe92.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-play-sidebar)/(mobile-bottom-bar-and-platform-top-bar)/layout-35f315294b21ecc9.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/90670-c0bcb9b67ffd6f13.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/89186-db6b45d3d5d25a05.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/87816-6fb845b5107f12d3.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/17620-d42c52d4ab0a7a73.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-play-sidebar)/(mobile-bottom-bar-and-platform-top-bar)/exp/%5B%5B...segments%5D%5D/page-3dc1192e9cfa0725.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/45787-e51716978ca51d57.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-play-sidebar)/(mobile-custom-bottom-bar)/feed/page-dbc8b372f473b2d0.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/82611-1b1667b738b53275.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/28798-a474d37318609526.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-top-bar-and-bottom-bar)/layout-b0dbb7ea4e047415.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/24763-1c77ed06dacde744.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-top-bar-and-bottom-bar)/create/page-c5d5ca9400e9d0ac.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/71700-1107559545f33063.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/1968-661aebfca358b64c.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/21614-690716466019b210.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/86031-71ada9cb30ef0823.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/44471-f7bb4f5d1b86c3d8.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-hub)/create/my-games/page-be163fe93e0a69bb.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/76316-fac8f390265b6f0b.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/65503-80b0b30a3d668eab.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-creator-side-bar)/(mobile-creator-hub)/layout-25f099b6e191aed9.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/66562-be95ca6f3a517a41.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/65129-a0035b61089c79d5.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/(mobile-landing-top-bar)/about-us/page-3a4969ff42aa9272.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/88439-d4a442b406235cae.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/77208-95c3d8ef12f2ad52.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/5217-225f010250bb6d54.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/(mobile-landing-top-bar)/layout-9a3239e6f628ca00.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/layout-d714e50fbad5b1b4.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/66108-bab4ad522b917425.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/98203-b2f713425a61f1b3.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/97536-f1915a5c77c6e919.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/app/(desktop-landing-top-bar)/(mobile-landing-top-bar)/blog/page-beb4d6f6e42a81f4.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 25,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 831,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 404,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2242,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2238,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2218,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 535,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 12632,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2606,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2290,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1651,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 82422,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 15324,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 2106,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1522,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 34066,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 255886
+    },
+    {
+      "gameName": "19.5KDaveLad",
+      "url": "https://www.astrocade.com/games/sand-fusion/01KNQQR45R6BWKFKZEV7B6AG4N",
+      "scrapedAt": "2026-05-08T03:53:29.310Z",
+      "frameworks": {
+        "hasThreeJs": false,
+        "hasPhaser": false,
+        "hasPixi": false,
+        "hasBabylon": false,
+        "hasP5": false
+      },
+      "rendering": {
+        "canvasCount": 0,
+        "canvasContexts": []
+      },
+      "metadata": {
+        "title": "Sand Fusion | Astrocade",
+        "metaTags": [
+          {
+            "content": ""
+          },
+          {
+            "name": "viewport",
+            "content": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual"
+          },
+          {
+            "name": "theme-color",
+            "content": "#090214"
+          },
+          {
+            "name": "description",
+            "content": "Guide streams of colorful falling sand by drawing lines, mixing hues, and creating unique reactions as the sand interacts with your drawn barriers."
+          },
+          {
+            "name": "keywords",
+            "content": "Astrocade,casual games,AI games,free online games,play games online,social gaming platform,AI game maker,viral games,instant games,game creator"
+          },
+          {
+            "name": "application-name",
+            "content": "Astrocade"
+          },
+          {
+            "content": "Sand Fusion by DaveLad"
+          },
+          {
+            "content": "Guide streams of colorful falling sand by drawing lines, mixing hues, and creating unique reactions as the sand interacts with your drawn barriers."
+          },
+          {
+            "content": "https://www.astrocade.com/games/sand-fusion/01KNQQR45R6BWKFKZEV7B6AG4N"
+          },
+          {
+            "content": "Astrocade"
+          },
+          {
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_8c7a94b8-992c-4180-923b-d9f21f23838e.webp"
+          },
+          {
+            "content": "website"
+          },
+          {
+            "name": "twitter:card",
+            "content": "summary_large_image"
+          },
+          {
+            "name": "twitter:title",
+            "content": "Sand Fusion by DaveLad"
+          },
+          {
+            "name": "twitter:description",
+            "content": "Guide streams of colorful falling sand by drawing lines, mixing hues, and creating unique reactions as the sand interacts with your drawn barriers."
+          },
+          {
+            "name": "twitter:image",
+            "content": "https://d2oir5eh8rty2e.cloudfront.net/assets/images/thumbnail_8c7a94b8-992c-4180-923b-d9f21f23838e.webp"
+          },
+          {
+            "name": "next-size-adjust",
+            "content": ""
+          }
+        ],
+        "hasEditor": false,
+        "hasRemix": true
+      },
+      "scripts": {
+        "total": 41,
+        "external": [
+          "https://www.googletagmanager.com/gtag/js?id=G-Y6BM3XKNS1&cx=c&gtm=4e6562",
+          "https://www.googletagmanager.com/gtm.js?id=GTM-539CLFG5",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/fd9d1056-79fd59546ab340db.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/27115-28a9fa1469a38490.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/main-app-33405d9918590906.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/85272-64ce04a659715c0f.js",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/17683991082/?random=1778212398243&cv=11&fst=1778212398243&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938466~115938468~117227714~118463261&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fsand-fusion%2F01KNQQR45R6BWKFKZEV7B6AG4N&rcb=1&frm=0&tiba=Sand%20Fusion%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1456915191.1778212397&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16991013916/?random=1778212398249&cv=11&fst=1778212398249&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45je6562v9208586577z89229966879za20gzb9229966879zd9229966879xec&gcd=13l3l3l3l1l1&dma=0&tag_exp=0~115616986~115938466~115938468~117227714~118463261&u_w=800&u_h=600&url=https%3A%2F%2Fwww.astrocade.com%2Fgames%2Fsand-fusion%2F01KNQQR45R6BWKFKZEV7B6AG4N&rcb=1&frm=0&tiba=Sand%20Fusion%20%7C%20Astrocade&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1456915191.1778212397&uaa=arm&uab=64&uafvl=Not-A.Brand%3B24.0.0.0%7CChromium%3B146.0.7680.153&uamb=0&uam=&uap=macOS&uapv=26.3.1&uaw=0&data=event%3Dgtag.config&rfmt=3&fmt=4",
+          "https://d2oir5eh8rty2e.cloudfront.net/_next/static/chunks/webpack-b18576f36035ddfb.js"
+        ],
+        "inlineCount": 31,
+        "analysis": [
+          {
+            "length": 427,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 359,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 682,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 104,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 849,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 386,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 662,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2231,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2244,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 2230,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 687,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 13496,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2681,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 2281,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 1671,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 8220,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 3420,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 30203,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": true,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 6786,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": true
+          },
+          {
+            "length": 32872,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 8730,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": true,
+            "hasPhysics": true,
+            "hasControls": true
+          },
+          {
+            "length": 23918,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": true,
+            "hasControls": false
+          },
+          {
+            "length": 368,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          },
+          {
+            "length": 148,
+            "hasPhaser": false,
+            "hasThree": false,
+            "hasWebGL": false,
+            "hasCanvas2D": false,
+            "hasGameLoop": false,
+            "hasPhysics": false,
+            "hasControls": false
+          }
+        ]
+      },
+      "htmlSize": 353469
+    }
+  ]
+}
