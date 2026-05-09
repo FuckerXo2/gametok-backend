@@ -275,17 +275,19 @@ ${props.length > 0 ? `PROPS/OBSTACLES:
 ${formatAssetList(props)}
 ` : ''}
 
-CRITICAL INSTRUCTIONS:
-1. Load ALL these assets using their data URIs (they start with "data:image/png;base64,...")
-2. Use the player asset for the main character/hero
-3. Use enemy assets for obstacles/opponents/monsters
-4. Use item assets for collectibles/pickups/power-ups
-5. Use background assets for environment/scenery layers
-6. Use UI assets for health bars, buttons, icons
-7. Use prop assets for obstacles, decorations, interactive objects
-8. All sprites have transparent backgrounds (except backgrounds)
-9. If an asset fails to load, fall back to procedural shapes but TRY THE ASSETS FIRST
-10. Do NOT fetch external images — these embedded assets are ALL you need for visuals
+CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
+1. ⚠️ YOU MUST USE PHASER 3 OR THREE.JS - Canvas 2D ctx.fillRect/ctx.arc creates ugly shapes!
+2. Load ALL these assets using their data URIs (they start with "data:image/png;base64,...")
+3. Use the player asset for the main character/hero
+4. Use enemy assets for obstacles/opponents/monsters
+5. Use item assets for collectibles/pickups/power-ups
+6. Use background assets for environment/scenery layers
+7. Use UI assets for health bars, buttons, icons
+8. Use prop assets for obstacles, decorations, interactive objects
+9. All sprites have transparent backgrounds (except backgrounds)
+10. ⚠️ ABSOLUTELY NO SVG CIRCLES OR PROCEDURAL SHAPES - Use the AI-generated PNG assets!
+11. ⚠️ If you use Canvas 2D instead of Phaser, the game will look terrible with ugly circles!
+12. Do NOT fetch external images — these embedded assets are ALL you need for visuals
 
 Example Phaser 3 usage:
 \`\`\`javascript
@@ -1245,7 +1247,7 @@ export function buildSharedScaffoldShell(specSheet, scaffold) {
 // MAIN DREAMSTREAM: Single-agent prototype prompt used by Claude Opus.
 // ─────────────────────────────────────────────────────────
 
-export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaAttachments = []) {
+export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaAttachments = [], generatedAssets = null) {
   const isFirstPerson3D = specSheet.runtimeLane === 'first_person_threejs';
   const isThirdPerson3D = specSheet.runtimeLane === 'third_person_threejs';
   const isStoryHorrorVignette = specSheet.runtimeLane === 'story_horror_vignette';
@@ -1259,6 +1261,7 @@ export function buildPhase2_BuildPrototype(specSheet, assetBundle = null, mediaA
   const isDragDropToybox = specSheet.controlRig === 'drag_drop_toybox';
   const engineSpecBlock = buildEngineSpecBlock(specSheet);
   const assetKitBlock = buildAssetKitBlock(assetBundle);
+  const aiAssetsBlock = buildAIAssetsBlock(generatedAssets);
   const userMediaBlock = buildUserMediaBlock(mediaAttachments);
   const capabilityBlock = buildCapabilityPromptBlock(specSheet.capabilities || []);
   const pixelArtRuleBlock = buildPixelArtRuleBlock(specSheet, specSheet.promptEcho || '');
@@ -1693,6 +1696,8 @@ DETERMINISTIC SEED: "${specSheet.seed || 'f9a2b7'}"
 You MUST implement a seeded random number generator (PRNG) and use it for ALL procedural generation and gameplay randomness.
 
 ${assetKitBlock}
+
+${aiAssetsBlock}
 
 ${userMediaBlock}
 
