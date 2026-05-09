@@ -247,7 +247,16 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
         throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
     }
     const raw = res.choices[0].message.content;
-    return JSON.parse(extractJson(raw));
+    const extracted = extractJson(raw);
+    
+    try {
+        return JSON.parse(extracted);
+    } catch (parseError) {
+        console.error('[callAI] JSON parse failed. Raw response length:', raw.length);
+        console.error('[callAI] Extracted JSON length:', extracted.length);
+        console.error('[callAI] Last 200 chars of extracted:', extracted.slice(-200));
+        throw new Error(`JSON parse failed: ${parseError.message}. Response was likely truncated (${extracted.length} chars). Increase max_tokens.`);
+    }
 }
 
 const DISCOVERY_TABS = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'];
@@ -1599,7 +1608,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
         console.log(`📋 Phase 1/3: Llama 3.3 extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
-        const qualityIntent = await callAI(phase1.system, phase1.user, 800, 0.4);
+        const qualityIntent = await callAI(phase1.system, phase1.user, 3000, 0.4); // Increased from 800 to 3000 for multi-frame animation schema
         assertJobNotCancelled(jobId);
         
         console.log(`✅ Phase 1: "${qualityIntent.title}" — ${qualityIntent.userIntent}`);

@@ -332,23 +332,23 @@ function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
 }
 
 // ─────────────────────────────────────────────────────────
-// PHASE 1: MINIMAL INTENT EXTRACTION (runs on Llama 3.3 70B Instruct)
-// Extract only what's needed: user intent, 2D/3D, asset search terms
+// PHASE 1: MINIMAL INTENT EXTRACTION (runs on Kimi K-2.6)
+// Extract only what's needed: user intent, 2D/3D, asset search terms, animation frames
 // ─────────────────────────────────────────────────────────
 
 export function buildPhase1_Quantize(userPrompt) {
   return {
-    system: `You are a game design analyst. Extract the core intent and plan ALL visual assets needed.
+    system: `You are a game design analyst. Extract the core intent and plan visual assets.
 
 RULES:
 - Output ONLY raw JSON, no markdown, no explanation.
-- Plan 10-20 visual assets that the game will need.
+- Plan 8-12 visual assets (player, enemies, items, backgrounds, UI).
 - Be specific with descriptions - these will be used to generate AI art.
-- Preserve the user's creative vision.`,
+- Keep it simple and focused on the core game concept.`,
 
     user: `USER PROMPT: "${userPrompt}"
 
-Extract this JSON with ALL visual assets needed:
+Extract this JSON with visual assets:
 {
   "title": "Creative game title",
   "userIntent": "One sentence: what does the user want to experience?",
@@ -361,36 +361,24 @@ Extract this JSON with ALL visual assets needed:
       "description": "detailed visual description of main character",
       "type": "character",
       "size": 128,
-      "transparent": true,
-      "postProcess": {
-        "removeBackground": true,
-        "downscale": true
-      }
+      "transparent": true
     },
     "enemies": [
       {
         "id": "enemy1",
-        "description": "detailed visual description",
+        "description": "detailed visual description of enemy",
         "type": "enemy",
         "size": 128,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
+        "transparent": true
       }
     ],
     "items": [
       {
         "id": "item1",
-        "description": "detailed visual description",
+        "description": "detailed visual description of collectible/item",
         "type": "item",
         "size": 64,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
+        "transparent": true
       }
     ],
     "backgrounds": [
@@ -399,24 +387,16 @@ Extract this JSON with ALL visual assets needed:
         "description": "detailed scene description",
         "type": "background",
         "size": 512,
-        "transparent": false,
-        "postProcess": {
-          "removeBackground": false,
-          "downscale": true
-        }
+        "transparent": false
       }
     ],
     "ui": [
       {
         "id": "ui1",
-        "description": "UI element description",
+        "description": "UI element description (health bar, button, icon)",
         "type": "ui",
         "size": 32,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
+        "transparent": true
       }
     ],
     "props": [
@@ -425,11 +405,7 @@ Extract this JSON with ALL visual assets needed:
         "description": "prop/obstacle description",
         "type": "prop",
         "size": 96,
-        "transparent": true,
-        "postProcess": {
-          "removeBackground": true,
-          "downscale": true
-        }
+        "transparent": true
       }
     ]
   },
@@ -440,21 +416,14 @@ Extract this JSON with ALL visual assets needed:
 }
 
 IMPORTANT:
-- Include 1 player
+- Include 1 player character
 - Include 2-3 enemies
 - Include 2-3 items/collectibles
 - Include 1-2 backgrounds
-- Include 2-4 UI elements
-- Include 2-5 props/obstacles
+- Include 2-3 UI elements
+- Include 2-4 props/obstacles
 - Be specific with descriptions (colors, style, details)
-- Total: 10-20 visual assets
-
-POST-PROCESSING RULES:
-- Set "transparent": true for sprites that need background removal (characters, items, UI, props)
-- Set "transparent": false for backgrounds and full-scene images
-- Set "removeBackground": true for sprites that should have transparent backgrounds
-- Set "removeBackground": false for backgrounds and environmental scenes
-- All assets will be downscaled from 768px to their target size
+- Total: 8-12 visual assets
 
 SIZE GUIDELINES:
 - Characters/enemies: 128px (medium detail)
@@ -462,6 +431,10 @@ SIZE GUIDELINES:
 - Backgrounds: 512px (large, detailed)
 - UI elements: 32px (tiny, icon-sized)
 - Props/obstacles: 96px (medium, environmental)
+
+TRANSPARENCY RULES:
+- Set "transparent": true for sprites that need background removal (characters, items, UI, props)
+- Set "transparent": false for backgrounds and full-scene images
 
 Output ONLY the JSON.`
   };
