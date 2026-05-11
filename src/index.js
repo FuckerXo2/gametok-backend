@@ -129,6 +129,113 @@ app.post('/api/admin/assign-avatars', async (req, res) => {
   }
 });
 
+// Admin endpoint to regenerate all AI game thumbnails
+app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
+  const { limit, dryRun } = req.body;
+  
+  try {
+    // Import the regeneration logic
+    const { generateAndApplyCover, deleteCoverAsset } = await import('./cover-art.js');
+    
+    // Get all AI-generated games
+    const query = `
+      SELECT 
+        g.id as game_id,
+        g.name as title,
+        g.thumbnail,
+        ai.id as draft_id,
+        ai.prompt,
+        ai.classification
+      FROM games g
+      LEFT JOIN ai_games ai ON g.id = ai.game_id
+      WHERE g.source = 'ai'
+      ORDER BY g.created_at DESC
+      ${limit ? `LIMIT ${limit}` : ''}
+    `;
+
+    const result = await pool.query(query);
+    const games = result.rows;
+
+    if (dryRun) {
+      return res.json({ 
+        success: true, 
+        dryRun: true, 
+        totalGames: games.length,
+        message: `Would regenerate ${games.length} thumbnails`
+      });
+    }
+
+    // Start regeneration in background
+    let successCount = 0;
+    let failCount = 0;
+    let skippedCount = 0;
+
+    // Send immediate response
+    res.json({ 
+      success: true, 
+      message: `Started regenerating ${games.length} thumbnails`,
+      totalGames: games.length
+    });
+
+    // Process in background
+    for (const game of games) {
+      try {
+        if (!game.prompt) {
+          skippedCount++;
+          continue;
+        }
+
+        // Delete old thumbnail if it exists
+        if (game.thumbnail) {
+          await deleteCoverAsset(game.thumbnail);
+        }
+
+        // Parse classification if it's a JSON string
+        let classification = game.classification;
+        if (typeof classification === 'string') {
+          try {
+            classification = JSON.parse(classification);
+          } catch (e) {
+            classification = null;
+          }
+        }
+
+        // Generate new thumbnail
+        const newThumbnailUrl = await generateAndApplyCover(pool, {
+          draftId: game.draft_id,
+          gameId: game.game_id,
+          title: game.title,
+          prompt: game.prompt,
+          classification: classification || {}
+        });
+
+        if (newThumbnailUrl) {
+          successCount++;
+          console.log(`[thumbnail-regen] ✅ ${game.title}: ${newThumbnailUrl}`);
+        } else {
+          failCount++;
+          console.log(`[thumbnail-regen] ❌ ${game.title}: No URL returned`);
+        }
+
+        // Rate limiting - wait 2 seconds between generations
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+      } catch (error) {
+        failCount++;
+        console.error(`[thumbnail-regen] ❌ ${game.title}:`, error.message);
+      }
+    }
+
+    console.log(`[thumbnail-regen] Complete: ${successCount} success, ${failCount} failed, ${skippedCount} skipped`);
+
+  } catch (e) {
+    console.error('Thumbnail regeneration error:', e);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to regenerate thumbnails: ' + e.message });
+    }
+  }
+});
+
 // ============================================
 // AUTH ENDPOINTS
 // ============================================
