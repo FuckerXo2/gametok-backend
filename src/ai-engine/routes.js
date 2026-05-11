@@ -2348,18 +2348,41 @@ router.post('/publish/:draftId', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Unauthorized');
-        const { title, privacy } = req.body || {};
+        const { title, privacy, html } = req.body || {};
 
-        // Update title if provided
-        if (title && title.trim()) {
-            await pool.query("UPDATE ai_games SET title = $1 WHERE id = $2 AND user_id = $3", [title.trim(), req.params.draftId, userId]);
+        // Check if draft exists
+        const checkRes = await pool.query("SELECT * FROM ai_games WHERE id = $1 AND user_id = $2", [req.params.draftId, userId]);
+        
+        let draft;
+        if (checkRes.rows.length === 0) {
+            // Draft doesn't exist (e.g., publishing from a template with sekai_ ID)
+            // Create a new game entry
+            if (!html) {
+                return res.status(400).json({ error: 'HTML payload required for new games' });
+            }
+            
+            const insertRes = await pool.query(
+                `INSERT INTO ai_games (user_id, title, html_payload, is_draft, privacy, created_at) 
+                 VALUES ($1, $2, $3, false, $4, NOW()) 
+                 RETURNING *`,
+                [userId, title?.trim() || 'Untitled Game', html, privacy || 'public']
+            );
+            draft = insertRes.rows[0];
+        } else {
+            // Draft exists, update it
+            if (title && title.trim()) {
+                await pool.query("UPDATE ai_games SET title = $1 WHERE id = $2 AND user_id = $3", [title.trim(), req.params.draftId, userId]);
+            }
+
+            const publishRes = await pool.query(
+                "UPDATE ai_games SET is_draft = false, privacy = $3 WHERE id = $1 AND user_id = $2 RETURNING *", 
+                [req.params.draftId, userId, privacy || 'public']
+            );
+            draft = publishRes.rows[0];
         }
 
-        const publishRes = await pool.query("UPDATE ai_games SET is_draft = false, privacy = $3 WHERE id = $1 AND user_id = $2 RETURNING *", [req.params.draftId, userId, privacy || 'public']);
-        if (publishRes.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
-        const draft = publishRes.rows[0];
         const { globalId, classification } = await upsertPublishedAIGame({
-            draftId: req.params.draftId,
+            draftId: draft.id,
             userId,
             draft,
         });
