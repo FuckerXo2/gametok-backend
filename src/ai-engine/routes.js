@@ -2355,17 +2355,17 @@ router.post('/publish/:draftId', async (req, res) => {
         
         let draft;
         if (checkRes.rows.length === 0) {
-            // Draft doesn't exist (e.g., publishing from a template with sekai_ ID)
+            // Draft doesn't exist (e.g., publishing from a template with generated UUID)
             // Create a new game entry
             if (!html) {
                 return res.status(400).json({ error: 'HTML payload required for new games' });
             }
             
             const insertRes = await pool.query(
-                `INSERT INTO ai_games (user_id, title, html_payload, is_draft, privacy, created_at) 
-                 VALUES ($1, $2, $3, false, $4, NOW()) 
+                `INSERT INTO ai_games (user_id, title, html_payload, prompt, is_draft, privacy, created_at) 
+                 VALUES ($1, $2, $3, $4, false, $5, NOW()) 
                  RETURNING *`,
-                [userId, title?.trim() || 'Untitled Game', html, privacy || 'public']
+                [userId, title?.trim() || 'Untitled Game', html, `Published from template: ${title?.trim() || 'Untitled Game'}`, privacy || 'public']
             );
             draft = insertRes.rows[0];
         } else {
