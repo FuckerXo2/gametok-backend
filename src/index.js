@@ -137,19 +137,22 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
     // Import the regeneration logic
     const { generateAndApplyCover, deleteCoverAsset } = await import('./cover-art.js');
     
-    // Get all AI-generated games
+    // Get all AI-generated games directly from ai_games table
     const query = `
       SELECT 
-        g.id as game_id,
-        g.name as title,
-        g.thumbnail,
-        ai.id as draft_id,
-        ai.prompt,
-        ai.classification
-      FROM games g
-      LEFT JOIN ai_games ai ON g.id = ai.game_id
-      WHERE g.source = 'ai'
-      ORDER BY g.created_at DESC
+        id as draft_id,
+        title,
+        prompt,
+        thumbnail,
+        category,
+        subcategory,
+        primary_tab,
+        interaction_type,
+        classification_tags,
+        discovery_chips
+      FROM ai_games
+      WHERE is_draft = FALSE AND html_payload != ''
+      ORDER BY created_at DESC
       ${limit ? `LIMIT ${limit}` : ''}
     `;
 
@@ -185,28 +188,31 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
           continue;
         }
 
+        const draftId = game.draft_id;
+        const gameId = `gm-ai-${String(draftId).substring(0, 8)}`;
+
         // Delete old thumbnail if it exists
         if (game.thumbnail) {
           await deleteCoverAsset(game.thumbnail);
         }
 
-        // Parse classification if it's a JSON string
-        let classification = game.classification;
-        if (typeof classification === 'string') {
-          try {
-            classification = JSON.parse(classification);
-          } catch (e) {
-            classification = null;
-          }
-        }
+        // Build classification object
+        const classification = {
+          category: game.category,
+          subcategory: game.subcategory,
+          primaryTab: game.primary_tab,
+          interactionType: game.interaction_type,
+          tags: Array.isArray(game.classification_tags) ? game.classification_tags : [],
+          discoveryChips: Array.isArray(game.discovery_chips) ? game.discovery_chips : [],
+        };
 
         // Generate new thumbnail
         const newThumbnailUrl = await generateAndApplyCover(pool, {
-          draftId: game.draft_id,
-          gameId: game.game_id,
+          draftId,
+          gameId,
           title: game.title,
           prompt: game.prompt,
-          classification: classification || {}
+          classification
         });
 
         if (newThumbnailUrl) {
