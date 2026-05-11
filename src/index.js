@@ -242,6 +242,74 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
   }
 });
 
+// Admin endpoint to check thumbnail status
+app.get('/api/admin/thumbnail-status', async (req, res) => {
+  try {
+    // Count total AI games
+    const totalRes = await pool.query(`
+      SELECT COUNT(*) as total 
+      FROM ai_games 
+      WHERE is_draft = FALSE
+    `);
+    
+    // Count games with new AI-generated thumbnails (from R2)
+    const newThumbsRes = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM ai_games 
+      WHERE is_draft = FALSE 
+      AND thumbnail LIKE '%r2.dev/covers/%'
+    `);
+    
+    // Count games with old Pollinations thumbnails
+    const oldThumbsRes = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM ai_games 
+      WHERE is_draft = FALSE 
+      AND thumbnail LIKE '%pollinations.ai%'
+    `);
+    
+    // Count games with no thumbnail
+    const noThumbsRes = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM ai_games 
+      WHERE is_draft = FALSE 
+      AND (thumbnail IS NULL OR thumbnail = '')
+    `);
+    
+    // Get some recent examples
+    const examplesRes = await pool.query(`
+      SELECT title, thumbnail, created_at
+      FROM ai_games 
+      WHERE is_draft = FALSE 
+      AND thumbnail IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 5
+    `);
+    
+    const total = parseInt(totalRes.rows[0].total);
+    const newThumbs = parseInt(newThumbsRes.rows[0].count);
+    const oldThumbs = parseInt(oldThumbsRes.rows[0].count);
+    const noThumbs = parseInt(noThumbsRes.rows[0].count);
+    
+    res.json({
+      success: true,
+      total,
+      newAIThumbnails: newThumbs,
+      oldThumbnails: oldThumbs,
+      noThumbnail: noThumbs,
+      progress: total > 0 ? Math.round((newThumbs / total) * 100) : 0,
+      examples: examplesRes.rows.map(g => ({
+        title: g.title,
+        thumbnail: g.thumbnail,
+        type: g.thumbnail.includes('r2.dev') ? 'new' : 'old'
+      }))
+    });
+  } catch (e) {
+    console.error('Thumbnail status error:', e);
+    res.status(500).json({ error: 'Failed to get thumbnail status: ' + e.message });
+  }
+});
+
 // ============================================
 // AUTH ENDPOINTS
 // ============================================
