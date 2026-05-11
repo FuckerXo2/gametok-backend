@@ -1,6 +1,5 @@
 import express from 'express';
 import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'crypto';
 import vm from 'vm';
 import fs from 'fs';
@@ -156,10 +155,6 @@ const nvidiaClient = new OpenAI({
     baseURL: 'https://integrate.api.nvidia.com/v1',
     apiKey: process.env.NVIDIA_API_KEY,
     timeout: Number(process.env.NVIDIA_API_TIMEOUT_MS || 900000),
-});
-
-const claudeClient = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 // OpenRouter is only used by the experimental Labs route.
@@ -705,42 +700,6 @@ async function withNvidiaRetries(task, { label, maxAttempts = 3, baseDelayMs = 1
     throw lastError;
 }
 
-async function withClaudeRetries(task, { label, maxAttempts = 2, baseDelayMs = 1500 }) {
-    let lastError;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            if (attempt > 1) {
-                console.log(`🔁 [${label}] Retry ${attempt}/${maxAttempts}...`);
-            }
-            return await task();
-        } catch (error) {
-            lastError = error;
-            if (!isRetryableProviderError(error) || attempt === maxAttempts) {
-                throw error;
-            }
-            const waitMs = baseDelayMs * attempt;
-            console.warn(`⚠️ [${label}] Provider hiccup: ${error?.message || error}. Retrying in ${waitMs}ms...`);
-            await sleep(waitMs);
-        }
-    }
-    throw lastError;
-}
-
-function extractAnthropicText(response) {
-    if (!Array.isArray(response?.content)) {
-        return '';
-    }
-    return response.content
-        .filter((block) => block?.type === 'text')
-        .map((block) => block.text || '')
-        .join('')
-        .trim();
-}
-
-function isAnthropicModel(model) {
-    return typeof model === 'string' && model.startsWith('claude-');
-}
-
 function extractText(response) {
     return response?.choices?.[0]?.message?.content?.trim() || '';
 }
@@ -803,26 +762,7 @@ function buildBuilderContinuationPrompt(partialHtml) {
 
 async function requestBuilderMessage(userPrompt, { label, jobId = null } = {}) {
     assertJobNotCancelled(jobId);
-    if (isAnthropicModel(DREAM_MODELS.premiumBuilder)) {
-        const response = await withClaudeRetries(async () => {
-            assertJobNotCancelled(jobId);
-            const stream = claudeClient.messages.stream({
-                model: DREAM_MODELS.premiumBuilder,
-                max_tokens: BUILDER_MAX_TOKENS,
-                thinking: { type: 'adaptive' },
-                messages: [{ role: 'user', content: userPrompt }],
-            });
-            const finalMessage = await stream.finalMessage();
-            assertJobNotCancelled(jobId);
-            return finalMessage;
-        }, { label, maxAttempts: 2, baseDelayMs: 2000 });
-
-        return {
-            text: extractAnthropicText(response),
-            stopReason: response?.stop_reason || null,
-        };
-    }
-
+    
     let finishReason = null;
     const text = await withNvidiaRetries(async () => {
         assertJobNotCancelled(jobId);
@@ -1599,14 +1539,11 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
     try {
         assertJobNotCancelled(jobId);
-        if (isAnthropicModel(DREAM_MODELS.premiumBuilder) && !process.env.ANTHROPIC_API_KEY) {
-            throw new Error('ANTHROPIC_API_KEY is not configured for main DreamStream.');
-        }
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
-        console.log(`📋 Phase 1/3: Llama 3.3 extracting game intent...`);
+        console.log(`📋 Phase 1/3: ${DREAM_MODELS.spec} extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const qualityIntent = await callAI(phase1.system, phase1.user, 3000, 0.4); // Increased from 800 to 3000 for multi-frame animation schema
         assertJobNotCancelled(jobId);

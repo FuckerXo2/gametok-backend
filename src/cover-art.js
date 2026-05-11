@@ -45,69 +45,69 @@ const NVIDIA_KEY = process.env.NVIDIA_API_KEY;
 
 const STYLE_BY_CATEGORY = {
     Action: [
-        'cinematic action-game screenshot, dramatic pose, debris, rim lighting, sharp composition',
-        'comic-book combat panel, bold inked shapes, explosive timing, saturated accents',
-        'third-person adventure key frame, readable hero silhouette, layered environment depth',
+        'EXPLOSIVE cinematic action-game screenshot, DRAMATIC hero pose, flying debris, INTENSE rim lighting, razor-sharp composition with MAXIMUM IMPACT',
+        'BOLD comic-book combat panel, thick inked shapes, EXPLOSIVE energy effects, SATURATED vibrant accents, dynamic motion',
+        'EPIC third-person adventure key frame, HEROIC silhouette, layered environment with DRAMATIC depth and lighting',
     ],
     Adventure: [
-        'hand-painted storybook world, lush environment, atmospheric lighting',
-        'wide fantasy travel poster, tiny explorer, sweeping landscape scale',
-        'bright 3D adventure key art, playful proportions, clear path into the world',
+        'VIBRANT hand-painted storybook world, LUSH colorful environment, MAGICAL atmospheric lighting with glowing elements',
+        'SWEEPING fantasy travel poster, tiny brave explorer, MAJESTIC landscape with DRAMATIC scale and depth',
+        'BRIGHT cheerful 3D adventure key art, playful proportions, INVITING path with GLOWING highlights',
     ],
     Puzzle: [
-        'minimalist isometric puzzle diorama, soft pastel palette, clean geometric composition',
-        'tactile tabletop puzzle scene, cards and tokens, warm desk lamp, shallow depth of field',
-        'graphic brain-teaser art, crisp symbols, matte colors, elegant negative space',
+        'CLEAN minimalist isometric puzzle diorama, VIBRANT pastel palette, SHARP geometric composition with glowing edges',
+        'TACTILE tabletop puzzle scene, colorful cards and tokens, WARM dramatic lighting, shallow depth of field',
+        'BOLD graphic brain-teaser art, CRISP glowing symbols, VIBRANT matte colors, elegant negative space',
     ],
     Arcade: [
-        'retro arcade flyer art, bold pixel-inspired shapes, vibrant CMYK palette, halftone texture',
-        'toy-like mobile arcade scene, floating collectibles, clean clay render, cheerful lighting',
-        'pixel-art inspired gameplay scene, chunky silhouettes, limited palette, old-school energy',
+        'RETRO arcade flyer art, BOLD pixel-inspired shapes, ELECTRIC CMYK palette, halftone texture, NEON glow effects',
+        'PLAYFUL toy-like mobile arcade scene, SHINY floating collectibles, VIBRANT clay render, CHEERFUL dramatic lighting',
+        'PUNCHY pixel-art inspired gameplay scene, CHUNKY silhouettes, SATURATED limited palette, HIGH-ENERGY composition',
     ],
     Strategy: [
-        'tabletop board-game cover art, top-down composition, painted textures, rich detail',
-        'miniature battlefield diorama, strategic pieces, soft overhead light',
-        'clean tactical map illustration, icons as physical tokens, readable lanes',
+        'PREMIUM tabletop board-game cover art, DRAMATIC top-down composition, RICH painted textures, DETAILED miniatures',
+        'EPIC miniature battlefield diorama, COLORFUL strategic pieces, CINEMATIC overhead lighting with shadows',
+        'CLEAN tactical map illustration, GLOWING icons as physical tokens, VIBRANT readable lanes with depth',
     ],
     Sports: [
-        'energetic sports promo art, dramatic perspective, kinetic motion lines, vibrant colors',
-        'stadium action still, shallow depth of field, sweat and speed',
-        'graphic sports-card illustration, bold shapes, clean team-color palette',
+        'ENERGETIC sports promo art, EXTREME perspective, DYNAMIC motion lines, ELECTRIC vibrant colors, INTENSE action',
+        'DRAMATIC stadium action still, shallow depth of field, GLISTENING sweat and EXPLOSIVE speed effects',
+        'BOLD graphic sports-card illustration, PUNCHY shapes, VIBRANT team-color palette with GLOWING highlights',
     ],
     Casual: [
-        'friendly chibi-style illustration, rounded shapes, cheerful palette, soft shadows',
-        'cozy casual-game diorama, warm sunlight, charming tiny details',
-        'flat playful app-store art, simple forms, candy colors, strong focal object',
+        'ADORABLE friendly chibi-style illustration, ROUNDED shapes, CHEERFUL vibrant palette, SOFT dramatic shadows',
+        'COZY casual-game diorama, WARM golden sunlight, CHARMING tiny details, INVITING atmosphere',
+        'FLAT playful app-store art, SIMPLE bold forms, CANDY-BRIGHT colors, STRONG focal object with glow',
     ],
     Story: [
-        'graphic novel splash page, dramatic character pose, painterly lighting, cinematic mood',
-        'visual novel key scene, expressive character close-up, soft background depth',
-        'moody interactive-fiction cover, symbolic object foreground, atmospheric setting',
+        'DRAMATIC graphic novel splash page, INTENSE character pose, PAINTERLY cinematic lighting, MOODY atmosphere',
+        'EXPRESSIVE visual novel key scene, EMOTIONAL character close-up, SOFT atmospheric background depth',
+        'MOODY interactive-fiction cover, SYMBOLIC glowing object foreground, ATMOSPHERIC dramatic setting',
     ],
     Music: [
-        'concert poster art, neon glow, equalizer waveforms, flowing rhythmic shapes',
-        'rhythm-game stage scene, spotlights, speakers, musical objects in motion',
-        'bold abstract sound visualizer art, pulsing shapes, crisp contrast',
+        'ELECTRIC concert poster art, VIBRANT neon glow, PULSING equalizer waveforms, FLOWING rhythmic shapes',
+        'DYNAMIC rhythm-game stage scene, DRAMATIC spotlights, GLOWING speakers, musical objects in ENERGETIC motion',
+        'BOLD abstract sound visualizer art, PULSING vibrant shapes, MAXIMUM contrast with neon accents',
     ],
     Horror: [
-        'grainy psychological horror still, desaturated blue black palette, lonely hallway, uneasy negative space',
-        'found-footage horror frame, dim flashlight beam, VHS noise, realistic shadows',
-        'gothic survival-horror illustration, fog, candlelight, restrained crimson accents',
+        'EERIE grainy psychological horror still, DRAMATIC desaturated palette, LONELY hallway, UNSETTLING negative space with fog',
+        'INTENSE found-footage horror frame, DIM flashlight beam cutting through darkness, VHS noise, REALISTIC dramatic shadows',
+        'GOTHIC survival-horror illustration, THICK fog, FLICKERING candlelight, RESTRAINED crimson accents, OMINOUS atmosphere',
     ],
     Racing: [
-        'low-angle racing photo-illustration, wet asphalt, motion blur, chrome reflections',
-        'arcade racing splash screen, dynamic car chase, sunset road, exaggerated perspective',
-        'futuristic cockpit racing scene, glowing dashboard, tunnel lights, long exposure streaks',
+        'INTENSE low-angle racing photo-illustration, WET reflective asphalt, DRAMATIC motion blur, GLEAMING chrome reflections',
+        'HIGH-OCTANE arcade racing splash screen, DYNAMIC car chase, VIBRANT sunset road, EXAGGERATED dramatic perspective',
+        'FUTURISTIC cockpit racing scene, GLOWING neon dashboard, STREAKING tunnel lights, ELECTRIC long exposure effects',
     ],
     Simulation: [
-        'detailed isometric scene, cozy warm lighting, painterly miniature look',
-        'management-game diorama, clean interface-free scene, delightful objects',
-        'life-sim illustration, friendly town corner, natural light, relaxed inviting mood',
+        'DETAILED isometric scene, COZY warm dramatic lighting, PAINTERLY miniature look with VIBRANT colors',
+        'CHARMING management-game diorama, CLEAN interface-free scene, DELIGHTFUL colorful objects with soft glow',
+        'INVITING life-sim illustration, FRIENDLY town corner, NATURAL golden-hour light, RELAXED welcoming mood',
     ],
     default: [
-        'distinctive mobile-game scene, clear focal subject, polished composition',
-        'stylized game world snapshot, unique subject matter, readable action',
-        'premium illustrated gameplay moment, bold silhouette, balanced colors',
+        'DISTINCTIVE mobile-game scene, CLEAR focal subject with DRAMATIC lighting, POLISHED premium composition',
+        'STYLIZED game world snapshot, UNIQUE subject matter, READABLE action with VIBRANT colors and depth',
+        'PREMIUM illustrated gameplay moment, BOLD heroic silhouette, BALANCED saturated colors with glow effects',
     ],
 };
 
@@ -132,11 +132,72 @@ function styleForClassification(classification = {}, seed = 0) {
 }
 
 /**
- * Build a rich, descriptive prompt for FLUX.1-schnell that yields a
- * vertical mobile-game-cover-style illustration. We strip mechanic-y words
- * the model can't visualize and inject style cues based on classification.
+ * Use AI to analyze the game and generate a truly adaptive thumbnail prompt.
+ * This creates a unique, custom prompt for each game based on its specific characteristics.
  */
-export function buildCoverPrompt({ title, prompt, classification }) {
+async function generateAdaptiveThumbnailPrompt({ title, prompt, classification }) {
+    const titleText = title ? title.replace(/[^A-Za-z0-9 \-']/g, '') : 'PLAY NOW';
+    const cleanedPrompt = String(prompt || '')
+        .replace(/\bhtml\b|\bcanvas\b|\bjavascript\b|\bjs\b|\bcss\b|\bgame mechanic[s]?\b|\bscoring\b|\btap to\b|\bswipe\b|\bdrag\b|\bbuttons?\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const analysisPrompt = `You are an expert at creating mobile game promotional art prompts for AI image generators.
+
+Analyze this game and create a detailed, specific prompt for generating its thumbnail:
+
+Game Title: ${titleText}
+Game Description: ${cleanedPrompt}
+Category: ${classification?.category || 'unknown'}
+Subcategory: ${classification?.subcategory || 'none'}
+Tags: ${classification?.tags?.join(', ') || 'none'}
+
+Based on this game's unique characteristics, create a detailed image generation prompt that includes:
+1. How the title text should appear (style, effects, mood-appropriate typography)
+2. The specific art style that matches this game's theme and mechanics
+3. The composition, camera angle, and focal points
+4. Color palette and lighting that fits the mood
+5. Specific visual elements that represent the game's core concept
+6. The overall aesthetic intensity and appeal
+
+Make it vibrant, eye-catching, and perfectly matched to THIS specific game. The prompt should be 150-250 words and create a portrait-oriented mobile game promotional poster.
+
+Return ONLY the image generation prompt, no explanations or meta-commentary.`;
+
+    try {
+        // Use the same Llama model that Phase 1 uses for consistency
+        const nvidiaClient = await import('openai').then(m => m.default);
+        const client = new nvidiaClient({
+            baseURL: 'https://integrate.api.nvidia.com/v1',
+            apiKey: process.env.NVIDIA_API_KEY,
+        });
+
+        const response = await client.chat.completions.create({
+            model: 'meta/llama-3.3-70b-instruct',
+            messages: [{ role: 'user', content: analysisPrompt }],
+            temperature: 0.8,
+            max_tokens: 500,
+        });
+
+        const generatedPrompt = response.choices[0]?.message?.content?.trim();
+
+        if (generatedPrompt && generatedPrompt.length > 50) {
+            console.log(`[cover-art] Generated adaptive prompt for "${titleText}"`);
+            return generatedPrompt;
+        }
+
+        throw new Error('Generated prompt too short or empty');
+    } catch (error) {
+        console.warn(`[cover-art] AI prompt generation failed: ${error.message}, falling back to template`);
+        return buildFallbackPrompt({ title, prompt, classification });
+    }
+}
+
+/**
+ * Fallback prompt builder using the enhanced template system.
+ * Used when AI prompt generation fails.
+ */
+function buildFallbackPrompt({ title, prompt, classification }) {
     const seed = hashSeed(`${title || ''} ${prompt || ''} ${classification?.category || ''} ${classification?.subcategory || ''}`);
     const cleanedPrompt = String(prompt || '')
         .replace(/\bhtml\b|\bcanvas\b|\bjavascript\b|\bjs\b|\bcss\b|\bgame mechanic[s]?\b|\bscoring\b|\btap to\b|\bswipe\b|\bdrag\b|\bbuttons?\b/gi, '')
@@ -169,18 +230,40 @@ export function buildCoverPrompt({ title, prompt, classification }) {
     const subjectLine = cleanedPrompt;
     const titleText = title ? title.replace(/[^A-Za-z0-9 \-']/g, '') : 'PLAY NOW';
 
+    const textStyle = (() => {
+        const cat = classification?.category || 'default';
+        if (['Casual', 'Puzzle'].includes(cat)) return 'clean, bold, friendly typography with soft glow';
+        if (['Action', 'Racing', 'Sports'].includes(cat)) return 'bold, dynamic 3D typography with dramatic lighting';
+        if (['Horror', 'Story'].includes(cat)) return 'atmospheric, stylized typography';
+        if (['Arcade', 'Music'].includes(cat)) return 'vibrant, neon-style bold typography';
+        return 'bold, polished typography with subtle depth';
+    })();
+
+    const intensityLevel = (() => {
+        const cat = classification?.category || 'default';
+        if (['Casual', 'Puzzle', 'Simulation'].includes(cat)) return 'vibrant, inviting, polished';
+        if (['Action', 'Racing', 'Sports'].includes(cat)) return 'EXPLOSIVE, INTENSE, DRAMATIC';
+        if (['Horror'].includes(cat)) return 'atmospheric, moody, unsettling';
+        return 'vibrant, eye-catching, premium';
+    })();
+
     return [
-        `High-end mobile game promotional poster for a game titled "${titleText}".`,
-        `The exact words "${titleText}" MUST be written prominently at the very top of the image in huge, bold, glowing, 3D extruded cinematic typography.`,
-        `The art style below the text should be ${styleHint}, ${mediumHint}.`,
+        `High-end mobile game promotional poster for "${titleText}".`,
+        `Title displayed at top in ${textStyle}.`,
+        `Art style: ${styleHint}, ${mediumHint}.`,
         `${cameraHint}, featuring ${subjectLine}.`,
-        tagHint ? `Visual themes: ${tagHint}.` : '',
-        'Extremely vibrant, high contrast, insanely polished app-store promotional art.',
-        'Portrait composition. The background should be dynamic and match the theme (e.g. voxel for minecraft-like, moody for horror, bright skies for hypercasual).',
-        'Make the 3D text logo pop out with rim lighting and strong drop shadows.',
-    ]
-        .filter(Boolean)
-        .join(' ');
+        tagHint ? `Themes: ${tagHint}.` : '',
+        `Aesthetic: ${intensityLevel}, professional app-store quality.`,
+        'Portrait composition, eye-catching, clear focal point.',
+    ].filter(Boolean).join(' ');
+}
+
+/**
+ * Build a rich, descriptive prompt for FLUX.1-schnell.
+ * Now uses AI to generate truly adaptive prompts.
+ */
+export async function buildCoverPrompt({ title, prompt, classification }) {
+    return await generateAdaptiveThumbnailPrompt({ title, prompt, classification });
 }
 
 // --- NVIDIA call ------------------------------------------------------------
@@ -276,7 +359,8 @@ async function saveCoverBuffer(gameId, buffer) {
  * Build a permanent Pollinations URL for a game (no download needed).
  */
 function buildPollinationsUrl({ title, prompt, classification, gameId }) {
-    const finalPrompt = buildCoverPrompt({ title, prompt, classification });
+    // Use fallback for Pollinations URL (synchronous)
+    const finalPrompt = buildFallbackPrompt({ title, prompt, classification });
     const seed = hashSeed(`${gameId || ''} ${title || ''}`);
     return `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=512&height=768&nologo=true&enhance=true&model=flux&seed=${seed}`;
 }
@@ -294,7 +378,7 @@ export async function generateCoverArtImage({ title, prompt, classification, gam
     }
 
     // R2 is configured — try to generate and upload a real image
-    const finalPrompt = buildCoverPrompt({ title, prompt, classification });
+    const finalPrompt = await buildCoverPrompt({ title, prompt, classification });
     let buffer;
     try {
         buffer = await callFluxSchnell(finalPrompt);
