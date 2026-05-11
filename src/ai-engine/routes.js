@@ -476,7 +476,12 @@ async function classifyPublishedGame({ title = '', prompt = '', description = ''
         .slice(0, 1800);
 
     try {
-        const res = await nvidiaClient.chat.completions.create({
+        // Add 30 second timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Classification timeout after 30s')), 30000);
+        });
+
+        const classificationPromise = nvidiaClient.chat.completions.create({
             model,
             messages: [
                 {
@@ -510,6 +515,8 @@ Choose the tab based on the actual experience, not marketing words. Horror is on
             temperature: 0.1,
             max_tokens: 220,
         });
+
+        const res = await Promise.race([classificationPromise, timeoutPromise]);
 
         const raw = res?.choices?.[0]?.message?.content || '';
         const parsed = JSON.parse(extractJson(raw));
@@ -2361,6 +2368,7 @@ router.post('/publish/:draftId', async (req, res) => {
                 return res.status(400).json({ error: 'HTML payload required for new games' });
             }
             
+            console.log('[Publish] Creating new game from template:', title);
             const insertRes = await pool.query(
                 `INSERT INTO ai_games (user_id, title, html_payload, prompt, raw_code, is_draft, privacy, created_at) 
                  VALUES ($1, $2, $3, $4, $5, false, $6, NOW()) 
@@ -2368,8 +2376,10 @@ router.post('/publish/:draftId', async (req, res) => {
                 [userId, title?.trim() || 'Untitled Game', html, `Published from template: ${title?.trim() || 'Untitled Game'}`, html, privacy || 'public']
             );
             draft = insertRes.rows[0];
+            console.log('[Publish] Game created:', draft.id);
         } else {
             // Draft exists, update it
+            console.log('[Publish] Updating existing draft:', req.params.draftId);
             if (title && title.trim()) {
                 await pool.query("UPDATE ai_games SET title = $1 WHERE id = $2 AND user_id = $3", [title.trim(), req.params.draftId, userId]);
             }
@@ -2381,13 +2391,18 @@ router.post('/publish/:draftId', async (req, res) => {
             draft = publishRes.rows[0];
         }
 
+        console.log('[Publish] Upserting to games table...');
         const { globalId, classification } = await upsertPublishedAIGame({
             draftId: draft.id,
             userId,
             draft,
         });
+        console.log('[Publish] Success! Game ID:', globalId);
         res.json({ success: true, gameId: globalId, classification });
-    } catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
+    } catch (e) { 
+        console.error('[Publish] Error:', e);
+        res.status(e.statusCode || 500).json({ error: e.message }); 
+    }
 });
 
 router.post('/reclassify-published', async (req, res) => {
