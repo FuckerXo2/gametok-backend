@@ -228,6 +228,7 @@ export const initDB = async () => {
         classification_tags JSONB DEFAULT '[]'::jsonb,
         discovery_chips JSONB DEFAULT '[]'::jsonb,
         edit_history JSONB DEFAULT '[]'::jsonb,
+        privacy VARCHAR(20) DEFAULT 'public',
         is_draft BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT NOW()
       );
@@ -353,6 +354,9 @@ export const initDB = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'edit_history') THEN
           ALTER TABLE ai_games ADD COLUMN edit_history JSONB DEFAULT '[]'::jsonb;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'privacy') THEN
+          ALTER TABLE ai_games ADD COLUMN privacy VARCHAR(20) DEFAULT 'public';
         END IF;
         -- Make password nullable for OAuth users
         ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
