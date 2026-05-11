@@ -2362,10 +2362,10 @@ router.post('/publish/:draftId', async (req, res) => {
             }
             
             const insertRes = await pool.query(
-                `INSERT INTO ai_games (user_id, title, html_payload, prompt, is_draft, privacy, created_at) 
-                 VALUES ($1, $2, $3, $4, false, $5, NOW()) 
+                `INSERT INTO ai_games (user_id, title, html_payload, prompt, raw_code, is_draft, privacy, created_at) 
+                 VALUES ($1, $2, $3, $4, $5, false, $6, NOW()) 
                  RETURNING *`,
-                [userId, title?.trim() || 'Untitled Game', html, `Published from template: ${title?.trim() || 'Untitled Game'}`, privacy || 'public']
+                [userId, title?.trim() || 'Untitled Game', html, `Published from template: ${title?.trim() || 'Untitled Game'}`, html, privacy || 'public']
             );
             draft = insertRes.rows[0];
         } else {
