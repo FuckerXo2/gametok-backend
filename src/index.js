@@ -137,7 +137,7 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
     // Import the regeneration logic
     const { generateAndApplyCover, deleteCoverAsset } = await import('./cover-art.js');
     
-    // Get all AI-generated games directly from ai_games table
+    // Get all AI-generated games that need new thumbnails
     const query = `
       SELECT 
         id as draft_id,
@@ -151,7 +151,9 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
         classification_tags,
         discovery_chips
       FROM ai_games
-      WHERE is_draft = FALSE AND html_payload != ''
+      WHERE is_draft = FALSE 
+        AND html_payload != ''
+        AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '%r2.dev/covers/%')
       ORDER BY created_at DESC
       ${limit ? `LIMIT ${limit}` : ''}
     `;
@@ -180,12 +182,12 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
       totalGames: games.length
     });
 
-    // Process in background
-    for (const game of games) {
+    // Process ALL in parallel (no rate limiting)
+    const promises = games.map(async (game) => {
       try {
         if (!game.prompt) {
           skippedCount++;
-          continue;
+          return;
         }
 
         const draftId = game.draft_id;
@@ -222,15 +224,14 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
           failCount++;
           console.log(`[thumbnail-regen] ❌ ${game.title}: No URL returned`);
         }
-
-        // Rate limiting - wait 2 seconds between generations
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
       } catch (error) {
         failCount++;
         console.error(`[thumbnail-regen] ❌ ${game.title}:`, error.message);
       }
-    }
+    });
+
+    // Wait for all to complete
+    await Promise.all(promises);
 
     console.log(`[thumbnail-regen] Complete: ${successCount} success, ${failCount} failed, ${skippedCount} skipped`);
 
