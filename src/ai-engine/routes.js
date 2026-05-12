@@ -49,7 +49,7 @@ const DREAM_MODELS = {
     narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
 
-const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 16000);
+const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 256000);
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 
 const JOB_TITLES = {
@@ -2134,6 +2134,115 @@ Rules:
     }
 });
 
+// === CONVERSATIONAL SPEC REFINEMENT ===
+router.post('/refine-spec', async (req, res) => {
+    try {
+        const { conversationHistory, userMessage } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        await getUserIdFromToken(token, 'Expired session');
+
+        if (!conversationHistory || !Array.isArray(conversationHistory)) {
+            return res.status(400).json({ error: "conversationHistory is required" });
+        }
+        if (!userMessage) {
+            return res.status(400).json({ error: "userMessage is required" });
+        }
+
+        const nvidiaClient = new OpenAI({
+            apiKey: process.env.NVIDIA_API_KEY,
+            baseURL: 'https://integrate.api.nvidia.com/v1',
+        });
+
+        // Build conversation messages
+        const messages = [
+            {
+                role: 'system',
+                content: `You are a game design assistant helping refine a game concept through conversation.
+
+Your job is to:
+1. Analyze the conversation history and the user's latest message
+2. Decide if you have enough context to proceed with building the game
+3. If YES: Return ready=true with the final spec
+4. If NO: Ask a clarifying question or provide a refined spec and return ready=false
+
+Return ONLY valid JSON in this exact format:
+{
+  "ready": true/false,
+  "spec": {
+    "title": "Catchy Title (2-3 words max)",
+    "description": "2-3 sentences describing core gameplay",
+    "features": ["Feature 1", "Feature 2", "Feature 3"]
+  },
+  "question": "Your follow-up question (only if ready=false)",
+  "aiMessage": "Your response to the user"
+}
+
+Rules for deciding readiness:
+- If the user has provided clear gameplay mechanics, visual style, and core loop → ready=true
+- If critical details are missing (genre, mechanics, goal, etc.) → ready=false, ask specific question
+- If the user says "that's good" or "let's build it" → ready=true
+- Keep questions focused and specific
+- Update the spec with each iteration based on new info`
+            },
+            ...conversationHistory.map(msg => ({
+                role: msg.role === 'ai' ? 'assistant' : 'user',
+                content: msg.content
+            })),
+            {
+                role: 'user',
+                content: userMessage
+            }
+        ];
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Refinement timed out')), 25000);
+        });
+
+        const apiCallPromise = nvidiaClient.chat.completions.create({
+            model: DREAM_MODELS.narrativeChat,
+            messages,
+            temperature: 0.7,
+            max_tokens: 400,
+        });
+
+        const response = await Promise.race([apiCallPromise, timeoutPromise]);
+
+        const aiResponse = response.choices[0]?.message?.content || '{}';
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        
+        if (!jsonMatch) {
+            throw new Error('AI did not return valid JSON');
+        }
+
+        const result = JSON.parse(jsonMatch[0]);
+
+        // Ensure the response has the required structure
+        if (typeof result.ready !== 'boolean') {
+            result.ready = false;
+        }
+        if (!result.spec) {
+            result.spec = {
+                title: 'Your Game',
+                description: 'A game concept',
+                features: []
+            };
+        }
+        if (!result.aiMessage) {
+            result.aiMessage = result.question || 'Let me know if you want to make any changes.';
+        }
+
+        res.json({ 
+            success: true,
+            ...result
+        });
+
+    } catch (error) {
+        console.error('[REFINE SPEC] Error:', error);
+        res.status(500).json({ error: error.message || 'Spec refinement failed' });
+    }
+});
+
 router.post('/dream', async (req, res) => {
     try {
         const { prompt, attachments } = req.body;
@@ -2289,6 +2398,48 @@ router.get('/dream/status/:jobId', async (req, res) => {
 
     } catch(e) { 
         res.status(500).json({ error: e.message }); 
+    }
+});
+
+// Retry a failed job
+router.post('/dream/retry/:jobId', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        const userId = await getUserIdFromToken(token, 'Expired session');
+
+        // Get the original job details
+        const jobResult = await pool.query(
+            'SELECT prompt, user_id FROM ai_games WHERE id = $1',
+            [jobId]
+        );
+
+        if (jobResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        const job = jobResult.rows[0];
+        if (String(job.user_id) !== String(userId)) {
+            return res.status(403).json({ error: 'Not your job' });
+        }
+
+        // Create a new job with the same prompt
+        const newJobId = randomUUID();
+        console.log(`🔄 [RETRY] User[${userId}] retrying failed job ${jobId} as ${newJobId}`);
+
+        queuePendingJobBootstrap({
+            jobId: newJobId,
+            userId,
+            prompt: job.prompt,
+            attachments: [],
+            labsMode: false,
+        });
+
+        res.json({ success: true, jobId: newJobId });
+    } catch (error) {
+        console.error('[RETRY] Error:', error);
+        res.status(500).json({ error: error.message || 'Retry failed' });
     }
 });
 
