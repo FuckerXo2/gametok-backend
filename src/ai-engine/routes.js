@@ -256,6 +256,10 @@ const DISCOVERY_CHIP_LOOKUP = {
     },
 };
 
+function clampNumber(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
 function clampClassifierConfidence(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return 0.5;
@@ -1340,6 +1344,9 @@ async function ensureGenerationQueueSchema() {
                 payload JSONB DEFAULT '{}'::jsonb,
                 attempts INTEGER NOT NULL DEFAULT 0,
                 max_attempts INTEGER NOT NULL DEFAULT 2,
+                progress INTEGER NOT NULL DEFAULT 0,
+                phase VARCHAR(64) DEFAULT 'queued',
+                status_message TEXT,
                 locked_by TEXT,
                 locked_at TIMESTAMP,
                 run_after TIMESTAMP DEFAULT NOW(),
@@ -1351,6 +1358,9 @@ async function ensureGenerationQueueSchema() {
             );
             CREATE INDEX IF NOT EXISTS idx_generation_jobs_claim ON generation_jobs(status, run_after, created_at);
             CREATE INDEX IF NOT EXISTS idx_generation_jobs_user_created ON generation_jobs(user_id, created_at DESC);
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS phase VARCHAR(64) DEFAULT 'queued';
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS status_message TEXT;
         `);
     }
     return generationQueueReadyPromise;
@@ -1372,13 +1382,16 @@ async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'drea
             [jobId, userId, prompt, title, '', '', true]
         );
         await client.query(
-            `INSERT INTO generation_jobs (id, user_id, kind, status, prompt, payload, max_attempts)
-             VALUES ($1, $2, $3, 'queued', $4, $5::jsonb, $6)
+            `INSERT INTO generation_jobs (id, user_id, kind, status, prompt, payload, max_attempts, progress, phase, status_message)
+             VALUES ($1, $2, $3, 'queued', $4, $5::jsonb, $6, 0, 'queued', 'Waiting for a forge worker...')
              ON CONFLICT (id) DO UPDATE
              SET status = 'queued',
                  prompt = EXCLUDED.prompt,
                  payload = EXCLUDED.payload,
                  max_attempts = EXCLUDED.max_attempts,
+                 progress = 0,
+                 phase = 'queued',
+                 status_message = 'Waiting for a forge worker...',
                  run_after = NOW(),
                  error = NULL,
                  updated_at = NOW(),
@@ -1412,6 +1425,9 @@ async function claimGenerationJob() {
          UPDATE generation_jobs job
          SET status = 'running',
              attempts = attempts + 1,
+             progress = GREATEST(progress, 2),
+             phase = 'starting',
+             status_message = 'Forge worker started...',
              locked_by = $1,
              locked_at = NOW(),
              updated_at = NOW()
@@ -1443,6 +1459,9 @@ async function markGenerationJobComplete(jobId) {
     await pool.query(
         `UPDATE generation_jobs
          SET status = 'complete',
+             progress = 100,
+             phase = 'complete',
+             status_message = 'Your game is ready.',
              locked_by = NULL,
              locked_at = NULL,
              error = NULL,
@@ -1458,6 +1477,8 @@ async function markGenerationJobFailed(job, errorMessage) {
     await pool.query(
         `UPDATE generation_jobs
          SET status = $2,
+             phase = CASE WHEN $2 = 'queued' THEN 'retrying' ELSE 'failed' END,
+             status_message = $4,
              locked_by = NULL,
              locked_at = NULL,
              run_after = CASE WHEN $2 = 'queued' THEN NOW() + ($3::text)::interval ELSE run_after END,
@@ -1478,6 +1499,8 @@ async function markGenerationJobCanceled(jobId) {
     await pool.query(
         `UPDATE generation_jobs
          SET status = 'canceled',
+             phase = 'canceled',
+             status_message = 'Generation cancelled by user',
              locked_by = NULL,
              locked_at = NULL,
              error = 'Generation cancelled by user',
@@ -1486,6 +1509,28 @@ async function markGenerationJobCanceled(jobId) {
          WHERE id = $1`,
         [jobId]
     );
+}
+
+async function updateGenerationJobProgress(jobId, progress, phase, statusMessage) {
+    await pool.query(
+        `UPDATE generation_jobs
+         SET progress = GREATEST(progress, $2),
+             phase = COALESCE($3, phase),
+             status_message = COALESCE($4, status_message),
+             updated_at = NOW()
+         WHERE id = $1
+           AND status IN ('queued', 'running')`,
+        [jobId, clampNumber(Number(progress) || 0, 0, 100), phase || null, statusMessage || null]
+    );
+}
+
+function getQueueProgressPayload(queueJob) {
+    if (!queueJob) return {};
+    return {
+        progress: clampNumber(Number(queueJob.progress) || 0, 0, 100),
+        phase: queueJob.phase || queueJob.status || 'pending',
+        statusMessage: queueJob.status_message || null,
+    };
 }
 
 function scheduleGenerationWorker(delayMs = GENERATION_JOB_POLL_MS) {
@@ -1732,10 +1777,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
+        await updateGenerationJobProgress(jobId, 8, 'spec', 'Reading your idea...');
         console.log(`📋 Phase 1/3: ${DREAM_MODELS.spec} extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const qualityIntent = await callAI(phase1.system, phase1.user, 3000, 0.4); // Increased from 800 to 3000 for multi-frame animation schema
         assertJobNotCancelled(jobId);
+        await updateGenerationJobProgress(jobId, 20, 'spec', 'Game plan drafted...');
         
         console.log(`✅ Phase 1: "${qualityIntent.title}" — ${qualityIntent.userIntent}`);
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
@@ -1747,6 +1794,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         if (useArtistAgent && qualityIntent.visualAssets) {
             try {
                 console.log(`🎨 Artist Agent: Planning visual asset generation...`);
+                await updateGenerationJobProgress(jobId, 26, 'assets', 'Planning visual assets...');
                 
                 // Build asset request list from Phase 1 plan
                 const assetRequests = [];
@@ -1834,10 +1882,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 }
                 
                 console.log(`🎨 Artist Agent: Generating ${assetRequests.length} visual assets...`);
+                await updateGenerationJobProgress(jobId, 32, 'assets', 'Generating visual ingredients...');
                 
                 // Generate all assets
                 generatedAssets = await batchArtistAgent(assetRequests);
                 assertJobNotCancelled(jobId);
+                await updateGenerationJobProgress(jobId, 42, 'assets', 'Visual assets prepared...');
                 
                 console.log(`✅ Artist Agent: Generated ${Object.keys(generatedAssets.assets).length} custom assets`);
                 if (generatedAssets.errors) {
@@ -1857,6 +1907,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         // ── PHASE 2: KIMI BUILDS THE GAME ──
         console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building...`);
+        await updateGenerationJobProgress(jobId, 48, 'build', 'Writing game logic...');
         
         // Build audio asset bundle from library (keep audio from library)
         const audioBundle = qualityIntent.audioNeeds ? {
@@ -1867,6 +1918,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         const buildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, audioBundle, mediaAttachments, generatedAssets);
         let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Build', jobId });
         assertJobNotCancelled(jobId);
+        await updateGenerationJobProgress(jobId, 68, 'build', 'Game code assembled...');
 
         if (!rawGameHtml) {
             throw new Error('Main builder returned empty game output.');
@@ -1888,6 +1940,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         while (maxRetries > 0 && !p3Success) {
             assertJobNotCancelled(jobId);
             console.log(`📸 [Attempt ${3 - maxRetries}/2] Verifying game in sandbox...`);
+            await updateGenerationJobProgress(jobId, 74, 'verify', 'Testing the game in a sandbox...');
             let sandboxRes;
             try {
                 const runtimeLane = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'first_person'
@@ -1907,6 +1960,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
                 console.log(`⚠️ Sandbox CRASH DETECTED. Asking main builder to repair... (${sandboxRes.crashes[0]})`);
+                await updateGenerationJobProgress(jobId, 78, 'repair', 'Repairing a sandbox crash...');
                 const is3DFirstPerson = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'first_person';
                 const is3DThirdPerson = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'third_person';
                 
@@ -1936,6 +1990,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 maxRetries--;
             } else {
                 console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
+                await updateGenerationJobProgress(jobId, 84, 'verify', 'Game boots cleanly...');
                 p3Success = true;
             }
         }
@@ -1947,6 +2002,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         // ── PHASE 3B: SELF-CRITIQUE + QUALITY IMPROVEMENT ──
         assertJobNotCancelled(jobId);
         console.log(`🔍 Phase 3B: Kimi reviewing its own output for quality...`);
+        await updateGenerationJobProgress(jobId, 88, 'polish', 'Polishing the feel...');
         const critiquePrompt = buildPhase3_SelfCritique(prompt, rawGameHtml);
         const improvedHtml = await generateCompleteHtmlWithBuilder(critiquePrompt, { label: 'Phase 3B Self-Critique', jobId });
         assertJobNotCancelled(jobId);
@@ -1974,6 +2030,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         // ── SAVE TO DB ──
         assertJobNotCancelled(jobId);
+        await updateGenerationJobProgress(jobId, 94, 'save', 'Saving your game...');
         const finalTitle = extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game';
         const classification = await classifyPublishedGame({
             title: finalTitle,
@@ -2687,16 +2744,16 @@ router.get('/dream/status/:jobId', async (req, res) => {
             if (pendingBoot) {
                 return res.json({ status: 'pending' });
             }
-            const queueRes = await pool.query('SELECT status, error FROM generation_jobs WHERE id = $1', [jobId]);
+            const queueRes = await pool.query('SELECT status, error, progress, phase, status_message FROM generation_jobs WHERE id = $1', [jobId]);
             const queueJob = queueRes.rows[0];
             if (queueJob?.status === 'failed') {
-                return res.json({ status: 'error', error: queueJob.error || 'Generation failed' });
+                return res.json({ status: 'error', error: queueJob.error || 'Generation failed', ...getQueueProgressPayload(queueJob) });
             }
             if (queueJob?.status === 'canceled') {
-                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled' });
+                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled', ...getQueueProgressPayload(queueJob) });
             }
             if (queueJob) {
-                return res.json({ status: 'pending' });
+                return res.json({ status: 'pending', ...getQueueProgressPayload(queueJob) });
             }
             return res.status(404).json({ error: 'Job not found' });
         }
@@ -2711,16 +2768,22 @@ router.get('/dream/status/:jobId', async (req, res) => {
             if (row.title && row.title.startsWith('ERROR:')) {
                 return res.json({ status: 'error', error: row.title.replace('ERROR: ', '') });
             }
-            const queueRes = await pool.query('SELECT status, error FROM generation_jobs WHERE id = $1', [jobId]);
+            const queueRes = await pool.query('SELECT status, error, progress, phase, status_message FROM generation_jobs WHERE id = $1', [jobId]);
             const queueJob = queueRes.rows[0];
             if (queueJob?.status === 'failed') {
-                return res.json({ status: 'error', error: queueJob.error || 'Generation failed' });
+                return res.json({ status: 'error', error: queueJob.error || 'Generation failed', ...getQueueProgressPayload(queueJob) });
             }
             if (queueJob?.status === 'canceled') {
-                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled' });
+                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled', ...getQueueProgressPayload(queueJob) });
+            }
+            if (queueJob) {
+                return res.json({ status: 'pending', ...getQueueProgressPayload(queueJob) });
             }
             return res.json({ status: 'pending' });
         }
+
+        const completeQueueRes = await pool.query('SELECT status, error, progress, phase, status_message FROM generation_jobs WHERE id = $1', [jobId]);
+        const completeQueueJob = completeQueueRes.rows[0];
         
         // Done! Return the payload (even if it's an errorHtml payload, let the webview render it)
         return res.json({
@@ -2730,6 +2793,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             title: row.title,
             htmlPreview: row.html_payload,
             classification: getStoredDraftClassification(row),
+            ...getQueueProgressPayload(completeQueueJob || { progress: 100, phase: 'complete', status_message: 'Your game is ready.' }),
         });
 
     } catch(e) { 
@@ -3018,6 +3082,7 @@ router.get('/admin/backfill-classifications', async (req, res) => {
 async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
     try {
         console.log(`🧪 [LABS JOB] Started Kimi solo Labs pipeline for job: ${jobId}`);
+        await updateGenerationJobProgress(jobId, 10, 'spec', 'Preparing Labs build...');
         const requested3DLane = wantsFirstPerson3D(prompt, {});
         const inferredLane = requested3DLane ? 'first_person_threejs' : inferRuntimeLaneFromPrompt(prompt);
         const labsSpecSheet = normalizeDreamSpec(
@@ -3031,6 +3096,7 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
         // Asset bundle disabled - all visual assets generated by Artist Agent
         const assetBundle = null;
         const soloPrompt = buildLabsSoloPrototype(prompt, assetBundle, mediaAttachments);
+        await updateGenerationJobProgress(jobId, 35, 'build', 'Writing Labs game code...');
         let rawEngineHtml = normalizeHtmlDocument(await streamNvidiaText({
             model: DREAM_MODELS.labsBuilder,
             systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself. Be practical, obey the format exactly, and prioritize a playable first frame.",
@@ -3038,6 +3104,7 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
             maxTokens: 12000,
             retryLabel: 'Labs Kimi Generation'
         }));
+        await updateGenerationJobProgress(jobId, 68, 'build', 'Labs game code assembled...');
 
         let finalHtml = postProcessRawHtml(rawEngineHtml);
         let finalScreenshot = null;
@@ -3046,6 +3113,7 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
 
         while (maxRetries >= 0 && !stable) {
             console.log(`🧪 [LABS JOB] Verifying solo build...`);
+            await updateGenerationJobProgress(jobId, 78, 'verify', 'Testing Labs build...');
             let sandboxRes;
             try {
                 validateGeneratedBuild('', rawEngineHtml, rawEngineHtml);
@@ -3063,6 +3131,7 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
 
             finalScreenshot = sandboxRes.screenshot || null;
             if (sandboxRes.success || !sandboxRes.crashes?.length) {
+                await updateGenerationJobProgress(jobId, 88, 'verify', 'Labs build boots cleanly...');
                 stable = true;
                 break;
             }
@@ -3072,6 +3141,7 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
             }
 
             console.log(`⚠️ [LABS JOB] Solo build crashed. Repairing with Kimi... (${sandboxRes.crashes[0]})`);
+            await updateGenerationJobProgress(jobId, 84, 'repair', 'Repairing Labs build...');
             const repairPrompt = `The mobile HTML5 game below failed verification.
 FATAL ERROR: ${sandboxRes.crashes[0]}
 
@@ -3099,6 +3169,7 @@ Output ONLY the complete fixed HTML document.`;
             maxRetries--;
         }
 
+        await updateGenerationJobProgress(jobId, 94, 'save', 'Saving Labs game...');
         const gameTitle = "🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Kimi Solo Labs');
 
         await pool.query(
