@@ -2063,43 +2063,16 @@ router.post('/narrative/chat', async (req, res) => {
     }
 });
 
-// === REFINEMENT CONVERSATION ===
-router.post('/refine-conversation', async (req, res) => {
+// === GAME SPEC GENERATION ===
+router.post('/generate-spec', async (req, res) => {
     try {
-        const { prompt, conversationHistory } = req.body;
+        const { prompt } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         await getUserIdFromToken(token, 'Expired session');
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
-        // Build conversation messages
-        const messages = [
-            {
-                role: 'system',
-                content: `You are a game design assistant helping refine a user's game idea. Your job is to ask 2-3 smart, conversational follow-up questions to understand:
-- The pace/feel (fast/slow, intense/relaxed)
-- Control scheme preferences
-- Visual style preferences
-- Any other key details that would help build a better game
-
-Keep responses SHORT (1-2 sentences max). Be casual and friendly. After 2-3 exchanges, say "Got everything I need! Ready to build?" and stop asking questions.
-
-The user's initial idea: "${prompt}"`
-            }
-        ];
-
-        // Add conversation history
-        if (conversationHistory && conversationHistory.length > 0) {
-            conversationHistory.forEach(msg => {
-                messages.push({
-                    role: msg.role === 'ai' ? 'assistant' : 'user',
-                    content: msg.text
-                });
-            });
-        }
-
-        // Get AI response
         const nvidiaClient = new OpenAI({
             apiKey: process.env.NVIDIA_API_KEY,
             baseURL: 'https://integrate.api.nvidia.com/v1',
@@ -2107,27 +2080,48 @@ The user's initial idea: "${prompt}"`
 
         const response = await nvidiaClient.chat.completions.create({
             model: DREAM_MODELS.narrativeChat,
-            messages,
-            temperature: 0.7,
-            max_tokens: 150,
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are a game design assistant. Given a game idea, generate a polished game specification with:
+1. A catchy title (2-3 words max)
+2. An expanded description (2-3 sentences explaining the core gameplay)
+3. 2-3 key features as bullet points
+
+Return ONLY valid JSON in this exact format:
+{
+  "title": "Game Title",
+  "description": "Full description of the game...",
+  "features": ["Feature 1", "Feature 2", "Feature 3"]
+}
+
+Be creative but stay true to the user's idea. Make it sound exciting and clear.`
+                },
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ],
+            temperature: 0.8,
+            max_tokens: 300,
         });
 
-        const aiMessage = response.choices[0]?.message?.content || "Tell me more about your game idea!";
-        
-        // Check if AI is done asking questions
-        const isDone = aiMessage.toLowerCase().includes('ready to build') || 
-                       aiMessage.toLowerCase().includes('got everything') ||
-                       conversationHistory.length >= 6; // Max 3 exchanges (6 messages)
+        const aiResponse = response.choices[0]?.message?.content || '{}';
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        const spec = jsonMatch ? JSON.parse(jsonMatch[0]) : {
+            title: 'Your Game',
+            description: prompt,
+            features: []
+        };
 
         res.json({ 
             success: true, 
-            message: aiMessage,
-            isDone 
+            spec
         });
 
     } catch (error) {
-        console.error('[REFINE CONVERSATION] Error:', error);
-        res.status(500).json({ error: error.message || 'Conversation failed' });
+        console.error('[GENERATE SPEC] Error:', error);
+        res.status(500).json({ error: error.message || 'Spec generation failed' });
     }
 });
 
