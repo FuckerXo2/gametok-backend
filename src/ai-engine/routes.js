@@ -10,7 +10,7 @@ import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase2_BuildPrototyp
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, getAssetRuntimeDiagnostics } from './asset-dictionary.js';
-import { notifyGameReady } from '../notifications.js';
+import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
 
@@ -1266,10 +1266,22 @@ function withTimeout(promise, ms, label) {
 }
 
 async function markJobError(jobId, fallbackMessage, err) {
+    const errorMessage = err?.message || fallbackMessage;
     await pool.query(
         `UPDATE ai_games SET title = $1 WHERE id = $2`,
-        ['ERROR: ' + (err?.message || fallbackMessage), jobId]
+        ['ERROR: ' + errorMessage, jobId]
     );
+    
+    // Get userId and send notification
+    try {
+        const jobRes = await pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId]);
+        if (jobRes.rows.length > 0) {
+            const userId = jobRes.rows[0].user_id;
+            await notifyGameFailed(userId, jobId, errorMessage);
+        }
+    } catch (notifError) {
+        console.error('[markJobError] Failed to send notification:', notifError);
+    }
 }
 
 async function markJobCanceled(jobId) {

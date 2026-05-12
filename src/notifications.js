@@ -15,6 +15,7 @@ const RULES = {
   game_liked: { dailyLimit: 12, minGapMinutes: 6, cooldownMinutes: 20 },
   game_played: { dailyLimit: 10, minGapMinutes: 10, cooldownMinutes: 240 },
   game_ready: { dailyLimit: 20, minGapMinutes: 0, cooldownMinutes: 0, priority: 'high' },
+  game_failed: { dailyLimit: 20, minGapMinutes: 0, cooldownMinutes: 0, priority: 'high' },
   trending: { dailyLimit: 3, minGapMinutes: 90, cooldownMinutes: 720 },
   reengagement: { dailyLimit: 1, minGapMinutes: 240, cooldownMinutes: 1440 },
   reward: { dailyLimit: 1, minGapMinutes: 240, cooldownMinutes: 1440 },
@@ -279,6 +280,22 @@ async function notifyGameReady(userId, draftId, title) {
     }, { priority: 'high', minGapMinutes: 0 });
   } catch (error) {
     console.error('[Notifications] Game ready notification error:', error);
+  }
+}
+
+async function notifyGameFailed(userId, jobId, errorMessage) {
+  try {
+    await notifyUser(userId, {
+      type: 'creation',
+      action: 'game_failed',
+      title: 'Game generation failed',
+      body: errorMessage || 'Something went wrong. Tap to retry.',
+      gameId: null,
+      data: { type: 'creation', action: 'game_failed', jobId, errorMessage },
+      dedupeKey: `game_failed:${jobId}`,
+    }, { priority: 'high', minGapMinutes: 0 });
+  } catch (error) {
+    console.error('[Notifications] Game failed notification error:', error);
   }
 }
 
@@ -569,6 +586,7 @@ export {
   notifyMessage,
   notifyScoreBeaten,
   notifyGameReady,
+  notifyGameFailed,
   notifyNewGames,
   notifyStreak,
   notifyLeaderboardPosition,
