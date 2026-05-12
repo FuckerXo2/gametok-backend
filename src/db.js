@@ -270,6 +270,16 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(blocker_id);
       CREATE INDEX IF NOT EXISTS idx_saved_games_user ON saved_games(user_id);
       CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+      DELETE FROM push_tokens a
+      USING push_tokens b
+      WHERE a.token = b.token
+        AND a.id <> b.id
+        AND (
+          a.last_used_at < b.last_used_at
+          OR (a.last_used_at = b.last_used_at AND a.created_at < b.created_at)
+          OR (a.last_used_at = b.last_used_at AND a.created_at = b.created_at AND a.id::text < b.id::text)
+        );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_push_tokens_token_unique ON push_tokens(token);
       CREATE INDEX IF NOT EXISTS idx_notification_events_user_created ON notification_events(user_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_notification_events_dedupe ON notification_events(user_id, dedupe_key, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_notification_events_push_sent ON notification_events(user_id, push_sent_at DESC);
@@ -609,6 +619,15 @@ export const getUserById = async (userId) => {
 export const savePushToken = async (userId, token, deviceType = 'mobile') => {
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    // A push token identifies one app install/device. If a tester logs into
+    // multiple accounts on the same phone, move the token to the current user
+    // instead of leaving it attached to old users and sending creation alerts
+    // to whoever previously used that device.
+    await client.query(
+      'DELETE FROM push_tokens WHERE token = $1 AND user_id <> $2',
+      [token, userId]
+    );
     await client.query(
       `INSERT INTO push_tokens (user_id, token, device_type, last_used_at)
        VALUES ($1, $2, $3, NOW())
@@ -616,7 +635,11 @@ export const savePushToken = async (userId, token, deviceType = 'mobile') => {
        DO UPDATE SET last_used_at = NOW()`,
       [userId, token, deviceType]
     );
+    await client.query('COMMIT');
     return { success: true };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
   } finally {
     client.release();
   }
