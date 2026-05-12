@@ -2338,6 +2338,29 @@ router.post('/narrative/chat', async (req, res) => {
     }
 });
 
+function buildFallbackGameSpec(prompt) {
+    const cleanPrompt = String(prompt || '').trim();
+    const words = cleanPrompt
+        .replace(/[^a-zA-Z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((word) => word.length > 2)
+        .slice(0, 3);
+    const title = words.length ? words.map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase()).join(' ') : 'Your Game';
+    const description = cleanPrompt
+        ? `${cleanPrompt.slice(0, 160)}${cleanPrompt.length > 160 ? '...' : ''}`
+        : 'A fast, playable mobile game built from your idea.';
+
+    return {
+        title,
+        description,
+        features: [
+            'Clear tap-friendly controls.',
+            'A satisfying core gameplay loop.',
+            'Mobile-first pacing and feedback.',
+        ],
+    };
+}
+
 // === GAME SPEC GENERATION ===
 router.post('/generate-spec', async (req, res) => {
     try {
@@ -2353,9 +2376,10 @@ router.post('/generate-spec', async (req, res) => {
             baseURL: 'https://integrate.api.nvidia.com/v1',
         });
 
-        // Add timeout to the API call
+        const fallbackSpec = buildFallbackGameSpec(prompt);
+        let timeoutId;
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Spec generation timed out')), 25000); // 25 seconds
+            timeoutId = setTimeout(() => reject(new Error('Spec generation timed out')), 25000);
         });
 
         const apiCallPromise = nvidiaClient.chat.completions.create({
@@ -2388,15 +2412,34 @@ Rules:
             max_tokens: 250,
         });
 
-        const response = await Promise.race([apiCallPromise, timeoutPromise]);
+        let response;
+        try {
+            response = await Promise.race([apiCallPromise, timeoutPromise]);
+        } catch (error) {
+            console.warn('[GENERATE SPEC] Falling back after model failure:', error?.message || error);
+            return res.json({
+                success: true,
+                spec: fallbackSpec,
+                fallback: true,
+                warning: error?.message || 'Spec model unavailable',
+            });
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
 
         const aiResponse = response.choices[0]?.message?.content || '{}';
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-        const spec = jsonMatch ? JSON.parse(jsonMatch[0]) : {
-            title: 'Your Game',
-            description: prompt.substring(0, 200),
-            features: []
-        };
+        let spec = fallbackSpec;
+        if (jsonMatch) {
+            try {
+                spec = {
+                    ...fallbackSpec,
+                    ...JSON.parse(jsonMatch[0]),
+                };
+            } catch (parseError) {
+                console.warn('[GENERATE SPEC] Model returned invalid JSON; using fallback spec:', parseError?.message || parseError);
+            }
+        }
 
         res.json({ 
             success: true, 
