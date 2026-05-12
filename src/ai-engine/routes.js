@@ -2078,7 +2078,12 @@ router.post('/generate-spec', async (req, res) => {
             baseURL: 'https://integrate.api.nvidia.com/v1',
         });
 
-        const response = await nvidiaClient.chat.completions.create({
+        // Add timeout to the API call
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Spec generation timed out')), 25000); // 25 seconds
+        });
+
+        const apiCallPromise = nvidiaClient.chat.completions.create({
             model: DREAM_MODELS.narrativeChat,
             messages: [
                 {
@@ -2107,6 +2112,8 @@ Rules:
             temperature: 0.8,
             max_tokens: 250,
         });
+
+        const response = await Promise.race([apiCallPromise, timeoutPromise]);
 
         const aiResponse = response.choices[0]?.message?.content || '{}';
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
