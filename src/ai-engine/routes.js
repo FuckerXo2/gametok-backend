@@ -2083,19 +2083,21 @@ router.post('/generate-spec', async (req, res) => {
             messages: [
                 {
                     role: 'system',
-                    content: `You are a game design assistant. Given a game idea, generate a polished game specification with:
-1. A catchy title (2-3 words max)
-2. An expanded description (2-3 sentences explaining the core gameplay)
-3. 2-3 key features as bullet points
+                    content: `You are a game design assistant. Given a game idea, generate a polished game specification.
 
 Return ONLY valid JSON in this exact format:
 {
-  "title": "Game Title",
-  "description": "Full description of the game...",
-  "features": ["Feature 1", "Feature 2", "Feature 3"]
+  "title": "Catchy Title (2-3 words max)",
+  "description": "2-3 sentences describing core gameplay. Be concise and exciting.",
+  "features": ["Feature 1 (one short sentence)", "Feature 2 (one short sentence)"]
 }
 
-Be creative but stay true to the user's idea. Make it sound exciting and clear.`
+Rules:
+- Title must be 2-3 words maximum
+- Description must be 2-3 sentences maximum (under 200 characters)
+- Features must be 2-3 items, each one short sentence
+- Be creative but concise
+- Make it sound exciting`
                 },
                 {
                     role: 'user',
@@ -2103,14 +2105,14 @@ Be creative but stay true to the user's idea. Make it sound exciting and clear.`
                 }
             ],
             temperature: 0.8,
-            max_tokens: 300,
+            max_tokens: 250,
         });
 
         const aiResponse = response.choices[0]?.message?.content || '{}';
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
         const spec = jsonMatch ? JSON.parse(jsonMatch[0]) : {
             title: 'Your Game',
-            description: prompt,
+            description: prompt.substring(0, 200),
             features: []
         };
 
