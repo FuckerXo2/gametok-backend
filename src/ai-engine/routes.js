@@ -76,6 +76,17 @@ const openRouterClient = new OpenAI({
 
 const pendingJobBoots = new Map();
 const cancelledJobs = new Map();
+const GENERATION_WORKER_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
+const GENERATION_JOB_CONCURRENCY = Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || 3));
+const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_POLL_MS || 3000));
+const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 5));
+const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
+const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATION_JOB_HEARTBEAT_MS || 30000));
+const generationJobRunners = new Map();
+let generationQueueReadyPromise = null;
+let generationWorkerTimer = null;
+let generationWorkerStopping = false;
+let generationWorkerActiveCount = 0;
 
 class DreamJobCancelledError extends Error {
     constructor(jobId) {
@@ -1288,6 +1299,11 @@ async function markJobCanceled(jobId) {
     rememberCancelledJob(jobId);
     rememberPendingBoot(jobId, { status: 'canceled', error: 'Generation cancelled by user' });
     try {
+        await markGenerationJobCanceled(jobId);
+    } catch (error) {
+        console.warn(`[DREAM JOB] Could not mark ${jobId} canceled in queue yet:`, error?.message || error);
+    }
+    try {
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3 WHERE id = $4`,
             ['CANCELLED: Generation stopped', '', '', jobId]
@@ -1312,32 +1328,279 @@ async function createPendingJob(userId, prompt, title, jobId = randomUUID()) {
     return dbRes.rows[0].id;
 }
 
-function queuePendingJobBootstrap({ jobId, userId, prompt, title, logLabel, run, runArgs = [] }) {
-    rememberPendingBoot(jobId, { status: 'pending', userId });
+async function ensureGenerationQueueSchema() {
+    if (!generationQueueReadyPromise) {
+        generationQueueReadyPromise = pool.query(`
+            CREATE TABLE IF NOT EXISTS generation_jobs (
+                id UUID PRIMARY KEY,
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                kind VARCHAR(32) NOT NULL DEFAULT 'dream',
+                status VARCHAR(32) NOT NULL DEFAULT 'queued',
+                prompt TEXT NOT NULL,
+                payload JSONB DEFAULT '{}'::jsonb,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                max_attempts INTEGER NOT NULL DEFAULT 2,
+                locked_by TEXT,
+                locked_at TIMESTAMP,
+                run_after TIMESTAMP DEFAULT NOW(),
+                error TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                completed_at TIMESTAMP,
+                canceled_at TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_generation_jobs_claim ON generation_jobs(status, run_after, created_at);
+            CREATE INDEX IF NOT EXISTS idx_generation_jobs_user_created ON generation_jobs(user_id, created_at DESC);
+        `);
+    }
+    return generationQueueReadyPromise;
+}
 
-    setImmediate(() => {
-        void (async () => {
-            try {
-                assertJobNotCancelled(jobId);
-                console.log(`🚀 [${logLabel}] Bootstrapping pending job ${jobId}`);
-                await createPendingJob(userId, prompt, title, jobId);
-                assertJobNotCancelled(jobId);
-                forgetPendingBoot(jobId);
-                await run(jobId, prompt, ...runArgs);
-            } catch (error) {
-                if (isCancellationError(error)) {
-                    console.log(`🛑 [${logLabel}] Job ${jobId} was canceled before or during bootstrap.`);
-                    await markJobCanceled(jobId);
-                    return;
+async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'dream', payload = {}, maxAttempts = 2 }) {
+    await ensureGenerationQueueSchema();
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            `INSERT INTO ai_games (id, user_id, prompt, title, html_payload, raw_code, is_draft)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (id) DO UPDATE
+             SET title = EXCLUDED.title,
+                 html_payload = '',
+                 raw_code = '',
+                 prompt = EXCLUDED.prompt`,
+            [jobId, userId, prompt, title, '', '', true]
+        );
+        await client.query(
+            `INSERT INTO generation_jobs (id, user_id, kind, status, prompt, payload, max_attempts)
+             VALUES ($1, $2, $3, 'queued', $4, $5::jsonb, $6)
+             ON CONFLICT (id) DO UPDATE
+             SET status = 'queued',
+                 prompt = EXCLUDED.prompt,
+                 payload = EXCLUDED.payload,
+                 max_attempts = EXCLUDED.max_attempts,
+                 run_after = NOW(),
+                 error = NULL,
+                 updated_at = NOW(),
+                 completed_at = NULL,
+                 canceled_at = NULL`,
+            [jobId, userId, kind, prompt, JSON.stringify(payload || {}), maxAttempts]
+        );
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw error;
+    } finally {
+        client.release();
+    }
+    scheduleGenerationWorker(0);
+    return jobId;
+}
+
+async function claimGenerationJob() {
+    await ensureGenerationQueueSchema();
+    const result = await pool.query(
+        `WITH candidate AS (
+            SELECT id
+            FROM generation_jobs
+            WHERE status = 'queued'
+              AND run_after <= NOW()
+            ORDER BY created_at ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 1
+         )
+         UPDATE generation_jobs job
+         SET status = 'running',
+             attempts = attempts + 1,
+             locked_by = $1,
+             locked_at = NOW(),
+             updated_at = NOW()
+         FROM candidate
+         WHERE job.id = candidate.id
+         RETURNING job.*`,
+        [GENERATION_WORKER_ID]
+    );
+    return result.rows[0] || null;
+}
+
+async function recoverStaleGenerationJobs() {
+    await ensureGenerationQueueSchema();
+    await pool.query(
+        `UPDATE generation_jobs
+         SET status = CASE WHEN attempts < max_attempts THEN 'queued' ELSE 'failed' END,
+             locked_by = NULL,
+             locked_at = NULL,
+             run_after = CASE WHEN attempts < max_attempts THEN NOW() ELSE run_after END,
+             error = COALESCE(error, 'Generation worker stopped before finishing.'),
+             updated_at = NOW()
+         WHERE status = 'running'
+           AND locked_at < NOW() - ($1::text)::interval`,
+        [`${GENERATION_JOB_STALE_MINUTES} minutes`]
+    );
+}
+
+async function markGenerationJobComplete(jobId) {
+    await pool.query(
+        `UPDATE generation_jobs
+         SET status = 'complete',
+             locked_by = NULL,
+             locked_at = NULL,
+             error = NULL,
+             updated_at = NOW(),
+             completed_at = NOW()
+         WHERE id = $1`,
+        [jobId]
+    );
+}
+
+async function markGenerationJobFailed(job, errorMessage) {
+    const shouldRetry = Number(job.attempts || 0) < Number(job.max_attempts || 1);
+    await pool.query(
+        `UPDATE generation_jobs
+         SET status = $2,
+             locked_by = NULL,
+             locked_at = NULL,
+             run_after = CASE WHEN $2 = 'queued' THEN NOW() + ($3::text)::interval ELSE run_after END,
+             error = $4,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [
+            job.id,
+            shouldRetry ? 'queued' : 'failed',
+            `${GENERATION_JOB_RETRY_DELAY_MS} milliseconds`,
+            errorMessage || 'Generation failed',
+        ]
+    );
+}
+
+async function markGenerationJobCanceled(jobId) {
+    await ensureGenerationQueueSchema();
+    await pool.query(
+        `UPDATE generation_jobs
+         SET status = 'canceled',
+             locked_by = NULL,
+             locked_at = NULL,
+             error = 'Generation cancelled by user',
+             updated_at = NOW(),
+             canceled_at = NOW()
+         WHERE id = $1`,
+        [jobId]
+    );
+}
+
+function scheduleGenerationWorker(delayMs = GENERATION_JOB_POLL_MS) {
+    if (generationWorkerStopping || generationWorkerTimer) return;
+    generationWorkerTimer = setTimeout(() => {
+        generationWorkerTimer = null;
+        void drainGenerationQueue();
+    }, delayMs);
+    generationWorkerTimer.unref?.();
+}
+
+async function runGenerationJob(job) {
+    const runner = generationJobRunners.get(job.kind);
+    if (!runner) {
+        throw new Error(`No generation runner registered for job kind "${job.kind}"`);
+    }
+
+    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+    rememberPendingBoot(job.id, { status: 'running', userId: job.user_id });
+    console.log(`🏗️ [GEN QUEUE] Running ${job.kind} job ${job.id} attempt ${job.attempts}/${job.max_attempts}`);
+
+    const heartbeat = setInterval(() => {
+        pool.query(
+            `UPDATE generation_jobs
+             SET locked_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND status = 'running' AND locked_by = $2`,
+            [job.id, GENERATION_WORKER_ID]
+        ).catch((error) => console.warn(`[GEN QUEUE] Heartbeat failed for ${job.id}:`, error?.message || error));
+    }, GENERATION_JOB_HEARTBEAT_MS);
+    heartbeat.unref?.();
+
+    try {
+        await runner(job.id, job.prompt, payload);
+
+        const result = await pool.query('SELECT title, html_payload FROM ai_games WHERE id = $1', [job.id]);
+        const row = result.rows[0];
+        if (!row) {
+            throw new Error('Generation finished without a draft row.');
+        }
+        if (row.title?.startsWith('CANCELLED:')) {
+            await markGenerationJobCanceled(job.id);
+            return;
+        }
+        if (row.title?.startsWith('ERROR:')) {
+            throw new Error(row.title.replace('ERROR: ', '') || 'Generation failed');
+        }
+        if (!row.html_payload) {
+            throw new Error('Generation finished without html_payload.');
+        }
+
+        await markGenerationJobComplete(job.id);
+        forgetPendingBoot(job.id);
+    } finally {
+        clearInterval(heartbeat);
+    }
+}
+
+async function drainGenerationQueue() {
+    if (generationWorkerStopping) return;
+    try {
+        await recoverStaleGenerationJobs();
+        while (!generationWorkerStopping && generationWorkerActiveCount < GENERATION_JOB_CONCURRENCY) {
+            const job = await claimGenerationJob();
+            if (!job) break;
+            generationWorkerActiveCount++;
+            void (async () => {
+                try {
+                    await runGenerationJob(job);
+                } catch (error) {
+                    if (isCancellationError(error)) {
+                        await markJobCanceled(job.id);
+                        await markGenerationJobCanceled(job.id);
+                    } else {
+                        const message = error?.message || 'Generation failed';
+                        console.error(`❌ [GEN QUEUE] Job ${job.id} failed:`, error);
+                        await markGenerationJobFailed(job, message);
+                        if (Number(job.attempts || 0) >= Number(job.max_attempts || 1)) {
+                            await markJobError(job.id, 'Generation failed', error);
+                        }
+                    }
+                } finally {
+                    forgetPendingBoot(job.id);
+                    generationWorkerActiveCount--;
+                    scheduleGenerationWorker(0);
                 }
-                console.error(`❌ [${logLabel}] Bootstrap failed for ${jobId}:`, error);
-                rememberPendingBoot(jobId, {
-                    status: 'error',
-                    error: error?.message || 'Job bootstrap failed',
-                });
-            }
-        })();
-    });
+            })();
+        }
+    } catch (error) {
+        console.error('[GEN QUEUE] Worker drain error:', error);
+    } finally {
+        if (!generationWorkerStopping) {
+            scheduleGenerationWorker();
+        }
+    }
+}
+
+function startGenerationQueueWorker() {
+    void ensureGenerationQueueSchema()
+        .then(() => {
+            console.log(`🏗️ [GEN QUEUE] Worker ${GENERATION_WORKER_ID} ready with concurrency ${GENERATION_JOB_CONCURRENCY}`);
+            scheduleGenerationWorker(0);
+        })
+        .catch((error) => {
+            generationQueueReadyPromise = null;
+            console.error('[GEN QUEUE] Failed to initialize:', error);
+        });
+}
+
+function stopGenerationQueueWorker(signal) {
+    generationWorkerStopping = true;
+    if (generationWorkerTimer) {
+        clearTimeout(generationWorkerTimer);
+        generationWorkerTimer = null;
+    }
+    console.log(`🛑 [GEN QUEUE] ${signal} received; stopped claiming new generation jobs. Active: ${generationWorkerActiveCount}`);
 }
 
 function normalizeMediaAttachmentType(type = '') {
@@ -2268,14 +2531,13 @@ router.post('/dream', async (req, res) => {
         console.log(`🧠 [DREAM ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
         const jobId = randomUUID();
-        queuePendingJobBootstrap({
+        await enqueueGenerationJob({
             jobId,
             userId,
             prompt,
             title: JOB_TITLES.dreamPending,
-            logLabel: 'DREAM ROUTE',
-            run: executeDreamJob,
-            runArgs: [mediaAttachments],
+            kind: 'dream',
+            payload: { mediaAttachments },
         });
 
         res.json({ success: true, jobId: jobId });
@@ -2382,6 +2644,17 @@ router.get('/dream/status/:jobId', async (req, res) => {
             if (pendingBoot) {
                 return res.json({ status: 'pending' });
             }
+            const queueRes = await pool.query('SELECT status, error FROM generation_jobs WHERE id = $1', [jobId]);
+            const queueJob = queueRes.rows[0];
+            if (queueJob?.status === 'failed') {
+                return res.json({ status: 'error', error: queueJob.error || 'Generation failed' });
+            }
+            if (queueJob?.status === 'canceled') {
+                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled' });
+            }
+            if (queueJob) {
+                return res.json({ status: 'pending' });
+            }
             return res.status(404).json({ error: 'Job not found' });
         }
         
@@ -2394,6 +2667,14 @@ router.get('/dream/status/:jobId', async (req, res) => {
             }
             if (row.title && row.title.startsWith('ERROR:')) {
                 return res.json({ status: 'error', error: row.title.replace('ERROR: ', '') });
+            }
+            const queueRes = await pool.query('SELECT status, error FROM generation_jobs WHERE id = $1', [jobId]);
+            const queueJob = queueRes.rows[0];
+            if (queueJob?.status === 'failed') {
+                return res.json({ status: 'error', error: queueJob.error || 'Generation failed' });
+            }
+            if (queueJob?.status === 'canceled') {
+                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled' });
             }
             return res.json({ status: 'pending' });
         }
@@ -2440,12 +2721,13 @@ router.post('/dream/retry/:jobId', async (req, res) => {
         const newJobId = randomUUID();
         console.log(`🔄 [RETRY] User[${userId}] retrying failed job ${jobId} as ${newJobId}`);
 
-        queuePendingJobBootstrap({
+        await enqueueGenerationJob({
             jobId: newJobId,
             userId,
             prompt: job.prompt,
-            attachments: [],
-            labsMode: false,
+            title: JOB_TITLES.dreamPending,
+            kind: 'dream',
+            payload: { mediaAttachments: [] },
         });
 
         res.json({ success: true, jobId: newJobId });
@@ -2804,14 +3086,13 @@ router.post('/dream-labs', async (req, res) => {
         console.log(`🧪 [LABS ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
         const jobId = randomUUID();
-        queuePendingJobBootstrap({
+        await enqueueGenerationJob({
             jobId,
             userId,
             prompt,
             title: JOB_TITLES.labsPending,
-            logLabel: 'LABS ROUTE',
-            run: executeLabsDreamJob,
-            runArgs: [mediaAttachments],
+            kind: 'labs',
+            payload: { mediaAttachments },
         });
 
         res.json({ success: true, jobId: jobId });
@@ -2822,6 +3103,13 @@ router.post('/dream-labs', async (req, res) => {
     }
 });
 
+generationJobRunners.set('dream', (jobId, prompt, payload = {}) => (
+    executeDreamJob(jobId, prompt, payload.mediaAttachments || [])
+));
+generationJobRunners.set('labs', (jobId, prompt, payload = {}) => (
+    executeLabsDreamJob(jobId, prompt, payload.mediaAttachments || [])
+));
+
 // Internal exports for in-process callers (e.g., the bot engine running
 // the same Dream pipeline real users go through). Keep these as the only
 // non-default exports so the public surface stays intentional.
@@ -2829,6 +3117,8 @@ export {
     executeDreamJob,
     upsertPublishedAIGame,
     createPendingJob,
+    startGenerationQueueWorker,
+    stopGenerationQueueWorker,
 };
 
 export default router;

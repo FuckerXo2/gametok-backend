@@ -233,6 +233,25 @@ export const initDB = async () => {
         created_at TIMESTAMP DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS generation_jobs (
+        id UUID PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        kind VARCHAR(32) NOT NULL DEFAULT 'dream',
+        status VARCHAR(32) NOT NULL DEFAULT 'queued',
+        prompt TEXT NOT NULL,
+        payload JSONB DEFAULT '{}'::jsonb,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 2,
+        locked_by TEXT,
+        locked_at TIMESTAMP,
+        run_after TIMESTAMP DEFAULT NOW(),
+        error TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        canceled_at TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game_id);
       CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
       CREATE INDEX IF NOT EXISTS idx_game_plays_game ON game_plays(game_id);
@@ -252,6 +271,8 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_notification_events_dedupe ON notification_events(user_id, dedupe_key, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_notification_events_push_sent ON notification_events(user_id, push_sent_at DESC);
       CREATE INDEX IF NOT EXISTS idx_ai_games_user ON ai_games(user_id);
+      CREATE INDEX IF NOT EXISTS idx_generation_jobs_claim ON generation_jobs(status, run_after, created_at);
+      CREATE INDEX IF NOT EXISTS idx_generation_jobs_user_created ON generation_jobs(user_id, created_at DESC);
       
       -- Insert initial scan progress row
       INSERT INTO scan_progress (id) VALUES (1) ON CONFLICT (id) DO NOTHING;

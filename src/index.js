@@ -13,7 +13,7 @@ import { initializeLobbySocket } from './lobby-socket.js';
 import { initializeChatSocket } from './chat-socket.js';
 import { initializePresenceSocket, presenceRouter } from './presence-socket.js';
 import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } from './score-lobby-socket.js';
-import aiRouter from './ai.js';
+import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker } from './ai.js';
 import assetsRouter from './assets-router.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
@@ -4775,10 +4775,29 @@ const start = async () => {
   await runMultiplayerMigration();
   await runAnonymousTokensMigration();
   await ensureBotTables();
+  startGenerationQueueWorker();
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${signal} received; closing HTTP server and pausing generation queue claims.`);
+    stopGenerationQueueWorker(signal);
+    server.close(() => {
+      console.log('HTTP server closed.');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.warn('Graceful shutdown timed out; exiting so queued jobs can be recovered.');
+      process.exit(0);
+    }, 25000).unref();
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 
   // Initialize Socket.io for PK Mode
   initializePkSocket(server);
