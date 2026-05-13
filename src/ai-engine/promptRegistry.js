@@ -326,8 +326,8 @@ CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
 11. ⚠️ If you use Canvas 2D instead of Phaser, the game will look terrible with ugly circles!
 12. Do NOT fetch external images — these embedded assets are ALL you need for visuals
 13. Use window.DREAM_ASSET_PACK as the source of truth for available assets and roles.
-14. Use window.DREAM_ANIMATIONS to create Phaser tweens/animations for idle, movement, hit, defeat, dash, and action feedback.
-15. Use window.DREAM_AUDIO_MANIFEST to create matching WebAudio sound functions. The audio entries are procedural manifests, so synthesize them in code and trigger by key.
+14. Use window.DREAM_ANIMATIONS and the injected DreamAssets helper to create Phaser tweens/animations for idle, movement, hit, defeat, dash, and action feedback. Example: DreamAssets.applyTween(this, playerSprite, "player_idle").
+15. Use window.DREAM_AUDIO_MANIFEST and the injected DreamAudio runtime for sound. Trigger sounds with DreamAudio.play("impact"), DreamAudio.play("collect"), DreamAudio.play("primary_action"), DreamAudio.play("movement_burst"), DreamAudio.play("success"), DreamAudio.play("failure"), or any key from the manifest.
 16. Use window.DREAM_TILESETS for tile/grid/platform/maze/dungeon games. If a tileset manifest exists, build the playfield from a repeatable tile rhythm instead of one empty flat backdrop.
 
 Example Phaser 3 usage:
@@ -347,7 +347,10 @@ ${backgrounds.length > 0 ? `this.load.image('${backgrounds[0].id}', dreamAssets[
 ${player.length > 0 ? `this.player = this.add.sprite(100, 100, 'player');` : ''}
 ${enemies.length > 0 ? `this.enemy = this.add.sprite(300, 100, '${enemies[0].id}');` : ''}
 ${backgrounds.length > 0 ? `this.add.image(0, 0, '${backgrounds[0].id}').setOrigin(0, 0);` : ''}
-// Create tweens from window.DREAM_ANIMATIONS and trigger synthesized sounds from window.DREAM_AUDIO_MANIFEST.
+// Create tweens from window.DREAM_ANIMATIONS.
+// DreamAssets.applyTween(this, this.player, 'player_idle');
+// Trigger sound at gameplay moments:
+// DreamAudio.play('primary_action'); DreamAudio.play('impact'); DreamAudio.play('collect'); DreamAudio.startMusic();
 \`\`\`
 
 Example Three.js usage:
@@ -2240,6 +2243,50 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DREAM_ANIMATIONS = dreamAssetPayload.animations || {};
         window.DREAM_AUDIO_MANIFEST = dreamAssetPayload.audio || { sfx: [], music: [] };
         window.DREAM_TILESETS = dreamAssetPayload.tilesets || [];
+        window.__dreamAudioQueue = window.__dreamAudioQueue || [];
+        window.DreamAudio = window.DreamAudio || {
+          unlock: function() {},
+          play: function(key) { window.__dreamAudioQueue.push(['play', key]); },
+          startMusic: function() { window.__dreamAudioQueue.push(['startMusic']); },
+          getManifest: function() { return window.DREAM_AUDIO_MANIFEST || { sfx: [], music: [] }; }
+        };
+        window.playDreamSound = window.playDreamSound || function(key) { window.DreamAudio.play(key); };
+        window.DreamAssets = window.DreamAssets || {
+          getImage: function(key) {
+            return window.DREAM_ASSETS && window.DREAM_ASSETS[key];
+          },
+          getPack: function(type) {
+            var pack = window.DREAM_ASSET_PACK || [];
+            return type ? pack.filter(function(asset) { return asset.type === type; }) : pack;
+          },
+          findByRole: function(role) {
+            return (window.DREAM_ASSET_PACK || []).filter(function(asset) {
+              return asset.role === role || asset.category === role;
+            });
+          },
+          animationsFor: function(sourceKey) {
+            return (window.DREAM_ANIMATIONS || []).filter(function(animation) {
+              return animation.sourceKey === sourceKey || animation.role === sourceKey || animation.key === sourceKey;
+            });
+          },
+          applyTween: function(scene, target, animationKey) {
+            if (!scene || !scene.tweens || !target) return null;
+            var animations = window.DREAM_ANIMATIONS || [];
+            var animation = animations.find(function(item) {
+              return item.key === animationKey || item.sourceKey === animationKey || item.role === animationKey;
+            }) || {};
+            var text = [animation.key, animation.role, (animation.states || []).join(' '), animation.implementation].join(' ').toLowerCase();
+            var tweenConfig;
+            if (/dash|move|whoosh|trail/.test(text)) {
+              tweenConfig = { scaleX: 1.08, scaleY: 0.92, duration: 110, yoyo: true, ease: 'Sine.easeOut' };
+            } else if (/hit|defeat|flash|impact/.test(text)) {
+              tweenConfig = { alpha: 0.55, scale: 1.15, duration: 80, yoyo: true, ease: 'Quad.easeOut' };
+            } else {
+              tweenConfig = { y: target.y - 4, scaleX: 1.03, scaleY: 0.97, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' };
+            }
+            return scene.tweens.add(Object.assign({ targets: target }, tweenConfig));
+          }
+        };
       })();
     </script>
   `;
