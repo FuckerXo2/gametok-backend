@@ -467,8 +467,8 @@ async function buildAudioPlan(qualityIntent = {}) {
     const musicNeeds = asArray(qualityIntent.audioNeeds?.music);
     const specText = collectSpecText(qualityIntent);
     const r2Library = await getR2AudioLibrary();
-    const localLibrary = getLocalAudioLibrary();
-    const library = r2Library.length > 0 ? [...r2Library, ...localLibrary] : localLibrary;
+    const localLibrary = r2Library.length > 0 ? [] : getLocalAudioLibrary();
+    const library = r2Library.length > 0 ? r2Library : localLibrary;
     const musicLibrary = library.filter((asset) => asset.kind === 'music');
     const sfxLibrary = library.filter((asset) => asset.kind === 'sfx');
     const selectedMusic = pickAudioAssets(musicLibrary, `${specText} ${musicNeeds.join(' ')}`, Math.max(1, Math.min(3, musicNeeds.length || 1)));
@@ -524,12 +524,13 @@ async function buildAudioPlan(qualityIntent = {}) {
             loop: true,
         }))
         : [];
+    const librarySource = r2Library.length > 0 ? 'r2' : 'public/assets/audio';
 
     return {
         sfx,
         music,
         library: {
-            source: r2Library.length > 0 ? 'r2+public/assets/audio' : 'public/assets/audio',
+            source: librarySource,
             r2Available: r2Library.length,
             localAvailable: localLibrary.length,
             available: library.length,
