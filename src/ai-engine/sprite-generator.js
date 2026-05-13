@@ -607,6 +607,7 @@ export async function batchArtistAgent(requests) {
                 height: size,
                 transparent: assetRequest.transparent !== false,
                 description: assetRequest.description || request.description || '',
+                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
                 url: dataUri,
             };
             manifestAssets.push(assetMeta);
@@ -617,6 +618,7 @@ export async function batchArtistAgent(requests) {
                 width: size,
                 height: size,
                 role: category,
+                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
             });
             
             // Small delay between requests to avoid rate limiting
@@ -638,6 +640,7 @@ export async function batchArtistAgent(requests) {
                 height: size,
                 transparent: assetRequest.transparent !== false,
                 description: assetRequest.description || request.description || '',
+                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
                 url: dataUri,
                 fallback: true,
             };
@@ -649,6 +652,7 @@ export async function batchArtistAgent(requests) {
                 width: size,
                 height: size,
                 role: category,
+                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
                 fallback: true,
             });
         }

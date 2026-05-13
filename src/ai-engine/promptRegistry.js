@@ -255,6 +255,16 @@ function buildAIAssetsBlock(generatedAssets = null) {
   const backgrounds = uniqueAssets(byRole('environment', 'background').concat(byRole('background')));
   const ui = byRole('ui');
   const props = byRole('prop');
+  const assetPackSummary = Array.isArray(generatedAssets.assetPack)
+    ? generatedAssets.assetPack.map((asset) => {
+        const summary = { ...asset };
+        if (summary.url) summary.url = `[embedded:${Math.round(String(summary.url).length / 1024)}KB]`;
+        return summary;
+      })
+    : [];
+  const animationSummary = Array.isArray(generatedAssets.animations) ? generatedAssets.animations : [];
+  const audioSummary = generatedAssets.audio || { sfx: [], music: [] };
+  const tilesetSummary = Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [];
   
   const formatAssetList = (assetArray) => {
     return assetArray.map((asset) => {
@@ -292,9 +302,19 @@ ${props.length > 0 ? `PROPS/OBSTACLES:
 ${formatAssetList(props)}
 ` : ''}
 
+STRUCTURED ASSET PACK:
+\`\`\`json
+${JSON.stringify({
+  assets: assetPackSummary,
+  animations: animationSummary,
+  audio: audioSummary,
+  tilesets: tilesetSummary,
+}, null, 2)}
+\`\`\`
+
 CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
 1. ⚠️ YOU MUST USE PHASER 3 OR THREE.JS - Canvas 2D ctx.fillRect/ctx.arc creates ugly shapes!
-2. Load ALL these assets from window.DREAM_ASSETS by key. Do not invent data URIs.
+2. Load ALL image assets from window.DREAM_ASSETS by key. Do not invent data URIs.
 3. Use the player asset for the main character/hero
 4. Use enemy assets for obstacles/opponents/monsters
 5. Use item assets for collectibles/pickups/power-ups
@@ -305,11 +325,19 @@ CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
 10. ⚠️ ABSOLUTELY NO SVG CIRCLES OR PROCEDURAL SHAPES - Use the AI-generated PNG assets!
 11. ⚠️ If you use Canvas 2D instead of Phaser, the game will look terrible with ugly circles!
 12. Do NOT fetch external images — these embedded assets are ALL you need for visuals
+13. Use window.DREAM_ASSET_PACK as the source of truth for available assets and roles.
+14. Use window.DREAM_ANIMATIONS to create Phaser tweens/animations for idle, movement, hit, defeat, dash, and action feedback.
+15. Use window.DREAM_AUDIO_MANIFEST to create matching WebAudio sound functions. The audio entries are procedural manifests, so synthesize them in code and trigger by key.
+16. Use window.DREAM_TILESETS for tile/grid/platform/maze/dungeon games. If a tileset manifest exists, build the playfield from a repeatable tile rhythm instead of one empty flat backdrop.
 
 Example Phaser 3 usage:
 \`\`\`javascript
 // In preload()
 const dreamAssets = window.DREAM_ASSETS || {};
+const dreamPack = window.DREAM_ASSET_PACK || [];
+dreamPack.filter(asset => asset.type === 'image' && dreamAssets[asset.key]).forEach(asset => {
+  this.load.image(asset.key, dreamAssets[asset.key]);
+});
 ${player.length > 0 ? `this.load.image('player', dreamAssets['${player[0].id}']);` : ''}
 ${enemies.length > 0 ? `this.load.image('${enemies[0].id}', dreamAssets['${enemies[0].id}']);` : ''}
 ${items.length > 0 ? `this.load.image('${items[0].id}', dreamAssets['${items[0].id}']);` : ''}
@@ -319,6 +347,7 @@ ${backgrounds.length > 0 ? `this.load.image('${backgrounds[0].id}', dreamAssets[
 ${player.length > 0 ? `this.player = this.add.sprite(100, 100, 'player');` : ''}
 ${enemies.length > 0 ? `this.enemy = this.add.sprite(300, 100, '${enemies[0].id}');` : ''}
 ${backgrounds.length > 0 ? `this.add.image(0, 0, '${backgrounds[0].id}').setOrigin(0, 0);` : ''}
+// Create tweens from window.DREAM_ANIMATIONS and trigger synthesized sounds from window.DREAM_AUDIO_MANIFEST.
 \`\`\`
 
 Example Three.js usage:
@@ -2189,11 +2218,15 @@ function buildDreamAssetsScript(generatedAssets = null) {
         url,
       }));
   const animations = generatedAssets.animations || {};
+  const audio = generatedAssets.audio || { sfx: [], music: [] };
+  const tilesets = generatedAssets.tilesets || [];
   const payload = {
     assets: generatedAssets.assets,
     assetPack,
     manifest,
     animations,
+    audio,
+    tilesets,
   };
   const json = JSON.stringify(payload).replace(/</g, '\\u003c');
 
@@ -2205,6 +2238,8 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DREAM_ASSET_PACK = dreamAssetPayload.assetPack || [];
         window.DREAM_ASSET_MANIFEST = dreamAssetPayload.manifest || { version: 1, assets: [] };
         window.DREAM_ANIMATIONS = dreamAssetPayload.animations || {};
+        window.DREAM_AUDIO_MANIFEST = dreamAssetPayload.audio || { sfx: [], music: [] };
+        window.DREAM_TILESETS = dreamAssetPayload.tilesets || [];
       })();
     </script>
   `;

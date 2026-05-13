@@ -13,6 +13,7 @@ import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, ge
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
+import { buildDreamAssetPlan, compileDreamAssetBundle } from './asset-pipeline.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1823,101 +1824,20 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             try {
                 console.log(`🎨 Artist Agent: Planning visual asset generation...`);
                 await updateGenerationJobProgress(jobId, 26, 'assets', 'Planning visual assets...');
-                
-                // Build asset request list from Phase 1 plan
-                const assetRequests = [];
-                
-                // Player
-                if (qualityIntent.visualAssets.player) {
-                    assetRequests.push({
-                        id: 'player',
-                        assetType: 'sprite',
-                        description: qualityIntent.visualAssets.player.description,
-                        category: 'player',
-                        size: qualityIntent.visualAssets.player.size || 128,
-                        transparent: qualityIntent.visualAssets.player.transparent !== false,
-                    });
-                }
-                
-                // Enemies
-                if (Array.isArray(qualityIntent.visualAssets.enemies)) {
-                    qualityIntent.visualAssets.enemies.forEach((enemy, idx) => {
-                        assetRequests.push({
-                            id: enemy.id || `enemy${idx + 1}`,
-                            assetType: 'sprite',
-                            description: enemy.description,
-                            category: 'enemy',
-                            size: enemy.size || 128,
-                            transparent: enemy.transparent !== false,
-                        });
-                    });
-                }
-                
-                // Items
-                if (Array.isArray(qualityIntent.visualAssets.items)) {
-                    qualityIntent.visualAssets.items.forEach((item, idx) => {
-                        assetRequests.push({
-                            id: item.id || `item${idx + 1}`,
-                            assetType: 'sprite',
-                            description: item.description,
-                            category: 'item',
-                            size: item.size || 64,
-                            transparent: item.transparent !== false,
-                        });
-                    });
-                }
-                
-                // Backgrounds
-                if (Array.isArray(qualityIntent.visualAssets.backgrounds)) {
-                    qualityIntent.visualAssets.backgrounds.forEach((bg, idx) => {
-                        assetRequests.push({
-                            id: bg.id || `background${idx + 1}`,
-                            assetType: 'sprite',
-                            description: bg.description,
-                            category: 'environment',
-                            size: bg.size || 512,
-                            transparent: bg.transparent === true,
-                        });
-                    });
-                }
-                
-                // UI elements
-                if (Array.isArray(qualityIntent.visualAssets.ui)) {
-                    qualityIntent.visualAssets.ui.forEach((ui, idx) => {
-                        assetRequests.push({
-                            id: ui.id || `ui${idx + 1}`,
-                            assetType: 'sprite',
-                            description: ui.description,
-                            category: 'ui',
-                            size: ui.size || 32,
-                            transparent: ui.transparent !== false,
-                        });
-                    });
-                }
-                
-                // Props
-                if (Array.isArray(qualityIntent.visualAssets.props)) {
-                    qualityIntent.visualAssets.props.forEach((prop, idx) => {
-                        assetRequests.push({
-                            id: prop.id || `prop${idx + 1}`,
-                            assetType: 'sprite',
-                            description: prop.description,
-                            category: 'prop',
-                            size: prop.size || 96,
-                            transparent: prop.transparent !== false,
-                        });
-                    });
-                }
+                const assetPlan = buildDreamAssetPlan(qualityIntent);
+                const assetRequests = assetPlan.imageRequests;
                 
                 console.log(`🎨 Artist Agent: Generating ${assetRequests.length} visual assets...`);
                 await updateGenerationJobProgress(jobId, 32, 'assets', 'Generating visual ingredients...');
                 
                 // Generate all assets
-                generatedAssets = await batchArtistAgent(assetRequests);
+                const generatedImages = await batchArtistAgent(assetRequests);
+                generatedAssets = compileDreamAssetBundle(generatedImages, assetPlan);
                 assertJobNotCancelled(jobId);
                 await updateGenerationJobProgress(jobId, 42, 'assets', 'Visual assets prepared...');
                 
                 console.log(`✅ Artist Agent: Generated ${Object.keys(generatedAssets.assets).length} custom assets`);
+                console.log(`   Asset pack: ${generatedAssets.assetPack.length} entries (${generatedAssets.animations.length} animations, ${generatedAssets.audio?.sfx?.length || 0} sfx, ${generatedAssets.audio?.music?.length || 0} music, ${generatedAssets.tilesets.length} tilesets)`);
                 if (generatedAssets.errors) {
                     console.warn(`⚠️ Artist Agent: ${generatedAssets.errors.length} assets used fallbacks`);
                 }
