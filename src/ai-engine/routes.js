@@ -1824,7 +1824,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             try {
                 console.log(`🎨 Artist Agent: Planning visual asset generation...`);
                 await updateGenerationJobProgress(jobId, 26, 'assets', 'Planning visual assets...');
-                const assetPlan = buildDreamAssetPlan(qualityIntent);
+                const assetPlan = await buildDreamAssetPlan(qualityIntent);
                 const assetRequests = assetPlan.imageRequests;
                 
                 console.log(`🎨 Artist Agent: Generating ${assetRequests.length} visual assets...`);

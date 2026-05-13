@@ -1,12 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const AUDIO_DIR = path.join(REPO_ROOT, 'public/assets/audio');
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a']);
+const R2_AUDIO_CACHE_TTL_MS = 10 * 60 * 1000;
+
+let r2AudioCache = {
+    expiresAt: 0,
+    promise: null,
+    assets: null,
+};
 
 function asArray(value) {
     return Array.isArray(value) ? value : [];
@@ -28,12 +36,16 @@ function includesAny(text, terms) {
 
 function publicAudioUrl(fileName) {
     const baseUrl = String(process.env.AUDIO_ASSET_BASE || '/assets/audio').replace(/\/+$/, '');
+    return `${baseUrl}/${encodePath(fileName)}`;
+}
+
+function encodePath(fileName) {
     const encodedPath = String(fileName || '')
         .split(/[\\/]+/)
         .filter(Boolean)
         .map(encodeURIComponent)
         .join('/');
-    return `${baseUrl}/${encodedPath}`;
+    return encodedPath;
 }
 
 function titleFromFile(fileName) {
@@ -127,6 +139,92 @@ function getLocalAudioLibrary() {
     }
 }
 
+function hasR2Config() {
+    return Boolean(
+        process.env.R2_BUCKET_NAME &&
+        process.env.R2_ACCOUNT_ID &&
+        process.env.R2_ACCESS_KEY_ID &&
+        process.env.R2_SECRET_ACCESS_KEY
+    );
+}
+
+function r2PublicUrl(key) {
+    const publicUrlBase = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
+    return `${String(publicUrlBase).replace(/\/+$/, '')}/${encodePath(key)}`;
+}
+
+function createR2Client() {
+    return new S3Client({
+        region: 'auto',
+        endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+            accessKeyId: process.env.R2_ACCESS_KEY_ID,
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+        },
+    });
+}
+
+async function listR2AudioPrefix(client, prefix) {
+    const assets = [];
+    let continuationToken;
+    do {
+        const response = await client.send(new ListObjectsV2Command({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+            MaxKeys: 1000,
+        }));
+        for (const object of response.Contents || []) {
+            const key = object.Key || '';
+            const ext = path.extname(key).toLowerCase();
+            if (!AUDIO_EXTENSIONS.has(ext)) continue;
+            assets.push({
+                key: safeId(key.slice(0, -ext.length), 'audio'),
+                label: titleFromFile(key),
+                file: key,
+                url: r2PublicUrl(key),
+                kind: audioKindForPath(key),
+                source: 'r2',
+                tags: key.toLowerCase().replace(/\.[a-z0-9]+$/, '').split(/[^a-z0-9]+/).filter(Boolean),
+            });
+        }
+        continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+    return assets;
+}
+
+async function getR2AudioLibrary() {
+    if (!hasR2Config()) return [];
+
+    const now = Date.now();
+    if (r2AudioCache.assets && r2AudioCache.expiresAt > now) {
+        return r2AudioCache.assets;
+    }
+    if (r2AudioCache.promise) return r2AudioCache.promise;
+
+    r2AudioCache.promise = (async () => {
+        try {
+            const client = createR2Client();
+            const groups = await Promise.all([
+                listR2AudioPrefix(client, 'kenney-wave1/'),
+                listR2AudioPrefix(client, 'phaser-assets/'),
+            ]);
+            const assets = groups.flat();
+            r2AudioCache.assets = assets;
+            r2AudioCache.expiresAt = Date.now() + R2_AUDIO_CACHE_TTL_MS;
+            console.log(`[asset-pipeline] Loaded ${assets.length} R2 audio assets`);
+            return assets;
+        } catch (error) {
+            console.warn('[asset-pipeline] Could not load R2 audio library:', error.message);
+            return [];
+        } finally {
+            r2AudioCache.promise = null;
+        }
+    })();
+
+    return r2AudioCache.promise;
+}
+
 function scoreAudioAsset(asset, text) {
     const haystack = `${asset.label} ${asset.tags.join(' ')}`.toLowerCase();
     const query = String(text || '').toLowerCase();
@@ -213,7 +311,7 @@ function pushRequest(requests, request, seen) {
     });
 }
 
-export function buildDreamAssetPlan(qualityIntent = {}) {
+export async function buildDreamAssetPlan(qualityIntent = {}) {
     const visualAssets = qualityIntent.visualAssets || {};
     const assetRoles = asArray(qualityIntent.assetRoles);
     const requests = [];
@@ -304,7 +402,7 @@ export function buildDreamAssetPlan(qualityIntent = {}) {
 
     const specText = collectSpecText(qualityIntent);
     const animations = buildAnimationPlan(requests, qualityIntent);
-    const audio = buildAudioPlan(qualityIntent);
+    const audio = await buildAudioPlan(qualityIntent);
     const tilesets = buildTilesetPlan(qualityIntent, specText);
 
     return {
@@ -364,11 +462,13 @@ function buildAnimationPlan(requests, qualityIntent = {}) {
     return animations;
 }
 
-function buildAudioPlan(qualityIntent = {}) {
+async function buildAudioPlan(qualityIntent = {}) {
     const sfxNeeds = asArray(qualityIntent.audioNeeds?.sfx);
     const musicNeeds = asArray(qualityIntent.audioNeeds?.music);
     const specText = collectSpecText(qualityIntent);
-    const library = getLocalAudioLibrary();
+    const r2Library = await getR2AudioLibrary();
+    const localLibrary = getLocalAudioLibrary();
+    const library = r2Library.length > 0 ? [...r2Library, ...localLibrary] : localLibrary;
     const musicLibrary = library.filter((asset) => asset.kind === 'music');
     const sfxLibrary = library.filter((asset) => asset.kind === 'sfx');
     const selectedMusic = pickAudioAssets(musicLibrary, `${specText} ${musicNeeds.join(' ')}`, Math.max(1, Math.min(3, musicNeeds.length || 1)));
@@ -429,7 +529,9 @@ function buildAudioPlan(qualityIntent = {}) {
         sfx,
         music,
         library: {
-            source: 'public/assets/audio',
+            source: r2Library.length > 0 ? 'r2+public/assets/audio' : 'public/assets/audio',
+            r2Available: r2Library.length,
+            localAvailable: localLibrary.length,
             available: library.length,
             selected: sfx.length + music.length,
         },
