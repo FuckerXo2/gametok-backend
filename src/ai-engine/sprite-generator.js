@@ -6,7 +6,7 @@
  * 
  * Flow:
  * 1. Generate 768x768 image with FLUX.1-schnell (FREE, fast)
- * 2. Remove sprite backgrounds locally from a clean chroma/edge background
+ * 2. Remove sprite backgrounds with IMG.LY locally, then optional hosted/local fallbacks
  * 3. Downscale to target size (64/128/256px) with Sharp
  * 4. Return base64 PNG data URI
  * 
@@ -19,6 +19,9 @@ const FAL_KEY = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
 const FAL_RMBG_URL = 'https://fal.run/fal-ai/bria/background/remove';
 const BACKGROUND_DISTANCE_THRESHOLD = Number(process.env.SPRITE_BG_DISTANCE_THRESHOLD || 92);
 const EDGE_SAMPLE_SIZE = 12;
+const IMGLY_RMBG_DISABLED = process.env.IMGLY_RMBG_DISABLED === 'true';
+const IMGLY_RMBG_MODEL = process.env.IMGLY_RMBG_MODEL || 'medium';
+const IMGLY_RMBG_TIMEOUT_MS = Number(process.env.IMGLY_RMBG_TIMEOUT_MS || 90000);
 
 function stripDataUrl(imageBase64OrDataUrl) {
     return String(imageBase64OrDataUrl || '').replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
@@ -27,6 +30,15 @@ function stripDataUrl(imageBase64OrDataUrl) {
 function asPngDataUrl(imageBase64OrDataUrl) {
     const value = String(imageBase64OrDataUrl || '');
     return value.startsWith('data:image/') ? value : `data:image/png;base64,${value}`;
+}
+
+function withTimeout(promise, timeoutMs, label) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+        }),
+    ]);
 }
 
 /**
@@ -167,9 +179,39 @@ function softenAlpha(data, width, height, transparentMask) {
     }
 }
 
+async function removeBackgroundWithImgly(imageBase64) {
+    if (IMGLY_RMBG_DISABLED) {
+        return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'imgly', skipped: 'disabled' };
+    }
+
+    try {
+        const { removeBackground } = await import('@imgly/background-removal-node');
+        const inputBlob = new Blob([Buffer.from(stripDataUrl(imageBase64), 'base64')], { type: 'image/png' });
+        const outputBlob = await withTimeout(
+            removeBackground(inputBlob, {
+                model: IMGLY_RMBG_MODEL,
+                output: {
+                    format: 'image/png',
+                    type: 'foreground',
+                },
+            }),
+            IMGLY_RMBG_TIMEOUT_MS,
+            'IMG.LY background removal'
+        );
+        const arrayBuffer = await outputBlob.arrayBuffer();
+        return {
+            imageBase64: Buffer.from(arrayBuffer).toString('base64'),
+            removed: true,
+            method: 'imgly',
+        };
+    } catch (error) {
+        console.warn('[sprite-gen] IMG.LY background removal error:', error.message);
+        return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'imgly' };
+    }
+}
+
 /**
- * Production background removal via fal-hosted BRIA RMBG 2.0.
- * Falls back to local edge removal only if FAL is unavailable.
+ * Optional hosted fallback via fal-hosted BRIA RMBG 2.0.
  */
 async function removeBackgroundWithFal(imageBase64) {
     if (!FAL_KEY) {
@@ -297,6 +339,15 @@ async function removeBackgroundLocally(imageBase64) {
 }
 
 async function removeBackground(imageBase64) {
+    const imglyResult = await removeBackgroundWithImgly(imageBase64);
+    if (imglyResult.removed) return imglyResult;
+
+    if (imglyResult.skipped === 'disabled') {
+        console.warn('[sprite-gen] IMG.LY background removal disabled; trying hosted fallback');
+    } else {
+        console.warn('[sprite-gen] IMG.LY unavailable; trying hosted fallback');
+    }
+
     const falResult = await removeBackgroundWithFal(imageBase64);
     if (falResult.removed) return falResult;
 
