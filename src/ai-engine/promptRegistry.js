@@ -358,24 +358,78 @@ function buildPixelArtRuleBlock(specSheet = {}, userPrompt = '') {
 
 export function buildPhase1_Quantize(userPrompt) {
   return {
-    system: `You are a game design analyst. Extract the core intent and plan visual assets.
+    system: `You are a world-class game director and technical designer for mobile HTML5 games.
+Your job is to deeply understand the requested game BEFORE any code is written.
 
 RULES:
 - Output ONLY raw JSON, no markdown, no explanation.
-- Plan 8-12 visual assets (player, enemies, items, backgrounds, UI).
-- Be specific with descriptions - these will be used to generate AI art.
-- Keep it simple and focused on the core game concept.`,
+- Do not classify the game into a rigid genre template.
+- Think in concrete playable behavior: player verbs, entity rules, feedback, screen composition, and the first 10 seconds.
+- Keep scope realistic for one self-contained mobile HTML5 game.
+- The builder must be able to implement your spec directly.
+- Plan 8-12 visual assets that support the gameplay rules, not random decoration.
+- Be specific with asset descriptions because they will be used to generate AI art.`,
 
     user: `USER PROMPT: "${userPrompt}"
 
-Extract this JSON with visual assets:
+Extract this JSON:
 {
   "title": "Creative game title",
-  "userIntent": "One sentence: what does the user want to experience?",
+  "userIntent": "One sentence: what does the user want to experience emotionally and mechanically?",
+  "playableExperience": {
+    "coreFantasy": "What the player should feel they are doing, not a genre label",
+    "coreLoop": "A concrete repeatable loop: input -> game reaction -> reward/pressure -> next decision",
+    "primaryMechanic": "The one mechanic that must work for the game to feel like the prompt",
+    "funFactor": "Why this game will be satisfying moment to moment",
+    "firstTenSeconds": [
+      "what is visible on frame 1",
+      "what pressure or goal appears within 2 seconds",
+      "what the player can do immediately",
+      "what feedback proves the main mechanic works"
+    ],
+    "winCondition": "How a player succeeds, or score/survival target if endless",
+    "loseCondition": "How a player fails"
+  },
   "technicalRequirements": {
     "dimension": "2D | 3D",
-    "perspective": "first_person | third_person | top_down | side_view | isometric"
+    "perspective": "first_person | third_person | top_down | side_view | isometric",
+    "preferredEngine": "PHASER | THREE | CANVAS",
+    "screenComposition": "Where the player, hazards, HUD, controls, and important action should live on a phone screen"
   },
+  "mobileControls": [
+    {
+      "action": "player action",
+      "input": "tap | drag | swipe | hold | joystick | button | gesture",
+      "feedback": "visible feedback when input works"
+    }
+  ],
+  "playerActions": [
+    "concrete verb the player can perform"
+  ],
+  "entityRules": [
+    {
+      "entity": "name",
+      "role": "player | enemy | item | obstacle | projectile | spell | environment | ui",
+      "behavior": "exact gameplay behavior",
+      "interaction": "how it affects or is affected by other entities",
+      "feedback": "visual/audio feedback when it acts, hits, dies, scores, etc."
+    }
+  ],
+  "mustExist": [
+    "specific feature, entity, feedback, objective, control, or rule that must be implemented"
+  ],
+  "feelRules": [
+    "concrete juice/animation/audio/feedback rule"
+  ],
+  "failureModesToAvoid": [
+    "specific bad outcome that would make this game not match the prompt"
+  ],
+  "assetRoles": [
+    {
+      "assetId": "player | enemy1 | item1 | background1 | ui1 | prop1",
+      "roleInGameplay": "how this asset should be used in the game, not just what it depicts"
+    }
+  ],
   "visualAssets": {
     "player": {
       "description": "detailed visual description of main character",
@@ -436,6 +490,11 @@ Extract this JSON with visual assets:
 }
 
 IMPORTANT:
+- This is not a mood board. It is the game's operational understanding.
+- playableExperience, mobileControls, entityRules, mustExist, feelRules, failureModesToAvoid, and assetRoles must be specific to the user's prompt.
+- mustExist should include 8-14 concrete checks the final game must satisfy.
+- failureModesToAvoid should include 5-10 concrete mistakes to prevent.
+- firstTenSeconds should make the game feel alive immediately.
 - Include 1 player character
 - Include 2-3 enemies
 - Include 2-3 items/collectibles
@@ -523,6 +582,49 @@ function buildEngineSpecBlock(specSheet) {
 - Use Phaser's built-in physics, sprites, and animations for better performance.`;
 }
 
+function buildOperationalGameSpecBlock(qualityIntent = {}) {
+  const playableExperience = qualityIntent.playableExperience || {};
+  const list = (value, fallback = []) => normalizeList(value, fallback);
+  const entityRules = Array.isArray(qualityIntent.entityRules) ? qualityIntent.entityRules : [];
+  const controls = Array.isArray(qualityIntent.mobileControls) ? qualityIntent.mobileControls : [];
+  const assetRoles = Array.isArray(qualityIntent.assetRoles) ? qualityIntent.assetRoles : [];
+  const compactSpec = {
+    title: qualityIntent.title || 'Untitled Game',
+    userIntent: qualityIntent.userIntent || '',
+    playableExperience: {
+      coreFantasy: playableExperience.coreFantasy || '',
+      coreLoop: playableExperience.coreLoop || '',
+      primaryMechanic: playableExperience.primaryMechanic || '',
+      funFactor: playableExperience.funFactor || '',
+      firstTenSeconds: list(playableExperience.firstTenSeconds),
+      winCondition: playableExperience.winCondition || '',
+      loseCondition: playableExperience.loseCondition || '',
+    },
+    technicalRequirements: qualityIntent.technicalRequirements || {},
+    mobileControls: controls,
+    playerActions: list(qualityIntent.playerActions),
+    entityRules,
+    mustExist: list(qualityIntent.mustExist),
+    feelRules: list(qualityIntent.feelRules),
+    failureModesToAvoid: list(qualityIntent.failureModesToAvoid),
+    assetRoles,
+  };
+
+  return `OPERATIONAL GAME SPEC - BUILD THIS, NOT JUST THE THEME:
+${JSON.stringify(compactSpec, null, 2)}
+
+BUILDER CONTRACT:
+- Treat the operational spec above as the source of truth for gameplay.
+- Implement every mustExist item in actual playable code, not as text labels.
+- Implement every entityRules behavior and interaction that is relevant to the final game.
+- The first 10 seconds must match playableExperience.firstTenSeconds.
+- Use mobileControls exactly as the player's primary inputs. Do not require keyboard input.
+- Use assetRoles and the AI asset keys to connect art to gameplay roles.
+- Add feelRules as real feedback: animation, particles, hit-stop, screen shake, sound, UI pulses, or camera motion.
+- Actively avoid every failureModesToAvoid item.
+- If scope conflicts arise, keep the primaryMechanic, coreLoop, firstTenSeconds, and mustExist items before adding extras.`;
+}
+
 export function buildLabsSoloPrototype(userPrompt, qualityIntent = {}, audioBundle = null, mediaAttachments = [], generatedAssets = null) {
   const wants3D = qualityIntent?.technicalRequirements?.dimension === '3D';
   const wantsFirstPerson = qualityIntent?.technicalRequirements?.perspective === 'first_person';
@@ -531,6 +633,7 @@ export function buildLabsSoloPrototype(userPrompt, qualityIntent = {}, audioBund
   const audioKitBlock = buildAudioKitBlock(audioBundle);
   const userMediaBlock = buildUserMediaBlock(mediaAttachments);
   const aiAssetsBlock = buildAIAssetsBlock(generatedAssets);
+  const operationalSpecBlock = buildOperationalGameSpecBlock(qualityIntent);
 
   const engineNote = wants3D
     ? `Use Three.js (https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js). ${wantsFirstPerson ? 'First-person camera.' : wantsThirdPerson ? 'Third-person chase camera.' : 'Choose the best camera for the game.'}`
@@ -540,6 +643,8 @@ export function buildLabsSoloPrototype(userPrompt, qualityIntent = {}, audioBund
 
 GAME CONCEPT:
 "${userPrompt}"
+
+${operationalSpecBlock}
 
 ENGINE:
 ${engineNote}
@@ -562,6 +667,8 @@ ${userMediaBlock}
 
 QUALITY BAR:
 - This must look and feel like a REAL published mobile game.
+- The generated game must satisfy the OPERATIONAL GAME SPEC above.
+- The player must understand and use the primary mechanic within the first 10 seconds.
 - Use the AI-generated assets as your PRIMARY visual assets. They are custom-made for this exact game.
 - Add particles, screen shake, smooth animations, satisfying audio feedback.
 - Make it fun to play for at least 2 minutes.
@@ -575,11 +682,14 @@ OUTPUT: The complete HTML file only.`;
 // Kimi reads its own output, judges quality, rewrites weak parts
 // ─────────────────────────────────────────────────────────
 
-export function buildPhase3_SelfCritique(originalPrompt, currentHtml) {
+export function buildPhase3_SelfCritique(originalPrompt, currentHtml, qualityIntent = null) {
+  const operationalSpec = qualityIntent ? buildOperationalGameSpecBlock(qualityIntent) : '';
   return `You are a senior game developer doing a quality review of a game you just built.
 
 ORIGINAL CONCEPT:
 "${originalPrompt}"
+
+${operationalSpec}
 
 YOUR CURRENT BUILD:
 \`\`\`html
@@ -588,12 +698,15 @@ ${currentHtml}
 
 REVIEW CHECKLIST - be brutally honest:
 1. Does it actually match the concept? (right genre, right feel, right theme)
-2. Do the visuals look good? (proper sprites loaded, not ugly shapes or placeholders)
-3. Is the gameplay fun and responsive? (controls work, feedback is satisfying)
-4. Is there visual juice? (particles, animations, screen shake, impact effects)
-5. Does audio work? (real sounds loaded, not silence or oscillator beeps)
-6. Is the UI readable on mobile? (not tiny text, not overlapping elements)
-7. Are there any broken features? (things that don't work as intended)
+2. Does it satisfy every mustExist item from the operational spec?
+3. Does the first 10 seconds match playableExperience.firstTenSeconds?
+4. Are entityRules implemented as actual gameplay behavior?
+5. Do the visuals look good? (proper sprites loaded, not ugly shapes or placeholders)
+6. Is the gameplay fun and responsive? (controls work, feedback is satisfying)
+7. Is there visual juice? (particles, animations, screen shake, impact effects)
+8. Does audio work? (real sounds loaded, not silence or oscillator beeps)
+9. Is the UI readable on mobile? (not tiny text, not overlapping elements)
+10. Are there any broken features? (things that don't work as intended)
 
 Based on your review, rewrite the COMPLETE improved HTML file that fixes every issue you found.
 

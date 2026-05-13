@@ -1802,11 +1802,17 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         await updateGenerationJobProgress(jobId, 8, 'spec', 'Reading your idea...');
         console.log(`📋 Phase 1/3: ${DREAM_MODELS.spec} extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
-        const qualityIntent = await callAI(phase1.system, phase1.user, 3000, 0.4); // Increased from 800 to 3000 for multi-frame animation schema
+        const qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
         assertJobNotCancelled(jobId);
         await updateGenerationJobProgress(jobId, 20, 'spec', 'Game plan drafted...');
         
         console.log(`✅ Phase 1: "${qualityIntent.title}" — ${qualityIntent.userIntent}`);
+        if (qualityIntent.playableExperience?.coreLoop) {
+            console.log(`   Loop: ${qualityIntent.playableExperience.coreLoop}`);
+        }
+        if (qualityIntent.playableExperience?.primaryMechanic) {
+            console.log(`   Primary mechanic: ${qualityIntent.playableExperience.primaryMechanic}`);
+        }
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
 
         // ── ARTIST AGENT: Generate ALL visual assets with AI ──
@@ -1990,6 +1996,17 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     `The mobile HTML5 game below failed verification after build.`,
                     `FATAL ERROR: ${sandboxRes.crashes[0]}`,
                     '',
+                    'The repaired game must still satisfy this operational game spec:',
+                    JSON.stringify({
+                        playableExperience: qualityIntent.playableExperience || null,
+                        mobileControls: qualityIntent.mobileControls || [],
+                        playerActions: qualityIntent.playerActions || [],
+                        entityRules: qualityIntent.entityRules || [],
+                        mustExist: qualityIntent.mustExist || [],
+                        feelRules: qualityIntent.feelRules || [],
+                        failureModesToAvoid: qualityIntent.failureModesToAvoid || [],
+                    }, null, 2),
+                    '',
                     'Repair the game so it boots and remains playable on mobile.',
                     is3DFirstPerson
                         ? 'This game MUST remain a true first-person 3D Three.js game with a PerspectiveCamera and mobile look controls. Do not downgrade it into top-down 2D.'
@@ -2025,7 +2042,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         assertJobNotCancelled(jobId);
         console.log(`🔍 Phase 3B: Kimi reviewing its own output for quality...`);
         await updateGenerationJobProgress(jobId, 88, 'polish', 'Polishing the feel...');
-        const critiquePrompt = buildPhase3_SelfCritique(prompt, rawGameHtml);
+        const critiquePrompt = buildPhase3_SelfCritique(prompt, rawGameHtml, qualityIntent);
         const improvedHtml = await generateCompleteHtmlWithBuilder(critiquePrompt, { label: 'Phase 3B Self-Critique', jobId });
         assertJobNotCancelled(jobId);
 
