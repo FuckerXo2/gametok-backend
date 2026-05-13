@@ -79,7 +79,7 @@ const cancelledJobs = new Map();
 const GENERATION_WORKER_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
 const GENERATION_JOB_CONCURRENCY = Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || 3));
 const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_POLL_MS || 3000));
-const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 5));
+const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 2));
 const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
 const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATION_JOB_HEARTBEAT_MS || 30000));
 const generationJobRunners = new Map();
@@ -1461,6 +1461,11 @@ async function recoverStaleGenerationJobs() {
     await pool.query(
         `UPDATE generation_jobs
          SET status = CASE WHEN attempts < max_attempts THEN 'queued' ELSE 'failed' END,
+             phase = CASE WHEN attempts < max_attempts THEN 'recovering' ELSE 'failed' END,
+             status_message = CASE
+               WHEN attempts < max_attempts THEN 'Forge worker restarted. Recovering your build...'
+               ELSE 'Generation worker stopped before finishing.'
+             END,
              locked_by = NULL,
              locked_at = NULL,
              run_after = CASE WHEN attempts < max_attempts THEN NOW() ELSE run_after END,
@@ -2719,6 +2724,7 @@ router.post('/dream/cancel/:jobId', async (req, res) => {
 router.get('/dream/status/:jobId', async (req, res) => {
     try {
         const { jobId } = req.params;
+        await recoverStaleGenerationJobs();
         const ephemeralJob = pendingJobBoots.get(jobId);
         if (ephemeralJob?.status === 'canceled' || isJobCancelled(jobId)) {
             return res.json({ success: false, status: 'canceled', error: ephemeralJob?.error || 'Generation cancelled by user' });
