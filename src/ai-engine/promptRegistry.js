@@ -313,7 +313,18 @@ ${JSON.stringify({
 }, null, 2)}
 \`\`\`
 
-CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
+ASSET USAGE CONTRACT:
+- The structured asset pack is the source of truth for art roles. Treat each asset's role/category/gameplayRole as binding.
+- Use DreamAssets.preloadPhaser(this) in preload() to load every image in the manifest.
+- Use DreamAssets.firstByRole("player"), "enemy", "item", "prop", "background"/"environment", and "ui" to connect assets to gameplay entities.
+- Use DreamAssets.addSprite(scene, roleOrKey, x, y, { maxW, maxH }) and DreamAssets.addBackgroundCover(scene, roleOrKey, width, height) when helpful.
+- Use DreamAssets.safeRect(width, height) to place HUD, touch controls, menus, score, lives, wave labels, and inventory inside the GameTok-safe rectangle.
+- Every major gameplay entity on screen must be backed by either an asset key from DREAM_ASSET_PACK or a clearly intentional particle/shape effect. Do not use circles/rectangles as the player or main enemies when matching assets exist.
+- If an asset is marked transparent, render it as a sprite/entity. If transparent is false, render it as a background, floor, arena, or full-scene layer.
+- If an animation manifest references a sourceKey, apply that tween or an equivalent procedural animation to that exact sprite.
+- If audio exists in DREAM_AUDIO_MANIFEST, wire at least: ui_tap, impact, collect/reward, primary_action, movement_burst if movement exists, success/failure when those states exist.
+
+CRITICAL INSTRUCTIONS - NO LAZY VISUAL FALLBACKS:
 1. ⚠️ YOU MUST USE PHASER 3 OR THREE.JS - Canvas 2D ctx.fillRect/ctx.arc creates ugly shapes!
 2. Load ALL image assets from window.DREAM_ASSETS by key. Do not invent data URIs.
 3. Use the player asset for the main character/hero
@@ -335,19 +346,14 @@ Example Phaser 3 usage:
 \`\`\`javascript
 // In preload()
 const dreamAssets = window.DREAM_ASSETS || {};
-const dreamPack = window.DREAM_ASSET_PACK || [];
-dreamPack.filter(asset => asset.type === 'image' && dreamAssets[asset.key]).forEach(asset => {
-  this.load.image(asset.key, dreamAssets[asset.key]);
-});
-${player.length > 0 ? `this.load.image('player', dreamAssets['${player[0].id}']);` : ''}
-${enemies.length > 0 ? `this.load.image('${enemies[0].id}', dreamAssets['${enemies[0].id}']);` : ''}
-${items.length > 0 ? `this.load.image('${items[0].id}', dreamAssets['${items[0].id}']);` : ''}
-${backgrounds.length > 0 ? `this.load.image('${backgrounds[0].id}', dreamAssets['${backgrounds[0].id}']);` : ''}
+const loadedKeys = DreamAssets.preloadPhaser(this);
 
 // In create()
-${player.length > 0 ? `this.player = this.add.sprite(100, 100, 'player');` : ''}
-${enemies.length > 0 ? `this.enemy = this.add.sprite(300, 100, '${enemies[0].id}');` : ''}
-${backgrounds.length > 0 ? `this.add.image(0, 0, '${backgrounds[0].id}').setOrigin(0, 0);` : ''}
+const W = this.scale.width, H = this.scale.height;
+const safe = DreamAssets.safeRect(W, H);
+${backgrounds.length > 0 ? `DreamAssets.addBackgroundCover(this, '${backgrounds[0].id}', W, H);` : ''}
+${player.length > 0 ? `this.player = DreamAssets.addSprite(this, '${player[0].id}', W * 0.5, safe.y + safe.height * 0.55, { maxW: 96, maxH: 96, depth: 10 });` : ''}
+${enemies.length > 0 ? `this.enemy = DreamAssets.addSprite(this, '${enemies[0].id}', W * 0.5, safe.y + safe.height * 0.25, { maxW: 86, maxH: 86, depth: 9 });` : ''}
 // Create tweens from window.DREAM_ANIMATIONS.
 // DreamAssets.applyTween(this, this.player, 'player_idle');
 // Trigger sound at gameplay moments:
@@ -687,6 +693,12 @@ REQUIREMENTS:
 - Touch controls only (pointerdown/pointermove/pointerup). No keyboard.
 - Boot immediately — no DOMContentLoaded or window.onload wrappers.
 - First frame must be visible and themed immediately.
+- Use a real mobile viewport contract: derive width/height from window.innerWidth/window.innerHeight or visualViewport, not fixed 800x600/1024x768 dimensions.
+- Configure Phaser scale with width: window.innerWidth, height: window.innerHeight, mode: Phaser.Scale.RESIZE or Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, and handle resize/orientationchange.
+- Keep html/body/root/canvas at width:100vw; height:100dvh or 100vh fallback; margin:0; overflow:hidden; touch-action:none; no horizontal scrolling.
+- Reserve GameTok chrome-safe space: top 112px and bottom 48px minimum. Place HUD, score, lives, wave labels, pause, inventory, joysticks, buttons, and menus inside DreamAssets.safeRect(width,height).
+- No gameplay-critical UI may appear at y < 112px. Spawn player/objectives/enemies inside the visible safe play rectangle on frame one.
+- Every resize must recompute canvas/renderer size, camera/world bounds, HUD positions, control positions, and background cover scale.
 - Complete game loop: start, play, win/lose, restart.
 - Score, HUD, and moment-to-moment feedback.
 - Expose window.gametokEditable = { images:[], music:[], colors:[], text:[], tune:[], videos:[], sfx:[] } with any tweakable values.
@@ -703,6 +715,8 @@ QUALITY BAR:
 - The generated game must satisfy the OPERATIONAL GAME SPEC above.
 - The player must understand and use the primary mechanic within the first 10 seconds.
 - Use the AI-generated assets as your PRIMARY visual assets. They are custom-made for this exact game.
+- Use the structured manifest deliberately: player art for player, enemy art for enemies, item art for rewards, background art as scenery, props as colliders/obstacles/interactables, UI assets for HUD/control treatment.
+- Do not let assets float randomly or appear as decorative stickers. Every visible asset should have a gameplay role, collision/interaction role, HUD role, or environmental composition role.
 - Add particles, screen shake, smooth animations, satisfying audio feedback.
 - Make it fun to play for at least 2 minutes.
 - No placeholder art, no empty screens, no broken controls.
@@ -2256,6 +2270,11 @@ function buildDreamAssetsScript(generatedAssets = null) {
           getImage: function(key) {
             return window.DREAM_ASSETS && window.DREAM_ASSETS[key];
           },
+          get: function(key) {
+            return (window.DREAM_ASSET_PACK || []).find(function(asset) {
+              return asset.key === key || asset.id === key;
+            }) || null;
+          },
           getPack: function(type) {
             var pack = window.DREAM_ASSET_PACK || [];
             return type ? pack.filter(function(asset) { return asset.type === type; }) : pack;
@@ -2264,6 +2283,66 @@ function buildDreamAssetsScript(generatedAssets = null) {
             return (window.DREAM_ASSET_PACK || []).filter(function(asset) {
               return asset.role === role || asset.category === role;
             });
+          },
+          firstByRole: function(role) {
+            return this.findByRole(role)[0] || null;
+          },
+          preloadPhaser: function(scene) {
+            if (!scene || !scene.load) return [];
+            var loaded = [];
+            var assets = window.DREAM_ASSETS || {};
+            (window.DREAM_ASSET_PACK || []).forEach(function(asset) {
+              if (asset.type !== 'image' || !asset.key || !assets[asset.key]) return;
+              try {
+                scene.load.image(asset.key, assets[asset.key]);
+                loaded.push(asset.key);
+              } catch (e) {}
+            });
+            return loaded;
+          },
+          scaleToFit: function(displayObject, maxW, maxH, upscaleLimit) {
+            if (!displayObject) return displayObject;
+            var width = displayObject.width || displayObject.displayWidth || 1;
+            var height = displayObject.height || displayObject.displayHeight || 1;
+            var scale = Math.min(maxW / width, maxH / height);
+            if (Number.isFinite(upscaleLimit)) scale = Math.min(scale, upscaleLimit);
+            if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+            if (typeof displayObject.setScale === 'function') displayObject.setScale(scale);
+            else {
+              displayObject.scaleX = scale;
+              displayObject.scaleY = scale;
+            }
+            return displayObject;
+          },
+          addSprite: function(scene, keyOrRole, x, y, options) {
+            if (!scene || !scene.add) return null;
+            var opts = options || {};
+            var asset = (window.DREAM_ASSETS || {})[keyOrRole] ? { key: keyOrRole } : this.firstByRole(keyOrRole);
+            var key = asset && asset.key ? asset.key : keyOrRole;
+            if (!(window.DREAM_ASSETS || {})[key]) return null;
+            var sprite = scene.add.sprite(x, y, key);
+            if (opts.depth !== undefined && sprite.setDepth) sprite.setDepth(opts.depth);
+            if (opts.maxW || opts.maxH) this.scaleToFit(sprite, opts.maxW || 96, opts.maxH || 96, opts.upscaleLimit || 1.5);
+            if (opts.origin && sprite.setOrigin) sprite.setOrigin(opts.origin[0], opts.origin[1]);
+            return sprite;
+          },
+          addBackgroundCover: function(scene, keyOrRole, width, height) {
+            if (!scene || !scene.add) return null;
+            var asset = (window.DREAM_ASSETS || {})[keyOrRole] ? { key: keyOrRole } : (this.firstByRole('background') || this.firstByRole('environment'));
+            var key = asset && asset.key ? asset.key : keyOrRole;
+            if (!(window.DREAM_ASSETS || {})[key]) return null;
+            var bg = scene.add.image(width / 2, height / 2, key);
+            var scale = Math.max(width / Math.max(bg.width || 1, 1), height / Math.max(bg.height || 1, 1));
+            if (bg.setScale) bg.setScale(scale);
+            if (bg.setDepth) bg.setDepth(-100);
+            return bg;
+          },
+          safeRect: function(width, height) {
+            width = width || window.innerWidth || 390;
+            height = height || window.innerHeight || 844;
+            var top = Math.max(112, Number(window.__GAMETOK_SAFE_TOP || 0));
+            var bottom = Math.max(48, Number(window.__GAMETOK_SAFE_BOTTOM || 0));
+            return { x: 12, y: top, width: Math.max(1, width - 24), height: Math.max(1, height - top - bottom), top: top, bottom: bottom };
           },
           animationsFor: function(sourceKey) {
             return (window.DREAM_ANIMATIONS || []).filter(function(animation) {

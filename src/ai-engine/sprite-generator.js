@@ -612,12 +612,17 @@ export async function batchArtistAgent(requests) {
             };
             manifestAssets.push(assetMeta);
             assetPack.push({
+                id,
                 key: id,
                 type: 'image',
+                kind: assetRequest.assetType || request.assetType || 'sprite',
                 url: dataUri,
                 width: size,
                 height: size,
                 role: category,
+                category,
+                transparent: assetRequest.transparent !== false,
+                description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
             });
             
@@ -646,12 +651,17 @@ export async function batchArtistAgent(requests) {
             };
             manifestAssets.push(assetMeta);
             assetPack.push({
+                id,
                 key: id,
                 type: 'image',
+                kind: assetRequest.assetType || request.assetType || 'sprite',
                 url: dataUri,
                 width: size,
                 height: size,
                 role: category,
+                category,
+                transparent: assetRequest.transparent !== false,
+                description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
                 fallback: true,
             });
