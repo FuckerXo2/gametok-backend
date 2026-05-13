@@ -206,7 +206,8 @@ function buildAudioKitBlock(audioBundle = null) {
   if (!audioBundle || (!audioBundle.audio?.length && !audioBundle.music?.length)) {
     return `AUDIO ASSETS:
 - No curated audio assets were attached for this run.
-- You may use procedural audio (Web Audio API oscillators) for simple sound effects.
+- If DREAM_AUDIO_MANIFEST is present, use DreamAudio to play real local audio files from that manifest.
+- Do NOT create oscillator/beep sounds as a substitute for real audio files.
 - Keep the game playable without audio.`;
   }
 
@@ -327,7 +328,7 @@ CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
 12. Do NOT fetch external images — these embedded assets are ALL you need for visuals
 13. Use window.DREAM_ASSET_PACK as the source of truth for available assets and roles.
 14. Use window.DREAM_ANIMATIONS and the injected DreamAssets helper to create Phaser tweens/animations for idle, movement, hit, defeat, dash, and action feedback. Example: DreamAssets.applyTween(this, playerSprite, "player_idle").
-15. Use window.DREAM_AUDIO_MANIFEST and the injected DreamAudio runtime for sound. Trigger sounds with DreamAudio.play("impact"), DreamAudio.play("collect"), DreamAudio.play("primary_action"), DreamAudio.play("movement_burst"), DreamAudio.play("success"), DreamAudio.play("failure"), or any key from the manifest.
+15. Use window.DREAM_AUDIO_MANIFEST and the injected DreamAudio runtime for real audio files. Trigger sounds with DreamAudio.play("impact"), DreamAudio.play("collect"), DreamAudio.play("primary_action"), DreamAudio.play("movement_burst"), DreamAudio.play("success"), DreamAudio.play("failure"), or any key from the manifest. Do NOT synthesize oscillator/beep sounds.
 16. Use window.DREAM_TILESETS for tile/grid/platform/maze/dungeon games. If a tileset manifest exists, build the playfield from a repeatable tile rhythm instead of one empty flat backdrop.
 
 Example Phaser 3 usage:
@@ -736,7 +737,7 @@ REVIEW CHECKLIST - be brutally honest:
 5. Do the visuals look good? (proper sprites loaded, not ugly shapes or placeholders)
 6. Is the gameplay fun and responsive? (controls work, feedback is satisfying)
 7. Is there visual juice? (particles, animations, screen shake, impact effects)
-8. Does audio work? (real sounds loaded, not silence or oscillator beeps)
+8. Does audio work? (real local audio files loaded, not silence or oscillator beeps)
 9. Is the UI readable on mobile? (not tiny text, not overlapping elements)
 10. Are there any broken features? (things that don't work as intended)
 
@@ -1934,7 +1935,7 @@ ${gameStateRule}
 7. GAME FEEL / JUICE (MANDATORY):
    - Immersive screen shake / camera shake on impact.
    - Visual feedback for Every Action (flashes, tiny particles, scaling).
-   - Sound: Use Web Audio API for synthesized effects (Collect: chirpy, Hit: deep thud).
+   - Sound: Use DreamAudio and DREAM_AUDIO_MANIFEST when available. Do NOT create oscillator/beep sounds.
 
 8. ERROR HANDLING & LOGGING (CRITICAL FOR MOBILE):
    - Use try/catch blocks. Render error text on the screen if the engine fails to initialize.

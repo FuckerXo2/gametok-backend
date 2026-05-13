@@ -1,3 +1,13 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const REPO_ROOT = path.resolve(__dirname, '../..');
+const AUDIO_DIR = path.join(REPO_ROOT, 'public/assets/audio');
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a']);
+
 function asArray(value) {
     return Array.isArray(value) ? value : [];
 }
@@ -14,6 +24,97 @@ function safeId(value, fallback) {
 function includesAny(text, terms) {
     const haystack = String(text || '').toLowerCase();
     return terms.some((term) => haystack.includes(term));
+}
+
+function publicAudioUrl(fileName) {
+    return `/assets/audio/${encodeURIComponent(fileName)}`;
+}
+
+function titleFromFile(fileName) {
+    return path.basename(fileName, path.extname(fileName))
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getLocalAudioLibrary() {
+    try {
+        const preferredByKey = new Map();
+        const extensionRank = { '.mp3': 4, '.ogg': 3, '.m4a': 2, '.wav': 1 };
+        fs.readdirSync(AUDIO_DIR)
+            .filter((fileName) => AUDIO_EXTENSIONS.has(path.extname(fileName).toLowerCase()))
+            .forEach((fileName) => {
+                const name = fileName.toLowerCase();
+                const isSfx = includesAny(name, ['heartbeat', 'sd-', 'time', 'hit', 'jump', 'coin', 'click', 'impact', 'sfx']);
+                const key = safeId(path.basename(fileName, path.extname(fileName)), 'audio');
+                const asset = {
+                    key: safeId(path.basename(fileName, path.extname(fileName)), 'audio'),
+                    label: titleFromFile(fileName),
+                    file: fileName,
+                    url: publicAudioUrl(fileName),
+                    kind: isSfx ? 'sfx' : 'music',
+                    tags: name.replace(/\.[a-z0-9]+$/, '').split(/[^a-z0-9]+/).filter(Boolean),
+                };
+                const existing = preferredByKey.get(key);
+                const ext = path.extname(fileName).toLowerCase();
+                const existingExt = existing ? path.extname(existing.file).toLowerCase() : '';
+                if (!existing || (extensionRank[ext] || 0) > (extensionRank[existingExt] || 0)) {
+                    preferredByKey.set(key, asset);
+                }
+            });
+        return Array.from(preferredByKey.values());
+    } catch (error) {
+        console.warn('[asset-pipeline] Could not read public audio library:', error.message);
+        return [];
+    }
+}
+
+function scoreAudioAsset(asset, text) {
+    const haystack = `${asset.label} ${asset.tags.join(' ')}`.toLowerCase();
+    const query = String(text || '').toLowerCase();
+    let score = 0;
+    for (const token of query.split(/[^a-z0-9]+/).filter(Boolean)) {
+        if (token.length > 2 && haystack.includes(token)) score += 2;
+    }
+    if (includesAny(query, ['space', 'shooter', 'arcade', 'laser']) && includesAny(haystack, ['shmup', 'astro', 'goldrunner', 'gemattack'])) score += 8;
+    if (includesAny(query, ['jungle', 'forest', 'nature']) && haystack.includes('jungle')) score += 8;
+    if (includesAny(query, ['quest', 'dungeon', 'magic', 'wizard', 'fantasy']) && includesAny(haystack, ['quest', 'wizball', 'pandora', 'enigma'])) score += 8;
+    if (includesAny(query, ['retro', '8bit', 'pixel', 'arcade']) && includesAny(haystack, ['4bit', '8bit', 'chiptune', 'wizball'])) score += 8;
+    if (includesAny(query, ['intense', 'combat', 'boss', 'fast', 'neon']) && includesAny(haystack, ['overkill', 'hardcore', 'goa', 'remix'])) score += 8;
+    return score;
+}
+
+function pickAudioAssets(assets, text, count = 1) {
+    return assets
+        .map((asset) => ({ asset, score: scoreAudioAsset(asset, text) }))
+        .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label))
+        .slice(0, count)
+        .map((entry) => entry.asset);
+}
+
+function scoreSfxAsset(asset, cue, specText) {
+    const haystack = `${asset.label} ${asset.tags.join(' ')}`.toLowerCase();
+    const cueText = `${cue.key} ${cue.role} ${cue.trigger} ${cue.style} ${specText}`.toLowerCase();
+    if (haystack.includes('dog') && !includesAny(cueText, ['dog', 'animal', 'bark'])) return -100;
+
+    let score = scoreAudioAsset(asset, cueText);
+    if (cue.key === 'ui_tap' && includesAny(haystack, ['time', 'click', 'ui'])) score += 8;
+    if (cue.key === 'impact' && includesAny(haystack, ['heartbeat', 'sd', 'hit', 'impact'])) score += 8;
+    if (cue.key === 'collect' && includesAny(haystack, ['time', 'sd', 'coin', 'collect'])) score += 8;
+    if (cue.key === 'primary_action' && includesAny(haystack, ['sd', 'ingame', 'hit', 'impact'])) score += 8;
+    if (cue.key === 'movement_burst' && includesAny(haystack, ['sd', 'time', 'whoosh', 'jump'])) score += 8;
+    if (cue.key === 'success' && includesAny(haystack, ['time', 'sd', 'coin', 'success'])) score += 8;
+    if (cue.key === 'failure' && includesAny(haystack, ['heartbeat', 'time', 'fail'])) score += 8;
+    return score;
+}
+
+function pickSfxAsset(assets, cue, specText, usedFiles) {
+    const ranked = assets
+        .filter((asset) => !usedFiles.has(asset.file))
+        .map((asset) => ({ asset, score: scoreSfxAsset(asset, cue, specText) }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label));
+    return ranked[0]?.asset || null;
 }
 
 function collectSpecText(qualityIntent = {}) {
@@ -206,11 +307,16 @@ function buildAnimationPlan(requests, qualityIntent = {}) {
 function buildAudioPlan(qualityIntent = {}) {
     const sfxNeeds = asArray(qualityIntent.audioNeeds?.sfx);
     const musicNeeds = asArray(qualityIntent.audioNeeds?.music);
+    const specText = collectSpecText(qualityIntent);
+    const library = getLocalAudioLibrary();
+    const musicLibrary = library.filter((asset) => asset.kind === 'music');
+    const sfxLibrary = library.filter((asset) => asset.kind === 'sfx');
+    const selectedMusic = pickAudioAssets(musicLibrary, `${specText} ${musicNeeds.join(' ')}`, Math.max(1, Math.min(3, musicNeeds.length || 1)));
     const mustExistText = asArray(qualityIntent.mustExist).join(' ');
     const defaults = [
-        { key: 'ui_tap', role: 'ui', trigger: 'button press or menu selection', style: 'short soft click' },
-        { key: 'impact', role: 'feedback', trigger: 'player or enemy takes damage', style: 'punchy low thud with bright transient' },
-        { key: 'collect', role: 'reward', trigger: 'pickup, score, combo, or resource gain', style: 'rising chime' },
+        { key: 'ui_tap', role: 'ui', trigger: 'button press or menu selection', style: 'short UI cue' },
+        { key: 'impact', role: 'feedback', trigger: 'player or enemy takes damage', style: 'impact or tension cue' },
+        { key: 'collect', role: 'reward', trigger: 'pickup, score, combo, or resource gain', style: 'reward cue' },
     ];
 
     if (includesAny(mustExistText, ['cast', 'spell', 'shoot', 'fire', 'attack'])) {
@@ -226,32 +332,48 @@ function buildAudioPlan(qualityIntent = {}) {
         defaults.push({ key: 'failure', role: 'failure', trigger: 'loss, defeat, or health depleted', style: 'short descending sting' });
     }
 
-    const sfx = defaults.map((entry, index) => ({
-        ...entry,
-        type: 'procedural_web_audio',
-        assetType: 'sfx',
-        description: sfxNeeds[index] || entry.style,
-    }));
+    const usedSfxFiles = new Set();
+    const sfx = defaults
+        .map((entry, index) => {
+            const audioAsset = pickSfxAsset(sfxLibrary, entry, `${specText} ${sfxNeeds.join(' ')}`, usedSfxFiles);
+            if (!audioAsset) return null;
+            usedSfxFiles.add(audioAsset.file);
+            return {
+                ...entry,
+                type: 'audio_file',
+                assetType: 'sfx',
+                description: sfxNeeds[index] || entry.style,
+                label: audioAsset.label,
+                url: audioAsset.url,
+                sourceFile: audioAsset.file,
+            };
+        })
+        .filter(Boolean);
 
-    const music = musicNeeds.length > 0
-        ? musicNeeds.map((description, index) => ({
+    const music = selectedMusic.length > 0
+        ? selectedMusic.map((audioAsset, index) => ({
             key: index === 0 ? 'bgm_main' : `bgm_${index + 1}`,
-            type: 'procedural_web_audio',
+            type: 'audio_file',
             assetType: 'music',
             role: 'background_music',
             trigger: 'gameplay loop',
-            description,
+            description: musicNeeds[index] || 'looping background music from the local game audio library',
+            label: audioAsset.label,
+            url: audioAsset.url,
+            sourceFile: audioAsset.file,
+            loop: true,
         }))
-        : [{
-            key: 'bgm_main',
-            type: 'procedural_web_audio',
-            assetType: 'music',
-            role: 'background_music',
-            trigger: 'gameplay loop',
-            description: 'subtle loop matching the game mood without overpowering mobile play',
-        }];
+        : [];
 
-    return { sfx, music };
+    return {
+        sfx,
+        music,
+        library: {
+            source: 'public/assets/audio',
+            available: library.length,
+            selected: sfx.length + music.length,
+        },
+    };
 }
 
 function buildTilesetPlan(qualityIntent = {}, specText = '') {
