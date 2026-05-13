@@ -233,27 +233,44 @@ function buildAIAssetsBlock(generatedAssets = null) {
   }
 
   const assets = generatedAssets.assets;
+  const manifestAssets = Array.isArray(generatedAssets.manifest?.assets)
+    ? generatedAssets.manifest.assets
+    : Object.entries(assets).map(([id, dataUri]) => ({
+        id,
+        key: id,
+        role: id === 'player' ? 'player' : id.replace(/[0-9_-]+$/g, ''),
+        category: id === 'player' ? 'player' : id.replace(/[0-9_-]+$/g, ''),
+        width: 128,
+        height: 128,
+        transparent: !id.startsWith('background'),
+        url: dataUri,
+      }));
   
   // Group assets by type
-  const player = Object.entries(assets).filter(([id]) => id === 'player');
-  const enemies = Object.entries(assets).filter(([id]) => id.startsWith('enemy'));
-  const items = Object.entries(assets).filter(([id]) => id.startsWith('item'));
-  const backgrounds = Object.entries(assets).filter(([id]) => id.startsWith('background'));
-  const ui = Object.entries(assets).filter(([id]) => id.startsWith('ui'));
-  const props = Object.entries(assets).filter(([id]) => id.startsWith('prop'));
+  const byRole = (role, prefix = role) => manifestAssets.filter((asset) => asset.role === role || asset.category === role || asset.id.startsWith(prefix));
+  const uniqueAssets = (assetArray) => Array.from(new Map(assetArray.map((asset) => [asset.id, asset])).values());
+  const player = byRole('player');
+  const enemies = byRole('enemy');
+  const items = byRole('item');
+  const backgrounds = uniqueAssets(byRole('environment', 'background').concat(byRole('background')));
+  const ui = byRole('ui');
+  const props = byRole('prop');
   
   const formatAssetList = (assetArray) => {
-    return assetArray.map(([id, dataUri]) => {
+    return assetArray.map((asset) => {
+      const dataUri = assets[asset.id] || asset.url || '';
       const sizeKB = Math.round(dataUri.length / 1024);
-      return `  - ${id}: ${dataUri.slice(0, 60)}... (${sizeKB}KB)`;
+      const dimensions = asset.width && asset.height ? `${asset.width}x${asset.height}` : 'image';
+      const transparent = asset.transparent === false ? 'opaque/background' : 'transparent sprite';
+      return `  - ${asset.id}: use window.DREAM_ASSETS["${asset.id}"] (${dimensions}, ${transparent}, ${sizeKB}KB)`;
     }).join('\n');
   };
 
   return `AI-GENERATED CUSTOM VISUAL ASSETS:
 - These assets were generated specifically for THIS game using NVIDIA FLUX AI.
-- They are embedded as base64 data URIs and ready to use immediately.
+- They are injected into the final HTML before your game runs.
 - You MUST use these assets as your PRIMARY visual assets for the game.
-- Load them directly in your game code using their data URIs.
+- Load them by key from window.DREAM_ASSETS or window.DREAM_ASSET_PACK.
 - These are CUSTOM assets made for this exact game concept — use them prominently!
 
 ${player.length > 0 ? `PLAYER CHARACTER:
@@ -277,7 +294,7 @@ ${formatAssetList(props)}
 
 CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
 1. ⚠️ YOU MUST USE PHASER 3 OR THREE.JS - Canvas 2D ctx.fillRect/ctx.arc creates ugly shapes!
-2. Load ALL these assets using their data URIs (they start with "data:image/png;base64,...")
+2. Load ALL these assets from window.DREAM_ASSETS by key. Do not invent data URIs.
 3. Use the player asset for the main character/hero
 4. Use enemy assets for obstacles/opponents/monsters
 5. Use item assets for collectibles/pickups/power-ups
@@ -292,21 +309,22 @@ CRITICAL INSTRUCTIONS - NO SVG/PROCEDURAL FALLBACKS ALLOWED:
 Example Phaser 3 usage:
 \`\`\`javascript
 // In preload()
-${player.length > 0 ? `this.load.image('player', '${player[0][1].slice(0, 80)}...');` : ''}
-${enemies.length > 0 ? `this.load.image('${enemies[0][0]}', '${enemies[0][1].slice(0, 80)}...');` : ''}
-${items.length > 0 ? `this.load.image('${items[0][0]}', '${items[0][1].slice(0, 80)}...');` : ''}
-${backgrounds.length > 0 ? `this.load.image('${backgrounds[0][0]}', '${backgrounds[0][1].slice(0, 80)}...');` : ''}
+const dreamAssets = window.DREAM_ASSETS || {};
+${player.length > 0 ? `this.load.image('player', dreamAssets['${player[0].id}']);` : ''}
+${enemies.length > 0 ? `this.load.image('${enemies[0].id}', dreamAssets['${enemies[0].id}']);` : ''}
+${items.length > 0 ? `this.load.image('${items[0].id}', dreamAssets['${items[0].id}']);` : ''}
+${backgrounds.length > 0 ? `this.load.image('${backgrounds[0].id}', dreamAssets['${backgrounds[0].id}']);` : ''}
 
 // In create()
 ${player.length > 0 ? `this.player = this.add.sprite(100, 100, 'player');` : ''}
-${enemies.length > 0 ? `this.enemy = this.add.sprite(300, 100, '${enemies[0][0]}');` : ''}
-${backgrounds.length > 0 ? `this.add.image(0, 0, '${backgrounds[0][0]}').setOrigin(0, 0);` : ''}
+${enemies.length > 0 ? `this.enemy = this.add.sprite(300, 100, '${enemies[0].id}');` : ''}
+${backgrounds.length > 0 ? `this.add.image(0, 0, '${backgrounds[0].id}').setOrigin(0, 0);` : ''}
 \`\`\`
 
 Example Three.js usage:
 \`\`\`javascript
 const textureLoader = new THREE.TextureLoader();
-${player.length > 0 ? `const playerTexture = textureLoader.load('${player[0][1].slice(0, 80)}...');
+${player.length > 0 ? `const playerTexture = textureLoader.load((window.DREAM_ASSETS || {})['${player[0].id}']);
 const playerMaterial = new THREE.MeshBasicMaterial({ map: playerTexture, transparent: true });
 const playerMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), playerMaterial);
 scene.add(playerMesh);` : ''}
@@ -2044,7 +2062,42 @@ function buildGameTokEditableBridgeScript() {
   `;
 }
 
-export function postProcessRawHtml(rawHtml) {
+function buildDreamAssetsScript(generatedAssets = null) {
+  if (!generatedAssets || !generatedAssets.assets || Object.keys(generatedAssets.assets).length === 0) {
+    return '';
+  }
+
+  const manifest = generatedAssets.manifest || { version: 1, assets: [] };
+  const assetPack = Array.isArray(generatedAssets.assetPack)
+    ? generatedAssets.assetPack
+    : Object.entries(generatedAssets.assets).map(([key, url]) => ({
+        key,
+        type: 'image',
+        url,
+      }));
+  const animations = generatedAssets.animations || {};
+  const payload = {
+    assets: generatedAssets.assets,
+    assetPack,
+    manifest,
+    animations,
+  };
+  const json = JSON.stringify(payload).replace(/</g, '\\u003c');
+
+  return `
+    <script>
+      (function() {
+        var dreamAssetPayload = ${json};
+        window.DREAM_ASSETS = dreamAssetPayload.assets || {};
+        window.DREAM_ASSET_PACK = dreamAssetPayload.assetPack || [];
+        window.DREAM_ASSET_MANIFEST = dreamAssetPayload.manifest || { version: 1, assets: [] };
+        window.DREAM_ANIMATIONS = dreamAssetPayload.animations || {};
+      })();
+    </script>
+  `;
+}
+
+export function postProcessRawHtml(rawHtml, generatedAssets = null) {
   const runtimeOverlayScript = `
     <script>
       (function() {
@@ -2170,6 +2223,17 @@ export function postProcessRawHtml(rawHtml) {
   } catch (e) {}
 
   const editableBridgeScript = buildGameTokEditableBridgeScript();
+  const dreamAssetsScript = buildDreamAssetsScript(generatedAssets);
+
+  if (dreamAssetsScript) {
+    if (rawHtml.includes('<head>')) {
+      rawHtml = rawHtml.replace('<head>', '<head>' + dreamAssetsScript);
+    } else if (rawHtml.toLowerCase().includes('<html>')) {
+      rawHtml = rawHtml.replace(/<html>/i, '<html><head>' + dreamAssetsScript + '</head>');
+    } else {
+      rawHtml = dreamAssetsScript + rawHtml;
+    }
+  }
 
   // Inject right before </body> or at end
   if (rawHtml.includes('</body>')) {

@@ -1952,7 +1952,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         console.log(`✅ Phase 2 complete: builder generated ${rawGameHtml.length} chars of game code`);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
-        let finalHtml = postProcessRawHtml(rawGameHtml);
+        let finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
         let finalScreenshot = null;
 
         // ── PHASE 3/3: QA SANDBOX AUTO-HEALING LOOP ──
@@ -2008,7 +2008,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 if (!hasClosedHtmlDocument(rawGameHtml)) {
                     throw new Error('Builder repair output is missing </html> and appears truncated.');
                 }
-                finalHtml = postProcessRawHtml(rawGameHtml);
+                finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
                 maxRetries--;
             } else {
                 console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
@@ -2033,7 +2033,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             // Verify the improved version still boots
             let improvedSandboxRes;
             try {
-                improvedSandboxRes = await verifyGame(postProcessRawHtml(improvedHtml), {});
+                improvedSandboxRes = await verifyGame(postProcessRawHtml(improvedHtml, generatedAssets), {});
             } catch (e) {
                 improvedSandboxRes = { success: false };
             }
@@ -2041,7 +2041,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             if (improvedSandboxRes.success) {
                 console.log(`✅ Phase 3B: Improved version passes sandbox — using it`);
                 rawGameHtml = improvedHtml;
-                finalHtml = postProcessRawHtml(improvedHtml);
+                finalHtml = postProcessRawHtml(improvedHtml, generatedAssets);
                 if (improvedSandboxRes.screenshot) finalScreenshot = improvedSandboxRes.screenshot;
             } else {
                 console.log(`⚠️ Phase 3B: Improved version failed sandbox — keeping original`);

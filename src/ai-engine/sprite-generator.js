@@ -419,6 +419,8 @@ export async function artistAgent(request) {
             vehicle: 'vehicle',
             environment: 'background',
             ui: 'ui',
+            prop: 'item',
+            obstacle: 'item',
         };
         const spriteType = typeMap[category] || 'character';
         
@@ -454,6 +456,8 @@ function generateFallbackAsset(size, category) {
         vehicle: '#60a5fa',
         environment: '#94a3b8',
         ui: '#a78bfa',
+        prop: '#c084fc',
+        obstacle: '#c084fc',
     };
     const color = colors[category] || '#9ca3af';
     
@@ -527,15 +531,42 @@ export async function batchArtistAgent(requests) {
     
     const results = {};
     const errors = [];
+    const manifestAssets = [];
+    const assetPack = [];
+    const animations = {};
     
     // Generate assets sequentially to avoid rate limits
     // (NVIDIA free tier has rate limits)
     for (const request of requests) {
         const { id, ...assetRequest } = request;
+        const category = assetRequest.category || request.category || 'item';
+        const size = Number(assetRequest.size || request.size || 128);
         
         try {
             const dataUri = await artistAgent(assetRequest);
             results[id] = dataUri;
+            const assetMeta = {
+                id,
+                key: id,
+                type: 'image',
+                kind: assetRequest.assetType || request.assetType || 'sprite',
+                role: category,
+                category,
+                width: size,
+                height: size,
+                transparent: assetRequest.transparent !== false,
+                description: assetRequest.description || request.description || '',
+                url: dataUri,
+            };
+            manifestAssets.push(assetMeta);
+            assetPack.push({
+                key: id,
+                type: 'image',
+                url: dataUri,
+                width: size,
+                height: size,
+                role: category,
+            });
             
             // Small delay between requests to avoid rate limiting
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -543,10 +574,32 @@ export async function batchArtistAgent(requests) {
             console.error(`[Batch Artist Agent] Failed to generate ${id}:`, error.message);
             errors.push({ id, error: error.message });
             // Generate fallback
-            results[id] = generateFallbackAsset(
-                request.size || 128,
-                request.category || 'item'
-            );
+            const dataUri = generateFallbackAsset(size, category);
+            results[id] = dataUri;
+            const assetMeta = {
+                id,
+                key: id,
+                type: 'image',
+                kind: assetRequest.assetType || request.assetType || 'sprite',
+                role: category,
+                category,
+                width: size,
+                height: size,
+                transparent: assetRequest.transparent !== false,
+                description: assetRequest.description || request.description || '',
+                url: dataUri,
+                fallback: true,
+            };
+            manifestAssets.push(assetMeta);
+            assetPack.push({
+                key: id,
+                type: 'image',
+                url: dataUri,
+                width: size,
+                height: size,
+                role: category,
+                fallback: true,
+            });
         }
     }
     
@@ -554,6 +607,12 @@ export async function batchArtistAgent(requests) {
     
     return {
         assets: results,
+        manifest: {
+            version: 1,
+            assets: manifestAssets,
+        },
+        assetPack,
+        animations,
         errors: errors.length > 0 ? errors : null,
     };
 }
