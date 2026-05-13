@@ -6,7 +6,7 @@
  * 
  * Flow:
  * 1. Generate 768x768 image with FLUX.1-schnell (FREE, fast)
- * 2. Remove background with BRIA RMBG (FREE on NVIDIA) - optional
+ * 2. Remove sprite backgrounds locally from a clean chroma/edge background
  * 3. Downscale to target size (64/128/256px) with Sharp
  * 4. Return base64 PNG data URI
  * 
@@ -15,21 +15,10 @@
  */
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
-const BRIA_RMBG_URL = 'https://ai.api.nvidia.com/v1/cv/briaai/bria-rmbg-2.0';
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const BACKGROUND_DISTANCE_THRESHOLD = Number(process.env.SPRITE_BG_DISTANCE_THRESHOLD || 78);
 
 function stripDataUrl(imageBase64OrDataUrl) {
     return String(imageBase64OrDataUrl || '').replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
-}
-
-function asPngDataUrl(imageBase64OrDataUrl) {
-    const value = String(imageBase64OrDataUrl || '');
-    return value.startsWith('data:image/') ? value : `data:image/png;base64,${value}`;
-}
-
-function shouldRetryBackgroundRemoval(status) {
-    return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
 
 /**
@@ -71,62 +60,6 @@ async function generateWithFlux(prompt) {
 }
 
 /**
- * Remove background using BRIA RMBG (FREE on NVIDIA)
- */
-async function removeBackground(imageBase64) {
-    const rawBase64 = stripDataUrl(imageBase64);
-    const payloadVariants = [
-        { label: 'data-url', inputImage: asPngDataUrl(rawBase64) },
-        { label: 'raw-base64', inputImage: rawBase64 },
-    ];
-
-    for (const variant of payloadVariants) {
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                const response = await fetch(BRIA_RMBG_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        input_image: variant.inputImage,
-                    }),
-                });
-
-                if (!response.ok) {
-                    const text = await response.text().catch(() => '');
-                    console.warn(
-                        `[sprite-gen] Background removal failed: status=${response.status} attempt=${attempt}/3 payload=${variant.label} body=${text.slice(0, 500)}`
-                    );
-
-                    if (!shouldRetryBackgroundRemoval(response.status)) break;
-                    await sleep(500 * attempt);
-                    continue;
-                }
-
-                const json = await response.json();
-                const outputImage = stripDataUrl(json.output_image || '');
-                if (!outputImage) {
-                    console.warn(`[sprite-gen] Background removal returned no output_image: attempt=${attempt}/3 payload=${variant.label}`);
-                    break;
-                }
-
-                return { imageBase64: outputImage, removed: true, payload: variant.label, attempts: attempt };
-            } catch (error) {
-                console.warn(
-                    `[sprite-gen] Background removal request error: attempt=${attempt}/3 payload=${variant.label} error=${error.message}`
-                );
-                await sleep(500 * attempt);
-            }
-        }
-    }
-
-    return { imageBase64: rawBase64, removed: false, payload: null, attempts: 0 };
-}
-
-/**
  * Downscale image using sharp (high-quality)
  */
 async function downscaleImage(imageBase64, targetSize = 128) {
@@ -150,10 +83,113 @@ async function downscaleImage(imageBase64, targetSize = 128) {
     }
 }
 
+function colorDistanceSquared(data, index, color) {
+    const dr = data[index] - color.r;
+    const dg = data[index + 1] - color.g;
+    const db = data[index + 2] - color.b;
+    return dr * dr + dg * dg + db * db;
+}
+
+function averageCornerColor(data, width, height) {
+    const sampleSize = Math.max(6, Math.floor(Math.min(width, height) * 0.04));
+    const totals = { r: 0, g: 0, b: 0, count: 0 };
+    const addRect = (startX, startY) => {
+        for (let y = startY; y < startY + sampleSize; y++) {
+            for (let x = startX; x < startX + sampleSize; x++) {
+                const idx = (y * width + x) * 4;
+                totals.r += data[idx];
+                totals.g += data[idx + 1];
+                totals.b += data[idx + 2];
+                totals.count++;
+            }
+        }
+    };
+    addRect(0, 0);
+    addRect(width - sampleSize, 0);
+    addRect(0, height - sampleSize);
+    addRect(width - sampleSize, height - sampleSize);
+    return {
+        r: Math.round(totals.r / totals.count),
+        g: Math.round(totals.g / totals.count),
+        b: Math.round(totals.b / totals.count),
+    };
+}
+
+/**
+ * Remove the edge-connected generated background locally. This avoids relying
+ * on the removed NVIDIA BRIA endpoint and works best with our chroma prompt.
+ */
+async function removeBackground(imageBase64) {
+    try {
+        const sharp = (await import('sharp')).default;
+        const inputBuffer = Buffer.from(stripDataUrl(imageBase64), 'base64');
+        const { data, info } = await sharp(inputBuffer)
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+        const { width, height } = info;
+        const bgColor = averageCornerColor(data, width, height);
+        const thresholdSq = BACKGROUND_DISTANCE_THRESHOLD * BACKGROUND_DISTANCE_THRESHOLD;
+        const visited = new Uint8Array(width * height);
+        const queue = [];
+        const enqueue = (x, y) => {
+            if (x < 0 || y < 0 || x >= width || y >= height) return;
+            const pos = y * width + x;
+            if (visited[pos]) return;
+            const idx = pos * 4;
+            if (colorDistanceSquared(data, idx, bgColor) > thresholdSq) return;
+            visited[pos] = 1;
+            queue.push(pos);
+        };
+
+        for (let x = 0; x < width; x++) {
+            enqueue(x, 0);
+            enqueue(x, height - 1);
+        }
+        for (let y = 0; y < height; y++) {
+            enqueue(0, y);
+            enqueue(width - 1, y);
+        }
+
+        let removedPixels = 0;
+        for (let head = 0; head < queue.length; head++) {
+            const pos = queue[head];
+            const x = pos % width;
+            const y = Math.floor(pos / width);
+            data[pos * 4 + 3] = 0;
+            removedPixels++;
+            enqueue(x + 1, y);
+            enqueue(x - 1, y);
+            enqueue(x, y + 1);
+            enqueue(x, y - 1);
+        }
+
+        if (removedPixels < width * height * 0.05) {
+            console.warn(`[sprite-gen] Local background removal removed too little (${removedPixels}px), using original`);
+            return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'local-edge' };
+        }
+
+        const output = await sharp(data, { raw: { width, height, channels: 4 } })
+            .png()
+            .toBuffer();
+
+        return {
+            imageBase64: output.toString('base64'),
+            removed: true,
+            method: 'local-edge',
+            removedPixels,
+        };
+    } catch (error) {
+        console.warn('[sprite-gen] Local background removal error:', error.message);
+        return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'local-edge' };
+    }
+}
+
 /**
  * Build optimized sprite prompt with content filter avoidance
  */
-function buildSpritePrompt(description, type = 'character') {
+function buildSpritePrompt(description, type = 'character', wantsTransparent = false) {
     const basePrompts = {
         character: 'pixel art game sprite, character design, centered, full body view, clean silhouette, game asset style',
         vehicle: 'pixel art game sprite, vehicle design, centered, top-down view, clean silhouette, game asset style',
@@ -176,7 +212,11 @@ function buildSpritePrompt(description, type = 'character') {
         .replace(/\bdead\b/gi, 'fallen')
         .replace(/\bviolent\b/gi, 'action-packed');
     
-    return `${base}, ${safeDescription}, simple background, high contrast, clear edges, retro game art, professional pixel art`;
+    const backgroundInstruction = wantsTransparent
+        ? 'isolated subject on a flat pure #00FF00 chroma key background, no scene, no floor, no shadow touching the background, large empty margin around subject'
+        : 'simple background';
+
+    return `${base}, ${safeDescription}, ${backgroundInstruction}, high contrast, clear edges, retro game art, professional pixel art`;
 }
 
 /**
@@ -198,19 +238,20 @@ export async function generateSprite({
     console.log(`[sprite-gen] Generating ${type}: ${description} (target: ${targetSize}px)`);
     
     // Step 1: Generate with FLUX
-    const prompt = buildSpritePrompt(description, type);
+    const shouldRemoveBackground = removeBg && type !== 'background' && type !== 'ui';
+    const prompt = buildSpritePrompt(description, type, shouldRemoveBackground);
     const fluxImage = await generateWithFlux(prompt);
     console.log(`[sprite-gen] ✓ Generated 768x768 image`);
     
     // Step 2: Remove background (optional, skip for backgrounds/ui)
     let processedImage = fluxImage;
-    if (removeBg && type !== 'background' && type !== 'ui') {
+    if (shouldRemoveBackground) {
         const backgroundResult = await removeBackground(fluxImage);
         processedImage = backgroundResult.imageBase64;
         if (backgroundResult.removed) {
-            console.log(`[sprite-gen] ✓ Background removed via ${backgroundResult.payload} in ${backgroundResult.attempts} attempt(s)`);
+            console.log(`[sprite-gen] ✓ Background removed via ${backgroundResult.method} (${backgroundResult.removedPixels || 0}px)`);
         } else {
-            console.warn(`[sprite-gen] Background removal unavailable after all attempts, using original image`);
+            console.warn(`[sprite-gen] Background removal unavailable, using original image`);
         }
     }
     
