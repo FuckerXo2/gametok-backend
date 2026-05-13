@@ -733,6 +733,14 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
         assertJobNotCancelled(jobId);
         continuationCount += 1;
         console.warn(`⚠️ [${label}] Output truncated or incomplete. Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
+        if (jobId) {
+            await updateGenerationJobProgress(
+                jobId,
+                58 + continuationCount,
+                'build_continuing',
+                `Builder hit the token limit. Continuing output ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`
+            );
+        }
         const continuationPrompt = buildBuilderContinuationPrompt(html);
         const continuation = await requestBuilderMessage(continuationPrompt, { label: `${label} Continue`, jobId });
         assertJobNotCancelled(jobId);
@@ -742,6 +750,15 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
             break;
         }
         html += continuationText;
+    }
+
+    if (!hasClosedHtmlDocument(html) && jobId) {
+        await updateGenerationJobProgress(
+            jobId,
+            62,
+            'build_truncated',
+            'Builder output stayed incomplete after continuation attempts.'
+        );
     }
 
     return html;
