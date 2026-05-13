@@ -15,10 +15,18 @@
  */
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
-const BACKGROUND_DISTANCE_THRESHOLD = Number(process.env.SPRITE_BG_DISTANCE_THRESHOLD || 78);
+const FAL_KEY = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
+const FAL_RMBG_URL = 'https://fal.run/fal-ai/bria/background/remove';
+const BACKGROUND_DISTANCE_THRESHOLD = Number(process.env.SPRITE_BG_DISTANCE_THRESHOLD || 92);
+const EDGE_SAMPLE_SIZE = 12;
 
 function stripDataUrl(imageBase64OrDataUrl) {
     return String(imageBase64OrDataUrl || '').replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+}
+
+function asPngDataUrl(imageBase64OrDataUrl) {
+    const value = String(imageBase64OrDataUrl || '');
+    return value.startsWith('data:image/') ? value : `data:image/png;base64,${value}`;
 }
 
 /**
@@ -83,43 +91,142 @@ async function downscaleImage(imageBase64, targetSize = 128) {
     }
 }
 
-function colorDistanceSquared(data, index, color) {
-    const dr = data[index] - color.r;
-    const dg = data[index + 1] - color.g;
-    const db = data[index + 2] - color.b;
-    return dr * dr + dg * dg + db * db;
+function colorDistance(colorA, colorB) {
+    const dr = colorA.r - colorB.r;
+    const dg = colorA.g - colorB.g;
+    const db = colorA.b - colorB.b;
+    return Math.sqrt(dr * dr + dg * dg + db * db);
 }
 
-function averageCornerColor(data, width, height) {
-    const sampleSize = Math.max(6, Math.floor(Math.min(width, height) * 0.04));
-    const totals = { r: 0, g: 0, b: 0, count: 0 };
-    const addRect = (startX, startY) => {
-        for (let y = startY; y < startY + sampleSize; y++) {
-            for (let x = startX; x < startX + sampleSize; x++) {
-                const idx = (y * width + x) * 4;
-                totals.r += data[idx];
-                totals.g += data[idx + 1];
-                totals.b += data[idx + 2];
-                totals.count++;
+function getPixel(data, width, x, y) {
+    const idx = (y * width + x) * 4;
+    return { r: data[idx], g: data[idx + 1], b: data[idx + 2] };
+}
+
+function quantizeColor({ r, g, b }) {
+    const bucket = 24;
+    return {
+        r: Math.round(r / bucket) * bucket,
+        g: Math.round(g / bucket) * bucket,
+        b: Math.round(b / bucket) * bucket,
+    };
+}
+
+function collectEdgeBackgroundColors(data, width, height) {
+    const samples = new Map();
+    const addSample = (x, y) => {
+        const color = quantizeColor(getPixel(data, width, x, y));
+        const key = `${color.r},${color.g},${color.b}`;
+        const existing = samples.get(key) || { ...color, count: 0 };
+        existing.count++;
+        samples.set(key, existing);
+    };
+
+    for (let offset = 0; offset < EDGE_SAMPLE_SIZE; offset++) {
+        for (let x = 0; x < width; x += 2) {
+            addSample(x, offset);
+            addSample(x, height - 1 - offset);
+        }
+        for (let y = 0; y < height; y += 2) {
+            addSample(offset, y);
+            addSample(width - 1 - offset, y);
+        }
+    }
+
+    return Array.from(samples.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+}
+
+function isBackgroundLike(data, index, backgroundColors, threshold) {
+    const pixel = { r: data[index], g: data[index + 1], b: data[index + 2] };
+    return backgroundColors.some((color) => colorDistance(pixel, color) <= threshold);
+}
+
+function softenAlpha(data, width, height, transparentMask) {
+    const originalAlpha = new Uint8Array(width * height);
+    for (let pos = 0; pos < transparentMask.length; pos++) {
+        originalAlpha[pos] = data[pos * 4 + 3];
+    }
+
+    for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+            const pos = y * width + x;
+            if (transparentMask[pos]) continue;
+            let transparentNeighbors = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    if (transparentMask[(y + dy) * width + (x + dx)]) transparentNeighbors++;
+                }
+            }
+            if (transparentNeighbors > 0) {
+                data[pos * 4 + 3] = Math.max(80, Math.round(originalAlpha[pos] * (1 - transparentNeighbors * 0.08)));
             }
         }
-    };
-    addRect(0, 0);
-    addRect(width - sampleSize, 0);
-    addRect(0, height - sampleSize);
-    addRect(width - sampleSize, height - sampleSize);
-    return {
-        r: Math.round(totals.r / totals.count),
-        g: Math.round(totals.g / totals.count),
-        b: Math.round(totals.b / totals.count),
-    };
+    }
 }
 
 /**
- * Remove the edge-connected generated background locally. This avoids relying
- * on the removed NVIDIA BRIA endpoint and works best with our chroma prompt.
+ * Production background removal via fal-hosted BRIA RMBG 2.0.
+ * Falls back to local edge removal only if FAL is unavailable.
  */
-async function removeBackground(imageBase64) {
+async function removeBackgroundWithFal(imageBase64) {
+    if (!FAL_KEY) {
+        return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'fal-bria', skipped: 'missing_fal_key' };
+    }
+
+    try {
+        const response = await fetch(FAL_RMBG_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Key ${FAL_KEY}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                image_url: asPngDataUrl(imageBase64),
+                sync_mode: true,
+            }),
+        });
+
+        if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            console.warn(`[sprite-gen] FAL BRIA background removal failed: status=${response.status} body=${text.slice(0, 500)}`);
+            return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'fal-bria' };
+        }
+
+        const json = await response.json();
+        const outputUrl = json?.image?.url;
+        if (!outputUrl) {
+            console.warn('[sprite-gen] FAL BRIA background removal returned no image.url');
+            return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'fal-bria' };
+        }
+
+        if (outputUrl.startsWith('data:image/')) {
+            return { imageBase64: stripDataUrl(outputUrl), removed: true, method: 'fal-bria' };
+        }
+
+        const imageResponse = await fetch(outputUrl);
+        if (!imageResponse.ok) {
+            const text = await imageResponse.text().catch(() => '');
+            console.warn(`[sprite-gen] FAL BRIA output download failed: status=${imageResponse.status} body=${text.slice(0, 300)}`);
+            return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'fal-bria' };
+        }
+
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        return {
+            imageBase64: Buffer.from(arrayBuffer).toString('base64'),
+            removed: true,
+            method: 'fal-bria',
+        };
+    } catch (error) {
+        console.warn('[sprite-gen] FAL BRIA background removal error:', error.message);
+        return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'fal-bria' };
+    }
+}
+
+async function removeBackgroundLocally(imageBase64) {
     try {
         const sharp = (await import('sharp')).default;
         const inputBuffer = Buffer.from(stripDataUrl(imageBase64), 'base64');
@@ -129,16 +236,16 @@ async function removeBackground(imageBase64) {
             .toBuffer({ resolveWithObject: true });
 
         const { width, height } = info;
-        const bgColor = averageCornerColor(data, width, height);
-        const thresholdSq = BACKGROUND_DISTANCE_THRESHOLD * BACKGROUND_DISTANCE_THRESHOLD;
+        const backgroundColors = collectEdgeBackgroundColors(data, width, height);
         const visited = new Uint8Array(width * height);
+        const transparentMask = new Uint8Array(width * height);
         const queue = [];
         const enqueue = (x, y) => {
             if (x < 0 || y < 0 || x >= width || y >= height) return;
             const pos = y * width + x;
             if (visited[pos]) return;
             const idx = pos * 4;
-            if (colorDistanceSquared(data, idx, bgColor) > thresholdSq) return;
+            if (!isBackgroundLike(data, idx, backgroundColors, BACKGROUND_DISTANCE_THRESHOLD)) return;
             visited[pos] = 1;
             queue.push(pos);
         };
@@ -158,6 +265,7 @@ async function removeBackground(imageBase64) {
             const x = pos % width;
             const y = Math.floor(pos / width);
             data[pos * 4 + 3] = 0;
+            transparentMask[pos] = 1;
             removedPixels++;
             enqueue(x + 1, y);
             enqueue(x - 1, y);
@@ -167,8 +275,10 @@ async function removeBackground(imageBase64) {
 
         if (removedPixels < width * height * 0.05) {
             console.warn(`[sprite-gen] Local background removal removed too little (${removedPixels}px), using original`);
-            return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'local-edge' };
+            return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'local-edge', removedPixels };
         }
+
+        softenAlpha(data, width, height, transparentMask);
 
         const output = await sharp(data, { raw: { width, height, channels: 4 } })
             .png()
@@ -184,6 +294,19 @@ async function removeBackground(imageBase64) {
         console.warn('[sprite-gen] Local background removal error:', error.message);
         return { imageBase64: stripDataUrl(imageBase64), removed: false, method: 'local-edge' };
     }
+}
+
+async function removeBackground(imageBase64) {
+    const falResult = await removeBackgroundWithFal(imageBase64);
+    if (falResult.removed) return falResult;
+
+    if (falResult.skipped === 'missing_fal_key') {
+        console.warn('[sprite-gen] FAL_KEY missing; falling back to local background removal');
+    } else {
+        console.warn('[sprite-gen] FAL BRIA unavailable; falling back to local background removal');
+    }
+
+    return removeBackgroundLocally(imageBase64);
 }
 
 /**
@@ -213,7 +336,7 @@ function buildSpritePrompt(description, type = 'character', wantsTransparent = f
         .replace(/\bviolent\b/gi, 'action-packed');
     
     const backgroundInstruction = wantsTransparent
-        ? 'isolated subject on a flat pure #00FF00 chroma key background, no scene, no floor, no shadow touching the background, large empty margin around subject'
+        ? 'single foreground asset, centered with clear empty margin, no text'
         : 'simple background';
 
     return `${base}, ${safeDescription}, ${backgroundInstruction}, high contrast, clear edges, retro game art, professional pixel art`;
