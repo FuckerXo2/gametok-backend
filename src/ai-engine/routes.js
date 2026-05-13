@@ -1996,7 +1996,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                         : is3DThirdPerson
                         ? 'This game MUST remain a true third-person/chase-camera 3D Three.js game with a visible player or vehicle and follow camera. Do not downgrade it into first-person, top-down, or flat 2D.'
                         : 'Preserve the intended perspective and gameplay fantasy.',
-                    'If any error mentions viewport overflow, bounds, canvas sizing, or off-screen controls, rewrite the layout with responsive innerWidth/innerHeight sizing, safe-area clamped HUD, and resize recomputation. The final game must fit a 390x844 phone viewport without horizontal scrolling.',
+                    'If any error mentions viewport overflow, bounds, canvas sizing, hidden HUD, or off-screen controls, rewrite the layout with responsive innerWidth/innerHeight sizing, GameTok chrome-safe HUD placement, and resize recomputation. Reserve at least the top 112px and bottom 48px for native app chrome; do not place score, lives, wave labels, inventory, pause, or controls under that chrome. The final game must fit a 390x844 phone viewport without horizontal scrolling.',
                     `Preserve the quality target: ${qualityIntent.qualityTarget?.level || 'high'} quality with ${qualityIntent.qualityTarget?.mood || 'engaging'} mood.`,
                     `Maintain polish priorities: ${Array.isArray(qualityIntent.qualityTarget?.polishPriorities) ? qualityIntent.qualityTarget.polishPriorities.join(', ') : 'smooth animations, visual feedback'}`,
                     'Return the COMPLETE corrected HTML file only.',

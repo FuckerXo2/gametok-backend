@@ -1649,13 +1649,15 @@ ALWAYS use Phaser for 2D games or Three.js for 3D games so you can load our high
    - Honor the requested control model: ${specSheet.controlModel || 'Simple touch-first interaction.'}
    - The on-screen controls should match the fantasy instead of defaulting to generic buttons.`;
 
-  const mobileViewportRule = `4D. MOBILE VIEWPORT + SAFE BOUNDS CONTRACT (NON-NEGOTIABLE):
+  const mobileViewportRule = `4D. MOBILE VIEWPORT + GAMETOK CHROME SAFE BOUNDS CONTRACT (NON-NEGOTIABLE):
    - Target screen is a phone viewport around 390x844 CSS pixels, but your code must adapt to any viewport.
    - Define viewport dimensions from window.innerWidth / window.innerHeight or window.visualViewport when available. Do not hard-code desktop game dimensions such as 800x600, 1024x768, or fixed world-to-screen assumptions.
    - CSS must keep html, body, root containers, and the main canvas/renderer constrained to the phone: width: 100vw; height: 100dvh or 100vh fallback; margin: 0; overflow: hidden; touch-action: none.
-   - Treat the top 44px and bottom 34px as unsafe areas unless CSS env(safe-area-inset-*) gives larger values.
-   - HUD, labels, menus, joysticks, fire buttons, and interactive controls must be clamped inside the viewport. Nothing important may render beyond left/right/top/bottom screen edges.
-   - Controls must be large enough for touch and pinned to safe areas, usually in the lower third. Never place controls partly outside the visible viewport.
+   - IMPORTANT: GameTok previews and feeds may place native controls over the WebView. Treat the top 112px as reserved chrome and the bottom 48px as reserved chrome unless CSS env(safe-area-inset-*) gives larger values.
+   - Define constants like SAFE_TOP = Math.max(112, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0) and SAFE_BOTTOM = Math.max(48, ...).
+   - HUD, score, wave text, health, labels, menus, joysticks, fire buttons, and interactive controls must be clamped inside the playable safe rectangle: x 12..width-12, y SAFE_TOP..height-SAFE_BOTTOM.
+   - Nothing important may render under the native top toolbar/status area. Do NOT draw score, lives, wave, pause, inventory, or powerups at y < SAFE_TOP.
+   - Controls must be large enough for touch and pinned to safe areas, usually in the lower third above SAFE_BOTTOM. Never place controls partly outside the visible viewport.
    - Gameplay-critical entities visible on the first frame must be inside the visible camera/viewport, or intentionally in world coordinates that the camera can reach immediately. Do not spawn the player/objective off-screen.
    - Add a resize() function and call it immediately plus on resize/orientationchange. Resize the renderer/canvas AND recompute HUD/control positions.
    - Use a clamp(value, min, max) helper for screen-space positions. After any ctx.translate/world camera draw, restore the canvas transform before drawing HUD/controls.
