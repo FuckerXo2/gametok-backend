@@ -15,6 +15,22 @@
  */
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
+const BRIA_RMBG_URL = 'https://ai.api.nvidia.com/v1/cv/briaai/bria-rmbg-2.0';
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function stripDataUrl(imageBase64OrDataUrl) {
+    return String(imageBase64OrDataUrl || '').replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+}
+
+function asPngDataUrl(imageBase64OrDataUrl) {
+    const value = String(imageBase64OrDataUrl || '');
+    return value.startsWith('data:image/') ? value : `data:image/png;base64,${value}`;
+}
+
+function shouldRetryBackgroundRemoval(status) {
+    return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+}
 
 /**
  * Generate sprite with FLUX.1-schnell (768px minimum, we'll use that)
@@ -58,30 +74,56 @@ async function generateWithFlux(prompt) {
  * Remove background using BRIA RMBG (FREE on NVIDIA)
  */
 async function removeBackground(imageBase64) {
-    try {
-        const response = await fetch('https://ai.api.nvidia.com/v1/cv/briaai/bria-rmbg-2.0', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                input_image: imageBase64,
-            }),
-        });
-        
-        if (!response.ok) {
-            console.warn('[sprite-gen] Background removal failed, using original');
-            return imageBase64;
+    const rawBase64 = stripDataUrl(imageBase64);
+    const payloadVariants = [
+        { label: 'data-url', inputImage: asPngDataUrl(rawBase64) },
+        { label: 'raw-base64', inputImage: rawBase64 },
+    ];
+
+    for (const variant of payloadVariants) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const response = await fetch(BRIA_RMBG_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${NVIDIA_API_KEY}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        input_image: variant.inputImage,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    console.warn(
+                        `[sprite-gen] Background removal failed: status=${response.status} attempt=${attempt}/3 payload=${variant.label} body=${text.slice(0, 500)}`
+                    );
+
+                    if (!shouldRetryBackgroundRemoval(response.status)) break;
+                    await sleep(500 * attempt);
+                    continue;
+                }
+
+                const json = await response.json();
+                const outputImage = stripDataUrl(json.output_image || '');
+                if (!outputImage) {
+                    console.warn(`[sprite-gen] Background removal returned no output_image: attempt=${attempt}/3 payload=${variant.label}`);
+                    break;
+                }
+
+                return { imageBase64: outputImage, removed: true, payload: variant.label, attempts: attempt };
+            } catch (error) {
+                console.warn(
+                    `[sprite-gen] Background removal request error: attempt=${attempt}/3 payload=${variant.label} error=${error.message}`
+                );
+                await sleep(500 * attempt);
+            }
         }
-        
-        const json = await response.json();
-        return json.output_image || imageBase64;
-    } catch (error) {
-        console.warn('[sprite-gen] Background removal error:', error.message);
-        return imageBase64;
     }
+
+    return { imageBase64: rawBase64, removed: false, payload: null, attempts: 0 };
 }
 
 /**
@@ -163,8 +205,13 @@ export async function generateSprite({
     // Step 2: Remove background (optional, skip for backgrounds/ui)
     let processedImage = fluxImage;
     if (removeBg && type !== 'background' && type !== 'ui') {
-        processedImage = await removeBackground(fluxImage);
-        console.log(`[sprite-gen] ✓ Background removed`);
+        const backgroundResult = await removeBackground(fluxImage);
+        processedImage = backgroundResult.imageBase64;
+        if (backgroundResult.removed) {
+            console.log(`[sprite-gen] ✓ Background removed via ${backgroundResult.payload} in ${backgroundResult.attempts} attempt(s)`);
+        } else {
+            console.warn(`[sprite-gen] Background removal unavailable after all attempts, using original image`);
+        }
     }
     
     // Step 3: Downscale to target size
