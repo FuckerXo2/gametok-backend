@@ -27,7 +27,13 @@ function includesAny(text, terms) {
 }
 
 function publicAudioUrl(fileName) {
-    return `/assets/audio/${encodeURIComponent(fileName)}`;
+    const baseUrl = String(process.env.AUDIO_ASSET_BASE || '/assets/audio').replace(/\/+$/, '');
+    const encodedPath = String(fileName || '')
+        .split(/[\\/]+/)
+        .filter(Boolean)
+        .map(encodeURIComponent)
+        .join('/');
+    return `${baseUrl}/${encodedPath}`;
 }
 
 function titleFromFile(fileName) {
@@ -37,22 +43,74 @@ function titleFromFile(fileName) {
         .trim();
 }
 
+function walkAudioFiles(dir, baseDir = dir) {
+    const files = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name.startsWith('.')) continue;
+        const absolutePath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...walkAudioFiles(absolutePath, baseDir));
+            continue;
+        }
+        if (!entry.isFile()) continue;
+        const ext = path.extname(entry.name).toLowerCase();
+        if (!AUDIO_EXTENSIONS.has(ext)) continue;
+        files.push(path.relative(baseDir, absolutePath).split(path.sep).join('/'));
+    }
+    return files;
+}
+
+function audioKindForPath(fileName) {
+    const name = String(fileName || '').toLowerCase();
+    if (includesAny(name, [
+        'soundeffects/',
+        'kyobi/wavs/',
+        'stacker/',
+        'monsters/',
+        'sfx',
+        'shot',
+        'hit',
+        'impact',
+        'click',
+        'pickup',
+        'collect',
+        'coin',
+        'jump',
+        'whoosh',
+        'explode',
+        'explosion',
+        'laser',
+        'lazer',
+        'death',
+        'warning',
+        'miss',
+        'place',
+        'door',
+        'key',
+        'battery',
+        'sword',
+        'pistol',
+        'blaster',
+    ])) {
+        return 'sfx';
+    }
+    return 'music';
+}
+
 function getLocalAudioLibrary() {
     try {
         const preferredByKey = new Map();
         const extensionRank = { '.mp3': 4, '.ogg': 3, '.m4a': 2, '.wav': 1 };
-        fs.readdirSync(AUDIO_DIR)
-            .filter((fileName) => AUDIO_EXTENSIONS.has(path.extname(fileName).toLowerCase()))
+        walkAudioFiles(AUDIO_DIR)
             .forEach((fileName) => {
                 const name = fileName.toLowerCase();
-                const isSfx = includesAny(name, ['heartbeat', 'sd-', 'time', 'hit', 'jump', 'coin', 'click', 'impact', 'sfx']);
-                const key = safeId(path.basename(fileName, path.extname(fileName)), 'audio');
+                const key = safeId(fileName.slice(0, -path.extname(fileName).length), 'audio');
                 const asset = {
-                    key: safeId(path.basename(fileName, path.extname(fileName)), 'audio'),
+                    key,
                     label: titleFromFile(fileName),
                     file: fileName,
                     url: publicAudioUrl(fileName),
-                    kind: isSfx ? 'sfx' : 'music',
+                    kind: audioKindForPath(fileName),
                     tags: name.replace(/\.[a-z0-9]+$/, '').split(/[^a-z0-9]+/).filter(Boolean),
                 };
                 const existing = preferredByKey.get(key);
@@ -81,6 +139,7 @@ function scoreAudioAsset(asset, text) {
     if (includesAny(query, ['quest', 'dungeon', 'magic', 'wizard', 'fantasy']) && includesAny(haystack, ['quest', 'wizball', 'pandora', 'enigma'])) score += 8;
     if (includesAny(query, ['retro', '8bit', 'pixel', 'arcade']) && includesAny(haystack, ['4bit', '8bit', 'chiptune', 'wizball'])) score += 8;
     if (includesAny(query, ['intense', 'combat', 'boss', 'fast', 'neon']) && includesAny(haystack, ['overkill', 'hardcore', 'goa', 'remix'])) score += 8;
+    if (includesAny(query, ['tech', 'cyber', 'future', 'machine', 'robot']) && includesAny(haystack, ['tech', 'synth', 'bass', 'drums'])) score += 8;
     return score;
 }
 
@@ -98,13 +157,14 @@ function scoreSfxAsset(asset, cue, specText) {
     if (haystack.includes('dog') && !includesAny(cueText, ['dog', 'animal', 'bark'])) return -100;
 
     let score = scoreAudioAsset(asset, cueText);
-    if (cue.key === 'ui_tap' && includesAny(haystack, ['time', 'click', 'ui'])) score += 8;
-    if (cue.key === 'impact' && includesAny(haystack, ['heartbeat', 'sd', 'hit', 'impact'])) score += 8;
-    if (cue.key === 'collect' && includesAny(haystack, ['time', 'sd', 'coin', 'collect'])) score += 8;
-    if (cue.key === 'primary_action' && includesAny(haystack, ['sd', 'ingame', 'hit', 'impact'])) score += 8;
-    if (cue.key === 'movement_burst' && includesAny(haystack, ['sd', 'time', 'whoosh', 'jump'])) score += 8;
-    if (cue.key === 'success' && includesAny(haystack, ['time', 'sd', 'coin', 'success'])) score += 8;
-    if (cue.key === 'failure' && includesAny(haystack, ['heartbeat', 'time', 'fail'])) score += 8;
+    if (includesAny(haystack, ['audiosprite', 'sprites']) && !includesAny(cueText, ['ambience', 'loop', 'music'])) score -= 6;
+    if (cue.key === 'ui_tap' && includesAny(haystack, ['click', 'menu', 'select', 'switch', 'ui', 'numkey'])) score += 14;
+    if (cue.key === 'impact' && includesAny(haystack, ['hit', 'impact', 'boss', 'explode', 'explosion', 'wall'])) score += 14;
+    if (cue.key === 'collect' && includesAny(haystack, ['pickup', 'key', 'battery', 'coin', 'collect', 'match', 'chain'])) score += 14;
+    if (cue.key === 'primary_action' && includesAny(haystack, ['shot', 'shoot', 'blaster', 'lazer', 'laser', 'sword', 'pistol', 'magical', 'fx'])) score += 14;
+    if (cue.key === 'movement_burst' && includesAny(haystack, ['whoosh', 'steps', 'jump', 'door', 'dash'])) score += 14;
+    if (cue.key === 'success' && includesAny(haystack, ['gamewon', 'nextlevel', 'chain', 'match', 'success', 'pickup'])) score += 14;
+    if (cue.key === 'failure' && includesAny(haystack, ['gameover', 'gamelost', 'death', 'warning', 'miss', 'fail'])) score += 14;
     return score;
 }
 
