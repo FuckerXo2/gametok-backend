@@ -1497,20 +1497,21 @@ async function markGenerationJobComplete(jobId) {
 
 async function markGenerationJobFailed(job, errorMessage) {
     const shouldRetry = Number(job.attempts || 0) < Number(job.max_attempts || 1);
+    const nextStatus = shouldRetry ? 'queued' : 'failed';
     await pool.query(
         `UPDATE generation_jobs
-         SET status = $2,
-             phase = CASE WHEN $2 = 'queued' THEN 'retrying' ELSE 'failed' END,
+         SET status = $2::varchar,
+             phase = CASE WHEN $2::varchar = 'queued' THEN 'retrying' ELSE 'failed' END,
              status_message = $4,
              locked_by = NULL,
              locked_at = NULL,
-             run_after = CASE WHEN $2 = 'queued' THEN NOW() + ($3::text)::interval ELSE run_after END,
+             run_after = CASE WHEN $2::varchar = 'queued' THEN NOW() + ($3::text)::interval ELSE run_after END,
              error = $4,
              updated_at = NOW()
          WHERE id = $1`,
         [
             job.id,
-            shouldRetry ? 'queued' : 'failed',
+            nextStatus,
             `${GENERATION_JOB_RETRY_DELAY_MS} milliseconds`,
             errorMessage || 'Generation failed',
         ]
@@ -1629,9 +1630,18 @@ async function drainGenerationQueue() {
                     } else {
                         const message = error?.message || 'Generation failed';
                         console.error(`❌ [GEN QUEUE] Job ${job.id} failed:`, error);
-                        await markGenerationJobFailed(job, message);
-                        if (Number(job.attempts || 0) >= Number(job.max_attempts || 1)) {
-                            await markJobError(job.id, 'Generation failed', error);
+                        try {
+                            await markGenerationJobFailed(job, message);
+                            if (Number(job.attempts || 0) >= Number(job.max_attempts || 1)) {
+                                await markJobError(job.id, 'Generation failed', error);
+                            }
+                        } catch (markError) {
+                            console.error(`❌ [GEN QUEUE] Failed to record job failure for ${job.id}:`, markError);
+                            try {
+                                await markJobError(job.id, 'Generation failed', markError);
+                            } catch (fallbackError) {
+                                console.error(`❌ [GEN QUEUE] Failed fallback error marker for ${job.id}:`, fallbackError);
+                            }
                         }
                     }
                 } finally {
