@@ -17,6 +17,14 @@
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
 const FAL_KEY = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
 const FAL_RMBG_URL = 'https://fal.run/fal-ai/bria/background/remove';
+const HF_TOKEN = process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || process.env.HUGGING_FACE_API_KEY || '';
+const HF_IMAGE_EDIT_ENABLED = process.env.HF_IMAGE_EDIT_ENABLED === 'true';
+const HF_IMAGE_EDIT_MODEL = process.env.HF_IMAGE_EDIT_MODEL || 'black-forest-labs/FLUX.1-Kontext-dev';
+const HF_IMAGE_EDIT_PROVIDER = process.env.HF_IMAGE_EDIT_PROVIDER || 'fal-ai';
+const HF_IMAGE_EDIT_URL = process.env.HF_IMAGE_EDIT_URL || `https://api-inference.huggingface.co/models/${HF_IMAGE_EDIT_MODEL}`;
+const HF_IMAGE_EDIT_TIMEOUT_MS = Number(process.env.HF_IMAGE_EDIT_TIMEOUT_MS || 180000);
+const HF_IMAGE_EDIT_STEPS = Number(process.env.HF_IMAGE_EDIT_STEPS || 28);
+const HF_IMAGE_EDIT_GUIDANCE = Number(process.env.HF_IMAGE_EDIT_GUIDANCE || 3.5);
 const BACKGROUND_DISTANCE_THRESHOLD = Number(process.env.SPRITE_BG_DISTANCE_THRESHOLD || 92);
 const EDGE_SAMPLE_SIZE = 12;
 const IMGLY_RMBG_DISABLED = process.env.IMGLY_RMBG_DISABLED === 'true';
@@ -92,6 +100,104 @@ async function generateWithFlux(prompt, dimensions = 768) {
     }
     
     return artifact.base64;
+}
+
+function parseImageResponse(json) {
+    const candidates = [
+        json?.image,
+        json?.image_base64,
+        json?.b64_json,
+        json?.data?.[0]?.b64_json,
+        json?.data?.[0]?.image,
+        json?.artifacts?.[0]?.base64,
+        json?.images?.[0],
+    ];
+
+    for (const candidate of candidates) {
+        if (!candidate) continue;
+        if (typeof candidate === 'string') return candidate;
+        if (typeof candidate?.url === 'string') return candidate.url;
+        if (typeof candidate?.base64 === 'string') return candidate.base64;
+    }
+
+    return null;
+}
+
+async function fetchImageAsBase64(imageUrl) {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`image download failed: ${response.status} ${text.slice(0, 200)}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer).toString('base64');
+}
+
+async function editImageWithHuggingFace(referenceDataUri, prompt, dimensions) {
+    if (!HF_IMAGE_EDIT_ENABLED) {
+        return { ok: false, skipped: 'disabled' };
+    }
+    if (!HF_TOKEN) {
+        return { ok: false, skipped: 'missing_hf_token' };
+    }
+
+    const { width, height } = normalizeDimensions(dimensions);
+    const payload = {
+        inputs: stripDataUrl(referenceDataUri),
+        parameters: {
+            prompt,
+            negative_prompt: 'text, labels, watermark, extra characters, cropped subject, duplicate subject, busy background, UI, button, frame, border',
+            num_inference_steps: HF_IMAGE_EDIT_STEPS,
+            guidance_scale: HF_IMAGE_EDIT_GUIDANCE,
+            target_size: { width, height },
+        },
+        options: {
+            wait_for_model: true,
+            use_cache: false,
+        },
+        provider: HF_IMAGE_EDIT_PROVIDER,
+    };
+
+    const response = await withTimeout(fetch(HF_IMAGE_EDIT_URL, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${HF_TOKEN}`,
+            Accept: 'image/png, application/json',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    }), HF_IMAGE_EDIT_TIMEOUT_MS, 'Hugging Face image edit');
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`HF image edit failed: ${response.status} ${text.slice(0, 400)}`);
+    }
+
+    if (contentType.startsWith('image/')) {
+        const arrayBuffer = await response.arrayBuffer();
+        return {
+            ok: true,
+            imageBase64: Buffer.from(arrayBuffer).toString('base64'),
+            method: `hf:${HF_IMAGE_EDIT_MODEL}`,
+        };
+    }
+
+    const json = await response.json();
+    const image = parseImageResponse(json);
+    if (!image) {
+        throw new Error('HF image edit returned no image');
+    }
+
+    const imageBase64 = String(image).startsWith('http://') || String(image).startsWith('https://')
+        ? await fetchImageAsBase64(image)
+        : stripDataUrl(image);
+
+    return {
+        ok: true,
+        imageBase64,
+        method: `hf:${HF_IMAGE_EDIT_MODEL}`,
+    };
 }
 
 /**
@@ -579,6 +685,44 @@ async function createFrameVariant(dataUri, width, height, variant = {}) {
     return `data:image/png;base64,${composited.toString('base64')}`;
 }
 
+function buildFrameEditPrompt(assetRequest, category, variant, index, totalFrames) {
+    const description = assetRequest.description || assetRequest.gameplayRole || category;
+    const actionPrompts = {
+        idle: 'subtle idle breathing pose, same stance and silhouette, tiny lively change',
+        move: 'dynamic movement frame with shifted limbs or body motion, same character, same camera angle',
+        hit: 'impact reaction frame with squash, recoil, bright action emphasis, same character',
+        pulse: 'glowing pulse variant with slightly stronger energy and readable silhouette',
+    };
+    const action = actionPrompts[variant.name] || variant.name;
+
+    return [
+        `Edit the reference into animation frame ${index + 1} of ${totalFrames} for a mobile game sprite.`,
+        `Subject: ${description}.`,
+        `Action: ${action}.`,
+        `Keep the exact same subject identity, art style, proportions, camera angle, facing direction, and centered placement.`,
+        `Keep one foreground asset only with clear empty margin. Do not add text, UI, borders, labels, extra characters, or scenery.`,
+        `Output should remain a clean game sprite suitable for transparent-background extraction.`,
+    ].join(' ');
+}
+
+async function createSemanticFrameVariant(dataUri, width, height, assetRequest, category, variant, index, totalFrames) {
+    const prompt = buildFrameEditPrompt(assetRequest, category, variant, index, totalFrames);
+    const edited = await editImageWithHuggingFace(dataUri, prompt, { width, height });
+    if (!edited.ok) return null;
+
+    let processedImage = edited.imageBase64;
+    const backgroundResult = await removeBackground(processedImage);
+    processedImage = backgroundResult.imageBase64;
+    const finalImage = await downscaleImage(processedImage, { width, height });
+
+    return {
+        dataUri: `data:image/png;base64,${finalImage}`,
+        method: edited.method,
+        backgroundMethod: backgroundResult.method,
+        backgroundRemoved: backgroundResult.removed,
+    };
+}
+
 function shouldBuildFrameAssets(assetRequest, category) {
     const kind = assetRequest.assetType || 'sprite';
     if (kind === 'background' || category === 'environment' || category === 'background' || category === 'ui') return false;
@@ -609,7 +753,24 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
     for (let index = 0; index < variants.length; index++) {
         const variant = variants[index];
         const frameId = `${id}_${variant.name}_${String(index + 1).padStart(2, '0')}`;
-        const frameUri = await createFrameVariant(dataUri, width, height, variant);
+        let frameUri = null;
+        let generationMethod = 'local-transform';
+
+        try {
+            const semanticFrame = await createSemanticFrameVariant(dataUri, width, height, assetRequest, category, variant, index, variants.length);
+            if (semanticFrame?.dataUri) {
+                frameUri = semanticFrame.dataUri;
+                generationMethod = semanticFrame.method;
+                console.log(`[sprite-gen] ✓ Semantic frame ${frameId} via ${generationMethod}`);
+            }
+        } catch (error) {
+            console.warn(`[sprite-gen] Semantic frame ${frameId} failed, using local transform: ${error.message}`);
+        }
+
+        if (!frameUri) {
+            frameUri = await createFrameVariant(dataUri, width, height, variant);
+        }
+
         frames.push({
             id: frameId,
             key: frameId,
@@ -626,6 +787,7 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
             height,
             duration: variant.duration,
             transparent: true,
+            generationMethod,
         });
     }
 
