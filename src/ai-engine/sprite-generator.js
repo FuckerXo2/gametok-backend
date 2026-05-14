@@ -539,6 +539,112 @@ function generateFallbackAsset(size, category) {
     return `data:image/svg+xml;base64,${base64}`;
 }
 
+async function createFrameVariant(dataUri, width, height, variant = {}) {
+    const sharp = (await import('sharp')).default;
+    const input = Buffer.from(stripDataUrl(dataUri), 'base64');
+    const scaleX = Number(variant.scaleX || 1);
+    const scaleY = Number(variant.scaleY || 1);
+    const dx = Number(variant.dx || 0);
+    const dy = Number(variant.dy || 0);
+    const frameWidth = Math.max(1, Math.min(width, Math.round(width * scaleX)));
+    const frameHeight = Math.max(1, Math.min(height, Math.round(height * scaleY)));
+    let frame = sharp(input)
+        .resize(frameWidth, frameHeight, {
+            fit: 'fill',
+            kernel: 'lanczos3',
+        });
+
+    if (variant.brightness || variant.saturation) {
+        frame = frame.modulate({
+            brightness: Number(variant.brightness || 1),
+            saturation: Number(variant.saturation || 1),
+        });
+    }
+
+    const resized = await frame.png().toBuffer();
+    const left = Math.max(0, Math.min(width - 1, Math.round((width - frameWidth) / 2 + dx)));
+    const top = Math.max(0, Math.min(height - 1, Math.round((height - frameHeight) / 2 + dy)));
+    const composited = await sharp({
+        create: {
+            width,
+            height,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+        },
+    })
+        .composite([{ input: resized, left, top }])
+        .png()
+        .toBuffer();
+
+    return `data:image/png;base64,${composited.toString('base64')}`;
+}
+
+function shouldBuildFrameAssets(assetRequest, category) {
+    const kind = assetRequest.assetType || 'sprite';
+    if (kind === 'background' || category === 'environment' || category === 'background' || category === 'ui') return false;
+    return ['player', 'enemy', 'vehicle', 'prop', 'item'].includes(category);
+}
+
+async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, height) {
+    const category = assetRequest.category || 'item';
+    if (!shouldBuildFrameAssets(assetRequest, category)) {
+        return { frames: [], animations: [] };
+    }
+
+    const primaryMotion = category === 'player' || category === 'enemy' || category === 'vehicle';
+    const variants = primaryMotion
+        ? [
+            { name: 'idle', scaleX: 1, scaleY: 1, dy: 0, duration: 220 },
+            { name: 'idle', scaleX: 1.03, scaleY: 0.97, dy: -2, duration: 220 },
+            { name: 'move', scaleX: 1.08, scaleY: 0.92, dx: -2, dy: 1, duration: 90 },
+            { name: 'move', scaleX: 0.94, scaleY: 1.06, dx: 2, dy: -1, duration: 90 },
+            { name: 'hit', scaleX: 1.12, scaleY: 0.88, brightness: 1.25, duration: 70 },
+        ]
+        : [
+            { name: 'pulse', scaleX: 1, scaleY: 1, duration: 260 },
+            { name: 'pulse', scaleX: 1.1, scaleY: 1.1, brightness: 1.18, duration: 260 },
+        ];
+
+    const frames = [];
+    for (let index = 0; index < variants.length; index++) {
+        const variant = variants[index];
+        const frameId = `${id}_${variant.name}_${String(index + 1).padStart(2, '0')}`;
+        const frameUri = await createFrameVariant(dataUri, width, height, variant);
+        frames.push({
+            id: frameId,
+            key: frameId,
+            url: frameUri,
+            type: 'image',
+            kind: 'animation_frame',
+            role: category,
+            category,
+            sourceKey: id,
+            animationKey: `${id}_${variant.name}`,
+            frameName: variant.name,
+            frameIndex: index,
+            width,
+            height,
+            duration: variant.duration,
+            transparent: true,
+        });
+    }
+
+    const animations = Array.from(new Set(frames.map((frame) => frame.animationKey))).map((animationKey) => {
+        const sequenceFrames = frames.filter((frame) => frame.animationKey === animationKey);
+        return {
+            key: animationKey,
+            type: 'frame_sequence',
+            sourceKey: id,
+            role: category,
+            frames: sequenceFrames.map((frame) => frame.key),
+            frameRate: animationKey.endsWith('_move') || animationKey.endsWith('_hit') ? 10 : 4,
+            repeat: animationKey.endsWith('_hit') ? 0 : -1,
+        };
+    });
+
+    return { frames, animations };
+}
+
 /**
  * Generate multiple sprites for a game
  * 
@@ -605,7 +711,7 @@ export async function batchArtistAgent(requests) {
     const errors = [];
     const manifestAssets = [];
     const assetPack = [];
-    const animations = {};
+    const animations = [];
     
     // Generate assets sequentially to avoid rate limits
     // (NVIDIA free tier has rate limits)
@@ -648,6 +754,21 @@ export async function batchArtistAgent(requests) {
                 description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
             });
+
+            try {
+                const frameBundle = await buildFrameAssetsForRequest(id, assetRequest, dataUri, width, height);
+                for (const frame of frameBundle.frames) {
+                    results[frame.key] = frame.url;
+                    manifestAssets.push(frame);
+                    assetPack.push(frame);
+                }
+                animations.push(...frameBundle.animations);
+                if (frameBundle.frames.length > 0) {
+                    console.log(`[Batch Artist Agent] ✓ Generated ${frameBundle.frames.length} animation frames for ${id}`);
+                }
+            } catch (frameError) {
+                console.warn(`[Batch Artist Agent] Animation frame generation skipped for ${id}:`, frameError.message);
+            }
             
             // Small delay between requests to avoid rate limiting
             await new Promise(resolve => setTimeout(resolve, 500));

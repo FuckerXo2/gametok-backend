@@ -677,7 +677,12 @@ export function compileDreamAssetBundle(generatedImages = null, assetPlan = null
 
     const imagePack = Array.isArray(generatedImages.assetPack) ? generatedImages.assetPack : [];
     const manifestAssets = Array.isArray(generatedImages.manifest?.assets) ? generatedImages.manifest.assets : [];
-    const animations = assetPlan?.animations || generatedImages.animations || [];
+    const plannedAnimations = Array.isArray(assetPlan?.animations) ? assetPlan.animations : [];
+    const frameAnimations = Array.isArray(generatedImages.animations) ? generatedImages.animations : [];
+    const animations = [
+        ...plannedAnimations,
+        ...frameAnimations,
+    ];
     const audio = assetPlan?.audio || { sfx: [], music: [] };
     const tilesets = assetPlan?.tilesets || [];
     const productionContract = buildRuntimeContract(assetPlan?.qualityIntent || null, assetPlan);

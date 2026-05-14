@@ -249,7 +249,9 @@ function buildAIAssetsBlock(generatedAssets = null) {
       }));
   
   // Group assets by type
-  const byRole = (role, prefix = role) => manifestAssets.filter((asset) => asset.role === role || asset.category === role || asset.id.startsWith(prefix));
+  const primaryManifestAssets = manifestAssets.filter((asset) => asset.kind !== 'animation_frame');
+  const frameManifestAssets = manifestAssets.filter((asset) => asset.kind === 'animation_frame');
+  const byRole = (role, prefix = role) => primaryManifestAssets.filter((asset) => asset.role === role || asset.category === role || asset.id.startsWith(prefix));
   const uniqueAssets = (assetArray) => Array.from(new Map(assetArray.map((asset) => [asset.id, asset])).values());
   const player = byRole('player');
   const enemies = byRole('enemy');
@@ -318,6 +320,12 @@ ${JSON.stringify({
   productionContract,
   assets: assetPackSummary,
   animations: animationSummary,
+  animationFrames: frameManifestAssets.map((asset) => ({
+    key: asset.key,
+    sourceKey: asset.sourceKey,
+    animationKey: asset.animationKey,
+    frameName: asset.frameName,
+  })),
   audio: audioSummary,
   tilesets: tilesetSummary,
 }, null, 2)}
@@ -343,6 +351,7 @@ ASSET USAGE CONTRACT:
 - Terrain and platforms must follow artDirection.terrainStyle but remain code-defined geometry when they affect collision, aiming, landing, movement, or win/loss.
 - In artillery, lander, racing, platforming, puzzle, or tactical games, the background is never the physical world. Draw the physical terrain/track/grid/pad with code and style it to match the background.
 - If an animation manifest references a sourceKey, apply that tween or an equivalent procedural animation to that exact sprite.
+- If an animation manifest has type "frame_sequence", call DreamAssets.createAnimations(this) in create() and play that animation key on the matching sprite. Prefer real frame_sequence assets over tweens.
 - If audio exists in DREAM_AUDIO_MANIFEST, wire at least: ui_tap, impact, collect/reward, primary_action, movement_burst if movement exists, success/failure when those states exist.
 
 CRITICAL INSTRUCTIONS - NO LAZY VISUAL FALLBACKS:
@@ -359,7 +368,7 @@ CRITICAL INSTRUCTIONS - NO LAZY VISUAL FALLBACKS:
 11. ⚠️ If you use Canvas 2D instead of Phaser, the game will look terrible with ugly circles!
 12. Do NOT fetch external images — these embedded assets are ALL you need for visuals
 13. Use window.DREAM_ASSET_PACK as the source of truth for available assets and roles.
-14. Use window.DREAM_ANIMATIONS and the injected DreamAssets helper to create Phaser tweens/animations for idle, movement, hit, defeat, dash, and action feedback. Example: DreamAssets.applyTween(this, playerSprite, "player_idle").
+14. Use window.DREAM_ANIMATIONS and the injected DreamAssets helper to create Phaser frame animations/tweens for idle, movement, hit, defeat, dash, and action feedback. Example: DreamAssets.createAnimations(this); playerSprite.play("player_idle", true); DreamAssets.applyTween(this, playerSprite, "player_idle").
 15. Use window.DREAM_AUDIO_MANIFEST and the injected DreamAudio runtime for real audio files. Trigger sounds with DreamAudio.play("impact"), DreamAudio.play("collect"), DreamAudio.play("primary_action"), DreamAudio.play("movement_burst"), DreamAudio.play("success"), DreamAudio.play("failure"), or any key from the manifest. Do NOT synthesize oscillator/beep sounds.
 16. Use window.DREAM_TILESETS for tile/grid/platform/maze/dungeon games. If a tileset manifest exists, build the playfield from a repeatable tile rhythm instead of one empty flat backdrop.
 17. Match artDirection: sprite angle, palette, screen composition, background layering, terrain rendering, and code-rendered UI style must feel like one art system.
@@ -376,7 +385,9 @@ const safe = DreamAssets.safeRect(W, H);
 ${backgrounds.length > 0 ? `DreamAssets.addBackgroundCover(this, '${backgrounds[0].id}', W, H);` : ''}
 ${player.length > 0 ? `this.player = DreamAssets.addSprite(this, '${player[0].id}', W * 0.5, safe.y + safe.height * 0.55, { maxW: 96, maxH: 96, depth: 10 });` : ''}
 ${enemies.length > 0 ? `this.enemy = DreamAssets.addSprite(this, '${enemies[0].id}', W * 0.5, safe.y + safe.height * 0.25, { maxW: 86, maxH: 86, depth: 9 });` : ''}
-// Create tweens from window.DREAM_ANIMATIONS.
+// Create animations/tweens from window.DREAM_ANIMATIONS.
+// DreamAssets.createAnimations(this);
+// playerSprite.play('player_idle', true);
 // DreamAssets.applyTween(this, this.player, 'player_idle');
 // Trigger sound at gameplay moments:
 // DreamAudio.play('primary_action'); DreamAudio.play('impact'); DreamAudio.play('collect'); DreamAudio.startMusic();
@@ -2415,6 +2426,29 @@ function buildDreamAssetsScript(generatedAssets = null) {
             return (window.DREAM_ANIMATIONS || []).filter(function(animation) {
               return animation.sourceKey === sourceKey || animation.role === sourceKey || animation.key === sourceKey;
             });
+          },
+          createAnimations: function(scene) {
+            if (!scene || !scene.anims) return [];
+            var created = [];
+            var animations = window.DREAM_ANIMATIONS || [];
+            animations.forEach(function(animation) {
+              if (!animation || animation.type !== 'frame_sequence' || !animation.key || !Array.isArray(animation.frames) || animation.frames.length === 0) return;
+              try {
+                if (scene.anims.exists && scene.anims.exists(animation.key)) return;
+                var frames = animation.frames
+                  .filter(function(key) { return scene.textures && scene.textures.exists && scene.textures.exists(key); })
+                  .map(function(key) { return { key: key }; });
+                if (frames.length === 0) return;
+                scene.anims.create({
+                  key: animation.key,
+                  frames: frames,
+                  frameRate: animation.frameRate || 6,
+                  repeat: animation.repeat === undefined ? -1 : animation.repeat
+                });
+                created.push(animation.key);
+              } catch (e) {}
+            });
+            return created;
           },
           applyTween: function(scene, target, animationKey) {
             if (!scene || !scene.tweens || !target) return null;
