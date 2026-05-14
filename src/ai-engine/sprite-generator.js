@@ -14,6 +14,8 @@
  * Cost: $0 (completely free on NVIDIA build.nvidia.com)
  */
 
+import { assetModelRouter } from './asset-model-router.js';
+
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
 const FAL_KEY = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
 const FAL_RMBG_URL = 'https://fal.run/fal-ai/bria/background/remove';
@@ -67,39 +69,7 @@ function normalizeDimensions(widthOrSize = 768, height = null) {
 }
 
 async function generateWithFlux(prompt, dimensions = 768) {
-    const { width, height } = normalizeDimensions(dimensions);
-    const response = await fetch('https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            prompt,
-            width,
-            height,
-            cfg_scale: 0,
-            mode: 'base',
-            samples: 1,
-            steps: 4,
-            seed: Math.floor(Math.random() * 4_000_000_000),
-        }),
-    });
-    
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`FLUX generation failed: ${response.status} ${text.slice(0, 200)}`);
-    }
-    
-    const json = await response.json();
-    const artifact = json?.artifacts?.[0];
-    
-    if (!artifact || !artifact.base64) {
-        throw new Error('FLUX returned no image');
-    }
-    
-    return artifact.base64;
+    return assetModelRouter.generateImage(prompt, dimensions);
 }
 
 function parseImageResponse(json) {
@@ -134,70 +104,7 @@ async function fetchImageAsBase64(imageUrl) {
 }
 
 async function editImageWithHuggingFace(referenceDataUri, prompt, dimensions) {
-    if (!HF_IMAGE_EDIT_ENABLED) {
-        return { ok: false, skipped: 'disabled' };
-    }
-    if (!HF_TOKEN) {
-        return { ok: false, skipped: 'missing_hf_token' };
-    }
-
-    const { width, height } = normalizeDimensions(dimensions);
-    const payload = {
-        inputs: stripDataUrl(referenceDataUri),
-        parameters: {
-            prompt,
-            negative_prompt: 'text, labels, watermark, extra characters, cropped subject, duplicate subject, busy background, UI, button, frame, border',
-            num_inference_steps: HF_IMAGE_EDIT_STEPS,
-            guidance_scale: HF_IMAGE_EDIT_GUIDANCE,
-            target_size: { width, height },
-        },
-        options: {
-            wait_for_model: true,
-            use_cache: false,
-        },
-        provider: HF_IMAGE_EDIT_PROVIDER,
-    };
-
-    const response = await withTimeout(fetch(HF_IMAGE_EDIT_URL, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${HF_TOKEN}`,
-            Accept: 'image/png, application/json',
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    }), HF_IMAGE_EDIT_TIMEOUT_MS, 'Hugging Face image edit');
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`HF image edit failed: ${response.status} ${text.slice(0, 400)}`);
-    }
-
-    if (contentType.startsWith('image/')) {
-        const arrayBuffer = await response.arrayBuffer();
-        return {
-            ok: true,
-            imageBase64: Buffer.from(arrayBuffer).toString('base64'),
-            method: `hf:${HF_IMAGE_EDIT_MODEL}`,
-        };
-    }
-
-    const json = await response.json();
-    const image = parseImageResponse(json);
-    if (!image) {
-        throw new Error('HF image edit returned no image');
-    }
-
-    const imageBase64 = String(image).startsWith('http://') || String(image).startsWith('https://')
-        ? await fetchImageAsBase64(image)
-        : stripDataUrl(image);
-
-    return {
-        ok: true,
-        imageBase64,
-        method: `hf:${HF_IMAGE_EDIT_MODEL}`,
-    };
+    return assetModelRouter.editImage(referenceDataUri, prompt, dimensions);
 }
 
 /**
@@ -868,6 +775,8 @@ export async function generateGameSprites(gameSpec) {
  */
 export async function batchArtistAgent(requests) {
     console.log(`[Batch Artist Agent] Generating ${requests.length} assets...`);
+    const modelStatus = assetModelRouter.getStatus();
+    console.log(`[Batch Artist Agent] Model router: image=${modelStatus.textImage.provider}/${modelStatus.textImage.model} edit=${modelStatus.imageEdit.provider}/${modelStatus.imageEdit.model}`);
     
     const results = {};
     const errors = [];
