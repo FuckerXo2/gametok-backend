@@ -267,6 +267,7 @@ function buildAIAssetsBlock(generatedAssets = null) {
   const animationSummary = Array.isArray(generatedAssets.animations) ? generatedAssets.animations : [];
   const audioSummary = generatedAssets.audio || { sfx: [], music: [] };
   const tilesetSummary = Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [];
+  const artDirection = generatedAssets.assetPlan?.artDirection || generatedAssets.manifest?.artDirection || null;
   
   const formatAssetList = (assetArray) => {
     return assetArray.map((asset) => {
@@ -303,10 +304,16 @@ ${formatAssetList(ui)}
 ${props.length > 0 ? `PROPS/OBSTACLES:
 ${formatAssetList(props)}
 ` : ''}
+${artDirection ? `ART DIRECTION:
+\`\`\`json
+${JSON.stringify(artDirection, null, 2)}
+\`\`\`
+` : ''}
 
 STRUCTURED ASSET PACK:
 \`\`\`json
 ${JSON.stringify({
+  artDirection,
   assets: assetPackSummary,
   animations: animationSummary,
   audio: audioSummary,
@@ -316,12 +323,15 @@ ${JSON.stringify({
 
 ASSET USAGE CONTRACT:
 - The structured asset pack is the source of truth for art roles. Treat each asset's role/category/gameplayRole as binding.
+- The ART DIRECTION block is the source of truth for visual composition: palette, sprite angle, background layering, terrain style, UI style, and mobile framing.
 - Use DreamAssets.preloadPhaser(this) in preload() to load every image in the manifest.
-- Use DreamAssets.firstByRole("player"), "enemy", "item", "prop", "background"/"environment", and "ui" to connect assets to gameplay entities.
+- Use DreamAssets.firstByRole("player"), "enemy", "item", "prop", and "background"/"environment" to connect assets to gameplay entities.
 - Use DreamAssets.addSprite(scene, roleOrKey, x, y, { maxW, maxH }) and DreamAssets.addBackgroundCover(scene, roleOrKey, width, height) when helpful.
 - Use DreamAssets.safeRect(width, height) to place HUD, touch controls, menus, score, lives, wave labels, and inventory inside the GameTok-safe rectangle.
 - Every major gameplay entity on screen must be backed by either an asset key from DREAM_ASSET_PACK or a clearly intentional particle/shape effect. Do not use circles/rectangles as the player or main enemies when matching assets exist.
 - If an asset is marked transparent, render it as a sprite/entity. If transparent is false, render it as a background, floor, arena, or full-scene layer.
+- Render HUD, labels, meters, buttons, menus, trajectory text, and editor controls with code using the UI style from artDirection.uiStyle. Do not use AI images as HUD.
+- Terrain and platforms must follow artDirection.terrainStyle but remain code-defined geometry when they affect collision, aiming, landing, movement, or win/loss.
 - If an animation manifest references a sourceKey, apply that tween or an equivalent procedural animation to that exact sprite.
 - If audio exists in DREAM_AUDIO_MANIFEST, wire at least: ui_tap, impact, collect/reward, primary_action, movement_burst if movement exists, success/failure when those states exist.
 
@@ -332,7 +342,7 @@ CRITICAL INSTRUCTIONS - NO LAZY VISUAL FALLBACKS:
 4. Use enemy assets for obstacles/opponents/monsters
 5. Use item assets for collectibles/pickups/power-ups
 6. Use background assets for environment/scenery layers
-7. Use UI assets for health bars, buttons, icons
+7. Render HUD, health bars, buttons, labels, and controls in code. Do not use generated images for readable UI.
 8. Use prop assets for obstacles, decorations, interactive objects
 9. All sprites have transparent backgrounds (except backgrounds)
 10. ⚠️ ABSOLUTELY NO SVG CIRCLES OR PROCEDURAL SHAPES - Use the AI-generated PNG assets!
@@ -342,6 +352,7 @@ CRITICAL INSTRUCTIONS - NO LAZY VISUAL FALLBACKS:
 14. Use window.DREAM_ANIMATIONS and the injected DreamAssets helper to create Phaser tweens/animations for idle, movement, hit, defeat, dash, and action feedback. Example: DreamAssets.applyTween(this, playerSprite, "player_idle").
 15. Use window.DREAM_AUDIO_MANIFEST and the injected DreamAudio runtime for real audio files. Trigger sounds with DreamAudio.play("impact"), DreamAudio.play("collect"), DreamAudio.play("primary_action"), DreamAudio.play("movement_burst"), DreamAudio.play("success"), DreamAudio.play("failure"), or any key from the manifest. Do NOT synthesize oscillator/beep sounds.
 16. Use window.DREAM_TILESETS for tile/grid/platform/maze/dungeon games. If a tileset manifest exists, build the playfield from a repeatable tile rhythm instead of one empty flat backdrop.
+17. Match artDirection: sprite angle, palette, screen composition, background layering, terrain rendering, and code-rendered UI style must feel like one art system.
 
 Example Phaser 3 usage:
 \`\`\`javascript
@@ -439,6 +450,22 @@ Extract this JSON:
     "screenComposition": "Where the player, hazards, runtime HUD, controls, and important action should live on a phone screen",
     "hudPlan": "What the HUD must show as code-rendered interface, not as AI-generated image art"
   },
+  "artDirection": {
+    "styleName": "short name for the visual style, e.g. clean vector artillery, chunky pixel dungeon, neon arcade",
+    "palette": ["4-6 concrete color names or hex values"],
+    "spriteStyle": "how characters/vehicles/objects should look: perspective, outline, detail level, lighting, scale language",
+    "spriteCameraAngle": "side view | top-down | three-quarter | front-facing | first-person diegetic",
+    "backgroundStyle": "what scenery layers should look like and how much detail belongs in the background",
+    "terrainStyle": "how code-rendered terrain/platforms/paths/arenas should look, including edge treatment and material",
+    "uiStyle": "how runtime code-rendered HUD/buttons/meters should look; no AI-generated HUD images",
+    "screenComposition": "portrait mobile layout: sky/playfield/action/HUD/control zones with safe top/bottom spacing",
+    "consistencyRules": [
+      "rule that keeps all assets and code-rendered visuals coherent"
+    ],
+    "avoid": [
+      "visual mistake to avoid, such as tiny sprites, empty sky, baked text, random sticker assets, clashing UI"
+    ]
+  },
   "mobileControls": [
     {
       "action": "player action",
@@ -528,6 +555,8 @@ Extract this JSON:
 IMPORTANT:
 - This is not a mood board. It is the game's operational understanding.
 - playableExperience, mobileControls, entityRules, mustExist, feelRules, failureModesToAvoid, and assetRoles must be specific to the user's prompt.
+- artDirection must be specific enough that a second artist could draw the same game world consistently.
+- artDirection must explain what is AI-generated art versus what is code-rendered runtime UI/geometry.
 - mustExist should include 8-14 concrete checks the final game must satisfy.
 - failureModesToAvoid should include 5-10 concrete mistakes to prevent.
 - firstTenSeconds should make the game feel alive immediately.
@@ -542,6 +571,7 @@ IMPORTANT:
 - Do NOT invent multiplayer, online modes, customization, campaigns, shops, or extra features unless the user explicitly asked for them.
 - For collision terrain, paths, pads, platforms, or tactical grids, require code-defined gameplay geometry. Background art is scenery only.
 - Background descriptions must explicitly forbid text, UI, HUD, buttons, labels, watermarks, and foreground playable entities.
+- Asset descriptions must inherit artDirection.palette, spriteStyle, spriteCameraAngle, and backgroundStyle so assets do not clash.
 
 SIZE GUIDELINES:
 - Characters/enemies: 128px (medium detail)
@@ -639,6 +669,7 @@ function buildOperationalGameSpecBlock(qualityIntent = {}) {
       loseCondition: playableExperience.loseCondition || '',
     },
     technicalRequirements: qualityIntent.technicalRequirements || {},
+    artDirection: qualityIntent.artDirection || {},
     mobileControls: controls,
     playerActions: list(qualityIntent.playerActions),
     entityRules,
@@ -658,6 +689,7 @@ BUILDER CONTRACT:
 - The first 10 seconds must match playableExperience.firstTenSeconds.
 - Use mobileControls exactly as the player's primary inputs. Do not require keyboard input.
 - Use assetRoles and the AI asset keys to connect art to gameplay roles.
+- Follow artDirection as the visual source of truth. Code-rendered HUD, terrain, controls, and generated sprites must feel like one art system.
 - Add feelRules as real feedback: animation, particles, hit-stop, screen shake, sound, UI pulses, or camera motion.
 - Actively avoid every failureModesToAvoid item.
 - If scope conflicts arise, keep the primaryMechanic, coreLoop, firstTenSeconds, and mustExist items before adding extras.`;
@@ -704,6 +736,9 @@ REQUIREMENTS:
 - Score, HUD, and moment-to-moment feedback must be rendered by code as clean runtime UI, not as random AI-generated HUD images.
 - Never place text inside generated image assets. All readable labels, meters, buttons, score, turn prompts, and control panels must be code-rendered.
 - Background assets are scenery only. Do not use background art as collision terrain, tactical paths, landing pads, platforms, or UI. Gameplay geometry must be code-defined when it affects collision, aiming, movement, or win/loss.
+- Treat artDirection as binding: sprite angle, palette, background layering, terrain style, runtime UI style, and mobile composition must match across the whole game.
+- Code-render terrain/platforms/arenas/paths using artDirection.terrainStyle. Do not use raw blocky default shapes unless the artDirection explicitly calls for blocky pixel art.
+- Code-render HUD and controls using artDirection.uiStyle with clear hierarchy, padding, contrast, and no overlap with GameTok chrome.
 - Do not add multiplayer, online play, shops, campaigns, deep customization, or extra modes unless the user explicitly requested them.
 - Expose window.gametokEditable = { images:[], music:[], colors:[], text:[], tune:[], videos:[], sfx:[] } with any tweakable values.
 - Wrap init in try/catch with a visible error panel fallback.
@@ -721,6 +756,8 @@ QUALITY BAR:
 - Use the AI-generated assets as your PRIMARY visual assets. They are custom-made for this exact game.
 - Use the structured manifest deliberately: player art for player, enemy art for enemies, item art for rewards, background art as scenery only, props as colliders/obstacles/interactables.
 - Do not let assets float randomly or appear as decorative stickers. Every visible asset should have a gameplay role, collision/interaction role, or environmental composition role.
+- Compose the first screen like a finished mobile game: readable action area, intentional negative space, properly scaled sprites, code-rendered HUD, and controls that do not cover gameplay.
+- Avoid dead-looking scenes: no tiny lonely sprites in giant empty backgrounds, no mismatched asset styles, no baked AI text, no offscreen HUD, no procedural filler that ignores the asset pack.
 - Add particles, screen shake, smooth animations, satisfying audio feedback.
 - Make it fun to play for at least 2 minutes.
 - No placeholder art, no empty screens, no broken controls.

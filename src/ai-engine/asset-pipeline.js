@@ -305,6 +305,32 @@ function findRoleDescription(assetRoles, assetId, fallback = '') {
     return match?.roleInGameplay || fallback;
 }
 
+function buildArtDirectionSuffix(artDirection = {}, kind = 'sprite') {
+    const parts = [];
+    if (artDirection.styleName) parts.push(`Art style: ${artDirection.styleName}.`);
+    if (Array.isArray(artDirection.palette) && artDirection.palette.length > 0) {
+        parts.push(`Palette: ${artDirection.palette.slice(0, 6).join(', ')}.`);
+    }
+    if (kind === 'background') {
+        if (artDirection.backgroundStyle) parts.push(`Background style: ${artDirection.backgroundStyle}.`);
+        if (artDirection.screenComposition) parts.push(`Mobile composition: ${artDirection.screenComposition}.`);
+    } else {
+        if (artDirection.spriteStyle) parts.push(`Sprite style: ${artDirection.spriteStyle}.`);
+        if (artDirection.spriteCameraAngle) parts.push(`Camera angle: ${artDirection.spriteCameraAngle}.`);
+    }
+    if (Array.isArray(artDirection.consistencyRules) && artDirection.consistencyRules.length > 0) {
+        parts.push(`Consistency: ${artDirection.consistencyRules.slice(0, 3).join(' ')}`);
+    }
+    return parts.join(' ');
+}
+
+function withArtDirection(description, artDirection = {}, kind = 'sprite') {
+    return [
+        description,
+        buildArtDirectionSuffix(artDirection, kind),
+    ].filter(Boolean).join(' ');
+}
+
 function pushRequest(requests, request, seen) {
     const id = safeId(request.id, `asset_${requests.length + 1}`);
     if (seen.has(id)) return;
@@ -318,6 +344,7 @@ function pushRequest(requests, request, seen) {
 export async function buildDreamAssetPlan(qualityIntent = {}) {
     const visualAssets = qualityIntent.visualAssets || {};
     const assetRoles = asArray(qualityIntent.assetRoles);
+    const artDirection = qualityIntent.artDirection || {};
     const requests = [];
     const seen = new Set();
 
@@ -325,7 +352,7 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
         pushRequest(requests, {
             id: 'player',
             assetType: 'sprite',
-            description: visualAssets.player.description,
+            description: withArtDirection(visualAssets.player.description, artDirection, 'sprite'),
             category: 'player',
             role: 'player',
             gameplayRole: findRoleDescription(assetRoles, 'player', 'main playable character'),
@@ -339,7 +366,7 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
         pushRequest(requests, {
             id,
             assetType: 'sprite',
-            description: enemy.description,
+            description: withArtDirection(enemy.description, artDirection, 'sprite'),
             category: 'enemy',
             role: 'enemy',
             gameplayRole: findRoleDescription(assetRoles, id, 'opponent or hazard'),
@@ -353,7 +380,7 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
         pushRequest(requests, {
             id,
             assetType: 'sprite',
-            description: item.description,
+            description: withArtDirection(item.description, artDirection, 'sprite'),
             category: 'item',
             role: 'item',
             gameplayRole: findRoleDescription(assetRoles, id, 'pickup, collectible, power-up, or resource'),
@@ -368,7 +395,7 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
             id,
             assetType: 'background',
             description: [
-                bg.description,
+                withArtDirection(bg.description, artDirection, 'background'),
                 BACKGROUND_FORBIDDEN_PROMPT
             ].filter(Boolean).join(' '),
             category: 'environment',
@@ -390,7 +417,7 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
         pushRequest(requests, {
             id,
             assetType: 'sprite',
-            description: prop.description,
+            description: withArtDirection(prop.description, artDirection, 'sprite'),
             category: 'prop',
             role: 'prop',
             gameplayRole: findRoleDescription(assetRoles, id, 'obstacle, decoration, or interactive prop'),
@@ -406,6 +433,7 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
 
     return {
         version: 1,
+        artDirection,
         imageRequests: requests,
         animations,
         audio,
@@ -583,6 +611,7 @@ export function compileDreamAssetBundle(generatedImages = null, assetPlan = null
         assetPlan,
         manifest: {
             version: 2,
+            artDirection: assetPlan?.artDirection || null,
             assets: manifestAssets,
             animations,
             audio,
