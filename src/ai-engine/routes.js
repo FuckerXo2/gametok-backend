@@ -52,6 +52,8 @@ const DREAM_MODELS = {
 
 const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 256000);
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
+const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
+const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
@@ -613,6 +615,22 @@ function formatJobLogLabel(label, jobId = null) {
     return jobId ? `${label} job=${jobId}` : label;
 }
 
+async function withAbortableTimeout(task, timeoutMs, label) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    timer.unref?.();
+    try {
+        return await task(controller.signal);
+    } catch (error) {
+        if (controller.signal.aborted) {
+            throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
+        }
+        throw error;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, baseDelayMs = 1500 }) {
     let lastError;
     const logLabel = formatJobLogLabel(label, jobId);
@@ -695,16 +713,18 @@ function buildBuilderContinuationPrompt(partialHtml) {
     ].join('\n');
 }
 
-async function requestBuilderMessage(userPrompt, { label, jobId = null } = {}) {
+async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3 } = {}) {
     assertJobNotCancelled(jobId);
     
     let finishReason = null;
-    const text = await withNvidiaRetries(async () => {
+    const logLabel = formatJobLogLabel(label, jobId);
+    const text = await withNvidiaRetries(async () => withAbortableTimeout(async (signal) => {
         assertJobNotCancelled(jobId);
+        console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s)...`);
         const stream = await nvidiaClient.chat.completions.create({
             ...getNvidiaChatOptions(DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
             messages: [{ role: 'user', content: userPrompt }],
-        });
+        }, { signal });
 
         let output = "";
         for await (const chunk of stream) {
@@ -719,7 +739,7 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null } = {}) {
             }
         }
         return output;
-    }, { label, jobId, maxAttempts: 3, baseDelayMs: 1500 });
+    }, timeoutMs, logLabel), { label, jobId, maxAttempts, baseDelayMs: 1500 });
 
     return {
         text,
@@ -749,7 +769,12 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
             );
         }
         const continuationPrompt = buildBuilderContinuationPrompt(html);
-        const continuation = await requestBuilderMessage(continuationPrompt, { label: `${label} Continue`, jobId });
+        const continuation = await requestBuilderMessage(continuationPrompt, {
+            label: `${label} Continue`,
+            jobId,
+            timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+            maxAttempts: 2,
+        });
         assertJobNotCancelled(jobId);
         const continuationText = cleanBuilderContinuation(continuation.text);
         console.log(`🧾 [${formatJobLogLabel(`${label} Continue`, jobId)}] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
