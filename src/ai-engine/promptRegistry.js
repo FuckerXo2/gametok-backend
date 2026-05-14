@@ -268,6 +268,7 @@ function buildAIAssetsBlock(generatedAssets = null) {
   const audioSummary = generatedAssets.audio || { sfx: [], music: [] };
   const tilesetSummary = Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [];
   const artDirection = generatedAssets.assetPlan?.artDirection || generatedAssets.manifest?.artDirection || null;
+  const productionContract = generatedAssets.productionContract || generatedAssets.manifest?.productionContract || null;
   
   const formatAssetList = (assetArray) => {
     return assetArray.map((asset) => {
@@ -314,6 +315,7 @@ STRUCTURED ASSET PACK:
 \`\`\`json
 ${JSON.stringify({
   artDirection,
+  productionContract,
   assets: assetPackSummary,
   animations: animationSummary,
   audio: audioSummary,
@@ -321,8 +323,15 @@ ${JSON.stringify({
 }, null, 2)}
 \`\`\`
 
+${productionContract ? `PRODUCTION CONTRACT:
+\`\`\`json
+${JSON.stringify(productionContract, null, 2)}
+\`\`\`
+` : ''}
+
 ASSET USAGE CONTRACT:
 - The structured asset pack is the source of truth for art roles. Treat each asset's role/category/gameplayRole as binding.
+- The PRODUCTION CONTRACT is the source of truth for screen layout, runtime roles, first-frame acceptance, gameplay acceptance, and what must be code-rendered.
 - The ART DIRECTION block is the source of truth for visual composition: palette, sprite angle, background layering, terrain style, UI style, and mobile framing.
 - Use DreamAssets.preloadPhaser(this) in preload() to load every image in the manifest.
 - Use DreamAssets.firstByRole("player"), "enemy", "item", "prop", and "background"/"environment" to connect assets to gameplay entities.
@@ -332,6 +341,7 @@ ASSET USAGE CONTRACT:
 - If an asset is marked transparent, render it as a sprite/entity. If transparent is false, render it as a background, floor, arena, or full-scene layer.
 - Render HUD, labels, meters, buttons, menus, trajectory text, and editor controls with code using the UI style from artDirection.uiStyle. Do not use AI images as HUD.
 - Terrain and platforms must follow artDirection.terrainStyle but remain code-defined geometry when they affect collision, aiming, landing, movement, or win/loss.
+- In artillery, lander, racing, platforming, puzzle, or tactical games, the background is never the physical world. Draw the physical terrain/track/grid/pad with code and style it to match the background.
 - If an animation manifest references a sourceKey, apply that tween or an equivalent procedural animation to that exact sprite.
 - If audio exists in DREAM_AUDIO_MANIFEST, wire at least: ui_tap, impact, collect/reward, primary_action, movement_burst if movement exists, success/failure when those states exist.
 
@@ -732,6 +742,7 @@ REQUIREMENTS:
 - Reserve GameTok chrome-safe space: top 112px and bottom 48px minimum. Place HUD, score, lives, wave labels, pause, inventory, joysticks, buttons, and menus inside DreamAssets.safeRect(width,height).
 - No gameplay-critical UI may appear at y < 112px. Spawn player/objectives/enemies inside the visible safe play rectangle on frame one.
 - Every resize must recompute canvas/renderer size, camera/world bounds, HUD positions, control positions, and background cover scale.
+- Prevent all external navigation from the generated game. Do not set window.location, do not call window.open, do not create links to websites, and do not load iframes.
 - Complete game loop: start, play, win/lose, restart.
 - Score, HUD, and moment-to-moment feedback must be rendered by code as clean runtime UI, not as random AI-generated HUD images.
 - Never place text inside generated image assets. All readable labels, meters, buttons, score, turn prompts, and control panels must be code-rendered.
@@ -2279,6 +2290,7 @@ function buildDreamAssetsScript(generatedAssets = null) {
   const animations = generatedAssets.animations || {};
   const audio = generatedAssets.audio || { sfx: [], music: [] };
   const tilesets = generatedAssets.tilesets || [];
+  const productionContract = generatedAssets.productionContract || manifest.productionContract || null;
   const payload = {
     assets: generatedAssets.assets,
     assetPack,
@@ -2286,6 +2298,7 @@ function buildDreamAssetsScript(generatedAssets = null) {
     animations,
     audio,
     tilesets,
+    productionContract,
   };
   const json = JSON.stringify(payload).replace(/</g, '\\u003c');
 
@@ -2299,6 +2312,7 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DREAM_ANIMATIONS = dreamAssetPayload.animations || {};
         window.DREAM_AUDIO_MANIFEST = dreamAssetPayload.audio || { sfx: [], music: [] };
         window.DREAM_TILESETS = dreamAssetPayload.tilesets || [];
+        window.DREAM_PRODUCTION_CONTRACT = dreamAssetPayload.productionContract || (window.DREAM_ASSET_MANIFEST && window.DREAM_ASSET_MANIFEST.productionContract) || null;
         window.__dreamAudioQueue = window.__dreamAudioQueue || [];
         window.DreamAudio = window.DreamAudio || {
           unlock: function() {},
@@ -2381,9 +2395,21 @@ function buildDreamAssetsScript(generatedAssets = null) {
           safeRect: function(width, height) {
             width = width || window.innerWidth || 390;
             height = height || window.innerHeight || 844;
-            var top = Math.max(112, Number(window.__GAMETOK_SAFE_TOP || 0));
-            var bottom = Math.max(48, Number(window.__GAMETOK_SAFE_BOTTOM || 0));
+            var contract = window.DREAM_PRODUCTION_CONTRACT || {};
+            var screen = contract.screen || {};
+            var top = Math.max(Number(screen.safeTopPx || 112), Number(window.__GAMETOK_SAFE_TOP || 0));
+            var bottom = Math.max(Number(screen.safeBottomPx || 48), Number(window.__GAMETOK_SAFE_BOTTOM || 0));
             return { x: 12, y: top, width: Math.max(1, width - 24), height: Math.max(1, height - top - bottom), top: top, bottom: bottom };
+          },
+          productionContract: function() {
+            return window.DREAM_PRODUCTION_CONTRACT || null;
+          },
+          acceptanceChecklist: function() {
+            var contract = window.DREAM_PRODUCTION_CONTRACT || {};
+            return {
+              firstFrame: contract.firstFrameAcceptance || [],
+              gameplay: contract.gameplayAcceptance || []
+            };
           },
           animationsFor: function(sourceKey) {
             return (window.DREAM_ANIMATIONS || []).filter(function(animation) {
@@ -2501,6 +2527,43 @@ export function postProcessRawHtml(rawHtml, generatedAssets = null) {
           var reason = event && event.reason ? (event.reason.message || String(event.reason)) : 'Unknown promise rejection';
           reportRuntimeIssue('DreamStream async error', reason);
         });
+
+        function blockExternalNavigation(url) {
+          try {
+            if (!url) return false;
+            var parsed = new URL(String(url), window.location.href);
+            if (parsed.protocol === 'about:' || parsed.protocol === 'blob:' || parsed.protocol === 'data:') return false;
+            return parsed.origin !== window.location.origin;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        try {
+          var originalOpen = window.open;
+          window.open = function(url) {
+            if (blockExternalNavigation(url)) {
+              reportRuntimeIssue('DreamStream blocked navigation', 'Generated game tried to open external URL: ' + url);
+              return null;
+            }
+            return originalOpen ? originalOpen.apply(window, arguments) : null;
+          };
+        } catch (e) {}
+
+        document.addEventListener('click', function(event) {
+          try {
+            var node = event.target;
+            while (node && node !== document.body) {
+              if (node.tagName === 'A' && blockExternalNavigation(node.href)) {
+                event.preventDefault();
+                event.stopPropagation();
+                reportRuntimeIssue('DreamStream blocked navigation', 'Generated game tried to leave the playable preview: ' + node.href);
+                return false;
+              }
+              node = node.parentNode;
+            }
+          } catch (e) {}
+        }, true);
 
         bindStartTargets();
         window.addEventListener('load', function() {

@@ -381,12 +381,12 @@ async function removeBackground(imageBase64) {
  */
 function buildSpritePrompt(description, type = 'character', wantsTransparent = false) {
     const basePrompts = {
-        character: 'pixel art game sprite, character design, centered, full body view, clean silhouette, game asset style',
-        vehicle: 'pixel art game sprite, vehicle design, centered, top-down view, clean silhouette, game asset style',
-        item: 'pixel art game sprite, item design, centered, clean silhouette, game asset style',
-        enemy: 'pixel art game sprite, creature design, centered, full body view, clean silhouette, game asset style',
-        background: 'pixel art game background, environment scene, atmospheric, game asset style',
-        ui: 'pixel art game UI element, clean design, game asset style',
+        character: 'professional mobile game sprite, character design, centered, full body view, clean silhouette, game asset style',
+        vehicle: 'professional mobile game sprite, vehicle design, centered, readable silhouette, game asset style',
+        item: 'professional mobile game sprite, item design, centered, clean silhouette, game asset style',
+        enemy: 'professional mobile game sprite, creature or opponent design, centered, full body view, clean silhouette, game asset style',
+        background: 'professional mobile game background, environment scene, atmospheric, layered scenery, game asset style',
+        ui: 'professional mobile game icon or decorative UI source art, clean design, game asset style',
     };
     
     const base = basePrompts[type] || basePrompts.character;
@@ -408,7 +408,7 @@ function buildSpritePrompt(description, type = 'character', wantsTransparent = f
         ? 'single foreground asset, centered with clear empty margin, no text'
         : 'simple background';
 
-    return `${base}, ${safeDescription}, ${backgroundInstruction}, high contrast, clear edges, retro game art, professional pixel art`;
+    return `${base}, ${safeDescription}, ${backgroundInstruction}, high contrast, clear edges, cohesive art direction, production-quality game art`;
 }
 
 /**

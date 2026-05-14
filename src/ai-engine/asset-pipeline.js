@@ -433,6 +433,7 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
 
     return {
         version: 1,
+        qualityIntent,
         artDirection,
         imageRequests: requests,
         animations,
@@ -597,6 +598,80 @@ function buildTilesetPlan(qualityIntent = {}, specText = '') {
     }];
 }
 
+function inferProductionArchetype(qualityIntent = {}) {
+    const perspective = String(qualityIntent.technicalRequirements?.perspective || '').toLowerCase();
+    const dimension = String(qualityIntent.technicalRequirements?.dimension || '2D').toUpperCase();
+    const text = collectSpecText(qualityIntent).toLowerCase();
+
+    if (dimension === '3D') {
+        if (perspective === 'first_person') return 'three_first_person';
+        if (perspective === 'third_person') return 'three_third_person';
+        return 'three_scene';
+    }
+    if (includesAny(text, ['turn-based', 'turn based', 'angle', 'power', 'trajectory', 'wind', 'artillery'])) return 'turn_based_projectile';
+    if (includesAny(text, ['lander', 'thruster', 'fuel', 'landing pad', 'soft touchdown'])) return 'physics_lander';
+    if (perspective === 'side_view' && includesAny(text, ['gravity', 'jump', 'platform', 'fall', 'terrain'])) return 'side_physics';
+    if (perspective === 'top_down' || perspective === 'isometric') return 'top_down_action';
+    if (includesAny(text, ['grid', 'tile', 'match', 'board', 'puzzle'])) return 'grid_logic';
+    return 'mobile_arcade';
+}
+
+function buildRuntimeContract(qualityIntent = {}, assetPlan = {}) {
+    qualityIntent = qualityIntent || {};
+    const artDirection = assetPlan?.artDirection || qualityIntent.artDirection || {};
+    const imageRequests = asArray(assetPlan?.imageRequests);
+    const byRole = (role) => imageRequests.filter((asset) => asset.role === role || asset.category === role).map((asset) => asset.id);
+    const hasTilesets = asArray(assetPlan?.tilesets).length > 0;
+    const hasAudio = asArray(assetPlan?.audio?.sfx).length + asArray(assetPlan?.audio?.music).length > 0;
+
+    return {
+        version: 1,
+        archetype: inferProductionArchetype(qualityIntent),
+        output: 'single self-contained mobile HTML5 game',
+        screen: {
+            target: 'portrait phone inside GameTok preview chrome',
+            widthStrategy: 'window.innerWidth or visualViewport.width',
+            heightStrategy: 'window.innerHeight or visualViewport.height',
+            safeTopPx: 112,
+            safeBottomPx: 48,
+            required: 'all HUD, controls, score, prompts, and important gameplay spawn inside DreamAssets.safeRect(width,height)',
+        },
+        assets: {
+            sourceOfTruth: 'window.DREAM_ASSET_PACK and window.DREAM_ASSET_MANIFEST',
+            player: byRole('player'),
+            enemies: byRole('enemy'),
+            items: byRole('item'),
+            props: byRole('prop'),
+            backgrounds: byRole('background').concat(byRole('environment')),
+            animations: asArray(assetPlan?.animations).map((animation) => animation.key),
+            audio: hasAudio ? 'DREAM_AUDIO_MANIFEST real audio files' : 'no real audio selected; remain playable without audio',
+            tilesets: hasTilesets ? 'DREAM_TILESETS available for tile rhythm' : 'no tileset required',
+        },
+        renderingRules: [
+            'background images are scenery layers only, never collision terrain or readable UI',
+            'player/enemy/item/prop sprites come from DREAM_ASSET_PACK when available',
+            'HUD, labels, meters, buttons, turn prompts, aim/power panels, score, and controls are code-rendered',
+            'gameplay geometry is code-defined: terrain, landing pads, paths, walls, hitboxes, destructible ground, and tactical grids',
+            'terrain and runtime UI must visually follow artDirection.terrainStyle and artDirection.uiStyle',
+            'never navigate outside the generated game or open external URLs',
+        ],
+        firstFrameAcceptance: [
+            'the game canvas fills the phone viewport with no horizontal scroll',
+            'the main playfield is visible below the GameTok top chrome',
+            'the player or controlled object is visible and correctly scaled',
+            'the objective/target/hazard is visible or introduced within two seconds',
+            'the code-rendered HUD shows only necessary state and does not overlap native app chrome',
+            'touch controls are visible when needed and do not cover the main action',
+        ],
+        gameplayAcceptance: [
+            qualityIntent.playableExperience?.primaryMechanic || 'primary mechanic works from touch input',
+            qualityIntent.playableExperience?.coreLoop || 'repeatable input -> reaction -> feedback loop exists',
+            ...(asArray(qualityIntent.mustExist).slice(0, 10)),
+        ].filter(Boolean),
+        artDirection,
+    };
+}
+
 export function compileDreamAssetBundle(generatedImages = null, assetPlan = null) {
     if (!generatedImages) return null;
 
@@ -605,13 +680,16 @@ export function compileDreamAssetBundle(generatedImages = null, assetPlan = null
     const animations = assetPlan?.animations || generatedImages.animations || [];
     const audio = assetPlan?.audio || { sfx: [], music: [] };
     const tilesets = assetPlan?.tilesets || [];
+    const productionContract = buildRuntimeContract(assetPlan?.qualityIntent || null, assetPlan);
 
     return {
         ...generatedImages,
         assetPlan,
+        productionContract,
         manifest: {
             version: 2,
             artDirection: assetPlan?.artDirection || null,
+            productionContract,
             assets: manifestAssets,
             animations,
             audio,
