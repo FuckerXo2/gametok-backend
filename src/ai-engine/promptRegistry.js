@@ -20,6 +20,7 @@ import path from 'path';
 // ─────────────────────────────────────────────────────────
 
 import { buildCapabilityPromptBlock } from './capability-graph.js';
+import { formatUnityPhase1PromptBlock, formatUnityPromptBlock } from './gametok-unity.js';
 
 const VISUAL_STYLES = [
   'NEON_CYBERPUNK', 'PIXEL_RETRO', 'FLAT_VECTOR', 'DARK_HORROR',
@@ -407,7 +408,9 @@ RULES:
 - Keep scope realistic for one self-contained mobile HTML5 game.
 - The builder must be able to implement your spec directly.
 - Plan gameplay/environment visual assets that support the gameplay rules, not random decoration.
-- Be specific with asset descriptions because they will be used to generate AI art.`,
+- Be specific with asset descriptions because they will be used to generate AI art.
+
+${formatUnityPhase1PromptBlock()}`,
 
     user: `USER PROMPT: "${userPrompt}"
 
@@ -678,6 +681,8 @@ export function buildLabsSoloPrototype(userPrompt, qualityIntent = {}, audioBund
 
 GAME CONCEPT:
 "${userPrompt}"
+
+${formatUnityPromptBlock({ audience: 'builder' })}
 
 ${operationalSpecBlock}
 

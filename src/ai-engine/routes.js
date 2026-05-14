@@ -14,6 +14,7 @@ import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
 import { buildDreamAssetPlan, compileDreamAssetBundle } from './asset-pipeline.js';
+import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2426,6 +2427,8 @@ router.post('/generate-spec', async (req, res) => {
                     role: 'system',
                     content: `You are a senior mobile game designer writing the pre-create concept card for a game generation app.
 Your copy must feel specific, confident, and product-quality.
+
+${formatUnitySpecPromptBlock()}
 
 Return ONLY valid JSON in this exact format:
 {

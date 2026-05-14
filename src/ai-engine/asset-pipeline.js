@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { GAMETOK_UNITY } from './gametok-unity.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,6 +10,9 @@ const REPO_ROOT = path.resolve(__dirname, '../..');
 const AUDIO_DIR = path.join(REPO_ROOT, 'public/assets/audio');
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a']);
 const R2_AUDIO_CACHE_TTL_MS = 10 * 60 * 1000;
+const BACKGROUND_DEFAULT_WIDTH = GAMETOK_UNITY.assetPolicy.background.defaultWidth;
+const BACKGROUND_DEFAULT_HEIGHT = GAMETOK_UNITY.assetPolicy.background.defaultHeight;
+const BACKGROUND_FORBIDDEN_PROMPT = GAMETOK_UNITY.assetPolicy.background.forbiddenPrompt;
 
 let r2AudioCache = {
     expiresAt: 0,
@@ -365,13 +369,13 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
             assetType: 'background',
             description: [
                 bg.description,
-                'Scenery only. No text, no labels, no HUD, no buttons, no foreground characters, no playable terrain collision baked into the image.'
+                BACKGROUND_FORBIDDEN_PROMPT
             ].filter(Boolean).join(' '),
             category: 'environment',
             role: 'background',
             gameplayRole: findRoleDescription(assetRoles, id, 'main playfield backdrop'),
-            width: Number(bg.width || 768),
-            height: Number(bg.height || 1344),
+            width: Number(bg.width || BACKGROUND_DEFAULT_WIDTH),
+            height: Number(bg.height || BACKGROUND_DEFAULT_HEIGHT),
             size: bg.size || null,
             transparent: bg.transparent === true,
         }, seen);
