@@ -609,12 +609,17 @@ function isRetryableProviderError(error) {
     );
 }
 
-async function withNvidiaRetries(task, { label, maxAttempts = 3, baseDelayMs = 1500 }) {
+function formatJobLogLabel(label, jobId = null) {
+    return jobId ? `${label} job=${jobId}` : label;
+}
+
+async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, baseDelayMs = 1500 }) {
     let lastError;
+    const logLabel = formatJobLogLabel(label, jobId);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             if (attempt > 1) {
-                console.log(`🔁 [${label}] Retry ${attempt}/${maxAttempts}...`);
+                console.log(`🔁 [${logLabel}] Retry ${attempt}/${maxAttempts}...`);
             }
             return await task();
         } catch (error) {
@@ -623,7 +628,7 @@ async function withNvidiaRetries(task, { label, maxAttempts = 3, baseDelayMs = 1
                 throw error;
             }
             const waitMs = baseDelayMs * attempt;
-            console.warn(`⚠️ [${label}] Provider hiccup: ${error?.message || error}. Retrying in ${waitMs}ms...`);
+            console.warn(`⚠️ [${logLabel}] Provider hiccup: ${error?.message || error}. Retrying in ${waitMs}ms...`);
             await sleep(waitMs);
         }
     }
@@ -714,7 +719,7 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null } = {}) {
             }
         }
         return output;
-    }, { label, maxAttempts: 3, baseDelayMs: 1500 });
+    }, { label, jobId, maxAttempts: 3, baseDelayMs: 1500 });
 
     return {
         text,
@@ -724,16 +729,17 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null } = {}) {
 
 async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = null } = {}) {
     assertJobNotCancelled(jobId);
+    const logLabel = formatJobLogLabel(label, jobId);
     let { text, stopReason } = await requestBuilderMessage(initialPrompt, { label, jobId });
     assertJobNotCancelled(jobId);
     let html = normalizeHtmlDocument(text);
-    console.log(`🧾 [${label}] stop_reason=${stopReason || 'unknown'} chars=${html.length}`);
+    console.log(`🧾 [${logLabel}] stop_reason=${stopReason || 'unknown'} chars=${html.length}`);
 
     let continuationCount = 0;
     while (!hasClosedHtmlDocument(html) && continuationCount < BUILDER_MAX_CONTINUATIONS) {
         assertJobNotCancelled(jobId);
         continuationCount += 1;
-        console.warn(`⚠️ [${label}] Output truncated or incomplete. Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
+        console.warn(`⚠️ [${logLabel}] Output truncated or incomplete. Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
         if (jobId) {
             await updateGenerationJobProgress(
                 jobId,
@@ -746,7 +752,7 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
         const continuation = await requestBuilderMessage(continuationPrompt, { label: `${label} Continue`, jobId });
         assertJobNotCancelled(jobId);
         const continuationText = cleanBuilderContinuation(continuation.text);
-        console.log(`🧾 [${label} Continue] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
+        console.log(`🧾 [${formatJobLogLabel(`${label} Continue`, jobId)}] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
         if (!continuationText) {
             break;
         }
@@ -1970,7 +1976,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
 
         // ── PHASE 3B: SELF-CRITIQUE + QUALITY IMPROVEMENT ──
         assertJobNotCancelled(jobId);
-        console.log(`🔍 Phase 3B: Kimi reviewing its own output for quality...`);
+        console.log(`🔍 Phase 3B: Kimi reviewing its own output for quality... job=${jobId}`);
         await updateGenerationJobProgress(jobId, 88, 'polish', 'Polishing the feel...');
         const critiquePrompt = buildPhase3_SelfCritique(prompt, rawGameHtml, qualityIntent);
         const improvedHtml = await generateCompleteHtmlWithBuilder(critiquePrompt, { label: 'Phase 3B Self-Critique', jobId });
@@ -1986,15 +1992,15 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             }
 
             if (improvedSandboxRes.success) {
-                console.log(`✅ Phase 3B: Improved version passes sandbox — using it`);
+                console.log(`✅ Phase 3B: Improved version passes sandbox — using it job=${jobId}`);
                 rawGameHtml = improvedHtml;
                 finalHtml = postProcessRawHtml(improvedHtml, generatedAssets);
                 if (improvedSandboxRes.screenshot) finalScreenshot = improvedSandboxRes.screenshot;
             } else {
-                console.log(`⚠️ Phase 3B: Improved version failed sandbox — keeping original`);
+                console.log(`⚠️ Phase 3B: Improved version failed sandbox — keeping original job=${jobId}`);
             }
         } else {
-            console.log(`⚠️ Phase 3B: Self-critique output invalid — keeping original`);
+            console.log(`⚠️ Phase 3B: Self-critique output invalid — keeping original job=${jobId}`);
         }
 
         // ── SAVE TO DB ──
