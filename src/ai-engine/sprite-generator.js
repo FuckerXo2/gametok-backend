@@ -5,7 +5,7 @@
  * Completely replaces the 84K asset library with on-demand AI generation.
  * 
  * Flow:
- * 1. Generate 768x768 image with FLUX.1-schnell (FREE, fast)
+ * 1. Generate image with FLUX.1-schnell (FREE, fast)
  * 2. Remove sprite backgrounds with IMG.LY locally, then optional hosted/local fallbacks
  * 3. Downscale to target size (64/128/256px) with Sharp
  * 4. Return base64 PNG data URI
@@ -44,7 +44,22 @@ function withTimeout(promise, timeoutMs, label) {
 /**
  * Generate sprite with FLUX.1-schnell (768px minimum, we'll use that)
  */
-async function generateWithFlux(prompt) {
+function normalizeDimensions(widthOrSize = 768, height = null) {
+    if (typeof widthOrSize === 'object' && widthOrSize) {
+        return {
+            width: Number(widthOrSize.width || widthOrSize.size || 768),
+            height: Number(widthOrSize.height || widthOrSize.size || widthOrSize.width || 768),
+        };
+    }
+    const width = Number(widthOrSize || 768);
+    return {
+        width,
+        height: Number(height || width),
+    };
+}
+
+async function generateWithFlux(prompt, dimensions = 768) {
+    const { width, height } = normalizeDimensions(dimensions);
     const response = await fetch('https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell', {
         method: 'POST',
         headers: {
@@ -54,8 +69,8 @@ async function generateWithFlux(prompt) {
         },
         body: JSON.stringify({
             prompt,
-            width: 768,
-            height: 768,
+            width,
+            height,
             cfg_scale: 0,
             mode: 'base',
             samples: 1,
@@ -86,9 +101,10 @@ async function downscaleImage(imageBase64, targetSize = 128) {
     try {
         const sharp = (await import('sharp')).default;
         const buffer = Buffer.from(imageBase64, 'base64');
+        const { width, height } = normalizeDimensions(targetSize);
         
         const resized = await sharp(buffer)
-            .resize(targetSize, targetSize, {
+            .resize(width, height, {
                 kernel: 'lanczos3',
                 fit: 'contain',
                 background: { r: 0, g: 0, b: 0, alpha: 0 }
@@ -386,7 +402,9 @@ function buildSpritePrompt(description, type = 'character', wantsTransparent = f
         .replace(/\bdead\b/gi, 'fallen')
         .replace(/\bviolent\b/gi, 'action-packed');
     
-    const backgroundInstruction = wantsTransparent
+    const backgroundInstruction = type === 'background'
+        ? 'full-bleed scenery only, layered depth, clean readable composition, no text, no labels, no HUD, no buttons, no foreground characters, no UI overlays'
+        : wantsTransparent
         ? 'single foreground asset, centered with clear empty margin, no text'
         : 'simple background';
 
@@ -409,13 +427,14 @@ export async function generateSprite({
     targetSize = 128,
     removeBg = true,
 }) {
-    console.log(`[sprite-gen] Generating ${type}: ${description} (target: ${targetSize}px)`);
+    const dimensions = normalizeDimensions(targetSize);
+    console.log(`[sprite-gen] Generating ${type}: ${description} (target: ${dimensions.width}x${dimensions.height})`);
     
     // Step 1: Generate with FLUX
     const shouldRemoveBackground = removeBg && type !== 'background' && type !== 'ui';
     const prompt = buildSpritePrompt(description, type, shouldRemoveBackground);
-    const fluxImage = await generateWithFlux(prompt);
-    console.log(`[sprite-gen] ✓ Generated 768x768 image`);
+    const fluxImage = await generateWithFlux(prompt, dimensions);
+    console.log(`[sprite-gen] ✓ Generated ${dimensions.width}x${dimensions.height} image`);
     
     // Step 2: Remove background (optional, skip for backgrounds/ui)
     let processedImage = fluxImage;
@@ -431,7 +450,7 @@ export async function generateSprite({
     
     // Step 3: Downscale to target size
     const finalImage = await downscaleImage(processedImage, targetSize);
-    console.log(`[sprite-gen] ✓ Downscaled to ${targetSize}x${targetSize}`);
+    console.log(`[sprite-gen] ✓ Downscaled to ${dimensions.width}x${dimensions.height}`);
     
     return finalImage;
 }
@@ -456,6 +475,8 @@ export async function artistAgent(request) {
         description,
         category = 'character',
         size = 128,
+        width,
+        height,
         transparent = true,
     } = request;
     
@@ -479,7 +500,7 @@ export async function artistAgent(request) {
         const base64Image = await generateSprite({
             description,
             type: spriteType,
-            targetSize: size,
+            targetSize: width || height ? { width: width || size, height: height || width || size } : size,
             removeBg: transparent,
         });
         
@@ -591,7 +612,9 @@ export async function batchArtistAgent(requests) {
     for (const request of requests) {
         const { id, ...assetRequest } = request;
         const category = assetRequest.category || request.category || 'item';
-        const size = Number(assetRequest.size || request.size || 128);
+        const width = Number(assetRequest.width || request.width || assetRequest.size || request.size || 128);
+        const height = Number(assetRequest.height || request.height || assetRequest.size || request.size || width);
+        const size = width === height ? width : { width, height };
         
         try {
             const dataUri = await artistAgent(assetRequest);
@@ -603,8 +626,8 @@ export async function batchArtistAgent(requests) {
                 kind: assetRequest.assetType || request.assetType || 'sprite',
                 role: category,
                 category,
-                width: size,
-                height: size,
+                width,
+                height,
                 transparent: assetRequest.transparent !== false,
                 description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
@@ -617,8 +640,8 @@ export async function batchArtistAgent(requests) {
                 type: 'image',
                 kind: assetRequest.assetType || request.assetType || 'sprite',
                 url: dataUri,
-                width: size,
-                height: size,
+                width,
+                height,
                 role: category,
                 category,
                 transparent: assetRequest.transparent !== false,
@@ -632,7 +655,7 @@ export async function batchArtistAgent(requests) {
             console.error(`[Batch Artist Agent] Failed to generate ${id}:`, error.message);
             errors.push({ id, error: error.message });
             // Generate fallback
-            const dataUri = generateFallbackAsset(size, category);
+            const dataUri = generateFallbackAsset(Math.max(width, height), category);
             results[id] = dataUri;
             const assetMeta = {
                 id,
@@ -641,8 +664,8 @@ export async function batchArtistAgent(requests) {
                 kind: assetRequest.assetType || request.assetType || 'sprite',
                 role: category,
                 category,
-                width: size,
-                height: size,
+                width,
+                height,
                 transparent: assetRequest.transparent !== false,
                 description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
@@ -656,8 +679,8 @@ export async function batchArtistAgent(requests) {
                 type: 'image',
                 kind: assetRequest.assetType || request.assetType || 'sprite',
                 url: dataUri,
-                width: size,
-                height: size,
+                width,
+                height,
                 role: category,
                 category,
                 transparent: assetRequest.transparent !== false,

@@ -363,28 +363,23 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
         pushRequest(requests, {
             id,
             assetType: 'background',
-            description: bg.description,
+            description: [
+                bg.description,
+                'Scenery only. No text, no labels, no HUD, no buttons, no foreground characters, no playable terrain collision baked into the image.'
+            ].filter(Boolean).join(' '),
             category: 'environment',
             role: 'background',
             gameplayRole: findRoleDescription(assetRoles, id, 'main playfield backdrop'),
-            size: bg.size || 512,
+            width: Number(bg.width || 768),
+            height: Number(bg.height || 1344),
+            size: bg.size || null,
             transparent: bg.transparent === true,
         }, seen);
     });
 
-    asArray(visualAssets.ui).forEach((ui, idx) => {
-        const id = ui.id || `ui${idx + 1}`;
-        pushRequest(requests, {
-            id,
-            assetType: 'ui',
-            description: ui.description,
-            category: 'ui',
-            role: 'ui',
-            gameplayRole: findRoleDescription(assetRoles, id, 'HUD or control feedback'),
-            size: ui.size || 32,
-            transparent: ui.transparent !== false,
-        }, seen);
-    });
+    // HUD and touch controls are rendered by the game runtime. Do not generate
+    // AI-image HUD panels/buttons by default; they tend to look inconsistent and
+    // often include unusable text.
 
     asArray(visualAssets.props).forEach((prop, idx) => {
         const id = prop.id || `prop${idx + 1}`;

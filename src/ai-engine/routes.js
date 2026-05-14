@@ -2368,14 +2368,23 @@ router.post('/narrative/chat', async (req, res) => {
 
 function buildFallbackGameSpec(prompt) {
     const cleanPrompt = String(prompt || '').trim();
+    const lowerPrompt = cleanPrompt.toLowerCase();
+    let title = '';
+    if (lowerPrompt.includes('artillery') || lowerPrompt.includes('tank')) {
+        title = 'Tank Tactics';
+    } else if (lowerPrompt.includes('lunar') || lowerPrompt.includes('lander')) {
+        title = 'Lunar Lander';
+    }
     const words = cleanPrompt
         .replace(/[^a-zA-Z0-9\s]/g, ' ')
         .split(/\s+/)
         .filter((word) => word.length > 2)
         .slice(0, 3);
-    const title = words.length ? words.map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase()).join(' ') : 'Your Game';
+    if (!title) {
+        title = words.length ? words.map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase()).join(' ') : 'Your Game';
+    }
     const description = cleanPrompt
-        ? `${cleanPrompt.slice(0, 160)}${cleanPrompt.length > 160 ? '...' : ''}`
+        ? `${cleanPrompt.slice(0, 180)}${cleanPrompt.length > 180 ? '...' : ''}`
         : 'A fast, playable mobile game built from your idea.';
 
     return {
@@ -2415,21 +2424,25 @@ router.post('/generate-spec', async (req, res) => {
             messages: [
                 {
                     role: 'system',
-                    content: `You are a game design assistant. Given a game idea, generate a polished game specification.
+                    content: `You are a senior mobile game designer writing the pre-create concept card for a game generation app.
+Your copy must feel specific, confident, and product-quality.
 
 Return ONLY valid JSON in this exact format:
 {
   "title": "Catchy Title (2-3 words max)",
-  "description": "2-3 sentences describing core gameplay. Be concise and exciting.",
+  "description": "1-2 polished sentences describing the specific core loop and player fantasy.",
   "features": ["Feature 1 (one short sentence)", "Feature 2 (one short sentence)"]
 }
 
 Rules:
 - Title must be 2-3 words maximum
-- Description must be 2-3 sentences maximum (under 200 characters)
+- Description must be under 240 characters
 - Features must be 2-3 items, each one short sentence
-- Be creative but concise
-- Make it sound exciting`
+- Do not use generic filler like "strategy is key", "satisfying gameplay", or "clear controls"
+- Do not invent multiplayer, online play, customization, shops, campaigns, upgrades, or extra modes unless the user explicitly requested them
+- Every feature must be a real implied mechanic from the prompt
+- Prefer concrete verbs and systems: aim, charge, fire, land, dodge, draw, split, ricochet, survive
+- Make it sound like a polished store-quality game pitch without overpromising`
                 },
                 {
                     role: 'user',

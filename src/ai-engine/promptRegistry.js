@@ -406,7 +406,7 @@ RULES:
 - Think in concrete playable behavior: player verbs, entity rules, feedback, screen composition, and the first 10 seconds.
 - Keep scope realistic for one self-contained mobile HTML5 game.
 - The builder must be able to implement your spec directly.
-- Plan 8-12 visual assets that support the gameplay rules, not random decoration.
+- Plan gameplay/environment visual assets that support the gameplay rules, not random decoration.
 - Be specific with asset descriptions because they will be used to generate AI art.`,
 
     user: `USER PROMPT: "${userPrompt}"
@@ -433,7 +433,8 @@ Extract this JSON:
     "dimension": "2D | 3D",
     "perspective": "first_person | third_person | top_down | side_view | isometric",
     "preferredEngine": "PHASER | THREE | CANVAS",
-    "screenComposition": "Where the player, hazards, HUD, controls, and important action should live on a phone screen"
+    "screenComposition": "Where the player, hazards, runtime HUD, controls, and important action should live on a phone screen",
+    "hudPlan": "What the HUD must show as code-rendered interface, not as AI-generated image art"
   },
   "mobileControls": [
     {
@@ -465,7 +466,7 @@ Extract this JSON:
   ],
   "assetRoles": [
     {
-      "assetId": "player | enemy1 | item1 | background1 | ui1 | prop1",
+      "assetId": "player | enemy1 | item1 | background1 | prop1",
       "roleInGameplay": "how this asset should be used in the game, not just what it depicts"
     }
   ],
@@ -497,21 +498,14 @@ Extract this JSON:
     "backgrounds": [
       {
         "id": "bg1",
-        "description": "detailed scene description",
+        "description": "detailed mobile-safe scenery description only; no text, no HUD, no buttons, no characters unless purely distant environmental silhouettes",
         "type": "background",
-        "size": 512,
+        "width": 768,
+        "height": 1344,
         "transparent": false
       }
     ],
-    "ui": [
-      {
-        "id": "ui1",
-        "description": "UI element description (health bar, button, icon)",
-        "type": "ui",
-        "size": 32,
-        "transparent": true
-      }
-    ],
+    "ui": [],
     "props": [
       {
         "id": "prop1",
@@ -538,16 +532,18 @@ IMPORTANT:
 - Include 2-3 enemies
 - Include 2-3 items/collectibles
 - Include 1-2 backgrounds
-- Include 2-3 UI elements
 - Include 2-4 props/obstacles
 - Be specific with descriptions (colors, style, details)
-- Total: 8-12 visual assets
+- Total: 6-10 visual assets
+- Do NOT request AI-generated HUD panels, meters, labels, buttons, text, or control surfaces. Put HUD/control requirements in technicalRequirements.hudPlan, mobileControls, and mustExist instead.
+- Do NOT invent multiplayer, online modes, customization, campaigns, shops, or extra features unless the user explicitly asked for them.
+- For collision terrain, paths, pads, platforms, or tactical grids, require code-defined gameplay geometry. Background art is scenery only.
+- Background descriptions must explicitly forbid text, UI, HUD, buttons, labels, watermarks, and foreground playable entities.
 
 SIZE GUIDELINES:
 - Characters/enemies: 128px (medium detail)
 - Items/collectibles: 64px (small, simple)
-- Backgrounds: 512px (large, detailed)
-- UI elements: 32px (tiny, icon-sized)
+- Backgrounds: width 768, height 1344 for portrait mobile scenery unless the game needs a landscape arena; never 512px square by default
 - Props/obstacles: 96px (medium, environmental)
 
 TRANSPARENCY RULES:
@@ -700,7 +696,10 @@ REQUIREMENTS:
 - No gameplay-critical UI may appear at y < 112px. Spawn player/objectives/enemies inside the visible safe play rectangle on frame one.
 - Every resize must recompute canvas/renderer size, camera/world bounds, HUD positions, control positions, and background cover scale.
 - Complete game loop: start, play, win/lose, restart.
-- Score, HUD, and moment-to-moment feedback.
+- Score, HUD, and moment-to-moment feedback must be rendered by code as clean runtime UI, not as random AI-generated HUD images.
+- Never place text inside generated image assets. All readable labels, meters, buttons, score, turn prompts, and control panels must be code-rendered.
+- Background assets are scenery only. Do not use background art as collision terrain, tactical paths, landing pads, platforms, or UI. Gameplay geometry must be code-defined when it affects collision, aiming, movement, or win/loss.
+- Do not add multiplayer, online play, shops, campaigns, deep customization, or extra modes unless the user explicitly requested them.
 - Expose window.gametokEditable = { images:[], music:[], colors:[], text:[], tune:[], videos:[], sfx:[] } with any tweakable values.
 - Wrap init in try/catch with a visible error panel fallback.
 
@@ -715,8 +714,8 @@ QUALITY BAR:
 - The generated game must satisfy the OPERATIONAL GAME SPEC above.
 - The player must understand and use the primary mechanic within the first 10 seconds.
 - Use the AI-generated assets as your PRIMARY visual assets. They are custom-made for this exact game.
-- Use the structured manifest deliberately: player art for player, enemy art for enemies, item art for rewards, background art as scenery, props as colliders/obstacles/interactables, UI assets for HUD/control treatment.
-- Do not let assets float randomly or appear as decorative stickers. Every visible asset should have a gameplay role, collision/interaction role, HUD role, or environmental composition role.
+- Use the structured manifest deliberately: player art for player, enemy art for enemies, item art for rewards, background art as scenery only, props as colliders/obstacles/interactables.
+- Do not let assets float randomly or appear as decorative stickers. Every visible asset should have a gameplay role, collision/interaction role, or environmental composition role.
 - Add particles, screen shake, smooth animations, satisfying audio feedback.
 - Make it fun to play for at least 2 minutes.
 - No placeholder art, no empty screens, no broken controls.
