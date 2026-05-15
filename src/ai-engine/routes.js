@@ -1467,6 +1467,7 @@ async function claimGenerationJob() {
             SELECT id
             FROM generation_jobs
             WHERE status = 'queued'
+              AND kind IN ('dream', 'labs')
               AND run_after <= NOW()
             ORDER BY created_at ASC
             FOR UPDATE SKIP LOCKED

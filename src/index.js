@@ -18,6 +18,7 @@ import assetsRouter from './assets-router.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import { deleteCoverAsset } from './cover-art.js';
+import openGameRouter from './opengame-router.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +44,9 @@ app.use(express.urlencoded({ extended: true }));
 // 🔥 NATIVE AI PIPELINE MOUNT 🔥
 app.use('/api/ai', aiRouter);
 
+// 🎮 OPENGAME INTEGRATION 🎮
+app.use('/api/opengame', openGameRouter);
+
 // Global Media & Assets Pool
 app.use('/api/assets', assetsRouter);
 app.use('/api/admin/bots', botRouter);
@@ -59,6 +63,10 @@ app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thum
 for (const previewRoot of GAME_PREVIEW_ROOTS) {
   app.use('/game-previews', express.static(previewRoot));
 }
+
+// Serve OpenGame-generated games
+const OPENGAME_GAMES_ROOT = path.join(STORAGE_ROOT, 'opengame-games');
+app.use('/opengame-games', express.static(OPENGAME_GAMES_ROOT));
 
 // Health check / API entry point
 app.get('/', (req, res) => {

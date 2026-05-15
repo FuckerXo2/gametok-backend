@@ -32,7 +32,8 @@
     "manifest:phaser": "node scripts/build_phaser_asset_manifest.mjs",
     "assets:kenney-wave1:upload": "node scripts/upload_kenney_wave1_assets_to_r2.mjs",
     "assets:kenney:upload": "node scripts/upload_kenney_assets_to_r2.mjs",
-    "assets:phaser:upload": "node scripts/upload_phaser_assets_to_r2.mjs"
+    "assets:phaser:upload": "node scripts/upload_phaser_assets_to_r2.mjs",
+    "opengame:worker": "node scripts/opengame-worker.js"
   },
   "engines": {
     "node": ">=18.0.0"
