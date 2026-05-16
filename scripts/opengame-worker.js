@@ -479,7 +479,7 @@ async function walkFiles(dir, baseDir = dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.cache') continue;
     const absolute = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...await walkFiles(absolute, baseDir));
@@ -488,6 +488,14 @@ async function walkFiles(dir, baseDir = dir) {
     }
   }
   return files;
+}
+
+async function listGeneratedFiles(dir, limit = 120) {
+  const files = await walkFiles(dir).catch(() => []);
+  return files
+    .filter((file) => !file.split(path.sep).some((part) => part === 'node_modules' || part === '.git' || part === '.cache'))
+    .sort()
+    .slice(0, limit);
 }
 
 async function uploadDirectoryToR2(dir, jobId) {
@@ -527,7 +535,7 @@ async function publishArtifact(artifactDir, jobId) {
   return `${OPENGAME_PUBLIC_BASE}/${jobId}/index.html`;
 }
 
-async function findArtifactDir(jobDir) {
+async function findArtifactDir(jobDir, logPath) {
   const candidates = [
     path.join(jobDir, 'dist'),
     path.join(jobDir, 'build'),
@@ -536,7 +544,23 @@ async function findArtifactDir(jobDir) {
   for (const candidate of candidates) {
     if (await pathExists(path.join(candidate, 'index.html'))) return candidate;
   }
-  throw new Error('OpenGame finished but no index.html artifact was found.');
+
+  const files = await walkFiles(jobDir).catch(() => []);
+  const indexFiles = files.filter((file) => path.basename(file).toLowerCase() === 'index.html');
+  if (indexFiles.length > 0) {
+    const preferred = indexFiles.find((file) => file.split(path.sep).includes('dist'))
+      || indexFiles.find((file) => file.split(path.sep).includes('build'))
+      || indexFiles[0];
+    return path.dirname(path.join(jobDir, preferred));
+  }
+
+  const visibleFiles = await listGeneratedFiles(jobDir, 80);
+  const logTail = logPath
+    ? (await fs.readFile(logPath, 'utf8').catch(() => '')).slice(-3500)
+    : '';
+  const fileHint = visibleFiles.length ? ` Files produced: ${visibleFiles.join(', ')}` : ' No files were produced in the job directory.';
+  const logHint = logTail ? ` Log tail: ${logTail}` : '';
+  throw new Error(`OpenGame finished but no index.html artifact was found.${fileHint}${logHint}`);
 }
 
 function buildIframeHtml(url, title) {
@@ -566,6 +590,19 @@ async function maybeBuildProject(jobDir) {
   if (packageJson.scripts?.build) {
     await runCommand('npm', ['run', 'build'], { cwd: jobDir, timeoutMs: 10 * 60 * 1000 });
   }
+}
+
+async function findProjectRoot(jobDir) {
+  if (await pathExists(path.join(jobDir, 'package.json'))) return jobDir;
+
+  const entries = await fs.readdir(jobDir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.cache') continue;
+    const candidate = path.join(jobDir, entry.name);
+    if (await pathExists(path.join(candidate, 'package.json'))) return candidate;
+  }
+
+  return jobDir;
 }
 
 function progressFromOutput(text) {
@@ -619,14 +656,28 @@ async function runOpenGameJob(job) {
 
   const logPath = path.join(jobDir, 'opengame.log');
   const appendLog = async (text) => fs.appendFile(logPath, text).catch(() => {});
-  await runCommand('node', [
+  const cliArgs = [
     cliPath,
     '-p',
     job.prompt,
     '--yolo',
+    '--approval-mode',
+    'yolo',
+    '--auth-type',
+    'openai',
+    '--model',
+    env.OPENGAME_REASONING_MODEL,
+    '--openai-api-key',
+    env.OPENGAME_REASONING_API_KEY,
+    '--openai-base-url',
+    env.OPENGAME_REASONING_BASE_URL,
+    '--channel',
+    'CI',
     '--output-format',
     'stream-json',
-  ], {
+  ];
+  await appendLog(`[gametok-worker] node ${cliArgs.map((arg) => arg === env.OPENGAME_REASONING_API_KEY ? '[redacted-api-key]' : arg).join(' ')}\n`);
+  await runCommand('node', cliArgs, {
     cwd: jobDir,
     env,
     timeoutMs: JOB_TIMEOUT_MS,
@@ -643,8 +694,14 @@ async function runOpenGameJob(job) {
   });
 
   await updateJob(job.id, 86, 'build', 'Building OpenGame artifact...');
-  await maybeBuildProject(jobDir);
-  const artifactDir = await findArtifactDir(jobDir);
+  const projectRoot = await findProjectRoot(jobDir);
+  await maybeBuildProject(projectRoot);
+  const artifactDir = await findArtifactDir(projectRoot, logPath).catch(async (error) => {
+    if (projectRoot !== jobDir) {
+      return findArtifactDir(jobDir, logPath);
+    }
+    throw error;
+  });
   await updateJob(job.id, 92, 'publish', 'Publishing OpenGame artifact...');
   const playableUrl = await publishArtifact(artifactDir, job.id);
   const wrapperHtml = buildIframeHtml(playableUrl, title);
