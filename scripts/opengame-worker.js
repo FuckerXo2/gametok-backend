@@ -22,6 +22,7 @@ const OPENGAME_PUBLIC_BASE = (process.env.OPENGAME_PUBLIC_BASE || '/opengame-gam
 const R2_PREFIX = String(process.env.OPENGAME_R2_PREFIX || 'opengame-games').replace(/^\/+|\/+$/g, '');
 const DEFAULT_NIM_TOOL_MODEL = 'qwen/qwen3-coder-480b-a35b-instruct';
 const OPENGAME_CONTINUE_ATTEMPTS = Math.max(0, Number(process.env.OPENGAME_CONTINUE_ATTEMPTS || 2));
+const OPENGAME_REQUIRE_GENERATED_ASSETS = process.env.OPENGAME_REQUIRE_GENERATED_ASSETS !== 'false';
 const DEFAULT_OPENGAME_CORE_TOOLS = [
   'read_file',
   'read_many_files',
@@ -699,6 +700,8 @@ async function maybeBuildProject(jobDir) {
   const packageJson = JSON.parse(await fs.readFile(path.join(jobDir, 'package.json'), 'utf8'));
   if (packageJson.scripts?.build) {
     await runCommand('npm', ['run', 'build'], { cwd: jobDir, timeoutMs: 10 * 60 * 1000 });
+  } else if (packageJson.dependencies?.vite || packageJson.devDependencies?.vite) {
+    await runCommand('npx', ['vite', 'build'], { cwd: jobDir, timeoutMs: 10 * 60 * 1000 });
   }
 }
 
@@ -745,8 +748,6 @@ function buildOpenGameCliArgs({ cliPath, prompt, env, openAiLogDir, coreTools })
     'openai',
     '--model',
     env.OPENGAME_REASONING_MODEL,
-    '--openai-api-key',
-    env.OPENGAME_REASONING_API_KEY,
     '--openai-base-url',
     env.OPENGAME_REASONING_BASE_URL,
     '--channel',
@@ -755,6 +756,21 @@ function buildOpenGameCliArgs({ cliPath, prompt, env, openAiLogDir, coreTools })
     '--openai-logging-dir',
     openAiLogDir,
   ];
+}
+
+function buildProductionPrompt(originalPrompt) {
+  return `Build this game as a production-ready mobile web game artifact, not a dev-server demo.
+
+User request:
+${originalPrompt}
+
+Hard requirements:
+- Use the generate_game_assets tool for real game assets: sprites, terrain/background art, explosion/effect art, HUD icons, and UI art when needed.
+- Do not create placeholder SVG assets, placeholder rectangles/circles, or fake asset files if generate_game_assets is available.
+- Wire generated assets into the game through direct paths or an asset manifest.
+- Keep the HUD/layout inside a mobile viewport with large readable controls.
+- Create a static production artifact with index.html. If using Vite, include a build script and run npm run build; do not leave the final output as a dev server.
+- Do not start a long-running dev server as the final step. Use build/check commands that exit.`;
 }
 
 async function runOpenGameCli({ job, jobDir, env, cliArgs, logPath, appendLog }) {
@@ -796,6 +812,13 @@ Previous error:
 ${String(errorMessage || 'generation interrupted').slice(0, 1200)}`;
 }
 
+function needsAssetRecovery(rawLog) {
+  if (!OPENGAME_REQUIRE_GENERATED_ASSETS) return false;
+  const usedAssetTool = /\bgenerate_game_assets\b|\[asset-pipeline\]|\[Batch Artist Agent\]|\[Artist Agent\]/i.test(rawLog);
+  const usedPlaceholders = /placeholder assets?|simple svg placeholder|placeholder svg|placeholder rectangles?|placeholder circles?/i.test(rawLog);
+  return usedPlaceholders && !usedAssetTool;
+}
+
 function buildOpenGameEnv() {
   const requestedReasoningModel = process.env.OPENGAME_REASONING_MODEL || process.env.OPENAI_MODEL || 'moonshotai/kimi-k2.6';
   const toolCapableReasoningModel =
@@ -813,6 +836,9 @@ function buildOpenGameEnv() {
     OPENGAME_REASONING_MODEL: toolCapableReasoningModel,
     OPENGAME_REQUESTED_REASONING_MODEL: requestedReasoningModel,
     OPENGAME_VIDEO_ENABLED: process.env.OPENGAME_VIDEO_ENABLED || 'false',
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY || process.env.OPENGAME_REASONING_API_KEY || '',
+    OPENAI_BASE_URL: process.env.OPENAI_BASE_URL || process.env.OPENGAME_REASONING_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+    OPENAI_MODEL: toolCapableReasoningModel,
   };
 
   const falKey = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
@@ -854,7 +880,7 @@ async function runOpenGameJob(job) {
   const coreTools = process.env.OPENGAME_CORE_TOOLS || DEFAULT_OPENGAME_CORE_TOOLS;
   const cliArgs = buildOpenGameCliArgs({
     cliPath,
-    prompt: job.prompt,
+    prompt: buildProductionPrompt(job.prompt),
     env,
     openAiLogDir,
     coreTools,
@@ -867,15 +893,22 @@ async function runOpenGameJob(job) {
     console.warn(`[OpenGame Worker] CLI exited before clean completion for ${job.id}: ${error.message}`);
   }
 
-  for (let attempt = 1; cliError && attempt <= OPENGAME_CONTINUE_ATTEMPTS; attempt += 1) {
+  let recoveryReason = cliError?.message || '';
+  let rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+  if (!recoveryReason && needsAssetRecovery(rawLog)) {
+    recoveryReason = 'OpenGame used placeholder assets instead of generate_game_assets.';
+    console.warn(`[OpenGame Worker] Asset quality recovery required for ${job.id}: ${recoveryReason}`);
+  }
+
+  for (let attempt = 1; recoveryReason && attempt <= OPENGAME_CONTINUE_ATTEMPTS; attempt += 1) {
     if (!(await hasPartialOpenGameFiles(jobDir))) break;
 
     await updateJob(job.id, 74, 'recover', `Provider interrupted. Continuing and polishing build automatically (${attempt}/${OPENGAME_CONTINUE_ATTEMPTS})...`);
-    await appendLog(`\n[gametok-worker] continuation ${attempt}/${OPENGAME_CONTINUE_ATTEMPTS} after error: ${cliError.message}\n`);
+    await appendLog(`\n[gametok-worker] continuation ${attempt}/${OPENGAME_CONTINUE_ATTEMPTS} after issue: ${recoveryReason}\n`);
     const continueLogDir = path.join(jobDir, `openai-logs-continue-${attempt}`);
     const continueArgs = buildOpenGameCliArgs({
       cliPath,
-      prompt: buildContinuationPrompt(job.prompt, cliError.message),
+      prompt: buildContinuationPrompt(job.prompt, recoveryReason),
       env,
       openAiLogDir: continueLogDir,
       coreTools,
@@ -883,8 +916,13 @@ async function runOpenGameJob(job) {
     try {
       await runOpenGameCli({ job, jobDir, env, cliArgs: continueArgs, logPath, appendLog });
       cliError = null;
+      rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+      recoveryReason = needsAssetRecovery(rawLog)
+        ? 'OpenGame still used placeholder assets instead of generate_game_assets.'
+        : '';
     } catch (error) {
       cliError = error;
+      recoveryReason = error.message;
       console.warn(`[OpenGame Worker] Continuation ${attempt} failed for ${job.id}: ${error.message}`);
     }
   }
@@ -903,9 +941,11 @@ async function runOpenGameJob(job) {
     }
     throw artifactError;
   });
-  const rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+  rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
   if (cliError) {
     console.warn(`[OpenGame Worker] Continuing ${job.id} with produced artifact despite CLI error.`);
+  } else if (needsAssetRecovery(rawLog)) {
+    throw new Error('OpenGame produced placeholder assets instead of using the generated asset pipeline.');
   } else if (/\bAPI Error\b|Internal server error|unhashable type/i.test(rawLog)) {
     throw new Error(`OpenGame provider failed before creating files. ${rawLog.slice(-4000)}`);
   }
