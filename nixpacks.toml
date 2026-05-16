@@ -2,6 +2,7 @@
 nixPkgs = ["...", "nodejs_20", "git", "ffmpeg"]
 aptPkgs = [
     "...",
+    "git",
     "fonts-liberation",
     "libappindicator3-1",
     "libasound2",
