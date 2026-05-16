@@ -2053,6 +2053,203 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
+function safeMakerProjectPath(projectRoot, relativePath) {
+    const cleanPath = String(relativePath || '').replace(/\\/g, '/').replace(/^\.\/+/, '');
+    if (!cleanPath || cleanPath.startsWith('/') || cleanPath.includes('\0') || cleanPath.split('/').includes('..')) {
+        throw new Error(`Unsafe project file path: ${relativePath}`);
+    }
+    if (
+        cleanPath !== 'index.html'
+        && !/^src\/[^/]+\.(css|js|json)$/.test(cleanPath)
+    ) {
+        throw new Error(`Project file edits are limited to index.html and src/*.css/js/json: ${relativePath}`);
+    }
+    const absolutePath = path.resolve(projectRoot, cleanPath);
+    const projectRootResolved = path.resolve(projectRoot);
+    if (!absolutePath.startsWith(projectRootResolved + path.sep)) {
+        throw new Error(`Project file path escapes workspace: ${relativePath}`);
+    }
+    return { cleanPath, absolutePath };
+}
+
+async function readMakerProjectFiles(projectRoot) {
+    let manifest = null;
+    try {
+        const manifestRaw = await fs.promises.readFile(path.join(path.dirname(projectRoot), 'project-files.json'), 'utf8');
+        manifest = JSON.parse(manifestRaw);
+    } catch {
+        manifest = null;
+    }
+
+    const manifestPaths = Array.isArray(manifest?.files)
+        ? manifest.files
+            .map((file) => file?.path)
+            .filter((filePath) => filePath === 'index.html' || /^src\/[^/]+\.(css|js|json)$/.test(filePath || ''))
+        : [];
+    const paths = new Set(['index.html', ...manifestPaths]);
+
+    try {
+        const srcEntries = await fs.promises.readdir(path.join(projectRoot, 'src'), { withFileTypes: true });
+        for (const entry of srcEntries) {
+            if (entry.isFile() && /\.(css|js|json)$/i.test(entry.name)) {
+                paths.add(`src/${entry.name}`);
+            }
+        }
+    } catch {
+        // A generated game can be all-inline HTML with no src directory.
+    }
+
+    const files = [];
+    let totalChars = 0;
+    for (const relativePath of Array.from(paths).sort()) {
+        const { absolutePath, cleanPath } = safeMakerProjectPath(projectRoot, relativePath);
+        try {
+            let content = await fs.promises.readFile(absolutePath, 'utf8');
+            const maxFileChars = cleanPath === 'index.html' ? 40000 : 70000;
+            if (content.length > maxFileChars) {
+                content = `${content.slice(0, maxFileChars)}\n/* [GameTok note: file truncated in repair prompt] */`;
+            }
+            totalChars += content.length;
+            if (totalChars > 180000) {
+                files.push({
+                    path: cleanPath,
+                    truncated: true,
+                    content: content.slice(0, Math.max(8000, 180000 - (totalChars - content.length))),
+                });
+                break;
+            }
+            files.push({ path: cleanPath, content });
+        } catch {
+            // Ignore stale manifest entries.
+        }
+    }
+    return files;
+}
+
+function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [] }) {
+    return [
+        'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
+        '',
+        'Return JSON only. No markdown. No commentary.',
+        'Schema:',
+        '{"files":[{"path":"index.html","content":"complete replacement file contents"}],"notes":["short note"]}',
+        '',
+        'Rules:',
+        '- Edit only the files that need changes.',
+        '- Valid paths are index.html and existing src/*.css, src/*.js, src/*.json files.',
+        '- Return complete contents for every file you edit.',
+        '- Preserve the user game idea and current mechanics.',
+        '- Keep HUD, labels, buttons, meters, and controls code-rendered, not baked into AI images.',
+        '- Keep the game mobile-first inside a 390x844 webview. Reserve top space for GameTok chrome.',
+        '- Do not navigate to external websites, call window.location, submit forms, or open popups.',
+        '- Do not add remote dependencies unless the existing project already uses that dependency.',
+        '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
+        '',
+        `Crash: ${crash}`,
+        '',
+        'Original user prompt:',
+        prompt,
+        '',
+        'Operational spec:',
+        JSON.stringify({
+            title: qualityIntent.title || null,
+            playableExperience: qualityIntent.playableExperience || null,
+            mobileControls: qualityIntent.mobileControls || [],
+            playerActions: qualityIntent.playerActions || [],
+            entityRules: qualityIntent.entityRules || [],
+            mustExist: qualityIntent.mustExist || [],
+            feelRules: qualityIntent.feelRules || [],
+            failureModesToAvoid: qualityIntent.failureModesToAvoid || [],
+            technicalRequirements: qualityIntent.technicalRequirements || {},
+        }, null, 2),
+        '',
+        'Current project files:',
+        JSON.stringify(projectFiles, null, 2),
+    ].join('\n');
+}
+
+function parseMakerFileRepairResponse(text) {
+    const cleaned = stripMarkdownFences(String(text || ''), 'json');
+    const parsed = JSON.parse(extractJson(cleaned));
+    if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) {
+        throw new Error('File repair response did not include any file edits.');
+    }
+    return {
+        files: parsed.files.map((file) => {
+            if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
+                throw new Error('File repair response included an invalid file edit.');
+            }
+            return { path: file.path, content: file.content };
+        }),
+        notes: Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 12) : [],
+    };
+}
+
+async function applyMakerFileEdits(projectRoot, edits) {
+    const applied = [];
+    for (const edit of edits) {
+        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, edit.path);
+        await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
+        await fs.promises.writeFile(absolutePath, edit.content, 'utf8');
+        applied.push({
+            path: cleanPath,
+            bytes: Buffer.byteLength(edit.content, 'utf8'),
+        });
+    }
+    return applied;
+}
+
+async function assembleMakerProjectHtml(projectRoot) {
+    let html = await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf8');
+
+    html = await replaceAsync(html, /<link\b([^>]*?)href=["']\.\/(src\/[^"']+\.css)["']([^>]*)>/gi, async (_match, before, relativePath, after) => {
+        try {
+            const { absolutePath } = safeMakerProjectPath(projectRoot, relativePath);
+            const css = await fs.promises.readFile(absolutePath, 'utf8');
+            return `<style data-gametok-source="${relativePath}">\n${css}\n</style>`;
+        } catch {
+            return `<link${before}href="./${relativePath}"${after}>`;
+        }
+    });
+
+    html = await replaceAsync(html, /<script\b([^>]*?)src=["']\.\/(src\/[^"']+\.js)["']([^>]*)><\/script>/gi, async (_match, before, relativePath, after) => {
+        try {
+            const { absolutePath } = safeMakerProjectPath(projectRoot, relativePath);
+            const js = await fs.promises.readFile(absolutePath, 'utf8');
+            const attrs = `${before || ''}${after || ''}`.replace(/\s*type=["']module["']/i, '').trim();
+            return `<script${attrs ? ` ${attrs}` : ''} data-gametok-source="${relativePath}">\n${js}\n</script>`;
+        } catch {
+            return `<script${before}src="./${relativePath}"${after}></script>`;
+        }
+    });
+
+    return normalizeHtmlDocument(html);
+}
+
+async function rebuildMakerProjectDist(projectRoot) {
+    const distRoot = path.join(projectRoot, 'dist');
+    await fs.promises.rm(distRoot, { recursive: true, force: true });
+    await fs.promises.mkdir(distRoot, { recursive: true });
+    await fs.promises.copyFile(path.join(projectRoot, 'index.html'), path.join(distRoot, 'index.html'));
+    try {
+        await fs.promises.cp(path.join(projectRoot, 'src'), path.join(distRoot, 'src'), { recursive: true });
+    } catch {
+        // Source folder is optional for all-inline games.
+    }
+    return path.join(distRoot, 'index.html');
+}
+
+async function replaceAsync(input, regex, replacer) {
+    const replacements = [];
+    input.replace(regex, (...args) => {
+        replacements.push(Promise.resolve(replacer(...args)));
+        return '';
+    });
+    const resolved = await Promise.all(replacements);
+    let index = 0;
+    return input.replace(regex, () => resolved[index++]);
+}
+
 async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
     if (!token) {
         return null;
@@ -2083,6 +2280,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
     let makerWorkspace = null;
     let makerProject = null;
+    const makerRepairs = [];
     try {
         assertJobNotCancelled(jobId);
 
@@ -2270,19 +2468,80 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     'Return the COMPLETE corrected HTML file only.',
                     'Do not explain anything.',
                 ].join('\n');
-                const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
-                rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Quality Repair', jobId });
-                assertJobNotCancelled(jobId);
-                if (!hasClosedHtmlDocument(rawGameHtml)) {
-                    throw new Error('Builder repair output is missing </html> and appears truncated.');
+                const repairAttempt = 3 - maxRetries;
+                let repairedWithProjectFiles = false;
+                if (makerProject?.projectRoot) {
+                    try {
+                        const projectFiles = await readMakerProjectFiles(makerProject.projectRoot);
+                        const fileRepairPrompt = buildMakerFileRepairPrompt({
+                            qualityIntent,
+                            prompt,
+                            crash: sandboxRes.crashes[0],
+                            projectFiles,
+                        });
+                        await writeMakerJson(makerWorkspace, `logs/file-repair-request-${repairAttempt}.json`, {
+                            attempt: repairAttempt,
+                            crash: sandboxRes.crashes[0],
+                            files: projectFiles.map((file) => ({
+                                path: file.path,
+                                chars: file.content?.length || 0,
+                                truncated: Boolean(file.truncated),
+                            })),
+                        });
+                        const repairText = await requestBuilderMessage(fileRepairPrompt, {
+                            label: 'Phase 3 File Repair',
+                            jobId,
+                            timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                            maxAttempts: 2,
+                        });
+                        await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.txt`, repairText);
+                        const repair = parseMakerFileRepairResponse(repairText);
+                        const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files);
+                        await rebuildMakerProjectDist(makerProject.projectRoot);
+                        rawGameHtml = await assembleMakerProjectHtml(makerProject.projectRoot);
+                        assertJobNotCancelled(jobId);
+                        if (!hasClosedHtmlDocument(rawGameHtml)) {
+                            throw new Error('Project file repair assembled HTML is missing </html>.');
+                        }
+                        await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
+                        finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
+                        await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
+                        makerRepairs.push({
+                            attempt: repairAttempt,
+                            mode: 'project-file-edits',
+                            applied,
+                            notes: repair.notes,
+                        });
+                        repairedWithProjectFiles = true;
+                    } catch (fileRepairError) {
+                        console.error(`[Maker Repair] File-level repair failed, falling back to whole HTML repair: ${fileRepairError.message}`);
+                        makerRepairs.push({
+                            attempt: repairAttempt,
+                            mode: 'project-file-edits-failed',
+                            error: fileRepairError.message,
+                        });
+                    }
                 }
-                await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
-                makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
-                    title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
-                    generatedAssets,
-                });
-                finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
-                await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
+
+                if (!repairedWithProjectFiles) {
+                    const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
+                    rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Quality Repair', jobId });
+                    assertJobNotCancelled(jobId);
+                    if (!hasClosedHtmlDocument(rawGameHtml)) {
+                        throw new Error('Builder repair output is missing </html> and appears truncated.');
+                    }
+                    await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
+                    makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
+                        title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
+                        generatedAssets,
+                    });
+                    finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
+                    await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
+                    makerRepairs.push({
+                        attempt: repairAttempt,
+                        mode: 'whole-html-regeneration',
+                    });
+                }
                 maxRetries--;
             } else {
                 console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
@@ -2316,6 +2575,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             specModel: DREAM_MODELS.spec,
             assetSummary: summarizeMakerAssets(generatedAssets),
             sandbox: finalSandboxResult,
+            repairs: makerRepairs,
             htmlBytes: Buffer.byteLength(finalHtml || '', 'utf8'),
             rawHtmlBytes: Buffer.byteLength(rawGameHtml || '', 'utf8'),
             knownLimitations: [],
