@@ -1960,6 +1960,99 @@ function buildMakerPlan(qualityIntent = {}, prompt = '') {
     };
 }
 
+function splitHtmlIntoProjectFiles(html) {
+    const files = [];
+    let styleIndex = 0;
+    let scriptIndex = 0;
+    let projectHtml = String(html || '');
+
+    projectHtml = projectHtml.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_match, css) => {
+        styleIndex += 1;
+        const filePath = `src/style-${styleIndex}.css`;
+        files.push({ path: filePath, kind: 'css', content: String(css || '').trim() + '\n' });
+        return `<link rel="stylesheet" href="./${filePath}">`;
+    });
+
+    projectHtml = projectHtml.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, js) => {
+        if (/\bsrc\s*=/.test(attrs || '')) return match;
+        const code = String(js || '').trim();
+        if (!code) return '';
+        scriptIndex += 1;
+        const filePath = `src/script-${scriptIndex}.js`;
+        files.push({ path: filePath, kind: 'js', content: code + '\n' });
+        return `<script${attrs || ''} src="./${filePath}"></script>`;
+    });
+
+    return { html: projectHtml, files };
+}
+
+async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Game', generatedAssets = null } = {}) {
+    const projectRoot = path.join(workspace, 'project');
+    const srcRoot = path.join(projectRoot, 'src');
+    const distRoot = path.join(projectRoot, 'dist');
+    await fs.promises.rm(projectRoot, { recursive: true, force: true });
+    await fs.promises.mkdir(srcRoot, { recursive: true });
+    await fs.promises.mkdir(distRoot, { recursive: true });
+
+    const split = splitHtmlIntoProjectFiles(rawHtml);
+    await fs.promises.writeFile(path.join(projectRoot, 'index.html'), split.html, 'utf8');
+    for (const file of split.files) {
+        const destination = path.join(projectRoot, file.path);
+        await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+        await fs.promises.writeFile(destination, file.content, 'utf8');
+    }
+
+    await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
+        name: makerSafeFileName(title, 'gametok-game').toLowerCase(),
+        private: true,
+        type: 'module',
+        scripts: {
+            build: 'node build.mjs',
+        },
+    }, null, 2), 'utf8');
+
+    await fs.promises.writeFile(path.join(projectRoot, 'build.mjs'), [
+        "import fs from 'node:fs/promises';",
+        "import path from 'node:path';",
+        "const root = process.cwd();",
+        "const dist = path.join(root, 'dist');",
+        "await fs.rm(dist, { recursive: true, force: true });",
+        "await fs.mkdir(dist, { recursive: true });",
+        "await fs.cp(path.join(root, 'index.html'), path.join(dist, 'index.html'));",
+        "await fs.cp(path.join(root, 'src'), path.join(dist, 'src'), { recursive: true });",
+        "console.log('Built static GameTok artifact to dist/index.html');",
+        '',
+    ].join('\n'), 'utf8');
+
+    await writeMakerJson(workspace, 'project-files.json', {
+        version: 1,
+        projectRoot,
+        sourceIndex: path.join(projectRoot, 'index.html'),
+        buildCommand: 'npm run build',
+        artifact: path.join(distRoot, 'index.html'),
+        files: [
+            { path: 'index.html', kind: 'html', bytes: Buffer.byteLength(split.html, 'utf8') },
+            ...split.files.map((file) => ({
+                path: file.path,
+                kind: file.kind,
+                bytes: Buffer.byteLength(file.content, 'utf8'),
+            })),
+            { path: 'package.json', kind: 'manifest' },
+            { path: 'build.mjs', kind: 'build_script' },
+        ],
+        assetSummary: summarizeMakerAssets(generatedAssets),
+    });
+
+    await fs.promises.copyFile(path.join(projectRoot, 'index.html'), path.join(distRoot, 'index.html'));
+    await fs.promises.cp(srcRoot, path.join(distRoot, 'src'), { recursive: true });
+    return {
+        projectRoot,
+        sourceIndex: path.join(projectRoot, 'index.html'),
+        distIndex: path.join(distRoot, 'index.html'),
+        files: split.files,
+    };
+}
+
 async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
     if (!token) {
         return null;
@@ -1989,6 +2082,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // ═══════════════════════════════════════════════════════════
 async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
     let makerWorkspace = null;
+    let makerProject = null;
     try {
         assertJobNotCancelled(jobId);
 
@@ -2097,6 +2191,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         if (!hasClosedHtmlDocument(rawGameHtml)) {
             throw new Error('Builder output is missing </html> and appears truncated.');
         }
+        makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
+            title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
+            generatedAssets,
+        });
 
         console.log(`✅ Phase 2 complete: builder generated ${rawGameHtml.length} chars of game code`);
 
@@ -2179,6 +2277,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     throw new Error('Builder repair output is missing </html> and appears truncated.');
                 }
                 await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
+                makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
+                    title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
+                    generatedAssets,
+                });
                 finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
                 await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
                 maxRetries--;
@@ -2204,6 +2306,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             engine: 'gametok-native-maker',
             completedAt: new Date().toISOString(),
             workspace: makerWorkspace,
+            projectRoot: makerProject?.projectRoot || null,
+            projectIndex: makerProject?.sourceIndex || null,
+            projectDistIndex: makerProject?.distIndex || null,
             artifactPath: path.join(makerWorkspace, 'artifact/index.html'),
             rawBuildPath: path.join(makerWorkspace, 'raw-build.html'),
             buildCommand: 'native-html-builder',
