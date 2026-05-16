@@ -691,6 +691,15 @@ async function maybeBuildProject(jobDir) {
   }
 }
 
+async function findAnyArtifactDir(jobDir, projectRoot, logPath) {
+  return findArtifactDir(projectRoot, logPath).catch(async (error) => {
+    if (projectRoot !== jobDir) {
+      return findArtifactDir(jobDir, logPath);
+    }
+    throw error;
+  });
+}
+
 async function findProjectRoot(jobDir) {
   if (await pathExists(path.join(jobDir, 'package.json'))) return jobDir;
 
@@ -791,36 +800,48 @@ async function runOpenGameJob(job) {
     openAiLogDir,
   ];
   await appendLog(`[gametok-worker] node ${cliArgs.map((arg) => arg === env.OPENGAME_REASONING_API_KEY ? '[redacted-api-key]' : arg).join(' ')}\n`);
-  await runCommand('node', cliArgs, {
-    cwd: jobDir,
-    env,
-    timeoutMs: JOB_TIMEOUT_MS,
-    onStdout: (text) => {
-      process.stdout.write(text);
-      void appendLog(text);
-      const progress = progressFromOutput(text);
-      if (progress) void updateJob(job.id, progress[0], progress[1], progress[2]);
-    },
-    onStderr: (text) => {
-      process.stderr.write(text);
-      void appendLog(text);
-    },
-  });
-
-  const rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
-  if (/\bAPI Error\b|Internal server error|unhashable type/i.test(rawLog)) {
-    throw new Error(`OpenGame provider failed before creating files. ${rawLog.slice(-4000)}`);
+  let cliError = null;
+  try {
+    await runCommand('node', cliArgs, {
+      cwd: jobDir,
+      env,
+      timeoutMs: JOB_TIMEOUT_MS,
+      onStdout: (text) => {
+        process.stdout.write(text);
+        void appendLog(text);
+        const progress = progressFromOutput(text);
+        if (progress) void updateJob(job.id, progress[0], progress[1], progress[2]);
+      },
+      onStderr: (text) => {
+        process.stderr.write(text);
+        void appendLog(text);
+      },
+    });
+  } catch (error) {
+    cliError = error;
+    console.warn(`[OpenGame Worker] CLI exited before clean completion for ${job.id}: ${error.message}`);
   }
 
   await updateJob(job.id, 86, 'build', 'Building OpenGame artifact...');
   const projectRoot = await findProjectRoot(jobDir);
-  await maybeBuildProject(projectRoot);
-  const artifactDir = await findArtifactDir(projectRoot, logPath).catch(async (error) => {
-    if (projectRoot !== jobDir) {
-      return findArtifactDir(jobDir, logPath);
-    }
-    throw error;
+  await maybeBuildProject(projectRoot).catch(async (buildError) => {
+    if (!cliError) throw buildError;
+    const artifactDir = await findAnyArtifactDir(jobDir, projectRoot, logPath).catch(() => null);
+    if (!artifactDir) throw buildError;
+    console.warn(`[OpenGame Worker] Build command failed after artifact was produced for ${job.id}: ${buildError.message}`);
   });
+  const artifactDir = await findAnyArtifactDir(jobDir, projectRoot, logPath).catch((artifactError) => {
+    if (cliError) {
+      artifactError.message = `${cliError.message}\n${artifactError.message}`;
+    }
+    throw artifactError;
+  });
+  const rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+  if (cliError) {
+    console.warn(`[OpenGame Worker] Continuing ${job.id} with produced artifact despite CLI error.`);
+  } else if (/\bAPI Error\b|Internal server error|unhashable type/i.test(rawLog)) {
+    throw new Error(`OpenGame provider failed before creating files. ${rawLog.slice(-4000)}`);
+  }
   await updateJob(job.id, 92, 'publish', 'Publishing OpenGame artifact...');
   const playableUrl = await publishArtifact(artifactDir, job.id);
   const wrapperHtml = buildIframeHtml(playableUrl, title);
