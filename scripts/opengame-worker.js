@@ -21,6 +21,7 @@ const OPENGAME_JOBS_ROOT = process.env.OPENGAME_JOBS_ROOT || path.join(STORAGE_R
 const OPENGAME_PUBLIC_BASE = (process.env.OPENGAME_PUBLIC_BASE || '/opengame-games').replace(/\/+$/, '');
 const R2_PREFIX = String(process.env.OPENGAME_R2_PREFIX || 'opengame-games').replace(/^\/+|\/+$/g, '');
 const DEFAULT_NIM_TOOL_MODEL = 'qwen/qwen3-coder-480b-a35b-instruct';
+const OPENGAME_CONTINUE_ATTEMPTS = Math.max(0, Number(process.env.OPENGAME_CONTINUE_ATTEMPTS || 1));
 const DEFAULT_OPENGAME_CORE_TOOLS = [
   'read_file',
   'read_many_files',
@@ -597,6 +598,16 @@ async function listGeneratedFiles(dir, limit = 120) {
     .slice(0, limit);
 }
 
+async function hasPartialOpenGameFiles(jobDir) {
+  const files = await listGeneratedFiles(jobDir, 20);
+  return files.some((file) => {
+    const normalized = file.split(path.sep).join('/');
+    if (normalized === 'opengame.log') return false;
+    if (normalized.startsWith('openai-logs/')) return false;
+    return /\.(html|js|mjs|css|json|ts|tsx|jsx|png|jpg|jpeg|webp|svg|wav|mp3|ogg)$/i.test(normalized);
+  });
+}
+
 async function uploadDirectoryToR2(dir, jobId) {
   const client = r2Client();
   const files = await walkFiles(dir);
@@ -722,6 +733,66 @@ function progressFromOutput(text) {
   return null;
 }
 
+function buildOpenGameCliArgs({ cliPath, prompt, env, openAiLogDir, coreTools }) {
+  return [
+    cliPath,
+    prompt,
+    '--approval-mode',
+    'yolo',
+    '--core-tools',
+    coreTools,
+    '--auth-type',
+    'openai',
+    '--model',
+    env.OPENGAME_REASONING_MODEL,
+    '--openai-api-key',
+    env.OPENGAME_REASONING_API_KEY,
+    '--openai-base-url',
+    env.OPENGAME_REASONING_BASE_URL,
+    '--channel',
+    'CI',
+    '--openai-logging',
+    '--openai-logging-dir',
+    openAiLogDir,
+  ];
+}
+
+async function runOpenGameCli({ job, jobDir, env, cliArgs, logPath, appendLog }) {
+  await appendLog(`[gametok-worker] node ${cliArgs.map((arg) => arg === env.OPENGAME_REASONING_API_KEY ? '[redacted-api-key]' : arg).join(' ')}\n`);
+  await runCommand('node', cliArgs, {
+    cwd: jobDir,
+    env,
+    timeoutMs: JOB_TIMEOUT_MS,
+    onStdout: (text) => {
+      process.stdout.write(text);
+      void appendLog(text);
+      const progress = progressFromOutput(text);
+      if (progress) void updateJob(job.id, progress[0], progress[1], progress[2]);
+    },
+    onStderr: (text) => {
+      process.stderr.write(text);
+      void appendLog(text);
+    },
+  });
+}
+
+function buildContinuationPrompt(originalPrompt, errorMessage) {
+  return `Continue this existing OpenGame project in the current directory. The previous generation was interrupted by a provider/runtime error, but any files already written are available here. Do not restart from scratch unless the files are unusable.
+
+Finish the game requested by the user:
+${originalPrompt}
+
+Recovery requirements:
+- Inspect the existing files first.
+- Complete missing HTML/CSS/JS/assets needed for a playable mobile web game.
+- Fix syntax/runtime issues.
+- Ensure the project leaves a playable index.html artifact in this directory, dist, or build.
+- Keep controls large and mobile-friendly.
+
+Previous error:
+${String(errorMessage || 'generation interrupted').slice(0, 1200)}`;
+}
+
 function buildOpenGameEnv() {
   const requestedReasoningModel = process.env.OPENGAME_REASONING_MODEL || process.env.OPENAI_MODEL || 'moonshotai/kimi-k2.6';
   const toolCapableReasoningModel =
@@ -778,48 +849,44 @@ async function runOpenGameJob(job) {
   const openAiLogDir = path.join(jobDir, 'openai-logs');
   const appendLog = async (text) => fs.appendFile(logPath, text).catch(() => {});
   const coreTools = process.env.OPENGAME_CORE_TOOLS || DEFAULT_OPENGAME_CORE_TOOLS;
-  const cliArgs = [
+  const cliArgs = buildOpenGameCliArgs({
     cliPath,
-    job.prompt,
-    '--approval-mode',
-    'yolo',
-    '--core-tools',
-    coreTools,
-    '--auth-type',
-    'openai',
-    '--model',
-    env.OPENGAME_REASONING_MODEL,
-    '--openai-api-key',
-    env.OPENGAME_REASONING_API_KEY,
-    '--openai-base-url',
-    env.OPENGAME_REASONING_BASE_URL,
-    '--channel',
-    'CI',
-    '--openai-logging',
-    '--openai-logging-dir',
+    prompt: job.prompt,
+    env,
     openAiLogDir,
-  ];
-  await appendLog(`[gametok-worker] node ${cliArgs.map((arg) => arg === env.OPENGAME_REASONING_API_KEY ? '[redacted-api-key]' : arg).join(' ')}\n`);
+    coreTools,
+  });
   let cliError = null;
   try {
-    await runCommand('node', cliArgs, {
-      cwd: jobDir,
-      env,
-      timeoutMs: JOB_TIMEOUT_MS,
-      onStdout: (text) => {
-        process.stdout.write(text);
-        void appendLog(text);
-        const progress = progressFromOutput(text);
-        if (progress) void updateJob(job.id, progress[0], progress[1], progress[2]);
-      },
-      onStderr: (text) => {
-        process.stderr.write(text);
-        void appendLog(text);
-      },
-    });
+    await runOpenGameCli({ job, jobDir, env, cliArgs, logPath, appendLog });
   } catch (error) {
     cliError = error;
     console.warn(`[OpenGame Worker] CLI exited before clean completion for ${job.id}: ${error.message}`);
+  }
+
+  for (let attempt = 1; cliError && attempt <= OPENGAME_CONTINUE_ATTEMPTS; attempt += 1) {
+    const projectRoot = await findProjectRoot(jobDir);
+    const artifactDir = await findAnyArtifactDir(jobDir, projectRoot, logPath).catch(() => null);
+    if (artifactDir) break;
+    if (!(await hasPartialOpenGameFiles(jobDir))) break;
+
+    await updateJob(job.id, 74, 'recover', `Provider interrupted. Continuing build automatically (${attempt}/${OPENGAME_CONTINUE_ATTEMPTS})...`);
+    await appendLog(`\n[gametok-worker] continuation ${attempt}/${OPENGAME_CONTINUE_ATTEMPTS} after error: ${cliError.message}\n`);
+    const continueLogDir = path.join(jobDir, `openai-logs-continue-${attempt}`);
+    const continueArgs = buildOpenGameCliArgs({
+      cliPath,
+      prompt: buildContinuationPrompt(job.prompt, cliError.message),
+      env,
+      openAiLogDir: continueLogDir,
+      coreTools,
+    });
+    try {
+      await runOpenGameCli({ job, jobDir, env, cliArgs: continueArgs, logPath, appendLog });
+      cliError = null;
+    } catch (error) {
+      cliError = error;
+      console.warn(`[OpenGame Worker] Continuation ${attempt} failed for ${job.id}: ${error.message}`);
+    }
   }
 
   await updateJob(job.id, 86, 'build', 'Building OpenGame artifact...');
