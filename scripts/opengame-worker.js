@@ -20,6 +20,19 @@ const OPENGAME_REF = process.env.OPENGAME_REF || '';
 const OPENGAME_JOBS_ROOT = process.env.OPENGAME_JOBS_ROOT || path.join(STORAGE_ROOT, 'opengame-jobs');
 const OPENGAME_PUBLIC_BASE = (process.env.OPENGAME_PUBLIC_BASE || '/opengame-games').replace(/\/+$/, '');
 const R2_PREFIX = String(process.env.OPENGAME_R2_PREFIX || 'opengame-games').replace(/^\/+|\/+$/g, '');
+const DEFAULT_OPENGAME_CORE_TOOLS = [
+  'read_file',
+  'read_many_files',
+  'write_file',
+  'edit',
+  'list_directory',
+  'glob',
+  'grep_search',
+  'run_shell_command',
+  'generate_gdd',
+  'generate_game_assets',
+  'generate_tilemap',
+].join(',');
 
 let stopping = false;
 
@@ -724,13 +737,16 @@ async function runOpenGameJob(job) {
   await updateJob(job.id, 14, 'opengame', 'OpenGame is designing the project...');
 
   const logPath = path.join(jobDir, 'opengame.log');
+  const openAiLogDir = path.join(jobDir, 'openai-logs');
   const appendLog = async (text) => fs.appendFile(logPath, text).catch(() => {});
+  const coreTools = process.env.OPENGAME_CORE_TOOLS || DEFAULT_OPENGAME_CORE_TOOLS;
   const cliArgs = [
     cliPath,
-    '-p',
     job.prompt,
     '--approval-mode',
     'yolo',
+    '--core-tools',
+    coreTools,
     '--auth-type',
     'openai',
     '--model',
@@ -741,8 +757,9 @@ async function runOpenGameJob(job) {
     env.OPENGAME_REASONING_BASE_URL,
     '--channel',
     'CI',
-    '--output-format',
-    'stream-json',
+    '--openai-logging',
+    '--openai-logging-dir',
+    openAiLogDir,
   ];
   await appendLog(`[gametok-worker] node ${cliArgs.map((arg) => arg === env.OPENGAME_REASONING_API_KEY ? '[redacted-api-key]' : arg).join(' ')}\n`);
   await runCommand('node', cliArgs, {
@@ -760,6 +777,11 @@ async function runOpenGameJob(job) {
       void appendLog(text);
     },
   });
+
+  const rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+  if (/\bAPI Error\b|Internal server error|unhashable type/i.test(rawLog)) {
+    throw new Error(`OpenGame provider failed before creating files. ${rawLog.slice(-4000)}`);
+  }
 
   await updateJob(job.id, 86, 'build', 'Building OpenGame artifact...');
   const projectRoot = await findProjectRoot(jobDir);
