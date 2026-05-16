@@ -24,3 +24,6 @@ aptPkgs = [
     "libxkbcommon0",
     "libxshmfence1"
 ]
+
+[variables]
+NIXPACKS_NODE_VERSION = "20"
