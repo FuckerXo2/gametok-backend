@@ -21,7 +21,7 @@ const OPENGAME_JOBS_ROOT = process.env.OPENGAME_JOBS_ROOT || path.join(STORAGE_R
 const OPENGAME_PUBLIC_BASE = (process.env.OPENGAME_PUBLIC_BASE || '/opengame-games').replace(/\/+$/, '');
 const R2_PREFIX = String(process.env.OPENGAME_R2_PREFIX || 'opengame-games').replace(/^\/+|\/+$/g, '');
 const DEFAULT_NIM_TOOL_MODEL = 'qwen/qwen3-coder-480b-a35b-instruct';
-const OPENGAME_CONTINUE_ATTEMPTS = Math.max(0, Number(process.env.OPENGAME_CONTINUE_ATTEMPTS || 1));
+const OPENGAME_CONTINUE_ATTEMPTS = Math.max(0, Number(process.env.OPENGAME_CONTINUE_ATTEMPTS || 2));
 const DEFAULT_OPENGAME_CORE_TOOLS = [
   'read_file',
   'read_many_files',
@@ -777,14 +777,17 @@ async function runOpenGameCli({ job, jobDir, env, cliArgs, logPath, appendLog })
 }
 
 function buildContinuationPrompt(originalPrompt, errorMessage) {
-  return `Continue this existing OpenGame project in the current directory. The previous generation was interrupted by a provider/runtime error, but any files already written are available here. Do not restart from scratch unless the files are unusable.
+  return `Continue and polish this existing OpenGame project in the current directory. The previous generation was interrupted by a provider/runtime error, but any files already written are available here. Do not restart from scratch unless the files are unusable.
 
 Finish the game requested by the user:
 ${originalPrompt}
 
 Recovery requirements:
 - Inspect the existing files first.
-- Complete missing HTML/CSS/JS/assets needed for a playable mobile web game.
+- Complete missing HTML/CSS/JS/assets needed for a polished playable mobile web game.
+- If the project only has placeholder CSS/canvas shapes, improve it before finishing.
+- Use generate_game_assets for proper game assets when the project needs sprites, backgrounds, terrain art, explosions, HUD icons, or UI art. Do not rely on flat placeholder rectangles/circles unless the asset tool is unavailable.
+- Wire generated assets into the game through an asset manifest or direct asset paths.
 - Fix syntax/runtime issues.
 - Ensure the project leaves a playable index.html artifact in this directory, dist, or build.
 - Keep controls large and mobile-friendly.
@@ -865,12 +868,9 @@ async function runOpenGameJob(job) {
   }
 
   for (let attempt = 1; cliError && attempt <= OPENGAME_CONTINUE_ATTEMPTS; attempt += 1) {
-    const projectRoot = await findProjectRoot(jobDir);
-    const artifactDir = await findAnyArtifactDir(jobDir, projectRoot, logPath).catch(() => null);
-    if (artifactDir) break;
     if (!(await hasPartialOpenGameFiles(jobDir))) break;
 
-    await updateJob(job.id, 74, 'recover', `Provider interrupted. Continuing build automatically (${attempt}/${OPENGAME_CONTINUE_ATTEMPTS})...`);
+    await updateJob(job.id, 74, 'recover', `Provider interrupted. Continuing and polishing build automatically (${attempt}/${OPENGAME_CONTINUE_ATTEMPTS})...`);
     await appendLog(`\n[gametok-worker] continuation ${attempt}/${OPENGAME_CONTINUE_ATTEMPTS} after error: ${cliError.message}\n`);
     const continueLogDir = path.join(jobDir, `openai-logs-continue-${attempt}`);
     const continueArgs = buildOpenGameCliArgs({
