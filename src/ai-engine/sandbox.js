@@ -39,6 +39,15 @@ export async function verifyGame(htmlString, options = {}) {
         const page = await browser.newPage();
         await page.setViewport({ width: 390, height: 844 });
 
+        let externalNavigation = null;
+        page.on('framenavigated', frame => {
+            if (frame !== page.mainFrame()) return;
+            const url = frame.url();
+            if (/^https?:\/\//i.test(url)) {
+                externalNavigation = url;
+            }
+        });
+
         // Intercept all console messages to catch crashes
         page.on('console', msg => {
             const type = msg.type();
@@ -73,6 +82,10 @@ export async function verifyGame(htmlString, options = {}) {
 
         // Wait another 1 second to see if the interactions threw a delayed async error
         await new Promise(r => setTimeout(r, 1000));
+
+        if (externalNavigation) {
+            crashes.push(`External navigation detected: ${externalNavigation}. Generated games must stay self-contained inside the GameTok webview.`);
+        }
 
         const renderState = await page.evaluate(() => {
             const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 390;
@@ -156,6 +169,43 @@ export async function verifyGame(htmlString, options = {}) {
             const horizontalOverflow = Math.max(0, Math.round(scrollWidth - viewportWidth));
             const verticalOverflow = Math.max(0, Math.round(scrollHeight - viewportHeight));
             const bodyText = (document.body?.innerText || '').trim().slice(0, 400);
+            const externalLinks = Array.from(document.querySelectorAll('a[href], form[action]'))
+                .map((node) => node.getAttribute('href') || node.getAttribute('action') || '')
+                .filter((url) => /^https?:\/\//i.test(url))
+                .slice(0, 5);
+            const canvasPixelChecks = visibleCanvases.slice(0, 3).map((canvas, index) => {
+                const rect = canvas.getBoundingClientRect();
+                const sampleWidth = Math.max(1, Math.min(32, Math.floor(rect.width)));
+                const sampleHeight = Math.max(1, Math.min(32, Math.floor(rect.height)));
+                try {
+                    const sample = document.createElement('canvas');
+                    sample.width = sampleWidth;
+                    sample.height = sampleHeight;
+                    const sampleCtx = sample.getContext('2d', { willReadFrequently: true });
+                    sampleCtx.drawImage(canvas, 0, 0, sampleWidth, sampleHeight);
+                    const data = sampleCtx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+                    const colors = new Set();
+                    let nonTransparentPixels = 0;
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (data[i + 3] > 8) nonTransparentPixels += 1;
+                        if (colors.size < 64) {
+                            colors.add(`${data[i] >> 4},${data[i + 1] >> 4},${data[i + 2] >> 4},${data[i + 3] >> 4}`);
+                        }
+                    }
+                    return {
+                        index,
+                        sampled: true,
+                        uniqueColorBuckets: colors.size,
+                        nonTransparentRatio: nonTransparentPixels / (sampleWidth * sampleHeight),
+                    };
+                } catch (error) {
+                    return {
+                        index,
+                        sampled: false,
+                        error: error.message || String(error),
+                    };
+                }
+            });
 
             return {
                 viewportWidth,
@@ -166,6 +216,8 @@ export async function verifyGame(htmlString, options = {}) {
                 horizontalOverflow,
                 verticalOverflow,
                 visibleOutOfBoundsElements,
+                externalLinks,
+                canvasPixelChecks,
                 bodyText,
             };
         });
@@ -196,6 +248,17 @@ export async function verifyGame(htmlString, options = {}) {
                 .map((item) => `${item.tag}${item.label ? ` "${item.label}"` : ''} rect=${item.rect.left},${item.rect.top},${item.rect.right},${item.rect.bottom}`)
                 .join('; ');
             crashes.push(`Viewport bounds issue: important UI/control elements are outside the ${renderState.viewportWidth}x${renderState.viewportHeight} viewport: ${summary}. Clamp HUD and touch controls into safe visible bounds.`);
+        }
+
+        if (Array.isArray(renderState.externalLinks) && renderState.externalLinks.length > 0) {
+            crashes.push(`External links detected in generated game: ${renderState.externalLinks.join(', ')}. Games must be self-contained and must not route users to websites.`);
+        }
+
+        const blankCanvas = Array.isArray(renderState.canvasPixelChecks)
+            ? renderState.canvasPixelChecks.find((check) => check.sampled && check.nonTransparentRatio < 0.02)
+            : null;
+        if (blankCanvas) {
+            crashes.push(`Blank canvas detected: canvas#${blankCanvas.index} has almost no visible pixels. The game must render visible gameplay on boot.`);
         }
 
         if (/error|exception|failed/i.test(renderState.bodyText)) {

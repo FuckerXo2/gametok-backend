@@ -721,28 +721,49 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     
     let finishReason = null;
     const logLabel = formatJobLogLabel(label, jobId);
+    let lastPartialText = '';
+    let lastPartialStopReason = null;
     const text = await withNvidiaRetries(async () => withAbortableTimeout(async (signal) => {
         assertJobNotCancelled(jobId);
         console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s)...`);
-        const stream = await nvidiaClient.chat.completions.create({
-            ...getNvidiaChatOptions(DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
-            messages: [{ role: 'user', content: userPrompt }],
-        }, { signal });
-
         let output = "";
-        for await (const chunk of stream) {
-            assertJobNotCancelled(jobId);
-            const delta = chunk.choices?.[0]?.delta?.content;
-            if (delta) {
-                output += delta;
+        try {
+            const stream = await nvidiaClient.chat.completions.create({
+                ...getNvidiaChatOptions(DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
+                messages: [{ role: 'user', content: userPrompt }],
+            }, { signal });
+
+            for await (const chunk of stream) {
+                assertJobNotCancelled(jobId);
+                const delta = chunk.choices?.[0]?.delta?.content;
+                if (delta) {
+                    output += delta;
+                    lastPartialText = output;
+                }
+                const chunkFinishReason = chunk.choices?.[0]?.finish_reason;
+                if (chunkFinishReason) {
+                    finishReason = chunkFinishReason;
+                    lastPartialStopReason = chunkFinishReason;
+                }
             }
-            const chunkFinishReason = chunk.choices?.[0]?.finish_reason;
-            if (chunkFinishReason) {
-                finishReason = chunkFinishReason;
+            return output;
+        } catch (error) {
+            if (output.trim()) {
+                error.partialText = output;
+                error.partialStopReason = finishReason || 'provider_error_partial';
+                lastPartialText = output;
+                lastPartialStopReason = error.partialStopReason;
             }
+            throw error;
         }
-        return output;
-    }, timeoutMs, logLabel), { label, jobId, maxAttempts, baseDelayMs: 1500 });
+    }, timeoutMs, logLabel), { label, jobId, maxAttempts, baseDelayMs: 1500 }).catch((error) => {
+        if (String(lastPartialText || '').trim()) {
+            finishReason = error.partialStopReason || lastPartialStopReason || 'provider_error_partial';
+            console.warn(`⚠️ [${logLabel}] Provider failed after ${lastPartialText.length} chars. Keeping partial output for continuation.`);
+            return lastPartialText;
+        }
+        throw error;
+    });
 
     return {
         text,
