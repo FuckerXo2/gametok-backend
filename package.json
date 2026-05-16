@@ -33,7 +33,8 @@
     "assets:kenney-wave1:upload": "node scripts/upload_kenney_wave1_assets_to_r2.mjs",
     "assets:kenney:upload": "node scripts/upload_kenney_assets_to_r2.mjs",
     "assets:phaser:upload": "node scripts/upload_phaser_assets_to_r2.mjs",
-    "opengame:worker": "node scripts/opengame-worker.js"
+    "maker:worker": "node scripts/gametok-maker-worker.js",
+    "opengame:worker": "node scripts/gametok-maker-worker.js"
   },
   "engines": {
     "node": ">=20.0.0"
