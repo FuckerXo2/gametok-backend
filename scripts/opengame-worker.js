@@ -20,6 +20,7 @@ const OPENGAME_REF = process.env.OPENGAME_REF || '';
 const OPENGAME_JOBS_ROOT = process.env.OPENGAME_JOBS_ROOT || path.join(STORAGE_ROOT, 'opengame-jobs');
 const OPENGAME_PUBLIC_BASE = (process.env.OPENGAME_PUBLIC_BASE || '/opengame-games').replace(/\/+$/, '');
 const R2_PREFIX = String(process.env.OPENGAME_R2_PREFIX || 'opengame-games').replace(/^\/+|\/+$/g, '');
+const DEFAULT_NIM_TOOL_MODEL = 'nvidia/Llama-3_3-Nemotron-Super-49B-v1_5';
 const DEFAULT_OPENGAME_CORE_TOOLS = [
   'read_file',
   'read_many_files',
@@ -69,13 +70,29 @@ function runCommand(command, args, options = {}) {
     child.on('close', (code, signal) => {
       if (timer) clearTimeout(timer);
       if (code === 0) return resolve({ stdout, stderr, code, signal });
-      const error = new Error(`${command} ${args.join(' ')} failed with code=${code} signal=${signal}\n${stderr.slice(-4000)}`);
+      const safeArgs = redactCommandArgs(args);
+      const error = new Error(`${command} ${safeArgs.join(' ')} failed with code=${code} signal=${signal}\n${stderr.slice(-4000)}`);
       error.stdout = stdout;
       error.stderr = stderr;
       error.code = code;
       error.signal = signal;
       reject(error);
     });
+  });
+}
+
+function redactCommandArgs(args) {
+  const sensitiveFlags = new Set([
+    '--openai-api-key',
+    '--api-key',
+    '--key',
+    '--token',
+  ]);
+  return args.map((arg, index) => {
+    const previous = args[index - 1];
+    if (sensitiveFlags.has(previous)) return '[redacted-api-key]';
+    if (typeof arg === 'string' && /^(nvapi-|sk-|fal-)/i.test(arg)) return '[redacted-api-key]';
+    return arg;
   });
 }
 
@@ -697,6 +714,12 @@ function progressFromOutput(text) {
 }
 
 function buildOpenGameEnv() {
+  const requestedReasoningModel = process.env.OPENGAME_REASONING_MODEL || process.env.OPENAI_MODEL || 'moonshotai/kimi-k2.6';
+  const toolCapableReasoningModel =
+    /kimi/i.test(requestedReasoningModel)
+      ? (process.env.OPENGAME_TOOL_MODEL || DEFAULT_NIM_TOOL_MODEL)
+      : requestedReasoningModel;
+
   const env = {
     ...process.env,
     GAME_TEMPLATES_DIR: process.env.GAME_TEMPLATES_DIR || path.join(OPENGAME_ROOT, 'agent-test', 'templates'),
@@ -704,7 +727,8 @@ function buildOpenGameEnv() {
     OPENGAME_REASONING_PROVIDER: process.env.OPENGAME_REASONING_PROVIDER || 'openai-compat',
     OPENGAME_REASONING_API_KEY: process.env.OPENGAME_REASONING_API_KEY || process.env.OPENAI_API_KEY || '',
     OPENGAME_REASONING_BASE_URL: process.env.OPENGAME_REASONING_BASE_URL || process.env.OPENAI_BASE_URL || 'https://integrate.api.nvidia.com/v1',
-    OPENGAME_REASONING_MODEL: process.env.OPENGAME_REASONING_MODEL || process.env.OPENAI_MODEL || 'moonshotai/kimi-k2.6',
+    OPENGAME_REASONING_MODEL: toolCapableReasoningModel,
+    OPENGAME_REQUESTED_REASONING_MODEL: requestedReasoningModel,
     OPENGAME_VIDEO_ENABLED: process.env.OPENGAME_VIDEO_ENABLED || 'false',
   };
 
@@ -730,6 +754,11 @@ async function runOpenGameJob(job) {
   await ensureOpenGameRuntime();
 
   const env = buildOpenGameEnv();
+  if (env.OPENGAME_REQUESTED_REASONING_MODEL !== env.OPENGAME_REASONING_MODEL) {
+    console.warn(
+      `[OpenGame Worker] Requested reasoning model ${env.OPENGAME_REQUESTED_REASONING_MODEL} is not tool-compatible for OpenGame; using ${env.OPENGAME_REASONING_MODEL}.`
+    );
+  }
   console.log(
     `[OpenGame Worker] Providers: reasoning=${env.OPENGAME_REASONING_PROVIDER}:${env.OPENGAME_REASONING_MODEL} image=${env.OPENGAME_IMAGE_PROVIDER || 'unconfigured'}:${env.OPENGAME_IMAGE_MODEL || 'unconfigured'} edit=${env.OPENGAME_IMAGE_EDIT_MODEL || 'default'} videoEnabled=${env.OPENGAME_VIDEO_ENABLED}`
   );
