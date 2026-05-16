@@ -85,14 +85,213 @@ async function ensureOpenGameRuntime() {
     await runCommand('git', ['fetch', '--depth=1', 'origin', OPENGAME_REF], { cwd: OPENGAME_ROOT, timeoutMs: 5 * 60 * 1000 });
     await runCommand('git', ['checkout', 'FETCH_HEAD'], { cwd: OPENGAME_ROOT, timeoutMs: 2 * 60 * 1000 });
   }
+  const patched = await patchOpenGameRuntime();
   if (!(await pathExists(path.join(OPENGAME_ROOT, 'node_modules')))) {
     console.log('[OpenGame Worker] Installing OpenGame dependencies...');
     await runCommand('npm', ['install'], { cwd: OPENGAME_ROOT, timeoutMs: 20 * 60 * 1000 });
   }
-  if (!(await pathExists(path.join(OPENGAME_ROOT, 'dist', 'cli.js')))) {
+  if (patched || !(await pathExists(path.join(OPENGAME_ROOT, 'dist', 'cli.js')))) {
     console.log('[OpenGame Worker] Building OpenGame CLI...');
     await runCommand('npm', ['run', 'build'], { cwd: OPENGAME_ROOT, timeoutMs: 20 * 60 * 1000 });
   }
+}
+
+async function patchOpenGameRuntime() {
+  let changed = false;
+  changed = (await patchFalImageService()) || changed;
+  changed = (await patchImageEditModelEnv()) || changed;
+  changed = (await patchDisableVideoByDefault()) || changed;
+  if (changed) {
+    console.log('[OpenGame Worker] Applied GameTok OpenGame runtime patches.');
+  }
+  return changed;
+}
+
+async function patchFile(relativePath, transform) {
+  const filePath = path.join(OPENGAME_ROOT, relativePath);
+  const before = await fs.readFile(filePath, 'utf8');
+  const after = transform(before);
+  if (after === before) return false;
+  await fs.writeFile(filePath, after);
+  return true;
+}
+
+async function patchFalImageService() {
+  return patchFile('packages/core/src/services/assetImageService.ts', (source) => {
+    if (source.includes('GameTok Fal image adapter')) return source;
+
+    let next = source.replace(
+      `    const url = \`\${this.config.baseUrl}/images/generations\`;
+    const normalizedSize = size.replace('*', 'x');
+
+    const payload = {`,
+      `    const url = \`\${this.config.baseUrl}/images/generations\`;
+    const normalizedSize = size.replace('*', 'x');
+
+    if (this.isFalRun()) {
+      return this.generateFalImage(prompt, normalizedSize);
+    }
+
+    const payload = {`,
+    );
+
+    next = next.replace(
+      `  async editImage(
+    referenceImageUrl: string,
+    prompt: string,
+    _previousFrameUrl?: string | null,
+  ): Promise<string> {
+    // The OpenAI image-edit endpoint only takes a single reference image`,
+      `  async editImage(
+    referenceImageUrl: string,
+    prompt: string,
+    _previousFrameUrl?: string | null,
+  ): Promise<string> {
+    if (this.isFalRun()) {
+      return this.editFalImage(referenceImageUrl, prompt, _previousFrameUrl);
+    }
+
+    // The OpenAI image-edit endpoint only takes a single reference image`,
+    );
+
+    const falMethods = `
+
+  // GameTok Fal image adapter. OpenGame's generic OpenAI-compat image service
+  // assumes /images/generations and does not perform real image-conditioned
+  // edits. Fal model endpoints use /<model-id> and return images[] URLs, so
+  // translate here while keeping the upstream provider contract intact.
+  private isFalRun(): boolean {
+    return this.config.baseUrl.includes('fal.run') || this.config.baseUrl.includes('fal.ai');
+  }
+
+  private falEndpoint(modelName: string): string {
+    const base = this.config.baseUrl.replace(/\\/+$/g, '');
+    const model = modelName.replace(/^https?:\\/\\/[^/]+\\/?/i, '').replace(/^\\/+|\\/+$/g, '');
+    return \`\${base}/\${model}\`;
+  }
+
+  private falImageSize(size: string): string | { width: number; height: number } {
+    const [width, height] = size.split('x').map((value) => Number(value));
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+    return 'square_hd';
+  }
+
+  private extractFalImageUrl(data: unknown): string | undefined {
+    const record = data as {
+      images?: Array<{ url?: string }>;
+      image?: { url?: string } | string;
+      url?: string;
+      data?: Array<{ url?: string; b64_json?: string }>;
+    };
+    const imageUrl = record.images?.[0]?.url;
+    if (imageUrl) return imageUrl;
+    if (typeof record.image === 'string') return record.image;
+    if (record.image && typeof record.image === 'object' && 'url' in record.image && record.image.url) {
+      return record.image.url;
+    }
+    if (record.url) return record.url;
+    const item = record.data?.[0];
+    if (item?.url) return item.url;
+    if (item?.b64_json) return \`data:image/png;base64,\${item.b64_json}\`;
+    return undefined;
+  }
+
+  private async postFalImage(modelName: string, payload: Record<string, unknown>): Promise<string> {
+    const response = await this.fetchWithRetry(this.falEndpoint(modelName), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: \`Key \${this.config.apiKey}\`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(\`Fal image API failed: \${response.status} - \${errorBody}\`);
+    }
+
+    const data = await response.json();
+    const imageUrl = this.extractFalImageUrl(data);
+    if (!imageUrl) {
+      throw new Error('Fal image API returned no image URL');
+    }
+    return imageUrl;
+  }
+
+  private async generateFalImage(prompt: string, size: string): Promise<string> {
+    this.log(\`Generating image via Fal: \${prompt.substring(0, 50)}...\`);
+    return this.postFalImage(this.config.modelNameGeneration, {
+      prompt,
+      image_size: this.falImageSize(size),
+      num_images: 1,
+      enable_safety_checker: true,
+    });
+  }
+
+  private async editFalImage(
+    referenceImageUrl: string,
+    prompt: string,
+    previousFrameUrl?: string | null,
+  ): Promise<string> {
+    this.log('Editing image via Fal I2I...');
+    const editModel =
+      process.env.OPENGAME_IMAGE_EDIT_MODEL ||
+      process.env.FAL_IMAGE_EDIT_MODEL ||
+      this.config.modelNameEditing ||
+      this.config.modelNameGeneration;
+    return this.postFalImage(editModel, {
+      prompt,
+      image_url: referenceImageUrl,
+      image_urls: previousFrameUrl ? [referenceImageUrl, previousFrameUrl] : [referenceImageUrl],
+      num_images: 1,
+      enable_safety_checker: true,
+    });
+  }
+`;
+
+    return next.replace(
+      `}\n\n// ============== Image Service Interface ==============`,
+      `${falMethods}\n}\n\n// ============== Image Service Interface ==============`,
+    );
+  });
+}
+
+async function patchImageEditModelEnv() {
+  return patchFile('packages/core/src/services/assetModelRouter.ts', (source) => {
+    if (source.includes('process.env.OPENGAME_IMAGE_EDIT_MODEL')) return source;
+    return source.replace(
+      `      modelNameEditing:
+        IMAGE_EDIT_DEFAULTS[this.imageConfig.provider] ??
+        this.imageConfig.model,`,
+      `      modelNameEditing:
+        process.env.OPENGAME_IMAGE_EDIT_MODEL ??
+        process.env.FAL_IMAGE_EDIT_MODEL ??
+        IMAGE_EDIT_DEFAULTS[this.imageConfig.provider] ??
+        this.imageConfig.model,`,
+    );
+  });
+}
+
+async function patchDisableVideoByDefault() {
+  return patchFile('packages/core/src/tools/generate-assets.ts', (source) => {
+    let next = source;
+    if (!next.includes('GameTok default: I2I frames')) {
+      next = next.replace(
+      `    const useI2V = req.useI2V !== false; // Default: true (use I2V unless explicitly disabled)`,
+      `    const useI2V = process.env.OPENGAME_VIDEO_ENABLED === 'true' && req.useI2V !== false; // GameTok default: I2I frames, video only by explicit opt-in`,
+      );
+    }
+    if (!next.includes('GameTok default: no video-for-audio')) {
+      next = next.replace(
+        `    if (ffmpegAvailable) {`,
+        `    if (ffmpegAvailable && process.env.OPENGAME_VIDEO_ENABLED === 'true') { // GameTok default: no video-for-audio spend unless explicitly enabled`,
+      );
+    }
+    return next;
+  });
 }
 
 async function ensureQueueSchema() {
@@ -330,6 +529,30 @@ function progressFromOutput(text) {
   return null;
 }
 
+function buildOpenGameEnv() {
+  const env = {
+    ...process.env,
+    GAME_TEMPLATES_DIR: process.env.GAME_TEMPLATES_DIR || path.join(OPENGAME_ROOT, 'agent-test', 'templates'),
+    GAME_DOCS_DIR: process.env.GAME_DOCS_DIR || path.join(OPENGAME_ROOT, 'agent-test', 'docs'),
+    OPENGAME_REASONING_PROVIDER: process.env.OPENGAME_REASONING_PROVIDER || 'openai-compat',
+    OPENGAME_REASONING_API_KEY: process.env.OPENGAME_REASONING_API_KEY || process.env.OPENAI_API_KEY || '',
+    OPENGAME_REASONING_BASE_URL: process.env.OPENGAME_REASONING_BASE_URL || process.env.OPENAI_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+    OPENGAME_REASONING_MODEL: process.env.OPENGAME_REASONING_MODEL || process.env.OPENAI_MODEL || 'moonshotai/kimi-k2.6',
+    OPENGAME_VIDEO_ENABLED: process.env.OPENGAME_VIDEO_ENABLED || 'false',
+  };
+
+  const falKey = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
+  if (falKey && !process.env.OPENGAME_IMAGE_API_KEY) {
+    env.OPENGAME_IMAGE_PROVIDER = process.env.OPENGAME_IMAGE_PROVIDER || 'openai-compat';
+    env.OPENGAME_IMAGE_API_KEY = falKey;
+    env.OPENGAME_IMAGE_BASE_URL = process.env.OPENGAME_IMAGE_BASE_URL || 'https://fal.run';
+    env.OPENGAME_IMAGE_MODEL = process.env.OPENGAME_IMAGE_MODEL || process.env.FAL_IMAGE_MODEL || 'fal-ai/qwen-image';
+    env.OPENGAME_IMAGE_EDIT_MODEL = process.env.OPENGAME_IMAGE_EDIT_MODEL || process.env.FAL_IMAGE_EDIT_MODEL || 'fal-ai/qwen-image-edit';
+  }
+
+  return env;
+}
+
 async function runOpenGameJob(job) {
   const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
   const title = payload.title || 'OpenGame Build';
@@ -339,11 +562,10 @@ async function runOpenGameJob(job) {
   await updateJob(job.id, 8, 'preparing', 'Preparing OpenGame runtime...');
   await ensureOpenGameRuntime();
 
-  const env = {
-    ...process.env,
-    GAME_TEMPLATES_DIR: process.env.GAME_TEMPLATES_DIR || path.join(OPENGAME_ROOT, 'agent-test', 'templates'),
-    GAME_DOCS_DIR: process.env.GAME_DOCS_DIR || path.join(OPENGAME_ROOT, 'agent-test', 'docs'),
-  };
+  const env = buildOpenGameEnv();
+  console.log(
+    `[OpenGame Worker] Providers: reasoning=${env.OPENGAME_REASONING_PROVIDER}:${env.OPENGAME_REASONING_MODEL} image=${env.OPENGAME_IMAGE_PROVIDER || 'unconfigured'}:${env.OPENGAME_IMAGE_MODEL || 'unconfigured'} edit=${env.OPENGAME_IMAGE_EDIT_MODEL || 'default'} videoEnabled=${env.OPENGAME_VIDEO_ENABLED}`
+  );
   const cliPath = path.join(OPENGAME_ROOT, 'dist', 'cli.js');
   await updateJob(job.id, 14, 'opengame', 'OpenGame is designing the project...');
 
