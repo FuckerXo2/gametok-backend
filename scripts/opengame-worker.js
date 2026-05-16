@@ -78,10 +78,9 @@ async function pathExists(filePath) {
 async function ensureOpenGameRuntime() {
   await fs.mkdir(OPENGAME_CACHE_ROOT, { recursive: true });
   if (!(await pathExists(path.join(OPENGAME_ROOT, 'package.json')))) {
-    console.log(`[OpenGame Worker] Cloning OpenGame from ${OPENGAME_REPO}...`);
-    await runCommand('git', ['clone', '--depth=1', OPENGAME_REPO, OPENGAME_ROOT], { timeoutMs: 10 * 60 * 1000 });
+    await installOpenGameRuntime();
   }
-  if (OPENGAME_REF) {
+  if (OPENGAME_REF && await pathExists(path.join(OPENGAME_ROOT, '.git'))) {
     await runCommand('git', ['fetch', '--depth=1', 'origin', OPENGAME_REF], { cwd: OPENGAME_ROOT, timeoutMs: 5 * 60 * 1000 });
     await runCommand('git', ['checkout', 'FETCH_HEAD'], { cwd: OPENGAME_ROOT, timeoutMs: 2 * 60 * 1000 });
   }
@@ -94,6 +93,55 @@ async function ensureOpenGameRuntime() {
     console.log('[OpenGame Worker] Building OpenGame CLI...');
     await runCommand('npm', ['run', 'build'], { cwd: OPENGAME_ROOT, timeoutMs: 20 * 60 * 1000 });
   }
+}
+
+function parseGitHubRepo(repoUrl) {
+  const match = String(repoUrl).match(/github\.com[:/]+([^/\s]+)\/([^/\s.]+)(?:\.git)?/i);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2] };
+}
+
+async function installOpenGameRuntime() {
+  console.log(`[OpenGame Worker] Cloning OpenGame from ${OPENGAME_REPO}...`);
+  try {
+    await runCommand('git', ['clone', '--depth=1', OPENGAME_REPO, OPENGAME_ROOT], { timeoutMs: 10 * 60 * 1000 });
+    return;
+  } catch (error) {
+    if (error?.code !== 'ENOENT' && error?.message && !error.message.includes('spawn git ENOENT')) {
+      throw error;
+    }
+    console.warn('[OpenGame Worker] git is not available; falling back to GitHub tarball download.');
+  }
+
+  const parsed = parseGitHubRepo(OPENGAME_REPO);
+  if (!parsed) {
+    throw new Error(`Cannot download OpenGame tarball for non-GitHub repo: ${OPENGAME_REPO}`);
+  }
+
+  const ref = OPENGAME_REF || 'main';
+  const tarballUrl = `https://codeload.github.com/${parsed.owner}/${parsed.repo}/tar.gz/${encodeURIComponent(ref)}`;
+  const tmpDir = path.join(OPENGAME_CACHE_ROOT, `download-${Date.now()}`);
+  const archivePath = path.join(tmpDir, 'opengame.tar.gz');
+  await fs.rm(tmpDir, { recursive: true, force: true });
+  await fs.mkdir(tmpDir, { recursive: true });
+
+  const response = await fetch(tarballUrl);
+  if (!response.ok) {
+    throw new Error(`OpenGame tarball download failed: ${response.status} ${await response.text()}`);
+  }
+  await fs.writeFile(archivePath, Buffer.from(await response.arrayBuffer()));
+  await runCommand('tar', ['-xzf', archivePath, '-C', tmpDir], { timeoutMs: 5 * 60 * 1000 });
+
+  const entries = await fs.readdir(tmpDir, { withFileTypes: true });
+  const extracted = entries.find((entry) => entry.isDirectory() && entry.name !== path.basename(OPENGAME_ROOT));
+  if (!extracted) {
+    throw new Error('OpenGame tarball extracted without a source directory.');
+  }
+
+  await fs.rm(OPENGAME_ROOT, { recursive: true, force: true });
+  await copyDirectory(path.join(tmpDir, extracted.name), OPENGAME_ROOT);
+  await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  console.log('[OpenGame Worker] Installed OpenGame from GitHub tarball.');
 }
 
 async function patchOpenGameRuntime() {
