@@ -134,7 +134,9 @@ router.get('/jobs/:jobId', async (req, res) => {
 
     const row = result.rows[0];
     res.json({
+      success: row.status === 'complete',
       jobId: row.id,
+      draftId: row.id,
       status: row.status,
       progress: row.progress,
       phase: row.phase,
