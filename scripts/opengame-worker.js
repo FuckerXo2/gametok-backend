@@ -23,6 +23,8 @@ const R2_PREFIX = String(process.env.OPENGAME_R2_PREFIX || 'opengame-games').rep
 const DEFAULT_NIM_TOOL_MODEL = 'qwen/qwen3-coder-480b-a35b-instruct';
 const OPENGAME_CONTINUE_ATTEMPTS = Math.max(0, Number(process.env.OPENGAME_CONTINUE_ATTEMPTS || 2));
 const OPENGAME_REQUIRE_GENERATED_ASSETS = process.env.OPENGAME_REQUIRE_GENERATED_ASSETS !== 'false';
+const GAMETOK_MAKER_PLAN_FILE = 'gametok-plan.json';
+const GAMETOK_MAKER_REPORT_FILE = 'gametok-build-report.json';
 const DEFAULT_OPENGAME_CORE_TOOLS = [
   'read_file',
   'read_many_files',
@@ -729,6 +731,7 @@ async function findProjectRoot(jobDir) {
 
 function progressFromOutput(text) {
   const lower = text.toLowerCase();
+  if (lower.includes('gametok-plan') || lower.includes('game plan') || lower.includes('planning')) return [18, 'plan', 'Planning the playable game...'];
   if (lower.includes('generate_game_assets') || lower.includes('asset')) return [35, 'assets', 'Generating game assets...'];
   if (lower.includes('scaffold') || lower.includes('template')) return [20, 'scaffold', 'Scaffolding game project...'];
   if (lower.includes('debug') || lower.includes('error') || lower.includes('fix')) return [70, 'debug', 'Debugging generated game...'];
@@ -759,10 +762,18 @@ function buildOpenGameCliArgs({ cliPath, prompt, env, openAiLogDir, coreTools })
 }
 
 function buildProductionPrompt(originalPrompt) {
-  return `Build this game as a production-ready mobile web game artifact, not a dev-server demo.
+  return `You are running inside GameTok Maker, a production game-building workspace. Build this game as a production-ready mobile web game artifact, not a dev-server demo.
 
 User request:
 ${originalPrompt}
+
+Required workflow:
+1. Inspect GAMETOK_MAKER_CONTRACT.md before writing code.
+2. Write ${GAMETOK_MAKER_PLAN_FILE} first. It must define the first 10 seconds, controls, camera/layout, entities, game loop, win/loss, assets, build command, and acceptance checks.
+3. Scaffold a real web game project using normal files. Prefer a simple static/Vite canvas or Phaser project that can build to a static artifact.
+4. Implement the playable loop. Do not stop at descriptions.
+5. Run a build/check command that exits.
+6. Write ${GAMETOK_MAKER_REPORT_FILE} at the end with what was built, which assets are used, which command was run, where index.html is, and any known limitations.
 
 Hard requirements:
 - Use the generate_game_assets tool for real game assets: sprites, terrain/background art, explosion/effect art, HUD icons, and UI art when needed.
@@ -770,7 +781,8 @@ Hard requirements:
 - Wire generated assets into the game through direct paths or an asset manifest.
 - Keep the HUD/layout inside a mobile viewport with large readable controls.
 - Create a static production artifact with index.html. If using Vite, include a build script and run npm run build; do not leave the final output as a dev server.
-- Do not start a long-running dev server as the final step. Use build/check commands that exit.`;
+- Do not start a long-running dev server as the final step. Use build/check commands that exit.
+- Do not answer with a summary until the files exist and the build artifact exists.`;
 }
 
 async function runOpenGameCli({ job, jobDir, env, cliArgs, logPath, appendLog }) {
@@ -799,6 +811,8 @@ Finish the game requested by the user:
 ${originalPrompt}
 
 Recovery requirements:
+- Re-read GAMETOK_MAKER_CONTRACT.md.
+- If ${GAMETOK_MAKER_PLAN_FILE} is missing or weak, create/fix it before coding.
 - Inspect the existing files first.
 - Complete missing HTML/CSS/JS/assets needed for a polished playable mobile web game.
 - If the project only has placeholder CSS/canvas shapes, improve it before finishing.
@@ -806,6 +820,7 @@ Recovery requirements:
 - Wire generated assets into the game through an asset manifest or direct asset paths.
 - Fix syntax/runtime issues.
 - Ensure the project leaves a playable index.html artifact in this directory, dist, or build.
+- Write ${GAMETOK_MAKER_REPORT_FILE} with the final build path, build command, asset usage, and known limitations.
 - Keep controls large and mobile-friendly.
 
 Previous error:
@@ -817,6 +832,113 @@ function needsAssetRecovery(rawLog) {
   const usedAssetTool = /\bgenerate_game_assets\b|\[asset-pipeline\]|\[Batch Artist Agent\]|\[Artist Agent\]/i.test(rawLog);
   const usedPlaceholders = /placeholder assets?|simple svg placeholder|placeholder svg|placeholder rectangles?|placeholder circles?/i.test(rawLog);
   return usedPlaceholders && !usedAssetTool;
+}
+
+async function writeGameTokMakerContract(jobDir, prompt, title) {
+  const contract = {
+    version: 1,
+    name: 'GameTok Maker Contract',
+    title,
+    userPrompt: prompt,
+    objective: 'Build a complete playable mobile web game through a real workspace loop: plan, scaffold, implement, build, verify, report.',
+    requiredFiles: [GAMETOK_MAKER_PLAN_FILE, GAMETOK_MAKER_REPORT_FILE],
+    requiredWorkflow: [
+      'Inspect this contract before writing code.',
+      `Write ${GAMETOK_MAKER_PLAN_FILE} before implementation.`,
+      'Scaffold normal project files.',
+      'Implement the game loop, controls, feedback, win/loss, and mobile layout.',
+      'Generate/use assets when the game needs visual game art.',
+      'Run a build/check command that exits.',
+      `Write ${GAMETOK_MAKER_REPORT_FILE} after the artifact exists.`,
+    ],
+    planSchema: {
+      title: 'string',
+      gameSummary: 'string',
+      firstTenSeconds: ['what the player sees and does immediately'],
+      coreLoop: ['input', 'simulation', 'feedback', 'progression'],
+      controls: ['mobile touch controls'],
+      entities: ['player/opponents/hazards/items/projectiles'],
+      world: ['camera', 'terrain/layout', 'bounds'],
+      assets: ['required generated or code-rendered assets'],
+      build: { command: 'string', artifact: 'index.html/dist/build path' },
+      acceptanceChecks: ['viewport fit', 'playable loop', 'win/loss', 'no placeholders'],
+    },
+    nonNegotiables: [
+      'A playable loop beats a fancy screenshot.',
+      'Use code-rendered HUD/text; never bake readable UI text into generated images.',
+      'No external navigation, no cookie banners, no marketing pages.',
+      'No placeholder-only art when asset tooling is available.',
+      'No long-running dev server as the final artifact.',
+      'The final artifact must work inside a 390x844 mobile webview.',
+    ],
+  };
+
+  await fs.writeFile(path.join(jobDir, 'GAMETOK_MAKER_CONTRACT.md'), [
+    '# GameTok Maker Contract',
+    '',
+    'This job is a real game-building workspace. Follow the workflow and required files exactly.',
+    '',
+    '```json',
+    JSON.stringify(contract, null, 2),
+    '```',
+    '',
+  ].join('\n'));
+}
+
+async function findMakerFile(jobDir, projectRoot, fileName) {
+  const candidates = [
+    path.join(projectRoot, fileName),
+    path.join(jobDir, fileName),
+  ];
+  for (const candidate of candidates) {
+    if (await pathExists(candidate)) return candidate;
+  }
+  const files = await walkFiles(jobDir).catch(() => []);
+  const match = files.find((file) => path.basename(file) === fileName);
+  return match ? path.join(jobDir, match) : null;
+}
+
+async function readJsonFile(filePath) {
+  if (!filePath) return null;
+  try {
+    return JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function getMakerQualityIssues(jobDir, projectRoot, rawLog) {
+  const issues = [];
+  const planPath = await findMakerFile(jobDir, projectRoot, GAMETOK_MAKER_PLAN_FILE);
+  const reportPath = await findMakerFile(jobDir, projectRoot, GAMETOK_MAKER_REPORT_FILE);
+  const plan = await readJsonFile(planPath);
+  const report = await readJsonFile(reportPath);
+
+  if (!plan) {
+    issues.push(`${GAMETOK_MAKER_PLAN_FILE} is missing or invalid JSON.`);
+  } else {
+    if (!plan.firstTenSeconds && !plan.first_10_seconds) issues.push(`${GAMETOK_MAKER_PLAN_FILE} must describe the first 10 seconds.`);
+    if (!plan.coreLoop && !plan.core_loop) issues.push(`${GAMETOK_MAKER_PLAN_FILE} must describe the core loop.`);
+    if (!plan.controls) issues.push(`${GAMETOK_MAKER_PLAN_FILE} must describe mobile controls.`);
+    if (!plan.acceptanceChecks && !plan.acceptance_checks) issues.push(`${GAMETOK_MAKER_PLAN_FILE} must include acceptance checks.`);
+  }
+
+  if (!report) {
+    issues.push(`${GAMETOK_MAKER_REPORT_FILE} is missing or invalid JSON.`);
+  } else {
+    if (!report.artifact && !report.artifactPath && !report.indexHtml) issues.push(`${GAMETOK_MAKER_REPORT_FILE} must identify the final index.html artifact.`);
+    if (!report.buildCommand && !report.commandRun) issues.push(`${GAMETOK_MAKER_REPORT_FILE} must include the build/check command that was run.`);
+  }
+
+  if (/npm start|vite --host|dev server|start the development server|server is running/i.test(rawLog)) {
+    issues.push('The agent used a long-running dev server flow instead of a production build/check flow.');
+  }
+
+  if (/would you like me to explain|how to play:|features implemented:/i.test(rawLog) && !report) {
+    issues.push('The agent ended with a chat-style summary before writing the build report.');
+  }
+
+  return issues;
 }
 
 function buildOpenGameEnv() {
@@ -859,6 +981,7 @@ async function runOpenGameJob(job) {
   const jobDir = path.join(OPENGAME_JOBS_ROOT, job.id);
   await fs.rm(jobDir, { recursive: true, force: true });
   await fs.mkdir(jobDir, { recursive: true });
+  await writeGameTokMakerContract(jobDir, job.prompt, title);
   await updateJob(job.id, 8, 'preparing', 'Preparing OpenGame runtime...');
   await ensureOpenGameRuntime();
 
@@ -895,9 +1018,17 @@ async function runOpenGameJob(job) {
 
   let recoveryReason = cliError?.message || '';
   let rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+  let projectRoot = await findProjectRoot(jobDir);
   if (!recoveryReason && needsAssetRecovery(rawLog)) {
     recoveryReason = 'OpenGame used placeholder assets instead of generate_game_assets.';
     console.warn(`[OpenGame Worker] Asset quality recovery required for ${job.id}: ${recoveryReason}`);
+  }
+  if (!recoveryReason) {
+    const makerIssues = await getMakerQualityIssues(jobDir, projectRoot, rawLog);
+    if (makerIssues.length > 0) {
+      recoveryReason = `GameTok Maker workflow incomplete: ${makerIssues.join(' ')}`;
+      console.warn(`[OpenGame Worker] Maker workflow recovery required for ${job.id}: ${recoveryReason}`);
+    }
   }
 
   for (let attempt = 1; recoveryReason && attempt <= OPENGAME_CONTINUE_ATTEMPTS; attempt += 1) {
@@ -917,8 +1048,12 @@ async function runOpenGameJob(job) {
       await runOpenGameCli({ job, jobDir, env, cliArgs: continueArgs, logPath, appendLog });
       cliError = null;
       rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+      projectRoot = await findProjectRoot(jobDir);
+      const makerIssues = await getMakerQualityIssues(jobDir, projectRoot, rawLog);
       recoveryReason = needsAssetRecovery(rawLog)
         ? 'OpenGame still used placeholder assets instead of generate_game_assets.'
+        : makerIssues.length > 0
+        ? `GameTok Maker workflow still incomplete: ${makerIssues.join(' ')}`
         : '';
     } catch (error) {
       cliError = error;
@@ -928,7 +1063,7 @@ async function runOpenGameJob(job) {
   }
 
   await updateJob(job.id, 86, 'build', 'Building OpenGame artifact...');
-  const projectRoot = await findProjectRoot(jobDir);
+  projectRoot = await findProjectRoot(jobDir);
   await maybeBuildProject(projectRoot).catch(async (buildError) => {
     if (!cliError) throw buildError;
     const artifactDir = await findAnyArtifactDir(jobDir, projectRoot, logPath).catch(() => null);
@@ -942,11 +1077,21 @@ async function runOpenGameJob(job) {
     throw artifactError;
   });
   rawLog = await fs.readFile(logPath, 'utf8').catch(() => '');
+  const finalMakerIssues = await getMakerQualityIssues(jobDir, projectRoot, rawLog);
   if (cliError) {
+    if (needsAssetRecovery(rawLog)) {
+      throw new Error('OpenGame produced placeholder assets instead of using the generated asset pipeline.');
+    }
+    if (finalMakerIssues.length > 0) {
+      throw new Error(`GameTok Maker workflow incomplete after CLI interruption: ${finalMakerIssues.join(' ')}`);
+    }
     console.warn(`[OpenGame Worker] Continuing ${job.id} with produced artifact despite CLI error.`);
   } else if (needsAssetRecovery(rawLog)) {
     throw new Error('OpenGame produced placeholder assets instead of using the generated asset pipeline.');
-  } else if (/\bAPI Error\b|Internal server error|unhashable type/i.test(rawLog)) {
+  } else if (finalMakerIssues.length > 0) {
+    throw new Error(`GameTok Maker workflow incomplete: ${finalMakerIssues.join(' ')}`);
+  }
+  if (!cliError && /\bAPI Error\b|Internal server error|unhashable type/i.test(rawLog)) {
     throw new Error(`OpenGame provider failed before creating files. ${rawLog.slice(-4000)}`);
   }
   await updateJob(job.id, 92, 'publish', 'Publishing OpenGame artifact...');
