@@ -147,6 +147,7 @@ async function installOpenGameRuntime() {
 async function patchOpenGameRuntime() {
   let changed = false;
   changed = (await patchFalImageService()) || changed;
+  changed = (await patchNvidiaOpenAICompatTextMessages()) || changed;
   changed = (await patchImageEditModelEnv()) || changed;
   changed = (await patchDisableVideoByDefault()) || changed;
   if (changed) {
@@ -304,6 +305,74 @@ async function patchFalImageService() {
       `}\n\n// ============== Image Service Interface ==============`,
       `${falMethods}\n}\n\n// ============== Image Service Interface ==============`,
     );
+  });
+}
+
+async function patchNvidiaOpenAICompatTextMessages() {
+  return patchFile('packages/core/src/core/openaiContentGenerator/provider/default.ts', (source) => {
+    if (source.includes('GameTok NVIDIA NIM compatibility')) return source;
+
+    let next = source.replace(
+      `    // Default provider doesn't need special enhancements, just pass through all parameters
+    return {
+      ...request, // Preserve all original parameters including sampling params
+    };`,
+      `    // GameTok NVIDIA NIM compatibility: NVIDIA's OpenAI-compatible chat
+    // endpoint rejects text-only content arrays from the upstream Gemini->OpenAI
+    // converter with "unhashable type: 'dict'". For NIM only, flatten those
+    // messages back to plain strings while preserving true multimodal payloads.
+    const normalizedRequest = this.normalizeTextOnlyMessageContent(request);
+    return {
+      ...normalizedRequest, // Preserve all original parameters including sampling params
+    };`,
+    );
+
+    const helper = `
+
+  private normalizeTextOnlyMessageContent(
+    request: OpenAI.Chat.ChatCompletionCreateParams,
+  ): OpenAI.Chat.ChatCompletionCreateParams {
+    const baseUrl = String(this.contentGeneratorConfig.baseUrl || '');
+    if (!baseUrl.includes('integrate.api.nvidia.com')) {
+      return request;
+    }
+
+    return {
+      ...request,
+      messages: request.messages.map((message) => {
+        const content = (message as { content?: unknown }).content;
+        if (!Array.isArray(content)) {
+          return message;
+        }
+
+        const onlyText = content.every((part) => {
+          return (
+            part &&
+            typeof part === 'object' &&
+            (part as { type?: unknown }).type === 'text' &&
+            typeof (part as { text?: unknown }).text === 'string'
+          );
+        });
+
+        if (!onlyText) {
+          return message;
+        }
+
+        return {
+          ...message,
+          content: content.map((part) => (part as { text: string }).text).join(''),
+        } as OpenAI.Chat.ChatCompletionMessageParam;
+      }),
+    };
+  }
+`;
+
+    next = next.replace(
+      `  getDefaultGenerationConfig(): GenerateContentConfig {`,
+      `${helper}\n  getDefaultGenerationConfig(): GenerateContentConfig {`,
+    );
+
+    return next;
   });
 }
 
