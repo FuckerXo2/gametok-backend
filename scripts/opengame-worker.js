@@ -660,7 +660,6 @@ async function runOpenGameJob(job) {
     cliPath,
     '-p',
     job.prompt,
-    '--yolo',
     '--approval-mode',
     'yolo',
     '--auth-type',
