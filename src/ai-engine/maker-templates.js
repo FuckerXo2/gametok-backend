@@ -211,6 +211,13 @@ const TEMPLATE_CONTRACTS = {
             'reachGoal',
             'resetLevel',
         ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.move',
+            'window.__GAMETOK_TEMPLATE_PROBE__.jump',
+            'window.__GAMETOK_TEMPLATE_PROBE__.collectNearest',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
+        ],
         controls: [
             'left/right movement',
             'jump button',

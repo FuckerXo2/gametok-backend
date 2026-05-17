@@ -72,7 +72,7 @@ function inspectAssetContractSource(sourceHtml = '', assetContract = null) {
 
 async function runTemplateRuntimeProbe(page, templateContract = null) {
     const templateId = templateContract?.templateId || null;
-    if (!['phaser-artillery', 'phaser-top-down-action', 'canvas-simulation'].includes(templateId)) return null;
+    if (!['phaser-artillery', 'phaser-top-down-action', 'phaser-platformer', 'canvas-simulation'].includes(templateId)) return null;
 
     return page.evaluate(async () => {
         const probe = window.__GAMETOK_TEMPLATE_PROBE__;
@@ -162,6 +162,45 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     success: failures.length === 0,
                     failures,
                     details: { initial, afterAdd, afterStart, afterStep, afterReset },
+                };
+            } catch (error) {
+                return {
+                    templateId,
+                    success: false,
+                    failures: [error?.message || String(error)],
+                };
+            }
+        }
+
+        if (templateId === 'phaser-platformer') {
+            const requiredMethods = ['snapshot', 'move', 'jump', 'collectNearest', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            try {
+                probe.reset();
+                await wait(80);
+                const initial = probe.snapshot();
+                const moved = await probe.move(1, 240);
+                if (!moved.player || !initial.player || moved.player.x <= initial.player.x + 5) {
+                    failures.push('move() did not move the player right.');
+                }
+                const afterJump = await probe.jump();
+                if (!afterJump.player || afterJump.player.vy >= 0) {
+                    failures.push('jump() did not give the player upward velocity.');
+                }
+                const afterCollect = probe.collectNearest();
+                if (afterCollect.score <= initial.score || afterCollect.collectibleCount >= initial.collectibleCount) {
+                    failures.push('collectNearest() did not change score or collectible state.');
+                }
+                return {
+                    templateId,
+                    success: failures.length === 0,
+                    failures,
+                    details: { initial, moved, afterJump, afterCollect },
                 };
             } catch (error) {
                 return {
