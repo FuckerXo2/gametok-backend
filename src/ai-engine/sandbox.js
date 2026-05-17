@@ -72,7 +72,14 @@ function inspectAssetContractSource(sourceHtml = '', assetContract = null) {
 
 async function runTemplateRuntimeProbe(page, templateContract = null) {
     const templateId = templateContract?.templateId || null;
-    if (!['phaser-artillery', 'phaser-top-down-action', 'phaser-platformer', 'canvas-simulation'].includes(templateId)) return null;
+    if (![
+        'phaser-artillery',
+        'phaser-top-down-action',
+        'phaser-platformer',
+        'canvas-simulation',
+        'canvas-grid-puzzle',
+        'story-vignette',
+    ].includes(templateId)) return null;
 
     return page.evaluate(async () => {
         const probe = window.__GAMETOK_TEMPLATE_PROBE__;
@@ -162,6 +169,91 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     success: failures.length === 0,
                     failures,
                     details: { initial, afterAdd, afterStart, afterStep, afterReset },
+                };
+            } catch (error) {
+                return {
+                    templateId,
+                    success: false,
+                    failures: [error?.message || String(error)],
+                };
+            }
+        }
+
+        if (templateId === 'canvas-grid-puzzle') {
+            const requiredMethods = ['snapshot', 'select', 'move', 'resolve', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            try {
+                probe.reset();
+                const initial = probe.snapshot();
+                const selected = probe.select(2, 3);
+                if (!selected.selected || selected.selected.row !== 2 || selected.selected.col !== 3) {
+                    failures.push('select() did not change selected tile state.');
+                }
+                const moved = probe.move('left');
+                if (!moved.gridSignature || moved.gridSignature === initial.gridSignature) {
+                    failures.push('move() did not change the grid signature.');
+                }
+                const resolved = probe.resolve();
+                if (resolved.score <= initial.score && resolved.goal?.progress <= initial.goal?.progress) {
+                    failures.push('resolve() did not change score or goal progress.');
+                }
+                const reset = probe.reset();
+                if (reset.score !== 0 || reset.moves <= 0 || reset.status !== 'playing') {
+                    failures.push('reset() did not restore playable puzzle state.');
+                }
+                return {
+                    templateId,
+                    success: failures.length === 0,
+                    failures,
+                    details: { initial, selected, moved, resolved, reset },
+                };
+            } catch (error) {
+                return {
+                    templateId,
+                    success: false,
+                    failures: [error?.message || String(error)],
+                };
+            }
+        }
+
+        if (templateId === 'story-vignette') {
+            const requiredMethods = ['snapshot', 'choose', 'forceEnding', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            try {
+                probe.reset();
+                const initial = probe.snapshot();
+                if (!initial.choiceCount || initial.choiceCount < 2) {
+                    failures.push('Initial story node does not expose at least two choices.');
+                }
+                const afterChoice = probe.choose(0);
+                if (
+                    afterChoice.currentNode === initial.currentNode
+                    && afterChoice.historyLength <= initial.historyLength
+                    && JSON.stringify(afterChoice.meters) === JSON.stringify(initial.meters)
+                ) {
+                    failures.push('choose() did not change node, history, or meters.');
+                }
+                const ending = probe.forceEnding();
+                if (!ending.ending) {
+                    failures.push('forceEnding() did not reach an ending state.');
+                }
+                const reset = probe.reset();
+                if (reset.currentNode !== initial.currentNode || reset.ending) {
+                    failures.push('reset() did not restore initial story state.');
+                }
+                return {
+                    templateId,
+                    success: failures.length === 0,
+                    failures,
+                    details: { initial, afterChoice, ending, reset },
                 };
             } catch (error) {
                 return {

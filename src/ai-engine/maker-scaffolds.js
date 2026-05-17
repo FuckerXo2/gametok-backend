@@ -25,7 +25,19 @@ const SCAFFOLD_FILES = {
         'project/src/styles.css',
         'project/src/game.js',
     ],
+    'canvas-grid-puzzle': [
+        'template-api.md',
+        'project/index.html',
+        'project/src/styles.css',
+        'project/src/game.js',
+    ],
     'canvas-simulation': [
+        'template-api.md',
+        'project/index.html',
+        'project/src/styles.css',
+        'project/src/game.js',
+    ],
+    'story-vignette': [
         'template-api.md',
         'project/index.html',
         'project/src/styles.css',

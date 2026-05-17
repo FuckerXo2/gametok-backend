@@ -298,6 +298,63 @@ const TEMPLATE_CONTRACTS = {
             'Do not auto-run before the user can interact if the prompt asks for building.',
         ],
     },
+    'canvas-grid-puzzle': {
+        templateId: 'canvas-grid-puzzle',
+        engine: 'canvas-2d',
+        archetype: 'grid_puzzle',
+        recommendedLibrary: 'Canvas 2D with DOM controls.',
+        architecture: [
+            'Grid state owns tiles, selection, legal moves, matches, score, moves, goal progress, and reset.',
+            'Canvas renders the board and feedback; DOM renders HUD and touch controls.',
+        ],
+        requiredState: [
+            'grid',
+            'selected',
+            'moves',
+            'score',
+            'goal',
+            'level',
+            'status',
+        ],
+        requiredFunctions: [
+            'buildLevel',
+            'renderBoard',
+            'selectTile',
+            'moveTile',
+            'resolveMatches',
+            'applyGoalProgress',
+            'resetPuzzle',
+        ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.select',
+            'window.__GAMETOK_TEMPLATE_PROBE__.move',
+            'window.__GAMETOK_TEMPLATE_PROBE__.resolve',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
+        ],
+        controls: [
+            'tap/select tile',
+            'directional move or swap controls',
+            'resolve/action button when relevant',
+        ],
+        firstFrame: [
+            'board visible',
+            'selected tile visible',
+            'goal and move counters visible',
+            'mobile controls visible',
+        ],
+        acceptanceChecks: [
+            'Selecting a tile changes selection state.',
+            'Moving or swapping changes the grid signature.',
+            'Resolving a match changes score or goal progress.',
+            'Reset restores initial board state.',
+        ],
+        antiPatterns: [
+            'Do not draw a decorative board with no tile state.',
+            'Do not make tiny puzzle controls that cannot be tapped.',
+            'Do not use generated images as readable numbers, labels, or buttons.',
+        ],
+    },
     'story-vignette': {
         templateId: 'story-vignette',
         engine: 'dom-canvas-hybrid',
@@ -323,6 +380,12 @@ const TEMPLATE_CONTRACTS = {
             'unlockNodes',
             'renderHud',
             'restartStory',
+        ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.choose',
+            'window.__GAMETOK_TEMPLATE_PROBE__.forceEnding',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
         ],
         controls: [
             'large choice buttons',
@@ -451,6 +514,8 @@ export function selectMakerTemplateContract(qualityIntent = {}, prompt = '') {
         templateId = 'three-first-person';
     } else if (hasAny(text, ['artillery', 'tank', 'trajectory', 'wind', 'angle', 'power', 'shell', 'cannon'])) {
         templateId = 'phaser-artillery';
+    } else if (hasAny(text, ['grid', 'tile', 'match', 'puzzle', 'board', 'swap', 'maze', 'sokoban', 'sliding block'])) {
+        templateId = 'canvas-grid-puzzle';
     } else if (hasAny(text, ['platformer', 'platform', 'jump', 'side scroller', 'side-scroller'])) {
         templateId = 'phaser-platformer';
     } else if (hasAny(text, ['drag block', 'contraption', 'sandbox', 'physics block', 'build zone', 'simulate physics', 'construction'])) {

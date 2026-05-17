@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Choice Tide</title>
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <main id="story-shell" aria-label="GameTok interactive story">
+    <section id="hud" data-hud>
+      <div class="meter">
+        <span id="meter-one-label">Trust</span>
+        <div><i id="meter-one-fill"></i></div>
+      </div>
+      <div class="meter">
+        <span id="meter-two-label">Risk</span>
+        <div><i id="meter-two-fill"></i></div>
+      </div>
+    </section>
+    <canvas id="scene-canvas"></canvas>
+    <section id="story-panel">
+      <p id="chapter-label">Chapter 1</p>
+      <h1 id="node-title">The Signal</h1>
+      <p id="node-body">A strange pulse crosses the dark water. Something is calling from beyond the reef.</p>
+      <div id="choices" data-control></div>
+    </section>
+    <button id="restart-button" type="button" hidden>Begin Again</button>
+  </main>
+  <script type="module" src="./src/game.js"></script>
+</body>
+</html>

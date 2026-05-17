@@ -326,6 +326,108 @@ export function buildMakerAssetContract(templateContract = null, qualityIntent =
             ],
         };
     }
+    if (templateId === 'canvas-grid-puzzle') {
+        return {
+            version: 1,
+            templateId,
+            sourceOfTruth: 'template asset slots consumed by DreamAssets at runtime',
+            hardRules: [
+                'HUD, score, move counters, goal labels, and directional controls are code-rendered only.',
+                'Grid cells, legal moves, match checks, score, and goal progress are code-defined.',
+                'Generated images decorate live tile cells and background only.',
+            ],
+            slots: [
+                {
+                    id: 'grid_tile_primary',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'item',
+                    category: 'item',
+                    size: 96,
+                    transparent: true,
+                    description: `Primary puzzle tile icon or game piece. Isolated centered object, transparent background, no text, no UI, no board. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'tile renderer via DreamAssets role item',
+                    fallback: 'code-rendered colored tile',
+                },
+                {
+                    id: 'grid_tile_special',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'effect',
+                    category: 'effect',
+                    size: 96,
+                    transparent: true,
+                    description: `Special matched tile, power-up, or clear effect for a puzzle grid. Isolated centered object/effect, transparent background, no text, no UI. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'special tile renderer via DreamAssets role effect',
+                    fallback: 'code-rendered special tile highlight',
+                },
+                {
+                    id: 'grid_world_background',
+                    required: false,
+                    assetType: 'background',
+                    role: 'background',
+                    category: 'environment',
+                    width: 768,
+                    height: 1344,
+                    transparent: false,
+                    description: `Portrait mobile puzzle background with readable central play area. No text, no HUD, no controls, no board. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'background layer via DreamAssets role background',
+                    fallback: 'code-rendered puzzle background',
+                },
+            ],
+        };
+    }
+    if (templateId === 'story-vignette') {
+        return {
+            version: 1,
+            templateId,
+            sourceOfTruth: 'template asset slots consumed by DreamAssets at runtime',
+            hardRules: [
+                'Choice buttons, dialogue text, labels, meters, and HUD are code-rendered only.',
+                'Story graph, flags, meters, consequences, and ending state are code-defined.',
+                'Generated images decorate character, scene, prop, and mood only.',
+            ],
+            slots: [
+                {
+                    id: 'story_hero',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'player',
+                    category: 'player',
+                    size: 128,
+                    transparent: true,
+                    description: `Main story character or avatar. Isolated single subject, emotionally readable, centered on transparent background, no text, no UI, no scenery. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'story scene renderer via DreamAssets role player',
+                    fallback: 'code-rendered story character',
+                },
+                {
+                    id: 'story_scene_background',
+                    required: false,
+                    assetType: 'background',
+                    role: 'background',
+                    category: 'environment',
+                    width: 768,
+                    height: 1344,
+                    transparent: false,
+                    description: `Portrait mobile story scene background with atmospheric depth and clear subject area. No text, no HUD, no controls. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'story scene background via DreamAssets role background',
+                    fallback: 'code-rendered story background',
+                },
+                {
+                    id: 'story_symbol',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'prop',
+                    category: 'prop',
+                    size: 96,
+                    transparent: true,
+                    description: `Important story object, relic, clue, or symbolic prop. Isolated object, transparent background, no text, no UI, no scenery. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'story scene symbol via DreamAssets role prop',
+                    fallback: 'code-rendered symbolic prop',
+                },
+            ],
+        };
+    }
     return {
         version: 1,
         templateId,
