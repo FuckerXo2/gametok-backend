@@ -45,11 +45,24 @@ function extractJson(text) {
 const router = express.Router();
 
 const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.6";
+const OPENGAME_FALLBACK_MODELS = new Set([
+    'qwen/qwen3-coder-480b-a35b-instruct',
+]);
+
+function resolveDreamModel(envName, fallback) {
+    const requested = String(process.env[envName] || '').trim();
+    if (!requested) return fallback;
+    if (OPENGAME_FALLBACK_MODELS.has(requested)) {
+        console.warn(`[DREAM MODEL] Ignoring leftover OpenGame fallback ${envName}=${requested}; using ${fallback}.`);
+        return fallback;
+    }
+    return requested;
+}
 
 const DREAM_MODELS = {
-    spec: process.env.DREAMSTREAM_SPEC_MODEL || DEFAULT_KIMI_BUILDER_MODEL, // Use Kimi for Phase 1 too
-    premiumBuilder: process.env.DREAMSTREAM_MAIN_MODEL || DEFAULT_KIMI_BUILDER_MODEL,
-    labsBuilder: process.env.DREAMSTREAM_LABS_MODEL || DEFAULT_KIMI_BUILDER_MODEL,
+    spec: resolveDreamModel('DREAMSTREAM_SPEC_MODEL', DEFAULT_KIMI_BUILDER_MODEL), // Use Kimi for Phase 1 too
+    premiumBuilder: resolveDreamModel('DREAMSTREAM_MAIN_MODEL', DEFAULT_KIMI_BUILDER_MODEL),
+    labsBuilder: resolveDreamModel('DREAMSTREAM_LABS_MODEL', DEFAULT_KIMI_BUILDER_MODEL),
     narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
 
@@ -2294,9 +2307,9 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 
 // ═══════════════════════════════════════════════════════════
 // DREAMSTREAM MAIN PIPELINE
-// Phase 1: Llama 3.3 on NIM extracts a playable spec
-// Phase 2: Main builder model writes the entire game in one pass
-// Phase 3: Puppeteer verifies the result before save
+// Phase 1: Kimi on NIM extracts a playable spec / unity file
+// Phase 2: Kimi builds the game from the spec and asset contract
+// Phase 3: Puppeteer verifies the result and Kimi repairs project files
 // ═══════════════════════════════════════════════════════════
 async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
     let makerWorkspace = null;
@@ -2308,6 +2321,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
+        console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
         await updateGenerationJobProgress(jobId, 5, 'maker_workspace', 'Opening GameTok maker workspace...');
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
