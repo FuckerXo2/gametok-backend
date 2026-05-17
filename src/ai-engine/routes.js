@@ -2122,6 +2122,16 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '- If assets fail or are absent, draw intentional code-rendered fallback art that still supports gameplay.',
         '- The first 10 seconds must prove movement/input, collision or core interaction, feedback, and win/loss or scoring loop.',
         '',
+        'DreamAssets API contract available at runtime after post-processing:',
+        '- window.DREAM_ASSETS: object of generated image data URLs by key.',
+        '- window.DREAM_ASSET_PACK: structured asset manifest with role/category/key/type/transparent metadata.',
+        '- DreamAssets.getImage(key): returns a generated image data URL.',
+        '- DreamAssets.firstByRole(role): finds the first asset for roles like player, enemy, item, prop, background, environment, ui.',
+        '- DreamAssets.preloadPhaser(scene): loads generated image assets into Phaser.',
+        '- DreamAssets.addSprite(scene, roleOrKey, x, y, options): adds a Phaser sprite from a role or key.',
+        '- DreamAssets.addBackgroundCover(scene, roleOrKey, width, height): adds a generated background image as a cover layer.',
+        '- DreamAssets.safeRect(width, height): returns the GameTok chrome-safe playable rectangle.',
+        '',
         'User prompt:',
         prompt,
         '',
@@ -2306,7 +2316,7 @@ async function readMakerProjectFiles(projectRoot) {
     return files;
 }
 
-function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [] }) {
+function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null }) {
     return [
         'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
         '',
@@ -2324,8 +2334,26 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Do not navigate to external websites, call window.location, submit forms, or open popups.',
         '- Do not add remote dependencies unless the existing project already uses that dependency.',
         '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
+        '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
+        '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
+        '',
+        'DreamAssets API contract available at runtime after post-processing:',
+        '- window.DREAM_ASSETS: object of generated image data URLs by key.',
+        '- window.DREAM_ASSET_PACK: structured asset manifest with role/category/key/type/transparent metadata.',
+        '- DreamAssets.getImage(key): returns a generated image data URL.',
+        '- DreamAssets.firstByRole(role): finds the first asset for roles like player, enemy, item, prop, background, environment, ui.',
+        '- DreamAssets.preloadPhaser(scene): loads generated image assets into Phaser.',
+        '- DreamAssets.addSprite(scene, roleOrKey, x, y, options): adds a Phaser sprite from a role or key.',
+        '- DreamAssets.addBackgroundCover(scene, roleOrKey, width, height): adds a generated background image as a cover layer.',
+        '- DreamAssets.safeRect(width, height): returns the GameTok chrome-safe playable rectangle.',
         '',
         `Crash: ${crash}`,
+        '',
+        'Sandbox diagnostics:',
+        JSON.stringify(sandboxDiagnostics || null, null, 2),
+        '',
+        'Asset summary:',
+        JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
         '',
         'Original user prompt:',
         prompt,
@@ -2696,10 +2724,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             prompt,
                             crash: sandboxRes.crashes[0],
                             projectFiles,
+                            generatedAssets,
+                            sandboxDiagnostics: sandboxRes.diagnostics || null,
                         });
                         await writeMakerJson(makerWorkspace, `logs/file-repair-request-${repairAttempt}.json`, {
                             attempt: repairAttempt,
                             crash: sandboxRes.crashes[0],
+                            diagnostics: sandboxRes.diagnostics || null,
+                            assetSummary: summarizeMakerAssets(generatedAssets),
                             files: projectFiles.map((file) => ({
                                 path: file.path,
                                 chars: file.content?.length || 0,
