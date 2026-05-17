@@ -13,6 +13,12 @@ const SCAFFOLD_FILES = {
         'project/src/styles.css',
         'project/src/game.js',
     ],
+    'phaser-top-down-action': [
+        'template-api.md',
+        'project/index.html',
+        'project/src/styles.css',
+        'project/src/game.js',
+    ],
 };
 
 function normalizeScaffoldPath(filePath) {

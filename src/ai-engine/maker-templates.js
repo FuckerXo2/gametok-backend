@@ -152,6 +152,13 @@ const TEMPLATE_CONTRACTS = {
             'drawHud',
             'resetGame',
         ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.move',
+            'window.__GAMETOK_TEMPLATE_PROBE__.attack',
+            'window.__GAMETOK_TEMPLATE_PROBE__.spawnEnemyNearPlayer',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
+        ],
         controls: [
             'virtual joystick or drag-to-move',
             'primary action gesture/button',

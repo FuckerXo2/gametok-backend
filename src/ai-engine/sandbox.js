@@ -72,16 +72,63 @@ function inspectAssetContractSource(sourceHtml = '', assetContract = null) {
 
 async function runTemplateRuntimeProbe(page, templateContract = null) {
     const templateId = templateContract?.templateId || null;
-    if (templateId !== 'phaser-artillery') return null;
+    if (!['phaser-artillery', 'phaser-top-down-action'].includes(templateId)) return null;
 
     return page.evaluate(async () => {
         const probe = window.__GAMETOK_TEMPLATE_PROBE__;
+        const templateId = probe?.templateId || 'unknown';
         if (!probe) {
             return {
-                templateId: 'phaser-artillery',
+                templateId: 'unknown',
                 success: false,
                 failures: ['Missing window.__GAMETOK_TEMPLATE_PROBE__. Preserve the scaffold probe API.'],
             };
+        }
+
+        if (templateId === 'phaser-top-down-action') {
+            const requiredMethods = ['snapshot', 'move', 'attack', 'spawnEnemyNearPlayer', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            try {
+                probe.reset();
+                await wait(80);
+                const initial = probe.snapshot();
+                await probe.move(1, 0, 180);
+                await wait(80);
+                const moved = probe.snapshot();
+                if (!moved.player || !initial.player || Math.abs(moved.player.x - initial.player.x) < 5) {
+                    failures.push('move() did not change the player position enough to prove movement.');
+                }
+                const afterSpawn = probe.spawnEnemyNearPlayer();
+                if (!afterSpawn.enemyCount || afterSpawn.enemyCount < 1) {
+                    failures.push('spawnEnemyNearPlayer() did not create a visible enemy.');
+                }
+                const afterAttack = probe.attack();
+                if (!afterAttack.projectileCount || afterAttack.projectileCount < 1) {
+                    failures.push('attack() did not create a projectile or attack object.');
+                }
+                await wait(420);
+                const afterCombat = probe.snapshot();
+                if (afterCombat.enemyCount >= afterSpawn.enemyCount && afterCombat.score <= initial.score && afterCombat.player.health >= initial.player.health) {
+                    failures.push('Combat probe did not show score, enemy, projectile, or health-state progression.');
+                }
+                return {
+                    templateId,
+                    success: failures.length === 0,
+                    failures,
+                    details: { initial, moved, afterSpawn, afterAttack, afterCombat },
+                };
+            } catch (error) {
+                return {
+                    templateId,
+                    success: false,
+                    failures: [error?.message || String(error)],
+                };
+            }
         }
 
         const requiredMethods = ['snapshot', 'setAim', 'fire', 'probeDeformTerrain', 'reset'];
@@ -89,7 +136,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
         if (missingMethods.length > 0) {
             return {
-                templateId: 'phaser-artillery',
+                templateId,
                 success: false,
                 failures,
             };
@@ -123,7 +170,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             }
 
             return {
-                templateId: 'phaser-artillery',
+                templateId,
                 success: failures.length === 0,
                 failures,
                 details: {
@@ -137,7 +184,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             };
         } catch (error) {
             return {
-                templateId: 'phaser-artillery',
+                templateId,
                 success: false,
                 failures: [error?.message || String(error)],
             };
