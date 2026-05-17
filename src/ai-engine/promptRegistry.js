@@ -2342,7 +2342,10 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.playDreamSound = window.playDreamSound || function(key) { window.DreamAudio.play(key); };
         window.DreamAssets = window.DreamAssets || {
           getImage: function(key) {
-            markDreamAssetUsage(key);
+            var asset = (window.DREAM_ASSET_PACK || []).find(function(item) {
+              return item && (item.key === key || item.id === key);
+            });
+            markDreamAssetUsage(key, asset && (asset.role || asset.category));
             return window.DREAM_ASSETS && window.DREAM_ASSETS[key];
           },
           get: function(key) {

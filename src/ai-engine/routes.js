@@ -2723,7 +2723,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 errors: useArtistAgent ? [] : [{ phase: 'asset_generation', message: 'Artist agent disabled by configuration.' }],
             });
         }
-        let makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets);
+        let makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
         const makerTemplateScaffold = await loadMakerTemplateScaffold(makerTemplateContract.templateId);
         if (makerTemplateScaffold) {
@@ -2798,7 +2798,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 const requestedBundle = compileDreamAssetBundle(requestedImages, requestPlan);
                 generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', summarizeMakerAssets(generatedAssets));
-                makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets);
+                makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
 
                 const projectFiles = await readMakerProjectFiles(makerProject.projectRoot);
@@ -2877,6 +2877,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
                     sourceHtml: rawGameHtml,
                     templateContract: makerTemplateContract,
+                    assetContract: makerAssetContract,
                 });
             } catch (validationError) {
                 sandboxRes = {

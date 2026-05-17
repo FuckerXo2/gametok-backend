@@ -126,7 +126,7 @@ const TEMPLATE_DEBUG_CHECKS = {
     ],
 };
 
-export function buildMakerDebugProtocol(templateContract = null, generatedAssets = null) {
+export function buildMakerDebugProtocol(templateContract = null, generatedAssets = null, assetContract = null) {
     const templateSummary = summarizeMakerTemplateContract(templateContract);
     const templateId = templateSummary?.templateId || 'canvas-arcade';
     const hasAssets = Boolean(generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0);
@@ -140,6 +140,18 @@ export function buildMakerDebugProtocol(templateContract = null, generatedAssets
         source: 'gametok-native-debug-protocol',
         template: templateSummary,
         hasGeneratedAssets: hasAssets,
+        assetContract: assetContract ? {
+            templateId: assetContract.templateId || null,
+            slots: Array.isArray(assetContract.slots)
+                ? assetContract.slots.map((slot) => ({
+                    id: slot.id,
+                    role: slot.role,
+                    assetType: slot.assetType,
+                    required: Boolean(slot.required),
+                    consumedBy: slot.consumedBy,
+                }))
+                : [],
+        } : null,
         executionOrder: [
             'static_source_checks',
             'sandbox_boot',
@@ -147,6 +159,7 @@ export function buildMakerDebugProtocol(templateContract = null, generatedAssets
             'pointer_interaction_probe',
             'asset_usage_probe',
             'template_contract_probe',
+            'asset_contract_probe',
             'file_repair_loop',
         ],
         checks,

@@ -67,7 +67,7 @@ async function main() {
         if (!prompt) throw new Error('inspect requires --prompt');
         const template = selectMakerTemplateContract({}, prompt);
         const assetContract = buildMakerAssetContract(template, {});
-        const debugProtocol = buildMakerDebugProtocol(template, null);
+        const debugProtocol = buildMakerDebugProtocol(template, null, assetContract);
         const scaffold = await loadMakerTemplateScaffold(template.templateId);
         console.log(JSON.stringify({
             template,

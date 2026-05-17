@@ -42,6 +42,34 @@ function inspectTemplateContractSource(sourceHtml = '', templateContract = null)
     };
 }
 
+function inspectAssetContractSource(sourceHtml = '', assetContract = null) {
+    if (!assetContract) return null;
+    const source = String(sourceHtml || '');
+    const slots = Array.isArray(assetContract.slots) ? assetContract.slots : [];
+    const requiredSlots = slots.filter((slot) => slot?.required);
+    const missingRoleReferences = requiredSlots.filter((slot) => {
+        const values = [slot.id, slot.role, slot.category].filter(Boolean);
+        return !values.some((value) => {
+            const escaped = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            return new RegExp(`['"\`]${escaped}['"\`]`).test(source) || new RegExp(`\\b${escaped}\\b`, 'i').test(source);
+        });
+    }).map((slot) => slot.id);
+    const uiImageHints = [
+        /firstByRole\(['"`]ui['"`]\)/i,
+        /addSprite\([^)]*['"`](?:ui|hud|button|slider|meter|health|score)['"`]/i,
+        /getImage\(['"`](?:ui|hud|button|slider|meter|health|score)['"`]\)/i,
+    ];
+    const usesImageUi = uiImageHints.some((pattern) => pattern.test(source));
+    return {
+        templateId: assetContract.templateId || null,
+        slotCount: slots.length,
+        requiredSlotCount: requiredSlots.length,
+        missingRoleReferences,
+        usesImageUi,
+        hardRules: Array.isArray(assetContract.hardRules) ? assetContract.hardRules : [],
+    };
+}
+
 async function runTemplateRuntimeProbe(page, templateContract = null) {
     const templateId = templateContract?.templateId || null;
     if (templateId !== 'phaser-artillery') return null;
@@ -124,6 +152,7 @@ export async function verifyGame(htmlString, options = {}) {
     const requireDreamAssets = Boolean(options?.requireDreamAssets);
     const sourceHtml = String(options?.sourceHtml || htmlString || '');
     const templateInspection = inspectTemplateContractSource(sourceHtml, options?.templateContract || null);
+    const assetContractInspection = inspectAssetContractSource(sourceHtml, options?.assetContract || null);
     const expectsThreeJs = runtimeLane === 'first_person_threejs'
         || runtimeLane === 'third_person_threejs'
         || isLikelyThreeJsBuild(htmlString);
@@ -286,6 +315,12 @@ export async function verifyGame(htmlString, options = {}) {
             const dreamAssetPackCount = Array.isArray(window.DREAM_ASSET_PACK)
                 ? window.DREAM_ASSET_PACK.filter((asset) => asset && asset.type === 'image').length
                 : 0;
+            const dreamAssetPackRoles = Array.isArray(window.DREAM_ASSET_PACK)
+                ? Array.from(new Set(window.DREAM_ASSET_PACK
+                    .filter((asset) => asset && asset.type === 'image')
+                    .map((asset) => asset.role || asset.category)
+                    .filter(Boolean)))
+                : [];
             const canvasPixelChecks = visibleCanvases.slice(0, 3).map((canvas, index) => {
                 const rect = canvas.getBoundingClientRect();
                 const sampleWidth = Math.max(1, Math.min(32, Math.floor(rect.width)));
@@ -332,11 +367,13 @@ export async function verifyGame(htmlString, options = {}) {
                 externalLinks,
                 dreamAssetUsage,
                 dreamAssetPackCount,
+                dreamAssetPackRoles,
                 canvasPixelChecks,
                 bodyText,
             };
         });
         renderState.templateInspection = templateInspection;
+        renderState.assetContractInspection = assetContractInspection;
         renderState.templateRuntimeProbe = templateRuntimeProbe;
 
         if (
@@ -349,6 +386,10 @@ export async function verifyGame(htmlString, options = {}) {
 
         if (templateRuntimeProbe && !templateRuntimeProbe.success) {
             crashes.push(`Template runtime probe failed for ${templateRuntimeProbe.templateId}: ${templateRuntimeProbe.failures.join(' ')}`);
+        }
+
+        if (assetContractInspection?.usesImageUi) {
+            crashes.push('Asset contract violation: source appears to use generated images for UI/HUD/button/slider/meter roles. HUD and controls must be code-rendered.');
         }
 
         if (renderState.canvasCount === 0) {
@@ -396,6 +437,17 @@ export async function verifyGame(htmlString, options = {}) {
             const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
             if (!sourceUsesDreamAssets && helperCalls === 0 && usedKeys.length === 0) {
                 crashes.push(`Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`);
+            }
+            const requiredRoles = Array.from(new Set(Array.isArray(options?.assetContract?.slots)
+                ? options.assetContract.slots.filter((slot) => slot?.required).map((slot) => slot.role || slot.category).filter(Boolean)
+                : []));
+            const usedRoles = renderState.dreamAssetUsage?.usedRoles || {};
+            const packRoles = new Set(Array.isArray(renderState.dreamAssetPackRoles) ? renderState.dreamAssetPackRoles : []);
+            const missingRequiredRoleUsage = requiredRoles
+                .filter((role) => packRoles.has(role))
+                .filter((role) => Number(usedRoles[role] || 0) === 0);
+            if (sourceUsesDreamAssets && helperCalls > 0 && missingRequiredRoleUsage.length > 0) {
+                crashes.push(`Required asset slots not consumed: generated assets exist, but these required roles were not used through DreamAssets during boot: ${missingRequiredRoleUsage.join(', ')}.`);
             }
         }
 

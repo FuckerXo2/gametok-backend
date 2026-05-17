@@ -66,7 +66,11 @@ function resolveThemeAssets() {
   const helper = window.DreamAssets;
   const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
   const byRole = (role) => {
-    if (helper && typeof helper.firstByRole === 'function') return helper.firstByRole(role);
+    if (helper && typeof helper.firstByRole === 'function') {
+      const asset = helper.firstByRole(role);
+      if (asset?.key) return asset.key;
+      if (typeof asset === 'string') return asset;
+    }
     const entry = pack.find((asset) => asset.role === role || asset.category === role);
     return entry?.key || null;
   };
