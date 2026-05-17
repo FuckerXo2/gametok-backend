@@ -42,6 +42,81 @@ function inspectTemplateContractSource(sourceHtml = '', templateContract = null)
     };
 }
 
+async function runTemplateRuntimeProbe(page, templateContract = null) {
+    const templateId = templateContract?.templateId || null;
+    if (templateId !== 'phaser-artillery') return null;
+
+    return page.evaluate(async () => {
+        const probe = window.__GAMETOK_TEMPLATE_PROBE__;
+        if (!probe) {
+            return {
+                templateId: 'phaser-artillery',
+                success: false,
+                failures: ['Missing window.__GAMETOK_TEMPLATE_PROBE__. Preserve the scaffold probe API.'],
+            };
+        }
+
+        const requiredMethods = ['snapshot', 'setAim', 'fire', 'probeDeformTerrain', 'reset'];
+        const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+        const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+        if (missingMethods.length > 0) {
+            return {
+                templateId: 'phaser-artillery',
+                success: false,
+                failures,
+            };
+        }
+
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        try {
+            probe.reset();
+            await wait(80);
+            const initial = probe.snapshot();
+            const lowArc = probe.setAim(25, 45).trajectorySignature;
+            await wait(40);
+            const highArc = probe.setAim(70, 90).trajectorySignature;
+            if (!lowArc || !highArc || lowArc === highArc) {
+                failures.push('Angle/power changes did not produce a different trajectory signature.');
+            }
+
+            const afterFire = probe.fire();
+            if (!afterFire.projectileActive) {
+                failures.push('fire() did not create an active projectile.');
+            }
+            await wait(260);
+            const midFlight = probe.snapshot();
+            if (!midFlight.projectileActive && !midFlight.winner && midFlight.currentTurn === initial.currentTurn) {
+                failures.push('Projectile resolved too quickly without winner or turn-state evidence.');
+            }
+
+            const deformation = probe.probeDeformTerrain();
+            if (!deformation?.changed) {
+                failures.push('probeDeformTerrain() did not change sampled terrain height.');
+            }
+
+            return {
+                templateId: 'phaser-artillery',
+                success: failures.length === 0,
+                failures,
+                details: {
+                    initial,
+                    lowArc,
+                    highArc,
+                    afterFire,
+                    midFlight,
+                    deformation,
+                },
+            };
+        } catch (error) {
+            return {
+                templateId: 'phaser-artillery',
+                success: false,
+                failures: [error?.message || String(error)],
+            };
+        }
+    });
+}
+
 export async function verifyGame(htmlString, options = {}) {
     let browser = null;
     const crashes = [];
@@ -118,6 +193,8 @@ export async function verifyGame(htmlString, options = {}) {
         if (externalNavigation) {
             crashes.push(`External navigation detected: ${externalNavigation}. Generated games must stay self-contained inside the GameTok webview.`);
         }
+
+        const templateRuntimeProbe = await runTemplateRuntimeProbe(page, options?.templateContract || null);
 
         const renderState = await page.evaluate(() => {
             const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 390;
@@ -260,6 +337,7 @@ export async function verifyGame(htmlString, options = {}) {
             };
         });
         renderState.templateInspection = templateInspection;
+        renderState.templateRuntimeProbe = templateRuntimeProbe;
 
         if (
             templateInspection
@@ -267,6 +345,10 @@ export async function verifyGame(htmlString, options = {}) {
             && templateInspection.missingFunctions.length >= Math.ceil(templateInspection.requiredFunctionCount * 0.55)
         ) {
             crashes.push(`Template contract not implemented: ${templateInspection.templateId} requires core functions (${templateInspection.missingFunctions.slice(0, 8).join(', ')}). Build inside the selected native template instead of producing a generic game file.`);
+        }
+
+        if (templateRuntimeProbe && !templateRuntimeProbe.success) {
+            crashes.push(`Template runtime probe failed for ${templateRuntimeProbe.templateId}: ${templateRuntimeProbe.failures.join(' ')}`);
         }
 
         if (renderState.canvasCount === 0) {

@@ -26,6 +26,8 @@ the core systems intact.
 
 - `generateTerrain()`
 - `sampleTerrainY(x)`
+- `computeTrajectoryPoints()`
+- `trajectorySignature()`
 - `drawTrajectoryPreview()`
 - `fireProjectile()`
 - `updateProjectile(dt)`
@@ -35,6 +37,19 @@ the core systems intact.
 - `resetRound()`
 
 Do not rename or remove these functions. The sandbox checks for them.
+
+## Probe API
+
+Keep `window.__GAMETOK_TEMPLATE_PROBE__` available. The sandbox uses it to
+verify that this is a real artillery game, not a static imitation.
+
+Required probe methods:
+
+- `snapshot()`
+- `setAim(angle, power)`
+- `fire()`
+- `probeDeformTerrain()`
+- `reset()`
 
 ## Customization Hooks
 

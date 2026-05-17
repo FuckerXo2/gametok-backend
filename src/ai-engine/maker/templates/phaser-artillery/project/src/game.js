@@ -200,6 +200,22 @@ function getMuzzle(tank = state.tanks[state.currentTurn]) {
 
 function drawTrajectoryPreview() {
   if (state.projectile || state.winner) return;
+  const points = computeTrajectoryPoints();
+  ctx.save();
+  ctx.setLineDash([8, 9]);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.stroke();
+  ctx.restore();
+}
+
+function computeTrajectoryPoints() {
+  if (state.winner) return [];
   const tank = state.tanks[state.currentTurn];
   const muzzle = getMuzzle(tank);
   const speed = 1.9 * state.power;
@@ -207,22 +223,26 @@ function drawTrajectoryPreview() {
   let y = muzzle.y;
   let vx = Math.cos(muzzle.angle) * speed;
   let vy = Math.sin(muzzle.angle) * speed;
-  ctx.save();
-  ctx.setLineDash([8, 9]);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
-  ctx.beginPath();
-  ctx.moveTo(x, y);
+  const points = [{ x, y }];
   for (let i = 0; i < 80; i += 1) {
     vx += state.wind * CONFIG.windScale * 0.016;
     vy += CONFIG.gravity * 0.016;
     x += vx * 0.016;
     y += vy * 0.016;
-    if (x < 0 || x > state.width || y > state.height || y >= sampleTerrainY(x)) break;
-    ctx.lineTo(x, y);
+    if (x < 0 || x > state.width || y > state.height || y >= sampleTerrainY(x)) {
+      points.push({ x, y });
+      break;
+    }
+    points.push({ x, y });
   }
-  ctx.stroke();
-  ctx.restore();
+  return points;
+}
+
+function trajectorySignature() {
+  return computeTrajectoryPoints()
+    .filter((_, index) => index % 8 === 0)
+    .map((point) => `${Math.round(point.x)},${Math.round(point.y)}`)
+    .join('|');
 }
 
 function fireProjectile() {
@@ -459,6 +479,50 @@ function bindInput() {
   });
   window.addEventListener('resize', resize);
 }
+
+window.__GAMETOK_TEMPLATE_PROBE__ = {
+  templateId: 'phaser-artillery',
+  snapshot() {
+    return {
+      currentTurn: state.currentTurn,
+      wind: state.wind,
+      angle: state.angle,
+      power: state.power,
+      projectileActive: Boolean(state.projectile),
+      winner: state.winner,
+      tanks: state.tanks.map((tank) => ({
+        id: tank.id,
+        x: tank.x,
+        y: tank.y,
+        health: tank.health,
+      })),
+      terrainSample: state.terrainHeights.slice(0, 12).map((value) => Math.round(value)),
+      trajectorySignature: trajectorySignature(),
+    };
+  },
+  setAim(angle, power) {
+    angleSlider.value = String(angle);
+    powerSlider.value = String(power);
+    state.angle = Number(angle);
+    state.power = Number(power);
+    updateHud();
+    return this.snapshot();
+  },
+  fire() {
+    fireProjectile();
+    return this.snapshot();
+  },
+  probeDeformTerrain() {
+    const before = Math.round(sampleTerrainY(state.width * 0.5));
+    deformTerrain(state.width * 0.5, before, CONFIG.explosionRadius);
+    const after = Math.round(sampleTerrainY(state.width * 0.5));
+    return { before, after, changed: before !== after };
+  },
+  reset() {
+    resetRound();
+    return this.snapshot();
+  },
+};
 
 resolveThemeAssets();
 bindInput();

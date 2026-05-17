@@ -78,6 +78,8 @@ const TEMPLATE_CONTRACTS = {
         requiredFunctions: [
             'generateTerrain',
             'sampleTerrainY',
+            'computeTrajectoryPoints',
+            'trajectorySignature',
             'drawTrajectoryPreview',
             'fireProjectile',
             'updateProjectile',
@@ -85,6 +87,13 @@ const TEMPLATE_CONTRACTS = {
             'deformTerrain',
             'endTurn',
             'resetRound',
+        ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.setAim',
+            'window.__GAMETOK_TEMPLATE_PROBE__.fire',
+            'window.__GAMETOK_TEMPLATE_PROBE__.probeDeformTerrain',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
         ],
         controls: [
             'large angle control',
@@ -451,6 +460,7 @@ export function summarizeMakerTemplateContract(contract = null) {
         archetype: contract.archetype,
         requiredState: contract.requiredState || [],
         requiredFunctions: contract.requiredFunctions || [],
+        requiredProbeApi: contract.requiredProbeApi || [],
         controls: contract.controls || [],
         firstFrame: contract.firstFrame || [],
         acceptanceChecks: contract.acceptanceChecks || [],

@@ -2134,6 +2134,7 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '- If the template contract says a system is code-defined, do not fake it with screenshots or decorative images.',
         '- If a native starter scaffold is provided, start from that scaffold and customize it instead of rebuilding from scratch.',
         '- Preserve scaffold function names and the working state machine unless the template API explicitly allows changing them.',
+        '- Preserve any window.__GAMETOK_TEMPLATE_PROBE__ API from the scaffold. It is used by the sandbox to verify playable mechanics.',
         '',
         'DreamAssets API contract available at runtime after post-processing:',
         '- window.DREAM_ASSETS: object of generated image data URLs by key.',
