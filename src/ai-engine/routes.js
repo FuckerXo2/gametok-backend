@@ -2087,6 +2087,148 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
+function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null }) {
+    return [
+        'You are the native GameTok maker project builder.',
+        '',
+        'Build the requested mobile HTML5 game as a small project, not as one giant HTML blob.',
+        'Return JSON only. No markdown. No commentary.',
+        '',
+        'JSON schema:',
+        '{',
+        '  "files": [',
+        '    {"path":"index.html","content":"complete file content"},',
+        '    {"path":"src/styles.css","content":"complete file content"},',
+        '    {"path":"src/game.js","content":"complete file content"}',
+        '  ],',
+        '  "notes": ["short implementation note"]',
+        '}',
+        '',
+        'Hard rules:',
+        '- Valid paths are only index.html and src/*.css, src/*.js, src/*.json.',
+        '- index.html must reference ./src/styles.css and ./src/game.js.',
+        '- Do not inline the whole game into index.html.',
+        '- Use top-level setup code. Do not wait for DOMContentLoaded/window.onload.',
+        '- Use pointerdown/pointermove/pointerup, not click-only controls.',
+        '- Do not navigate to external websites, call window.location, open popups, or create external links/forms.',
+        '- HUD, text, meters, buttons, and controls must be code-rendered, not baked into AI images.',
+        '- Keep everything mobile-first inside a 390x844 GameTok webview.',
+        '- Reserve at least 112px top space and 48px bottom space for native GameTok chrome.',
+        '- Use provided DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK when assets exist. Do not invent random remote asset URLs.',
+        '- If assets fail or are absent, draw intentional code-rendered fallback art that still supports gameplay.',
+        '- The first 10 seconds must prove movement/input, collision or core interaction, feedback, and win/loss or scoring loop.',
+        '',
+        'User prompt:',
+        prompt,
+        '',
+        'Native GameTok plan:',
+        JSON.stringify(buildMakerPlan(qualityIntent, prompt), null, 2),
+        '',
+        'Asset summary:',
+        JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
+        '',
+        'Audio summary:',
+        JSON.stringify(audioBundle || { audio: [], music: [] }, null, 2),
+        '',
+        'Detailed legacy build contract follows. Follow the design and implementation constraints, but IGNORE any instruction in it that says to output a single complete HTML file. The required output for this run is the JSON project schema above.',
+        '',
+        legacyBuildPrompt,
+    ].join('\n');
+}
+
+function parseMakerProjectBuildResponse(text) {
+    const cleaned = stripMarkdownFences(String(text || ''), 'json');
+    const parsed = JSON.parse(extractJson(cleaned));
+    if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) {
+        throw new Error('Project build response did not include files.');
+    }
+    return {
+        files: parsed.files.map((file) => {
+            if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
+                throw new Error('Project build response included an invalid file.');
+            }
+            return { path: file.path, content: file.content };
+        }),
+        notes: Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 12) : [],
+    };
+}
+
+async function materializeMakerProjectFiles(workspace, projectBuild, { title = 'GameTok Game', generatedAssets = null } = {}) {
+    const projectRoot = path.join(workspace, 'project');
+    const srcRoot = path.join(projectRoot, 'src');
+    const distRoot = path.join(projectRoot, 'dist');
+    await fs.promises.rm(projectRoot, { recursive: true, force: true });
+    await fs.promises.mkdir(srcRoot, { recursive: true });
+    await fs.promises.mkdir(distRoot, { recursive: true });
+
+    const files = [];
+    const seen = new Set();
+    for (const file of projectBuild.files) {
+        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, file.path);
+        if (seen.has(cleanPath)) {
+            throw new Error(`Duplicate project file returned by builder: ${cleanPath}`);
+        }
+        seen.add(cleanPath);
+        await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
+        await fs.promises.writeFile(absolutePath, file.content, 'utf8');
+        files.push({
+            path: cleanPath,
+            kind: cleanPath.endsWith('.css') ? 'css' : cleanPath.endsWith('.js') ? 'js' : cleanPath.endsWith('.json') ? 'json' : 'html',
+            bytes: Buffer.byteLength(file.content, 'utf8'),
+        });
+    }
+    if (!seen.has('index.html')) {
+        throw new Error('Project build response did not include index.html.');
+    }
+
+    await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
+        name: makerSafeFileName(title, 'gametok-game').toLowerCase(),
+        private: true,
+        type: 'module',
+        scripts: {
+            build: 'node build.mjs',
+        },
+    }, null, 2), 'utf8');
+
+    await fs.promises.writeFile(path.join(projectRoot, 'build.mjs'), [
+        "import fs from 'node:fs/promises';",
+        "import path from 'node:path';",
+        "const root = process.cwd();",
+        "const dist = path.join(root, 'dist');",
+        "await fs.rm(dist, { recursive: true, force: true });",
+        "await fs.mkdir(dist, { recursive: true });",
+        "await fs.cp(path.join(root, 'index.html'), path.join(dist, 'index.html'));",
+        "await fs.cp(path.join(root, 'src'), path.join(dist, 'src'), { recursive: true });",
+        "console.log('Built static GameTok artifact to dist/index.html');",
+        '',
+    ].join('\n'), 'utf8');
+
+    await writeMakerJson(workspace, 'project-files.json', {
+        version: 2,
+        mode: 'file-native',
+        projectRoot,
+        sourceIndex: path.join(projectRoot, 'index.html'),
+        buildCommand: 'npm run build',
+        artifact: path.join(distRoot, 'index.html'),
+        files: [
+            ...files,
+            { path: 'package.json', kind: 'manifest' },
+            { path: 'build.mjs', kind: 'build_script' },
+        ],
+        notes: projectBuild.notes || [],
+        assetSummary: summarizeMakerAssets(generatedAssets),
+    });
+
+    await rebuildMakerProjectDist(projectRoot);
+    return {
+        projectRoot,
+        sourceIndex: path.join(projectRoot, 'index.html'),
+        distIndex: path.join(distRoot, 'index.html'),
+        files,
+        mode: 'file-native',
+    };
+}
+
 function safeMakerProjectPath(projectRoot, relativePath) {
     const cleanPath = String(relativePath || '').replace(/\\/g, '/').replace(/^\.\/+/, '');
     if (!cleanPath || cleanPath.startsWith('/') || cleanPath.includes('\0') || cleanPath.split('/').includes('..')) {
@@ -2411,9 +2553,39 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             music: [], // TODO: Select music from library based on audioNeeds
         } : null;
         
-        const buildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, audioBundle, mediaAttachments, generatedAssets);
+        const legacyBuildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, audioBundle, mediaAttachments, generatedAssets);
+        const buildPrompt = buildMakerProjectBuildPrompt({
+            legacyBuildPrompt,
+            prompt,
+            qualityIntent,
+            generatedAssets,
+            audioBundle,
+        });
         await writeMakerText(makerWorkspace, 'logs/build-prompt.txt', buildPrompt);
-        let rawGameHtml = await generateCompleteHtmlWithBuilder(buildPrompt, { label: 'Phase 2 Build', jobId });
+        await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
+        let rawGameHtml = null;
+        let buildMode = 'file-native';
+        try {
+            const projectBuildText = (await requestBuilderMessage(buildPrompt, {
+                label: 'Phase 2 Project Build',
+                jobId,
+                timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
+                maxAttempts: 2,
+            })).text;
+            await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
+            const projectBuild = parseMakerProjectBuildResponse(projectBuildText);
+            makerProject = await materializeMakerProjectFiles(makerWorkspace, projectBuild, {
+                title: qualityIntent.title || 'GameTok Game',
+                generatedAssets,
+            });
+            rawGameHtml = await assembleMakerProjectHtml(makerProject.projectRoot);
+            console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
+        } catch (projectBuildError) {
+            console.error(`[Maker Build] File-native project build failed, falling back to complete HTML build: ${projectBuildError.message}`);
+            buildMode = 'whole-html-fallback';
+            await writeMakerText(makerWorkspace, 'logs/project-build-error.txt', projectBuildError.stack || projectBuildError.message);
+            rawGameHtml = await generateCompleteHtmlWithBuilder(legacyBuildPrompt, { label: 'Phase 2 Build', jobId });
+        }
         assertJobNotCancelled(jobId);
         await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
         await updateGenerationJobProgress(jobId, 68, 'build', 'Game code assembled...');
@@ -2424,12 +2596,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         if (!hasClosedHtmlDocument(rawGameHtml)) {
             throw new Error('Builder output is missing </html> and appears truncated.');
         }
-        makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
-            title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
-            generatedAssets,
-        });
+        if (!makerProject) {
+            makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
+                title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
+                generatedAssets,
+            });
+        }
 
-        console.log(`✅ Phase 2 complete: builder generated ${rawGameHtml.length} chars of game code`);
+        console.log(`✅ Phase 2 complete: ${buildMode} builder generated ${rawGameHtml.length} chars of game code`);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         let finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
@@ -2605,7 +2779,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             projectDistIndex: makerProject?.distIndex || null,
             artifactPath: path.join(makerWorkspace, 'artifact/index.html'),
             rawBuildPath: path.join(makerWorkspace, 'raw-build.html'),
-            buildCommand: 'native-html-builder',
+            buildCommand: buildMode === 'file-native' ? 'native-project-builder' : 'native-html-builder',
+            buildMode,
             promptModel: DREAM_MODELS.premiumBuilder,
             specModel: DREAM_MODELS.spec,
             assetSummary: summarizeMakerAssets(generatedAssets),
