@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Physics Forge</title>
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="GameTok physics simulation game">
+    <canvas id="game-canvas"></canvas>
+    <section id="hud" data-hud>
+      <div class="hud-card">
+        <span>Mode</span>
+        <strong id="mode-readout">Edit</strong>
+      </div>
+      <div class="hud-card">
+        <span>Parts</span>
+        <strong id="parts-readout">0</strong>
+      </div>
+      <div class="hud-card">
+        <span>Goal</span>
+        <strong id="result-readout">Build</strong>
+      </div>
+    </section>
+    <div id="status-line" role="status">Place parts, then simulate</div>
+    <section id="controls" data-control>
+      <button id="part-button" type="button">Part</button>
+      <button id="start-button" type="button">Start</button>
+      <button id="reset-button" type="button">Reset</button>
+    </section>
+  </main>
+  <script type="module" src="./src/game.js"></script>
+</body>
+</html>

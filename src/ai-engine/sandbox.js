@@ -72,7 +72,7 @@ function inspectAssetContractSource(sourceHtml = '', assetContract = null) {
 
 async function runTemplateRuntimeProbe(page, templateContract = null) {
     const templateId = templateContract?.templateId || null;
-    if (!['phaser-artillery', 'phaser-top-down-action'].includes(templateId)) return null;
+    if (!['phaser-artillery', 'phaser-top-down-action', 'canvas-simulation'].includes(templateId)) return null;
 
     return page.evaluate(async () => {
         const probe = window.__GAMETOK_TEMPLATE_PROBE__;
@@ -121,6 +121,47 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     success: failures.length === 0,
                     failures,
                     details: { initial, moved, afterSpawn, afterAttack, afterCombat },
+                };
+            } catch (error) {
+                return {
+                    templateId,
+                    success: false,
+                    failures: [error?.message || String(error)],
+                };
+            }
+        }
+
+        if (templateId === 'canvas-simulation') {
+            const requiredMethods = ['snapshot', 'addBody', 'start', 'step', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            try {
+                probe.reset();
+                const initial = probe.snapshot();
+                const afterAdd = probe.addBody();
+                if (!afterAdd.bodyCount || afterAdd.bodyCount <= initial.bodyCount) {
+                    failures.push('addBody() did not increase body count.');
+                }
+                const afterStart = probe.start();
+                if (afterStart.mode !== 'run' || !afterStart.running) {
+                    failures.push('start() did not switch into running simulation mode.');
+                }
+                const afterStep = await probe.step(360);
+                if (!afterStep.goal || !afterStart.goal || afterStep.goal.y === afterStart.goal.y) {
+                    failures.push('step() did not move the goal object under physics.');
+                }
+                const afterReset = probe.reset();
+                if (afterReset.mode !== 'edit' || afterReset.running) {
+                    failures.push('reset() did not return to edit mode.');
+                }
+                return {
+                    templateId,
+                    success: failures.length === 0,
+                    failures,
+                    details: { initial, afterAdd, afterStart, afterStep, afterReset },
                 };
             } catch (error) {
                 return {

@@ -262,6 +262,13 @@ const TEMPLATE_CONTRACTS = {
             'drawEditor',
             'drawSimulation',
         ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.addBody',
+            'window.__GAMETOK_TEMPLATE_PROBE__.start',
+            'window.__GAMETOK_TEMPLATE_PROBE__.step',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
+        ],
         controls: [
             'tool or part selector',
             'start/simulate button',
