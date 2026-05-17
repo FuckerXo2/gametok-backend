@@ -5,6 +5,7 @@ import { selectMakerTemplateContract } from '../src/ai-engine/maker-templates.js
 import { buildMakerDebugProtocol } from '../src/ai-engine/maker-debug-protocol.js';
 import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from '../src/ai-engine/maker-scaffolds.js';
 import { buildMakerAssetContract, summarizeMakerAssetContract } from '../src/ai-engine/maker-asset-contracts.js';
+import { buildMakerDesignBrief, summarizeMakerDesignBrief } from '../src/ai-engine/maker-design-brief.js';
 
 function readArg(name, fallback = null) {
     const index = process.argv.indexOf(name);
@@ -69,8 +70,15 @@ async function main() {
         const assetContract = buildMakerAssetContract(template, {});
         const debugProtocol = buildMakerDebugProtocol(template, null, assetContract);
         const scaffold = await loadMakerTemplateScaffold(template.templateId);
+        const designBrief = buildMakerDesignBrief({
+            qualityIntent: {},
+            prompt,
+            templateContract: template,
+            assetContract,
+        });
         console.log(JSON.stringify({
             template,
+            designBrief: summarizeMakerDesignBrief(designBrief),
             assetContract: summarizeMakerAssetContract(assetContract),
             debugProtocol,
             scaffold: summarizeMakerTemplateScaffold(scaffold),

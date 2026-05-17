@@ -19,6 +19,7 @@ import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './m
 import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
 import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './maker-scaffolds.js';
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
+import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2097,7 +2098,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
-function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null, templateScaffold = null, assetContract = null }) {
+function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null, templateScaffold = null, assetContract = null, designBrief = '' }) {
     return [
         'You are the native GameTok maker project builder.',
         '',
@@ -2151,6 +2152,8 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '',
         'User prompt:',
         prompt,
+        '',
+        formatMakerDesignBriefPromptBlock(designBrief),
         '',
         'Native GameTok plan:',
         JSON.stringify(buildMakerPlan(qualityIntent, prompt, templateContract), null, 2),
@@ -2259,7 +2262,7 @@ function mergeDreamAssetBundles(baseBundle = null, extraBundle = null) {
     };
 }
 
-function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [], templateContract = null, debugProtocol = null, assetContract = null }) {
+function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [], templateContract = null, debugProtocol = null, assetContract = null, designBrief = '' }) {
     return [
         'You are updating a native GameTok maker project after the backend fulfilled extra asset requests.',
         '',
@@ -2280,6 +2283,8 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '',
         'Original user prompt:',
         prompt,
+        '',
+        formatMakerDesignBriefPromptBlock(designBrief),
         '',
         'Operational plan:',
         JSON.stringify(buildMakerPlan(qualityIntent, prompt, templateContract), null, 2),
@@ -2452,7 +2457,7 @@ async function readMakerProjectFiles(projectRoot) {
     return files;
 }
 
-function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null }) {
+function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '' }) {
     return [
         'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
         '',
@@ -2495,6 +2500,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '',
         'Original user prompt:',
         prompt,
+        '',
+        formatMakerDesignBriefPromptBlock(designBrief),
         '',
         'Selected native template contract:',
         JSON.stringify(templateContract || null, null, 2),
@@ -2744,6 +2751,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 await fs.promises.writeFile(scaffoldPath, scaffoldFile.content, 'utf8');
             }
         }
+        const makerDesignBrief = buildMakerDesignBrief({
+            qualityIntent,
+            prompt,
+            templateContract: makerTemplateContract,
+            assetContract: makerAssetContract,
+        });
+        await writeMakerText(makerWorkspace, 'GAME_DESIGN.md', makerDesignBrief);
+        const makerDesignBriefSummary = summarizeMakerDesignBrief(makerDesignBrief);
+        await writeMakerJson(makerWorkspace, 'design-brief-summary.json', makerDesignBriefSummary);
+        console.log(`   Design brief: ${makerDesignBriefSummary.chars} chars across ${makerDesignBriefSummary.sections} sections`);
 
         // Legacy asset bundle (disabled by default, only used as fallback)
         const assetBundle = null; // Completely disabled
@@ -2771,6 +2788,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             debugProtocol: makerDebugProtocol,
             templateScaffold: makerTemplateScaffold,
             assetContract: makerAssetContract,
+            designBrief: makerDesignBrief,
         });
         await writeMakerText(makerWorkspace, 'logs/build-prompt.txt', buildPrompt);
         await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
@@ -2820,6 +2838,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     templateContract: makerTemplateContract,
                     debugProtocol: makerDebugProtocol,
                     assetContract: makerAssetContract,
+                    designBrief: makerDesignBrief,
                 });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-prompt.txt', integrationPrompt);
                 const integrationText = (await requestBuilderMessage(integrationPrompt, {
@@ -2954,6 +2973,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             templateContract: makerTemplateContract,
                             debugProtocol: makerDebugProtocol,
                             assetContract: makerAssetContract,
+                            designBrief: makerDesignBrief,
                         });
                         await writeMakerJson(makerWorkspace, `logs/file-repair-request-${repairAttempt}.json`, {
                             attempt: repairAttempt,
