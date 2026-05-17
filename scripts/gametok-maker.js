@@ -4,6 +4,7 @@ import pool from '../src/db.js';
 import { selectMakerTemplateContract } from '../src/ai-engine/maker-templates.js';
 import { buildMakerDebugProtocol } from '../src/ai-engine/maker-debug-protocol.js';
 import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from '../src/ai-engine/maker-scaffolds.js';
+import { buildMakerAssetContract, summarizeMakerAssetContract } from '../src/ai-engine/maker-asset-contracts.js';
 
 function readArg(name, fallback = null) {
     const index = process.argv.indexOf(name);
@@ -65,10 +66,12 @@ async function main() {
         const prompt = readArg('--prompt', process.argv.slice(3).join(' '));
         if (!prompt) throw new Error('inspect requires --prompt');
         const template = selectMakerTemplateContract({}, prompt);
+        const assetContract = buildMakerAssetContract(template, {});
         const debugProtocol = buildMakerDebugProtocol(template, null);
         const scaffold = await loadMakerTemplateScaffold(template.templateId);
         console.log(JSON.stringify({
             template,
+            assetContract: summarizeMakerAssetContract(assetContract),
             debugProtocol,
             scaffold: summarizeMakerTemplateScaffold(scaffold),
         }, null, 2));

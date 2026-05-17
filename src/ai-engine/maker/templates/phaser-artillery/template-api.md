@@ -81,6 +81,27 @@ Use generated images for tanks, props, scenery, projectiles, and background
 decoration. Do not use images for HUD text, sliders, buttons, health bars,
 wind labels, or terrain collision.
 
+## Asset Contract
+
+The maker writes an `asset-contract.json` for this template. The expected slots
+are:
+
+- `player_tank`: required transparent player tank sprite.
+- `enemy_tank`: required transparent enemy tank sprite.
+- `battlefield_background`: optional portrait mobile background.
+- `artillery_shell`: optional transparent projectile sprite.
+- `impact_explosion`: optional transparent explosion/effect sprite.
+
+Consumption rules:
+
+- `resolveThemeAssets()` maps `player` and `enemy` roles into `drawTank()`.
+- `resolveThemeAssets()` maps `background`/`environment` into `drawBackground()`.
+- `resolveThemeAssets()` maps `projectile` into the live shell renderer.
+- Terrain collision, health bars, wind labels, sliders, buttons, and turn text
+  remain code-rendered. Never bake them into generated images.
+- Missing slots must fall back to the starter's code art without breaking the
+  probe API or gameplay.
+
 ## First Frame Contract
 
 The first frame must show:
