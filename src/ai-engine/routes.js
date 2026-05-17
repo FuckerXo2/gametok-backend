@@ -16,6 +16,7 @@ import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-gen
 import { buildDreamAssetPlan, compileDreamAssetBundle } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
+import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2093,7 +2094,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
-function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null }) {
+function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null }) {
     return [
         'You are the native GameTok maker project builder.',
         '',
@@ -2149,6 +2150,8 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '',
         'Selected native template contract:',
         JSON.stringify(templateContract || null, null, 2),
+        '',
+        formatMakerDebugProtocolPromptBlock(debugProtocol),
         '',
         'Asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
@@ -2243,7 +2246,7 @@ function mergeDreamAssetBundles(baseBundle = null, extraBundle = null) {
     };
 }
 
-function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [], templateContract = null }) {
+function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [], templateContract = null, debugProtocol = null }) {
     return [
         'You are updating a native GameTok maker project after the backend fulfilled extra asset requests.',
         '',
@@ -2269,6 +2272,8 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '',
         'Selected native template contract:',
         JSON.stringify(templateContract || null, null, 2),
+        '',
+        formatMakerDebugProtocolPromptBlock(debugProtocol),
         '',
         'Assets requested by builder and now generated:',
         JSON.stringify(requestedAssets, null, 2),
@@ -2430,7 +2435,7 @@ async function readMakerProjectFiles(projectRoot) {
     return files;
 }
 
-function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null }) {
+function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null }) {
     return [
         'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
         '',
@@ -2475,6 +2480,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '',
         'Selected native template contract:',
         JSON.stringify(templateContract || null, null, 2),
+        '',
+        formatMakerDebugProtocolPromptBlock(debugProtocol),
         '',
         'Operational spec:',
         JSON.stringify({
@@ -2690,6 +2697,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 errors: useArtistAgent ? [] : [{ phase: 'asset_generation', message: 'Artist agent disabled by configuration.' }],
             });
         }
+        let makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets);
+        await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
 
         // Legacy asset bundle (disabled by default, only used as fallback)
         const assetBundle = null; // Completely disabled
@@ -2714,6 +2723,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             generatedAssets,
             audioBundle,
             templateContract: makerTemplateContract,
+            debugProtocol: makerDebugProtocol,
         });
         await writeMakerText(makerWorkspace, 'logs/build-prompt.txt', buildPrompt);
         await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
@@ -2750,6 +2760,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 const requestedBundle = compileDreamAssetBundle(requestedImages, requestPlan);
                 generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', summarizeMakerAssets(generatedAssets));
+                makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets);
+                await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
 
                 const projectFiles = await readMakerProjectFiles(makerProject.projectRoot);
                 const integrationPrompt = buildMakerAssetIntegrationPrompt({
@@ -2759,6 +2771,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     generatedAssets,
                     requestedAssets: projectBuild.assetRequests,
                     templateContract: makerTemplateContract,
+                    debugProtocol: makerDebugProtocol,
                 });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-prompt.txt', integrationPrompt);
                 const integrationText = (await requestBuilderMessage(integrationPrompt, {
@@ -2890,6 +2903,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             generatedAssets,
                             sandboxDiagnostics: sandboxRes.diagnostics || null,
                             templateContract: makerTemplateContract,
+                            debugProtocol: makerDebugProtocol,
                         });
                         await writeMakerJson(makerWorkspace, `logs/file-repair-request-${repairAttempt}.json`, {
                             attempt: repairAttempt,
@@ -2989,6 +3003,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             promptModel: DREAM_MODELS.premiumBuilder,
             specModel: DREAM_MODELS.spec,
             templateContract: summarizeMakerTemplateContract(makerTemplateContract),
+            debugProtocol: makerDebugProtocol,
             assetSummary: summarizeMakerAssets(generatedAssets),
             sandbox: finalSandboxResult,
             repairs: makerRepairs,
