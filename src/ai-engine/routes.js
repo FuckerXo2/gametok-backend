@@ -20,6 +20,7 @@ import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './
 import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './maker-scaffolds.js';
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
+import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2458,7 +2459,97 @@ async function readMakerProjectFiles(projectRoot) {
     return files;
 }
 
+function buildTargetedRepairTasks(sandboxDiagnostics = null) {
+    const diagnostics = sandboxDiagnostics || {};
+    const tasks = [];
+    const failedChecks = Array.isArray(diagnostics.failedContractChecks) ? diagnostics.failedContractChecks : [];
+
+    for (const check of failedChecks) {
+        if (!check) continue;
+        if (check.id === 'template_runtime_probe') {
+            const failures = Array.isArray(check.failures) ? check.failures : [];
+            for (const failure of failures) {
+                tasks.push({
+                    priority: 'fatal',
+                    source: 'template_runtime_probe',
+                    templateId: check.templateId || diagnostics.templateRuntimeProbe?.templateId || null,
+                    failure: String(failure || ''),
+                    repair: 'Fix the live gameplay implementation so the named probe method proves real state progression. Preserve the probe API and make the visible game state match the probe snapshot.',
+                });
+            }
+        } else if (check.id === 'template_required_functions') {
+            tasks.push({
+                priority: 'fatal',
+                source: 'template_contract',
+                templateId: check.templateId || null,
+                failure: `Missing required functions: ${(check.missingFunctions || []).join(', ')}`,
+                repair: 'Restore the selected scaffold structure and required function names. Do not replace the native template with a generic implementation.',
+            });
+        } else if (check.id === 'asset_image_ui_violation') {
+            tasks.push({
+                priority: 'major',
+                source: 'asset_contract',
+                templateId: check.templateId || null,
+                failure: check.message || 'Generated images used for UI/HUD controls.',
+                repair: 'Move HUD, labels, buttons, meters, sliders, and controls back to DOM/canvas code. Use generated images only for approved gameplay art slots.',
+            });
+        } else if (check.message) {
+            tasks.push({
+                priority: 'major',
+                source: check.id || 'contract_check',
+                templateId: check.templateId || null,
+                failure: check.message,
+                repair: 'Repair the underlying gameplay contract violation without deleting diagnostics or probe hooks.',
+            });
+        }
+    }
+
+    const runtimeProbe = diagnostics.templateRuntimeProbe;
+    if (runtimeProbe && runtimeProbe.success === false && tasks.length === 0) {
+        for (const failure of runtimeProbe.failures || []) {
+            tasks.push({
+                priority: 'fatal',
+                source: 'template_runtime_probe',
+                templateId: runtimeProbe.templateId || null,
+                failure: String(failure || ''),
+                repair: 'Repair the required gameplay behavior until this probe passes.',
+            });
+        }
+    }
+
+    if (Array.isArray(diagnostics.canvasIssues) && diagnostics.canvasIssues.length > 0) {
+        tasks.push({
+            priority: 'fatal',
+            source: 'viewport_probe',
+            failure: `Canvas sizing issues: ${diagnostics.canvasIssues.map((issue) => `canvas#${issue.index}`).join(', ')}`,
+            repair: 'Clamp canvas dimensions and backing store to the GameTok safe viewport and recompute sizing on resize.',
+        });
+    }
+
+    if (Array.isArray(diagnostics.visibleOutOfBoundsElements) && diagnostics.visibleOutOfBoundsElements.length > 0) {
+        tasks.push({
+            priority: 'fatal',
+            source: 'viewport_probe',
+            failure: 'Important HUD/control elements are outside the phone viewport.',
+            repair: 'Move HUD and touch controls into the visible safe rectangle. Do not place controls under native chrome.',
+        });
+    }
+
+    if (Number(diagnostics.horizontalOverflow || 0) > 4) {
+        tasks.push({
+            priority: 'fatal',
+            source: 'viewport_probe',
+            failure: `Horizontal overflow: ${diagnostics.horizontalOverflow}px.`,
+            repair: 'Remove fixed oversized widths and fit all root/canvas/control elements within window.innerWidth.',
+        });
+    }
+
+    return tasks;
+}
+
 function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '' }) {
+    const targetedRepairTasks = buildTargetedRepairTasks(sandboxDiagnostics);
+    const repairPlaybook = buildMakerRepairPlaybook(targetedRepairTasks);
     return [
         'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
         '',
@@ -2494,6 +2585,19 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- DreamAssets.safeRect(width, height): returns the GameTok chrome-safe playable rectangle.',
         '',
         `Crash: ${crash}`,
+        '',
+        'Targeted repair tasks:',
+        JSON.stringify(targetedRepairTasks, null, 2),
+        '',
+        'Repair playbook:',
+        JSON.stringify(repairPlaybook, null, 2),
+        '',
+        'Repair task policy:',
+        '- Address every fatal targeted repair task before cosmetic changes.',
+        '- A template_runtime_probe task is not optional. Make the named probe method prove real gameplay state progression.',
+        '- Do not satisfy probes with fake hardcoded snapshots. The visible game and the probe snapshot must reflect the same live state.',
+        '- Keep repairs small and file-local when possible.',
+        '- Use matching playbook recipes as proven repair patterns, but adapt them to the current project files instead of rewriting from scratch.',
         '',
         'Sandbox diagnostics:',
         JSON.stringify(sandboxDiagnostics || null, null, 2),
@@ -2972,6 +3076,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 if (makerProject?.projectRoot) {
                     try {
                         const projectFiles = await readMakerProjectFiles(makerProject.projectRoot);
+                        const targetedRepairTasks = buildTargetedRepairTasks(sandboxRes.diagnostics || null);
+                        const repairPlaybook = buildMakerRepairPlaybook(targetedRepairTasks);
                         const fileRepairPrompt = buildMakerFileRepairPrompt({
                             qualityIntent,
                             prompt,
@@ -2988,6 +3094,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             attempt: repairAttempt,
                             crash: sandboxRes.crashes[0],
                             diagnostics: sandboxRes.diagnostics || null,
+                            targetedRepairTasks,
+                            repairPlaybook,
                             assetSummary: summarizeMakerAssets(generatedAssets),
                             files: projectFiles.map((file) => ({
                                 path: file.path,
