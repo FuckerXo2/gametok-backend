@@ -21,6 +21,7 @@ import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './mak
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
+import { loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome } from './maker-repair-protocol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2459,6 +2460,75 @@ async function readMakerProjectFiles(projectRoot) {
     return files;
 }
 
+function directRepairTaskForFailure(failure = '') {
+    const text = String(failure || '');
+    if (/Missing probe method:\s*(\w+)/i.test(text)) {
+        const method = text.match(/Missing probe method:\s*(\w+)/i)?.[1] || 'probe method';
+        return `Restore window.__GAMETOK_TEMPLATE_PROBE__.${method}() and connect it to live gameplay state.`;
+    }
+    if (/angle|power|trajectory signature|setAim/i.test(text)) {
+        return 'setAim() does not change trajectory signature.';
+    }
+    if (/fire\(\).*active projectile|fire\(\).*projectile/i.test(text)) {
+        return 'fire() does not create an active projectile.';
+    }
+    if (/probeDeformTerrain|sampled terrain|terrain height/i.test(text)) {
+        return 'probeDeformTerrain() does not mutate terrain data.';
+    }
+    if (/move\(\).*player|move\(\).*position|player position/i.test(text)) {
+        return 'move() does not change the player position.';
+    }
+    if (/spawnEnemyNearPlayer/i.test(text)) {
+        return 'spawnEnemyNearPlayer() does not create a visible enemy.';
+    }
+    if (/spawnEnemy\(\)/i.test(text)) {
+        return 'spawnEnemy() does not increase enemy count.';
+    }
+    if (/attack\(\).*projectile|attack object/i.test(text)) {
+        return 'attack() does not create a projectile or attack object.';
+    }
+    if (/combat probe|score|health-state|enemy.*progression/i.test(text)) {
+        return 'combat step does not change score, enemy state, projectile state, or health.';
+    }
+    if (/addBody\(\)/i.test(text)) {
+        return 'addBody() does not increase simulation body count.';
+    }
+    if (/start\(\).*running simulation/i.test(text)) {
+        return 'start() does not switch simulation into running mode.';
+    }
+    if (/step\(\).*goal object|physics/i.test(text)) {
+        return 'step() does not advance simulated physics state.';
+    }
+    if (/select\(\).*selected tile/i.test(text)) {
+        return 'select() does not update selected tile state.';
+    }
+    if (/grid signature|move\(\).*grid/i.test(text)) {
+        return 'move() does not change the grid signature.';
+    }
+    if (/resolve\(\).*score|goal progress/i.test(text)) {
+        return 'resolve() does not change score or goal progress.';
+    }
+    if (/jump\(\).*upward velocity/i.test(text)) {
+        return 'jump() does not give upward velocity.';
+    }
+    if (/slide\(\).*sliding/i.test(text)) {
+        return 'slide() does not enter sliding state.';
+    }
+    if (/spawnObstacle/i.test(text)) {
+        return 'spawnObstacle() does not increase obstacle count.';
+    }
+    if (/choice|choose\(\)|node|history|meters/i.test(text)) {
+        return 'choose() does not change story node, history, or meters.';
+    }
+    if (/forceEnding/i.test(text)) {
+        return 'forceEnding() does not reach an ending state.';
+    }
+    if (/reset\(\)/i.test(text)) {
+        return 'reset() does not restore initial playable state.';
+    }
+    return text || 'Repair the failed maker contract check.';
+}
+
 function buildTargetedRepairTasks(sandboxDiagnostics = null) {
     const diagnostics = sandboxDiagnostics || {};
     const tasks = [];
@@ -2474,6 +2544,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                     source: 'template_runtime_probe',
                     templateId: check.templateId || diagnostics.templateRuntimeProbe?.templateId || null,
                     failure: String(failure || ''),
+                    directRepairTask: directRepairTaskForFailure(failure),
                     repair: 'Fix the live gameplay implementation so the named probe method proves real state progression. Preserve the probe API and make the visible game state match the probe snapshot.',
                 });
             }
@@ -2483,6 +2554,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 source: 'template_contract',
                 templateId: check.templateId || null,
                 failure: `Missing required functions: ${(check.missingFunctions || []).join(', ')}`,
+                directRepairTask: 'Required template functions are missing from the project.',
                 repair: 'Restore the selected scaffold structure and required function names. Do not replace the native template with a generic implementation.',
             });
         } else if (check.id === 'asset_image_ui_violation') {
@@ -2491,6 +2563,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 source: 'asset_contract',
                 templateId: check.templateId || null,
                 failure: check.message || 'Generated images used for UI/HUD controls.',
+                directRepairTask: 'Generated image assets are being used for HUD/UI instead of gameplay art.',
                 repair: 'Move HUD, labels, buttons, meters, sliders, and controls back to DOM/canvas code. Use generated images only for approved gameplay art slots.',
             });
         } else if (check.message) {
@@ -2499,6 +2572,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 source: check.id || 'contract_check',
                 templateId: check.templateId || null,
                 failure: check.message,
+                directRepairTask: directRepairTaskForFailure(check.message),
                 repair: 'Repair the underlying gameplay contract violation without deleting diagnostics or probe hooks.',
             });
         }
@@ -2512,6 +2586,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 source: 'template_runtime_probe',
                 templateId: runtimeProbe.templateId || null,
                 failure: String(failure || ''),
+                directRepairTask: directRepairTaskForFailure(failure),
                 repair: 'Repair the required gameplay behavior until this probe passes.',
             });
         }
@@ -2522,6 +2597,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
             priority: 'fatal',
             source: 'viewport_probe',
             failure: `Canvas sizing issues: ${diagnostics.canvasIssues.map((issue) => `canvas#${issue.index}`).join(', ')}`,
+            directRepairTask: 'Canvas dimensions or backing store exceed the mobile safe viewport.',
             repair: 'Clamp canvas dimensions and backing store to the GameTok safe viewport and recompute sizing on resize.',
         });
     }
@@ -2531,6 +2607,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
             priority: 'fatal',
             source: 'viewport_probe',
             failure: 'Important HUD/control elements are outside the phone viewport.',
+            directRepairTask: 'HUD or controls are outside the visible phone viewport.',
             repair: 'Move HUD and touch controls into the visible safe rectangle. Do not place controls under native chrome.',
         });
     }
@@ -2540,6 +2617,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
             priority: 'fatal',
             source: 'viewport_probe',
             failure: `Horizontal overflow: ${diagnostics.horizontalOverflow}px.`,
+            directRepairTask: 'Page has horizontal overflow on the phone viewport.',
             repair: 'Remove fixed oversized widths and fit all root/canvas/control elements within window.innerWidth.',
         });
     }
@@ -2547,7 +2625,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
     return tasks;
 }
 
-function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '' }) {
+function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '', repairProtocolMatches = [] }) {
     const targetedRepairTasks = buildTargetedRepairTasks(sandboxDiagnostics);
     const repairPlaybook = buildMakerRepairPlaybook(targetedRepairTasks);
     return [
@@ -2591,6 +2669,9 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '',
         'Repair playbook:',
         JSON.stringify(repairPlaybook, null, 2),
+        '',
+        'Known maker repair protocol matches:',
+        JSON.stringify(repairProtocolMatches || [], null, 2),
         '',
         'Repair task policy:',
         '- Address every fatal targeted repair task before cosmetic changes.',
@@ -3001,6 +3082,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         // ── PHASE 3/3: QA SANDBOX AUTO-HEALING LOOP ──
         let maxRetries = 2;
         let p3Success = false;
+        const pendingRepairProtocolRecords = [];
         
         while (maxRetries > 0 && !p3Success) {
             assertJobNotCancelled(jobId);
@@ -3078,6 +3160,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                         const projectFiles = await readMakerProjectFiles(makerProject.projectRoot);
                         const targetedRepairTasks = buildTargetedRepairTasks(sandboxRes.diagnostics || null);
                         const repairPlaybook = buildMakerRepairPlaybook(targetedRepairTasks);
+                        const repairProtocol = await loadMakerRepairProtocol(GAMETOK_MAKER_ROOT);
+                        const repairProtocolMatches = matchMakerRepairProtocol(repairProtocol, targetedRepairTasks);
                         const fileRepairPrompt = buildMakerFileRepairPrompt({
                             qualityIntent,
                             prompt,
@@ -3089,6 +3173,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             debugProtocol: makerDebugProtocol,
                             assetContract: makerAssetContract,
                             designBrief: makerDesignBrief,
+                            repairProtocolMatches,
                         });
                         await writeMakerJson(makerWorkspace, `logs/file-repair-request-${repairAttempt}.json`, {
                             attempt: repairAttempt,
@@ -3096,6 +3181,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             diagnostics: sandboxRes.diagnostics || null,
                             targetedRepairTasks,
                             repairPlaybook,
+                            repairProtocolMatches,
                             assetSummary: summarizeMakerAssets(generatedAssets),
                             files: projectFiles.map((file) => ({
                                 path: file.path,
@@ -3127,6 +3213,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             applied,
                             notes: repair.notes,
                         });
+                        pendingRepairProtocolRecords.push({
+                            attempt: repairAttempt,
+                            tasks: targetedRepairTasks,
+                            playbook: repairPlaybook,
+                            repairNotes: repair.notes,
+                            applied,
+                            failure: sandboxRes.crashes[0],
+                        });
                         repairedWithProjectFiles = true;
                     } catch (fileRepairError) {
                         console.error(`[Maker Repair] File-level repair failed: ${fileRepairError.message}`);
@@ -3135,6 +3229,17 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             mode: 'project-file-edits-failed',
                             error: fileRepairError.message,
                         });
+                        const failedTasks = buildTargetedRepairTasks(sandboxRes.diagnostics || null);
+                        if (failedTasks.length > 0) {
+                            await recordMakerRepairOutcome(GAMETOK_MAKER_ROOT, {
+                                jobId,
+                                attempt: repairAttempt,
+                                templateId: makerTemplateContract?.templateId || null,
+                                tasks: failedTasks,
+                                verified: false,
+                                failure: fileRepairError.message,
+                            });
+                        }
                     }
                 }
 
@@ -3166,10 +3271,36 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
                 await updateGenerationJobProgress(jobId, 84, 'verify', 'Game boots cleanly...');
                 p3Success = true;
+                for (const record of pendingRepairProtocolRecords.splice(0)) {
+                    await recordMakerRepairOutcome(GAMETOK_MAKER_ROOT, {
+                        jobId,
+                        attempt: record.attempt,
+                        templateId: makerTemplateContract?.templateId || null,
+                        tasks: record.tasks,
+                        playbook: record.playbook,
+                        repairNotes: record.repairNotes,
+                        applied: record.applied,
+                        verified: true,
+                        failure: record.failure,
+                    });
+                }
             }
         }
 
         if (!p3Success) {
+            for (const record of pendingRepairProtocolRecords.splice(0)) {
+                await recordMakerRepairOutcome(GAMETOK_MAKER_ROOT, {
+                    jobId,
+                    attempt: record.attempt,
+                    templateId: makerTemplateContract?.templateId || null,
+                    tasks: record.tasks,
+                    playbook: record.playbook,
+                    repairNotes: record.repairNotes,
+                    applied: record.applied,
+                    verified: false,
+                    failure: record.failure,
+                });
+            }
             throw new Error('Sandbox verification failed after 2 builder repair attempts.');
         }
 
