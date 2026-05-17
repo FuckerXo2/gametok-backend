@@ -239,6 +239,122 @@ const TEMPLATE_CONTRACTS = {
             'Do not place controls over the player or HUD.',
         ],
     },
+    'canvas-runner': {
+        templateId: 'canvas-runner',
+        engine: 'canvas-2d',
+        archetype: 'runner',
+        recommendedLibrary: 'Canvas 2D with DOM controls.',
+        architecture: [
+            'Runner state owns player motion, obstacles, collectibles, speed, distance, score, lives, and reset.',
+            'World scrolls toward the player; obstacles and collectibles are live entities.',
+        ],
+        requiredState: [
+            'player',
+            'obstacles[]',
+            'collectibles[]',
+            'speed',
+            'distance',
+            'score',
+            'lives',
+            'gameOver',
+        ],
+        requiredFunctions: [
+            'spawnObstacle',
+            'spawnCollectible',
+            'jump',
+            'slide',
+            'updateRunner',
+            'resolveCollisions',
+            'drawWorld',
+            'resetRun',
+        ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.jump',
+            'window.__GAMETOK_TEMPLATE_PROBE__.slide',
+            'window.__GAMETOK_TEMPLATE_PROBE__.spawnObstacle',
+            'window.__GAMETOK_TEMPLATE_PROBE__.step',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
+        ],
+        controls: [
+            'jump button',
+            'slide or dodge button',
+        ],
+        firstFrame: [
+            'runner visible',
+            'track visible',
+            'obstacle or collectible visible',
+            'score/distance/lives visible',
+        ],
+        acceptanceChecks: [
+            'Jump changes player vertical velocity or position.',
+            'Obstacles scroll and can collide with the player.',
+            'Collectibles or passed obstacles change score.',
+            'Reset restores a fresh run.',
+        ],
+        antiPatterns: [
+            'Do not make an auto-scrolling background with no collisions.',
+            'Do not hide jump/slide controls under app chrome.',
+        ],
+    },
+    'canvas-arcade-shooter': {
+        templateId: 'canvas-arcade-shooter',
+        engine: 'canvas-2d',
+        archetype: 'arcade_shooter',
+        recommendedLibrary: 'Canvas 2D with explicit entity arrays.',
+        architecture: [
+            'Shooter state owns player, enemies, projectiles, pickups, particles, score, wave, health, and reset.',
+            'Main loop updates input, projectiles, enemies, collisions, feedback, and wave pacing.',
+        ],
+        requiredState: [
+            'player',
+            'enemies[]',
+            'projectiles[]',
+            'pickups[]',
+            'score',
+            'wave',
+            'health',
+            'gameOver',
+        ],
+        requiredFunctions: [
+            'handleInput',
+            'spawnEnemy',
+            'fireWeapon',
+            'updateProjectiles',
+            'updateEnemies',
+            'resolveCollisions',
+            'drawWorld',
+            'resetShooter',
+        ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.move',
+            'window.__GAMETOK_TEMPLATE_PROBE__.fire',
+            'window.__GAMETOK_TEMPLATE_PROBE__.spawnEnemy',
+            'window.__GAMETOK_TEMPLATE_PROBE__.step',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
+        ],
+        controls: [
+            'movement joystick or drag zone',
+            'fire button',
+        ],
+        firstFrame: [
+            'player visible',
+            'enemy/threat visible',
+            'fire control visible',
+            'score/wave/health visible',
+        ],
+        acceptanceChecks: [
+            'Movement changes player position.',
+            'Fire creates a projectile.',
+            'Projectile/enemy collision changes score or enemy state.',
+            'Reset restores a fresh wave.',
+        ],
+        antiPatterns: [
+            'Do not make keyboard-only shooters.',
+            'Do not leave the player alone without threats.',
+        ],
+    },
     'canvas-simulation': {
         templateId: 'canvas-simulation',
         engine: 'canvas-2d',
@@ -512,7 +628,11 @@ export function selectMakerTemplateContract(qualityIntent = {}, prompt = '') {
         || hasAny(text, ['first person', 'fps', 'walking simulator'])
     ) {
         templateId = 'three-first-person';
-    } else if (hasAny(text, ['artillery', 'tank', 'trajectory', 'wind', 'angle', 'power', 'shell', 'cannon'])) {
+    } else if (hasAny(text, ['space shooter', 'arcade shooter', 'bullet', 'shoot enemies', 'shooting game', 'asteroid', 'invaders', 'ship'])) {
+        templateId = 'canvas-arcade-shooter';
+    } else if (hasAny(text, ['runner', 'endless run', 'run and jump', 'autorunner', 'auto runner', 'dodge obstacles'])) {
+        templateId = 'canvas-runner';
+    } else if (hasAny(text, ['artillery', 'tank', 'trajectory', 'wind', 'angle', 'shell', 'cannon']) || /\bpower\b/.test(text)) {
         templateId = 'phaser-artillery';
     } else if (hasAny(text, ['grid', 'tile', 'match', 'puzzle', 'board', 'swap', 'maze', 'sokoban', 'sliding block'])) {
         templateId = 'canvas-grid-puzzle';

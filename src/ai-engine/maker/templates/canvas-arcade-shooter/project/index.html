@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Neon Shooter</title>
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="GameTok arcade shooter game">
+    <section id="hud" data-hud>
+      <div><span>Score</span><strong id="score-readout">0</strong></div>
+      <div><span>Wave</span><strong id="wave-readout">1</strong></div>
+      <div><span>Health</span><strong id="health-readout">100</strong></div>
+    </section>
+    <canvas id="game-canvas"></canvas>
+    <section id="controls" data-control>
+      <div id="move-pad"><div id="move-stick"></div></div>
+      <button id="fire-button" type="button">Fire</button>
+    </section>
+    <button id="restart-button" type="button" hidden>Again</button>
+  </main>
+  <script type="module" src="./src/game.js"></script>
+</body>
+</html>

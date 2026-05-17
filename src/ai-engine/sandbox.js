@@ -78,6 +78,8 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         'phaser-platformer',
         'canvas-simulation',
         'canvas-grid-puzzle',
+        'canvas-runner',
+        'canvas-arcade-shooter',
         'story-vignette',
     ].includes(templateId)) return null;
 
@@ -217,6 +219,50 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     success: false,
                     failures: [error?.message || String(error)],
                 };
+            }
+        }
+
+        if (templateId === 'canvas-runner') {
+            const requiredMethods = ['snapshot', 'jump', 'slide', 'spawnObstacle', 'step', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) return { templateId, success: false, failures };
+            try {
+                probe.reset();
+                const initial = probe.snapshot();
+                const jumped = probe.jump();
+                if (!jumped.player || jumped.player.vy >= 0) failures.push('jump() did not give the runner upward velocity.');
+                const slid = probe.slide();
+                if (!slid.player || slid.player.sliding <= 0) failures.push('slide() did not enter sliding state.');
+                const spawned = probe.spawnObstacle();
+                if (spawned.obstacleCount <= initial.obstacleCount) failures.push('spawnObstacle() did not increase obstacle count.');
+                const stepped = await probe.step(500);
+                if (stepped.distance <= initial.distance && stepped.score <= initial.score) failures.push('step() did not advance distance or score.');
+                return { templateId, success: failures.length === 0, failures, details: { initial, jumped, slid, spawned, stepped } };
+            } catch (error) {
+                return { templateId, success: false, failures: [error?.message || String(error)] };
+            }
+        }
+
+        if (templateId === 'canvas-arcade-shooter') {
+            const requiredMethods = ['snapshot', 'move', 'fire', 'spawnEnemy', 'step', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) return { templateId, success: false, failures };
+            try {
+                probe.reset();
+                const initial = probe.snapshot();
+                const moved = await probe.move(1, 0, 260);
+                if (!moved.player || moved.player.x <= initial.player.x + 5) failures.push('move() did not move the player right.');
+                const afterFire = probe.fire();
+                if (afterFire.projectileCount <= initial.projectileCount) failures.push('fire() did not create a projectile.');
+                const afterSpawn = probe.spawnEnemy(moved.player.x, moved.player.y - 70);
+                if (afterSpawn.enemyCount <= initial.enemyCount) failures.push('spawnEnemy() did not increase enemy count.');
+                const afterStep = await probe.step(420);
+                if (afterStep.score <= initial.score && afterStep.enemyCount >= afterSpawn.enemyCount) failures.push('step() did not show projectile/enemy state progression.');
+                return { templateId, success: failures.length === 0, failures, details: { initial, moved, afterFire, afterSpawn, afterStep } };
+            } catch (error) {
+                return { templateId, success: false, failures: [error?.message || String(error)] };
             }
         }
 

@@ -25,6 +25,18 @@ const SCAFFOLD_FILES = {
         'project/src/styles.css',
         'project/src/game.js',
     ],
+    'canvas-runner': [
+        'template-api.md',
+        'project/index.html',
+        'project/src/styles.css',
+        'project/src/game.js',
+    ],
+    'canvas-arcade-shooter': [
+        'template-api.md',
+        'project/index.html',
+        'project/src/styles.css',
+        'project/src/game.js',
+    ],
     'canvas-grid-puzzle': [
         'template-api.md',
         'project/index.html',

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Rush Runner</title>
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="GameTok runner game">
+    <section id="hud" data-hud>
+      <div><span>Score</span><strong id="score-readout">0</strong></div>
+      <div><span>Distance</span><strong id="distance-readout">0m</strong></div>
+      <div><span>Lives</span><strong id="lives-readout">3</strong></div>
+    </section>
+    <canvas id="game-canvas"></canvas>
+    <section id="controls" data-control>
+      <button id="slide-button" type="button">Slide</button>
+      <button id="jump-button" type="button">Jump</button>
+    </section>
+    <button id="restart-button" type="button" hidden>Again</button>
+  </main>
+  <script type="module" src="./src/game.js"></script>
+</body>
+</html>
