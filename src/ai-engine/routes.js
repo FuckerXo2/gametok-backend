@@ -1890,6 +1890,10 @@ function summarizeMakerAssets(generatedAssets = null) {
     };
 }
 
+function hasGeneratedVisualAssets(generatedAssets = null) {
+    return Boolean(generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0);
+}
+
 async function writeMakerJson(workspace, fileName, value) {
     await fs.promises.writeFile(
         path.join(workspace, fileName),
@@ -2626,7 +2630,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     : qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'third_person'
                     ? 'third_person_threejs'
                     : null;
-                sandboxRes = await verifyGame(finalHtml, { runtimeLane });
+                sandboxRes = await verifyGame(finalHtml, {
+                    runtimeLane,
+                    requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
+                    sourceHtml: rawGameHtml,
+                });
             } catch (validationError) {
                 sandboxRes = {
                     success: false,
@@ -2639,6 +2647,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 success: Boolean(sandboxRes.success),
                 crashes: sandboxRes.crashes || [],
                 hasScreenshot: Boolean(sandboxRes.screenshot),
+                diagnostics: sandboxRes.diagnostics || null,
                 attempt: 3 - maxRetries,
                 checkedAt: new Date().toISOString(),
             };

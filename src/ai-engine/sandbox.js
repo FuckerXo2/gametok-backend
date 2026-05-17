@@ -17,6 +17,8 @@ export async function verifyGame(htmlString, options = {}) {
     let browser = null;
     const crashes = [];
     const runtimeLane = options?.runtimeLane || null;
+    const requireDreamAssets = Boolean(options?.requireDreamAssets);
+    const sourceHtml = String(options?.sourceHtml || htmlString || '');
     const expectsThreeJs = runtimeLane === 'first_person_threejs'
         || runtimeLane === 'third_person_threejs'
         || isLikelyThreeJsBuild(htmlString);
@@ -173,6 +175,10 @@ export async function verifyGame(htmlString, options = {}) {
                 .map((node) => node.getAttribute('href') || node.getAttribute('action') || '')
                 .filter((url) => /^https?:\/\//i.test(url))
                 .slice(0, 5);
+            const dreamAssetUsage = window.__DREAM_ASSET_USAGE || { helperCalls: 0, usedKeys: {}, usedRoles: {} };
+            const dreamAssetPackCount = Array.isArray(window.DREAM_ASSET_PACK)
+                ? window.DREAM_ASSET_PACK.filter((asset) => asset && asset.type === 'image').length
+                : 0;
             const canvasPixelChecks = visibleCanvases.slice(0, 3).map((canvas, index) => {
                 const rect = canvas.getBoundingClientRect();
                 const sampleWidth = Math.max(1, Math.min(32, Math.floor(rect.width)));
@@ -217,6 +223,8 @@ export async function verifyGame(htmlString, options = {}) {
                 verticalOverflow,
                 visibleOutOfBoundsElements,
                 externalLinks,
+                dreamAssetUsage,
+                dreamAssetPackCount,
                 canvasPixelChecks,
                 bodyText,
             };
@@ -261,6 +269,15 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push(`Blank canvas detected: canvas#${blankCanvas.index} has almost no visible pixels. The game must render visible gameplay on boot.`);
         }
 
+        if (requireDreamAssets && renderState.dreamAssetPackCount > 0) {
+            const sourceUsesDreamAssets = /\b(DreamAssets|DREAM_ASSETS|DREAM_ASSET_PACK)\b/.test(sourceHtml);
+            const helperCalls = Number(renderState.dreamAssetUsage?.helperCalls || 0);
+            const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
+            if (!sourceUsesDreamAssets && helperCalls === 0 && usedKeys.length === 0) {
+                crashes.push(`Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`);
+            }
+        }
+
         if (/error|exception|failed/i.test(renderState.bodyText)) {
             crashes.push(`Visible error text detected: ${renderState.bodyText}`);
         }
@@ -288,10 +305,10 @@ export async function verifyGame(htmlString, options = {}) {
                     screenshot: null,
                 };
             }
-            return { success: false, crashes, error: crashes[0] };
+            return { success: false, crashes, error: crashes[0], diagnostics: renderState };
         } else {
             console.log("✅ Sandbox: Zero Crashes Detected. Game is stable!");
-            return { success: true, screenshot: screenshotBase64 };
+            return { success: true, screenshot: screenshotBase64, diagnostics: renderState };
         }
     } catch (e) {
         if (browser) await browser.close();
