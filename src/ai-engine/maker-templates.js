@@ -1,27 +1,4 @@
-function normalizeText(value) {
-    return String(value || '').toLowerCase();
-}
-
-function collectIntentText(qualityIntent = {}, prompt = '') {
-    return [
-        prompt,
-        qualityIntent.title,
-        qualityIntent.userIntent,
-        qualityIntent.playableExperience?.coreLoop,
-        qualityIntent.playableExperience?.primaryMechanic,
-        qualityIntent.playableExperience?.firstTenSeconds,
-        qualityIntent.technicalRequirements?.dimension,
-        qualityIntent.technicalRequirements?.perspective,
-        qualityIntent.technicalRequirements?.genre,
-        qualityIntent.playerActions,
-        qualityIntent.entityRules,
-        qualityIntent.mustExist,
-    ].flat(Infinity).map(normalizeText).join(' ');
-}
-
-function hasAny(text, words) {
-    return words.some((word) => text.includes(word));
-}
+import { classifyMakerGame } from './maker-classifier.js';
 
 const COMMON_CONSTRAINTS = {
     viewport: {
@@ -619,40 +596,14 @@ const TEMPLATE_CONTRACTS = {
 };
 
 export function selectMakerTemplateContract(qualityIntent = {}, prompt = '') {
-    const text = collectIntentText(qualityIntent, prompt);
-    const tech = qualityIntent.technicalRequirements || {};
-    let templateId = 'canvas-arcade';
-
-    if (
-        (normalizeText(tech.dimension).includes('3d') && normalizeText(tech.perspective).includes('first'))
-        || hasAny(text, ['first person', 'fps', 'walking simulator'])
-    ) {
-        templateId = 'three-first-person';
-    } else if (hasAny(text, ['space shooter', 'arcade shooter', 'bullet', 'shoot enemies', 'shooting game', 'asteroid', 'invaders', 'ship'])) {
-        templateId = 'canvas-arcade-shooter';
-    } else if (hasAny(text, ['runner', 'endless run', 'run and jump', 'autorunner', 'auto runner', 'dodge obstacles'])) {
-        templateId = 'canvas-runner';
-    } else if (hasAny(text, ['artillery', 'tank', 'trajectory', 'wind', 'angle', 'shell', 'cannon']) || /\bpower\b/.test(text)) {
-        templateId = 'phaser-artillery';
-    } else if (hasAny(text, ['grid', 'tile', 'match', 'puzzle', 'board', 'swap', 'maze', 'sokoban', 'sliding block'])) {
-        templateId = 'canvas-grid-puzzle';
-    } else if (hasAny(text, ['platformer', 'platform', 'jump', 'side scroller', 'side-scroller'])) {
-        templateId = 'phaser-platformer';
-    } else if (hasAny(text, ['drag block', 'contraption', 'sandbox', 'physics block', 'build zone', 'simulate physics', 'construction'])) {
-        templateId = 'canvas-simulation';
-    } else if (hasAny(text, ['choice', 'dialogue', 'dialog', 'narrative', 'story node', 'reputation', 'branching'])) {
-        templateId = 'story-vignette';
-    } else if (
-        normalizeText(tech.perspective).includes('top')
-        || hasAny(text, ['top down', 'top-down', 'survive', 'wave', 'slime', 'shooter', 'rogue-lite', 'dash'])
-    ) {
-        templateId = 'phaser-top-down-action';
-    }
+    const classification = classifyMakerGame(qualityIntent, prompt);
+    const templateId = classification.selectedTemplateId || 'canvas-arcade';
 
     const selected = TEMPLATE_CONTRACTS[templateId] || TEMPLATE_CONTRACTS['canvas-arcade'];
     return {
         version: 1,
         source: 'gametok-native-template-contract',
+        classification,
         common: COMMON_CONSTRAINTS,
         ...selected,
     };
@@ -664,6 +615,7 @@ export function summarizeMakerTemplateContract(contract = null) {
         templateId: contract.templateId,
         engine: contract.engine,
         archetype: contract.archetype,
+        classification: contract.classification || null,
         requiredState: contract.requiredState || [],
         requiredFunctions: contract.requiredFunctions || [],
         requiredProbeApi: contract.requiredProbeApi || [],

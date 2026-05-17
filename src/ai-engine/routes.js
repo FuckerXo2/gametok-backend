@@ -1978,6 +1978,7 @@ function buildMakerPlan(qualityIntent = {}, prompt = '', templateContract = null
         title: qualityIntent.title || 'Untitled Game',
         prompt,
         templateContract: summarizeMakerTemplateContract(templateContract),
+        classification: templateContract?.classification || null,
         userIntent: qualityIntent.userIntent || '',
         firstTenSeconds: playable.firstTenSeconds || [],
         coreLoop: playable.coreLoop || '',
@@ -2665,6 +2666,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         }
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
         console.log(`   Template: ${makerTemplateContract.templateId} (${makerTemplateContract.engine})`);
+        if (makerTemplateContract.classification) {
+            const picked = makerTemplateContract.classification;
+            const topScores = (picked.scores || [])
+                .slice(0, 3)
+                .map((score) => `${score.templateId}:${score.score}`)
+                .join(', ');
+            console.log(`   Classifier: ${picked.selectedTemplateId} confidence=${picked.confidence} profile=${picked.physicsProfile?.physics || 'unknown'} scores=[${topScores}]`);
+        }
         console.log(`   Asset contract: ${(makerAssetContract.slots || []).length} slots`);
 
         // ── ARTIST AGENT: Generate ALL visual assets with AI ──
