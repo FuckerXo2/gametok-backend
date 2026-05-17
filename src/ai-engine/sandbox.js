@@ -13,12 +13,42 @@ function isHeadlessWebglFailure(crashes = []) {
     );
 }
 
+function inspectTemplateContractSource(sourceHtml = '', templateContract = null) {
+    if (!templateContract) return null;
+    const source = String(sourceHtml || '');
+    const requiredFunctions = Array.isArray(templateContract.requiredFunctions)
+        ? templateContract.requiredFunctions
+        : [];
+    const missingFunctions = requiredFunctions.filter((functionName) => {
+        const escaped = String(functionName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return !(new RegExp(`\\b${escaped}\\b`).test(source));
+    });
+
+    const requiredState = Array.isArray(templateContract.requiredState)
+        ? templateContract.requiredState
+        : [];
+    const missingStateHints = requiredState.filter((stateName) => {
+        const baseName = String(stateName).replace(/\[\]|\..*$/g, '');
+        const escaped = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return baseName && !(new RegExp(`\\b${escaped}\\b`, 'i').test(source));
+    });
+
+    return {
+        templateId: templateContract.templateId || null,
+        engine: templateContract.engine || null,
+        requiredFunctionCount: requiredFunctions.length,
+        missingFunctions,
+        missingStateHints,
+    };
+}
+
 export async function verifyGame(htmlString, options = {}) {
     let browser = null;
     const crashes = [];
     const runtimeLane = options?.runtimeLane || null;
     const requireDreamAssets = Boolean(options?.requireDreamAssets);
     const sourceHtml = String(options?.sourceHtml || htmlString || '');
+    const templateInspection = inspectTemplateContractSource(sourceHtml, options?.templateContract || null);
     const expectsThreeJs = runtimeLane === 'first_person_threejs'
         || runtimeLane === 'third_person_threejs'
         || isLikelyThreeJsBuild(htmlString);
@@ -229,6 +259,15 @@ export async function verifyGame(htmlString, options = {}) {
                 bodyText,
             };
         });
+        renderState.templateInspection = templateInspection;
+
+        if (
+            templateInspection
+            && templateInspection.requiredFunctionCount >= 5
+            && templateInspection.missingFunctions.length >= Math.ceil(templateInspection.requiredFunctionCount * 0.55)
+        ) {
+            crashes.push(`Template contract not implemented: ${templateInspection.templateId} requires core functions (${templateInspection.missingFunctions.slice(0, 8).join(', ')}). Build inside the selected native template instead of producing a generic game file.`);
+        }
 
         if (renderState.canvasCount === 0) {
             crashes.push('No canvas element was rendered.');

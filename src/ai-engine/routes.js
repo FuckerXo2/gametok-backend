@@ -15,6 +15,7 @@ import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
 import { buildDreamAssetPlan, compileDreamAssetBundle } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
+import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1967,12 +1968,13 @@ async function createGameTokMakerWorkspace(jobId, prompt, mediaAttachments = [])
     return { workspace, contract };
 }
 
-function buildMakerPlan(qualityIntent = {}, prompt = '') {
+function buildMakerPlan(qualityIntent = {}, prompt = '', templateContract = null) {
     const playable = qualityIntent.playableExperience || {};
     return {
         version: 1,
         title: qualityIntent.title || 'Untitled Game',
         prompt,
+        templateContract: summarizeMakerTemplateContract(templateContract),
         userIntent: qualityIntent.userIntent || '',
         firstTenSeconds: playable.firstTenSeconds || [],
         coreLoop: playable.coreLoop || '',
@@ -2091,7 +2093,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
-function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null }) {
+function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null }) {
     return [
         'You are the native GameTok maker project builder.',
         '',
@@ -2126,6 +2128,8 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '- The first 10 seconds must prove movement/input, collision or core interaction, feedback, and win/loss or scoring loop.',
         '- Optional assetRequests are allowed only for important missing gameplay visuals. Do not request HUD text/buttons as images.',
         '- If the provided asset summary already contains a usable role, use that asset instead of requesting a duplicate.',
+        '- Build inside the selected native template contract. Its required state, functions, first-frame rules, and acceptance checks are mandatory.',
+        '- If the template contract says a system is code-defined, do not fake it with screenshots or decorative images.',
         '',
         'DreamAssets API contract available at runtime after post-processing:',
         '- window.DREAM_ASSETS: object of generated image data URLs by key.',
@@ -2141,7 +2145,10 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         prompt,
         '',
         'Native GameTok plan:',
-        JSON.stringify(buildMakerPlan(qualityIntent, prompt), null, 2),
+        JSON.stringify(buildMakerPlan(qualityIntent, prompt, templateContract), null, 2),
+        '',
+        'Selected native template contract:',
+        JSON.stringify(templateContract || null, null, 2),
         '',
         'Asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
@@ -2236,7 +2243,7 @@ function mergeDreamAssetBundles(baseBundle = null, extraBundle = null) {
     };
 }
 
-function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [] }) {
+function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [], templateContract = null }) {
     return [
         'You are updating a native GameTok maker project after the backend fulfilled extra asset requests.',
         '',
@@ -2252,12 +2259,16 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '- Prefer player/enemy/item/prop/background assets for actual gameplay visuals.',
         '- Keep gameplay geometry and HUD code-rendered. Do not turn terrain, labels, buttons, meters, or hitboxes into baked images.',
         '- Preserve the existing gameplay and mobile layout.',
+        '- Keep the project inside the selected native template contract. Do not remove required state, required functions, or first-frame behavior.',
         '',
         'Original user prompt:',
         prompt,
         '',
         'Operational plan:',
-        JSON.stringify(buildMakerPlan(qualityIntent, prompt), null, 2),
+        JSON.stringify(buildMakerPlan(qualityIntent, prompt, templateContract), null, 2),
+        '',
+        'Selected native template contract:',
+        JSON.stringify(templateContract || null, null, 2),
         '',
         'Assets requested by builder and now generated:',
         JSON.stringify(requestedAssets, null, 2),
@@ -2419,7 +2430,7 @@ async function readMakerProjectFiles(projectRoot) {
     return files;
 }
 
-function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null }) {
+function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null }) {
     return [
         'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
         '',
@@ -2439,6 +2450,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
         '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
         '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
+        '- Preserve the selected native template contract. Required state, required functions, first-frame behavior, and acceptance checks still apply after the fix.',
         '',
         'DreamAssets API contract available at runtime after post-processing:',
         '- window.DREAM_ASSETS: object of generated image data URLs by key.',
@@ -2460,6 +2472,9 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '',
         'Original user prompt:',
         prompt,
+        '',
+        'Selected native template contract:',
+        JSON.stringify(templateContract || null, null, 2),
         '',
         'Operational spec:',
         JSON.stringify({
@@ -2607,7 +2622,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         const phase1 = buildPhase1_Quantize(prompt);
         const qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
         assertJobNotCancelled(jobId);
-        await writeMakerJson(makerWorkspace, 'gametok-plan.json', buildMakerPlan(qualityIntent, prompt));
+        const makerTemplateContract = selectMakerTemplateContract(qualityIntent, prompt);
+        await writeMakerJson(makerWorkspace, 'template-contract.json', makerTemplateContract);
+        await writeMakerJson(makerWorkspace, 'gametok-plan.json', buildMakerPlan(qualityIntent, prompt, makerTemplateContract));
         await updateGenerationJobProgress(jobId, 20, 'spec', 'Game plan drafted...');
         
         console.log(`✅ Phase 1: "${qualityIntent.title}" — ${qualityIntent.userIntent}`);
@@ -2618,6 +2635,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             console.log(`   Primary mechanic: ${qualityIntent.playableExperience.primaryMechanic}`);
         }
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
+        console.log(`   Template: ${makerTemplateContract.templateId} (${makerTemplateContract.engine})`);
 
         // ── ARTIST AGENT: Generate ALL visual assets with AI ──
         const useArtistAgent = process.env.DISABLE_ARTIST_AGENT !== 'true';
@@ -2695,6 +2713,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             qualityIntent,
             generatedAssets,
             audioBundle,
+            templateContract: makerTemplateContract,
         });
         await writeMakerText(makerWorkspace, 'logs/build-prompt.txt', buildPrompt);
         await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
@@ -2720,6 +2739,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 const requestPlan = {
                     version: 1,
                     qualityIntent,
+                    templateContract: summarizeMakerTemplateContract(makerTemplateContract),
                     artDirection: qualityIntent.artDirection || generatedAssets?.assetPlan?.artDirection || {},
                     imageRequests: projectBuild.assetRequests,
                     animations: [],
@@ -2738,6 +2758,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     projectFiles,
                     generatedAssets,
                     requestedAssets: projectBuild.assetRequests,
+                    templateContract: makerTemplateContract,
                 });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-prompt.txt', integrationPrompt);
                 const integrationText = (await requestBuilderMessage(integrationPrompt, {
@@ -2803,6 +2824,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                     runtimeLane,
                     requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
                     sourceHtml: rawGameHtml,
+                    templateContract: makerTemplateContract,
                 });
             } catch (validationError) {
                 sandboxRes = {
@@ -2867,6 +2889,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             projectFiles,
                             generatedAssets,
                             sandboxDiagnostics: sandboxRes.diagnostics || null,
+                            templateContract: makerTemplateContract,
                         });
                         await writeMakerJson(makerWorkspace, `logs/file-repair-request-${repairAttempt}.json`, {
                             attempt: repairAttempt,
@@ -2879,12 +2902,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                                 truncated: Boolean(file.truncated),
                             })),
                         });
-                        const repairText = await requestBuilderMessage(fileRepairPrompt, {
+                        const repairText = (await requestBuilderMessage(fileRepairPrompt, {
                             label: 'Phase 3 File Repair',
                             jobId,
                             timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
                             maxAttempts: 2,
-                        });
+                        })).text;
                         await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.txt`, repairText);
                         const repair = parseMakerFileRepairResponse(repairText);
                         const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files);
@@ -2965,6 +2988,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             buildMode,
             promptModel: DREAM_MODELS.premiumBuilder,
             specModel: DREAM_MODELS.spec,
+            templateContract: summarizeMakerTemplateContract(makerTemplateContract),
             assetSummary: summarizeMakerAssets(generatedAssets),
             sandbox: finalSandboxResult,
             repairs: makerRepairs,
