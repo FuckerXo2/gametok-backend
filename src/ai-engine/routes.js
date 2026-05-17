@@ -106,6 +106,7 @@ const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_
 const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 2));
 const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
 const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATION_JOB_HEARTBEAT_MS || 30000));
+const ALLOW_LEGACY_HTML_FALLBACK = process.env.ALLOW_LEGACY_HTML_FALLBACK === 'true';
 const generationJobRunners = new Map();
 let generationQueueReadyPromise = null;
 let generationWorkerTimer = null;
@@ -2098,7 +2099,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
-function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null, templateScaffold = null, assetContract = null, designBrief = '' }) {
+function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null, templateScaffold = null, assetContract = null, designBrief = '' }) {
     return [
         'You are the native GameTok maker project builder.',
         '',
@@ -2178,10 +2179,6 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '',
         'Audio summary:',
         JSON.stringify(audioBundle || { audio: [], music: [] }, null, 2),
-        '',
-        'Detailed legacy build contract follows. Follow the design and implementation constraints, but IGNORE any instruction in it that says to output a single complete HTML file. The required output for this run is the JSON project schema above.',
-        '',
-        legacyBuildPrompt,
     ].join('\n');
 }
 
@@ -2781,9 +2778,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             music: [], // TODO: Select music from library based on audioNeeds
         } : null;
         
-        const legacyBuildPrompt = buildLabsSoloPrototype(prompt, qualityIntent, audioBundle, mediaAttachments, generatedAssets);
+        const legacyBuildPrompt = ALLOW_LEGACY_HTML_FALLBACK
+            ? buildLabsSoloPrototype(prompt, qualityIntent, audioBundle, mediaAttachments, generatedAssets)
+            : '';
         const buildPrompt = buildMakerProjectBuildPrompt({
-            legacyBuildPrompt,
             prompt,
             qualityIntent,
             generatedAssets,
@@ -2795,7 +2793,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             designBrief: makerDesignBrief,
         });
         await writeMakerText(makerWorkspace, 'logs/build-prompt.txt', buildPrompt);
-        await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
+        if (ALLOW_LEGACY_HTML_FALLBACK) {
+            await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
+        }
         let rawGameHtml = null;
         let buildMode = 'file-native';
         try {
@@ -2859,9 +2859,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             rawGameHtml = await assembleMakerProjectHtml(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
         } catch (projectBuildError) {
-            console.error(`[Maker Build] File-native project build failed, falling back to complete HTML build: ${projectBuildError.message}`);
-            buildMode = 'whole-html-fallback';
             await writeMakerText(makerWorkspace, 'logs/project-build-error.txt', projectBuildError.stack || projectBuildError.message);
+            if (!ALLOW_LEGACY_HTML_FALLBACK) {
+                throw new Error(`Native maker project build failed and legacy whole-HTML fallback is disabled: ${projectBuildError.message}`);
+            }
+            console.error(`[Maker Build] File-native project build failed, using explicitly enabled complete HTML fallback: ${projectBuildError.message}`);
+            buildMode = 'whole-html-fallback-explicit';
             rawGameHtml = await generateCompleteHtmlWithBuilder(legacyBuildPrompt, { label: 'Phase 2 Build', jobId });
         }
         assertJobNotCancelled(jobId);
@@ -3016,7 +3019,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                         });
                         repairedWithProjectFiles = true;
                     } catch (fileRepairError) {
-                        console.error(`[Maker Repair] File-level repair failed, falling back to whole HTML repair: ${fileRepairError.message}`);
+                        console.error(`[Maker Repair] File-level repair failed: ${fileRepairError.message}`);
                         makerRepairs.push({
                             attempt: repairAttempt,
                             mode: 'project-file-edits-failed',
@@ -3026,6 +3029,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 }
 
                 if (!repairedWithProjectFiles) {
+                    if (!ALLOW_LEGACY_HTML_FALLBACK) {
+                        throw new Error('Native maker file repair failed and legacy whole-HTML regeneration is disabled.');
+                    }
+                    console.error('[Maker Repair] Using explicitly enabled whole-HTML regeneration fallback.');
                     const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
                     rawGameHtml = await generateCompleteHtmlWithBuilder(repairPrompt, { label: 'Phase 3 Quality Repair', jobId });
                     assertJobNotCancelled(jobId);
