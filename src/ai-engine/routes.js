@@ -2100,6 +2100,9 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '',
         'JSON schema:',
         '{',
+        '  "assetRequests": [',
+        '    {"id":"player_tank","type":"sprite","role":"player","description":"red side-view tank with readable cannon","size":128}',
+        '  ],',
         '  "files": [',
         '    {"path":"index.html","content":"complete file content"},',
         '    {"path":"src/styles.css","content":"complete file content"},',
@@ -2121,6 +2124,8 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '- Use provided DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK when assets exist. Do not invent random remote asset URLs.',
         '- If assets fail or are absent, draw intentional code-rendered fallback art that still supports gameplay.',
         '- The first 10 seconds must prove movement/input, collision or core interaction, feedback, and win/loss or scoring loop.',
+        '- Optional assetRequests are allowed only for important missing gameplay visuals. Do not request HUD text/buttons as images.',
+        '- If the provided asset summary already contains a usable role, use that asset instead of requesting a duplicate.',
         '',
         'DreamAssets API contract available at runtime after post-processing:',
         '- window.DREAM_ASSETS: object of generated image data URLs by key.',
@@ -2157,6 +2162,24 @@ function parseMakerProjectBuildResponse(text) {
         throw new Error('Project build response did not include files.');
     }
     return {
+        assetRequests: Array.isArray(parsed.assetRequests)
+            ? parsed.assetRequests.map((request, index) => ({
+                id: makerSafeFileName(request?.id || `requested_asset_${index + 1}`, `requested_asset_${index + 1}`).slice(0, 48),
+                assetType: ['background', 'tileset'].includes(String(request?.type || request?.assetType || '').toLowerCase())
+                    ? String(request?.type || request?.assetType).toLowerCase()
+                    : 'sprite',
+                category: String(request?.role || request?.category || 'prop').toLowerCase().replace(/[^a-z0-9_]+/g, '_') || 'prop',
+                role: String(request?.role || request?.category || 'prop').toLowerCase().replace(/[^a-z0-9_]+/g, '_') || 'prop',
+                description: String(request?.description || request?.prompt || '').trim(),
+                gameplayRole: String(request?.gameplayRole || request?.roleInGameplay || '').trim(),
+                size: Number(request?.size || 128),
+                width: request?.width ? Number(request.width) : undefined,
+                height: request?.height ? Number(request.height) : undefined,
+                transparent: request?.transparent !== false,
+            }))
+                .filter((request) => request.description.length > 12)
+                .slice(0, 4)
+            : [],
         files: parsed.files.map((file) => {
             if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
                 throw new Error('Project build response included an invalid file.');
@@ -2165,6 +2188,86 @@ function parseMakerProjectBuildResponse(text) {
         }),
         notes: Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 12) : [],
     };
+}
+
+function mergeDreamAssetBundles(baseBundle = null, extraBundle = null) {
+    if (!extraBundle) return baseBundle;
+    if (!baseBundle) return extraBundle;
+
+    const byKey = (items = []) => Array.from(new Map(
+        items.filter(Boolean).map((item) => [item.key || item.id || JSON.stringify(item), item])
+    ).values());
+    const baseManifest = Array.isArray(baseBundle.manifest?.assets) ? baseBundle.manifest.assets : [];
+    const extraManifest = Array.isArray(extraBundle.manifest?.assets) ? extraBundle.manifest.assets : [];
+    const animations = byKey([...(baseBundle.animations || []), ...(extraBundle.animations || [])]);
+    const audio = baseBundle.audio || extraBundle.audio || { sfx: [], music: [] };
+    const tilesets = byKey([...(baseBundle.tilesets || []), ...(extraBundle.tilesets || [])]);
+    const assetPack = byKey([...(baseBundle.assetPack || []), ...(extraBundle.assetPack || [])]);
+    const manifestAssets = byKey([...baseManifest, ...extraManifest]);
+
+    return {
+        ...baseBundle,
+        assets: {
+            ...(baseBundle.assets || {}),
+            ...(extraBundle.assets || {}),
+        },
+        assetPlan: {
+            ...(baseBundle.assetPlan || {}),
+            requestedDuringBuild: [
+                ...((baseBundle.assetPlan && baseBundle.assetPlan.requestedDuringBuild) || []),
+                ...((extraBundle.assetPlan && extraBundle.assetPlan.imageRequests) || []),
+            ],
+        },
+        manifest: {
+            ...(baseBundle.manifest || {}),
+            assets: manifestAssets,
+            animations,
+            audio,
+            tilesets,
+        },
+        assetPack,
+        animations,
+        audio,
+        tilesets,
+        errors: [
+            ...(Array.isArray(baseBundle.errors) ? baseBundle.errors : []),
+            ...(Array.isArray(extraBundle.errors) ? extraBundle.errors : []),
+        ].filter(Boolean),
+    };
+}
+
+function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [] }) {
+    return [
+        'You are updating a native GameTok maker project after the backend fulfilled extra asset requests.',
+        '',
+        'Return JSON only. No markdown. No commentary.',
+        'Schema:',
+        '{"files":[{"path":"src/game.js","content":"complete replacement file contents"}],"notes":["short note"]}',
+        '',
+        'Task:',
+        '- Edit only files needed to use the newly generated assets.',
+        '- Valid paths are index.html and existing src/*.css, src/*.js, src/*.json files.',
+        '- Return complete contents for every file you edit.',
+        '- Use the asset keys from DREAM_ASSET_PACK / DreamAssets. Do not paste data URLs into source files.',
+        '- Prefer player/enemy/item/prop/background assets for actual gameplay visuals.',
+        '- Keep gameplay geometry and HUD code-rendered. Do not turn terrain, labels, buttons, meters, or hitboxes into baked images.',
+        '- Preserve the existing gameplay and mobile layout.',
+        '',
+        'Original user prompt:',
+        prompt,
+        '',
+        'Operational plan:',
+        JSON.stringify(buildMakerPlan(qualityIntent, prompt), null, 2),
+        '',
+        'Assets requested by builder and now generated:',
+        JSON.stringify(requestedAssets, null, 2),
+        '',
+        'Updated asset summary:',
+        JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
+        '',
+        'Current project files:',
+        JSON.stringify(projectFiles, null, 2),
+    ].join('\n');
 }
 
 async function materializeMakerProjectFiles(workspace, projectBuild, { title = 'GameTok Game', generatedAssets = null } = {}) {
@@ -2610,6 +2713,44 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 title: qualityIntent.title || 'GameTok Game',
                 generatedAssets,
             });
+            if (projectBuild.assetRequests.length > 0) {
+                console.log(`🎨 [Maker Tool] Builder requested ${projectBuild.assetRequests.length} extra assets.`);
+                await writeMakerJson(makerWorkspace, 'logs/project-asset-requests.json', projectBuild.assetRequests);
+                await updateGenerationJobProgress(jobId, 57, 'assets', 'Generating requested game assets...');
+                const requestPlan = {
+                    version: 1,
+                    qualityIntent,
+                    artDirection: qualityIntent.artDirection || generatedAssets?.assetPlan?.artDirection || {},
+                    imageRequests: projectBuild.assetRequests,
+                    animations: [],
+                    audio: generatedAssets?.audio || { sfx: [], music: [] },
+                    tilesets: generatedAssets?.tilesets || [],
+                };
+                const requestedImages = await batchArtistAgent(projectBuild.assetRequests);
+                const requestedBundle = compileDreamAssetBundle(requestedImages, requestPlan);
+                generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
+                await writeMakerJson(makerWorkspace, 'asset-manifest.json', summarizeMakerAssets(generatedAssets));
+
+                const projectFiles = await readMakerProjectFiles(makerProject.projectRoot);
+                const integrationPrompt = buildMakerAssetIntegrationPrompt({
+                    qualityIntent,
+                    prompt,
+                    projectFiles,
+                    generatedAssets,
+                    requestedAssets: projectBuild.assetRequests,
+                });
+                await writeMakerText(makerWorkspace, 'logs/project-asset-integration-prompt.txt', integrationPrompt);
+                const integrationText = (await requestBuilderMessage(integrationPrompt, {
+                    label: 'Phase 2 Asset Integration',
+                    jobId,
+                    timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                    maxAttempts: 2,
+                })).text;
+                await writeMakerText(makerWorkspace, 'logs/project-asset-integration-response.txt', integrationText);
+                const integration = parseMakerFileRepairResponse(integrationText);
+                await applyMakerFileEdits(makerProject.projectRoot, integration.files);
+                await rebuildMakerProjectDist(makerProject.projectRoot);
+            }
             rawGameHtml = await assembleMakerProjectHtml(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
         } catch (projectBuildError) {
