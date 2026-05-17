@@ -1,3 +1,5 @@
+import { formatMakerTemplateManual, getMakerTemplateManual } from './maker-template-manuals.js';
+
 function listBlock(title, items = []) {
     const clean = (Array.isArray(items) ? items : [])
         .map((item) => String(item || '').trim())
@@ -89,6 +91,7 @@ function buildMobileRules(templateContract = {}) {
 
 export function buildMakerDesignBrief({ qualityIntent = {}, prompt = '', templateContract = null, assetContract = null } = {}) {
     const classification = templateContract?.classification || null;
+    const templateManual = getMakerTemplateManual(templateContract?.templateId);
     return [
         '# GameTok Maker Design Brief',
         '',
@@ -113,6 +116,9 @@ export function buildMakerDesignBrief({ qualityIntent = {}, prompt = '', templat
         '## Template Contract',
         buildTemplateRules(templateContract || {}),
         '',
+        '## Template Manual',
+        formatMakerTemplateManual(templateManual),
+        '',
         '## Asset Contract',
         buildAssetRules(assetContract || {}),
         '',
@@ -134,6 +140,7 @@ export function summarizeMakerDesignBrief(brief = '') {
         chars: text.length,
         sections: (text.match(/^## /gm) || []).length,
         hasTemplateContract: text.includes('## Template Contract'),
+        hasTemplateManual: text.includes('## Template Manual'),
         hasAssetContract: text.includes('## Asset Contract'),
     };
 }
