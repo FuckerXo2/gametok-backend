@@ -2478,6 +2478,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
         '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
         '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
+        '- If sandboxDiagnostics.templateRuntimeProbe failed, repair the exact required probe behavior. Do not remove the probe API to hide the failure.',
+        '- Template probe failures are gameplay contract failures: fix live state, controls, collisions, scoring, or reset behavior until the probe passes.',
         '- Respect the template asset contract: never replace HUD, controls, terrain collision, or hitboxes with AI images.',
         '- Preserve the selected native template contract. Required state, required functions, first-frame behavior, and acceptance checks still apply after the fix.',
         '',

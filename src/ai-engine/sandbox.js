@@ -83,12 +83,12 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         'story-vignette',
     ].includes(templateId)) return null;
 
-    return page.evaluate(async () => {
+    return page.evaluate(async (expectedTemplateId) => {
         const probe = window.__GAMETOK_TEMPLATE_PROBE__;
-        const templateId = probe?.templateId || 'unknown';
+        const templateId = expectedTemplateId || probe?.templateId || 'unknown';
         if (!probe) {
             return {
-                templateId: 'unknown',
+                templateId,
                 success: false,
                 failures: ['Missing window.__GAMETOK_TEMPLATE_PROBE__. Preserve the scaffold probe API.'],
             };
@@ -407,7 +407,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 failures: [error?.message || String(error)],
             };
         }
-    });
+    }, templateId);
 }
 
 export async function verifyGame(htmlString, options = {}) {
@@ -640,21 +640,43 @@ export async function verifyGame(htmlString, options = {}) {
         renderState.templateInspection = templateInspection;
         renderState.assetContractInspection = assetContractInspection;
         renderState.templateRuntimeProbe = templateRuntimeProbe;
+        renderState.failedContractChecks = [];
 
         if (
             templateInspection
             && templateInspection.requiredFunctionCount >= 5
             && templateInspection.missingFunctions.length >= Math.ceil(templateInspection.requiredFunctionCount * 0.55)
         ) {
-            crashes.push(`Template contract not implemented: ${templateInspection.templateId} requires core functions (${templateInspection.missingFunctions.slice(0, 8).join(', ')}). Build inside the selected native template instead of producing a generic game file.`);
+            const message = `Template contract not implemented: ${templateInspection.templateId} requires core functions (${templateInspection.missingFunctions.slice(0, 8).join(', ')}). Build inside the selected native template instead of producing a generic game file.`;
+            renderState.failedContractChecks.push({
+                id: 'template_required_functions',
+                templateId: templateInspection.templateId,
+                missingFunctions: templateInspection.missingFunctions,
+                message,
+            });
+            crashes.push(message);
         }
 
         if (templateRuntimeProbe && !templateRuntimeProbe.success) {
-            crashes.push(`Template runtime probe failed for ${templateRuntimeProbe.templateId}: ${templateRuntimeProbe.failures.join(' ')}`);
+            const message = `Template runtime probe failed for ${templateRuntimeProbe.templateId}: ${templateRuntimeProbe.failures.join(' ')}`;
+            renderState.failedContractChecks.push({
+                id: 'template_runtime_probe',
+                templateId: templateRuntimeProbe.templateId,
+                failures: templateRuntimeProbe.failures || [],
+                details: templateRuntimeProbe.details || null,
+                message,
+            });
+            crashes.push(message);
         }
 
         if (assetContractInspection?.usesImageUi) {
-            crashes.push('Asset contract violation: source appears to use generated images for UI/HUD/button/slider/meter roles. HUD and controls must be code-rendered.');
+            const message = 'Asset contract violation: source appears to use generated images for UI/HUD/button/slider/meter roles. HUD and controls must be code-rendered.';
+            renderState.failedContractChecks.push({
+                id: 'asset_image_ui_violation',
+                templateId: assetContractInspection.templateId,
+                message,
+            });
+            crashes.push(message);
         }
 
         if (renderState.canvasCount === 0) {
