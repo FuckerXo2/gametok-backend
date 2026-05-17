@@ -17,6 +17,7 @@ import { buildDreamAssetPlan, compileDreamAssetBundle } from './asset-pipeline.j
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
 import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
+import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './maker-scaffolds.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2094,7 +2095,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
-function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null }) {
+function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null, templateScaffold = null }) {
     return [
         'You are the native GameTok maker project builder.',
         '',
@@ -2131,6 +2132,8 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         '- If the provided asset summary already contains a usable role, use that asset instead of requesting a duplicate.',
         '- Build inside the selected native template contract. Its required state, functions, first-frame rules, and acceptance checks are mandatory.',
         '- If the template contract says a system is code-defined, do not fake it with screenshots or decorative images.',
+        '- If a native starter scaffold is provided, start from that scaffold and customize it instead of rebuilding from scratch.',
+        '- Preserve scaffold function names and the working state machine unless the template API explicitly allows changing them.',
         '',
         'DreamAssets API contract available at runtime after post-processing:',
         '- window.DREAM_ASSETS: object of generated image data URLs by key.',
@@ -2152,6 +2155,9 @@ function buildMakerProjectBuildPrompt({ legacyBuildPrompt = '', prompt = '', qua
         JSON.stringify(templateContract || null, null, 2),
         '',
         formatMakerDebugProtocolPromptBlock(debugProtocol),
+        '',
+        'Native starter scaffold:',
+        JSON.stringify(templateScaffold || null, null, 2),
         '',
         'Asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
@@ -2699,6 +2705,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         }
         let makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
+        const makerTemplateScaffold = await loadMakerTemplateScaffold(makerTemplateContract.templateId);
+        if (makerTemplateScaffold) {
+            await writeMakerJson(makerWorkspace, 'template-scaffold.json', summarizeMakerTemplateScaffold(makerTemplateScaffold));
+            await fs.promises.mkdir(path.join(makerWorkspace, 'template-scaffold'), { recursive: true });
+            for (const scaffoldFile of makerTemplateScaffold.files) {
+                const scaffoldPath = path.join(makerWorkspace, 'template-scaffold', scaffoldFile.path);
+                await fs.promises.mkdir(path.dirname(scaffoldPath), { recursive: true });
+                await fs.promises.writeFile(scaffoldPath, scaffoldFile.content, 'utf8');
+            }
+        }
 
         // Legacy asset bundle (disabled by default, only used as fallback)
         const assetBundle = null; // Completely disabled
@@ -2724,6 +2740,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             audioBundle,
             templateContract: makerTemplateContract,
             debugProtocol: makerDebugProtocol,
+            templateScaffold: makerTemplateScaffold,
         });
         await writeMakerText(makerWorkspace, 'logs/build-prompt.txt', buildPrompt);
         await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
@@ -3003,6 +3020,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             promptModel: DREAM_MODELS.premiumBuilder,
             specModel: DREAM_MODELS.spec,
             templateContract: summarizeMakerTemplateContract(makerTemplateContract),
+            templateScaffold: summarizeMakerTemplateScaffold(makerTemplateScaffold),
             debugProtocol: makerDebugProtocol,
             assetSummary: summarizeMakerAssets(generatedAssets),
             sandbox: finalSandboxResult,

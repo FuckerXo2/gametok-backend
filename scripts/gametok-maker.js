@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import pool from '../src/db.js';
 import { selectMakerTemplateContract } from '../src/ai-engine/maker-templates.js';
 import { buildMakerDebugProtocol } from '../src/ai-engine/maker-debug-protocol.js';
+import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from '../src/ai-engine/maker-scaffolds.js';
 
 function readArg(name, fallback = null) {
     const index = process.argv.indexOf(name);
@@ -65,7 +66,12 @@ async function main() {
         if (!prompt) throw new Error('inspect requires --prompt');
         const template = selectMakerTemplateContract({}, prompt);
         const debugProtocol = buildMakerDebugProtocol(template, null);
-        console.log(JSON.stringify({ template, debugProtocol }, null, 2));
+        const scaffold = await loadMakerTemplateScaffold(template.templateId);
+        console.log(JSON.stringify({
+            template,
+            debugProtocol,
+            scaffold: summarizeMakerTemplateScaffold(scaffold),
+        }, null, 2));
         return;
     }
 

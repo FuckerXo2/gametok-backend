@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Tank Duel</title>
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="GameTok artillery game">
+    <canvas id="game-canvas"></canvas>
+    <section id="hud" data-hud>
+      <div class="score-card player">
+        <span id="player-label">Player</span>
+        <strong id="player-health">100</strong>
+      </div>
+      <div class="wind-card">
+        <span>Wind</span>
+        <strong id="wind-readout">0.0</strong>
+      </div>
+      <div class="score-card enemy">
+        <span id="enemy-label">Enemy</span>
+        <strong id="enemy-health">100</strong>
+      </div>
+    </section>
+    <section id="controls" data-control>
+      <div class="control-panel">
+        <label for="angle-slider">Angle</label>
+        <input id="angle-slider" type="range" min="5" max="85" value="45">
+        <strong id="angle-readout">45 deg</strong>
+      </div>
+      <button id="fire-button" type="button">Fire</button>
+      <div class="control-panel">
+        <label for="power-slider">Power</label>
+        <input id="power-slider" type="range" min="25" max="100" value="62">
+        <strong id="power-readout">62%</strong>
+      </div>
+    </section>
+    <button id="restart-button" type="button" hidden>Play Again</button>
+    <div id="status-line" role="status">Player turn</div>
+  </main>
+  <script type="module" src="./src/game.js"></script>
+</body>
+</html>
