@@ -21,7 +21,7 @@ import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './mak
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
-import { formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome } from './maker-repair-protocol.js';
+import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome } from './maker-repair-protocol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2625,7 +2625,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
     return tasks;
 }
 
-function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '', repairProtocolMatches = [] }) {
+function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '', repairProtocolMatches = [], repairEvolutionGuidance = [] }) {
     const targetedRepairTasks = buildTargetedRepairTasks(sandboxDiagnostics);
     const repairPlaybook = buildMakerRepairPlaybook(targetedRepairTasks);
     return [
@@ -2674,6 +2674,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         JSON.stringify(repairProtocolMatches || [], null, 2),
         '',
         formatMakerRepairProtocolPromptBlock(repairProtocolMatches),
+        '',
+        formatMakerRepairEvolutionPromptBlock(repairEvolutionGuidance),
         '',
         'Repair task policy:',
         '- Address every fatal targeted repair task before cosmetic changes.',
@@ -3164,6 +3166,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                         const repairPlaybook = buildMakerRepairPlaybook(targetedRepairTasks);
                         const repairProtocol = await loadMakerRepairProtocol(GAMETOK_MAKER_ROOT);
                         const repairProtocolMatches = matchMakerRepairProtocol(repairProtocol, targetedRepairTasks);
+                        const repairEvolutionGuidance = buildMakerRepairEvolutionGuidance(repairProtocol, targetedRepairTasks);
                         const fileRepairPrompt = buildMakerFileRepairPrompt({
                             qualityIntent,
                             prompt,
@@ -3176,6 +3179,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             assetContract: makerAssetContract,
                             designBrief: makerDesignBrief,
                             repairProtocolMatches,
+                            repairEvolutionGuidance,
                         });
                         await writeMakerJson(makerWorkspace, `logs/file-repair-request-${repairAttempt}.json`, {
                             attempt: repairAttempt,
@@ -3184,6 +3188,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                             targetedRepairTasks,
                             repairPlaybook,
                             repairProtocolMatches,
+                            repairEvolutionGuidance,
                             assetSummary: summarizeMakerAssets(generatedAssets),
                             files: projectFiles.map((file) => ({
                                 path: file.path,

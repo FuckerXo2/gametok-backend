@@ -37,6 +37,7 @@ function emptyProtocol() {
         createdAt,
         updatedAt: createdAt,
         entries: [],
+        evolvedRules: [],
         history: [],
     };
 }
@@ -54,6 +55,7 @@ export async function loadMakerRepairProtocol(rootDir) {
             ...emptyProtocol(),
             ...parsed,
             entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+            evolvedRules: Array.isArray(parsed.evolvedRules) ? parsed.evolvedRules : [],
             history: Array.isArray(parsed.history) ? parsed.history : [],
         };
     } catch {
@@ -146,6 +148,117 @@ export function formatMakerRepairProtocolPromptBlock(matches = []) {
     ].join('\n');
 }
 
+function ruleIdFor(entry) {
+    const digest = createHash('sha1')
+        .update(`${entry.source}|${entry.templateId || 'any-template'}|${entry.repairTask || entry.failurePattern}`)
+        .digest('hex')
+        .slice(0, 10);
+    return `maker-rule-${digest}`;
+}
+
+function deriveRuleFromEntry(entry) {
+    const verifiedCount = Number(entry.verifiedCount || 0);
+    const seenCount = Number(entry.seenCount || 0);
+    if (verifiedCount < 2 && seenCount < 4) return null;
+
+    const topHints = Array.isArray(entry.repairHints) ? entry.repairHints.slice(-5) : [];
+    const successfulFiles = new Set();
+    for (const example of entry.successfulExamples || []) {
+        for (const file of example.appliedFiles || []) successfulFiles.add(file);
+    }
+
+    return {
+        id: ruleIdFor(entry),
+        source: entry.source || 'unknown',
+        templateId: entry.templateId || null,
+        repairTask: entry.repairTask || 'Repair repeated maker failure.',
+        confidence: verifiedCount >= 3 ? 'high' : verifiedCount >= 1 ? 'medium' : 'low',
+        evidence: {
+            seenCount,
+            verifiedCount,
+            failedCount: Number(entry.failedCount || 0),
+            lastVerifiedAt: entry.lastVerifiedAt || null,
+        },
+        guidance: [
+            `When this failure appears, treat "${entry.repairTask || entry.failurePattern}" as the primary repair objective.`,
+            'Repair the live gameplay state and the probe API together; do not patch the probe with hardcoded answers.',
+            ...topHints.map((hint) => `Prior successful repair hint: ${hint}`),
+        ].slice(0, 8),
+        likelyFiles: Array.from(successfulFiles).slice(0, 8),
+    };
+}
+
+export function evolveMakerRepairProtocol(protocol) {
+    const entries = Array.isArray(protocol?.entries) ? protocol.entries : [];
+    const currentRules = Array.isArray(protocol?.evolvedRules) ? protocol.evolvedRules : [];
+    const byId = new Map(currentRules.map((rule) => [rule.id, rule]));
+    let changed = false;
+
+    for (const entry of entries) {
+        const rule = deriveRuleFromEntry(entry);
+        if (!rule) continue;
+        const existing = byId.get(rule.id);
+        if (!existing || JSON.stringify(existing) !== JSON.stringify(rule)) {
+            byId.set(rule.id, {
+                ...(existing || {}),
+                ...rule,
+                createdAt: existing?.createdAt || nowIso(),
+                updatedAt: nowIso(),
+            });
+            changed = true;
+        }
+    }
+
+    const evolvedRules = Array.from(byId.values())
+        .sort((a, b) => Number(b.evidence?.verifiedCount || 0) - Number(a.evidence?.verifiedCount || 0))
+        .slice(0, 80);
+
+    protocol.evolvedRules = evolvedRules;
+    return { protocol, changed, evolvedRules };
+}
+
+export function buildMakerRepairEvolutionGuidance(protocol, tasks = []) {
+    const taskSources = new Set((Array.isArray(tasks) ? tasks : []).map((task) => task.source).filter(Boolean));
+    const taskTemplates = new Set((Array.isArray(tasks) ? tasks : []).map((task) => task.templateId).filter(Boolean));
+    return (Array.isArray(protocol?.evolvedRules) ? protocol.evolvedRules : [])
+        .filter((rule) => {
+            const sourceMatch = !rule.source || taskSources.has(rule.source);
+            const templateMatch = !rule.templateId || taskTemplates.has(rule.templateId);
+            return sourceMatch && templateMatch;
+        })
+        .sort((a, b) => Number(b.evidence?.verifiedCount || 0) - Number(a.evidence?.verifiedCount || 0))
+        .slice(0, 6)
+        .map((rule) => ({
+            id: rule.id,
+            source: rule.source,
+            templateId: rule.templateId,
+            repairTask: rule.repairTask,
+            confidence: rule.confidence,
+            evidence: rule.evidence,
+            guidance: rule.guidance,
+            likelyFiles: rule.likelyFiles,
+        }));
+}
+
+export function formatMakerRepairEvolutionPromptBlock(evolutionGuidance = []) {
+    if (!Array.isArray(evolutionGuidance) || evolutionGuidance.length === 0) {
+        return [
+            'Maker evolved repair rules:',
+            'No broader repeated-failure rule matched this repair yet.',
+        ].join('\n');
+    }
+    return [
+        'Maker evolved repair rules:',
+        'These are broader rules learned from repeated maker repair history. Apply them before improvising.',
+        JSON.stringify(evolutionGuidance, null, 2),
+        '',
+        'Evolution policy:',
+        '- Evolved rules are not cosmetic advice; they are prior verified failure pressure.',
+        '- If an evolved rule names likely files, inspect those files first and keep changes focused.',
+        '- If an exact repair memory and an evolved rule both apply, satisfy both unless they conflict with current project code.',
+    ].join('\n');
+}
+
 export async function recordMakerRepairOutcome(rootDir, {
     jobId,
     attempt = null,
@@ -231,6 +344,7 @@ export async function recordMakerRepairOutcome(rootDir, {
         createdAt: timestamp,
     });
     protocol.history = protocol.history.slice(-250);
+    evolveMakerRepairProtocol(protocol);
 
     await saveMakerRepairProtocol(rootDir, protocol);
     return protocol;
