@@ -3050,7 +3050,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         await writeMakerText(makerWorkspace, 'GAME_DESIGN.md', makerDesignBrief);
         const makerDesignBriefSummary = summarizeMakerDesignBrief(makerDesignBrief);
         await writeMakerJson(makerWorkspace, 'design-brief-summary.json', makerDesignBriefSummary);
-        console.log(`   Design brief: ${makerDesignBriefSummary.chars} chars across ${makerDesignBriefSummary.sections} sections`);
+        await writeMakerJson(makerWorkspace, 'gdd-summary.json', makerDesignBriefSummary);
+        console.log(`   GDD: ${makerDesignBriefSummary.chars} chars across ${makerDesignBriefSummary.gddSections || 0}/6 contract sections`);
 
         // Legacy asset bundle (disabled by default, only used as fallback)
         const assetBundle = null; // Completely disabled
