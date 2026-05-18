@@ -23,6 +23,7 @@ import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMake
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
+import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1875,15 +1876,10 @@ function makerSafeFileName(value, fallback = 'job') {
 }
 
 function summarizeMakerAssets(generatedAssets = null) {
-    if (!generatedAssets) {
-        return {
-            assets: [],
-            animations: [],
-            audio: { sfx: [], music: [] },
-            tilesets: [],
-            productionContract: null,
-        };
-    }
+    const productionManifest = generatedAssets?.makerAssetManifest || generatedAssets?.manifest?.makerAssetManifest || null;
+    if (productionManifest) return summarizeMakerAssetManifest(productionManifest);
+
+    if (!generatedAssets) return summarizeMakerAssetManifest(null);
 
     const summarizeAsset = (asset = {}) => ({
         id: asset.id || asset.key || null,
@@ -1901,7 +1897,10 @@ function summarizeMakerAssets(generatedAssets = null) {
     });
 
     return {
+        version: 2,
         assets: Array.isArray(generatedAssets.assetPack) ? generatedAssets.assetPack.map(summarizeAsset) : [],
+        slots: [],
+        missingRequiredSlots: [],
         animations: Array.isArray(generatedAssets.animations) ? generatedAssets.animations : [],
         audio: generatedAssets.audio || { sfx: [], music: [] },
         tilesets: Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [],
@@ -1913,6 +1912,23 @@ function summarizeMakerAssets(generatedAssets = null) {
 
 function hasGeneratedVisualAssets(generatedAssets = null) {
     return Boolean(generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0);
+}
+
+function attachMakerAssetManifest(generatedAssets = null, context = {}) {
+    const manifest = buildMakerAssetManifest({
+        generatedAssets,
+        assetContract: context.assetContract || null,
+        templateContract: context.templateContract || null,
+        qualityIntent: context.qualityIntent || {},
+        errors: context.errors || [],
+    });
+    if (!generatedAssets) return { makerAssetManifest: manifest };
+    generatedAssets.makerAssetManifest = manifest;
+    generatedAssets.manifest = {
+        ...(generatedAssets.manifest || {}),
+        makerAssetManifest: manifest,
+    };
+    return generatedAssets;
 }
 
 async function writeMakerJson(workspace, fileName, value) {
@@ -2563,6 +2579,12 @@ function directRepairTaskForFailure(failure = '', templateId = null) {
     if (/reset\(\)/i.test(text)) {
         return 'reset() does not restore initial playable state.';
     }
+    if (/asset pack ignored|never references DreamAssets|DREAM_ASSET_PACK/i.test(text)) {
+        return 'Generated asset pack exists but the game source never loads it.';
+    }
+    if (/required asset slots|not referenced|not consumed|required roles/i.test(text)) {
+        return 'Required generated asset slots are not connected to gameplay renderers.';
+    }
     if (templateId) {
         return `Repair the ${templateId} failed gameplay contract: ${text || 'unknown probe failure'}`;
     }
@@ -2605,6 +2627,25 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 failure: check.message || 'Generated images used for UI/HUD controls.',
                 directRepairTask: 'Generated image assets are being used for HUD/UI instead of gameplay art.',
                 repair: 'Move HUD, labels, buttons, meters, sliders, and controls back to DOM/canvas code. Use generated images only for approved gameplay art slots.',
+            });
+        } else if (check.id === 'asset_pack_ignored') {
+            tasks.push({
+                priority: 'major',
+                source: 'asset_contract',
+                templateId: check.templateId || null,
+                failure: check.message || 'Generated asset pack is ignored.',
+                directRepairTask: 'Generated asset pack exists but the game source never loads it.',
+                repair: 'Read DREAM_ASSET_PACK and use DreamAssets helpers for player, enemies, backgrounds, props, items, or effects. Keep code-rendered fallback art only behind missing-asset branches.',
+            });
+        } else if (check.id === 'asset_required_slots_unreferenced' || check.id === 'asset_required_roles_unused') {
+            const missing = (check.missingSlots || check.missingRoles || []).join(', ');
+            tasks.push({
+                priority: 'major',
+                source: 'asset_contract',
+                templateId: check.templateId || null,
+                failure: check.message || `Required asset slots unused: ${missing}`,
+                directRepairTask: `Required generated asset slots are not connected to gameplay renderers${missing ? `: ${missing}` : ''}.`,
+                repair: 'For each missing required slot, find the matching entry in DREAM_ASSET_PACK by role/key and render it through DreamAssets. Use the generated player/enemy/background assets before procedural placeholders.',
             });
         } else if (check.message) {
             tasks.push({
@@ -2948,8 +2989,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 // Generate all assets
                 const generatedImages = await batchArtistAgent(assetRequests);
                 generatedAssets = compileDreamAssetBundle(generatedImages, assetPlan);
+                attachMakerAssetManifest(generatedAssets, {
+                    assetContract: makerAssetContract,
+                    templateContract: makerTemplateContract,
+                    qualityIntent,
+                });
                 assertJobNotCancelled(jobId);
-                await writeMakerJson(makerWorkspace, 'asset-manifest.json', summarizeMakerAssets(generatedAssets));
+                await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
+                await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await updateGenerationJobProgress(jobId, 42, 'assets', 'Visual assets prepared...');
                 
                 console.log(`✅ Artist Agent: Generated ${Object.keys(generatedAssets.assets).length} custom assets`);
@@ -2961,22 +3008,26 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 console.error(`❌ Artist Agent failed:`, error.message);
                 console.log(`   Falling back to procedural generation`);
                 generatedAssets = null;
-                await writeMakerJson(makerWorkspace, 'asset-manifest.json', {
-                    assets: [],
+                const failedAssetManifest = attachMakerAssetManifest(null, {
+                    assetContract: makerAssetContract,
+                    templateContract: makerTemplateContract,
+                    qualityIntent,
                     errors: [{ phase: 'asset_generation', message: error.message }],
-                });
+                }).makerAssetManifest;
+                await writeMakerJson(makerWorkspace, 'asset-manifest.json', failedAssetManifest);
+                await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssetManifest(failedAssetManifest));
             }
         }
 
         if (!generatedAssets && makerWorkspace && !fs.existsSync(path.join(makerWorkspace, 'asset-manifest.json'))) {
-            await writeMakerJson(makerWorkspace, 'asset-manifest.json', {
-                assets: [],
-                animations: [],
-                audio: { sfx: [], music: [] },
-                tilesets: [],
-                productionContract: null,
+            const emptyAssetManifest = attachMakerAssetManifest(null, {
+                assetContract: makerAssetContract,
+                templateContract: makerTemplateContract,
+                qualityIntent,
                 errors: useArtistAgent ? [] : [{ phase: 'asset_generation', message: 'Artist agent disabled by configuration.' }],
             });
+            await writeMakerJson(makerWorkspace, 'asset-manifest.json', emptyAssetManifest.makerAssetManifest);
+            await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssetManifest(emptyAssetManifest.makerAssetManifest));
         }
         makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
@@ -3066,7 +3117,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 const requestedImages = await batchArtistAgent(projectBuild.assetRequests);
                 const requestedBundle = compileDreamAssetBundle(requestedImages, requestPlan);
                 generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
-                await writeMakerJson(makerWorkspace, 'asset-manifest.json', summarizeMakerAssets(generatedAssets));
+                attachMakerAssetManifest(generatedAssets, {
+                    assetContract: makerAssetContract,
+                    templateContract: makerTemplateContract,
+                    qualityIntent,
+                });
+                await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
+                await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
 
@@ -3400,6 +3457,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             specModel: DREAM_MODELS.spec,
             templateContract: summarizeMakerTemplateContract(makerTemplateContract),
             assetContract: summarizeMakerAssetContract(makerAssetContract),
+            assetManifest: summarizeMakerAssetManifest(generatedAssets?.makerAssetManifest || null),
             templateScaffold: summarizeMakerTemplateScaffold(makerTemplateScaffold),
             debugProtocol: makerDebugProtocol,
             assetSummary: summarizeMakerAssets(generatedAssets),

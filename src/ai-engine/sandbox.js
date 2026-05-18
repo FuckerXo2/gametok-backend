@@ -730,6 +730,22 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push(message);
         }
 
+        if (
+            requireDreamAssets
+            && assetContractInspection
+            && Array.isArray(assetContractInspection.missingRoleReferences)
+            && assetContractInspection.missingRoleReferences.length > 0
+        ) {
+            const message = `Asset contract violation: required asset slots are not referenced in source: ${assetContractInspection.missingRoleReferences.join(', ')}. Required generated assets must be connected through DreamAssets or DREAM_ASSET_PACK.`;
+            renderState.failedContractChecks.push({
+                id: 'asset_required_slots_unreferenced',
+                templateId: assetContractInspection.templateId,
+                missingSlots: assetContractInspection.missingRoleReferences,
+                message,
+            });
+            crashes.push(message);
+        }
+
         if (renderState.canvasCount === 0) {
             crashes.push('No canvas element was rendered.');
         } else if (renderState.visibleCanvasCount === 0) {
@@ -774,7 +790,14 @@ export async function verifyGame(htmlString, options = {}) {
             const helperCalls = Number(renderState.dreamAssetUsage?.helperCalls || 0);
             const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
             if (!sourceUsesDreamAssets && helperCalls === 0 && usedKeys.length === 0) {
-                crashes.push(`Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`);
+                const message = `Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`;
+                renderState.failedContractChecks.push({
+                    id: 'asset_pack_ignored',
+                    templateId: options?.assetContract?.templateId || null,
+                    assetCount: renderState.dreamAssetPackCount,
+                    message,
+                });
+                crashes.push(message);
             }
             const requiredRoles = Array.from(new Set(Array.isArray(options?.assetContract?.slots)
                 ? options.assetContract.slots.filter((slot) => slot?.required).map((slot) => slot.role || slot.category).filter(Boolean)
@@ -785,7 +808,14 @@ export async function verifyGame(htmlString, options = {}) {
                 .filter((role) => packRoles.has(role))
                 .filter((role) => Number(usedRoles[role] || 0) === 0);
             if (sourceUsesDreamAssets && helperCalls > 0 && missingRequiredRoleUsage.length > 0) {
-                crashes.push(`Required asset slots not consumed: generated assets exist, but these required roles were not used through DreamAssets during boot: ${missingRequiredRoleUsage.join(', ')}.`);
+                const message = `Required asset slots not consumed: generated assets exist, but these required roles were not used through DreamAssets during boot: ${missingRequiredRoleUsage.join(', ')}.`;
+                renderState.failedContractChecks.push({
+                    id: 'asset_required_roles_unused',
+                    templateId: options?.assetContract?.templateId || null,
+                    missingRoles: missingRequiredRoleUsage,
+                    message,
+                });
+                crashes.push(message);
             }
         }
 
