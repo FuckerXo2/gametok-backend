@@ -89,6 +89,7 @@ export function buildMakerBenchmarkResult({
     generatedAssets = null,
     gddSummary = null,
     gddCompliance = null,
+    agentLoop = null,
     html = '',
 } = {}) {
     const result = {
@@ -128,6 +129,7 @@ export function buildMakerBenchmarkResult({
             hasImplementationRoadmap: Boolean(gddSummary.hasImplementationRoadmap),
         } : null,
         gddCompliance: gddCompliance || null,
+        agentLoop: agentLoop || null,
         sandbox: sandbox ? {
             success: Boolean(sandbox.success),
             crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],

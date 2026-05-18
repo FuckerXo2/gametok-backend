@@ -25,6 +25,7 @@ import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBloc
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
+import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,6 +81,7 @@ const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
+const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(3, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 1)));
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
@@ -2715,7 +2717,10 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
         });
     }
 
-    return tasks;
+    return tasks.map((task, index) => ({
+        ...task,
+        id: task.id || `GT-REPAIR-${String(index + 1).padStart(3, '0')}`,
+    }));
 }
 
 function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '', repairProtocolMatches = [], repairEvolutionGuidance = [] }) {
@@ -2850,6 +2855,77 @@ async function applyMakerFileEdits(projectRoot, edits) {
     return applied;
 }
 
+async function runMakerAgentInspectionTurns({
+    workspace,
+    projectRoot,
+    turns,
+    jobId,
+    prompt,
+    qualityIntent,
+    generatedAssets,
+    templateContract,
+    assetContract,
+    debugProtocol,
+    designBrief,
+    maxTurns = MAKER_AGENT_INSPECTION_TURNS,
+}) {
+    for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
+        assertJobNotCancelled(jobId);
+        const projectFiles = await readMakerProjectFiles(projectRoot);
+        const promptText = buildMakerAgentInspectionPrompt({
+            prompt,
+            qualityIntent,
+            projectFiles,
+            templateContract,
+            assetContract,
+            debugProtocol,
+            designBrief,
+            generatedAssetsSummary: summarizeMakerAssets(generatedAssets),
+            turnNumber,
+        });
+        await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
+        try {
+            const responseText = (await requestBuilderMessage(promptText, {
+                label: `Phase 2 File Agent Turn ${turnNumber}`,
+                jobId,
+                timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                maxAttempts: 2,
+            })).text;
+            await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
+            const inspection = parseMakerAgentInspectionResponse(responseText);
+            const applied = inspection.files.length > 0
+                ? await applyMakerFileEdits(projectRoot, inspection.files)
+                : [];
+            if (applied.length > 0) {
+                await rebuildMakerProjectDist(projectRoot);
+            }
+            await appendMakerAgentTurn(workspace, turns, {
+                phase: 'file_inspection',
+                objective: 'Inspect generated project files against GDD, template contract, asset contract, and probe API before sandbox.',
+                status: 'complete',
+                model: DREAM_MODELS.premiumBuilder,
+                filesRead: summarizeMakerProjectFiles(projectFiles),
+                editsApplied: applied,
+                notes: inspection.notes,
+            });
+            if (inspection.noEditsNeeded || applied.length === 0) {
+                break;
+            }
+        } catch (error) {
+            console.error(`[Maker Agent] Inspection turn ${turnNumber} failed: ${error.message}`);
+            await appendMakerAgentTurn(workspace, turns, {
+                phase: 'file_inspection',
+                objective: 'Inspect generated project files before sandbox.',
+                status: 'failed',
+                model: DREAM_MODELS.premiumBuilder,
+                filesRead: summarizeMakerProjectFiles(projectFiles),
+                error: error.message,
+            });
+            break;
+        }
+    }
+}
+
 async function assembleMakerProjectHtml(projectRoot) {
     let html = await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf8');
 
@@ -2941,6 +3017,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     let buildMode = null;
     let makerDesignBriefSummary = null;
     let makerGddCompliance = null;
+    const makerAgentTurns = [];
     try {
         assertJobNotCancelled(jobId);
 
@@ -3175,6 +3252,19 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await applyMakerFileEdits(makerProject.projectRoot, integration.files);
                 await rebuildMakerProjectDist(makerProject.projectRoot);
             }
+            await runMakerAgentInspectionTurns({
+                workspace: makerWorkspace,
+                projectRoot: makerProject.projectRoot,
+                turns: makerAgentTurns,
+                jobId,
+                prompt,
+                qualityIntent,
+                generatedAssets,
+                templateContract: makerTemplateContract,
+                assetContract: makerAssetContract,
+                debugProtocol: makerDebugProtocol,
+                designBrief: makerDesignBrief,
+            });
             rawGameHtml = await assembleMakerProjectHtml(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
         } catch (projectBuildError) {
@@ -3251,6 +3341,15 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 checkedAt: new Date().toISOString(),
             };
             await writeMakerJson(makerWorkspace, 'sandbox-result.json', finalSandboxResult);
+            await appendMakerAgentTurn(makerWorkspace, makerAgentTurns, {
+                phase: 'sandbox_verification',
+                objective: `Run sandbox verification attempt ${finalSandboxResult.attempt}.`,
+                status: sandboxRes.success ? 'complete' : 'failed',
+                model: 'sandbox',
+                targetedRepairTasks: sandboxRes.success ? [] : buildTargetedRepairTasks(sandboxRes.diagnostics || null),
+                sandbox: finalSandboxResult,
+                notes: sandboxRes.success ? ['Sandbox verification passed.'] : ['Sandbox verification produced targeted repair tasks.'],
+            });
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
                 console.log(`⚠️ Sandbox CRASH DETECTED. Asking main builder to repair... (${sandboxRes.crashes[0]})`);
@@ -3348,6 +3447,21 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                             applied,
                             notes: repair.notes,
                         });
+                        await appendMakerAgentTurn(makerWorkspace, makerAgentTurns, {
+                            phase: 'targeted_file_repair',
+                            objective: `Repair sandbox/probe failures for attempt ${repairAttempt}.`,
+                            status: 'complete',
+                            model: DREAM_MODELS.premiumBuilder,
+                            filesRead: summarizeMakerProjectFiles(projectFiles),
+                            editsApplied: applied,
+                            targetedRepairTasks,
+                            sandbox: {
+                                success: false,
+                                crashes: sandboxRes.crashes || [],
+                                diagnostics: sandboxRes.diagnostics || null,
+                            },
+                            notes: repair.notes,
+                        });
                         pendingRepairProtocolRecords.push({
                             attempt: repairAttempt,
                             tasks: targetedRepairTasks,
@@ -3365,6 +3479,19 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                             error: fileRepairError.message,
                         });
                         const failedTasks = buildTargetedRepairTasks(sandboxRes.diagnostics || null);
+                        await appendMakerAgentTurn(makerWorkspace, makerAgentTurns, {
+                            phase: 'targeted_file_repair',
+                            objective: `Repair sandbox/probe failures for attempt ${repairAttempt}.`,
+                            status: 'failed',
+                            model: DREAM_MODELS.premiumBuilder,
+                            targetedRepairTasks: failedTasks,
+                            sandbox: {
+                                success: false,
+                                crashes: sandboxRes.crashes || [],
+                                diagnostics: sandboxRes.diagnostics || null,
+                            },
+                            error: fileRepairError.message,
+                        });
                         if (failedTasks.length > 0) {
                             await recordMakerRepairOutcome(GAMETOK_MAKER_ROOT, {
                                 jobId,
@@ -3467,6 +3594,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 generatedAssets: summarizeMakerAssets(generatedAssets),
                 gddSummary: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
+                agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
                 html: finalHtml,
             })
             : null;
@@ -3495,6 +3623,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             assetManifest: summarizeMakerAssetManifest(generatedAssets?.makerAssetManifest || null),
             gdd: makerDesignBriefSummary,
             gddCompliance: makerGddCompliance,
+            agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
             templateScaffold: summarizeMakerTemplateScaffold(makerTemplateScaffold),
             debugProtocol: makerDebugProtocol,
             assetSummary: summarizeMakerAssets(generatedAssets),
@@ -3562,6 +3691,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     status: 'canceled',
                     completedAt: new Date().toISOString(),
                     workspace: makerWorkspace,
+                    agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
                     error: 'Generation cancelled by user',
                 }).catch(() => {});
             }
@@ -3595,6 +3725,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 generatedAssets: summarizeMakerAssets(generatedAssets),
                 gddSummary: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
+                agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
             })
             : null;
         if (failedBenchmarkResult) {
@@ -3612,6 +3743,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 stack: err?.stack || null,
                 gdd: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
+                agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
                 benchmark: failedBenchmarkResult,
             }).catch(() => {});
             if (failedBenchmarkResult) {
