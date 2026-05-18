@@ -858,6 +858,9 @@ export async function batchArtistAgent(requests, options = {}) {
     // Generate assets sequentially to avoid rate limits
     // (NVIDIA free tier has rate limits)
     for (const request of requests) {
+        if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
+            throw new Error('Generation cancelled by user');
+        }
         const { id, ...assetRequest } = request;
         const category = assetRequest.category || request.category || 'item';
         const width = Number(assetRequest.width || request.width || assetRequest.size || request.size || 128);
@@ -913,8 +916,14 @@ export async function batchArtistAgent(requests, options = {}) {
             }
             
             // Small delay between requests to avoid rate limiting
+            if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
+                throw new Error('Generation cancelled by user');
+            }
             await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
+            if (error?.message === 'Generation cancelled by user') {
+                throw error;
+            }
             console.error(`[Batch Artist Agent] Failed to generate ${id}:`, error.message);
             errors.push({ id, error: error.message });
             // Generate fallback
@@ -955,6 +964,9 @@ export async function batchArtistAgent(requests, options = {}) {
     }
 
     if (Array.isArray(options.tilesets) && options.tilesets.length > 0) {
+        if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
+            throw new Error('Generation cancelled by user');
+        }
         console.log(`[Batch Artist Agent] Generating ${options.tilesets.length} tilesets...`);
         const tilesetBundle = await buildTilesetAssets(options.tilesets);
         Object.assign(results, tilesetBundle.assets);

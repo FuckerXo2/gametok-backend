@@ -121,6 +121,7 @@ const ALLOW_LEGACY_HTML_FALLBACK = process.env.ALLOW_LEGACY_HTML_FALLBACK === 't
 const GAMETOK_MAKER_RESUME_WORKSPACE = process.env.GAMETOK_MAKER_RESUME_WORKSPACE !== 'false';
 const ENABLE_LEGACY_LABS_ROUTE = process.env.ENABLE_LEGACY_LABS_ROUTE === 'true';
 const generationJobRunners = new Map();
+const generationJobCancelChecks = new Map();
 let generationQueueReadyPromise = null;
 let generationWorkerTimer = null;
 let generationWorkerStopping = false;
@@ -137,10 +138,12 @@ class DreamJobCancelledError extends Error {
 
 function rememberCancelledJob(jobId) {
     cancelledJobs.set(jobId, Date.now());
+    generationJobCancelChecks.set(jobId, { checkedAt: Date.now(), cancelled: true });
 }
 
 function forgetCancelledJob(jobId) {
     cancelledJobs.delete(jobId);
+    generationJobCancelChecks.delete(jobId);
 }
 
 function isJobCancelled(jobId) {
@@ -149,6 +152,38 @@ function isJobCancelled(jobId) {
 
 function assertJobNotCancelled(jobId) {
     if (isJobCancelled(jobId)) {
+        throw new DreamJobCancelledError(jobId);
+    }
+}
+
+async function isJobCancelledShared(jobId, { force = false } = {}) {
+    if (!jobId) return false;
+    if (isJobCancelled(jobId)) return true;
+
+    const cached = generationJobCancelChecks.get(jobId);
+    const now = Date.now();
+    if (!force && cached && now - cached.checkedAt < 1200) {
+        return Boolean(cached.cancelled);
+    }
+
+    try {
+        const result = await pool.query('SELECT status FROM generation_jobs WHERE id = $1', [jobId]);
+        const cancelled = result.rows[0]?.status === 'canceled';
+        generationJobCancelChecks.set(jobId, { checkedAt: now, cancelled });
+        if (cancelled) {
+            rememberCancelledJob(jobId);
+            rememberPendingBoot(jobId, { status: 'canceled', error: 'Generation cancelled by user' });
+        }
+        return cancelled;
+    } catch (error) {
+        console.warn(`[DREAM JOB] Could not check shared cancel state for ${jobId}:`, error?.message || error);
+        generationJobCancelChecks.set(jobId, { checkedAt: now, cancelled: false });
+        return false;
+    }
+}
+
+async function assertJobNotCancelledShared(jobId, options = {}) {
+    if (await isJobCancelledShared(jobId, options)) {
         throw new DreamJobCancelledError(jobId);
     }
 }
@@ -817,6 +852,7 @@ function buildBuilderJsonRewritePrompt(originalPrompt, invalidJson, parseError) 
 
 async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3 } = {}) {
     assertJobNotCancelled(jobId);
+    await assertJobNotCancelledShared(jobId, { force: true });
     
     let finishReason = null;
     const logLabel = formatJobLogLabel(label, jobId);
@@ -824,6 +860,7 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     let lastPartialStopReason = null;
     const text = await withNvidiaRetries(async () => withAbortableTimeout(async (signal) => {
         assertJobNotCancelled(jobId);
+        await assertJobNotCancelledShared(jobId);
         console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s)...`);
         let output = "";
         try {
@@ -834,6 +871,7 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
 
             for await (const chunk of stream) {
                 assertJobNotCancelled(jobId);
+                await assertJobNotCancelledShared(jobId);
                 const delta = chunk.choices?.[0]?.delta?.content;
                 if (delta) {
                     output += delta;
@@ -1820,6 +1858,7 @@ async function runGenerationJob(job) {
     const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
     rememberPendingBoot(job.id, { status: 'running', userId: job.user_id });
     console.log(`🏗️ [GEN QUEUE] Running ${job.kind} job ${job.id} attempt ${job.attempts}/${job.max_attempts}`);
+    await assertJobNotCancelledShared(job.id, { force: true });
 
     const heartbeat = setInterval(() => {
         pool.query(
@@ -1833,6 +1872,7 @@ async function runGenerationJob(job) {
 
     try {
         await runner(job.id, job.prompt, payload);
+        await assertJobNotCancelledShared(job.id, { force: true });
 
         const result = await pool.query('SELECT title, html_payload FROM ai_games WHERE id = $1', [job.id]);
         const row = result.rows[0];
@@ -3293,6 +3333,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     const persistToDb = jobPayload?.persistToDb !== false;
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
     const reportProgress = async (progress, phase, statusMessage) => {
+        await assertJobNotCancelledShared(jobId);
         if (progressSink) {
             await progressSink({ jobId, progress, phase, statusMessage }).catch((error) => {
                 console.warn(`[DREAM JOB] Progress sink failed for ${jobId}:`, error?.message || error);
@@ -3384,7 +3425,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await reportProgress(32, 'assets', 'Generating visual ingredients...');
                 
                 // Generate all assets
-                const generatedImages = await batchArtistAgent(assetRequests, { tilesets: assetPlan.tilesets || [] });
+                const generatedImages = await batchArtistAgent(assetRequests, {
+                    tilesets: assetPlan.tilesets || [],
+                    shouldCancel: async () => {
+                        await assertJobNotCancelledShared(jobId, { force: true });
+                        return false;
+                    },
+                });
                 generatedAssets = compileDreamAssetBundle(generatedImages, assetPlan);
                 attachMakerAssetManifest(generatedAssets, {
                     assetContract: makerAssetContract,
@@ -3532,7 +3579,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     tilesets: generatedAssets?.tilesets || [],
                 };
                 await writeMakerJson(makerWorkspace, 'logs/requested-asset-tool-request.json', buildStructuredAssetToolRequest(requestPlan, makerAssetContract));
-                const requestedImages = await batchArtistAgent(projectBuild.assetRequests);
+                const requestedImages = await batchArtistAgent(projectBuild.assetRequests, {
+                    shouldCancel: async () => {
+                        await assertJobNotCancelledShared(jobId, { force: true });
+                        return false;
+                    },
+                });
                 const requestedBundle = compileDreamAssetBundle(requestedImages, requestPlan);
                 generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
                 attachMakerAssetManifest(generatedAssets, {
