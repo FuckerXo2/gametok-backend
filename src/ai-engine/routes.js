@@ -27,6 +27,7 @@ import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-as
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
+import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,7 +83,7 @@ const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
-const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(3, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 1)));
+const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(3, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 2)));
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
@@ -1910,6 +1911,7 @@ function summarizeMakerAssets(generatedAssets = null) {
         tilesets: Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [],
         productionContract: generatedAssets.productionContract || generatedAssets.manifest?.productionContract || null,
         artDirection: generatedAssets.assetPlan?.artDirection || generatedAssets.manifest?.artDirection || null,
+        quality: summarizeMakerAssetQuality(generatedAssets.assetQuality || null),
         errors: Array.isArray(generatedAssets.errors) ? generatedAssets.errors : [],
     };
 }
@@ -1959,6 +1961,22 @@ async function writeMakerAssetRuntimeFiles(workspace, generatedAssets = null) {
         source: 'gametok-native-maker',
         tilesets: Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [],
     });
+}
+
+async function analyzeAndWriteMakerAssetQuality(workspace, generatedAssets = null) {
+    const report = await analyzeMakerAssetQuality(generatedAssets);
+    if (generatedAssets) {
+        generatedAssets.assetQuality = report;
+        generatedAssets.manifest = {
+            ...(generatedAssets.manifest || {}),
+            assetQuality: report,
+        };
+    }
+    if (workspace) {
+        await writeMakerJson(workspace, 'asset-quality-report.json', report);
+        await writeMakerJson(workspace, 'asset-quality-summary.json', summarizeMakerAssetQuality(report));
+    }
+    return report;
 }
 
 async function createGameTokMakerWorkspace(jobId, prompt, mediaAttachments = []) {
@@ -2160,6 +2178,12 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '  "assetRequests": [',
         '    {"id":"player_tank","type":"sprite","role":"player","description":"red side-view tank with readable cannon","size":128}',
         '  ],',
+        '  "usedAssetMap": [',
+        '    {"role":"player","key":"player_tank","how":"DreamAssets.addSprite","where":"src/game.js:preload/create"}',
+        '  ],',
+        '  "gameSystemMap": [',
+        '    {"system":"aiming","state":["angle","power"],"functions":["setAim","updateTrajectory"],"files":["src/game.js"]}',
+        '  ],',
         '  "files": [',
         '    {"path":"index.html","content":"complete file content"},',
         '    {"path":"src/styles.css","content":"complete file content"},',
@@ -2172,6 +2196,8 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '- The GameTok maker GDD is mandatory. Implement Section 0 architecture, Section 1 assets, Section 2 config, Section 3 entities/functions, Section 4 content, and Section 5 roadmap in that order.',
         '- Do not skip a GDD section because the user prompt is short. Short prompts still inherit the selected template contract and GDD acceptance checks.',
         '- Notes must mention which GDD sections were implemented or intentionally satisfied by scaffold behavior.',
+        '- usedAssetMap is mandatory. List every generated asset, animation, or tileset you intentionally use, with role/key/how/where. If none are available, return an empty array and explain fallback art in notes.',
+        '- gameSystemMap is mandatory. List the actual gameplay systems, their state fields, key functions, and files. Include input, update loop, collision/physics, scoring/win-loss, reset, and runtime probe systems when present.',
         '- Valid paths are only index.html and src/*.css, src/*.js, src/*.json.',
         '- index.html must reference ./src/styles.css and ./src/game.js.',
         '- Do not inline the whole game into index.html.',
@@ -2182,6 +2208,7 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '- Keep everything mobile-first inside a 390x844 GameTok webview.',
         '- Reserve at least 112px top space and 48px bottom space for native GameTok chrome.',
         '- Use provided DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK when assets exist. Do not invent random remote asset URLs.',
+        '- Read the asset quality summary before choosing keys. Do not use assets with fatal quality issues; use fallback art for those roles.',
         '- Use window.DREAM_ANIMATIONS for frame animations when frame_sequence entries exist. Call DreamAssets.createAnimations(scene) in Phaser games or manually cycle the listed frame keys in canvas games.',
         '- Use window.DREAM_TILESETS for tile/grid/platform/terrain games when a tileset exists. The generated tileset is a 7x7 sheet expanded from a 3x3 core; gameplay collision is still code-defined.',
         '- Asset consumption is an acceptance gate. If the asset summary contains frame_sequence animations or tilesets, source must reference and use their APIs/keys before falling back to procedural visuals.',
@@ -2239,6 +2266,9 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         'Asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
         '',
+        'Asset quality summary:',
+        JSON.stringify(summarizeMakerAssetQuality(generatedAssets?.assetQuality || null), null, 2),
+        '',
         'Audio summary:',
         JSON.stringify(audioBundle || { audio: [], music: [] }, null, 2),
     ].join('\n');
@@ -2275,8 +2305,54 @@ function parseMakerProjectBuildResponse(text) {
             }
             return { path: file.path, content: file.content };
         }),
+        usedAssetMap: Array.isArray(parsed.usedAssetMap)
+            ? parsed.usedAssetMap.map((entry) => ({
+                role: String(entry?.role || '').trim(),
+                key: String(entry?.key || entry?.assetKey || '').trim(),
+                how: String(entry?.how || '').trim(),
+                where: String(entry?.where || '').trim(),
+            })).filter((entry) => entry.role || entry.key || entry.how || entry.where).slice(0, 40)
+            : [],
+        gameSystemMap: Array.isArray(parsed.gameSystemMap)
+            ? parsed.gameSystemMap.map((entry) => ({
+                system: String(entry?.system || '').trim(),
+                state: Array.isArray(entry?.state) ? entry.state.map(String).slice(0, 16) : [],
+                functions: Array.isArray(entry?.functions) ? entry.functions.map(String).slice(0, 20) : [],
+                files: Array.isArray(entry?.files) ? entry.files.map(String).slice(0, 8) : [],
+            })).filter((entry) => entry.system || entry.functions.length || entry.state.length).slice(0, 24)
+            : [],
         notes: Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 12) : [],
     };
+}
+
+async function writeMakerBuilderMaps(workspace, projectBuild, phase = 'initial_build', { generatedAssets = null } = {}) {
+    if (!workspace || !projectBuild) return null;
+    const warnings = [];
+    if (hasGeneratedVisualAssets(generatedAssets) && (!Array.isArray(projectBuild.usedAssetMap) || projectBuild.usedAssetMap.length === 0)) {
+        warnings.push({
+            id: 'builder_asset_map_missing',
+            message: 'Generated assets exist but builder returned an empty usedAssetMap.',
+        });
+    }
+    if (!Array.isArray(projectBuild.gameSystemMap) || projectBuild.gameSystemMap.length === 0) {
+        warnings.push({
+            id: 'builder_system_map_missing',
+            message: 'Builder returned an empty gameSystemMap.',
+        });
+    }
+    const maps = {
+        version: 1,
+        source: 'gametok-maker-builder-tool-use-map',
+        phase,
+        at: new Date().toISOString(),
+        usedAssetMap: Array.isArray(projectBuild.usedAssetMap) ? projectBuild.usedAssetMap : [],
+        gameSystemMap: Array.isArray(projectBuild.gameSystemMap) ? projectBuild.gameSystemMap : [],
+        warnings,
+        notes: Array.isArray(projectBuild.notes) ? projectBuild.notes : [],
+    };
+    await writeMakerJson(workspace, `builder-maps-${phase}.json`, maps);
+    await writeMakerJson(workspace, 'builder-maps.json', maps);
+    return maps;
 }
 
 function mergeDreamAssetBundles(baseBundle = null, extraBundle = null) {
@@ -2339,6 +2415,7 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '- Valid paths are index.html and existing src/*.css, src/*.js, src/*.json files.',
         '- Return complete contents for every file you edit.',
         '- Use the asset keys from DREAM_ASSET_PACK / DreamAssets. Do not paste data URLs into source files.',
+        '- Respect the asset quality summary. Do not wire assets with fatal quality issues into live gameplay.',
         '- Prefer player/enemy/item/prop/background assets for actual gameplay visuals.',
         '- If frame_sequence animations exist, connect them through DREAM_ANIMATIONS, DreamAssets.createAnimations(), DreamAssets.animationsFor(), DreamAssets.applyTween(), or manual frame cycling.',
         '- If tilesets exist, connect them through DREAM_TILESETS, DreamAssets.firstTileset(), DreamAssets.getTileset(), or tileset image keys.',
@@ -2368,6 +2445,9 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '',
         'Updated asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
+        '',
+        'Asset quality summary:',
+        JSON.stringify(summarizeMakerAssetQuality(generatedAssets?.assetQuality || null), null, 2),
         '',
         'Structured asset tool contract:',
         JSON.stringify(buildStructuredAssetToolRequest(generatedAssets?.assetPlan || {}, assetContract), null, 2),
@@ -2440,6 +2520,8 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
             { path: 'build.mjs', kind: 'build_script' },
         ],
         notes: projectBuild.notes || [],
+        usedAssetMap: projectBuild.usedAssetMap || [],
+        gameSystemMap: projectBuild.gameSystemMap || [],
         assetSummary: summarizeMakerAssets(generatedAssets),
     });
 
@@ -2707,6 +2789,15 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 directRepairTask: `Generated 7x7 tileset is not connected to tile/terrain rendering${keys ? `: ${keys}` : ''}.`,
                 repair: 'Use DREAM_TILESETS or DreamAssets.firstTileset()/getTileset() to load the generated tileset image for visual tile terrain while keeping collision geometry code-defined.',
             });
+        } else if (String(check.id || '').startsWith('asset_') || String(check.id || '').startsWith('tileset_') || String(check.id || '').startsWith('animation_')) {
+            tasks.push({
+                priority: 'major',
+                source: 'asset_quality',
+                templateId: check.templateId || null,
+                failure: check.message || 'Generated asset quality/manifest check failed.',
+                directRepairTask: `Generated asset ${check.assetKey || check.key || ''} failed quality or manifest checks.`.trim(),
+                repair: 'Do not rely on the broken generated asset key. Use another valid generated asset for the role, or switch that role to intentional code-rendered fallback art while preserving gameplay.',
+            });
         } else if (check.message) {
             tasks.push({
                 priority: 'major',
@@ -2793,6 +2884,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
         '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
         '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
+        '- If the asset quality report flags an asset as fatal, do not use that key. Use another valid asset or code-rendered fallback for that role.',
         '- If generated animation frames exist, wire DREAM_ANIMATIONS into player/enemy sprites or canvas frame cycling.',
         '- If generated tilesets exist, wire DREAM_TILESETS into terrain/tile drawing while keeping collision data code-defined.',
         '- If sandboxDiagnostics.templateRuntimeProbe failed, repair the exact required probe behavior. Do not remove the probe API to hide the failure.',
@@ -2839,6 +2931,9 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '',
         'Asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
+        '',
+        'Asset quality summary:',
+        JSON.stringify(summarizeMakerAssetQuality(generatedAssets?.assetQuality || null), null, 2),
         '',
         'Structured asset tool contract:',
         JSON.stringify(buildStructuredAssetToolRequest(generatedAssets?.assetPlan || {}, assetContract), null, 2),
@@ -2917,11 +3012,19 @@ async function runMakerAgentInspectionTurns({
     assetContract,
     debugProtocol,
     designBrief,
+    builderMaps = null,
+    assetQuality = null,
     maxTurns = MAKER_AGENT_INSPECTION_TURNS,
 }) {
+    const objectives = [
+        'Audit project files against GDD, template contract, asset contract, and runtime probe API.',
+        'Audit builder asset/system maps against source code and repair any missing wiring.',
+        'Re-read after edits and make one final targeted compliance cleanup if needed.',
+    ];
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
         const projectFiles = await readMakerProjectFiles(projectRoot);
+        const objective = objectives[turnNumber - 1] || objectives[objectives.length - 1];
         const promptText = buildMakerAgentInspectionPrompt({
             prompt,
             qualityIntent,
@@ -2931,7 +3034,10 @@ async function runMakerAgentInspectionTurns({
             debugProtocol,
             designBrief,
             generatedAssetsSummary: summarizeMakerAssets(generatedAssets),
+            assetQualitySummary: summarizeMakerAssetQuality(assetQuality || generatedAssets?.assetQuality || null),
+            builderMaps,
             turnNumber,
+            objective,
         });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         try {
@@ -2951,21 +3057,21 @@ async function runMakerAgentInspectionTurns({
             }
             await appendMakerAgentTurn(workspace, turns, {
                 phase: 'file_inspection',
-                objective: 'Inspect generated project files against GDD, template contract, asset contract, and probe API before sandbox.',
+                objective,
                 status: 'complete',
                 model: DREAM_MODELS.premiumBuilder,
                 filesRead: summarizeMakerProjectFiles(projectFiles),
                 editsApplied: applied,
                 notes: inspection.notes,
             });
-            if (inspection.noEditsNeeded || applied.length === 0) {
+            if ((inspection.noEditsNeeded || applied.length === 0) && turnNumber >= Math.min(2, maxTurns)) {
                 break;
             }
         } catch (error) {
             console.error(`[Maker Agent] Inspection turn ${turnNumber} failed: ${error.message}`);
             await appendMakerAgentTurn(workspace, turns, {
                 phase: 'file_inspection',
-                objective: 'Inspect generated project files before sandbox.',
+                objective,
                 status: 'failed',
                 model: DREAM_MODELS.premiumBuilder,
                 filesRead: summarizeMakerProjectFiles(projectFiles),
@@ -3068,6 +3174,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     let makerDesignBriefSummary = null;
     let makerGddCompliance = null;
     let makerAcceptanceResult = null;
+    let makerBuilderMaps = null;
     const makerAgentTurns = [];
     try {
         assertJobNotCancelled(jobId);
@@ -3144,6 +3251,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     qualityIntent,
                 });
                 assertJobNotCancelled(jobId);
+                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
@@ -3247,6 +3355,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             })).text;
             await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
             const projectBuild = parseMakerProjectBuildResponse(projectBuildText);
+            makerBuilderMaps = await writeMakerBuilderMaps(makerWorkspace, projectBuild, 'initial_build', { generatedAssets });
             makerProject = await materializeMakerProjectFiles(makerWorkspace, projectBuild, {
                 title: qualityIntent.title || 'GameTok Game',
                 generatedAssets,
@@ -3275,6 +3384,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     templateContract: makerTemplateContract,
                     qualityIntent,
                 });
+                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
@@ -3317,6 +3427,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 assetContract: makerAssetContract,
                 debugProtocol: makerDebugProtocol,
                 designBrief: makerDesignBrief,
+                builderMaps: makerBuilderMaps,
+                assetQuality: generatedAssets?.assetQuality || null,
             });
             rawGameHtml = await assembleMakerProjectHtml(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
@@ -3407,6 +3519,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 debugProtocol: makerDebugProtocol,
                 assetContract: makerAssetContract,
                 assetManifest: generatedAssets?.makerAssetManifest || null,
+                assetQuality: generatedAssets?.assetQuality || null,
                 gddCompliance: makerGddCompliance,
             });
             if (sandboxRes.success && !makerAcceptanceResult.passed) {
@@ -3672,6 +3785,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             debugProtocol: makerDebugProtocol,
             assetContract: makerAssetContract,
             assetManifest: generatedAssets?.makerAssetManifest || null,
+            assetQuality: generatedAssets?.assetQuality || null,
             gddCompliance: makerGddCompliance,
         });
         await writeMakerJson(makerWorkspace, 'gdd-compliance.json', makerGddCompliance);
@@ -3689,6 +3803,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 repairs: makerRepairs,
                 buildMode,
                 generatedAssets: summarizeMakerAssets(generatedAssets),
+                assetQuality: summarizeMakerAssetQuality(generatedAssets?.assetQuality || null),
                 gddSummary: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
                 agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
@@ -3726,6 +3841,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             templateScaffold: summarizeMakerTemplateScaffold(makerTemplateScaffold),
             debugProtocol: makerDebugProtocol,
             assetSummary: summarizeMakerAssets(generatedAssets),
+            assetQuality: summarizeMakerAssetQuality(generatedAssets?.assetQuality || null),
+            builderMaps: makerBuilderMaps,
             sandbox: finalSandboxResult,
             benchmark: makerBenchmarkResult,
             repairs: makerRepairs,
@@ -3815,6 +3932,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 debugProtocol: makerDebugProtocol,
                 assetContract: makerAssetContract,
                 assetManifest: generatedAssets?.makerAssetManifest || null,
+                assetQuality: generatedAssets?.assetQuality || null,
                 gddCompliance: makerGddCompliance,
             });
         }
@@ -3832,6 +3950,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 repairs: makerRepairs,
                 buildMode,
                 generatedAssets: summarizeMakerAssets(generatedAssets),
+                assetQuality: summarizeMakerAssetQuality(generatedAssets?.assetQuality || null),
                 gddSummary: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
                 agentLoop: summarizeMakerAgentTurns(makerAgentTurns),

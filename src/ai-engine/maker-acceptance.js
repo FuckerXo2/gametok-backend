@@ -67,7 +67,7 @@ function scoreViewport(sandbox = null) {
     };
 }
 
-function scoreAssets(sandbox = null, assetContract = null, assetManifest = null) {
+function scoreAssets(sandbox = null, assetContract = null, assetManifest = null, assetQuality = null) {
     const requiredSlots = asArray(assetContract?.slots).filter((slot) => slot?.required);
     const hasGeneratedRequiredAssets = requiredSlots.some((slot) =>
         asArray(assetManifest?.slots).some((entry) => entry?.id === slot.id && entry?.status !== 'missing')
@@ -99,6 +99,10 @@ function scoreAssets(sandbox = null, assetContract = null, assetManifest = null)
     }
     if (hasFailedCheck(sandbox, 'asset_tilesets_unused')) {
         failures.push('Generated tilesets are unused.');
+    }
+    if (assetQuality && assetQuality.passed === false) {
+        const fatalIssues = asArray(assetQuality.issues).filter((entry) => entry?.severity === 'fatal');
+        failures.push(`Generated asset quality failed: ${fatalIssues.map((entry) => entry.message || entry.id).slice(0, 3).join('; ')}`);
     }
     return {
         score: failures.length === 0 ? 10 : 0,
@@ -143,11 +147,12 @@ export function buildMakerAcceptanceResult({
     debugProtocol = null,
     assetContract = null,
     assetManifest = null,
+    assetQuality = null,
     gddCompliance = null,
 } = {}) {
     const runtime = scoreRuntimeProbe(sandbox, templateContract);
     const viewport = scoreViewport(sandbox);
-    const assets = scoreAssets(sandbox, assetContract, assetManifest);
+    const assets = scoreAssets(sandbox, assetContract, assetManifest, assetQuality);
     const debug = scoreDebugChecks(sandbox, debugProtocol);
     const sandboxBoot = sandbox?.success ? 20 : 0;
     const gddScore = gddCompliance ? Math.round((Number(gddCompliance.score || 0) / 100) * 10) : 0;
@@ -178,12 +183,27 @@ export function buildMakerAcceptanceResult({
         : score >= 55 ? 'weak'
         : 'fail';
     const passed = score >= 85 && fatalBlockers.length === 0 && debug.score >= 18 && assets.passed;
-    const failedContractChecksForRepair = passed ? [] : [{
-        id: 'acceptance_gate',
-        templateId: templateContract?.templateId || null,
-        message: `Acceptance gate ${grade}: ${blockers.slice(0, 5).join(' ') || 'core playability was not proven.'}`,
-        failures: blockers,
-    }];
+    const assetQualityChecks = assetQuality?.passed === false
+        ? asArray(assetQuality.issues)
+            .filter((entry) => entry?.severity === 'fatal')
+            .slice(0, 8)
+            .map((entry) => ({
+                id: entry.id || 'asset_quality_failed',
+                templateId: templateContract?.templateId || null,
+                assetKey: entry.key || null,
+                message: entry.message || 'Generated asset quality failed.',
+                details: entry.details || null,
+            }))
+        : [];
+    const failedContractChecksForRepair = passed ? [] : [
+        {
+            id: 'acceptance_gate',
+            templateId: templateContract?.templateId || null,
+            message: `Acceptance gate ${grade}: ${blockers.slice(0, 5).join(' ') || 'core playability was not proven.'}`,
+            failures: blockers,
+        },
+        ...assetQualityChecks,
+    ];
     return {
         version: 1,
         source: 'gametok-maker-acceptance-result',
@@ -208,6 +228,11 @@ export function buildMakerAcceptanceResult({
             viewport: viewport.evidence,
             assets: assets.evidence,
             debug: debug.evidence,
+            assetQuality: assetQuality ? {
+                passed: assetQuality.passed,
+                score: assetQuality.score,
+                counts: assetQuality.counts,
+            } : null,
         },
         failedContractChecksForRepair,
     };
