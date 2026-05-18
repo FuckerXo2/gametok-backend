@@ -5,29 +5,19 @@
  * Completely replaces the 84K asset library with on-demand AI generation.
  * 
  * Flow:
- * 1. Generate image with FLUX.1-schnell (FREE, fast)
+ * 1. Generate image with NVIDIA NIM FLUX.1-schnell
  * 2. Remove sprite backgrounds with IMG.LY locally, then optional hosted/local fallbacks
  * 3. Downscale to target size (64/128/256px) with Sharp
  * 4. Return base64 PNG data URI
  * 
  * Generation time: ~3-5 seconds per sprite
- * Cost: $0 (completely free on NVIDIA build.nvidia.com)
  */
 
 import { assetModelRouter } from './asset-model-router.js';
 import { expandCoreTileset3x3To7x7 } from './maker-tileset-processor.js';
 
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
 const FAL_KEY = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
 const FAL_RMBG_URL = 'https://fal.run/fal-ai/bria/background/remove';
-const HF_TOKEN = process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY || process.env.HUGGING_FACE_API_KEY || '';
-const HF_IMAGE_EDIT_ENABLED = process.env.HF_IMAGE_EDIT_ENABLED === 'true';
-const HF_IMAGE_EDIT_MODEL = process.env.HF_IMAGE_EDIT_MODEL || 'black-forest-labs/FLUX.1-Kontext-dev';
-const HF_IMAGE_EDIT_PROVIDER = process.env.HF_IMAGE_EDIT_PROVIDER || 'fal-ai';
-const HF_IMAGE_EDIT_URL = process.env.HF_IMAGE_EDIT_URL || `https://api-inference.huggingface.co/models/${HF_IMAGE_EDIT_MODEL}`;
-const HF_IMAGE_EDIT_TIMEOUT_MS = Number(process.env.HF_IMAGE_EDIT_TIMEOUT_MS || 180000);
-const HF_IMAGE_EDIT_STEPS = Number(process.env.HF_IMAGE_EDIT_STEPS || 28);
-const HF_IMAGE_EDIT_GUIDANCE = Number(process.env.HF_IMAGE_EDIT_GUIDANCE || 3.5);
 const BACKGROUND_DISTANCE_THRESHOLD = Number(process.env.SPRITE_BG_DISTANCE_THRESHOLD || 92);
 const EDGE_SAMPLE_SIZE = 12;
 const IMGLY_RMBG_DISABLED = process.env.IMGLY_RMBG_DISABLED === 'true';
@@ -71,41 +61,6 @@ function normalizeDimensions(widthOrSize = 768, height = null) {
 
 async function generateWithFlux(prompt, dimensions = 768) {
     return assetModelRouter.generateImage(prompt, dimensions);
-}
-
-function parseImageResponse(json) {
-    const candidates = [
-        json?.image,
-        json?.image_base64,
-        json?.b64_json,
-        json?.data?.[0]?.b64_json,
-        json?.data?.[0]?.image,
-        json?.artifacts?.[0]?.base64,
-        json?.images?.[0],
-    ];
-
-    for (const candidate of candidates) {
-        if (!candidate) continue;
-        if (typeof candidate === 'string') return candidate;
-        if (typeof candidate?.url === 'string') return candidate.url;
-        if (typeof candidate?.base64 === 'string') return candidate.base64;
-    }
-
-    return null;
-}
-
-async function fetchImageAsBase64(imageUrl) {
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new Error(`image download failed: ${response.status} ${text.slice(0, 200)}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer).toString('base64');
-}
-
-async function editImageWithHuggingFace(referenceDataUri, prompt, dimensions) {
-    return assetModelRouter.editImage(referenceDataUri, prompt, dimensions);
 }
 
 /**
@@ -593,44 +548,6 @@ async function createFrameVariant(dataUri, width, height, variant = {}) {
     return `data:image/png;base64,${composited.toString('base64')}`;
 }
 
-function buildFrameEditPrompt(assetRequest, category, variant, index, totalFrames) {
-    const description = assetRequest.description || assetRequest.gameplayRole || category;
-    const actionPrompts = {
-        idle: 'subtle idle breathing pose, same stance and silhouette, tiny lively change',
-        move: 'dynamic movement frame with shifted limbs or body motion, same character, same camera angle',
-        hit: 'impact reaction frame with squash, recoil, bright action emphasis, same character',
-        pulse: 'glowing pulse variant with slightly stronger energy and readable silhouette',
-    };
-    const action = actionPrompts[variant.name] || variant.name;
-
-    return [
-        `Edit the reference into animation frame ${index + 1} of ${totalFrames} for a mobile game sprite.`,
-        `Subject: ${description}.`,
-        `Action: ${action}.`,
-        `Keep the exact same subject identity, art style, proportions, camera angle, facing direction, and centered placement.`,
-        `Keep one foreground asset only with clear empty margin. Do not add text, UI, borders, labels, extra characters, or scenery.`,
-        `Output should remain a clean game sprite suitable for transparent-background extraction.`,
-    ].join(' ');
-}
-
-async function createSemanticFrameVariant(dataUri, width, height, assetRequest, category, variant, index, totalFrames) {
-    const prompt = buildFrameEditPrompt(assetRequest, category, variant, index, totalFrames);
-    const edited = await editImageWithHuggingFace(dataUri, prompt, { width, height });
-    if (!edited.ok) return null;
-
-    let processedImage = edited.imageBase64;
-    const backgroundResult = await removeBackground(processedImage);
-    processedImage = backgroundResult.imageBase64;
-    const finalImage = await downscaleImage(processedImage, { width, height });
-
-    return {
-        dataUri: `data:image/png;base64,${finalImage}`,
-        method: edited.method,
-        backgroundMethod: backgroundResult.method,
-        backgroundRemoved: backgroundResult.removed,
-    };
-}
-
 function buildGeneratedFramePrompt(assetRequest, category, variant, index, totalFrames) {
     const description = assetRequest.description || assetRequest.gameplayRole || category;
     const actionPrompts = {
@@ -646,7 +563,7 @@ function buildGeneratedFramePrompt(assetRequest, category, variant, index, total
         `Subject: ${description}.`,
         `Action: ${action}.`,
         'One foreground subject only, centered, readable at small size, clean empty margin.',
-        'Same broad art direction and camera angle as the asset pack; consistency is preferred but exact identity is not required.',
+        'Use the same broad art direction, colors, camera angle, and silhouette language as the asset pack; exact identity is not required.',
         'No text, no labels, no HUD, no buttons, no borders, no scenery.',
         'White or simple plain background suitable for transparent-background extraction.',
     ].join(' ');
@@ -700,17 +617,6 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
         const frameId = `${id}_${variant.name}_${String(index + 1).padStart(2, '0')}`;
         let frameUri = null;
         let generationMethod = 'local-transform';
-
-        try {
-            const semanticFrame = await createSemanticFrameVariant(dataUri, width, height, assetRequest, category, variant, index, variants.length);
-            if (semanticFrame?.dataUri) {
-                frameUri = semanticFrame.dataUri;
-                generationMethod = semanticFrame.method;
-                console.log(`[sprite-gen] ✓ Semantic frame ${frameId} via ${generationMethod}`);
-            }
-        } catch (error) {
-            console.warn(`[sprite-gen] Semantic frame ${frameId} failed, trying text-to-image frame: ${error.message}`);
-        }
 
         if (!frameUri && primaryMotion) {
             try {
