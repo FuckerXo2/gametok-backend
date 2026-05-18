@@ -479,6 +479,7 @@ export function buildStructuredAssetToolRequest(assetPlan = {}, assetContract = 
         type: 'tileset',
         key: tileset.key,
         role: tileset.role || 'environment',
+        description: tileset.description || '',
         tileSize: tileset.tileSize || 32,
         coreGrid: tileset.coreGrid || '3x3',
         expandedGrid: tileset.expandedGrid || '7x7',
@@ -653,14 +654,20 @@ function buildTilesetPlan(qualityIntent = {}, specText = '') {
 
     return [{
         key: 'world_tileset',
-        type: 'procedural_tileset',
+        type: 'generated_tileset',
         role: 'environment',
+        description: [
+            qualityIntent.artDirection?.terrainStyle,
+            qualityIntent.artDirection?.backgroundStyle,
+            qualityIntent.artDirection?.styleName,
+            specText,
+        ].filter(Boolean).join(' '),
         coreGrid: '3x3',
         expandedGrid: '7x7',
         tileSize: 32,
         instructions: [
-            'Generate a repeatable 3x3 core tile vocabulary in code or from the environment art.',
-            'Expand into a 7x7 rule grid with corners, edges, center fills, hazards, and decorative variants.',
+            'Generate a repeatable 3x3 core tile vocabulary from the game art direction.',
+            'Expand into a 7x7 rule grid with deterministic corners, edges, and center fills.',
             'Use this for collision platforms, arena walls, floors, paths, rooms, or terrain whenever the game needs tile rhythm.',
         ],
     }];
@@ -747,12 +754,14 @@ export function compileDreamAssetBundle(generatedImages = null, assetPlan = null
     const manifestAssets = Array.isArray(generatedImages.manifest?.assets) ? generatedImages.manifest.assets : [];
     const plannedAnimations = Array.isArray(assetPlan?.animations) ? assetPlan.animations : [];
     const frameAnimations = Array.isArray(generatedImages.animations) ? generatedImages.animations : [];
-    const animations = [
+    const animations = Array.from(new Map([
         ...plannedAnimations,
         ...frameAnimations,
-    ];
+    ].filter(Boolean).map((animation) => [animation.key || JSON.stringify(animation), animation])).values());
     const audio = assetPlan?.audio || { sfx: [], music: [] };
-    const tilesets = assetPlan?.tilesets || [];
+    const tilesets = Array.isArray(generatedImages.tilesets) && generatedImages.tilesets.length > 0
+        ? generatedImages.tilesets
+        : (assetPlan?.tilesets || []);
     const productionContract = buildRuntimeContract(assetPlan?.qualityIntent || null, assetPlan);
 
     return {

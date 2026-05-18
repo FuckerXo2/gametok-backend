@@ -1947,6 +1947,20 @@ async function writeMakerText(workspace, fileName, value) {
     await fs.promises.writeFile(path.join(workspace, fileName), String(value || ''), 'utf8');
 }
 
+async function writeMakerAssetRuntimeFiles(workspace, generatedAssets = null) {
+    if (!workspace || !generatedAssets) return;
+    await writeMakerJson(workspace, 'animations.json', {
+        version: 1,
+        source: 'gametok-native-maker',
+        animations: Array.isArray(generatedAssets.animations) ? generatedAssets.animations : [],
+    });
+    await writeMakerJson(workspace, 'tilesets.json', {
+        version: 1,
+        source: 'gametok-native-maker',
+        tilesets: Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [],
+    });
+}
+
 async function createGameTokMakerWorkspace(jobId, prompt, mediaAttachments = []) {
     const workspace = path.join(GAMETOK_MAKER_ROOT, makerSafeFileName(jobId));
     await fs.promises.rm(workspace, { recursive: true, force: true });
@@ -2168,6 +2182,8 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '- Keep everything mobile-first inside a 390x844 GameTok webview.',
         '- Reserve at least 112px top space and 48px bottom space for native GameTok chrome.',
         '- Use provided DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK when assets exist. Do not invent random remote asset URLs.',
+        '- Use window.DREAM_ANIMATIONS for frame animations when frame_sequence entries exist. Call DreamAssets.createAnimations(scene) in Phaser games or manually cycle the listed frame keys in canvas games.',
+        '- Use window.DREAM_TILESETS for tile/grid/platform/terrain games when a tileset exists. The generated tileset is a 7x7 sheet expanded from a 3x3 core; gameplay collision is still code-defined.',
         '- If assets fail or are absent, draw intentional code-rendered fallback art that still supports gameplay.',
         '- The first 10 seconds must prove movement/input, collision or core interaction, feedback, and win/loss or scoring loop.',
         '- Optional assetRequests are allowed only for important missing gameplay visuals. Do not request HUD text/buttons as images.',
@@ -2192,6 +2208,8 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '- DreamAssets.preloadPhaser(scene): loads generated image assets into Phaser.',
         '- DreamAssets.addSprite(scene, roleOrKey, x, y, options): adds a Phaser sprite from a role or key.',
         '- DreamAssets.addBackgroundCover(scene, roleOrKey, width, height): adds a generated background image as a cover layer.',
+        '- DreamAssets.firstTileset(): returns the first generated 7x7 tileset manifest, usually with imageKey/world_tileset_7x7.',
+        '- DreamAssets.getTileset(key): returns a generated tileset manifest by key.',
         '- DreamAssets.safeRect(width, height): returns the GameTok chrome-safe playable rectangle.',
         '',
         'User prompt:',
@@ -3090,7 +3108,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await updateGenerationJobProgress(jobId, 32, 'assets', 'Generating visual ingredients...');
                 
                 // Generate all assets
-                const generatedImages = await batchArtistAgent(assetRequests);
+                const generatedImages = await batchArtistAgent(assetRequests, { tilesets: assetPlan.tilesets || [] });
                 generatedAssets = compileDreamAssetBundle(generatedImages, assetPlan);
                 attachMakerAssetManifest(generatedAssets, {
                     assetContract: makerAssetContract,
@@ -3100,6 +3118,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 assertJobNotCancelled(jobId);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
+                await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
                 await updateGenerationJobProgress(jobId, 42, 'assets', 'Visual assets prepared...');
                 
                 console.log(`✅ Artist Agent: Generated ${Object.keys(generatedAssets.assets).length} custom assets`);
@@ -3230,6 +3249,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 });
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
+                await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
                 makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
 

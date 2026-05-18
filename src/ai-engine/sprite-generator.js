@@ -15,6 +15,7 @@
  */
 
 import { assetModelRouter } from './asset-model-router.js';
+import { expandCoreTileset3x3To7x7 } from './maker-tileset-processor.js';
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "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";
 const FAL_KEY = process.env.FAL_KEY || process.env.FAL_API_KEY || '';
@@ -630,6 +631,43 @@ async function createSemanticFrameVariant(dataUri, width, height, assetRequest, 
     };
 }
 
+function buildGeneratedFramePrompt(assetRequest, category, variant, index, totalFrames) {
+    const description = assetRequest.description || assetRequest.gameplayRole || category;
+    const actionPrompts = {
+        idle: 'idle animation pose, calm readable silhouette, subtle breathing variation',
+        move: 'movement animation pose, dynamic body shift, clear direction energy, motion-ready silhouette',
+        hit: 'impact reaction frame, squash-and-stretch, bright feedback emphasis, recoiling pose',
+        pulse: 'glowing pulse frame, stronger aura, clean centered readable silhouette',
+    };
+    const action = actionPrompts[variant.name] || `${variant.name} animation pose`;
+    return [
+        'Professional mobile game animation frame sprite.',
+        `Frame ${index + 1} of ${totalFrames}.`,
+        `Subject: ${description}.`,
+        `Action: ${action}.`,
+        'One foreground subject only, centered, readable at small size, clean empty margin.',
+        'Same broad art direction and camera angle as the asset pack; consistency is preferred but exact identity is not required.',
+        'No text, no labels, no HUD, no buttons, no borders, no scenery.',
+        'White or simple plain background suitable for transparent-background extraction.',
+    ].join(' ');
+}
+
+async function createGeneratedFrameVariant(width, height, assetRequest, category, variant, index, totalFrames) {
+    const prompt = buildGeneratedFramePrompt(assetRequest, category, variant, index, totalFrames);
+    const generated = await assetModelRouter.generateImage(prompt, { width, height });
+    let processedImage = generated;
+    const backgroundResult = await removeBackground(processedImage);
+    processedImage = backgroundResult.imageBase64;
+    const finalImage = await downscaleImage(processedImage, { width, height });
+
+    return {
+        dataUri: `data:image/png;base64,${finalImage}`,
+        method: 'text-to-image-frame',
+        backgroundMethod: backgroundResult.method,
+        backgroundRemoved: backgroundResult.removed,
+    };
+}
+
 function shouldBuildFrameAssets(assetRequest, category) {
     const kind = assetRequest.assetType || 'sprite';
     if (kind === 'background' || category === 'environment' || category === 'background' || category === 'ui') return false;
@@ -671,7 +709,20 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
                 console.log(`[sprite-gen] ✓ Semantic frame ${frameId} via ${generationMethod}`);
             }
         } catch (error) {
-            console.warn(`[sprite-gen] Semantic frame ${frameId} failed, using local transform: ${error.message}`);
+            console.warn(`[sprite-gen] Semantic frame ${frameId} failed, trying text-to-image frame: ${error.message}`);
+        }
+
+        if (!frameUri && primaryMotion) {
+            try {
+                const generatedFrame = await createGeneratedFrameVariant(width, height, assetRequest, category, variant, index, variants.length);
+                if (generatedFrame?.dataUri) {
+                    frameUri = generatedFrame.dataUri;
+                    generationMethod = generatedFrame.method;
+                    console.log(`[sprite-gen] ✓ Generated frame ${frameId} via ${generationMethod}`);
+                }
+            } catch (error) {
+                console.warn(`[sprite-gen] Generated frame ${frameId} failed, using local transform: ${error.message}`);
+            }
         }
 
         if (!frameUri) {
@@ -712,6 +763,118 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
     });
 
     return { frames, animations };
+}
+
+function buildTilesetPrompt(tileset = {}) {
+    return [
+        'Professional mobile game 3x3 core tileset sheet.',
+        `Theme: ${tileset.description || tileset.theme || tileset.role || 'game terrain tiles'}.`,
+        'Exactly nine square tiles arranged as a 3 by 3 grid: top-left corner, top edge, top-right corner, left edge, center fill, right edge, bottom-left corner, bottom edge, bottom-right corner.',
+        'Seamless pixel-art or clean painted game terrain, no labels, no UI, no text, no characters.',
+        'The tiles should align at edges and be readable on mobile.',
+    ].join(' ');
+}
+
+async function generateTilesetAsset(tileset = {}) {
+    const tileSize = Number(tileset.tileSize || 32);
+    const key = tileset.key || 'world_tileset';
+    const coreKey = `${key}_core_3x3`;
+    const sheetKey = `${key}_7x7`;
+    const coreSize = tileSize * 3;
+    console.log(`[sprite-gen] Generating tileset core ${coreKey} (${tileSize}px tiles)`);
+    const coreImage = await assetModelRouter.generateImage(buildTilesetPrompt(tileset), { width: coreSize, height: coreSize });
+    const coreDataUri = `data:image/png;base64,${await downscaleImage(coreImage, { width: coreSize, height: coreSize })}`;
+    const expanded = await expandCoreTileset3x3To7x7(coreDataUri, { tileSize });
+    console.log(`[sprite-gen] ✓ Expanded tileset ${sheetKey} to ${expanded.columns}x${expanded.rows}`);
+
+    const coreAsset = {
+        id: coreKey,
+        key: coreKey,
+        type: 'image',
+        kind: 'tileset_core',
+        role: tileset.role || 'environment',
+        category: 'tileset',
+        width: tileSize * 3,
+        height: tileSize * 3,
+        tileSize,
+        columns: 3,
+        rows: 3,
+        transparent: false,
+        description: tileset.description || '3x3 core tileset',
+        url: coreDataUri,
+    };
+    const sheetAsset = {
+        id: sheetKey,
+        key: sheetKey,
+        type: 'image',
+        kind: 'tileset',
+        role: tileset.role || 'environment',
+        category: 'tileset',
+        width: tileSize * 7,
+        height: tileSize * 7,
+        tileSize,
+        columns: 7,
+        rows: 7,
+        transparent: false,
+        description: tileset.description || 'expanded 7x7 tileset',
+        url: expanded.dataUri,
+    };
+    const manifest = {
+        key,
+        type: 'tileset',
+        role: tileset.role || 'environment',
+        tileSize,
+        coreKey,
+        sheetKey,
+        coreGrid: '3x3',
+        expandedGrid: '7x7',
+        columns: 7,
+        rows: 7,
+        sourceColumns: 3,
+        sourceRows: 3,
+        imageKey: sheetKey,
+        tileKeys: expanded.tileKeys,
+        instructions: tileset.instructions || [],
+    };
+
+    return { coreAsset, sheetAsset, manifest };
+}
+
+async function buildTilesetAssets(tilesets = []) {
+    const assets = {};
+    const manifestAssets = [];
+    const assetPack = [];
+    const manifests = [];
+    const errors = [];
+
+    for (const tileset of tilesets || []) {
+        try {
+            const generated = await generateTilesetAsset(tileset);
+            for (const asset of [generated.coreAsset, generated.sheetAsset]) {
+                assets[asset.key] = asset.url;
+                manifestAssets.push(asset);
+                assetPack.push(asset);
+            }
+            manifests.push(generated.manifest);
+        } catch (error) {
+            const key = tileset?.key || 'world_tileset';
+            console.warn(`[Batch Artist Agent] Tileset generation failed for ${key}: ${error.message}`);
+            errors.push({ id: key, phase: 'tileset_generation', error: error.message });
+            manifests.push({
+                key,
+                type: 'tileset',
+                role: tileset?.role || 'environment',
+                tileSize: Number(tileset?.tileSize || 32),
+                coreGrid: '3x3',
+                expandedGrid: '7x7',
+                status: 'failed',
+                error: error.message,
+                instructions: tileset?.instructions || [],
+            });
+        }
+    }
+
+    return { assets, manifestAssets, assetPack, tilesets: manifests, errors };
 }
 
 /**
@@ -773,7 +936,7 @@ export async function generateGameSprites(gameSpec) {
  * @param {Array<Object>} requests - Array of asset requests
  * @returns {Promise<Object>} Map of asset IDs to data URIs
  */
-export async function batchArtistAgent(requests) {
+export async function batchArtistAgent(requests, options = {}) {
     console.log(`[Batch Artist Agent] Generating ${requests.length} assets...`);
     const modelStatus = assetModelRouter.getStatus();
     console.log(`[Batch Artist Agent] Model router: image=${modelStatus.textImage.provider}/${modelStatus.textImage.model} edit=${modelStatus.imageEdit.provider}/${modelStatus.imageEdit.model}`);
@@ -783,6 +946,7 @@ export async function batchArtistAgent(requests) {
     const manifestAssets = [];
     const assetPack = [];
     const animations = [];
+    const tilesets = [];
     
     // Generate assets sequentially to avoid rate limits
     // (NVIDIA free tier has rate limits)
@@ -882,6 +1046,16 @@ export async function batchArtistAgent(requests) {
             });
         }
     }
+
+    if (Array.isArray(options.tilesets) && options.tilesets.length > 0) {
+        console.log(`[Batch Artist Agent] Generating ${options.tilesets.length} tilesets...`);
+        const tilesetBundle = await buildTilesetAssets(options.tilesets);
+        Object.assign(results, tilesetBundle.assets);
+        manifestAssets.push(...tilesetBundle.manifestAssets);
+        assetPack.push(...tilesetBundle.assetPack);
+        tilesets.push(...tilesetBundle.tilesets);
+        errors.push(...tilesetBundle.errors);
+    }
     
     console.log(`[Batch Artist Agent] ✓ Generated ${Object.keys(results).length} assets (${errors.length} fallbacks)`);
     
@@ -893,6 +1067,7 @@ export async function batchArtistAgent(requests) {
         },
         assetPack,
         animations,
+        tilesets,
         errors: errors.length > 0 ? errors : null,
     };
 }

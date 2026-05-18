@@ -12,6 +12,9 @@ function normalizeRole(value) {
 
 function visualAssetType(asset = {}) {
     const type = normalizeRole(asset.type || asset.kind || asset.assetType);
+    const kind = normalizeRole(asset.kind || asset.assetType);
+    if (kind === 'tileset' || kind === 'tileset_core') return 'tileset';
+    if (kind === 'animation_frame') return 'image';
     if (['background', 'sprite', 'image', 'tileset', 'animation', 'sfx', 'music'].includes(type)) {
         return type;
     }
@@ -47,6 +50,9 @@ function summarizeAsset(asset = {}, generatedAssets = null) {
         source: asset.source || asset.provider || 'gametok-artist-agent',
         status: hasEmbeddedImage || ['animation', 'sfx', 'music', 'tileset'].includes(type) ? 'ready' : 'metadata_only',
         hasEmbeddedImage,
+        tileSize: asset.tileSize || null,
+        columns: asset.columns || null,
+        rows: asset.rows || null,
     };
 }
 
@@ -170,6 +176,8 @@ export function buildMakerAssetManifest({
                 'DreamAssets.firstByRole("enemy")',
                 'DreamAssets.firstByRole("background")',
                 'DreamAssets.getImage(asset.key)',
+                'DreamAssets.firstTileset()',
+                'DreamAssets.getTileset("world_tileset")',
             ],
             phaserHelpers: ['DreamAssets.preloadPhaser(scene)', 'DreamAssets.addSprite(scene, roleOrKey, x, y, options)', 'DreamAssets.addBackgroundCover(scene, roleOrKey, width, height)'],
         },

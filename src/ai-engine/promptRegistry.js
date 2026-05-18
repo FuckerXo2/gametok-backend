@@ -2442,6 +2442,19 @@ function buildDreamAssetsScript(generatedAssets = null) {
               return animation.sourceKey === sourceKey || animation.role === sourceKey || animation.key === sourceKey;
             });
           },
+          getTileset: function(key) {
+            var tilesets = window.DREAM_TILESETS || [];
+            var tileset = tilesets.find(function(item) {
+              return item && (item.key === key || item.sheetKey === key || item.imageKey === key);
+            }) || null;
+            if (tileset && tileset.imageKey) markDreamAssetUsage(tileset.imageKey, tileset.role || 'tileset');
+            return tileset;
+          },
+          firstTileset: function() {
+            var tileset = (window.DREAM_TILESETS || [])[0] || null;
+            if (tileset && tileset.imageKey) markDreamAssetUsage(tileset.imageKey, tileset.role || 'tileset');
+            return tileset;
+          },
           createAnimations: function(scene) {
             if (!scene || !scene.anims) return [];
             var created = [];
