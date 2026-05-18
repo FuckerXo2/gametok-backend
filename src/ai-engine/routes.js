@@ -2473,7 +2473,7 @@ async function readMakerProjectFiles(projectRoot) {
     return files;
 }
 
-function directRepairTaskForFailure(failure = '') {
+function directRepairTaskForFailure(failure = '', templateId = null) {
     const text = String(failure || '');
     if (/Missing probe method:\s*(\w+)/i.test(text)) {
         const method = text.match(/Missing probe method:\s*(\w+)/i)?.[1] || 'probe method';
@@ -2503,6 +2503,15 @@ function directRepairTaskForFailure(failure = '') {
     if (/combat probe|score|health-state|enemy.*progression/i.test(text)) {
         return 'combat step does not change score, enemy state, projectile state, or health.';
     }
+    if (/primaryAction\(\)/i.test(text)) {
+        return 'primaryAction() does not mutate generic arcade gameplay state.';
+    }
+    if (/spawnThreat\(\)/i.test(text)) {
+        return 'spawnThreat() does not increase live threat/entity count.';
+    }
+    if (/generic arcade|objective state/i.test(text)) {
+        return 'generic arcade step() does not progress score, health, or objective state.';
+    }
     if (/addBody\(\)/i.test(text)) {
         return 'addBody() does not increase simulation body count.';
     }
@@ -2511,6 +2520,9 @@ function directRepairTaskForFailure(failure = '') {
     }
     if (/step\(\).*goal object|physics/i.test(text)) {
         return 'step() does not advance simulated physics state.';
+    }
+    if (/goal.*target|win.*computed|result/i.test(text) && templateId === 'canvas-simulation') {
+        return 'checkGoal() does not compute win/fail from live simulation state.';
     }
     if (/select\(\).*selected tile/i.test(text)) {
         return 'select() does not update selected tile state.';
@@ -2521,14 +2533,26 @@ function directRepairTaskForFailure(failure = '') {
     if (/resolve\(\).*score|goal progress/i.test(text)) {
         return 'resolve() does not change score or goal progress.';
     }
+    if (/board|tile|grid/i.test(text) && templateId === 'canvas-grid-puzzle') {
+        return 'grid puzzle state is decorative instead of driven by board data.';
+    }
     if (/jump\(\).*upward velocity/i.test(text)) {
         return 'jump() does not give upward velocity.';
+    }
+    if (/collectNearest|collectible/i.test(text) && templateId === 'phaser-platformer') {
+        return 'collectNearest() does not change score or collectible state.';
+    }
+    if (/platform|fall through|collision/i.test(text) && templateId === 'phaser-platformer') {
+        return 'platform collision is not connected to player physics.';
     }
     if (/slide\(\).*sliding/i.test(text)) {
         return 'slide() does not enter sliding state.';
     }
     if (/spawnObstacle/i.test(text)) {
         return 'spawnObstacle() does not increase obstacle count.';
+    }
+    if (/distance|runner|collectible|obstacle/i.test(text) && templateId === 'canvas-runner') {
+        return 'runner update loop does not advance distance, score, obstacles, or collectibles.';
     }
     if (/choice|choose\(\)|node|history|meters/i.test(text)) {
         return 'choose() does not change story node, history, or meters.';
@@ -2538,6 +2562,9 @@ function directRepairTaskForFailure(failure = '') {
     }
     if (/reset\(\)/i.test(text)) {
         return 'reset() does not restore initial playable state.';
+    }
+    if (templateId) {
+        return `Repair the ${templateId} failed gameplay contract: ${text || 'unknown probe failure'}`;
     }
     return text || 'Repair the failed maker contract check.';
 }
@@ -2557,7 +2584,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                     source: 'template_runtime_probe',
                     templateId: check.templateId || diagnostics.templateRuntimeProbe?.templateId || null,
                     failure: String(failure || ''),
-                    directRepairTask: directRepairTaskForFailure(failure),
+                    directRepairTask: directRepairTaskForFailure(failure, check.templateId || diagnostics.templateRuntimeProbe?.templateId || null),
                     repair: 'Fix the live gameplay implementation so the named probe method proves real state progression. Preserve the probe API and make the visible game state match the probe snapshot.',
                 });
             }
@@ -2585,7 +2612,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 source: check.id || 'contract_check',
                 templateId: check.templateId || null,
                 failure: check.message,
-                directRepairTask: directRepairTaskForFailure(check.message),
+                directRepairTask: directRepairTaskForFailure(check.message, check.templateId || null),
                 repair: 'Repair the underlying gameplay contract violation without deleting diagnostics or probe hooks.',
             });
         }
@@ -2599,7 +2626,7 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 source: 'template_runtime_probe',
                 templateId: runtimeProbe.templateId || null,
                 failure: String(failure || ''),
-                directRepairTask: directRepairTaskForFailure(failure),
+                directRepairTask: directRepairTaskForFailure(failure, runtimeProbe.templateId || null),
                 repair: 'Repair the required gameplay behavior until this probe passes.',
             });
         }

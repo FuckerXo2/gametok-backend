@@ -178,6 +178,26 @@ const TEMPLATE_DEBUG_CHECKS = {
             repair: 'Create a Three.js scene, camera, renderer, depth cues, and first-person controls.',
         },
     ],
+    'canvas-arcade': [
+        {
+            id: 'arcade_live_input',
+            severity: 'fatal',
+            check: 'Mobile input and the probe move() method must change player or cursor state.',
+            repair: 'Wire pointer controls and probe move() to the same live player state used by drawWorld().',
+        },
+        {
+            id: 'arcade_primary_action',
+            severity: 'major',
+            check: 'The primary action must create or mutate a live gameplay entity, meter, score, or goal state.',
+            repair: 'Implement primaryAction() and visible controls through the same gameplay function.',
+        },
+        {
+            id: 'arcade_threat_or_goal_loop',
+            severity: 'major',
+            check: 'The game must spawn threats, goals, pickups, or objectives that progress through update/collision state.',
+            repair: 'Add live entities and collision/progression logic instead of a static interactive toy.',
+        },
+    ],
 };
 
 export function buildMakerDebugProtocol(templateContract = null, generatedAssets = null, assetContract = null) {

@@ -81,6 +81,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         'canvas-runner',
         'canvas-arcade-shooter',
         'story-vignette',
+        'canvas-arcade',
     ].includes(templateId)) return null;
 
     return page.evaluate(async (expectedTemplateId) => {
@@ -346,6 +347,56 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     success: false,
                     failures: [error?.message || String(error)],
                 };
+            }
+        }
+
+        if (templateId === 'canvas-arcade') {
+            const requiredMethods = ['snapshot', 'move', 'primaryAction', 'spawnThreat', 'step', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) return { templateId, success: false, failures };
+            try {
+                probe.reset();
+                const initial = probe.snapshot();
+                const moved = await probe.move(1, 0, 220);
+                if (
+                    moved.player
+                    && initial.player
+                    && Math.abs((moved.player.x || 0) - (initial.player.x || 0)) < 4
+                    && Math.abs((moved.player.y || 0) - (initial.player.y || 0)) < 4
+                ) {
+                    failures.push('move() did not change generic arcade player state.');
+                }
+                const afterAction = probe.primaryAction();
+                if (
+                    JSON.stringify(afterAction) === JSON.stringify(moved)
+                    || (
+                        (afterAction.score || 0) <= (moved.score || 0)
+                        && (afterAction.projectileCount || 0) <= (moved.projectileCount || 0)
+                        && (afterAction.actionCount || 0) <= (moved.actionCount || 0)
+                    )
+                ) {
+                    failures.push('primaryAction() did not change arcade gameplay state.');
+                }
+                const afterThreat = probe.spawnThreat();
+                if ((afterThreat.entityCount || afterThreat.enemyCount || afterThreat.threatCount || 0) <= (afterAction.entityCount || afterAction.enemyCount || afterAction.threatCount || 0)) {
+                    failures.push('spawnThreat() did not increase live threat/entity count.');
+                }
+                const afterStep = await probe.step(420);
+                if (
+                    (afterStep.score || 0) <= (initial.score || 0)
+                    && (afterStep.health || initial.health || 0) >= (initial.health || afterStep.health || 0)
+                    && (afterStep.progress || 0) <= (initial.progress || 0)
+                ) {
+                    failures.push('step() did not progress generic arcade score, health, or objective state.');
+                }
+                const reset = probe.reset();
+                if (reset.gameOver || reset.status === 'gameOver') {
+                    failures.push('reset() did not restore generic arcade playable state.');
+                }
+                return { templateId, success: failures.length === 0, failures, details: { initial, moved, afterAction, afterThreat, afterStep, reset } };
+            } catch (error) {
+                return { templateId, success: false, failures: [error?.message || String(error)] };
             }
         }
 

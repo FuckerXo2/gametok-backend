@@ -568,11 +568,21 @@ const TEMPLATE_CONTRACTS = {
         requiredFunctions: [
             'initGame',
             'handleInput',
+            'primaryAction',
+            'spawnThreat',
             'update',
             'resolveCollisions',
             'drawWorld',
             'drawHud',
             'resetGame',
+        ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.move',
+            'window.__GAMETOK_TEMPLATE_PROBE__.primaryAction',
+            'window.__GAMETOK_TEMPLATE_PROBE__.spawnThreat',
+            'window.__GAMETOK_TEMPLATE_PROBE__.step',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
         ],
         controls: [
             'mobile-safe primary controls',
@@ -585,6 +595,8 @@ const TEMPLATE_CONTRACTS = {
         ],
         acceptanceChecks: [
             'Input changes player state.',
+            'Primary action changes gameplay state.',
+            'Threats, goals, pickups, or hazards exist as live entities.',
             'Collisions or goals change score/health/progress.',
             'Game can restart without reload.',
         ],

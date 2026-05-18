@@ -60,6 +60,56 @@ const REPAIR_RECIPES = [
         ],
     },
     {
+        match: /addBody|simulation|physics|checkGoal|body count/i,
+        title: 'Simulation/edit mode is not driven by live physics state',
+        steps: [
+            'Make edit-mode placement mutate the same bodies[] array used by the renderer and physics step.',
+            'Make startSimulation()/start() switch mode/running state and stop accepting edit-only actions.',
+            'Make stepPhysics()/step() update positions, velocities, collisions, and goal checks.',
+            'Expose bodyCount, mode, running, goal, and result from snapshot() so probes and UI agree.',
+        ],
+    },
+    {
+        match: /grid|tile|select|resolve|board/i,
+        title: 'Grid puzzle is decorative instead of stateful',
+        steps: [
+            'Represent the board as a real grid array and compute a gridSignature from that data.',
+            'Make select() and visible tap handlers mutate selected row/column.',
+            'Make move()/swap/push mutate the grid only when the move is legal.',
+            'Make resolve()/goal logic mutate score, moves, progress, status, or win state from board data.',
+        ],
+    },
+    {
+        match: /runner|jump|slide|spawnObstacle|distance|collectible/i,
+        title: 'Runner loop does not prove live motion and collisions',
+        steps: [
+            'Make jump() set upward velocity and let gravity bring the runner back to ground.',
+            'Make slide() set a slide timer and alter collision bounds.',
+            'Spawn obstacles/collectibles as live arrays and move them through updateRunner().',
+            'Make distance, score, lives, gameOver, and resetRun() reflect the same state shown in the HUD.',
+        ],
+    },
+    {
+        match: /platform|collectNearest|fall through|jump\(\)|coyote/i,
+        title: 'Platformer physics or collectibles are not stateful',
+        steps: [
+            'Keep platforms as code-owned collision rectangles or tile data, not background art.',
+            'Make jump() set upward velocity and resolve gravity/platform collisions each frame.',
+            'Make collectNearest() mutate the same collectibles[] and score shown in the HUD.',
+            'Make resetLevel() restore player, hazards, collectibles, camera, score/lives, and goal state.',
+        ],
+    },
+    {
+        match: /primaryAction|spawnThreat|generic arcade|objective/i,
+        title: 'Generic arcade fallback lacks a concrete gameplay loop',
+        steps: [
+            'Define one primary action and route the visible control plus probe primaryAction() through it.',
+            'Represent threats/goals/pickups as live entities, not just decorative drawings.',
+            'Make spawnThreat() add an onscreen entity and make step() advance interactions.',
+            'Make score, health, progress, or objective state change from collisions or goals.',
+        ],
+    },
+    {
         match: /choice|story|node|meter|ending/i,
         title: 'Story choices do not mutate story state',
         steps: [

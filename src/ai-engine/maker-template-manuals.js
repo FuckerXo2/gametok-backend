@@ -179,6 +179,27 @@ const TEMPLATE_MANUALS = {
             'Static story card with no state machine.',
         ],
     },
+    'canvas-arcade': {
+        purpose: 'Flexible 2D arcade fallback with one clear mechanic, live entities, input, feedback, scoring/progress, and reset.',
+        implementationOrder: [
+            'Define the primary verb before drawing: collect, dodge, tap, drag, match, defend, chase, or survive.',
+            'Preserve player/entities/score/health/progress/gameOver state and expose it through the probe API.',
+            'Make move(), primaryAction(), spawnThreat(), step(), and reset() call the same functions used by visible controls.',
+            'Spawn at least one threat, goal, pickup, or objective early enough to prove the loop in 10 seconds.',
+            'Keep HUD and controls code-rendered and theme only gameplay art through DreamAssets.',
+        ],
+        qualityBar: [
+            'The first input must visibly change gameplay state.',
+            'The primary action must mutate score, projectiles/actions, inventory, progress, or objective state.',
+            'Threat/goal entities must be live arrays updated by step(), not just painted scenery.',
+            'Reset must restore a fresh playable state without reload.',
+        ],
+        commonMistakes: [
+            'A pretty toy with no objective, health, score, or fail/win path.',
+            'A single button that only plays particles.',
+            'Decorative threats that never collide or affect state.',
+        ],
+    },
 };
 
 export function getMakerTemplateManual(templateId) {
