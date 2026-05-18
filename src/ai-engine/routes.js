@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db.js';
-import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase2_BuildPrototype, buildPhase2_EditGame, buildPhase3_Repair, postProcessRawHtml } from './promptRegistry.js';
+import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase2_EditGame, postProcessRawHtml } from './promptRegistry.js';
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, getAssetRuntimeDiagnostics } from './asset-dictionary.js';
@@ -58,15 +58,15 @@ function extractJson(text) {
 const router = express.Router();
 
 const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.6";
-const OPENGAME_FALLBACK_MODELS = new Set([
+const TOOL_INCOMPATIBLE_MAKER_MODELS = new Set([
     'qwen/qwen3-coder-480b-a35b-instruct',
 ]);
 
 function resolveDreamModel(envName, fallback) {
     const requested = String(process.env[envName] || '').trim();
     if (!requested) return fallback;
-    if (OPENGAME_FALLBACK_MODELS.has(requested)) {
-        console.warn(`[DREAM MODEL] Ignoring leftover OpenGame fallback ${envName}=${requested}; using ${fallback}.`);
+    if (TOOL_INCOMPATIBLE_MAKER_MODELS.has(requested)) {
+        console.warn(`[DREAM MODEL] Ignoring tool-incompatible maker fallback ${envName}=${requested}; using ${fallback}.`);
         return fallback;
     }
     return requested;
@@ -116,6 +116,7 @@ const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_J
 const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
 const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATION_JOB_HEARTBEAT_MS || 30000));
 const ALLOW_LEGACY_HTML_FALLBACK = process.env.ALLOW_LEGACY_HTML_FALLBACK === 'true';
+const ENABLE_LEGACY_LABS_ROUTE = process.env.ENABLE_LEGACY_LABS_ROUTE === 'true';
 const generationJobRunners = new Map();
 let generationQueueReadyPromise = null;
 let generationWorkerTimer = null;
@@ -1518,7 +1519,7 @@ async function claimGenerationJob() {
             SELECT id
             FROM generation_jobs
             WHERE status = 'queued'
-              AND kind IN ('dream', 'labs')
+              AND kind = 'dream'
               AND run_after <= NOW()
             ORDER BY created_at ASC
             FOR UPDATE SKIP LOCKED
@@ -5150,6 +5151,12 @@ Output ONLY the complete fixed HTML document.`;
 }
 
 router.post('/dream-labs', async (req, res) => {
+    if (!ENABLE_LEGACY_LABS_ROUTE) {
+        return res.status(410).json({
+            error: 'Legacy Labs generation is disabled. Use /api/ai/dream so the native GameTok maker pipeline runs.',
+            code: 'legacy_labs_disabled',
+        });
+    }
     try {
         const { prompt, attachments } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
@@ -5182,9 +5189,11 @@ router.post('/dream-labs', async (req, res) => {
 generationJobRunners.set('dream', (jobId, prompt, payload = {}) => (
     executeDreamJob(jobId, prompt, payload.mediaAttachments || [], payload)
 ));
-generationJobRunners.set('labs', (jobId, prompt, payload = {}) => (
-    executeLabsDreamJob(jobId, prompt, payload.mediaAttachments || [])
-));
+if (ENABLE_LEGACY_LABS_ROUTE) {
+    generationJobRunners.set('labs', (jobId, prompt, payload = {}) => (
+        executeLabsDreamJob(jobId, prompt, payload.mediaAttachments || [])
+    ));
+}
 
 // Internal exports for in-process callers (e.g., the bot engine running
 // the same Dream pipeline real users go through). Keep these as the only
