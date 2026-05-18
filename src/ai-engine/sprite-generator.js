@@ -403,7 +403,7 @@ export async function generateSprite({
     const shouldRemoveBackground = removeBg && type !== 'background' && type !== 'ui';
     const prompt = buildSpritePrompt(description, type, shouldRemoveBackground);
     const fluxImage = await generateWithFlux(prompt, dimensions);
-    console.log(`[sprite-gen] ✓ Generated ${dimensions.width}x${dimensions.height} image`);
+    console.log(`[sprite-gen] ✓ Generated source image for ${dimensions.width}x${dimensions.height} target`);
     
     // Step 2: Remove background (optional, skip for backgrounds/ui)
     let processedImage = fluxImage;

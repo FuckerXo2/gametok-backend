@@ -1,4 +1,5 @@
 const DEFAULT_NVIDIA_FLUX_URL = 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell';
+const NIM_FLUX_ALLOWED_DIMENSIONS = [768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344];
 
 export function stripImageDataUrl(imageBase64OrDataUrl) {
     return String(imageBase64OrDataUrl || '').replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
@@ -15,6 +16,20 @@ export function normalizeImageDimensions(widthOrSize = 768, height = null) {
     return {
         width,
         height: Number(height || width),
+    };
+}
+
+function nearestAllowedFluxDimension(value) {
+    const requested = Number(value || 768);
+    const aboveOrEqual = NIM_FLUX_ALLOWED_DIMENSIONS.find((dimension) => dimension >= requested);
+    return aboveOrEqual || NIM_FLUX_ALLOWED_DIMENSIONS[NIM_FLUX_ALLOWED_DIMENSIONS.length - 1];
+}
+
+export function normalizeNvidiaFluxDimensions(widthOrSize = 768, height = null) {
+    const { width, height: resolvedHeight } = normalizeImageDimensions(widthOrSize, height);
+    return {
+        width: nearestAllowedFluxDimension(width),
+        height: nearestAllowedFluxDimension(resolvedHeight),
     };
 }
 
@@ -57,7 +72,7 @@ export class AssetModelRouter {
     }
 
     async generateImageWithNvidiaFlux(prompt, dimensions = 768) {
-        const { width, height } = normalizeImageDimensions(dimensions);
+        const { width, height } = normalizeNvidiaFluxDimensions(dimensions);
         const response = await fetch(this.config.textImage.nvidiaUrl, {
             method: 'POST',
             headers: {
