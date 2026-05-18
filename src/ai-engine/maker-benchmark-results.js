@@ -16,11 +16,16 @@ function assetContractInspection(sandbox = null) {
     return sandbox?.diagnostics?.assetContractInspection || null;
 }
 
+function assetQualitySummary(result = {}) {
+    return result.assetQuality || result.assetSummary?.quality || null;
+}
+
 export function scoreMakerBenchmarkResult(result = {}) {
     const sandbox = result.sandbox || {};
     const failures = failedContractChecks(sandbox);
     const runtimeProbe = templateRuntimeProbe(sandbox);
     const assetInspection = assetContractInspection(sandbox);
+    const assetQuality = assetQualitySummary(result);
     const repairs = Array.isArray(result.repairs) ? result.repairs : [];
     const gddCompliance = result.gddCompliance || null;
     const acceptance = result.acceptance || null;
@@ -40,6 +45,9 @@ export function scoreMakerBenchmarkResult(result = {}) {
             ? 10
             : repairs.some((repair) => /failed/i.test(String(repair.mode || ''))) ? 3 : 7,
         assetAndHud: assetInspection?.usesImageUi ? 0 : 10,
+        assetQuality: assetQuality
+            ? Math.round((Number(assetQuality.score || 0) / 100) * 8)
+            : 4,
         gdd: gddCompliance ? Math.round((Number(gddCompliance.score || 0) / 100) * 10) : 0,
         acceptance: acceptance ? Math.round((Number(acceptance.score || 0) / 100) * 10) : 0,
     };
@@ -63,6 +71,9 @@ export function scoreMakerBenchmarkResult(result = {}) {
     }
     if (assetInspection?.usesImageUi) {
         blockers.push('Generated image appears to be used for UI/HUD, which violates the maker asset contract.');
+    }
+    if (assetQuality && assetQuality.passed === false) {
+        blockers.push(...(Array.isArray(assetQuality.fatalIssues) ? assetQuality.fatalIssues.map((entry) => entry.message || entry.id).slice(0, 3) : ['Generated asset quality failed.']));
     }
     if (gddCompliance?.grade === 'fail' || gddCompliance?.grade === 'weak') {
         blockers.push(...(Array.isArray(gddCompliance.blockers) ? gddCompliance.blockers.slice(0, 3) : []));
@@ -96,6 +107,7 @@ export function buildMakerBenchmarkResult({
     gddCompliance = null,
     agentLoop = null,
     acceptance = null,
+    assetQuality = null,
     html = '',
 } = {}) {
     const result = {
@@ -110,6 +122,7 @@ export function buildMakerBenchmarkResult({
             templateId: benchmark.templateId || null,
             difficulty: benchmark.difficulty || null,
             acceptance: Array.isArray(benchmark.acceptance) ? benchmark.acceptance : [],
+            liveProbeExpectations: Array.isArray(benchmark.liveProbeExpectations) ? benchmark.liveProbeExpectations : [],
         } : null,
         promptPreview: `${String(prompt || '').slice(0, 240)}${String(prompt || '').length > 240 ? '...' : ''}`,
         template: templateContract ? {
@@ -137,6 +150,7 @@ export function buildMakerBenchmarkResult({
         gddCompliance: gddCompliance || null,
         agentLoop: agentLoop || null,
         acceptance: acceptance || null,
+        assetQuality: assetQuality || generatedAssets?.quality || null,
         sandbox: sandbox ? {
             success: Boolean(sandbox.success),
             crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],

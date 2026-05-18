@@ -95,6 +95,17 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             };
         }
 
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const samePoint = (a, b, threshold = 3) => {
+            if (!a || !b) return false;
+            return Math.abs(Number(a.x || 0) - Number(b.x || 0)) <= threshold
+                && Math.abs(Number(a.y || 0) - Number(b.y || 0)) <= threshold;
+        };
+        const changedNumber = (a, b, threshold = 0.001) => Math.abs(Number(a || 0) - Number(b || 0)) > threshold;
+        const signatureOf = (value) => {
+            try { return JSON.stringify(value); } catch { return String(value); }
+        };
+
         if (templateId === 'phaser-top-down-action') {
             const requiredMethods = ['snapshot', 'move', 'attack', 'spawnEnemyNearPlayer', 'reset'];
             const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
@@ -102,7 +113,6 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             if (missingMethods.length > 0) {
                 return { templateId, success: false, failures };
             }
-            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             try {
                 probe.reset();
                 await wait(80);
@@ -123,8 +133,8 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 }
                 await wait(420);
                 const afterCombat = probe.snapshot();
-                if (afterCombat.enemyCount >= afterSpawn.enemyCount && afterCombat.score <= initial.score && afterCombat.player.health >= initial.player.health) {
-                    failures.push('Combat probe did not show score, enemy, projectile, or health-state progression.');
+                if (afterCombat.enemyCount >= afterSpawn.enemyCount && afterCombat.score <= initial.score && afterCombat.player.health >= initial.player.health && afterCombat.projectileCount >= afterAttack.projectileCount) {
+                    failures.push('attack()/combat loop did not change score, enemy count, projectile count, or health after stepping.');
                 }
                 return {
                     templateId,
@@ -411,7 +421,6 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             };
         }
 
-        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         try {
             probe.reset();
             await wait(80);
@@ -420,7 +429,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             await wait(40);
             const highArc = probe.setAim(70, 90).trajectorySignature;
             if (!lowArc || !highArc || lowArc === highArc) {
-                failures.push('Angle/power changes did not produce a different trajectory signature.');
+                failures.push('setAim() did not produce a different trajectory signature when angle/power changed.');
             }
 
             const afterFire = probe.fire();
@@ -429,13 +438,30 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             }
             await wait(260);
             const midFlight = probe.snapshot();
-            if (!midFlight.projectileActive && !midFlight.winner && midFlight.currentTurn === initial.currentTurn) {
-                failures.push('Projectile resolved too quickly without winner or turn-state evidence.');
+            const projectileMoved = afterFire.projectile && midFlight.projectile
+                ? !samePoint(afterFire.projectile, midFlight.projectile, 1)
+                : afterFire.projectileActive !== midFlight.projectileActive;
+            if (afterFire.projectileActive && midFlight.projectileActive && !projectileMoved) {
+                failures.push('fire() created a projectile but updateProjectile() did not move it during flight.');
+            }
+            if (!midFlight.projectileActive && !midFlight.winner && midFlight.currentTurn === initial.currentTurn && signatureOf(midFlight.terrainSignature) === signatureOf(initial.terrainSignature)) {
+                failures.push('Projectile resolved without winner, turn change, or terrain-state evidence.');
             }
 
             const deformation = probe.probeDeformTerrain();
             if (!deformation?.changed) {
                 failures.push('probeDeformTerrain() did not change sampled terrain height.');
+            }
+            await wait(760);
+            const afterResolution = probe.snapshot();
+            const initialHealth = Array.isArray(initial.tanks) ? initial.tanks.map((tank) => Number(tank.health || 0)) : [];
+            const resolvedHealth = Array.isArray(afterResolution.tanks) ? afterResolution.tanks.map((tank) => Number(tank.health || 0)) : [];
+            const healthChanged = initialHealth.some((health, index) => changedNumber(health, resolvedHealth[index]));
+            const terrainChanged = signatureOf(afterResolution.terrainSignature) !== signatureOf(initial.terrainSignature)
+                || signatureOf(deformation?.before) !== signatureOf(deformation?.after);
+            const turnChanged = afterResolution.currentTurn !== initial.currentTurn;
+            if (!healthChanged && !terrainChanged && !turnChanged && !afterResolution.winner) {
+                failures.push('shot resolution did not change tank health, terrain signature, turn, or winner state.');
             }
 
             return {
@@ -449,6 +475,14 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     afterFire,
                     midFlight,
                     deformation,
+                    afterResolution,
+                    liveEvidence: {
+                        projectileMoved,
+                        healthChanged,
+                        terrainChanged,
+                        turnChanged,
+                        winner: afterResolution.winner || null,
+                    },
                 },
             };
         } catch (error) {
@@ -819,10 +853,11 @@ export async function verifyGame(htmlString, options = {}) {
                 ? options.assetContract.slots.filter((slot) => slot?.required).map((slot) => slot.role || slot.category).filter(Boolean)
                 : []));
             const usedRoles = renderState.dreamAssetUsage?.usedRoles || {};
+            const renderedRoles = renderState.dreamAssetUsage?.renderedRoles || {};
             const packRoles = new Set(Array.isArray(renderState.dreamAssetPackRoles) ? renderState.dreamAssetPackRoles : []);
             const missingRequiredRoleUsage = requiredRoles
                 .filter((role) => packRoles.has(role))
-                .filter((role) => Number(usedRoles[role] || 0) === 0);
+                .filter((role) => Number(usedRoles[role] || 0) === 0 && Number(renderedRoles[role] || 0) === 0);
             if (sourceUsesDreamAssets && helperCalls > 0 && missingRequiredRoleUsage.length > 0) {
                 const message = `Required asset slots not consumed: generated assets exist, but these required roles were not used through DreamAssets during boot: ${missingRequiredRoleUsage.join(', ')}.`;
                 renderState.failedContractChecks.push({

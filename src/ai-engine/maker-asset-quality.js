@@ -93,6 +93,20 @@ async function analyzeImageDataUrl({ key, role, category, type, url }) {
     if (isBackground && width < 256 && height < 256) {
         issues.push(issue({ id: 'background_low_resolution', severity: 'warning', key, message: `${key} background is ${width}x${height}.` }));
     }
+    if (isBackground) {
+        const aspect = height ? width / height : 1;
+        if (aspect < 0.62 || aspect > 1.95) {
+            issues.push(issue({
+                id: 'background_mobile_aspect_risky',
+                severity: 'warning',
+                key,
+                message: `${key} background aspect ${aspect.toFixed(2)} may crop awkwardly in a 390x844 mobile webview.`,
+            }));
+        }
+    }
+    if (!isBackground && !isTileset && visibleRatio > 0 && visibleRatio < 0.08) {
+        issues.push(issue({ id: 'sprite_subject_too_tiny', severity: 'warning', key, message: `${key} subject occupies very little of the sprite frame.` }));
+    }
 
     return {
         key,
@@ -166,6 +180,7 @@ function analyzeAnimations(generatedAssets = null) {
             frameCount: frames.length,
             missingFrames,
             duplicateFrameCount,
+            frameKeys: frames,
         });
     }
     return { animations: animationResults, issues };

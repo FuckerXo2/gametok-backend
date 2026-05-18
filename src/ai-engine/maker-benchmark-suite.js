@@ -12,6 +12,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Turns alternate after a shot resolves.',
             'HUD is code-rendered, readable, and does not use image-generated text.',
         ],
+        liveProbeExpectations: [
+            'setAim() changes trajectorySignature',
+            'fire() creates and moves a projectile',
+            'shot resolution changes health, terrain, turn, or winner state',
+        ],
     },
     {
         id: 'spell-survival-loop',
@@ -25,6 +30,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Gesture or fallback buttons create visible spells with gameplay collision.',
             'Killed large slimes split into smaller enemies.',
             'Combo or score feedback changes after impacts.',
+        ],
+        liveProbeExpectations: [
+            'move() changes player position',
+            'spawnEnemyNearPlayer() creates a live enemy',
+            'attack() changes projectile/enemy/score/health state',
         ],
     },
     {
@@ -40,6 +50,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Goal object reaching target zone triggers a win state.',
             'Retry returns to edit mode without reloading the page.',
         ],
+        liveProbeExpectations: [
+            'addBody() increases body count',
+            'start() enters running mode',
+            'step() moves the goal object under physics',
+        ],
     },
     {
         id: 'grid-puzzle-sokoban',
@@ -53,6 +68,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Undo restores the previous board state.',
             'All crates on targets triggers a win state.',
             'Grid remains fully visible on a tall phone viewport.',
+        ],
+        liveProbeExpectations: [
+            'select() changes selected cell state',
+            'move() changes grid signature',
+            'resolve() changes score or goal progress',
         ],
     },
     {
@@ -68,6 +88,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Obstacle collision ends the run and shows restart.',
             'Difficulty ramps over time.',
         ],
+        liveProbeExpectations: [
+            'jump() gives upward velocity',
+            'slide() enters sliding state',
+            'step() advances distance or score',
+        ],
     },
     {
         id: 'arcade-shooter-wave',
@@ -81,6 +106,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Enemy waves spawn without manual triggers.',
             'Health or lives change after enemy collision.',
             'Score changes when enemies are destroyed.',
+        ],
+        liveProbeExpectations: [
+            'move() changes ship position',
+            'fire() creates a projectile',
+            'step() changes enemy/projectile/score state',
         ],
     },
     {
@@ -96,6 +126,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Echolocation pulse reveals or highlights nodes.',
             'Text fits inside mobile UI containers.',
         ],
+        liveProbeExpectations: [
+            'choose() changes node/history/meters',
+            'forceEnding() reaches ending state',
+            'reset() restores story state',
+        ],
     },
     {
         id: 'platformer-rescue',
@@ -109,6 +144,11 @@ const MAKER_BENCHMARK_SUITE = [
             'Collectibles increase score.',
             'Enemy or hazard contact damages the player.',
             'Reaching the goal triggers level completion.',
+        ],
+        liveProbeExpectations: [
+            'move() changes player position',
+            'jump() gives upward velocity',
+            'collectNearest() changes score or collectible count',
         ],
     },
 ];
@@ -146,6 +186,7 @@ export function summarizeMakerBenchmark(benchmark) {
         title: benchmark.title,
         difficulty: benchmark.difficulty,
         acceptanceCount: Array.isArray(benchmark.acceptance) ? benchmark.acceptance.length : 0,
+        liveProbeExpectationCount: Array.isArray(benchmark.liveProbeExpectations) ? benchmark.liveProbeExpectations.length : 0,
         promptPreview: `${String(benchmark.prompt || '').slice(0, 180)}${String(benchmark.prompt || '').length > 180 ? '...' : ''}`,
     };
 }

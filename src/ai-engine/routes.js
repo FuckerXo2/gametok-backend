@@ -2620,6 +2620,12 @@ function directRepairTaskForFailure(failure = '', templateId = null) {
     if (/fire\(\).*active projectile|fire\(\).*projectile/i.test(text)) {
         return 'fire() does not create an active projectile.';
     }
+    if (/updateProjectile\(\).*move|projectile.*did not move|during flight/i.test(text)) {
+        return 'updateProjectile() does not move the projectile during flight.';
+    }
+    if (/shot resolution.*health.*terrain.*turn|resolution did not change|turn-state evidence/i.test(text)) {
+        return 'shot resolution does not damage health, deform terrain, change turns, or finish the round.';
+    }
     if (/probeDeformTerrain|sampled terrain|terrain height/i.test(text)) {
         return 'probeDeformTerrain() does not mutate terrain data.';
     }

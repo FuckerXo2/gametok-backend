@@ -55,6 +55,9 @@ function usage() {
         '  score [--job-id <uuid>] [--id <benchmark-id>] [--limit N]',
         '      Print compact benchmark scores from stored results.',
         '',
+        '  report [--job-id <uuid>] [--id <benchmark-id>] [--limit N]',
+        '      Print aggregate pass/watch/weak/fail counts and recurring blockers.',
+        '',
     ].join('\n'));
 }
 
@@ -125,6 +128,7 @@ async function enqueueBenchmarkJob(benchmark, userId) {
             templateId: benchmark.templateId,
             difficulty: benchmark.difficulty,
             acceptance: benchmark.acceptance,
+            liveProbeExpectations: benchmark.liveProbeExpectations || [],
         },
         source: 'gametok-maker-benchmark',
     };
@@ -277,6 +281,39 @@ function compactBenchmarkScore(row) {
     };
 }
 
+function benchmarkReport(rows) {
+    const compact = rows.map(compactBenchmarkScore);
+    const gradeCounts = compact.reduce((acc, row) => {
+        const grade = row.grade || 'unknown';
+        acc[grade] = (acc[grade] || 0) + 1;
+        return acc;
+    }, {});
+    const byTemplate = {};
+    const blockers = new Map();
+    for (const row of compact) {
+        const templateId = row.templateId || 'unknown';
+        byTemplate[templateId] = byTemplate[templateId] || { total: 0, pass: 0, watch: 0, weak: 0, fail: 0, unknown: 0 };
+        byTemplate[templateId].total += 1;
+        byTemplate[templateId][row.grade || 'unknown'] = (byTemplate[templateId][row.grade || 'unknown'] || 0) + 1;
+        for (const blocker of row.blockers || []) {
+            const normalized = String(blocker || '').replace(/\s+/g, ' ').slice(0, 180);
+            if (!normalized) continue;
+            blockers.set(normalized, (blockers.get(normalized) || 0) + 1);
+        }
+    }
+    return {
+        total: compact.length,
+        gradeCounts,
+        passRate: compact.length ? Number((((gradeCounts.pass || 0) / compact.length) * 100).toFixed(1)) : 0,
+        byTemplate,
+        recurringBlockers: Array.from(blockers.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 12)
+            .map(([message, count]) => ({ count, message })),
+        scores: compact,
+    };
+}
+
 async function main() {
     const command = process.argv[2];
     if (!command || hasFlag('--help') || hasFlag('-h')) {
@@ -333,6 +370,12 @@ async function main() {
     if (command === 'score') {
         const results = await collectBenchmarkResults();
         console.log(JSON.stringify(results.map(compactBenchmarkScore), null, 2));
+        return;
+    }
+
+    if (command === 'report') {
+        const results = await collectBenchmarkResults();
+        console.log(JSON.stringify(benchmarkReport(results), null, 2));
         return;
     }
 
