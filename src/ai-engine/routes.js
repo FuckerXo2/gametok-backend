@@ -2459,6 +2459,33 @@ async function writeMakerBuilderMaps(workspace, projectBuild, phase = 'initial_b
     return maps;
 }
 
+function buildMakerProjectFromScaffold(templateScaffold = null, { templateContract = null } = {}) {
+    if (!templateScaffold || !Array.isArray(templateScaffold.files) || templateScaffold.files.length === 0) {
+        return null;
+    }
+    return {
+        source: 'gametok-native-scaffold-file-loop',
+        assetRequests: [],
+        files: templateScaffold.files.map((file) => ({
+            path: file.path,
+            content: file.content,
+        })),
+        usedAssetMap: [],
+        gameSystemMap: [
+            {
+                system: 'template_scaffold',
+                state: Array.isArray(templateContract?.requiredState) ? templateContract.requiredState : [],
+                functions: Array.isArray(templateContract?.requiredFunctions) ? templateContract.requiredFunctions : [],
+                files: templateScaffold.files.map((file) => file.path).filter(Boolean),
+            },
+        ],
+        notes: [
+            `Started from ${templateContract?.templateId || 'selected'} scaffold.`,
+            'Primary build path is multi-turn file-agent edits over materialized files.',
+        ],
+    };
+}
+
 function mergeDreamAssetBundles(baseBundle = null, extraBundle = null) {
     if (!extraBundle) return baseBundle;
     if (!baseBundle) return extraBundle;
@@ -3126,9 +3153,9 @@ async function runMakerAgentInspectionTurns({
     maxTurns = MAKER_AGENT_INSPECTION_TURNS,
 }) {
     const objectives = [
-        'Audit project files against GDD, template contract, asset contract, and runtime probe API.',
-        'Audit builder asset/system maps against source code and repair any missing wiring.',
-        'Use rebuild/sandbox evidence from the previous turn to repair direct runtime failures.',
+        'Customize the scaffold into the requested game while preserving required template functions, state, controls, and probe API.',
+        'Wire generated assets through DreamAssets/DREAM_ASSET_PACK and update gameplay copy, tuning, entities, and feedback to match the GDD.',
+        'Run against rebuild/sandbox evidence from the previous turn and repair direct runtime, input, probe, or acceptance failures.',
         'Re-read after edits and make one final targeted compliance cleanup if needed.',
     ];
     let lastRunEvidence = null;
@@ -3502,15 +3529,31 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         let rawGameHtml = null;
         buildMode = 'file-native';
         try {
-            const projectBuildText = await generateCompleteJsonWithBuilder(buildPrompt, {
-                label: 'Phase 2 Project Build',
-                jobId,
-                timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
-                maxAttempts: 2,
-                progressBase: 52,
+            let projectBuild = buildMakerProjectFromScaffold(makerTemplateScaffold, {
+                templateContract: makerTemplateContract,
             });
-            await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
-            const projectBuild = parseMakerProjectBuildResponse(projectBuildText);
+            if (projectBuild) {
+                buildMode = 'file-agent-native';
+                await writeMakerJson(makerWorkspace, 'logs/project-build-source.json', {
+                    mode: buildMode,
+                    source: projectBuild.source,
+                    templateId: makerTemplateContract?.templateId || null,
+                    fileCount: projectBuild.files.length,
+                    note: 'Materialized starter scaffold first; builder now edits real files over multiple turns.',
+                });
+                console.log(`🧰 Phase 2 scaffold materialized: ${projectBuild.files.length} files. Starting file-agent loop...`);
+            } else {
+                console.warn('⚠️ No native scaffold available. Falling back to one-shot JSON project build.');
+                const projectBuildText = await generateCompleteJsonWithBuilder(buildPrompt, {
+                    label: 'Phase 2 Project Build',
+                    jobId,
+                    timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
+                    maxAttempts: 2,
+                    progressBase: 52,
+                });
+                await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
+                projectBuild = parseMakerProjectBuildResponse(projectBuildText);
+            }
             makerBuilderMaps = await writeMakerBuilderMaps(makerWorkspace, projectBuild, 'initial_build', { generatedAssets });
             makerProject = await materializeMakerProjectFiles(makerWorkspace, projectBuild, {
                 title: qualityIntent.title || 'GameTok Game',
@@ -3994,7 +4037,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             projectDistIndex: makerProject?.distIndex || null,
             artifactPath: path.join(makerWorkspace, 'artifact/index.html'),
             rawBuildPath: path.join(makerWorkspace, 'raw-build.html'),
-            buildCommand: buildMode === 'file-native' ? 'native-project-builder' : 'native-html-builder',
+            buildCommand: buildMode === 'file-agent-native' ? 'native-file-agent'
+                : buildMode === 'file-native' ? 'native-project-builder'
+                    : 'native-html-builder',
             buildMode,
             promptModel: DREAM_MODELS.premiumBuilder,
             specModel: DREAM_MODELS.spec,
