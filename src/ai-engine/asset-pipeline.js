@@ -432,13 +432,81 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
     const tilesets = buildTilesetPlan(qualityIntent, specText);
 
     return {
-        version: 1,
+        version: 2,
+        source: 'gametok-generate-game-assets-request',
         qualityIntent,
         artDirection,
+        styleAnchor: [
+            artDirection.styleName,
+            Array.isArray(artDirection.palette) ? artDirection.palette.join(', ') : null,
+            artDirection.spriteStyle,
+        ].filter(Boolean).join('; '),
+        outputDirName: 'runtime/DREAM_ASSET_PACK',
         imageRequests: requests,
         animations,
         audio,
         tilesets,
+    };
+}
+
+export function buildStructuredAssetToolRequest(assetPlan = {}, assetContract = null) {
+    const imageRequests = asArray(assetPlan?.imageRequests).map((request) => {
+        const assetType = request.assetType === 'background' ? 'background' : 'image';
+        return {
+            type: assetType,
+            key: request.id || request.key,
+            role: request.role || request.category || 'prop',
+            description: request.description,
+            params: assetType === 'background'
+                ? { resolution: `${request.width || BACKGROUND_DEFAULT_WIDTH}x${request.height || BACKGROUND_DEFAULT_HEIGHT}` }
+                : { size: request.size || 128, transparent: request.transparent !== false },
+            required: Boolean(asArray(assetContract?.slots).find((slot) => slot.id === request.id || slot.role === request.role)?.required),
+        };
+    });
+    const animations = asArray(assetPlan?.animations).map((animation) => ({
+        type: 'animation',
+        key: animation.key,
+        sourceKey: animation.sourceKey,
+        role: animation.role,
+        states: animation.states || [],
+        implementation: animation.implementation,
+    }));
+    const audio = [
+        ...asArray(assetPlan?.audio?.sfx).map((sound) => ({ ...sound, type: 'audio', audioType: 'sfx' })),
+        ...asArray(assetPlan?.audio?.music).map((track) => ({ ...track, type: 'audio', audioType: 'bgm' })),
+    ];
+    const tilesets = asArray(assetPlan?.tilesets).map((tileset) => ({
+        type: 'tileset',
+        key: tileset.key,
+        role: tileset.role || 'environment',
+        tileSize: tileset.tileSize || 32,
+        coreGrid: tileset.coreGrid || '3x3',
+        expandedGrid: tileset.expandedGrid || '7x7',
+        instructions: tileset.instructions || [],
+    }));
+
+    return {
+        version: 1,
+        tool: 'gametok_generate_game_assets',
+        source: 'native-maker-asset-plan',
+        styleAnchor: assetPlan?.styleAnchor || '',
+        output: {
+            runtimeGlobals: ['window.DREAM_ASSETS', 'window.DREAM_ASSET_PACK', 'window.DREAM_ASSET_MANIFEST'],
+            files: ['asset-plan.json', 'asset-tool-request.json', 'asset-manifest.json', 'asset-summary.json'],
+            manifestType: 'GameTok maker asset manifest v3',
+        },
+        assets: [
+            ...imageRequests,
+            ...animations,
+            ...audio,
+            ...tilesets,
+        ],
+        constraints: [
+            'HUD, controls, labels, meters, sliders, and readable UI text are never generated as images.',
+            'Backgrounds are scenery only and do not define collision or tactical geometry.',
+            'Sprites are isolated subjects with transparent backgrounds unless asset type is background.',
+            'All outputs must resolve to runtime keys consumed through DreamAssets or DREAM_ASSET_PACK.',
+        ],
     };
 }
 

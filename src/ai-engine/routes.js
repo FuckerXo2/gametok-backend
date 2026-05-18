@@ -13,7 +13,7 @@ import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, ge
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
-import { buildDreamAssetPlan, compileDreamAssetBundle } from './asset-pipeline.js';
+import { buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
 import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
@@ -24,6 +24,7 @@ import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
+import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2151,6 +2152,9 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '}',
         '',
         'Hard rules:',
+        '- The GameTok maker GDD is mandatory. Implement Section 0 architecture, Section 1 assets, Section 2 config, Section 3 entities/functions, Section 4 content, and Section 5 roadmap in that order.',
+        '- Do not skip a GDD section because the user prompt is short. Short prompts still inherit the selected template contract and GDD acceptance checks.',
+        '- Notes must mention which GDD sections were implemented or intentionally satisfied by scaffold behavior.',
         '- Valid paths are only index.html and src/*.css, src/*.js, src/*.json.',
         '- index.html must reference ./src/styles.css and ./src/game.js.',
         '- Do not inline the whole game into index.html.',
@@ -2175,6 +2179,7 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '- If you must rewrite a scaffold system, keep the same public API and explain the reason in notes.',
         '- Preserve scaffold function names and the working state machine unless the template API explicitly allows changing them.',
         '- Preserve any window.__GAMETOK_TEMPLATE_PROBE__ API from the scaffold. It is used by the sandbox to verify playable mechanics.',
+        '- The output must be auditable against the GDD. Required state/function names from Section 3 should appear in source unless the scaffold already implements them.',
         '',
         'DreamAssets API contract available at runtime after post-processing:',
         '- window.DREAM_ASSETS: object of generated image data URLs by key.',
@@ -2204,6 +2209,9 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '',
         'Template asset contract:',
         JSON.stringify(assetContract || null, null, 2),
+        '',
+        'Structured asset tool contract:',
+        JSON.stringify(buildStructuredAssetToolRequest(generatedAssets?.assetPlan || {}, assetContract), null, 2),
         '',
         'Asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
@@ -2303,6 +2311,7 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '{"files":[{"path":"src/game.js","content":"complete replacement file contents"}],"notes":["short note"]}',
         '',
         'Task:',
+        '- Treat the GameTok maker GDD as mandatory. This pass is only successful if the updated files still satisfy Section 0-5.',
         '- Edit only files needed to use the newly generated assets.',
         '- Valid paths are index.html and existing src/*.css, src/*.js, src/*.json files.',
         '- Return complete contents for every file you edit.',
@@ -2334,6 +2343,9 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '',
         'Updated asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
+        '',
+        'Structured asset tool contract:',
+        JSON.stringify(buildStructuredAssetToolRequest(generatedAssets?.assetPlan || {}, assetContract), null, 2),
         '',
         'Current project files:',
         JSON.stringify(projectFiles, null, 2),
@@ -2717,6 +2729,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '{"files":[{"path":"index.html","content":"complete replacement file contents"}],"notes":["short note"]}',
         '',
         'Rules:',
+        '- Repair against the GameTok maker GDD, not just the crash string. Preserve all six GDD sections in the implementation.',
+        '- If a repair conflicts with the GDD, satisfy the GDD and explain the constrained repair in notes.',
         '- Edit only the files that need changes.',
         '- Valid paths are index.html and existing src/*.css, src/*.js, src/*.json files.',
         '- Return complete contents for every file you edit.',
@@ -2770,6 +2784,9 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '',
         'Asset summary:',
         JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
+        '',
+        'Structured asset tool contract:',
+        JSON.stringify(buildStructuredAssetToolRequest(generatedAssets?.assetPlan || {}, assetContract), null, 2),
         '',
         'Original user prompt:',
         prompt,
@@ -2922,6 +2939,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     let generatedAssets = null;
     let finalSandboxResult = null;
     let buildMode = null;
+    let makerDesignBriefSummary = null;
+    let makerGddCompliance = null;
     try {
         assertJobNotCancelled(jobId);
 
@@ -2974,6 +2993,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await updateGenerationJobProgress(jobId, 26, 'assets', 'Planning visual assets...');
                 let assetPlan = await buildDreamAssetPlan(qualityIntent);
                 assetPlan = mergeMakerAssetContractIntoPlan(assetPlan, makerAssetContract);
+                const assetToolRequest = buildStructuredAssetToolRequest(assetPlan, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-plan.json', {
                     artDirection: assetPlan.artDirection || qualityIntent.artDirection || null,
                     assetContract: summarizeMakerAssetContract(makerAssetContract),
@@ -2981,6 +3001,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     audioPlan: assetPlan.audio || null,
                     tilesets: assetPlan.tilesets || [],
                 });
+                await writeMakerJson(makerWorkspace, 'asset-tool-request.json', assetToolRequest);
                 const assetRequests = assetPlan.imageRequests;
                 
                 console.log(`🎨 Artist Agent: Generating ${assetRequests.length} visual assets...`);
@@ -3048,7 +3069,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             assetContract: makerAssetContract,
         });
         await writeMakerText(makerWorkspace, 'GAME_DESIGN.md', makerDesignBrief);
-        const makerDesignBriefSummary = summarizeMakerDesignBrief(makerDesignBrief);
+        makerDesignBriefSummary = summarizeMakerDesignBrief(makerDesignBrief);
         await writeMakerJson(makerWorkspace, 'design-brief-summary.json', makerDesignBriefSummary);
         await writeMakerJson(makerWorkspace, 'gdd-summary.json', makerDesignBriefSummary);
         console.log(`   GDD: ${makerDesignBriefSummary.chars} chars across ${makerDesignBriefSummary.gddSections || 0}/6 contract sections`);
@@ -3106,7 +3127,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await writeMakerJson(makerWorkspace, 'logs/project-asset-requests.json', projectBuild.assetRequests);
                 await updateGenerationJobProgress(jobId, 57, 'assets', 'Generating requested game assets...');
                 const requestPlan = {
-                    version: 1,
+                    version: 2,
+                    source: 'gametok-builder-requested-assets',
                     qualityIntent,
                     templateContract: summarizeMakerTemplateContract(makerTemplateContract),
                     artDirection: qualityIntent.artDirection || generatedAssets?.assetPlan?.artDirection || {},
@@ -3115,6 +3137,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     audio: generatedAssets?.audio || { sfx: [], music: [] },
                     tilesets: generatedAssets?.tilesets || [],
                 };
+                await writeMakerJson(makerWorkspace, 'logs/requested-asset-tool-request.json', buildStructuredAssetToolRequest(requestPlan, makerAssetContract));
                 const requestedImages = await batchArtistAgent(projectBuild.assetRequests);
                 const requestedBundle = compileDreamAssetBundle(requestedImages, requestPlan);
                 generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
@@ -3420,6 +3443,15 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         assertJobNotCancelled(jobId);
         await updateGenerationJobProgress(jobId, 94, 'save', 'Saving your game...');
         const finalTitle = extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game';
+        makerGddCompliance = verifyMakerGddCompliance({
+            gddSummary: makerDesignBriefSummary,
+            templateContract: makerTemplateContract,
+            assetContract: makerAssetContract,
+            assetManifest: generatedAssets?.makerAssetManifest || null,
+            sandbox: finalSandboxResult,
+            buildMode,
+        });
+        await writeMakerJson(makerWorkspace, 'gdd-compliance.json', makerGddCompliance);
         const makerBenchmarkResult = makerBenchmark
             ? buildMakerBenchmarkResult({
                 benchmark: makerBenchmark,
@@ -3433,6 +3465,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 repairs: makerRepairs,
                 buildMode,
                 generatedAssets: summarizeMakerAssets(generatedAssets),
+                gddSummary: makerDesignBriefSummary,
+                gddCompliance: makerGddCompliance,
                 html: finalHtml,
             })
             : null;
@@ -3459,6 +3493,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             templateContract: summarizeMakerTemplateContract(makerTemplateContract),
             assetContract: summarizeMakerAssetContract(makerAssetContract),
             assetManifest: summarizeMakerAssetManifest(generatedAssets?.makerAssetManifest || null),
+            gdd: makerDesignBriefSummary,
+            gddCompliance: makerGddCompliance,
             templateScaffold: summarizeMakerTemplateScaffold(makerTemplateScaffold),
             debugProtocol: makerDebugProtocol,
             assetSummary: summarizeMakerAssets(generatedAssets),
@@ -3533,6 +3569,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             return;
         }
         console.error("❌ [DREAM JOB] Error:", err);
+        if (!makerGddCompliance && makerDesignBriefSummary) {
+            makerGddCompliance = verifyMakerGddCompliance({
+                gddSummary: makerDesignBriefSummary,
+                templateContract: makerTemplateContract,
+                assetContract: makerAssetContract,
+                assetManifest: generatedAssets?.makerAssetManifest || null,
+                sandbox: finalSandboxResult,
+                buildMode,
+            });
+        }
         const failedBenchmarkResult = makerBenchmark
             ? buildMakerBenchmarkResult({
                 benchmark: makerBenchmark,
@@ -3546,6 +3592,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 sandbox: finalSandboxResult,
                 repairs: makerRepairs,
                 buildMode,
+                generatedAssets: summarizeMakerAssets(generatedAssets),
+                gddSummary: makerDesignBriefSummary,
+                gddCompliance: makerGddCompliance,
             })
             : null;
         if (failedBenchmarkResult) {
@@ -3561,6 +3610,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 workspace: makerWorkspace,
                 error: err?.message || String(err),
                 stack: err?.stack || null,
+                gdd: makerDesignBriefSummary,
+                gddCompliance: makerGddCompliance,
                 benchmark: failedBenchmarkResult,
             }).catch(() => {});
             if (failedBenchmarkResult) {

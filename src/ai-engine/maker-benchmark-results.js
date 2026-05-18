@@ -22,6 +22,7 @@ export function scoreMakerBenchmarkResult(result = {}) {
     const runtimeProbe = templateRuntimeProbe(sandbox);
     const assetInspection = assetContractInspection(sandbox);
     const repairs = Array.isArray(result.repairs) ? result.repairs : [];
+    const gddCompliance = result.gddCompliance || null;
     const expectedTemplate = result.benchmark?.templateId || null;
     const selectedTemplate = result.template?.templateId || null;
 
@@ -38,6 +39,7 @@ export function scoreMakerBenchmarkResult(result = {}) {
             ? 10
             : repairs.some((repair) => /failed/i.test(String(repair.mode || ''))) ? 3 : 7,
         assetAndHud: assetInspection?.usesImageUi ? 0 : 10,
+        gdd: gddCompliance ? Math.round((Number(gddCompliance.score || 0) / 100) * 10) : 0,
     };
 
     const score = clampScore(Object.values(components).reduce((sum, item) => sum + item, 0));
@@ -59,6 +61,9 @@ export function scoreMakerBenchmarkResult(result = {}) {
     }
     if (assetInspection?.usesImageUi) {
         blockers.push('Generated image appears to be used for UI/HUD, which violates the maker asset contract.');
+    }
+    if (gddCompliance?.grade === 'fail' || gddCompliance?.grade === 'weak') {
+        blockers.push(...(Array.isArray(gddCompliance.blockers) ? gddCompliance.blockers.slice(0, 3) : []));
     }
 
     return {
@@ -82,6 +87,8 @@ export function buildMakerBenchmarkResult({
     repairs = [],
     buildMode = null,
     generatedAssets = null,
+    gddSummary = null,
+    gddCompliance = null,
     html = '',
 } = {}) {
     const result = {
@@ -112,6 +119,15 @@ export function buildMakerBenchmarkResult({
             checkCount: Array.isArray(debugProtocol.checks) ? debugProtocol.checks.length : 0,
             executionOrder: Array.isArray(debugProtocol.executionOrder) ? debugProtocol.executionOrder : [],
         } : null,
+        gdd: gddSummary ? {
+            sections: gddSummary.sections || 0,
+            gddSections: gddSummary.gddSections || 0,
+            hasGddContract: Boolean(gddSummary.hasGddContract),
+            hasAssetRegistry: Boolean(gddSummary.hasAssetRegistry),
+            hasEntityArchitecture: Boolean(gddSummary.hasEntityArchitecture),
+            hasImplementationRoadmap: Boolean(gddSummary.hasImplementationRoadmap),
+        } : null,
+        gddCompliance: gddCompliance || null,
         sandbox: sandbox ? {
             success: Boolean(sandbox.success),
             crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],
