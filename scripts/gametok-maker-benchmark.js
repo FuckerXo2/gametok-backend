@@ -13,6 +13,7 @@ import {
     getMakerBenchmarkSuite,
     summarizeMakerBenchmark,
 } from '../src/ai-engine/maker-benchmark-suite.js';
+import { scoreMakerBenchmarkResult } from '../src/ai-engine/maker-benchmark-results.js';
 
 function readArg(name, fallback = null) {
     const index = process.argv.indexOf(name);
@@ -47,6 +48,12 @@ function usage() {
         '',
         '  run --user-id <uuid> [--id <benchmark-id>] [--template <template-id>] [--difficulty core|breadth] [--limit N] [--dry-run]',
         '      Enqueue selected benchmark prompts into the normal generation_jobs queue.',
+        '',
+        '  collect [--job-id <uuid>] [--id <benchmark-id>] [--limit N]',
+        '      Collect stored benchmark results from generation_jobs payloads.',
+        '',
+        '  score [--job-id <uuid>] [--id <benchmark-id>] [--limit N]',
+        '      Print compact benchmark scores from stored results.',
         '',
     ].join('\n'));
 }
@@ -209,6 +216,67 @@ async function inspectBenchmarks(benchmarks) {
     console.log(JSON.stringify(inspections, null, 2));
 }
 
+async function collectBenchmarkResults() {
+    const jobId = readArg('--job-id');
+    const benchmarkIds = readRepeatedArg('--id');
+    const limit = Number(readArg('--limit', 25));
+    const params = [];
+    const filters = [
+        "payload ? 'benchmark'",
+    ];
+
+    if (jobId) {
+        params.push(jobId);
+        filters.push(`id = $${params.length}`);
+    }
+    if (benchmarkIds.length > 0) {
+        params.push(benchmarkIds);
+        filters.push(`payload #>> '{benchmark,id}' = ANY($${params.length}::text[])`);
+    }
+    params.push(Number.isFinite(limit) && limit > 0 ? limit : 25);
+
+    const result = await pool.query(
+        `SELECT id, user_id, status, phase, error, created_at, updated_at, completed_at, payload
+         FROM generation_jobs
+         WHERE ${filters.join(' AND ')}
+         ORDER BY created_at DESC
+         LIMIT $${params.length}`,
+        params
+    );
+
+    return result.rows.map((row) => {
+        const payload = row.payload || {};
+        const benchmarkResult = payload.benchmarkResult || null;
+        return {
+            jobId: row.id,
+            userId: row.user_id,
+            status: row.status,
+            phase: row.phase,
+            error: row.error,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            completedAt: row.completed_at,
+            benchmark: payload.benchmark || null,
+            result: benchmarkResult,
+            score: benchmarkResult ? scoreMakerBenchmarkResult(benchmarkResult) : null,
+        };
+    });
+}
+
+function compactBenchmarkScore(row) {
+    const score = row.score || row.result?.score || null;
+    return {
+        jobId: row.jobId,
+        status: row.status,
+        benchmarkId: row.benchmark?.id || row.result?.benchmark?.id || null,
+        title: row.benchmark?.title || row.result?.benchmark?.title || null,
+        templateId: row.benchmark?.templateId || row.result?.benchmark?.templateId || null,
+        score: score?.score ?? null,
+        grade: score?.grade || null,
+        blockers: score?.blockers || [],
+    };
+}
+
 async function main() {
     const command = process.argv[2];
     if (!command || hasFlag('--help') || hasFlag('-h')) {
@@ -253,6 +321,18 @@ async function main() {
             manifestPath,
             results,
         }, null, 2));
+        return;
+    }
+
+    if (command === 'collect') {
+        const results = await collectBenchmarkResults();
+        console.log(JSON.stringify(results, null, 2));
+        return;
+    }
+
+    if (command === 'score') {
+        const results = await collectBenchmarkResults();
+        console.log(JSON.stringify(results.map(compactBenchmarkScore), null, 2));
         return;
     }
 

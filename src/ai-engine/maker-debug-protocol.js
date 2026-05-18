@@ -107,6 +107,54 @@ const TEMPLATE_DEBUG_CHECKS = {
             check: 'Win/loss must be computed from simulated state, not a timer-only fake result.',
             repair: 'Check the goal object position/velocity against target/failure zones every physics step.',
         },
+        {
+            id: 'simulation_body_mutation',
+            severity: 'major',
+            check: 'Adding a part must mutate the simulation body list and be visible before START.',
+            repair: 'Wire palette/drag placement to addBody() and render the new body in edit mode.',
+        },
+    ],
+    'canvas-grid-puzzle': [
+        {
+            id: 'grid_stateful_moves',
+            severity: 'fatal',
+            check: 'Selecting and moving tiles must mutate grid state, not just animate decorative tiles.',
+            repair: 'Represent the board as a grid array and update a grid signature after every legal move.',
+        },
+        {
+            id: 'grid_goal_resolution',
+            severity: 'major',
+            check: 'Puzzle resolution must change score, moves, goal progress, or status from live board state.',
+            repair: 'Connect resolveMatches/applyGoalProgress to board data and visible HUD updates.',
+        },
+    ],
+    'canvas-runner': [
+        {
+            id: 'runner_jump_slide_state',
+            severity: 'fatal',
+            check: 'Jump and slide controls must change player physics/collision state.',
+            repair: 'Implement jump velocity, gravity, slide timer, and collision bounds that respond to controls.',
+        },
+        {
+            id: 'runner_progression_loop',
+            severity: 'major',
+            check: 'Runner distance, obstacles, collectibles, or score must progress without fake static scrolling.',
+            repair: 'Spawn live obstacle/collectible entities and advance distance/score inside updateRunner().',
+        },
+    ],
+    'canvas-arcade-shooter': [
+        {
+            id: 'shooter_projectile_loop',
+            severity: 'fatal',
+            check: 'Fire must create projectiles that move and collide with enemies.',
+            repair: 'Implement fireWeapon(), updateProjectiles(), spawnEnemy(), and resolveCollisions() against live arrays.',
+        },
+        {
+            id: 'shooter_wave_pressure',
+            severity: 'major',
+            check: 'Enemy waves must spawn and threaten the player without relying on keyboard-only play.',
+            repair: 'Spawn visible enemies on timers and support drag/joystick mobile movement.',
+        },
     ],
     'story-vignette': [
         {
@@ -114,6 +162,12 @@ const TEMPLATE_DEBUG_CHECKS = {
             severity: 'fatal',
             check: 'The player must see and select meaningful choices that change flags, meters, or later content.',
             repair: 'Implement currentNode, choices, consequences, and state-dependent rendering.',
+        },
+        {
+            id: 'story_mobile_readability',
+            severity: 'major',
+            check: 'Story copy and choices must fit phone UI containers and stay tappable.',
+            repair: 'Use responsive DOM choice buttons, short visible text blocks, and safe-area layout.',
         },
     ],
     'three-first-person': [

@@ -22,6 +22,7 @@ import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMake
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome } from './maker-repair-protocol.js';
+import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1625,6 +1626,18 @@ async function updateGenerationJobProgress(jobId, progress, phase, statusMessage
     );
 }
 
+async function updateGenerationJobBenchmarkResult(jobId, benchmarkResult) {
+    if (!benchmarkResult) return;
+    await ensureGenerationQueueSchema();
+    await pool.query(
+        `UPDATE generation_jobs
+         SET payload = jsonb_set(COALESCE(payload, '{}'::jsonb), '{benchmarkResult}', $2::jsonb, true),
+             updated_at = NOW()
+         WHERE id = $1`,
+        [jobId, JSON.stringify(benchmarkResult)]
+    );
+}
+
 function getQueueProgressPayload(queueJob) {
     if (!queueJob) return {};
     return {
@@ -2830,10 +2843,17 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // Phase 2: Kimi builds the game from the spec and asset contract
 // Phase 3: Puppeteer verifies the result and Kimi repairs project files
 // ═══════════════════════════════════════════════════════════
-async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
+async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     let makerWorkspace = null;
     let makerProject = null;
     const makerRepairs = [];
+    let makerBenchmark = jobPayload?.benchmark || null;
+    let makerTemplateContract = null;
+    let makerAssetContract = null;
+    let makerDebugProtocol = null;
+    let generatedAssets = null;
+    let finalSandboxResult = null;
+    let buildMode = null;
     try {
         assertJobNotCancelled(jobId);
 
@@ -2849,8 +2869,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         const phase1 = buildPhase1_Quantize(prompt);
         const qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
         assertJobNotCancelled(jobId);
-        const makerTemplateContract = selectMakerTemplateContract(qualityIntent, prompt);
-        const makerAssetContract = buildMakerAssetContract(makerTemplateContract, qualityIntent);
+        makerTemplateContract = selectMakerTemplateContract(qualityIntent, prompt);
+        makerAssetContract = buildMakerAssetContract(makerTemplateContract, qualityIntent);
         await writeMakerJson(makerWorkspace, 'template-contract.json', makerTemplateContract);
         await writeMakerJson(makerWorkspace, 'asset-contract.json', makerAssetContract);
         await writeMakerJson(makerWorkspace, 'gametok-plan.json', buildMakerPlan(qualityIntent, prompt, makerTemplateContract));
@@ -2878,7 +2898,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         // ── ARTIST AGENT: Generate ALL visual assets with AI ──
         const useArtistAgent = process.env.DISABLE_ARTIST_AGENT !== 'true';
         const hasMakerAssetSlots = Array.isArray(makerAssetContract.slots) && makerAssetContract.slots.length > 0;
-        let generatedAssets = null;
+        generatedAssets = null;
         
         if (useArtistAgent && (qualityIntent.visualAssets || hasMakerAssetSlots)) {
             try {
@@ -2931,7 +2951,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 errors: useArtistAgent ? [] : [{ phase: 'asset_generation', message: 'Artist agent disabled by configuration.' }],
             });
         }
-        let makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
+        makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
         const makerTemplateScaffold = await loadMakerTemplateScaffold(makerTemplateContract.templateId);
         if (makerTemplateScaffold) {
@@ -2988,7 +3008,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
         }
         let rawGameHtml = null;
-        let buildMode = 'file-native';
+        buildMode = 'file-native';
         try {
             const projectBuildText = (await requestBuilderMessage(buildPrompt, {
                 label: 'Phase 2 Project Build',
@@ -3081,7 +3101,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         let finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
         await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
         let finalScreenshot = null;
-        let finalSandboxResult = null;
+        finalSandboxResult = null;
 
         // ── PHASE 3/3: QA SANDBOX AUTO-HEALING LOOP ──
         let maxRetries = 2;
@@ -3315,6 +3335,26 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
         assertJobNotCancelled(jobId);
         await updateGenerationJobProgress(jobId, 94, 'save', 'Saving your game...');
         const finalTitle = extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game';
+        const makerBenchmarkResult = makerBenchmark
+            ? buildMakerBenchmarkResult({
+                benchmark: makerBenchmark,
+                jobId,
+                prompt,
+                status: 'complete',
+                templateContract: makerTemplateContract,
+                assetContract: makerAssetContract,
+                debugProtocol: makerDebugProtocol,
+                sandbox: finalSandboxResult,
+                repairs: makerRepairs,
+                buildMode,
+                generatedAssets: summarizeMakerAssets(generatedAssets),
+                html: finalHtml,
+            })
+            : null;
+        if (makerBenchmarkResult) {
+            await writeMakerJson(makerWorkspace, 'benchmark-result.json', makerBenchmarkResult);
+            await updateGenerationJobBenchmarkResult(jobId, makerBenchmarkResult);
+        }
         await writeMakerJson(makerWorkspace, 'gametok-build-report.json', {
             version: 1,
             jobId,
@@ -3337,6 +3377,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             debugProtocol: makerDebugProtocol,
             assetSummary: summarizeMakerAssets(generatedAssets),
             sandbox: finalSandboxResult,
+            benchmark: makerBenchmarkResult,
             repairs: makerRepairs,
             htmlBytes: Buffer.byteLength(finalHtml || '', 'utf8'),
             rawHtmlBytes: Buffer.byteLength(rawGameHtml || '', 'utf8'),
@@ -3406,6 +3447,24 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
             return;
         }
         console.error("❌ [DREAM JOB] Error:", err);
+        const failedBenchmarkResult = makerBenchmark
+            ? buildMakerBenchmarkResult({
+                benchmark: makerBenchmark,
+                jobId,
+                prompt,
+                status: 'failed',
+                error: err?.message || String(err),
+                templateContract: makerTemplateContract,
+                assetContract: makerAssetContract,
+                debugProtocol: makerDebugProtocol,
+                sandbox: finalSandboxResult,
+                repairs: makerRepairs,
+                buildMode,
+            })
+            : null;
+        if (failedBenchmarkResult) {
+            await updateGenerationJobBenchmarkResult(jobId, failedBenchmarkResult).catch(() => {});
+        }
         if (makerWorkspace) {
             await writeMakerJson(makerWorkspace, 'gametok-build-report.json', {
                 version: 1,
@@ -3416,7 +3475,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = []) {
                 workspace: makerWorkspace,
                 error: err?.message || String(err),
                 stack: err?.stack || null,
+                benchmark: failedBenchmarkResult,
             }).catch(() => {});
+            if (failedBenchmarkResult) {
+                await writeMakerJson(makerWorkspace, 'benchmark-result.json', failedBenchmarkResult).catch(() => {});
+            }
         }
         await markJobError(jobId, "DreamStream generation failed", err);
     }
@@ -4567,7 +4630,7 @@ router.post('/dream-labs', async (req, res) => {
 });
 
 generationJobRunners.set('dream', (jobId, prompt, payload = {}) => (
-    executeDreamJob(jobId, prompt, payload.mediaAttachments || [])
+    executeDreamJob(jobId, prompt, payload.mediaAttachments || [], payload)
 ));
 generationJobRunners.set('labs', (jobId, prompt, payload = {}) => (
     executeLabsDreamJob(jobId, prompt, payload.mediaAttachments || [])
