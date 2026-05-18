@@ -459,18 +459,19 @@ export async function artistAgent(request) {
             item: 'item',
             vehicle: 'vehicle',
             environment: 'background',
+            background: 'background',
             ui: 'ui',
             prop: 'item',
             obstacle: 'item',
         };
-        const spriteType = typeMap[category] || 'character';
+        const spriteType = assetType === 'background' ? 'background' : (typeMap[category] || 'character');
         
         // Generate the asset
         const base64Image = await generateSprite({
             description,
             type: spriteType,
             targetSize: width || height ? { width: width || size, height: height || width || size } : size,
-            removeBg: transparent,
+            removeBg: spriteType === 'background' ? false : transparent,
         });
         
         // Return as data URI

@@ -2295,7 +2295,8 @@ function parseMakerProjectBuildResponse(text) {
                 size: Number(request?.size || 128),
                 width: request?.width ? Number(request.width) : undefined,
                 height: request?.height ? Number(request.height) : undefined,
-                transparent: request?.transparent !== false,
+                transparent: !['background', 'tileset'].includes(String(request?.type || request?.assetType || '').toLowerCase())
+                    && request?.transparent !== false,
             }))
                 .filter((request) => request.description.length > 12)
                 .slice(0, 4)
@@ -3463,9 +3464,18 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     maxAttempts: 2,
                 })).text;
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-response.txt', integrationText);
-                const integration = parseMakerFileRepairResponse(integrationText);
-                await applyMakerFileEdits(makerProject.projectRoot, integration.files);
-                await rebuildMakerProjectDist(makerProject.projectRoot);
+                try {
+                    const integration = parseMakerFileRepairResponse(integrationText);
+                    await applyMakerFileEdits(makerProject.projectRoot, integration.files);
+                    await rebuildMakerProjectDist(makerProject.projectRoot);
+                } catch (integrationError) {
+                    console.warn(`[Maker Build] Asset integration response was not valid JSON; continuing with initial project files: ${integrationError.message}`);
+                    await writeMakerText(
+                        makerWorkspace,
+                        'logs/project-asset-integration-parse-error.txt',
+                        integrationError.stack || integrationError.message
+                    );
+                }
             }
             await runMakerAgentInspectionTurns({
                 workspace: makerWorkspace,
