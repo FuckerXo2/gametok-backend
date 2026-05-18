@@ -116,6 +116,7 @@ const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_J
 const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
 const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATION_JOB_HEARTBEAT_MS || 30000));
 const ALLOW_LEGACY_HTML_FALLBACK = process.env.ALLOW_LEGACY_HTML_FALLBACK === 'true';
+const GAMETOK_MAKER_RESUME_WORKSPACE = process.env.GAMETOK_MAKER_RESUME_WORKSPACE !== 'false';
 const ENABLE_LEGACY_LABS_ROUTE = process.env.ENABLE_LEGACY_LABS_ROUTE === 'true';
 const generationJobRunners = new Map();
 let generationQueueReadyPromise = null;
@@ -2085,7 +2086,10 @@ async function analyzeAndWriteMakerAssetQuality(workspace, generatedAssets = nul
 
 async function createGameTokMakerWorkspace(jobId, prompt, mediaAttachments = []) {
     const workspace = path.join(GAMETOK_MAKER_ROOT, makerSafeFileName(jobId));
-    await fs.promises.rm(workspace, { recursive: true, force: true });
+    const resumable = GAMETOK_MAKER_RESUME_WORKSPACE && fs.existsSync(path.join(workspace, 'GAMETOK_MAKER_CONTRACT.json'));
+    if (!resumable) {
+        await fs.promises.rm(workspace, { recursive: true, force: true });
+    }
     await fs.promises.mkdir(path.join(workspace, 'artifact'), { recursive: true });
     await fs.promises.mkdir(path.join(workspace, 'logs'), { recursive: true });
 
@@ -2131,6 +2135,14 @@ async function createGameTokMakerWorkspace(jobId, prompt, mediaAttachments = [])
     };
 
     await writeMakerJson(workspace, 'GAMETOK_MAKER_CONTRACT.json', contract);
+    if (resumable) {
+        await writeMakerJson(workspace, 'logs/resume-workspace.json', {
+            jobId,
+            resumedAt: new Date().toISOString(),
+            projectFilesManifestExists: fs.existsSync(path.join(workspace, 'project-files.json')),
+            note: 'Existing maker workspace preserved for same-job retry/resume.',
+        });
+    }
     await writeMakerText(workspace, 'README.md', [
         '# GameTok Native Maker Workspace',
         '',
@@ -2666,6 +2678,27 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
     };
 }
 
+async function loadMakerProjectFromWorkspace(workspace) {
+    try {
+        const manifestRaw = await fs.promises.readFile(path.join(workspace, 'project-files.json'), 'utf8');
+        const manifest = JSON.parse(manifestRaw);
+        const projectRoot = manifest?.projectRoot;
+        if (!projectRoot || !fs.existsSync(path.join(projectRoot, 'index.html'))) {
+            return null;
+        }
+        return {
+            projectRoot,
+            sourceIndex: manifest.sourceIndex || path.join(projectRoot, 'index.html'),
+            distIndex: manifest.artifact || path.join(projectRoot, 'dist', 'index.html'),
+            files: Array.isArray(manifest.files) ? manifest.files : [],
+            mode: manifest.mode || 'file-native',
+            manifest,
+        };
+    } catch {
+        return null;
+    }
+}
+
 function safeMakerProjectPath(projectRoot, relativePath) {
     const cleanPath = String(relativePath || '').replace(/\\/g, '/').replace(/^\.\/+/, '');
     if (!cleanPath || cleanPath.startsWith('/') || cleanPath.includes('\0') || cleanPath.split('/').includes('..')) {
@@ -3136,6 +3169,48 @@ async function applyMakerFileEdits(projectRoot, edits) {
     return applied;
 }
 
+async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets, templateContract, assetContract, turnNumber, phase = 'agent' }) {
+    try {
+        await rebuildMakerProjectDist(projectRoot);
+        const assembledHtml = await assembleMakerProjectHtml(projectRoot);
+        const probeHtml = postProcessRawHtml(assembledHtml, generatedAssets);
+        const sandbox = await verifyGame(probeHtml, {
+            requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
+            sourceHtml: assembledHtml,
+            templateContract,
+            assetContract,
+        });
+        const evidence = {
+            phase,
+            success: Boolean(sandbox.success),
+            crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],
+            diagnostics: sandbox.diagnostics ? {
+                failedContractChecks: Array.isArray(sandbox.diagnostics.failedContractChecks)
+                    ? sandbox.diagnostics.failedContractChecks.slice(0, 10)
+                    : [],
+                templateRuntimeProbe: sandbox.diagnostics.templateRuntimeProbe || null,
+                assetContractInspection: sandbox.diagnostics.assetContractInspection || null,
+                horizontalOverflow: sandbox.diagnostics.horizontalOverflow || 0,
+                canvasIssues: sandbox.diagnostics.canvasIssues || [],
+                visibleOutOfBoundsElements: sandbox.diagnostics.visibleOutOfBoundsElements || [],
+            } : null,
+            targetedRepairTasks: sandbox.success ? [] : buildTargetedRepairTasks(sandbox.diagnostics || null),
+        };
+        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
+        return evidence;
+    } catch (error) {
+        const evidence = {
+            phase,
+            success: false,
+            crashes: [error.message || String(error)],
+            diagnostics: null,
+            targetedRepairTasks: [],
+        };
+        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
+        return evidence;
+    }
+}
+
 async function runMakerAgentInspectionTurns({
     workspace,
     projectRoot,
@@ -3161,6 +3236,16 @@ async function runMakerAgentInspectionTurns({
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
+        const preRunEvidence = await runMakerProjectEvidence({
+            workspace,
+            projectRoot,
+            generatedAssets,
+            templateContract,
+            assetContract,
+            turnNumber: `${turnNumber}-pre`,
+            phase: 'before_file_agent_turn',
+        });
+        lastRunEvidence = preRunEvidence;
         const projectFiles = await readMakerProjectFiles(projectRoot);
         const objective = objectives[turnNumber - 1] || objectives[objectives.length - 1];
         const promptText = buildMakerAgentInspectionPrompt({
@@ -3193,44 +3278,15 @@ async function runMakerAgentInspectionTurns({
             const applied = inspection.files.length > 0
                 ? await applyMakerFileEdits(projectRoot, inspection.files)
                 : [];
-            let runEvidence = null;
-            if (applied.length > 0) {
-                await rebuildMakerProjectDist(projectRoot);
-            }
-            try {
-                const assembledHtml = await assembleMakerProjectHtml(projectRoot);
-                const probeHtml = postProcessRawHtml(assembledHtml, generatedAssets);
-                const sandbox = await verifyGame(probeHtml, {
-                    requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
-                    sourceHtml: assembledHtml,
-                    templateContract,
-                    assetContract,
-                });
-                runEvidence = {
-                    success: Boolean(sandbox.success),
-                    crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],
-                    diagnostics: sandbox.diagnostics ? {
-                        failedContractChecks: Array.isArray(sandbox.diagnostics.failedContractChecks)
-                            ? sandbox.diagnostics.failedContractChecks.slice(0, 10)
-                            : [],
-                        templateRuntimeProbe: sandbox.diagnostics.templateRuntimeProbe || null,
-                        assetContractInspection: sandbox.diagnostics.assetContractInspection || null,
-                        horizontalOverflow: sandbox.diagnostics.horizontalOverflow || 0,
-                        canvasIssues: sandbox.diagnostics.canvasIssues || [],
-                        visibleOutOfBoundsElements: sandbox.diagnostics.visibleOutOfBoundsElements || [],
-                    } : null,
-                    targetedRepairTasks: sandbox.success ? [] : buildTargetedRepairTasks(sandbox.diagnostics || null),
-                };
-                await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-            } catch (runError) {
-                runEvidence = {
-                    success: false,
-                    crashes: [runError.message || String(runError)],
-                    diagnostics: null,
-                    targetedRepairTasks: [],
-                };
-                await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-            }
+            const runEvidence = await runMakerProjectEvidence({
+                workspace,
+                projectRoot,
+                generatedAssets,
+                templateContract,
+                assetContract,
+                turnNumber,
+                phase: 'after_file_agent_turn',
+            });
             lastRunEvidence = runEvidence;
             await appendMakerAgentTurn(workspace, turns, {
                 phase: 'file_inspection',
@@ -3529,37 +3585,56 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         let rawGameHtml = null;
         buildMode = 'file-native';
         try {
-            let projectBuild = buildMakerProjectFromScaffold(makerTemplateScaffold, {
-                templateContract: makerTemplateContract,
-            });
-            if (projectBuild) {
-                buildMode = 'file-agent-native';
+            makerProject = GAMETOK_MAKER_RESUME_WORKSPACE
+                ? await loadMakerProjectFromWorkspace(makerWorkspace)
+                : null;
+            let projectBuild = null;
+            if (makerProject) {
+                buildMode = 'file-agent-native-resume';
                 await writeMakerJson(makerWorkspace, 'logs/project-build-source.json', {
                     mode: buildMode,
-                    source: projectBuild.source,
+                    source: 'existing-disk-project',
                     templateId: makerTemplateContract?.templateId || null,
-                    fileCount: projectBuild.files.length,
-                    note: 'Materialized starter scaffold first; builder now edits real files over multiple turns.',
+                    fileCount: makerProject.files.length,
+                    note: 'Resumed existing project files from disk; builder continues through file-agent turns.',
                 });
-                console.log(`🧰 Phase 2 scaffold materialized: ${projectBuild.files.length} files. Starting file-agent loop...`);
+                console.log(`🧰 Phase 2 resumed project from disk: ${makerProject.files.length} files. Continuing file-agent loop...`);
             } else {
-                console.warn('⚠️ No native scaffold available. Falling back to one-shot JSON project build.');
-                const projectBuildText = await generateCompleteJsonWithBuilder(buildPrompt, {
-                    label: 'Phase 2 Project Build',
-                    jobId,
-                    timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
-                    maxAttempts: 2,
-                    progressBase: 52,
+                projectBuild = buildMakerProjectFromScaffold(makerTemplateScaffold, {
+                    templateContract: makerTemplateContract,
                 });
-                await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
-                projectBuild = parseMakerProjectBuildResponse(projectBuildText);
+                if (projectBuild) {
+                    buildMode = 'file-agent-native';
+                    await writeMakerJson(makerWorkspace, 'logs/project-build-source.json', {
+                        mode: buildMode,
+                        source: projectBuild.source,
+                        templateId: makerTemplateContract?.templateId || null,
+                        fileCount: projectBuild.files.length,
+                        note: 'Materialized starter scaffold first; builder now edits real files over multiple turns.',
+                    });
+                    console.log(`🧰 Phase 2 scaffold materialized: ${projectBuild.files.length} files. Starting file-agent loop...`);
+                } else {
+                    console.warn('⚠️ No native scaffold available. Falling back to one-shot JSON project build.');
+                    const projectBuildText = await generateCompleteJsonWithBuilder(buildPrompt, {
+                        label: 'Phase 2 Project Build',
+                        jobId,
+                        timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
+                        maxAttempts: 2,
+                        progressBase: 52,
+                    });
+                    await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
+                    projectBuild = parseMakerProjectBuildResponse(projectBuildText);
+                }
+                makerBuilderMaps = await writeMakerBuilderMaps(makerWorkspace, projectBuild, 'initial_build', { generatedAssets });
+                makerProject = await materializeMakerProjectFiles(makerWorkspace, projectBuild, {
+                    title: qualityIntent.title || 'GameTok Game',
+                    generatedAssets,
+                });
             }
-            makerBuilderMaps = await writeMakerBuilderMaps(makerWorkspace, projectBuild, 'initial_build', { generatedAssets });
-            makerProject = await materializeMakerProjectFiles(makerWorkspace, projectBuild, {
-                title: qualityIntent.title || 'GameTok Game',
-                generatedAssets,
-            });
-            if (projectBuild.assetRequests.length > 0) {
+            if (!makerBuilderMaps && makerProject?.manifest) {
+                makerBuilderMaps = await writeMakerBuilderMaps(makerWorkspace, makerProject.manifest, 'resumed_project', { generatedAssets });
+            }
+            if (Array.isArray(projectBuild?.assetRequests) && projectBuild.assetRequests.length > 0) {
                 console.log(`🎨 [Maker Tool] Builder requested ${projectBuild.assetRequests.length} extra assets.`);
                 await writeMakerJson(makerWorkspace, 'logs/project-asset-requests.json', projectBuild.assetRequests);
                 await updateGenerationJobProgress(jobId, 57, 'assets', 'Generating requested game assets...');
@@ -4037,7 +4112,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             projectDistIndex: makerProject?.distIndex || null,
             artifactPath: path.join(makerWorkspace, 'artifact/index.html'),
             rawBuildPath: path.join(makerWorkspace, 'raw-build.html'),
-            buildCommand: buildMode === 'file-agent-native' ? 'native-file-agent'
+            buildCommand: buildMode === 'file-agent-native' || buildMode === 'file-agent-native-resume' ? 'native-file-agent'
                 : buildMode === 'file-native' ? 'native-project-builder'
                     : 'native-html-builder',
             buildMode,
