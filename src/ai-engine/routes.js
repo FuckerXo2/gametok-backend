@@ -81,9 +81,11 @@ const DREAM_MODELS = {
 
 const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 256000);
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
+const BUILDER_JSON_REWRITE_ATTEMPTS = Math.max(0, Math.min(2, Number(process.env.DREAMSTREAM_BUILDER_JSON_REWRITE_ATTEMPTS || 1)));
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
 const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
+const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 4)));
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
@@ -793,6 +795,26 @@ function buildBuilderJsonContinuationPrompt(partialJson, parseError) {
     ].join('\n');
 }
 
+function buildBuilderJsonRewritePrompt(originalPrompt, invalidJson, parseError) {
+    return [
+        'Your previous GameTok maker JSON response could not be parsed.',
+        'Return one complete valid JSON object now. No markdown. No commentary.',
+        'Do not continue the broken response. Rewrite the full JSON object from scratch.',
+        'Keep edits targeted and only include complete replacement file contents for files that need changes.',
+        'If the safest answer is no edit, return {"files":[],"notes":["already compliant"],"noEditsNeeded":true}.',
+        '',
+        `Parser error: ${parseError?.message || String(parseError || 'unknown parse error')}`,
+        '',
+        'Invalid response excerpt:',
+        '```json',
+        String(invalidJson || '').slice(-12000),
+        '```',
+        '',
+        'Original task:',
+        originalPrompt,
+    ].join('\n');
+}
+
 async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3 } = {}) {
     assertJobNotCancelled(jobId);
     
@@ -900,55 +922,77 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
 async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, progressBase = 56 } = {}) {
     assertJobNotCancelled(jobId);
     const logLabel = formatJobLogLabel(label, jobId);
-    let { text, stopReason } = await requestBuilderMessage(initialPrompt, {
-        label,
-        jobId,
-        timeoutMs,
-        maxAttempts,
-    });
-    assertJobNotCancelled(jobId);
-    let jsonText = stripMarkdownFences(text, 'json');
-    console.log(`🧾 [${logLabel}] json stop_reason=${stopReason || 'unknown'} chars=${jsonText.length}`);
-
     let lastParseError = null;
-    let continuationCount = 0;
-    while (continuationCount <= BUILDER_MAX_CONTINUATIONS) {
-        try {
-            parseBuilderJsonText(jsonText);
-            return jsonText;
-        } catch (parseError) {
-            lastParseError = parseError;
-            if (continuationCount >= BUILDER_MAX_CONTINUATIONS) {
-                break;
+    let lastJsonText = '';
+    for (let rewriteAttempt = 0; rewriteAttempt <= BUILDER_JSON_REWRITE_ATTEMPTS; rewriteAttempt += 1) {
+        const prompt = rewriteAttempt === 0
+            ? initialPrompt
+            : buildBuilderJsonRewritePrompt(initialPrompt, lastJsonText, lastParseError);
+        const currentLabel = rewriteAttempt === 0 ? label : `${label} JSON Rewrite ${rewriteAttempt}`;
+        const currentLogLabel = formatJobLogLabel(currentLabel, jobId);
+        let { text, stopReason } = await requestBuilderMessage(prompt, {
+            label: currentLabel,
+            jobId,
+            timeoutMs,
+            maxAttempts,
+        });
+        assertJobNotCancelled(jobId);
+        let jsonText = stripMarkdownFences(text, 'json');
+        lastJsonText = jsonText;
+        console.log(`🧾 [${currentLogLabel}] json stop_reason=${stopReason || 'unknown'} chars=${jsonText.length}`);
+
+        let continuationCount = 0;
+        while (continuationCount <= BUILDER_MAX_CONTINUATIONS) {
+            try {
+                parseBuilderJsonText(jsonText);
+                return jsonText;
+            } catch (parseError) {
+                lastParseError = parseError;
+                lastJsonText = jsonText;
+                if (continuationCount >= BUILDER_MAX_CONTINUATIONS) {
+                    break;
+                }
+                continuationCount += 1;
+                console.warn(`⚠️ [${currentLogLabel}] JSON output incomplete or invalid (${parseError.message}). Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
+                if (jobId) {
+                    await updateGenerationJobProgress(
+                        jobId,
+                        Math.min(75, progressBase + continuationCount),
+                        'build_json_continuing',
+                        `Builder JSON was incomplete. Continuing structured output ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`
+                    );
+                }
+                const continuation = await requestBuilderMessage(buildBuilderJsonContinuationPrompt(jsonText, parseError), {
+                    label: `${currentLabel} JSON Continue`,
+                    jobId,
+                    timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                    maxAttempts: 2,
+                });
+                assertJobNotCancelled(jobId);
+                const continuationText = cleanJsonContinuation(continuation.text);
+                console.log(`🧾 [${formatJobLogLabel(`${currentLabel} JSON Continue`, jobId)}] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
+                if (!continuationText) {
+                    break;
+                }
+                jsonText += continuationText;
             }
-            continuationCount += 1;
-            console.warn(`⚠️ [${logLabel}] JSON output incomplete or invalid (${parseError.message}). Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
+        }
+
+        if (rewriteAttempt < BUILDER_JSON_REWRITE_ATTEMPTS) {
+            console.warn(`⚠️ [${logLabel}] JSON remained invalid (${lastParseError?.message || 'unknown parse error'}). Requesting full JSON rewrite ${rewriteAttempt + 1}/${BUILDER_JSON_REWRITE_ATTEMPTS}...`);
             if (jobId) {
                 await updateGenerationJobProgress(
                     jobId,
-                    Math.min(75, progressBase + continuationCount),
-                    'build_json_continuing',
-                    `Builder JSON was incomplete. Continuing structured output ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`
+                    Math.min(78, progressBase + BUILDER_MAX_CONTINUATIONS + rewriteAttempt + 1),
+                    'build_json_rewriting',
+                    `Builder JSON stayed invalid. Asking for a clean structured rewrite ${rewriteAttempt + 1}/${BUILDER_JSON_REWRITE_ATTEMPTS}...`
                 );
             }
-            const continuation = await requestBuilderMessage(buildBuilderJsonContinuationPrompt(jsonText, parseError), {
-                label: `${label} JSON Continue`,
-                jobId,
-                timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
-                maxAttempts: 2,
-            });
-            assertJobNotCancelled(jobId);
-            const continuationText = cleanJsonContinuation(continuation.text);
-            console.log(`🧾 [${formatJobLogLabel(`${label} JSON Continue`, jobId)}] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
-            if (!continuationText) {
-                break;
-            }
-            jsonText += continuationText;
         }
     }
 
-    const error = new Error(`Builder JSON remained invalid after ${continuationCount} continuation attempt(s): ${lastParseError?.message || 'unknown parse error'}`);
-    error.partialText = jsonText;
+    const error = new Error(`Builder JSON remained invalid after continuation/rewrite recovery: ${lastParseError?.message || 'unknown parse error'}`);
+    error.partialText = lastJsonText;
     error.parseError = lastParseError;
     throw error;
 }
@@ -3589,13 +3633,15 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         finalSandboxResult = null;
 
         // ── PHASE 3/3: QA SANDBOX AUTO-HEALING LOOP ──
-        let maxRetries = 2;
+        let repairAttemptsUsed = 0;
+        let sandboxVerifyAttempt = 0;
         let p3Success = false;
         const pendingRepairProtocolRecords = [];
         
-        while (maxRetries > 0 && !p3Success) {
+        while (!p3Success) {
             assertJobNotCancelled(jobId);
-            console.log(`📸 [Attempt ${3 - maxRetries}/2] Verifying game in sandbox...`);
+            sandboxVerifyAttempt += 1;
+            console.log(`📸 [Verify ${sandboxVerifyAttempt}/${MAKER_SANDBOX_REPAIR_ATTEMPTS + 1}] Testing game in sandbox...`);
             await reportProgress(74, 'verify', 'Testing the game in a sandbox...');
             let sandboxRes;
             try {
@@ -3624,7 +3670,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 crashes: sandboxRes.crashes || [],
                 hasScreenshot: Boolean(sandboxRes.screenshot),
                 diagnostics: sandboxRes.diagnostics || null,
-                attempt: 3 - maxRetries,
+                attempt: sandboxVerifyAttempt,
+                repairAttemptsUsed,
                 checkedAt: new Date().toISOString(),
             };
             makerGddCompliance = verifyMakerGddCompliance({
@@ -3652,7 +3699,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     crashes: sandboxRes.crashes || [],
                     hasScreenshot: Boolean(sandboxRes.screenshot),
                     diagnostics: sandboxRes.diagnostics || null,
-                    attempt: 3 - maxRetries,
+                    attempt: sandboxVerifyAttempt,
+                    repairAttemptsUsed,
                     checkedAt: new Date().toISOString(),
                     acceptanceGate: makerAcceptanceResult,
                 };
@@ -3707,7 +3755,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     'Return the COMPLETE corrected HTML file only.',
                     'Do not explain anything.',
                 ].join('\n');
-                const repairAttempt = 3 - maxRetries;
+                if (repairAttemptsUsed >= MAKER_SANDBOX_REPAIR_ATTEMPTS) {
+                    break;
+                }
+                repairAttemptsUsed += 1;
+                const repairAttempt = repairAttemptsUsed;
                 let repairedWithProjectFiles = false;
                 if (makerProject?.projectRoot) {
                     try {
@@ -3852,7 +3904,6 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                         mode: 'whole-html-regeneration',
                     });
                 }
-                maxRetries--;
             } else {
                 console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
                 await reportProgress(84, 'verify', 'Game boots cleanly...');
@@ -3887,7 +3938,18 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     failure: record.failure,
                 });
             }
-            throw new Error('Sandbox verification failed after 2 builder repair attempts.');
+            const finalCrash = Array.isArray(finalSandboxResult?.crashes) && finalSandboxResult.crashes.length > 0
+                ? finalSandboxResult.crashes[0]
+                : 'unknown verifier failure';
+            const finalTasks = buildTargetedRepairTasks(finalSandboxResult?.diagnostics || null)
+                .map((task) => task.directRepairTask || task.failure)
+                .filter(Boolean)
+                .slice(0, 3);
+            throw new Error([
+                `Sandbox verification failed after ${repairAttemptsUsed} builder repair attempts.`,
+                `Last failure: ${finalCrash}`,
+                finalTasks.length ? `Targeted repair tasks: ${finalTasks.join(' | ')}` : null,
+            ].filter(Boolean).join(' '));
         }
 
         // ── SAVE TO DB ──
