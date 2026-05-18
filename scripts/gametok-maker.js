@@ -25,6 +25,7 @@ function parseArgs(argv) {
         json: false,
         help: false,
         force: false,
+        dbBacked: false,
     };
     const positionals = [];
     for (let index = 2; index < argv.length; index++) {
@@ -43,6 +44,8 @@ function parseArgs(argv) {
             args.outDir = argv[++index] || null;
         } else if (arg === '--force') {
             args.force = true;
+        } else if (arg === '--db' || arg === '--db-backed') {
+            args.dbBacked = true;
         } else if (arg.startsWith('-')) {
             throw new Error(`Unknown option: ${arg}`);
         } else {
@@ -73,7 +76,7 @@ function usage() {
         '  gametok-maker run-job --job-id <uuid>',
         '',
         'Commands:',
-        '  generate              Create an ai_games job, run the native maker, and write artifacts.',
+        '  generate              Run the native maker directly from the CLI and write artifacts.',
         '  run-job               Re-run an existing ai_games job id through the native maker.',
         '  inspect               Classify a prompt and print template/debug/asset contracts.',
         '  templates             List available maker templates.',
@@ -86,12 +89,13 @@ function usage() {
         '      --out <dir>          Maker workspace root. Defaults to storage/gametok-maker-cli.',
         '      --json               Print machine-readable result JSON.',
         '      --force              Allow env command to exit 0 even when generation env is incomplete.',
+        '      --db                 For generate, create/update an ai_games row instead of direct CLI output.',
         '  -h, --help              Show this help.',
         '',
         'Environment:',
-        '  DATABASE_URL or PG* connection settings are required for generation.',
+        '  DATABASE_URL or PG* connection settings are required only for run-job or generate --db.',
         '  NVIDIA_API_KEY is required for NIM Flux asset generation.',
-        '  GAMETOK_MAKER_USER_ID is required for generate unless --user-id is passed.',
+        '  GAMETOK_MAKER_USER_ID is required only for generate --db unless --user-id is passed.',
     ].join('\n');
 }
 
@@ -111,18 +115,19 @@ function hasDatabaseEnv() {
     return Boolean(process.env.DATABASE_URL || (process.env.PGHOST && process.env.PGDATABASE && process.env.PGUSER));
 }
 
-function validateGenerationEnv({ userId, jobId } = {}) {
+function validateGenerationEnv({ userId, jobId, dbBacked = false } = {}) {
     const missing = [];
-    if (!hasDatabaseEnv()) missing.push('DATABASE_URL or PGHOST/PGDATABASE/PGUSER');
+    const needsDb = Boolean(jobId || dbBacked);
+    if (needsDb && !hasDatabaseEnv()) missing.push('DATABASE_URL or PGHOST/PGDATABASE/PGUSER');
     if (!process.env.NVIDIA_API_KEY) missing.push('NVIDIA_API_KEY');
-    if (!jobId && !userId && !process.env.GAMETOK_MAKER_USER_ID) missing.push('GAMETOK_MAKER_USER_ID or --user-id');
+    if (dbBacked && !jobId && !userId && !process.env.GAMETOK_MAKER_USER_ID) missing.push('GAMETOK_MAKER_USER_ID or --user-id');
     return {
         ok: missing.length === 0,
         missing,
         values: {
-            database: hasDatabaseEnv() ? 'configured' : 'missing',
+            database: hasDatabaseEnv() ? 'configured' : needsDb ? 'missing' : 'not required',
             nvidia: process.env.NVIDIA_API_KEY ? 'configured' : 'missing',
-            userId: (userId || process.env.GAMETOK_MAKER_USER_ID || jobId) ? 'configured' : 'missing',
+            userId: (userId || process.env.GAMETOK_MAKER_USER_ID || jobId) ? 'configured' : dbBacked ? 'missing' : 'not required',
             makerRoot: process.env.GAMETOK_MAKER_OUT_DIR || defaultOutDir(),
         },
     };
@@ -261,6 +266,46 @@ async function finalizeOutput(output, workspaceRoot) {
     return manifest;
 }
 
+async function finalizeDirectOutput(result, workspaceRoot) {
+    const html = result?.html || await readFileIfExists(result?.artifactPath || '');
+    if (!html || html.length < 500) {
+        throw new Error('Maker completed without a playable HTML artifact.');
+    }
+
+    const safeTitle = slugify(result.title || result.jobId);
+    const publicDir = path.join(workspaceRoot, 'exports', `${safeTitle}-${result.jobId.slice(0, 8)}`);
+    const publicArtifactPath = path.join(publicDir, 'index.html');
+    const resultPath = path.join(publicDir, 'result.json');
+    const latestJsonPath = path.join(workspaceRoot, 'latest.json');
+    const latestHtmlPath = path.join(workspaceRoot, 'latest.html');
+
+    const manifest = {
+        jobId: result.jobId,
+        title: result.title,
+        status: 'complete',
+        buildMode: result.buildMode,
+        template: result.templateContract?.templateId || null,
+        workspace: result.workspace,
+        artifactPath: result.artifactPath,
+        publicArtifactPath,
+        reportPath: result.reportPath,
+        resultPath,
+        latestHtmlPath,
+        htmlBytes: Buffer.byteLength(html, 'utf8'),
+        acceptance: result.acceptance || null,
+        completedAt: new Date().toISOString(),
+        runtime: 'direct-cli-file-agent',
+    };
+
+    await fs.promises.mkdir(publicDir, { recursive: true });
+    await fs.promises.writeFile(publicArtifactPath, html, 'utf8');
+    await fs.promises.writeFile(latestHtmlPath, html, 'utf8');
+    await fs.promises.writeFile(resultPath, JSON.stringify(manifest, null, 2), 'utf8');
+    await fs.promises.writeFile(latestJsonPath, JSON.stringify(manifest, null, 2), 'utf8');
+
+    return manifest;
+}
+
 function printTemplates(json = false) {
     const templates = listMakerTemplateContracts().map((contract) => ({
         templateId: contract.templateId,
@@ -313,7 +358,7 @@ async function inspectPrompt(prompt, json = false) {
 
 async function runNativeMaker({ prompt, userId, jobId, outDir, json }) {
     const workspaceRoot = path.resolve(outDir || defaultOutDir());
-    const envStatus = validateGenerationEnv({ userId, jobId });
+    const envStatus = validateGenerationEnv({ userId, jobId, dbBacked: true });
     if (!envStatus.ok) {
         throw new Error(`Generation environment is incomplete. Missing: ${envStatus.missing.join(', ')}`);
     }
@@ -353,6 +398,47 @@ async function runNativeMaker({ prompt, userId, jobId, outDir, json }) {
     }
 }
 
+async function runDirectMaker({ prompt, outDir, json }) {
+    const workspaceRoot = path.resolve(outDir || defaultOutDir());
+    const envStatus = validateGenerationEnv({ dbBacked: false });
+    if (!envStatus.ok) {
+        throw new Error(`Generation environment is incomplete. Missing: ${envStatus.missing.join(', ')}`);
+    }
+    process.env.GAMETOK_MAKER_ROOT = workspaceRoot;
+    await fs.promises.mkdir(workspaceRoot, { recursive: true });
+
+    const jobId = randomUUID();
+    const { executeDreamJob } = await import('../src/ai-engine/routes.js');
+    const startedAt = Date.now();
+    const manifest = await withStructuredJsonOutput(json, async () => {
+        console.log(`[GameTok Maker CLI] direct job=${jobId}`);
+        console.log(`[GameTok Maker CLI] workspace=${path.join(workspaceRoot, jobId)}`);
+        console.log(`[GameTok Maker CLI] prompt=${prompt.slice(0, defaultPromptPreviewLength)}${prompt.length > defaultPromptPreviewLength ? '...' : ''}`);
+
+        const result = await executeDreamJob(jobId, prompt, [], {
+            persistToDb: false,
+            onProgress: async ({ progress, phase, statusMessage }) => {
+                console.log(`[GameTok Maker CLI] ${String(progress).padStart(3, ' ')}% ${phase}: ${statusMessage}`);
+            },
+        });
+        const finalized = await finalizeDirectOutput(result, workspaceRoot);
+        finalized.durationMs = Date.now() - startedAt;
+        return finalized;
+    });
+
+    if (json) {
+        console.log(JSON.stringify(manifest, null, 2));
+    } else {
+        console.log('');
+        console.log(`[GameTok Maker CLI] complete: ${manifest.title || jobId}`);
+        console.log(`[GameTok Maker CLI] status=${manifest.status} runtime=${manifest.runtime} buildMode=${manifest.buildMode || 'unknown'} template=${manifest.template || 'unknown'}`);
+        console.log(`[GameTok Maker CLI] artifact=${manifest.publicArtifactPath}`);
+        console.log(`[GameTok Maker CLI] latest=${manifest.latestHtmlPath}`);
+        console.log(`[GameTok Maker CLI] result=${manifest.resultPath}`);
+        console.log(`[GameTok Maker CLI] report=${manifest.reportPath}`);
+    }
+}
+
 async function main() {
     const args = parseArgs(process.argv);
     if (args.help) {
@@ -382,7 +468,11 @@ async function main() {
     if (args.command === 'run-prompt') args.command = 'generate';
     if (args.command === 'generate') {
         if (!args.prompt) throw new Error('generate requires -p/--prompt.');
-        await runNativeMaker(args);
+        if (args.dbBacked) {
+            await runNativeMaker(args);
+        } else {
+            await runDirectMaker(args);
+        }
         return;
     }
 

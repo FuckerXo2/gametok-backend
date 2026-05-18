@@ -3240,6 +3240,18 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // Phase 3: Puppeteer verifies the result and Kimi repairs project files
 // ═══════════════════════════════════════════════════════════
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
+    const persistToDb = jobPayload?.persistToDb !== false;
+    const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
+    const reportProgress = async (progress, phase, statusMessage) => {
+        if (progressSink) {
+            await progressSink({ jobId, progress, phase, statusMessage }).catch((error) => {
+                console.warn(`[DREAM JOB] Progress sink failed for ${jobId}:`, error?.message || error);
+            });
+        }
+        if (persistToDb) {
+            await updateGenerationJobProgress(jobId, progress, phase, statusMessage);
+        }
+    };
     let makerWorkspace = null;
     let makerProject = null;
     const makerRepairs = [];
@@ -3262,10 +3274,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
-        await updateGenerationJobProgress(jobId, 5, 'maker_workspace', 'Opening GameTok maker workspace...');
+        await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
-        await updateGenerationJobProgress(jobId, 8, 'spec', 'Reading your idea...');
+        await reportProgress(8, 'spec', 'Reading your idea...');
         console.log(`📋 Phase 1/3: ${DREAM_MODELS.spec} extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
         const qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
@@ -3275,7 +3287,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         await writeMakerJson(makerWorkspace, 'template-contract.json', makerTemplateContract);
         await writeMakerJson(makerWorkspace, 'asset-contract.json', makerAssetContract);
         await writeMakerJson(makerWorkspace, 'gametok-plan.json', buildMakerPlan(qualityIntent, prompt, makerTemplateContract));
-        await updateGenerationJobProgress(jobId, 20, 'spec', 'Game plan drafted...');
+        await reportProgress(20, 'spec', 'Game plan drafted...');
         
         console.log(`✅ Phase 1: "${qualityIntent.title}" — ${qualityIntent.userIntent}`);
         if (qualityIntent.playableExperience?.coreLoop) {
@@ -3304,7 +3316,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         if (useArtistAgent && (qualityIntent.visualAssets || hasMakerAssetSlots)) {
             try {
                 console.log(`🎨 Artist Agent: Planning visual asset generation...`);
-                await updateGenerationJobProgress(jobId, 26, 'assets', 'Planning visual assets...');
+                await reportProgress(26, 'assets', 'Planning visual assets...');
                 let assetPlan = await buildDreamAssetPlan(qualityIntent);
                 assetPlan = mergeMakerAssetContractIntoPlan(assetPlan, makerAssetContract);
                 const assetToolRequest = buildStructuredAssetToolRequest(assetPlan, makerAssetContract);
@@ -3319,7 +3331,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 const assetRequests = assetPlan.imageRequests;
                 
                 console.log(`🎨 Artist Agent: Generating ${assetRequests.length} visual assets...`);
-                await updateGenerationJobProgress(jobId, 32, 'assets', 'Generating visual ingredients...');
+                await reportProgress(32, 'assets', 'Generating visual ingredients...');
                 
                 // Generate all assets
                 const generatedImages = await batchArtistAgent(assetRequests, { tilesets: assetPlan.tilesets || [] });
@@ -3334,7 +3346,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
-                await updateGenerationJobProgress(jobId, 42, 'assets', 'Visual assets prepared...');
+                await reportProgress(42, 'assets', 'Visual assets prepared...');
                 
                 console.log(`✅ Artist Agent: Generated ${Object.keys(generatedAssets.assets).length} custom assets`);
                 console.log(`   Asset pack: ${generatedAssets.assetPack.length} entries (${generatedAssets.animations.length} animations, ${generatedAssets.audio?.sfx?.length || 0} sfx, ${generatedAssets.audio?.music?.length || 0} music, ${generatedAssets.tilesets.length} tilesets)`);
@@ -3397,7 +3409,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         // ── PHASE 2: KIMI BUILDS THE GAME ──
         console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building...`);
-        await updateGenerationJobProgress(jobId, 48, 'build', 'Writing game logic...');
+        await reportProgress(48, 'build', 'Writing game logic...');
         
         // Build audio asset bundle from library (keep audio from library)
         const audioBundle = qualityIntent.audioNeeds ? {
@@ -3457,7 +3469,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             if (Array.isArray(projectBuild?.assetRequests) && projectBuild.assetRequests.length > 0) {
                 console.log(`🎨 [Maker Tool] Builder requested ${projectBuild.assetRequests.length} extra assets.`);
                 await writeMakerJson(makerWorkspace, 'logs/project-asset-requests.json', projectBuild.assetRequests);
-                await updateGenerationJobProgress(jobId, 57, 'assets', 'Generating requested game assets...');
+                await reportProgress(57, 'assets', 'Generating requested game assets...');
                 const requestPlan = {
                     version: 2,
                     source: 'gametok-builder-requested-assets',
@@ -3547,7 +3559,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         }
         assertJobNotCancelled(jobId);
         await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
-        await updateGenerationJobProgress(jobId, 68, 'build', 'Game code assembled...');
+        await reportProgress(68, 'build', 'Game code assembled...');
 
         if (!rawGameHtml) {
             throw new Error('Main builder returned empty game output.');
@@ -3578,7 +3590,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         while (maxRetries > 0 && !p3Success) {
             assertJobNotCancelled(jobId);
             console.log(`📸 [Attempt ${3 - maxRetries}/2] Verifying game in sandbox...`);
-            await updateGenerationJobProgress(jobId, 74, 'verify', 'Testing the game in a sandbox...');
+            await reportProgress(74, 'verify', 'Testing the game in a sandbox...');
             let sandboxRes;
             try {
                 const runtimeLane = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'first_person'
@@ -3658,7 +3670,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
                 console.log(`⚠️ Sandbox CRASH DETECTED. Asking main builder to repair... (${sandboxRes.crashes[0]})`);
-                await updateGenerationJobProgress(jobId, 78, 'repair', 'Repairing a sandbox crash...');
+                await reportProgress(78, 'repair', 'Repairing a sandbox crash...');
                 const is3DFirstPerson = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'first_person';
                 const is3DThirdPerson = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'third_person';
                 
@@ -3837,7 +3849,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 maxRetries--;
             } else {
                 console.log(`✅ Sandbox: Zero Crashes Detected. Game is stable!`);
-                await updateGenerationJobProgress(jobId, 84, 'verify', 'Game boots cleanly...');
+                await reportProgress(84, 'verify', 'Game boots cleanly...');
                 p3Success = true;
                 for (const record of pendingRepairProtocolRecords.splice(0)) {
                     await recordMakerRepairOutcome(GAMETOK_MAKER_ROOT, {
@@ -3874,7 +3886,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         // ── SAVE TO DB ──
         assertJobNotCancelled(jobId);
-        await updateGenerationJobProgress(jobId, 94, 'save', 'Saving your game...');
+        await reportProgress(94, 'save', 'Saving your game...');
         const finalTitle = extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game';
         makerGddCompliance = verifyMakerGddCompliance({
             gddSummary: makerDesignBriefSummary,
@@ -3925,6 +3937,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             jobId,
             title: finalTitle,
             engine: 'gametok-native-maker',
+            status: 'complete',
             completedAt: new Date().toISOString(),
             workspace: makerWorkspace,
             projectRoot: makerProject?.projectRoot || null,
@@ -3957,6 +3970,25 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             rawHtmlBytes: Buffer.byteLength(rawGameHtml || '', 'utf8'),
             knownLimitations: [],
         });
+        if (!persistToDb) {
+            console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" exported to ${path.join(makerWorkspace, 'artifact/index.html')}`);
+            forgetCancelledJob(jobId);
+            return {
+                jobId,
+                title: finalTitle,
+                html: finalHtml,
+                rawHtml: rawGameHtml,
+                screenshot: finalScreenshot,
+                workspace: makerWorkspace,
+                artifactPath: path.join(makerWorkspace, 'artifact/index.html'),
+                reportPath: path.join(makerWorkspace, 'gametok-build-report.json'),
+                buildMode,
+                templateContract: summarizeMakerTemplateContract(makerTemplateContract),
+                assetContract: summarizeMakerAssetContract(makerAssetContract),
+                acceptance: makerAcceptanceResult,
+                sandbox: finalSandboxResult,
+            };
+        }
         const classification = await classifyPublishedGame({
             title: finalTitle,
             prompt,
@@ -4018,7 +4050,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     error: 'Generation cancelled by user',
                 }).catch(() => {});
             }
-            await markJobCanceled(jobId);
+            if (persistToDb) {
+                await markJobCanceled(jobId);
+            }
+            if (!persistToDb) {
+                throw err;
+            }
             return;
         }
         console.error("❌ [DREAM JOB] Error:", err);
@@ -4065,7 +4102,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             })
             : null;
         if (failedBenchmarkResult) {
-            await updateGenerationJobBenchmarkResult(jobId, failedBenchmarkResult).catch(() => {});
+            if (persistToDb) {
+                await updateGenerationJobBenchmarkResult(jobId, failedBenchmarkResult).catch(() => {});
+            }
         }
         if (makerWorkspace) {
             await writeMakerJson(makerWorkspace, 'gametok-build-report.json', {
@@ -4087,7 +4126,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await writeMakerJson(makerWorkspace, 'benchmark-result.json', failedBenchmarkResult).catch(() => {});
             }
         }
-        await markJobError(jobId, "DreamStream generation failed", err);
+        if (persistToDb) {
+            await markJobError(jobId, "DreamStream generation failed", err);
+        } else {
+            throw err;
+        }
     }
 }
 
