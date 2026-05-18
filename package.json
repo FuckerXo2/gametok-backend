@@ -37,6 +37,9 @@
     "assets:kenney:upload": "node scripts/upload_kenney_assets_to_r2.mjs",
     "assets:phaser:upload": "node scripts/upload_phaser_assets_to_r2.mjs",
     "maker": "node scripts/gametok-maker.js",
+    "maker:env": "node scripts/gametok-maker.js env",
+    "maker:inspect": "node scripts/gametok-maker.js inspect",
+    "maker:templates": "node scripts/gametok-maker.js templates",
     "maker:benchmark": "node scripts/gametok-maker-benchmark.js",
     "maker:worker": "node scripts/gametok-maker-worker.js",
     "opengame:worker": "node scripts/gametok-maker-worker.js"

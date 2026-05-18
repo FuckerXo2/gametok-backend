@@ -621,6 +621,19 @@ export function selectMakerTemplateContract(qualityIntent = {}, prompt = '') {
     };
 }
 
+export function listMakerTemplateContracts() {
+    return Object.values(TEMPLATE_CONTRACTS).map((contract) => ({
+        ...contract,
+        requiredState: [...(contract.requiredState || [])],
+        requiredFunctions: [...(contract.requiredFunctions || [])],
+        requiredProbeApi: [...(contract.requiredProbeApi || [])],
+        controls: [...(contract.controls || [])],
+        firstFrame: [...(contract.firstFrame || [])],
+        acceptanceChecks: [...(contract.acceptanceChecks || [])],
+        antiPatterns: [...(contract.antiPatterns || [])],
+    }));
+}
+
 export function summarizeMakerTemplateContract(contract = null) {
     if (!contract) return null;
     return {
