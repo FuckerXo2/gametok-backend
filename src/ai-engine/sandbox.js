@@ -631,6 +631,18 @@ export async function verifyGame(htmlString, options = {}) {
             const dreamAssetPackCount = Array.isArray(window.DREAM_ASSET_PACK)
                 ? window.DREAM_ASSET_PACK.filter((asset) => asset && asset.type === 'image').length
                 : 0;
+            const dreamAnimationCount = Array.isArray(window.DREAM_ANIMATIONS)
+                ? window.DREAM_ANIMATIONS.filter((animation) => animation && animation.type === 'frame_sequence').length
+                : 0;
+            const dreamTilesetCount = Array.isArray(window.DREAM_TILESETS)
+                ? window.DREAM_TILESETS.filter((tileset) => tileset && tileset.imageKey).length
+                : 0;
+            const dreamAnimationKeys = Array.isArray(window.DREAM_ANIMATIONS)
+                ? window.DREAM_ANIMATIONS.map((animation) => animation && animation.key).filter(Boolean)
+                : [];
+            const dreamTilesetKeys = Array.isArray(window.DREAM_TILESETS)
+                ? window.DREAM_TILESETS.flatMap((tileset) => [tileset && tileset.key, tileset && tileset.imageKey, tileset && tileset.sheetKey]).filter(Boolean)
+                : [];
             const dreamAssetPackRoles = Array.isArray(window.DREAM_ASSET_PACK)
                 ? Array.from(new Set(window.DREAM_ASSET_PACK
                     .filter((asset) => asset && asset.type === 'image')
@@ -683,6 +695,10 @@ export async function verifyGame(htmlString, options = {}) {
                 externalLinks,
                 dreamAssetUsage,
                 dreamAssetPackCount,
+                dreamAnimationCount,
+                dreamAnimationKeys,
+                dreamTilesetCount,
+                dreamTilesetKeys,
                 dreamAssetPackRoles,
                 canvasPixelChecks,
                 bodyText,
@@ -816,6 +832,38 @@ export async function verifyGame(htmlString, options = {}) {
                     message,
                 });
                 crashes.push(message);
+            }
+
+            if (renderState.dreamAnimationCount > 0) {
+                const sourceUsesAnimations = /\b(DREAM_ANIMATIONS|createAnimations|animationsFor|applyTween)\b/.test(sourceHtml)
+                    || renderState.dreamAnimationKeys.some((key) => key && sourceHtml.includes(key));
+                const usedAnimations = Object.keys(renderState.dreamAssetUsage?.usedAnimations || {});
+                if (!sourceUsesAnimations && usedAnimations.length === 0) {
+                    const message = `Generated animation frames unused: ${renderState.dreamAnimationCount} frame_sequence animations were injected, but the source never references DREAM_ANIMATIONS, DreamAssets.createAnimations(), DreamAssets.animationsFor(), DreamAssets.applyTween(), or animation keys.`;
+                    renderState.failedContractChecks.push({
+                        id: 'asset_animations_unused',
+                        templateId: options?.assetContract?.templateId || null,
+                        animationKeys: renderState.dreamAnimationKeys,
+                        message,
+                    });
+                    crashes.push(message);
+                }
+            }
+
+            if (renderState.dreamTilesetCount > 0) {
+                const sourceUsesTilesets = /\b(DREAM_TILESETS|firstTileset|getTileset)\b/.test(sourceHtml)
+                    || renderState.dreamTilesetKeys.some((key) => key && sourceHtml.includes(key));
+                const usedTilesets = Object.keys(renderState.dreamAssetUsage?.usedTilesets || {});
+                if (!sourceUsesTilesets && usedTilesets.length === 0) {
+                    const message = `Generated tileset unused: ${renderState.dreamTilesetCount} expanded 7x7 tilesets were injected, but the source never references DREAM_TILESETS, DreamAssets.firstTileset(), DreamAssets.getTileset(), or tileset keys.`;
+                    renderState.failedContractChecks.push({
+                        id: 'asset_tilesets_unused',
+                        templateId: options?.assetContract?.templateId || null,
+                        tilesetKeys: renderState.dreamTilesetKeys,
+                        message,
+                    });
+                    crashes.push(message);
+                }
             }
         }
 

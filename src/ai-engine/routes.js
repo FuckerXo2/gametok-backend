@@ -2184,6 +2184,8 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
         '- Use provided DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK when assets exist. Do not invent random remote asset URLs.',
         '- Use window.DREAM_ANIMATIONS for frame animations when frame_sequence entries exist. Call DreamAssets.createAnimations(scene) in Phaser games or manually cycle the listed frame keys in canvas games.',
         '- Use window.DREAM_TILESETS for tile/grid/platform/terrain games when a tileset exists. The generated tileset is a 7x7 sheet expanded from a 3x3 core; gameplay collision is still code-defined.',
+        '- Asset consumption is an acceptance gate. If the asset summary contains frame_sequence animations or tilesets, source must reference and use their APIs/keys before falling back to procedural visuals.',
+        '- Default visual order: generated background -> generated actor sprites -> generated animation frames/tweens -> generated tileset surface art -> code-rendered geometry/HUD.',
         '- If assets fail or are absent, draw intentional code-rendered fallback art that still supports gameplay.',
         '- The first 10 seconds must prove movement/input, collision or core interaction, feedback, and win/loss or scoring loop.',
         '- Optional assetRequests are allowed only for important missing gameplay visuals. Do not request HUD text/buttons as images.',
@@ -2338,6 +2340,8 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '- Return complete contents for every file you edit.',
         '- Use the asset keys from DREAM_ASSET_PACK / DreamAssets. Do not paste data URLs into source files.',
         '- Prefer player/enemy/item/prop/background assets for actual gameplay visuals.',
+        '- If frame_sequence animations exist, connect them through DREAM_ANIMATIONS, DreamAssets.createAnimations(), DreamAssets.animationsFor(), DreamAssets.applyTween(), or manual frame cycling.',
+        '- If tilesets exist, connect them through DREAM_TILESETS, DreamAssets.firstTileset(), DreamAssets.getTileset(), or tileset image keys.',
         '- Prefer the template asset contract slots over ad hoc asset choices.',
         '- Keep gameplay geometry and HUD code-rendered. Do not turn terrain, labels, buttons, meters, or hitboxes into baked images.',
         '- Preserve the existing gameplay and mobile layout.',
@@ -2683,6 +2687,26 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 directRepairTask: `Required generated asset slots are not connected to gameplay renderers${missing ? `: ${missing}` : ''}.`,
                 repair: 'For each missing required slot, find the matching entry in DREAM_ASSET_PACK by role/key and render it through DreamAssets. Use the generated player/enemy/background assets before procedural placeholders.',
             });
+        } else if (check.id === 'asset_animations_unused') {
+            const keys = (check.animationKeys || []).slice(0, 8).join(', ');
+            tasks.push({
+                priority: 'major',
+                source: 'asset_contract',
+                templateId: check.templateId || null,
+                failure: check.message || `Generated animation frames unused: ${keys}`,
+                directRepairTask: `Generated frame_sequence animations are not connected to sprites${keys ? `: ${keys}` : ''}.`,
+                repair: 'Use DREAM_ANIMATIONS through DreamAssets.createAnimations()/animationsFor()/applyTween in Phaser, or manually cycle the listed frame keys in canvas renderers. Attach player/enemy animation frames to the matching gameplay entities.',
+            });
+        } else if (check.id === 'asset_tilesets_unused') {
+            const keys = (check.tilesetKeys || []).slice(0, 8).join(', ');
+            tasks.push({
+                priority: 'major',
+                source: 'asset_contract',
+                templateId: check.templateId || null,
+                failure: check.message || `Generated tileset unused: ${keys}`,
+                directRepairTask: `Generated 7x7 tileset is not connected to tile/terrain rendering${keys ? `: ${keys}` : ''}.`,
+                repair: 'Use DREAM_TILESETS or DreamAssets.firstTileset()/getTileset() to load the generated tileset image for visual tile terrain while keeping collision geometry code-defined.',
+            });
         } else if (check.message) {
             tasks.push({
                 priority: 'major',
@@ -2769,6 +2793,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
         '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
         '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
+        '- If generated animation frames exist, wire DREAM_ANIMATIONS into player/enemy sprites or canvas frame cycling.',
+        '- If generated tilesets exist, wire DREAM_TILESETS into terrain/tile drawing while keeping collision data code-defined.',
         '- If sandboxDiagnostics.templateRuntimeProbe failed, repair the exact required probe behavior. Do not remove the probe API to hide the failure.',
         '- Template probe failures are gameplay contract failures: fix live state, controls, collisions, scoring, or reset behavior until the probe passes.',
         '- Respect the template asset contract: never replace HUD, controls, terrain collision, or hitboxes with AI images.',
@@ -2782,6 +2808,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- DreamAssets.preloadPhaser(scene): loads generated image assets into Phaser.',
         '- DreamAssets.addSprite(scene, roleOrKey, x, y, options): adds a Phaser sprite from a role or key.',
         '- DreamAssets.addBackgroundCover(scene, roleOrKey, width, height): adds a generated background image as a cover layer.',
+        '- DreamAssets.firstTileset(): returns the first generated 7x7 tileset manifest.',
+        '- DreamAssets.getTileset(key): returns a generated tileset manifest by key.',
         '- DreamAssets.safeRect(width, height): returns the GameTok chrome-safe playable rectangle.',
         '',
         `Crash: ${crash}`,

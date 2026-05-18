@@ -94,6 +94,12 @@ function scoreAssets(sandbox = null, assetContract = null, assetManifest = null)
     if (hasFailedCheck(sandbox, 'asset_required_roles_unused') || hasFailedCheck(sandbox, 'asset_required_slots_unreferenced')) {
         failures.push('Required generated asset roles are unused.');
     }
+    if (hasFailedCheck(sandbox, 'asset_animations_unused')) {
+        failures.push('Generated animation frames are unused.');
+    }
+    if (hasFailedCheck(sandbox, 'asset_tilesets_unused')) {
+        failures.push('Generated tilesets are unused.');
+    }
     return {
         score: failures.length === 0 ? 10 : 0,
         passed: failures.length === 0,

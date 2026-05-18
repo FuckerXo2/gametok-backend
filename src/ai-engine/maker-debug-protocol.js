@@ -204,8 +204,24 @@ export function buildMakerDebugProtocol(templateContract = null, generatedAssets
     const templateSummary = summarizeMakerTemplateContract(templateContract);
     const templateId = templateSummary?.templateId || 'canvas-arcade';
     const hasAssets = Boolean(generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0);
+    const hasFrameSequences = Array.isArray(generatedAssets?.animations)
+        && generatedAssets.animations.some((animation) => animation?.type === 'frame_sequence');
+    const hasTilesets = Array.isArray(generatedAssets?.tilesets)
+        && generatedAssets.tilesets.some((tileset) => tileset?.imageKey || tileset?.sheetKey);
     const checks = [
         ...BASE_DEBUG_CHECKS,
+        ...(hasFrameSequences ? [{
+            id: 'animation_asset_usage',
+            severity: 'major',
+            check: 'If frame_sequence animations exist, source must use DREAM_ANIMATIONS, DreamAssets.createAnimations(), DreamAssets.animationsFor(), DreamAssets.applyTween(), or animation keys.',
+            repair: 'Connect generated animation frame sequences to the matching player/enemy sprites or manually cycle the frame keys in canvas renderers.',
+        }] : []),
+        ...(hasTilesets ? [{
+            id: 'tileset_asset_usage',
+            severity: 'major',
+            check: 'If DREAM_TILESETS exist, tile/grid/platform/terrain renderers must use DreamAssets.firstTileset(), DreamAssets.getTileset(), DREAM_TILESETS, or tileset keys.',
+            repair: 'Load the generated 7x7 tileset image and use it as the visual vocabulary for code-defined tile terrain or platform surfaces.',
+        }] : []),
         ...(TEMPLATE_DEBUG_CHECKS[templateId] || []),
     ];
 
@@ -214,6 +230,8 @@ export function buildMakerDebugProtocol(templateContract = null, generatedAssets
         source: 'gametok-native-debug-protocol',
         template: templateSummary,
         hasGeneratedAssets: hasAssets,
+        hasFrameSequences,
+        hasTilesets,
         assetContract: assetContract ? {
             templateId: assetContract.templateId || null,
             slots: Array.isArray(assetContract.slots)

@@ -2324,12 +2324,22 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DREAM_AUDIO_MANIFEST = dreamAssetPayload.audio || { sfx: [], music: [] };
         window.DREAM_TILESETS = dreamAssetPayload.tilesets || [];
         window.DREAM_PRODUCTION_CONTRACT = dreamAssetPayload.productionContract || (window.DREAM_ASSET_MANIFEST && window.DREAM_ASSET_MANIFEST.productionContract) || null;
-        window.__DREAM_ASSET_USAGE = window.__DREAM_ASSET_USAGE || { helperCalls: 0, usedKeys: {}, usedRoles: {} };
-        function markDreamAssetUsage(key, role) {
+        window.__DREAM_ASSET_USAGE = window.__DREAM_ASSET_USAGE || { helperCalls: 0, usedKeys: {}, usedRoles: {}, renderedKeys: {}, renderedRoles: {}, usedAnimations: {}, usedTilesets: {} };
+        function markDreamAssetUsage(key, role, usageKind) {
           try {
             window.__DREAM_ASSET_USAGE.helperCalls += 1;
             if (key) window.__DREAM_ASSET_USAGE.usedKeys[key] = (window.__DREAM_ASSET_USAGE.usedKeys[key] || 0) + 1;
             if (role) window.__DREAM_ASSET_USAGE.usedRoles[role] = (window.__DREAM_ASSET_USAGE.usedRoles[role] || 0) + 1;
+            if (usageKind === 'render') {
+              if (key) window.__DREAM_ASSET_USAGE.renderedKeys[key] = (window.__DREAM_ASSET_USAGE.renderedKeys[key] || 0) + 1;
+              if (role) window.__DREAM_ASSET_USAGE.renderedRoles[role] = (window.__DREAM_ASSET_USAGE.renderedRoles[role] || 0) + 1;
+            }
+            if (usageKind === 'animation' && key) {
+              window.__DREAM_ASSET_USAGE.usedAnimations[key] = (window.__DREAM_ASSET_USAGE.usedAnimations[key] || 0) + 1;
+            }
+            if (usageKind === 'tileset' && key) {
+              window.__DREAM_ASSET_USAGE.usedTilesets[key] = (window.__DREAM_ASSET_USAGE.usedTilesets[key] || 0) + 1;
+            }
           } catch (e) {}
         }
         window.__dreamAudioQueue = window.__dreamAudioQueue || [];
@@ -2400,7 +2410,7 @@ function buildDreamAssetsScript(generatedAssets = null) {
             var key = asset && asset.key ? asset.key : keyOrRole;
             if (!(window.DREAM_ASSETS || {})[key]) return null;
             var sprite = scene.add.sprite(x, y, key);
-            markDreamAssetUsage(key, asset && (asset.role || asset.category) || keyOrRole);
+            markDreamAssetUsage(key, asset && (asset.role || asset.category) || keyOrRole, 'render');
             if (opts.depth !== undefined && sprite.setDepth) sprite.setDepth(opts.depth);
             if (opts.maxW || opts.maxH) this.scaleToFit(sprite, opts.maxW || 96, opts.maxH || 96, opts.upscaleLimit || 1.5);
             if (opts.origin && sprite.setOrigin) sprite.setOrigin(opts.origin[0], opts.origin[1]);
@@ -2412,7 +2422,7 @@ function buildDreamAssetsScript(generatedAssets = null) {
             var key = asset && asset.key ? asset.key : keyOrRole;
             if (!(window.DREAM_ASSETS || {})[key]) return null;
             var bg = scene.add.image(width / 2, height / 2, key);
-            markDreamAssetUsage(key, asset && (asset.role || asset.category) || keyOrRole);
+            markDreamAssetUsage(key, asset && (asset.role || asset.category) || keyOrRole, 'render');
             var scale = Math.max(width / Math.max(bg.width || 1, 1), height / Math.max(bg.height || 1, 1));
             if (bg.setScale) bg.setScale(scale);
             if (bg.setDepth) bg.setDepth(-100);
@@ -2447,12 +2457,12 @@ function buildDreamAssetsScript(generatedAssets = null) {
             var tileset = tilesets.find(function(item) {
               return item && (item.key === key || item.sheetKey === key || item.imageKey === key);
             }) || null;
-            if (tileset && tileset.imageKey) markDreamAssetUsage(tileset.imageKey, tileset.role || 'tileset');
+            if (tileset && tileset.imageKey) markDreamAssetUsage(tileset.imageKey, tileset.role || 'tileset', 'tileset');
             return tileset;
           },
           firstTileset: function() {
             var tileset = (window.DREAM_TILESETS || [])[0] || null;
-            if (tileset && tileset.imageKey) markDreamAssetUsage(tileset.imageKey, tileset.role || 'tileset');
+            if (tileset && tileset.imageKey) markDreamAssetUsage(tileset.imageKey, tileset.role || 'tileset', 'tileset');
             return tileset;
           },
           createAnimations: function(scene) {
@@ -2473,6 +2483,8 @@ function buildDreamAssetsScript(generatedAssets = null) {
                   frameRate: animation.frameRate || 6,
                   repeat: animation.repeat === undefined ? -1 : animation.repeat
                 });
+                markDreamAssetUsage(animation.key, animation.role || 'animation', 'animation');
+                frames.forEach(function(frame) { markDreamAssetUsage(frame.key, animation.role || 'animation'); });
                 created.push(animation.key);
               } catch (e) {}
             });
@@ -2484,6 +2496,7 @@ function buildDreamAssetsScript(generatedAssets = null) {
             var animation = animations.find(function(item) {
               return item.key === animationKey || item.sourceKey === animationKey || item.role === animationKey;
             }) || {};
+            if (animation.key) markDreamAssetUsage(animation.key, animation.role || 'animation', 'animation');
             var text = [animation.key, animation.role, (animation.states || []).join(' '), animation.implementation].join(' ').toLowerCase();
             var tweenConfig;
             if (/dash|move|whoosh|trail/.test(text)) {
