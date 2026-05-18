@@ -26,6 +26,7 @@ import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
+import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2599,6 +2600,9 @@ function directRepairTaskForFailure(failure = '', templateId = null) {
     if (/required asset slots|not referenced|not consumed|required roles/i.test(text)) {
         return 'Required generated asset slots are not connected to gameplay renderers.';
     }
+    if (/Acceptance gate/i.test(text)) {
+        return 'The game boots, but final acceptance did not prove the core playable loop strongly enough.';
+    }
     if (templateId) {
         return `Repair the ${templateId} failed gameplay contract: ${text || 'unknown probe failure'}`;
     }
@@ -3017,6 +3021,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     let buildMode = null;
     let makerDesignBriefSummary = null;
     let makerGddCompliance = null;
+    let makerAcceptanceResult = null;
     const makerAgentTurns = [];
     try {
         assertJobNotCancelled(jobId);
@@ -3340,7 +3345,40 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 attempt: 3 - maxRetries,
                 checkedAt: new Date().toISOString(),
             };
+            makerGddCompliance = verifyMakerGddCompliance({
+                gddSummary: makerDesignBriefSummary,
+                templateContract: makerTemplateContract,
+                assetContract: makerAssetContract,
+                assetManifest: generatedAssets?.makerAssetManifest || null,
+                sandbox: finalSandboxResult,
+                buildMode,
+            });
+            makerAcceptanceResult = buildMakerAcceptanceResult({
+                sandbox: finalSandboxResult,
+                templateContract: makerTemplateContract,
+                debugProtocol: makerDebugProtocol,
+                assetContract: makerAssetContract,
+                assetManifest: generatedAssets?.makerAssetManifest || null,
+                gddCompliance: makerGddCompliance,
+            });
+            if (sandboxRes.success && !makerAcceptanceResult.passed) {
+                console.warn(`⚠️ Acceptance gate failed after sandbox pass: ${makerAcceptanceResult.grade} (${makerAcceptanceResult.score}/100)`);
+                sandboxRes = mergeAcceptanceIntoSandboxDiagnostics(sandboxRes, makerAcceptanceResult);
+                finalSandboxResult = {
+                    success: false,
+                    crashes: sandboxRes.crashes || [],
+                    hasScreenshot: Boolean(sandboxRes.screenshot),
+                    diagnostics: sandboxRes.diagnostics || null,
+                    attempt: 3 - maxRetries,
+                    checkedAt: new Date().toISOString(),
+                    acceptanceGate: makerAcceptanceResult,
+                };
+            } else {
+                finalSandboxResult.acceptanceGate = makerAcceptanceResult;
+            }
             await writeMakerJson(makerWorkspace, 'sandbox-result.json', finalSandboxResult);
+            await writeMakerJson(makerWorkspace, `acceptance-result-${finalSandboxResult.attempt}.json`, makerAcceptanceResult);
+            await writeMakerJson(makerWorkspace, 'acceptance-result.json', makerAcceptanceResult);
             await appendMakerAgentTurn(makerWorkspace, makerAgentTurns, {
                 phase: 'sandbox_verification',
                 objective: `Run sandbox verification attempt ${finalSandboxResult.attempt}.`,
@@ -3348,7 +3386,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 model: 'sandbox',
                 targetedRepairTasks: sandboxRes.success ? [] : buildTargetedRepairTasks(sandboxRes.diagnostics || null),
                 sandbox: finalSandboxResult,
-                notes: sandboxRes.success ? ['Sandbox verification passed.'] : ['Sandbox verification produced targeted repair tasks.'],
+                notes: sandboxRes.success
+                    ? [`Sandbox and acceptance gate passed (${makerAcceptanceResult.score}/100).`]
+                    : ['Sandbox or acceptance verification produced targeted repair tasks.'],
             });
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
@@ -3578,7 +3618,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             sandbox: finalSandboxResult,
             buildMode,
         });
+        makerAcceptanceResult = buildMakerAcceptanceResult({
+            sandbox: finalSandboxResult,
+            templateContract: makerTemplateContract,
+            debugProtocol: makerDebugProtocol,
+            assetContract: makerAssetContract,
+            assetManifest: generatedAssets?.makerAssetManifest || null,
+            gddCompliance: makerGddCompliance,
+        });
         await writeMakerJson(makerWorkspace, 'gdd-compliance.json', makerGddCompliance);
+        await writeMakerJson(makerWorkspace, 'acceptance-result.json', makerAcceptanceResult);
         const makerBenchmarkResult = makerBenchmark
             ? buildMakerBenchmarkResult({
                 benchmark: makerBenchmark,
@@ -3595,6 +3644,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 gddSummary: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
                 agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
+                acceptance: makerAcceptanceResult,
                 html: finalHtml,
             })
             : null;
@@ -3623,6 +3673,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             assetManifest: summarizeMakerAssetManifest(generatedAssets?.makerAssetManifest || null),
             gdd: makerDesignBriefSummary,
             gddCompliance: makerGddCompliance,
+            acceptance: makerAcceptanceResult,
             agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
             templateScaffold: summarizeMakerTemplateScaffold(makerTemplateScaffold),
             debugProtocol: makerDebugProtocol,
@@ -3709,6 +3760,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 buildMode,
             });
         }
+        if (!makerAcceptanceResult && finalSandboxResult) {
+            makerAcceptanceResult = buildMakerAcceptanceResult({
+                sandbox: finalSandboxResult,
+                templateContract: makerTemplateContract,
+                debugProtocol: makerDebugProtocol,
+                assetContract: makerAssetContract,
+                assetManifest: generatedAssets?.makerAssetManifest || null,
+                gddCompliance: makerGddCompliance,
+            });
+        }
         const failedBenchmarkResult = makerBenchmark
             ? buildMakerBenchmarkResult({
                 benchmark: makerBenchmark,
@@ -3726,6 +3787,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 gddSummary: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
                 agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
+                acceptance: makerAcceptanceResult,
             })
             : null;
         if (failedBenchmarkResult) {
@@ -3743,6 +3805,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 stack: err?.stack || null,
                 gdd: makerDesignBriefSummary,
                 gddCompliance: makerGddCompliance,
+                acceptance: makerAcceptanceResult,
                 agentLoop: summarizeMakerAgentTurns(makerAgentTurns),
                 benchmark: failedBenchmarkResult,
             }).catch(() => {});

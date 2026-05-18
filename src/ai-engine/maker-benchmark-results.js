@@ -23,6 +23,7 @@ export function scoreMakerBenchmarkResult(result = {}) {
     const assetInspection = assetContractInspection(sandbox);
     const repairs = Array.isArray(result.repairs) ? result.repairs : [];
     const gddCompliance = result.gddCompliance || null;
+    const acceptance = result.acceptance || null;
     const expectedTemplate = result.benchmark?.templateId || null;
     const selectedTemplate = result.template?.templateId || null;
 
@@ -40,6 +41,7 @@ export function scoreMakerBenchmarkResult(result = {}) {
             : repairs.some((repair) => /failed/i.test(String(repair.mode || ''))) ? 3 : 7,
         assetAndHud: assetInspection?.usesImageUi ? 0 : 10,
         gdd: gddCompliance ? Math.round((Number(gddCompliance.score || 0) / 100) * 10) : 0,
+        acceptance: acceptance ? Math.round((Number(acceptance.score || 0) / 100) * 10) : 0,
     };
 
     const score = clampScore(Object.values(components).reduce((sum, item) => sum + item, 0));
@@ -64,6 +66,9 @@ export function scoreMakerBenchmarkResult(result = {}) {
     }
     if (gddCompliance?.grade === 'fail' || gddCompliance?.grade === 'weak') {
         blockers.push(...(Array.isArray(gddCompliance.blockers) ? gddCompliance.blockers.slice(0, 3) : []));
+    }
+    if (acceptance && !acceptance.passed) {
+        blockers.push(...(Array.isArray(acceptance.blockers) ? acceptance.blockers.slice(0, 4) : []));
     }
 
     return {
@@ -90,6 +95,7 @@ export function buildMakerBenchmarkResult({
     gddSummary = null,
     gddCompliance = null,
     agentLoop = null,
+    acceptance = null,
     html = '',
 } = {}) {
     const result = {
@@ -130,6 +136,7 @@ export function buildMakerBenchmarkResult({
         } : null,
         gddCompliance: gddCompliance || null,
         agentLoop: agentLoop || null,
+        acceptance: acceptance || null,
         sandbox: sandbox ? {
             success: Boolean(sandbox.success),
             crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],
