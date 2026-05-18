@@ -2316,20 +2316,26 @@ function buildMakerProjectFromScaffold(templateScaffold = null, { templateContra
     if (!templateScaffold || !Array.isArray(templateScaffold.files) || templateScaffold.files.length === 0) {
         return null;
     }
+    const projectFiles = templateScaffold.files
+        .filter((file) => String(file?.sourcePath || file?.path || '').startsWith('project/'))
+        .map((file) => ({
+            path: file.path,
+            content: file.content,
+        }));
+    if (projectFiles.length === 0) {
+        return null;
+    }
     return {
         source: 'gametok-native-scaffold-file-loop',
         assetRequests: [],
-        files: templateScaffold.files.map((file) => ({
-            path: file.path,
-            content: file.content,
-        })),
+        files: projectFiles,
         usedAssetMap: [],
         gameSystemMap: [
             {
                 system: 'template_scaffold',
                 state: Array.isArray(templateContract?.requiredState) ? templateContract.requiredState : [],
                 functions: Array.isArray(templateContract?.requiredFunctions) ? templateContract.requiredFunctions : [],
-                files: templateScaffold.files.map((file) => file.path).filter(Boolean),
+                files: projectFiles.map((file) => file.path).filter(Boolean),
             },
         ],
         notes: [
