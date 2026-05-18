@@ -2282,165 +2282,6 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     };
 }
 
-function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generatedAssets = null, audioBundle = null, templateContract = null, debugProtocol = null, templateScaffold = null, assetContract = null, designBrief = '' }) {
-    return [
-        'You are the native GameTok maker project builder.',
-        '',
-        'Build the requested mobile HTML5 game as a small project, not as one giant HTML blob.',
-        'Return JSON only. No markdown. No commentary.',
-        '',
-        'JSON schema:',
-        '{',
-        '  "assetRequests": [',
-        '    {"id":"player_tank","type":"sprite","role":"player","description":"red side-view tank with readable cannon","size":128}',
-        '  ],',
-        '  "usedAssetMap": [',
-        '    {"role":"player","key":"player_tank","how":"DreamAssets.addSprite","where":"src/game.js:preload/create"}',
-        '  ],',
-        '  "gameSystemMap": [',
-        '    {"system":"aiming","state":["angle","power"],"functions":["setAim","updateTrajectory"],"files":["src/game.js"]}',
-        '  ],',
-        '  "files": [',
-        '    {"path":"index.html","content":"complete file content"},',
-        '    {"path":"src/styles.css","content":"complete file content"},',
-        '    {"path":"src/game.js","content":"complete file content"}',
-        '  ],',
-        '  "notes": ["short implementation note"]',
-        '}',
-        '',
-        'Hard rules:',
-        '- The GameTok maker GDD is mandatory. Implement Section 0 architecture, Section 1 assets, Section 2 config, Section 3 entities/functions, Section 4 content, and Section 5 roadmap in that order.',
-        '- Do not skip a GDD section because the user prompt is short. Short prompts still inherit the selected template contract and GDD acceptance checks.',
-        '- Notes must mention which GDD sections were implemented or intentionally satisfied by scaffold behavior.',
-        '- usedAssetMap is mandatory. List every generated asset, animation, or tileset you intentionally use, with role/key/how/where. If none are available, return an empty array and explain fallback art in notes.',
-        '- gameSystemMap is mandatory. List the actual gameplay systems, their state fields, key functions, and files. Include input, update loop, collision/physics, scoring/win-loss, reset, and runtime probe systems when present.',
-        '- Valid paths are only index.html and src/*.css, src/*.js, src/*.json.',
-        '- index.html must reference ./src/styles.css and ./src/game.js.',
-        '- Do not inline the whole game into index.html.',
-        '- Use top-level setup code. Do not wait for DOMContentLoaded/window.onload.',
-        '- Use pointerdown/pointermove/pointerup, not click-only controls.',
-        '- Do not navigate to external websites, call window.location, open popups, or create external links/forms.',
-        '- HUD, text, meters, buttons, and controls must be code-rendered, not baked into AI images.',
-        '- Keep everything mobile-first inside a 390x844 GameTok webview.',
-        '- Reserve at least 112px top space and 48px bottom space for native GameTok chrome.',
-        '- Use provided DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK when assets exist. Do not invent random remote asset URLs.',
-        '- Read the asset quality summary before choosing keys. Do not use assets with fatal quality issues; use fallback art for those roles.',
-        '- Use window.DREAM_ANIMATIONS for frame animations when frame_sequence entries exist. Call DreamAssets.createAnimations(scene) in Phaser games or manually cycle the listed frame keys in canvas games.',
-        '- Use window.DREAM_TILESETS for tile/grid/platform/terrain games when a tileset exists. The generated tileset is a 7x7 sheet expanded from a 3x3 core; gameplay collision is still code-defined.',
-        '- Asset consumption is an acceptance gate. If the asset summary contains frame_sequence animations or tilesets, source must reference and use their APIs/keys before falling back to procedural visuals.',
-        '- Default visual order: generated background -> generated actor sprites -> generated animation frames/tweens -> generated tileset surface art -> code-rendered geometry/HUD.',
-        '- If assets fail or are absent, draw intentional code-rendered fallback art that still supports gameplay.',
-        '- The first 10 seconds must prove movement/input, collision or core interaction, feedback, and win/loss or scoring loop.',
-        '- Optional assetRequests are allowed only for important missing gameplay visuals. Do not request HUD text/buttons as images.',
-        '- If the provided asset summary already contains a usable role, use that asset instead of requesting a duplicate.',
-        '- Follow the template asset contract. Use those slots first and do not request or generate AI-image HUD controls.',
-        '- Build inside the selected native template contract. Its required state, functions, first-frame rules, and acceptance checks are mandatory.',
-        '- If the template contract says a system is code-defined, do not fake it with screenshots or decorative images.',
-        '- If a native starter scaffold is provided, start from that scaffold and customize it instead of rebuilding from scratch.',
-        '- Treat scaffold files as the baseline implementation. Return edited scaffold files, not an unrelated replacement project.',
-        '- Preserve required function names, required state names, probe API methods, and core state machines from the scaffold.',
-        '- Prefer small targeted edits to scaffold systems: theme, tuning, art hooks, level/spawn data, feedback, and copy.',
-        '- If you must rewrite a scaffold system, keep the same public API and explain the reason in notes.',
-        '- Preserve scaffold function names and the working state machine unless the template API explicitly allows changing them.',
-        '- Preserve any window.__GAMETOK_TEMPLATE_PROBE__ API from the scaffold. It is used by the sandbox to verify playable mechanics.',
-        '- The output must be auditable against the GDD. Required state/function names from Section 3 should appear in source unless the scaffold already implements them.',
-        '',
-        'DreamAssets API contract available at runtime after post-processing:',
-        '- window.DREAM_ASSETS: object of generated image data URLs by key.',
-        '- window.DREAM_ASSET_PACK: structured asset manifest with role/category/key/type/transparent metadata.',
-        '- DreamAssets.getImage(key): returns a generated image data URL.',
-        '- DreamAssets.firstByRole(role): finds the first asset for roles like player, enemy, item, prop, background, environment, ui.',
-        '- DreamAssets.preloadPhaser(scene): loads generated image assets into Phaser.',
-        '- DreamAssets.addSprite(scene, roleOrKey, x, y, options): adds a Phaser sprite from a role or key.',
-        '- DreamAssets.addBackgroundCover(scene, roleOrKey, width, height): adds a generated background image as a cover layer.',
-        '- DreamAssets.firstTileset(): returns the first generated 7x7 tileset manifest, usually with imageKey/world_tileset_7x7.',
-        '- DreamAssets.getTileset(key): returns a generated tileset manifest by key.',
-        '- DreamAssets.safeRect(width, height): returns the GameTok chrome-safe playable rectangle.',
-        '',
-        'User prompt:',
-        prompt,
-        '',
-        formatMakerDesignBriefPromptBlock(designBrief),
-        '',
-        'Native GameTok plan:',
-        JSON.stringify(buildMakerPlan(qualityIntent, prompt, templateContract), null, 2),
-        '',
-        'Selected native template contract:',
-        JSON.stringify(templateContract || null, null, 2),
-        '',
-        formatMakerDebugProtocolPromptBlock(debugProtocol),
-        '',
-        'Native starter scaffold:',
-        JSON.stringify(templateScaffold || null, null, 2),
-        '',
-        'Template asset contract:',
-        JSON.stringify(assetContract || null, null, 2),
-        '',
-        'Structured asset tool contract:',
-        JSON.stringify(buildStructuredAssetToolRequest(generatedAssets?.assetPlan || {}, assetContract), null, 2),
-        '',
-        'Asset summary:',
-        JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
-        '',
-        'Asset quality summary:',
-        JSON.stringify(summarizeMakerAssetQuality(generatedAssets?.assetQuality || null), null, 2),
-        '',
-        'Audio summary:',
-        JSON.stringify(audioBundle || { audio: [], music: [] }, null, 2),
-    ].join('\n');
-}
-
-function parseMakerProjectBuildResponse(text) {
-    const parsed = parseBuilderJsonText(text);
-    if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) {
-        throw new Error('Project build response did not include files.');
-    }
-    return {
-        assetRequests: Array.isArray(parsed.assetRequests)
-            ? parsed.assetRequests.map((request, index) => ({
-                id: makerSafeFileName(request?.id || `requested_asset_${index + 1}`, `requested_asset_${index + 1}`).slice(0, 48),
-                assetType: ['background', 'tileset'].includes(String(request?.type || request?.assetType || '').toLowerCase())
-                    ? String(request?.type || request?.assetType).toLowerCase()
-                    : 'sprite',
-                category: String(request?.role || request?.category || 'prop').toLowerCase().replace(/[^a-z0-9_]+/g, '_') || 'prop',
-                role: String(request?.role || request?.category || 'prop').toLowerCase().replace(/[^a-z0-9_]+/g, '_') || 'prop',
-                description: String(request?.description || request?.prompt || '').trim(),
-                gameplayRole: String(request?.gameplayRole || request?.roleInGameplay || '').trim(),
-                size: Number(request?.size || 128),
-                width: request?.width ? Number(request.width) : undefined,
-                height: request?.height ? Number(request.height) : undefined,
-                transparent: !['background', 'tileset'].includes(String(request?.type || request?.assetType || '').toLowerCase())
-                    && request?.transparent !== false,
-            }))
-                .filter((request) => request.description.length > 12)
-                .slice(0, 4)
-            : [],
-        files: parsed.files.map((file) => {
-            if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
-                throw new Error('Project build response included an invalid file.');
-            }
-            return { path: file.path, content: file.content };
-        }),
-        usedAssetMap: Array.isArray(parsed.usedAssetMap)
-            ? parsed.usedAssetMap.map((entry) => ({
-                role: String(entry?.role || '').trim(),
-                key: String(entry?.key || entry?.assetKey || '').trim(),
-                how: String(entry?.how || '').trim(),
-                where: String(entry?.where || '').trim(),
-            })).filter((entry) => entry.role || entry.key || entry.how || entry.where).slice(0, 40)
-            : [],
-        gameSystemMap: Array.isArray(parsed.gameSystemMap)
-            ? parsed.gameSystemMap.map((entry) => ({
-                system: String(entry?.system || '').trim(),
-                state: Array.isArray(entry?.state) ? entry.state.map(String).slice(0, 16) : [],
-                functions: Array.isArray(entry?.functions) ? entry.functions.map(String).slice(0, 20) : [],
-                files: Array.isArray(entry?.files) ? entry.files.map(String).slice(0, 8) : [],
-            })).filter((entry) => entry.system || entry.functions.length || entry.state.length).slice(0, 24)
-            : [],
-        notes: Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 12) : [],
-    };
-}
-
 async function writeMakerBuilderMaps(workspace, projectBuild, phase = 'initial_build', { generatedAssets = null } = {}) {
     if (!workspace || !projectBuild) return null;
     const warnings = [];
@@ -3567,18 +3408,6 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const legacyBuildPrompt = ALLOW_LEGACY_HTML_FALLBACK
             ? buildLabsSoloPrototype(prompt, qualityIntent, audioBundle, mediaAttachments, generatedAssets)
             : '';
-        const buildPrompt = buildMakerProjectBuildPrompt({
-            prompt,
-            qualityIntent,
-            generatedAssets,
-            audioBundle,
-            templateContract: makerTemplateContract,
-            debugProtocol: makerDebugProtocol,
-            templateScaffold: makerTemplateScaffold,
-            assetContract: makerAssetContract,
-            designBrief: makerDesignBrief,
-        });
-        await writeMakerText(makerWorkspace, 'logs/build-prompt.txt', buildPrompt);
         if (ALLOW_LEGACY_HTML_FALLBACK) {
             await writeMakerText(makerWorkspace, 'logs/legacy-html-build-contract.txt', legacyBuildPrompt);
         }
@@ -3614,16 +3443,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     });
                     console.log(`🧰 Phase 2 scaffold materialized: ${projectBuild.files.length} files. Starting file-agent loop...`);
                 } else {
-                    console.warn('⚠️ No native scaffold available. Falling back to one-shot JSON project build.');
-                    const projectBuildText = await generateCompleteJsonWithBuilder(buildPrompt, {
-                        label: 'Phase 2 Project Build',
-                        jobId,
-                        timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
-                        maxAttempts: 2,
-                        progressBase: 52,
-                    });
-                    await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
-                    projectBuild = parseMakerProjectBuildResponse(projectBuildText);
+                    throw new Error(`No native scaffold exists for template ${makerTemplateContract?.templateId || 'unknown'}. Add a scaffold instead of falling back to one-shot project JSON.`);
                 }
                 makerBuilderMaps = await writeMakerBuilderMaps(makerWorkspace, projectBuild, 'initial_build', { generatedAssets });
                 makerProject = await materializeMakerProjectFiles(makerWorkspace, projectBuild, {
