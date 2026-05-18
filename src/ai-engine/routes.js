@@ -182,29 +182,45 @@ setInterval(() => {
 }, 60 * 1000).unref?.();
 
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
-    const res = await nvidiaClient.chat.completions.create({
-        model: DREAM_MODELS.spec,
-        messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ],
-        max_tokens: maxTokens,
-        temperature: temperature
-    });
-    if (!res || !res.choices || !res.choices[0]) {
-        throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
+    const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+    ];
+    let raw = '';
+    let extracted = '';
+    let parseError = null;
+
+    for (let attempt = 0; attempt <= BUILDER_MAX_CONTINUATIONS; attempt += 1) {
+        const res = await nvidiaClient.chat.completions.create({
+            model: DREAM_MODELS.spec,
+            messages,
+            max_tokens: maxTokens,
+            temperature: temperature
+        });
+        if (!res || !res.choices || !res.choices[0]) {
+            throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
+        }
+        raw += res.choices[0].message.content || '';
+        extracted = extractJson(raw);
+
+        try {
+            return JSON.parse(extracted);
+        } catch (error) {
+            parseError = error;
+            console.error('[callAI] JSON parse failed. Raw response length:', raw.length);
+            console.error('[callAI] Extracted JSON length:', extracted.length);
+            console.error('[callAI] Last 200 chars of extracted:', extracted.slice(-200));
+            if (attempt >= BUILDER_MAX_CONTINUATIONS) break;
+            console.warn(`[callAI] Requesting JSON continuation ${attempt + 1}/${BUILDER_MAX_CONTINUATIONS} after parse failure: ${error.message}`);
+            messages.push({ role: 'assistant', content: raw });
+            messages.push({
+                role: 'user',
+                content: buildBuilderJsonContinuationPrompt(extracted, error),
+            });
+        }
     }
-    const raw = res.choices[0].message.content;
-    const extracted = extractJson(raw);
-    
-    try {
-        return JSON.parse(extracted);
-    } catch (parseError) {
-        console.error('[callAI] JSON parse failed. Raw response length:', raw.length);
-        console.error('[callAI] Extracted JSON length:', extracted.length);
-        console.error('[callAI] Last 200 chars of extracted:', extracted.slice(-200));
-        throw new Error(`JSON parse failed: ${parseError.message}. Response was likely truncated (${extracted.length} chars). Increase max_tokens.`);
-    }
+
+    throw new Error(`JSON parse failed after continuation attempts: ${parseError?.message || 'unknown parse error'}. Response stayed incomplete (${extracted.length} chars).`);
 }
 
 const DISCOVERY_TABS = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'];
@@ -726,6 +742,15 @@ function cleanBuilderContinuation(text) {
     return output.trimStart();
 }
 
+function cleanJsonContinuation(text) {
+    return stripMarkdownFences(String(text || ''), 'json').trimStart();
+}
+
+function parseBuilderJsonText(text) {
+    const cleaned = stripMarkdownFences(String(text || ''), 'json');
+    return JSON.parse(extractJson(cleaned));
+}
+
 function buildBuilderContinuationPrompt(partialHtml) {
     const suffix = partialHtml.slice(-4000);
     return [
@@ -742,6 +767,28 @@ function buildBuilderContinuationPrompt(partialHtml) {
         '```',
         '',
         'Continue with only the remaining characters needed to finish the same HTML document.'
+    ].join('\n');
+}
+
+function buildBuilderJsonContinuationPrompt(partialJson, parseError) {
+    const suffix = String(partialJson || '').slice(-6000);
+    return [
+        'You were generating one valid JSON object for the GameTok maker and your previous response was cut off or incomplete.',
+        'Continue from EXACTLY where the JSON stopped.',
+        'Output ONLY the missing continuation characters.',
+        'Do NOT restart the JSON object.',
+        'Do NOT repeat earlier keys or file contents.',
+        'Do NOT wrap the answer in markdown.',
+        'Do NOT explain anything.',
+        '',
+        `The parser currently fails with: ${parseError?.message || String(parseError || 'unknown parse error')}`,
+        '',
+        'The current partial JSON ends with this exact suffix:',
+        '```json',
+        suffix,
+        '```',
+        '',
+        'Continue with only the remaining characters needed to finish the same JSON object.'
     ].join('\n');
 }
 
@@ -847,6 +894,62 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
     }
 
     return html;
+}
+
+async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, progressBase = 56 } = {}) {
+    assertJobNotCancelled(jobId);
+    const logLabel = formatJobLogLabel(label, jobId);
+    let { text, stopReason } = await requestBuilderMessage(initialPrompt, {
+        label,
+        jobId,
+        timeoutMs,
+        maxAttempts,
+    });
+    assertJobNotCancelled(jobId);
+    let jsonText = stripMarkdownFences(text, 'json');
+    console.log(`🧾 [${logLabel}] json stop_reason=${stopReason || 'unknown'} chars=${jsonText.length}`);
+
+    let lastParseError = null;
+    let continuationCount = 0;
+    while (continuationCount <= BUILDER_MAX_CONTINUATIONS) {
+        try {
+            parseBuilderJsonText(jsonText);
+            return jsonText;
+        } catch (parseError) {
+            lastParseError = parseError;
+            if (continuationCount >= BUILDER_MAX_CONTINUATIONS) {
+                break;
+            }
+            continuationCount += 1;
+            console.warn(`⚠️ [${logLabel}] JSON output incomplete or invalid (${parseError.message}). Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
+            if (jobId) {
+                await updateGenerationJobProgress(
+                    jobId,
+                    Math.min(75, progressBase + continuationCount),
+                    'build_json_continuing',
+                    `Builder JSON was incomplete. Continuing structured output ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`
+                );
+            }
+            const continuation = await requestBuilderMessage(buildBuilderJsonContinuationPrompt(jsonText, parseError), {
+                label: `${label} JSON Continue`,
+                jobId,
+                timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                maxAttempts: 2,
+            });
+            assertJobNotCancelled(jobId);
+            const continuationText = cleanJsonContinuation(continuation.text);
+            console.log(`🧾 [${formatJobLogLabel(`${label} JSON Continue`, jobId)}] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
+            if (!continuationText) {
+                break;
+            }
+            jsonText += continuationText;
+        }
+    }
+
+    const error = new Error(`Builder JSON remained invalid after ${continuationCount} continuation attempt(s): ${lastParseError?.message || 'unknown parse error'}`);
+    error.partialText = jsonText;
+    error.parseError = lastParseError;
+    throw error;
 }
 
 function extractInlineScripts(html) {
@@ -2276,8 +2379,7 @@ function buildMakerProjectBuildPrompt({ prompt = '', qualityIntent = {}, generat
 }
 
 function parseMakerProjectBuildResponse(text) {
-    const cleaned = stripMarkdownFences(String(text || ''), 'json');
-    const parsed = JSON.parse(extractJson(cleaned));
+    const parsed = parseBuilderJsonText(text);
     if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) {
         throw new Error('Project build response did not include files.');
     }
@@ -2978,8 +3080,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
 }
 
 function parseMakerFileRepairResponse(text) {
-    const cleaned = stripMarkdownFences(String(text || ''), 'json');
-    const parsed = JSON.parse(extractJson(cleaned));
+    const parsed = parseBuilderJsonText(text);
     if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) {
         throw new Error('File repair response did not include any file edits.');
     }
@@ -3053,12 +3154,13 @@ async function runMakerAgentInspectionTurns({
         });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         try {
-            const responseText = (await requestBuilderMessage(promptText, {
+            const responseText = await generateCompleteJsonWithBuilder(promptText, {
                 label: `Phase 2 File Agent Turn ${turnNumber}`,
                 jobId,
                 timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
                 maxAttempts: 2,
-            })).text;
+                progressBase: 62 + turnNumber,
+            });
             await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
             const inspection = parseMakerAgentInspectionResponse(responseText);
             const applied = inspection.files.length > 0
@@ -3400,12 +3502,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         let rawGameHtml = null;
         buildMode = 'file-native';
         try {
-            const projectBuildText = (await requestBuilderMessage(buildPrompt, {
+            const projectBuildText = await generateCompleteJsonWithBuilder(buildPrompt, {
                 label: 'Phase 2 Project Build',
                 jobId,
                 timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
                 maxAttempts: 2,
-            })).text;
+                progressBase: 52,
+            });
             await writeMakerText(makerWorkspace, 'logs/project-build-response.txt', projectBuildText);
             const projectBuild = parseMakerProjectBuildResponse(projectBuildText);
             makerBuilderMaps = await writeMakerBuilderMaps(makerWorkspace, projectBuild, 'initial_build', { generatedAssets });
@@ -3457,12 +3560,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     designBrief: makerDesignBrief,
                 });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-prompt.txt', integrationPrompt);
-                const integrationText = (await requestBuilderMessage(integrationPrompt, {
+                const integrationText = await generateCompleteJsonWithBuilder(integrationPrompt, {
                     label: 'Phase 2 Asset Integration',
                     jobId,
                     timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
                     maxAttempts: 2,
-                })).text;
+                    progressBase: 58,
+                });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-response.txt', integrationText);
                 try {
                     const integration = parseMakerFileRepairResponse(integrationText);
@@ -3686,12 +3790,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                                 truncated: Boolean(file.truncated),
                             })),
                         });
-                        const repairText = (await requestBuilderMessage(fileRepairPrompt, {
+                        const repairText = await generateCompleteJsonWithBuilder(fileRepairPrompt, {
                             label: 'Phase 3 File Repair',
                             jobId,
                             timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
                             maxAttempts: 2,
-                        })).text;
+                            progressBase: 78 + repairAttempt,
+                        });
                         await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.txt`, repairText);
                         const repair = parseMakerFileRepairResponse(repairText);
                         const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files);
