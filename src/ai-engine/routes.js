@@ -83,7 +83,7 @@ const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
-const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(3, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 2)));
+const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
@@ -3025,8 +3025,10 @@ async function runMakerAgentInspectionTurns({
     const objectives = [
         'Audit project files against GDD, template contract, asset contract, and runtime probe API.',
         'Audit builder asset/system maps against source code and repair any missing wiring.',
+        'Use rebuild/sandbox evidence from the previous turn to repair direct runtime failures.',
         'Re-read after edits and make one final targeted compliance cleanup if needed.',
     ];
+    let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
         const projectFiles = await readMakerProjectFiles(projectRoot);
@@ -3042,6 +3044,8 @@ async function runMakerAgentInspectionTurns({
             generatedAssetsSummary: summarizeMakerAssets(generatedAssets),
             assetQualitySummary: summarizeMakerAssetQuality(assetQuality || generatedAssets?.assetQuality || null),
             builderMaps,
+            loopHistory: summarizeMakerAgentTurns(turns),
+            lastRunEvidence,
             turnNumber,
             objective,
         });
@@ -3058,19 +3062,60 @@ async function runMakerAgentInspectionTurns({
             const applied = inspection.files.length > 0
                 ? await applyMakerFileEdits(projectRoot, inspection.files)
                 : [];
+            let runEvidence = null;
             if (applied.length > 0) {
                 await rebuildMakerProjectDist(projectRoot);
             }
+            try {
+                const assembledHtml = await assembleMakerProjectHtml(projectRoot);
+                const probeHtml = postProcessRawHtml(assembledHtml, generatedAssets);
+                const sandbox = await verifyGame(probeHtml, {
+                    requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
+                    sourceHtml: assembledHtml,
+                    templateContract,
+                    assetContract,
+                });
+                runEvidence = {
+                    success: Boolean(sandbox.success),
+                    crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],
+                    diagnostics: sandbox.diagnostics ? {
+                        failedContractChecks: Array.isArray(sandbox.diagnostics.failedContractChecks)
+                            ? sandbox.diagnostics.failedContractChecks.slice(0, 10)
+                            : [],
+                        templateRuntimeProbe: sandbox.diagnostics.templateRuntimeProbe || null,
+                        assetContractInspection: sandbox.diagnostics.assetContractInspection || null,
+                        horizontalOverflow: sandbox.diagnostics.horizontalOverflow || 0,
+                        canvasIssues: sandbox.diagnostics.canvasIssues || [],
+                        visibleOutOfBoundsElements: sandbox.diagnostics.visibleOutOfBoundsElements || [],
+                    } : null,
+                    targetedRepairTasks: sandbox.success ? [] : buildTargetedRepairTasks(sandbox.diagnostics || null),
+                };
+                await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+            } catch (runError) {
+                runEvidence = {
+                    success: false,
+                    crashes: [runError.message || String(runError)],
+                    diagnostics: null,
+                    targetedRepairTasks: [],
+                };
+                await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+            }
+            lastRunEvidence = runEvidence;
             await appendMakerAgentTurn(workspace, turns, {
                 phase: 'file_inspection',
                 objective,
-                status: 'complete',
+                status: runEvidence?.success === false ? 'needs_followup' : 'complete',
                 model: DREAM_MODELS.premiumBuilder,
                 filesRead: summarizeMakerProjectFiles(projectFiles),
                 editsApplied: applied,
+                targetedRepairTasks: runEvidence?.targetedRepairTasks || [],
+                sandbox: runEvidence,
                 notes: inspection.notes,
             });
-            if ((inspection.noEditsNeeded || applied.length === 0) && turnNumber >= Math.min(2, maxTurns)) {
+            if (runEvidence?.success) {
+                break;
+            }
+            if ((inspection.noEditsNeeded || applied.length === 0) && turnNumber >= maxTurns) {
                 break;
             }
         } catch (error) {
