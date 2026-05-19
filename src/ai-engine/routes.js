@@ -73,9 +73,9 @@ function resolveDreamModel(envName, fallback) {
 }
 
 const BUILDER_FALLBACK_MODELS = [
-    resolveDreamModel('DREAMSTREAM_MAIN_MODEL', 'qwen/qwen2.5-coder-32b-instruct'),
+    'qwen/qwen3-coder-480b-a35b-instruct',
     'moonshotai/kimi-k2.6',
-    'deepseek-ai/deepseek-coder-33b-instruct'
+    'deepseek-ai/deepseek-v4-pro'
 ];
 
 const DREAM_MODELS = {
