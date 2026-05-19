@@ -1570,9 +1570,10 @@ function withTimeout(promise, ms, label) {
 
 async function markJobError(jobId, fallbackMessage, err) {
     const errorMessage = err?.message || fallbackMessage;
+    const errorTitle = ('ERROR: ' + errorMessage).substring(0, 255);
     await pool.query(
         `UPDATE ai_games SET title = $1 WHERE id = $2`,
-        ['ERROR: ' + errorMessage, jobId]
+        [errorTitle, jobId]
     );
     
     // Get userId and send notification
@@ -1611,10 +1612,11 @@ function markEphemeralJob(jobId, update) {
 
 async function createPendingJob(userId, prompt, title, jobId = randomUUID()) {
     const startedAt = Date.now();
+    const safeTitle = (title || 'Untitled').substring(0, 255);
     const dbRes = await withTimeout(pool.query(
         `INSERT INTO ai_games (id, user_id, prompt, title, html_payload, raw_code, is_draft)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [jobId, userId, prompt, title, '', '', true]
+        [jobId, userId, prompt, safeTitle, '', '', true]
     ), 12000, 'Dream job creation');
     console.log(`⏱️ [AI DB] Pending job row created in ${Date.now() - startedAt}ms`);
     return dbRes.rows[0].id;
@@ -1657,6 +1659,7 @@ async function ensureGenerationQueueSchema() {
 async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'dream', payload = {}, maxAttempts = 2 }) {
     await ensureGenerationQueueSchema();
     const client = await pool.connect();
+    const safeTitle = (title || 'Untitled').substring(0, 255);
     try {
         await client.query('BEGIN');
         await client.query(
@@ -1667,7 +1670,7 @@ async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'drea
                  html_payload = '',
                  raw_code = '',
                  prompt = EXCLUDED.prompt`,
-            [jobId, userId, prompt, title, '', '', true]
+            [jobId, userId, prompt, safeTitle, '', '', true]
         );
         await client.query(
             `INSERT INTO generation_jobs (id, user_id, kind, status, prompt, payload, max_attempts, progress, phase, status_message)
@@ -4007,7 +4010,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         // ── SAVE TO DB ──
         assertJobNotCancelled(jobId);
         await reportProgress(94, 'save', 'Saving your game...');
-        const finalTitle = extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game';
+        const finalTitle = (extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game').substring(0, 255);
         makerGddCompliance = verifyMakerGddCompliance({
             gddSummary: makerDesignBriefSummary,
             templateContract: makerTemplateContract,
@@ -4389,7 +4392,7 @@ Output ONLY the complete fixed HTML document.`;
             maxRetries--;
         }
 
-        const finalTitle = extractHtmlTitle(editedHtml) || parentDraft.title.replace(/^Remix of /i, '') || 'DreamStream Game';
+        const finalTitle = (extractHtmlTitle(editedHtml) || parentDraft.title.replace(/^Remix of /i, '') || 'DreamStream Game').substring(0, 255);
 
         // 5. Save with updated edit history (memory for next edit)
         const newHistory = [...editHistory, instructions];
@@ -5092,7 +5095,7 @@ router.post('/publish/:draftId', async (req, res) => {
             // Draft exists, update it
             console.log('[Publish] Updating existing draft:', req.params.draftId);
             if (title && title.trim()) {
-                await pool.query("UPDATE ai_games SET title = $1 WHERE id = $2 AND user_id = $3", [title.trim(), req.params.draftId, userId]);
+                await pool.query("UPDATE ai_games SET title = $1 WHERE id = $2 AND user_id = $3", [title.trim().substring(0, 255), req.params.draftId, userId]);
             }
 
             const publishRes = await pool.query(
@@ -5351,7 +5354,7 @@ Output ONLY the complete fixed HTML document.`;
         }
 
         await updateGenerationJobProgress(jobId, 94, 'save', 'Saving Labs game...');
-        const gameTitle = "🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Kimi Solo Labs');
+        const gameTitle = ("🧪 " + (extractHtmlTitle(rawEngineHtml) || 'Kimi Solo Labs')).substring(0, 255);
 
         await pool.query(
             `UPDATE ai_games SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4 WHERE id = $5`,
