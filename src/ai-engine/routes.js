@@ -229,12 +229,12 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     let parseError = null;
 
     for (let attempt = 0; attempt <= BUILDER_MAX_CONTINUATIONS; attempt += 1) {
-        const res = await nvidiaClient.chat.completions.create({
+        const res = await withNvidiaRetries(() => nvidiaClient.chat.completions.create({
             model: DREAM_MODELS.spec,
             messages,
             max_tokens: maxTokens,
             temperature: temperature
-        });
+        }), { label: 'Phase 1 Builder', maxAttempts: 3, baseDelayMs: 2000 });
         if (!res || !res.choices || !res.choices[0]) {
             throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
         }
