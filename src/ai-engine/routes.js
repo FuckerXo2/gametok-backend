@@ -4037,7 +4037,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
                 if (!repairedWithProjectFiles) {
                     if (!ALLOW_LEGACY_HTML_FALLBACK) {
-                        throw new Error('Native maker file repair failed and legacy whole-HTML regeneration is disabled.');
+                        console.warn('⚠️ [Maker Repair] File repair failed and legacy fallback is disabled. Sending game as-is.');
+                        break;
                     }
                     console.error('[Maker Repair] Using explicitly enabled whole-HTML regeneration fallback.');
                     const repairPrompt = buildPhase2_EditGame(rawGameHtml, repairInstructions);
