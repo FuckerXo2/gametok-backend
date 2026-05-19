@@ -3,6 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
+import { Command } from 'commander';
+import chalk from 'chalk';
+import ora from 'ora';
 import pool, { initDB } from '../src/db.js';
 import { listMakerTemplateContracts, selectMakerTemplateContract } from '../src/ai-engine/maker-templates.js';
 import { buildMakerDebugProtocol } from '../src/ai-engine/maker-debug-protocol.js';
@@ -14,90 +17,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const defaultPromptPreviewLength = 240;
-
-function parseArgs(argv) {
-    const args = {
-        command: null,
-        prompt: null,
-        userId: process.env.GAMETOK_MAKER_USER_ID || null,
-        jobId: null,
-        outDir: process.env.GAMETOK_MAKER_OUT_DIR || null,
-        json: false,
-        help: false,
-        force: false,
-        dbBacked: false,
-    };
-    const positionals = [];
-    for (let index = 2; index < argv.length; index++) {
-        const arg = argv[index];
-        if (arg === '--help' || arg === '-h') {
-            args.help = true;
-        } else if (arg === '--json') {
-            args.json = true;
-        } else if (arg === '--prompt' || arg === '-p') {
-            args.prompt = argv[++index] || '';
-        } else if (arg === '--user-id') {
-            args.userId = argv[++index] || null;
-        } else if (arg === '--job-id') {
-            args.jobId = argv[++index] || null;
-        } else if (arg === '--out' || arg === '--out-dir') {
-            args.outDir = argv[++index] || null;
-        } else if (arg === '--force') {
-            args.force = true;
-        } else if (arg === '--db' || arg === '--db-backed') {
-            args.dbBacked = true;
-        } else if (arg.startsWith('-')) {
-            throw new Error(`Unknown option: ${arg}`);
-        } else {
-            positionals.push(arg);
-        }
-    }
-
-    const knownCommands = new Set(['generate', 'inspect', 'run-job', 'run-prompt', 'templates', 'env']);
-    if (positionals.length > 0 && knownCommands.has(positionals[0])) {
-        args.command = positionals.shift();
-    }
-    if (!args.command) args.command = args.jobId ? 'run-job' : 'generate';
-    if (!args.prompt && positionals.length > 0) args.prompt = positionals.join(' ');
-    return args;
-}
-
-function usage() {
-    return [
-        'GameTok Maker CLI',
-        '',
-        'Usage:',
-        '  gametok-maker "Create a lunar lander game"',
-        '  gametok-maker -p "Create a lunar lander game"',
-        '  gametok-maker generate -p "Create a tank artillery game" --out ./maker-runs',
-        '  gametok-maker inspect -p "turn-based artillery tank game"',
-        '  gametok-maker templates',
-        '  gametok-maker env',
-        '  gametok-maker run-job --job-id <uuid>',
-        '',
-        'Commands:',
-        '  generate              Run the native maker directly from the CLI and write artifacts.',
-        '  run-job               Re-run an existing ai_games job id through the native maker.',
-        '  inspect               Classify a prompt and print template/debug/asset contracts.',
-        '  templates             List available maker templates.',
-        '  env                   Validate required generation environment variables.',
-        '',
-        'Options:',
-        '  -p, --prompt <text>       Prompt to generate.',
-        '      --user-id <uuid>     ai_games owner. Defaults to GAMETOK_MAKER_USER_ID.',
-        '      --job-id <uuid>      Existing ai_games id for run-job.',
-        '      --out <dir>          Maker workspace root. Defaults to storage/gametok-maker-cli.',
-        '      --json               Print machine-readable result JSON.',
-        '      --force              Allow env command to exit 0 even when generation env is incomplete.',
-        '      --db                 For generate, create/update an ai_games row instead of direct CLI output.',
-        '  -h, --help              Show this help.',
-        '',
-        'Environment:',
-        '  DATABASE_URL or PG* connection settings are required only for run-job or generate --db.',
-        '  NVIDIA_API_KEY is required for NIM Flux asset generation.',
-        '  GAMETOK_MAKER_USER_ID is required only for generate --db unless --user-id is passed.',
-    ].join('\n');
-}
 
 function defaultOutDir() {
     return path.join(repoRoot, 'storage', 'gametok-maker-cli');
@@ -134,13 +53,13 @@ function validateGenerationEnv({ userId, jobId, dbBacked = false } = {}) {
 }
 
 function printEnvStatus(status) {
-    console.log(`Database: ${status.values.database}`);
-    console.log(`NVIDIA NIM key: ${status.values.nvidia}`);
-    console.log(`Maker user: ${status.values.userId}`);
-    console.log(`Default output: ${status.values.makerRoot}`);
+    console.log(chalk.blue.bold('\n🌍 Environment Status:'));
+    console.log(`  Database:       ${status.values.database === 'configured' ? chalk.green('✔ configured') : chalk.red('✖ ' + status.values.database)}`);
+    console.log(`  NVIDIA NIM key: ${status.values.nvidia === 'configured' ? chalk.green('✔ configured') : chalk.red('✖ missing')}`);
+    console.log(`  Maker user:     ${status.values.userId === 'configured' ? chalk.green('✔ configured') : chalk.gray('not required')}`);
+    console.log(`  Default output: ${chalk.cyan(status.values.makerRoot)}\n`);
     if (!status.ok) {
-        console.log('');
-        console.log(`Missing: ${status.missing.join(', ')}`);
+        console.log(chalk.red(`Missing required variables: ${status.missing.join(', ')}\n`));
     }
 }
 
@@ -320,15 +239,17 @@ function printTemplates(json = false) {
         console.log(JSON.stringify({ templates }, null, 2));
         return;
     }
+    console.log(chalk.bold.magenta('\n🎮 GameTok Maker Templates\n'));
     for (const template of templates) {
-        console.log(`${template.templateId} (${template.engine}, ${template.archetype})`);
-        console.log(`  library: ${template.recommendedLibrary}`);
-        console.log(`  functions: ${template.requiredFunctions.join(', ')}`);
-        console.log(`  controls: ${template.controls.join('; ')}`);
+        console.log(chalk.bold.cyan(`• ${template.templateId}`) + chalk.gray(` (${template.engine}, ${template.archetype})`));
+        console.log(`    ${chalk.gray('Library:')}   ${template.recommendedLibrary}`);
+        console.log(`    ${chalk.gray('Functions:')} ${template.requiredFunctions.join(', ')}`);
+        console.log(`    ${chalk.gray('Controls:')}  ${template.controls.join('; ')}\n`);
     }
 }
 
 async function inspectPrompt(prompt, json = false) {
+    const spinner = ora('Analyzing prompt and selecting template...').start();
     const template = selectMakerTemplateContract({}, prompt);
     const assetContract = buildMakerAssetContract(template, {});
     const debugProtocol = buildMakerDebugProtocol(template, null, assetContract);
@@ -346,13 +267,17 @@ async function inspectPrompt(prompt, json = false) {
         debugProtocol,
         scaffold: summarizeMakerTemplateScaffold(scaffold),
     };
+    
+    spinner.succeed('Analysis complete');
+    
     if (json) {
         console.log(JSON.stringify(output, null, 2));
     } else {
-        console.log(`Template: ${template.templateId} (${template.engine})`);
-        console.log(`Asset slots: ${(assetContract.slots || []).length}`);
-        console.log(`Debug checks: ${(debugProtocol.checks || []).length}`);
-        console.log(`GDD summary: ${output.designBrief.chars} chars`);
+        console.log(chalk.bold.blue('\n🔍 Inspection Results:'));
+        console.log(`  ${chalk.bold('Template:')}     ${chalk.cyan(template.templateId)} ${chalk.gray(`(${template.engine})`)}`);
+        console.log(`  ${chalk.bold('Asset Slots:')}  ${chalk.yellow((assetContract.slots || []).length)}`);
+        console.log(`  ${chalk.bold('Debug Checks:')} ${chalk.yellow((debugProtocol.checks || []).length)}`);
+        console.log(`  ${chalk.bold('GDD Summary:')}  ${chalk.green(output.designBrief.chars + ' chars')}\n`);
     }
 }
 
@@ -364,19 +289,28 @@ async function runNativeMaker({ prompt, userId, jobId, outDir, json }) {
     }
     process.env.GAMETOK_MAKER_ROOT = workspaceRoot;
     await fs.promises.mkdir(workspaceRoot, { recursive: true });
+    
+    const spinner = ora('Initializing database connection...').start();
     await initDB();
 
+    spinner.text = 'Creating job...';
     const job = jobId
         ? await getJob(jobId)
         : await createPendingJob(prompt, userId);
 
+    spinner.text = 'Loading DreamStream engine...';
     const { executeDreamJob } = await import('../src/ai-engine/routes.js');
     const startedAt = Date.now();
-    const manifest = await withStructuredJsonOutput(json, async () => {
-        console.log(`[GameTok Maker CLI] job=${job.id}`);
-        console.log(`[GameTok Maker CLI] workspace=${path.join(workspaceRoot, job.id)}`);
-        console.log(`[GameTok Maker CLI] prompt=${job.prompt.slice(0, defaultPromptPreviewLength)}${job.prompt.length > defaultPromptPreviewLength ? '...' : ''}`);
+    
+    spinner.stop();
+    if (!json) {
+        console.log(chalk.bold.magenta('\n🚀 Starting GameTok Maker (Native DB Backend)'));
+        console.log(`  ${chalk.gray('Job ID:')}    ${job.id}`);
+        console.log(`  ${chalk.gray('Workspace:')} ${path.join(workspaceRoot, job.id)}`);
+        console.log(`  ${chalk.gray('Prompt:')}    ${job.prompt.slice(0, defaultPromptPreviewLength)}${job.prompt.length > defaultPromptPreviewLength ? '...' : ''}\n`);
+    }
 
+    const manifest = await withStructuredJsonOutput(json, async () => {
         await executeDreamJob(job.id, job.prompt, []);
         const output = await readResult(job.id, workspaceRoot);
         output.durationMs = Date.now() - startedAt;
@@ -388,13 +322,13 @@ async function runNativeMaker({ prompt, userId, jobId, outDir, json }) {
     if (json) {
         console.log(JSON.stringify(manifest, null, 2));
     } else {
-        console.log('');
-        console.log(`[GameTok Maker CLI] complete: ${manifest.title || job.id}`);
-        console.log(`[GameTok Maker CLI] status=${manifest.status} buildMode=${manifest.buildMode || 'unknown'} template=${manifest.template || 'unknown'}`);
-        console.log(`[GameTok Maker CLI] artifact=${manifest.publicArtifactPath}`);
-        console.log(`[GameTok Maker CLI] latest=${manifest.latestHtmlPath}`);
-        console.log(`[GameTok Maker CLI] result=${manifest.resultPath}`);
-        console.log(`[GameTok Maker CLI] report=${manifest.reportPath}`);
+        console.log(chalk.bold.green('\n✅ Generation Complete!'));
+        console.log(`  ${chalk.bold('Title:')}     ${chalk.cyan(manifest.title || job.id)}`);
+        console.log(`  ${chalk.bold('Status:')}    ${manifest.status} ${chalk.gray(`(mode: ${manifest.buildMode || 'unknown'}, template: ${manifest.template || 'unknown'})`)}`);
+        console.log(`  ${chalk.bold('Artifact:')}  ${chalk.underline.blue(manifest.publicArtifactPath)}`);
+        console.log(`  ${chalk.bold('Latest:')}    ${chalk.underline.blue(manifest.latestHtmlPath)}`);
+        console.log(`  ${chalk.bold('Result:')}    ${chalk.underline.gray(manifest.resultPath)}`);
+        console.log(`  ${chalk.bold('Report:')}    ${chalk.underline.gray(manifest.reportPath)}\n`);
     }
 }
 
@@ -408,17 +342,26 @@ async function runDirectMaker({ prompt, outDir, json }) {
     await fs.promises.mkdir(workspaceRoot, { recursive: true });
 
     const jobId = randomUUID();
+    const spinner = ora('Loading DreamStream engine...').start();
     const { executeDreamJob } = await import('../src/ai-engine/routes.js');
     const startedAt = Date.now();
-    const manifest = await withStructuredJsonOutput(json, async () => {
-        console.log(`[GameTok Maker CLI] direct job=${jobId}`);
-        console.log(`[GameTok Maker CLI] workspace=${path.join(workspaceRoot, jobId)}`);
-        console.log(`[GameTok Maker CLI] prompt=${prompt.slice(0, defaultPromptPreviewLength)}${prompt.length > defaultPromptPreviewLength ? '...' : ''}`);
+    
+    spinner.stop();
+    if (!json) {
+        console.log(chalk.bold.magenta('\n🚀 Starting GameTok Maker (Direct CLI Mode)'));
+        console.log(`  ${chalk.gray('Job ID:')}    ${jobId}`);
+        console.log(`  ${chalk.gray('Workspace:')} ${path.join(workspaceRoot, jobId)}`);
+        console.log(`  ${chalk.gray('Prompt:')}    ${prompt.slice(0, defaultPromptPreviewLength)}${prompt.length > defaultPromptPreviewLength ? '...' : ''}\n`);
+    }
 
+    const progressSpinner = ora('Generating game...').start();
+    const manifest = await withStructuredJsonOutput(json, async () => {
         const result = await executeDreamJob(jobId, prompt, [], {
             persistToDb: false,
             onProgress: async ({ progress, phase, statusMessage }) => {
-                console.log(`[GameTok Maker CLI] ${String(progress).padStart(3, ' ')}% ${phase}: ${statusMessage}`);
+                if (!json) {
+                    progressSpinner.text = chalk.cyan(`[${String(progress).padStart(3, ' ')}%] `) + chalk.bold(`${phase}:`) + ` ${statusMessage}`;
+                }
             },
         });
         const finalized = await finalizeDirectOutput(result, workspaceRoot);
@@ -426,70 +369,100 @@ async function runDirectMaker({ prompt, outDir, json }) {
         return finalized;
     });
 
+    progressSpinner.succeed('Game generation finished!');
+
     if (json) {
         console.log(JSON.stringify(manifest, null, 2));
     } else {
-        console.log('');
-        console.log(`[GameTok Maker CLI] complete: ${manifest.title || jobId}`);
-        console.log(`[GameTok Maker CLI] status=${manifest.status} runtime=${manifest.runtime} buildMode=${manifest.buildMode || 'unknown'} template=${manifest.template || 'unknown'}`);
-        console.log(`[GameTok Maker CLI] artifact=${manifest.publicArtifactPath}`);
-        console.log(`[GameTok Maker CLI] latest=${manifest.latestHtmlPath}`);
-        console.log(`[GameTok Maker CLI] result=${manifest.resultPath}`);
-        console.log(`[GameTok Maker CLI] report=${manifest.reportPath}`);
+        console.log(chalk.bold.green('\n✅ Generation Complete!'));
+        console.log(`  ${chalk.bold('Title:')}     ${chalk.cyan(manifest.title || jobId)}`);
+        console.log(`  ${chalk.bold('Status:')}    ${manifest.status} ${chalk.gray(`(mode: ${manifest.buildMode || 'unknown'}, template: ${manifest.template || 'unknown'})`)}`);
+        console.log(`  ${chalk.bold('Artifact:')}  ${chalk.underline.blue(manifest.publicArtifactPath)}`);
+        console.log(`  ${chalk.bold('Latest:')}    ${chalk.underline.blue(manifest.latestHtmlPath)}`);
+        console.log(`  ${chalk.bold('Result:')}    ${chalk.underline.gray(manifest.resultPath)}`);
+        console.log(`  ${chalk.bold('Report:')}    ${chalk.underline.gray(manifest.reportPath)}\n`);
     }
 }
 
-async function main() {
-    const args = parseArgs(process.argv);
-    if (args.help) {
-        console.log(usage());
-        return;
-    }
+const program = new Command();
 
-    if (args.command === 'env') {
-        const status = validateGenerationEnv(args);
-        if (args.json) console.log(JSON.stringify(status, null, 2));
-        else printEnvStatus(status);
-        if (!status.ok && !args.force) process.exitCode = 1;
-        return;
-    }
+program
+  .name('gametok-maker')
+  .description(chalk.bold.magenta('GameTok Maker CLI') + ' - AI Game Generation Tool')
+  .version('2.0.0');
 
-    if (args.command === 'templates') {
-        printTemplates(args.json);
-        return;
-    }
+program
+  .command('generate')
+  .description('Run the native maker directly from the CLI and write artifacts')
+  .requiredOption('-p, --prompt <text>', 'Prompt to generate')
+  .option('--user-id <uuid>', 'ai_games owner. Defaults to GAMETOK_MAKER_USER_ID')
+  .option('--out, --out-dir <dir>', 'Maker workspace root')
+  .option('--json', 'Print machine-readable result JSON', false)
+  .option('--db, --db-backed', 'Create/update an ai_games row instead of direct CLI output', false)
+  .action(async (options) => {
+      try {
+          if (options.dbBacked || options.db) {
+              await runNativeMaker({ ...options, dbBacked: true });
+          } else {
+              await runDirectMaker(options);
+          }
+      } catch (err) {
+          console.error(chalk.red(`\n❌ Error: ${err.message}`));
+          process.exit(1);
+      } finally {
+          await pool.end().catch(() => {});
+      }
+  });
 
-    if (args.command === 'inspect') {
-        if (!args.prompt) throw new Error('inspect requires -p/--prompt.');
-        await inspectPrompt(args.prompt, args.json);
-        return;
-    }
+program
+  .command('run-job')
+  .description('Re-run an existing ai_games job id through the native maker')
+  .requiredOption('--job-id <uuid>', 'Existing ai_games id')
+  .option('--out, --out-dir <dir>', 'Maker workspace root')
+  .option('--json', 'Print machine-readable result JSON', false)
+  .action(async (options) => {
+      try {
+          await runNativeMaker({ ...options, dbBacked: true });
+      } catch (err) {
+          console.error(chalk.red(`\n❌ Error: ${err.message}`));
+          process.exit(1);
+      } finally {
+          await pool.end().catch(() => {});
+      }
+  });
 
-    if (args.command === 'run-prompt') args.command = 'generate';
-    if (args.command === 'generate') {
-        if (!args.prompt) throw new Error('generate requires -p/--prompt.');
-        if (args.dbBacked) {
-            await runNativeMaker(args);
-        } else {
-            await runDirectMaker(args);
-        }
-        return;
-    }
+program
+  .command('inspect')
+  .description('Classify a prompt and print template/debug/asset contracts')
+  .requiredOption('-p, --prompt <text>', 'Prompt to inspect')
+  .option('--json', 'Print machine-readable result JSON', false)
+  .action(async (options) => {
+      try {
+          await inspectPrompt(options.prompt, options.json);
+      } catch (err) {
+          console.error(chalk.red(`\n❌ Error: ${err.message}`));
+          process.exit(1);
+      }
+  });
 
-    if (args.command === 'run-job') {
-        if (!args.jobId) throw new Error('run-job requires --job-id.');
-        await runNativeMaker(args);
-        return;
-    }
+program
+  .command('templates')
+  .description('List available maker templates')
+  .option('--json', 'Print machine-readable result JSON', false)
+  .action((options) => {
+      printTemplates(options.json);
+  });
 
-    throw new Error(`Unknown command: ${args.command}`);
-}
+program
+  .command('env')
+  .description('Validate required generation environment variables')
+  .option('--json', 'Print machine-readable result JSON', false)
+  .option('--force', 'Allow env command to exit 0 even when generation env is incomplete', false)
+  .action((options) => {
+      const status = validateGenerationEnv(options);
+      if (options.json) console.log(JSON.stringify(status, null, 2));
+      else printEnvStatus(status);
+      if (!status.ok && !options.force) process.exit(1);
+  });
 
-main()
-    .catch((error) => {
-        console.error(`[GameTok Maker CLI] ${error.stack || error.message || error}`);
-        process.exitCode = 1;
-    })
-    .finally(async () => {
-        await pool.end().catch(() => {});
-    });
+program.parse();
