@@ -921,7 +921,7 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
             }
             throw error;
         }
-    }, timeoutMs, logLabel), { label, jobId, maxAttempts, baseDelayMs: 1500, fallbackModels: BUILDER_FALLBACK_MODELS }).catch((error) => {
+    }, timeoutMs, logLabel), { label, jobId, maxAttempts, baseDelayMs: 1500, fallbackModels: currentModel ? [currentModel] : BUILDER_FALLBACK_MODELS }).catch((error) => {
         if (String(lastPartialText || '').trim()) {
             finishReason = error.partialStopReason || lastPartialStopReason || 'provider_error_partial';
             console.warn(`⚠️ [${logLabel}] Provider failed after ${lastPartialText.length} chars. Keeping partial output for continuation.`);
