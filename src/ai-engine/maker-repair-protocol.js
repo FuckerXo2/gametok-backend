@@ -1,9 +1,53 @@
-import fs from 'fs';
-import path from 'path';
 import { createHash, randomUUID } from 'crypto';
+import pool from '../db.js';
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 
+// ── Schema bootstrap ──────────────────────────────────────────────────
+let schemaReady = null;
+
+async function ensureRepairProtocolSchema() {
+    if (!schemaReady) {
+        schemaReady = pool.query(`
+            CREATE TABLE IF NOT EXISTS maker_repair_entries (
+                id TEXT PRIMARY KEY,
+                source TEXT NOT NULL DEFAULT 'unknown',
+                template_id TEXT,
+                failure_pattern TEXT NOT NULL DEFAULT '',
+                repair_task TEXT NOT NULL DEFAULT '',
+                raw_failures JSONB DEFAULT '[]'::jsonb,
+                repair_hints JSONB DEFAULT '[]'::jsonb,
+                templates JSONB DEFAULT '[]'::jsonb,
+                successful_examples JSONB DEFAULT '[]'::jsonb,
+                seen_count INTEGER NOT NULL DEFAULT 0,
+                verified_count INTEGER NOT NULL DEFAULT 0,
+                failed_count INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                last_seen_at TIMESTAMP DEFAULT NOW(),
+                last_verified_at TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS maker_repair_history (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                job_id TEXT,
+                attempt INTEGER,
+                template_id TEXT,
+                verified BOOLEAN NOT NULL DEFAULT false,
+                failure TEXT,
+                signature_ids JSONB DEFAULT '[]'::jsonb,
+                applied_files JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_repair_entries_template ON maker_repair_entries(template_id);
+            CREATE INDEX IF NOT EXISTS idx_repair_history_job ON maker_repair_history(job_id);
+        `);
+    }
+    return schemaReady;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
 function nowIso() {
     return new Date().toISOString();
 }
@@ -29,46 +73,7 @@ function signatureIdFor(task = {}) {
     return `maker-${digest}`;
 }
 
-function emptyProtocol() {
-    const createdAt = nowIso();
-    return {
-        version: PROTOCOL_VERSION,
-        source: 'gametok-maker-repair-protocol',
-        createdAt,
-        updatedAt: createdAt,
-        entries: [],
-        evolvedRules: [],
-        history: [],
-    };
-}
-
-export function getMakerRepairProtocolPath(rootDir) {
-    return path.join(rootDir, 'maker-repair-protocol.json');
-}
-
-export async function loadMakerRepairProtocol(rootDir) {
-    const protocolPath = getMakerRepairProtocolPath(rootDir);
-    try {
-        const raw = await fs.promises.readFile(protocolPath, 'utf8');
-        const parsed = JSON.parse(raw);
-        return {
-            ...emptyProtocol(),
-            ...parsed,
-            entries: Array.isArray(parsed.entries) ? parsed.entries : [],
-            evolvedRules: Array.isArray(parsed.evolvedRules) ? parsed.evolvedRules : [],
-            history: Array.isArray(parsed.history) ? parsed.history : [],
-        };
-    } catch {
-        return emptyProtocol();
-    }
-}
-
-async function saveMakerRepairProtocol(rootDir, protocol) {
-    const protocolPath = getMakerRepairProtocolPath(rootDir);
-    await fs.promises.mkdir(path.dirname(protocolPath), { recursive: true });
-    protocol.updatedAt = nowIso();
-    await fs.promises.writeFile(protocolPath, JSON.stringify(protocol, null, 2), 'utf8');
-}
+// ── Public API (drop-in replacements) ─────────────────────────────────
 
 export function buildMakerRepairSignatures(tasks = []) {
     return (Array.isArray(tasks) ? tasks : []).map((task) => ({
@@ -82,6 +87,55 @@ export function buildMakerRepairSignatures(tasks = []) {
     }));
 }
 
+export function getMakerRepairProtocolPath(rootDir) {
+    return 'postgres://maker_repair_entries';
+}
+
+export async function loadMakerRepairProtocol(_rootDir) {
+    await ensureRepairProtocolSchema();
+    try {
+        const entriesRes = await pool.query(
+            `SELECT * FROM maker_repair_entries ORDER BY verified_count DESC, seen_count DESC LIMIT 200`
+        );
+        const entries = entriesRes.rows.map(row => ({
+            id: row.id,
+            source: row.source,
+            templateId: row.template_id,
+            failurePattern: row.failure_pattern,
+            repairTask: row.repair_task,
+            rawFailures: row.raw_failures || [],
+            repairHints: row.repair_hints || [],
+            templates: row.templates || [],
+            successfulExamples: row.successful_examples || [],
+            seenCount: row.seen_count,
+            verifiedCount: row.verified_count,
+            failedCount: row.failed_count,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            lastSeenAt: row.last_seen_at,
+            lastVerifiedAt: row.last_verified_at,
+        }));
+
+        // Derive evolved rules in-memory (no need to persist these)
+        const evolvedRules = entries
+            .filter(e => e.verifiedCount >= 2 || e.seenCount >= 4)
+            .map(entry => deriveRuleFromEntry(entry))
+            .filter(Boolean)
+            .slice(0, 80);
+
+        return {
+            version: PROTOCOL_VERSION,
+            source: 'gametok-maker-repair-protocol-pg',
+            entries,
+            evolvedRules,
+            history: [],
+        };
+    } catch (err) {
+        console.error('[Repair Protocol] DB load failed, returning empty:', err.message);
+        return { version: PROTOCOL_VERSION, source: 'empty', entries: [], evolvedRules: [], history: [] };
+    }
+}
+
 export function matchMakerRepairProtocol(protocol, tasks = []) {
     const signatures = buildMakerRepairSignatures(tasks);
     const entries = Array.isArray(protocol?.entries) ? protocol.entries : [];
@@ -93,6 +147,8 @@ export function matchMakerRepairProtocol(protocol, tasks = []) {
             entry: entry ? {
                 id: entry.id,
                 verifiedCount: entry.verifiedCount || 0,
+                failedCount: entry.failedCount || 0,
+                seenCount: entry.seenCount || 0,
                 lastVerifiedAt: entry.lastVerifiedAt || null,
                 repairTask: entry.repairTask || signature.directRepairTask,
                 repairHints: entry.repairHints || [],
@@ -101,6 +157,28 @@ export function matchMakerRepairProtocol(protocol, tasks = []) {
             } : null,
         };
     });
+}
+
+/**
+ * Returns true if this crash has been seen 3+ times and NEVER been successfully repaired.
+ * In that case, don't waste time retrying — just send the game as-is.
+ */
+export function shouldSkipRepair(protocolMatches = []) {
+    if (!Array.isArray(protocolMatches) || protocolMatches.length === 0) return false;
+    
+    const hopeless = protocolMatches.filter(m => {
+        if (!m.matched || !m.entry) return false;
+        // Seen 3+ times, never verified, failed 3+ times
+        return m.entry.seenCount >= 3 && m.entry.verifiedCount === 0 && m.entry.failedCount >= 3;
+    });
+
+    // If ALL crash signatures are hopeless, skip repair
+    if (hopeless.length > 0 && hopeless.length === protocolMatches.filter(m => m.matched).length) {
+        console.warn(`🧠 [Repair Memory] ALL ${hopeless.length} crash signatures are known-hopeless (seen ${hopeless[0].entry.seenCount}x, never fixed). Skipping repair loop.`);
+        return true;
+    }
+
+    return false;
 }
 
 export function buildMakerRepairProtocolGuidance(matches = []) {
@@ -121,6 +199,7 @@ export function buildMakerRepairProtocolGuidance(matches = []) {
         failedProbe: match.rawFailure,
         directRepairTask: match.entry.repairTask || match.directRepairTask,
         verifiedCount: match.entry.verifiedCount || 0,
+        failedCount: match.entry.failedCount || 0,
         lastVerifiedAt: match.entry.lastVerifiedAt || null,
         repairHints: match.entry.repairHints || [],
         successfulExamples: (match.entry.successfulExamples || []).slice(-3),
@@ -147,6 +226,8 @@ export function formatMakerRepairProtocolPromptBlock(matches = []) {
         '- If a prior fix touched a specific subsystem, inspect the corresponding current file before editing.',
     ].join('\n');
 }
+
+// ── Evolved rules (computed in-memory from DB entries) ────────────────
 
 function ruleIdFor(entry) {
     const digest = createHash('sha1')
@@ -190,31 +271,13 @@ function deriveRuleFromEntry(entry) {
 
 export function evolveMakerRepairProtocol(protocol) {
     const entries = Array.isArray(protocol?.entries) ? protocol.entries : [];
-    const currentRules = Array.isArray(protocol?.evolvedRules) ? protocol.evolvedRules : [];
-    const byId = new Map(currentRules.map((rule) => [rule.id, rule]));
-    let changed = false;
-
-    for (const entry of entries) {
-        const rule = deriveRuleFromEntry(entry);
-        if (!rule) continue;
-        const existing = byId.get(rule.id);
-        if (!existing || JSON.stringify(existing) !== JSON.stringify(rule)) {
-            byId.set(rule.id, {
-                ...(existing || {}),
-                ...rule,
-                createdAt: existing?.createdAt || nowIso(),
-                updatedAt: nowIso(),
-            });
-            changed = true;
-        }
-    }
-
-    const evolvedRules = Array.from(byId.values())
+    const evolvedRules = entries
+        .map(entry => deriveRuleFromEntry(entry))
+        .filter(Boolean)
         .sort((a, b) => Number(b.evidence?.verifiedCount || 0) - Number(a.evidence?.verifiedCount || 0))
         .slice(0, 80);
-
     protocol.evolvedRules = evolvedRules;
-    return { protocol, changed, evolvedRules };
+    return { protocol, changed: true, evolvedRules };
 }
 
 export function buildMakerRepairEvolutionGuidance(protocol, tasks = []) {
@@ -259,7 +322,9 @@ export function formatMakerRepairEvolutionPromptBlock(evolutionGuidance = []) {
     ].join('\n');
 }
 
-export async function recordMakerRepairOutcome(rootDir, {
+// ── Record outcome to PostgreSQL ──────────────────────────────────────
+
+export async function recordMakerRepairOutcome(_rootDir, {
     jobId,
     attempt = null,
     templateId = null,
@@ -270,82 +335,140 @@ export async function recordMakerRepairOutcome(rootDir, {
     verified = false,
     failure = null,
 } = {}) {
-    const protocol = await loadMakerRepairProtocol(rootDir);
+    await ensureRepairProtocolSchema();
     const signatures = buildMakerRepairSignatures(tasks);
     const timestamp = nowIso();
 
-    for (const signature of signatures) {
-        let entry = protocol.entries.find((candidate) => candidate.id === signature.id);
-        if (!entry) {
-            entry = {
-                id: signature.id,
-                source: signature.source,
-                templateId: signature.templateId || templateId || null,
-                failurePattern: signature.failurePattern,
-                repairTask: signature.directRepairTask,
-                rawFailures: [],
-                repairHints: [],
-                templates: [],
-                seenCount: 0,
-                verifiedCount: 0,
-                failedCount: 0,
-                createdAt: timestamp,
-                updatedAt: timestamp,
-                lastSeenAt: timestamp,
-                lastVerifiedAt: null,
-            };
-            protocol.entries.push(entry);
+    try {
+        for (const signature of signatures) {
+            // Upsert each signature entry
+            const existingRes = await pool.query(
+                `SELECT * FROM maker_repair_entries WHERE id = $1`, [signature.id]
+            );
+
+            if (existingRes.rows.length === 0) {
+                // Insert new entry
+                const recipeTitles = Array.isArray(playbook?.recipes)
+                    ? playbook.recipes.map((r) => r?.title).filter(Boolean)
+                    : [];
+                const hints = [...recipeTitles, ...(Array.isArray(repairNotes) ? repairNotes : [])].filter(Boolean).slice(0, 12);
+                
+                await pool.query(
+                    `INSERT INTO maker_repair_entries 
+                     (id, source, template_id, failure_pattern, repair_task, raw_failures, repair_hints, templates, successful_examples, seen_count, verified_count, failed_count, created_at, updated_at, last_seen_at, last_verified_at)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, $13, $14)`,
+                    [
+                        signature.id,
+                        signature.source,
+                        signature.templateId || templateId || null,
+                        signature.failurePattern,
+                        signature.directRepairTask,
+                        JSON.stringify(signature.rawFailure ? [signature.rawFailure] : []),
+                        JSON.stringify(hints),
+                        JSON.stringify(templateId ? [templateId] : []),
+                        JSON.stringify(verified ? [{
+                            jobId, attempt,
+                            repairNotes: (Array.isArray(repairNotes) ? repairNotes : []).slice(0, 6),
+                            appliedFiles: (Array.isArray(applied) ? applied : []).map(f => f?.path || f).filter(Boolean),
+                            verifiedAt: timestamp,
+                        }] : []),
+                        1, // seen_count
+                        verified ? 1 : 0,
+                        verified ? 0 : 1,
+                        timestamp,
+                        verified ? timestamp : null,
+                    ]
+                );
+            } else {
+                // Update existing entry
+                const row = existingRes.rows[0];
+                const rawFailures = row.raw_failures || [];
+                if (signature.rawFailure && !rawFailures.includes(signature.rawFailure)) {
+                    rawFailures.push(signature.rawFailure);
+                    while (rawFailures.length > 8) rawFailures.shift();
+                }
+
+                const hints = row.repair_hints || [];
+                const recipeTitles = Array.isArray(playbook?.recipes)
+                    ? playbook.recipes.map((r) => r?.title).filter(Boolean)
+                    : [];
+                for (const hint of [...recipeTitles, ...(Array.isArray(repairNotes) ? repairNotes : [])].filter(Boolean)) {
+                    if (!hints.includes(hint)) hints.push(hint);
+                }
+                while (hints.length > 12) hints.shift();
+
+                const templates = row.templates || [];
+                if (templateId && !templates.includes(templateId)) {
+                    templates.push(templateId);
+                }
+
+                const successfulExamples = row.successful_examples || [];
+                if (verified) {
+                    successfulExamples.push({
+                        jobId, attempt,
+                        repairNotes: (Array.isArray(repairNotes) ? repairNotes : []).slice(0, 6),
+                        appliedFiles: (Array.isArray(applied) ? applied : []).map(f => f?.path || f).filter(Boolean),
+                        verifiedAt: timestamp,
+                    });
+                    while (successfulExamples.length > 5) successfulExamples.shift();
+                }
+
+                await pool.query(
+                    `UPDATE maker_repair_entries SET
+                        seen_count = seen_count + 1,
+                        verified_count = verified_count + $1,
+                        failed_count = failed_count + $2,
+                        raw_failures = $3,
+                        repair_hints = $4,
+                        templates = $5,
+                        successful_examples = $6,
+                        last_seen_at = $7,
+                        last_verified_at = COALESCE($8, last_verified_at),
+                        updated_at = $7
+                     WHERE id = $9`,
+                    [
+                        verified ? 1 : 0,
+                        verified ? 0 : 1,
+                        JSON.stringify(rawFailures),
+                        JSON.stringify(hints),
+                        JSON.stringify(templates),
+                        JSON.stringify(successfulExamples),
+                        timestamp,
+                        verified ? timestamp : null,
+                        signature.id,
+                    ]
+                );
+            }
         }
 
-        entry.seenCount = (entry.seenCount || 0) + 1;
-        entry.lastSeenAt = timestamp;
-        entry.updatedAt = timestamp;
-        if (verified) {
-            entry.verifiedCount = (entry.verifiedCount || 0) + 1;
-            entry.lastVerifiedAt = timestamp;
-            const appliedFiles = Array.isArray(applied) ? applied.map((item) => item?.path || item).filter(Boolean) : [];
-            if (!Array.isArray(entry.successfulExamples)) entry.successfulExamples = [];
-            entry.successfulExamples.push({
+        // Record history
+        await pool.query(
+            `INSERT INTO maker_repair_history (job_id, attempt, template_id, verified, failure, signature_ids, applied_files)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
                 jobId,
                 attempt,
-                repairNotes: Array.isArray(repairNotes) ? repairNotes.slice(0, 6) : [],
-                appliedFiles,
-                verifiedAt: timestamp,
-            });
-            entry.successfulExamples = entry.successfulExamples.slice(-5);
-        } else {
-            entry.failedCount = (entry.failedCount || 0) + 1;
-        }
-        if (signature.rawFailure && !entry.rawFailures.includes(signature.rawFailure)) {
-            entry.rawFailures.push(signature.rawFailure);
-            entry.rawFailures = entry.rawFailures.slice(-8);
-        }
-        if (templateId && !entry.templates.includes(templateId)) {
-            entry.templates.push(templateId);
-        }
-        const recipeTitles = Array.isArray(playbook?.recipes)
-            ? playbook.recipes.map((recipe) => recipe?.title).filter(Boolean)
-            : [];
-        for (const hint of [...recipeTitles, ...repairNotes].filter(Boolean)) {
-            if (!entry.repairHints.includes(hint)) entry.repairHints.push(hint);
-        }
-        entry.repairHints = entry.repairHints.slice(-12);
+                templateId,
+                Boolean(verified),
+                failure,
+                JSON.stringify(signatures.map(s => s.id)),
+                JSON.stringify((Array.isArray(applied) ? applied : []).map(f => f?.path || f).filter(Boolean)),
+            ]
+        );
+
+        // Trim old history (keep last 500)
+        await pool.query(
+            `DELETE FROM maker_repair_history WHERE id NOT IN (
+                SELECT id FROM maker_repair_history ORDER BY created_at DESC LIMIT 500
+            )`
+        ).catch(() => {});
+
+        console.log(`🧠 [Repair Memory] Recorded ${verified ? '✅ VERIFIED' : '❌ FAILED'} outcome for ${signatures.length} signature(s) [job=${jobId}]`);
+        
+        // Return a protocol-shaped object for compatibility
+        return await loadMakerRepairProtocol(null);
+    } catch (err) {
+        console.error('[Repair Protocol] DB record failed:', err.message);
+        return { version: PROTOCOL_VERSION, source: 'error', entries: [], evolvedRules: [], history: [] };
     }
-
-    protocol.history.push({
-        id: randomUUID(),
-        jobId,
-        attempt,
-        templateId,
-        verified: Boolean(verified),
-        failure,
-        signatureIds: signatures.map((signature) => signature.id),
-        appliedFiles: Array.isArray(applied) ? applied.map((item) => item?.path || item).filter(Boolean) : [],
-        createdAt: timestamp,
-    });
-    protocol.history = protocol.history.slice(-250);
-    evolveMakerRepairProtocol(protocol);
-
-    await saveMakerRepairProtocol(rootDir, protocol);
-    return protocol;
 }

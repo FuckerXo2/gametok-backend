@@ -21,7 +21,7 @@ import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './mak
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
-import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome } from './maker-repair-protocol.js';
+import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
@@ -91,7 +91,7 @@ const BUILDER_JSON_REWRITE_ATTEMPTS = Math.max(0, Math.min(2, Number(process.env
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
 const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
-const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 4)));
+const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
 
 const JOB_TITLES = {
     dreamPending: 'Pending Dream...',
@@ -3904,6 +3904,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                         const repairProtocol = await loadMakerRepairProtocol(GAMETOK_MAKER_ROOT);
                         const repairProtocolMatches = matchMakerRepairProtocol(repairProtocol, targetedRepairTasks);
                         const repairEvolutionGuidance = buildMakerRepairEvolutionGuidance(repairProtocol, targetedRepairTasks);
+
+                        // Skip repair if this crash signature has been seen 3+ times and never fixed
+                        if (shouldSkipRepair(repairProtocolMatches)) {
+                            console.warn(`🧠 [Repair Memory] Skipping repair — this crash type has never been successfully fixed. Sending game as-is.`);
+                            await reportProgress(82, 'repair', 'Known issue detected, shipping game...');
+                            repairedWithProjectFiles = true; // skip legacy fallback too
+                            break;
+                        }
                         const fileRepairPrompt = buildMakerFileRepairPrompt({
                             qualityIntent,
                             prompt,
