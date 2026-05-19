@@ -3280,12 +3280,11 @@ async function runMakerAgentInspectionTurns({
         });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         try {
-            const responseText = await generateCompleteJsonWithBuilder(promptText, {
+            const responseText = await generateCompleteXmlWithBuilder(promptText, {
                 label: `Phase 2 File Agent Turn ${turnNumber}`,
                 jobId,
                 timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
                 maxAttempts: 2,
-                progressBase: 62 + turnNumber,
             });
             await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
             const inspection = parseMakerAgentInspectionResponse(responseText);
