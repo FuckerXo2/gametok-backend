@@ -72,9 +72,15 @@ function resolveDreamModel(envName, fallback) {
     return requested;
 }
 
+const BUILDER_FALLBACK_MODELS = [
+    resolveDreamModel('DREAMSTREAM_MAIN_MODEL', 'qwen/qwen2.5-coder-32b-instruct'),
+    'moonshotai/kimi-k2.6',
+    'deepseek-ai/deepseek-coder-33b-instruct'
+];
+
 const DREAM_MODELS = {
     spec: resolveDreamModel('DREAMSTREAM_SPEC_MODEL', DEFAULT_KIMI_BUILDER_MODEL), // Use Kimi for Phase 1 too
-    premiumBuilder: resolveDreamModel('DREAMSTREAM_MAIN_MODEL', DEFAULT_KIMI_BUILDER_MODEL),
+    premiumBuilder: BUILDER_FALLBACK_MODELS[0],
     labsBuilder: resolveDreamModel('DREAMSTREAM_LABS_MODEL', DEFAULT_KIMI_BUILDER_MODEL),
     narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
@@ -229,12 +235,12 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     let parseError = null;
 
     for (let attempt = 0; attempt <= BUILDER_MAX_CONTINUATIONS; attempt += 1) {
-        const res = await withNvidiaRetries(() => nvidiaClient.chat.completions.create({
-            model: DREAM_MODELS.spec,
+        const res = await withNvidiaRetries((currentModel) => nvidiaClient.chat.completions.create({
+            model: currentModel || DREAM_MODELS.spec,
             messages,
             max_tokens: maxTokens,
             temperature: temperature
-        }), { label: 'Phase 1 Builder', maxAttempts: 3, baseDelayMs: 2000 });
+        }), { label: 'Phase 1 Builder', maxAttempts: 3, baseDelayMs: 2000, fallbackModels: BUILDER_FALLBACK_MODELS });
         if (!res || !res.choices || !res.choices[0]) {
             throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
         }
@@ -673,7 +679,8 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isRetryableProviderError(error) {
+function isRetryableProviderError(error, hasFallbacks = false) {
+    if (hasFallbacks && error?.status === 404) return true;
     const message = [
         error?.message,
         error?.code,
@@ -717,22 +724,25 @@ async function withAbortableTimeout(task, timeoutMs, label) {
     }
 }
 
-async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, baseDelayMs = 1500 }) {
+async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, baseDelayMs = 1500, fallbackModels = [] }) {
     let lastError;
     const logLabel = formatJobLogLabel(label, jobId);
+    const modelsToTry = fallbackModels.length > 0 ? fallbackModels : [null];
+    
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const currentModel = modelsToTry[(attempt - 1) % modelsToTry.length];
         try {
             if (attempt > 1) {
-                console.log(`🔁 [${logLabel}] Retry ${attempt}/${maxAttempts}...`);
+                console.log(`🔁 [${logLabel}] Retry ${attempt}/${maxAttempts}${currentModel ? ` (model: ${currentModel})` : ''}...`);
             }
-            return await task();
+            return await task(currentModel);
         } catch (error) {
             lastError = error;
-            if (!isRetryableProviderError(error) || attempt === maxAttempts) {
+            if (!isRetryableProviderError(error, modelsToTry.length > 1) || attempt === maxAttempts) {
                 throw error;
             }
             const waitMs = baseDelayMs * attempt;
-            console.warn(`⚠️ [${logLabel}] Provider hiccup: ${error?.message || error}. Retrying in ${waitMs}ms...`);
+            console.warn(`⚠️ [${logLabel}] Provider hiccup on ${currentModel || 'default model'}: ${error?.message || error}. Retrying in ${waitMs}ms...`);
             await sleep(waitMs);
         }
     }
@@ -858,14 +868,14 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     const logLabel = formatJobLogLabel(label, jobId);
     let lastPartialText = '';
     let lastPartialStopReason = null;
-    const text = await withNvidiaRetries(async () => withAbortableTimeout(async (signal) => {
+    const text = await withNvidiaRetries(async (currentModel) => withAbortableTimeout(async (signal) => {
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
-        console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s)...`);
+        console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s, model: ${currentModel || DREAM_MODELS.premiumBuilder})...`);
         let output = "";
         try {
             const stream = await nvidiaClient.chat.completions.create({
-                ...getNvidiaChatOptions(DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
+                ...getNvidiaChatOptions(currentModel || DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
                 messages: [{ role: 'user', content: userPrompt }],
             }, { signal });
 
@@ -893,7 +903,7 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
             }
             throw error;
         }
-    }, timeoutMs, logLabel), { label, jobId, maxAttempts, baseDelayMs: 1500 }).catch((error) => {
+    }, timeoutMs, logLabel), { label, jobId, maxAttempts, baseDelayMs: 1500, fallbackModels: BUILDER_FALLBACK_MODELS }).catch((error) => {
         if (String(lastPartialText || '').trim()) {
             finishReason = error.partialStopReason || lastPartialStopReason || 'provider_error_partial';
             console.warn(`⚠️ [${logLabel}] Provider failed after ${lastPartialText.length} chars. Keeping partial output for continuation.`);
@@ -1502,10 +1512,10 @@ function buildFirstFrameRepairInstruction(specSheet) {
     ].join('\n');
 }
 
-async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature, retryLabel }) {
-    return withNvidiaRetries(async () => {
+async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature, retryLabel, fallbackModels = [] }) {
+    return withNvidiaRetries(async (currentModel) => {
         const stream = await nvidiaClient.chat.completions.create({
-            ...getNvidiaChatOptions(model, maxTokens),
+            ...getNvidiaChatOptions(currentModel || model, maxTokens),
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
@@ -1524,7 +1534,8 @@ async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, te
     }, {
         label: retryLabel || model,
         maxAttempts: 3,
-        baseDelayMs: 1500
+        baseDelayMs: 1500,
+        fallbackModels
     });
 }
 
@@ -5286,7 +5297,8 @@ async function executeLabsDreamJob(jobId, prompt, mediaAttachments = []) {
             systemPrompt: "You are an elite solo HTML5 game creator building the full game yourself. Be practical, obey the format exactly, and prioritize a playable first frame.",
             userPrompt: soloPrompt,
             maxTokens: 12000,
-            retryLabel: 'Labs Kimi Generation'
+            retryLabel: 'Labs Kimi Generation',
+            fallbackModels: BUILDER_FALLBACK_MODELS
         }));
         await updateGenerationJobProgress(jobId, 68, 'build', 'Labs game code assembled...');
 
@@ -5347,7 +5359,8 @@ Output ONLY the complete fixed HTML document.`;
                 systemPrompt: "You are an elite HTML5 game debugger repairing a single-file mobile game. Keep the fantasy, but aggressively prefer correctness and visible playability.",
                 userPrompt: repairPrompt,
                 maxTokens: 12000,
-                retryLabel: 'Labs Kimi Repair'
+                retryLabel: 'Labs Kimi Repair',
+                fallbackModels: BUILDER_FALLBACK_MODELS
             }));
             finalHtml = postProcessRawHtml(rawEngineHtml);
             maxRetries--;
