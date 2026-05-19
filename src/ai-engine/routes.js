@@ -877,7 +877,7 @@ function buildBuilderJsonRewritePrompt(originalPrompt, invalidJson, parseError) 
     ].join('\n');
 }
 
-async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3 } = {}) {
+async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3, currentModel = null } = {}) {
     assertJobNotCancelled(jobId);
     await assertJobNotCancelledShared(jobId, { force: true });
     
@@ -885,14 +885,15 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     const logLabel = formatJobLogLabel(label, jobId);
     let lastPartialText = '';
     let lastPartialStopReason = null;
-    const text = await withNvidiaRetries(async (currentModel) => withAbortableTimeout(async (signal) => {
+    const text = await withNvidiaRetries(async (modelParam) => withAbortableTimeout(async (signal) => {
+        const modelToUse = currentModel || modelParam || DREAM_MODELS.premiumBuilder;
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
-        console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s, model: ${currentModel || DREAM_MODELS.premiumBuilder})...`);
+        console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse})...`);
         let output = "";
         try {
             const stream = await nvidiaClient.chat.completions.create({
-                ...getNvidiaChatOptions(currentModel || DREAM_MODELS.premiumBuilder, BUILDER_MAX_TOKENS),
+                ...getNvidiaChatOptions(modelToUse, BUILDER_MAX_TOKENS),
                 messages: [{ role: 'user', content: userPrompt }],
             }, { signal });
 
@@ -935,10 +936,10 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     };
 }
 
-async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = null } = {}) {
+async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = null, currentModel = null } = {}) {
     assertJobNotCancelled(jobId);
     const logLabel = formatJobLogLabel(label, jobId);
-    let { text, stopReason } = await requestBuilderMessage(initialPrompt, { label, jobId });
+    let { text, stopReason } = await requestBuilderMessage(initialPrompt, { label, jobId, currentModel });
     assertJobNotCancelled(jobId);
     let html = normalizeHtmlDocument(text);
     console.log(`🧾 [${logLabel}] stop_reason=${stopReason || 'unknown'} chars=${html.length}`);
@@ -962,6 +963,7 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
             jobId,
             timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
             maxAttempts: 2,
+            currentModel,
         });
         assertJobNotCancelled(jobId);
         const continuationText = cleanBuilderContinuation(continuation.text);
@@ -984,7 +986,7 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
     return html;
 }
 
-async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, progressBase = 56 } = {}) {
+async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, progressBase = 56, currentModel = null } = {}) {
     assertJobNotCancelled(jobId);
     const logLabel = formatJobLogLabel(label, jobId);
     let lastParseError = null;
@@ -1000,6 +1002,7 @@ async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = n
             jobId,
             timeoutMs,
             maxAttempts,
+            currentModel,
         });
         assertJobNotCancelled(jobId);
         let jsonText = stripMarkdownFences(text, 'json');
@@ -1032,6 +1035,7 @@ async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = n
                     jobId,
                     timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
                     maxAttempts: 2,
+                    currentModel,
                 });
                 assertJobNotCancelled(jobId);
                 const continuationText = cleanJsonContinuation(continuation.text);
@@ -3881,13 +3885,27 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                                 truncated: Boolean(file.truncated),
                             })),
                         });
-                        const repairText = await generateCompleteJsonWithBuilder(fileRepairPrompt, {
-                            label: 'Phase 3 File Repair',
-                            jobId,
-                            timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
-                            maxAttempts: 2,
-                            progressBase: 78 + repairAttempt,
-                        });
+                        let turnSuccess = false;
+                        for (let m = 0; m < BUILDER_FALLBACK_MODELS.length; m++) {
+                            const mModel = BUILDER_FALLBACK_MODELS[m];
+                            try {
+                                const repairText = await generateCompleteJsonWithBuilder(fileRepairPrompt, {
+                                    label: 'Phase 3 File Repair',
+                                    jobId,
+                                    timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                                    maxAttempts: 2,
+                                    progressBase: 78 + repairAttempt,
+                                    currentModel: mModel,
+                                });
+                                var __REPAIR_TEXT__ = repairText;
+                                turnSuccess = true;
+                                break;
+                            } catch(e) {
+                                console.error(`⚠️ [Phase 3 Repair] ${mModel} failed repair JSON: ${e.message}`);
+                            }
+                        }
+                        if (!turnSuccess) throw new Error("All models failed Phase 3 File Repair JSON.");
+                        const repairText = __REPAIR_TEXT__;
                         await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.txt`, repairText);
                         const repair = parseMakerFileRepairResponse(repairText);
                         const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files);
@@ -4028,11 +4046,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 .map((task) => task.directRepairTask || task.failure)
                 .filter(Boolean)
                 .slice(0, 3);
-            throw new Error([
-                `Sandbox verification failed after ${repairAttemptsUsed} builder repair attempts.`,
-                `Last failure: ${finalCrash}`,
-                finalTasks.length ? `Targeted repair tasks: ${finalTasks.join(' | ')}` : null,
-            ].filter(Boolean).join(' '));
+            console.error(`⚠️ Sandbox verification failed after ${repairAttemptsUsed} builder repair attempts.`);
+            console.error(`⚠️ Last failure: ${finalCrash}`);
+            if (finalTasks.length) {
+                console.error(`⚠️ Targeted repair tasks: ${finalTasks.join(' | ')}`);
+            }
+            console.warn(`⚠️ The user requested to RETURN THE BROKEN GAME INSTEAD OF GIVING UP. Continuing to save...`);
         }
 
         // ── SAVE TO DB ──
