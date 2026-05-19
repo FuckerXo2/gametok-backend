@@ -73,9 +73,9 @@ function resolveDreamModel(envName, fallback) {
 }
 
 const BUILDER_FALLBACK_MODELS = [
-    'qwen/qwen3-coder-480b-a35b-instruct',
     'moonshotai/kimi-k2.6',
-    'deepseek-ai/deepseek-v4-pro'
+    'deepseek-ai/deepseek-v4-pro',
+    'qwen/qwen3-coder-480b-a35b-instruct'
 ];
 
 const DREAM_MODELS = {
@@ -728,22 +728,39 @@ async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, b
     let lastError;
     const logLabel = formatJobLogLabel(label, jobId);
     const modelsToTry = fallbackModels.length > 0 ? fallbackModels : [null];
+    const retriesPerModel = maxAttempts;
     
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const currentModel = modelsToTry[(attempt - 1) % modelsToTry.length];
-        try {
-            if (attempt > 1) {
-                console.log(`🔁 [${logLabel}] Retry ${attempt}/${maxAttempts}${currentModel ? ` (model: ${currentModel})` : ''}...`);
+    for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex++) {
+        const currentModel = modelsToTry[modelIndex];
+        for (let attempt = 1; attempt <= retriesPerModel; attempt++) {
+            try {
+                if (modelIndex > 0 || attempt > 1) {
+                    const globalAttempt = modelIndex * retriesPerModel + attempt;
+                    console.log(`🔁 [${logLabel}] Attempt ${attempt}/${retriesPerModel} on ${currentModel || 'default model'} (model ${modelIndex + 1}/${modelsToTry.length})...`);
+                }
+                return await task(currentModel);
+            } catch (error) {
+                lastError = error;
+                const isLastModel = modelIndex === modelsToTry.length - 1;
+                const isLastAttempt = attempt === retriesPerModel;
+                
+                if (!isRetryableProviderError(error, modelsToTry.length > 1) && isLastModel) {
+                    throw error;
+                }
+                
+                if (isLastAttempt && isLastModel) {
+                    throw error;
+                }
+                
+                if (isLastAttempt && !isLastModel) {
+                    console.warn(`⚠️ [${logLabel}] ${currentModel || 'default model'} failed all ${retriesPerModel} attempts. Escalating to next model: ${modelsToTry[modelIndex + 1]}...`);
+                    break;
+                }
+                
+                const waitMs = baseDelayMs * attempt;
+                console.warn(`⚠️ [${logLabel}] Provider hiccup on ${currentModel || 'default model'}: ${error?.message || error}. Retrying in ${waitMs}ms (attempt ${attempt}/${retriesPerModel})...`);
+                await sleep(waitMs);
             }
-            return await task(currentModel);
-        } catch (error) {
-            lastError = error;
-            if (!isRetryableProviderError(error, modelsToTry.length > 1) || attempt === maxAttempts) {
-                throw error;
-            }
-            const waitMs = baseDelayMs * attempt;
-            console.warn(`⚠️ [${logLabel}] Provider hiccup on ${currentModel || 'default model'}: ${error?.message || error}. Retrying in ${waitMs}ms...`);
-            await sleep(waitMs);
         }
     }
     throw lastError;
