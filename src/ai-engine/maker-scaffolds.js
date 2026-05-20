@@ -6,72 +6,49 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMPLATE_ROOT = path.join(__dirname, 'maker', 'templates');
 
-const SCAFFOLD_FILES = {
-    'phaser-artillery': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-    'phaser-top-down-action': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-    'phaser-platformer': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-    'canvas-runner': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-    'canvas-arcade-shooter': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-    'canvas-grid-puzzle': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-    'canvas-simulation': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-    'story-vignette': [
-        'template-api.md',
-        'project/index.html',
-        'project/src/styles.css',
-        'project/src/game.js',
-    ],
-};
-
-function normalizeScaffoldPath(filePath) {
-    return filePath.replace(/^project\//, '');
+// Recursively get all files in a directory
+async function walkDir(dir, fileList = []) {
+    const files = await fs.promises.readdir(dir);
+    for (const file of files) {
+        // Skip ignored directories
+        if (file === 'node_modules' || file === 'dist' || file === '.git') {
+            continue;
+        }
+        
+        const filePath = path.join(dir, file);
+        const stat = await fs.promises.stat(filePath);
+        if (stat.isDirectory()) {
+            await walkDir(filePath, fileList);
+        } else {
+            // Ignore binaries or irrelevant files
+            if (!file.endsWith('.json') && !file.endsWith('.ts') && !file.endsWith('.js') && !file.endsWith('.html') && !file.endsWith('.css') && !file.endsWith('.md')) {
+                continue;
+            }
+            fileList.push(filePath);
+        }
+    }
+    return fileList;
 }
 
 export async function loadMakerTemplateScaffold(templateId) {
-    const files = SCAFFOLD_FILES[templateId];
-    if (!files) return null;
-
     const root = path.join(TEMPLATE_ROOT, templateId);
+    
+    // Check if the template exists
+    try {
+        await fs.promises.access(root);
+    } catch {
+        console.warn(`[Template Scaffold] Scaffold folder not found: ${root}`);
+        return null;
+    }
+
     const loadedFiles = [];
-    for (const relativePath of files) {
-        const absolutePath = path.join(root, relativePath);
+    const absoluteFiles = await walkDir(root);
+
+    for (const absolutePath of absoluteFiles) {
+        const relativePath = path.relative(root, absolutePath);
         const content = await fs.promises.readFile(absolutePath, 'utf8');
         loadedFiles.push({
-            path: normalizeScaffoldPath(relativePath),
+            path: relativePath,
             sourcePath: relativePath,
             content,
         });
@@ -80,7 +57,7 @@ export async function loadMakerTemplateScaffold(templateId) {
     return {
         templateId,
         source: 'gametok-native-scaffold',
-        rule: 'Start from these files. Preserve the working systems and customize them for the user prompt.',
+        rule: 'Start from these files. Preserve the working systems and customize them for the user prompt. DO NOT REMOVE the Vite config or build scripts.',
         files: loadedFiles,
     };
 }

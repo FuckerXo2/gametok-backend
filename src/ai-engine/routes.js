@@ -2521,7 +2521,7 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         'Task:',
         '- Treat the GameTok maker GDD as mandatory. This pass is only successful if the updated files still satisfy Section 0-5.',
         '- Edit only files needed to use the newly generated assets.',
-        '- Valid paths are index.html and existing src/*.css, src/*.js, src/*.json files.',
+        '- Valid paths are index.html and existing src/*.css, src/*.ts, src/*.js, src/*.json files.',
         '- Return complete contents for every file you edit.',
         '- Use the asset keys from DREAM_ASSET_PACK / DreamAssets. Do not paste data URLs into source files.',
         '- Respect the asset quality summary. Do not wire assets with fatal quality issues into live gameplay.',
@@ -3013,7 +3013,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Repair against the GameTok maker GDD, not just the crash string. Preserve all six GDD sections in the implementation.',
         '- If a repair conflicts with the GDD, satisfy the GDD and explain the constrained repair in notes.',
         '- Edit only the files that need changes.',
-        '- Valid paths are index.html and existing src/*.css, src/*.js, src/*.json files.',
+        '- Valid paths are index.html and existing src/*.css, src/*.ts, src/*.js, src/*.json files.',
         '- Return complete contents for every file you edit.',
         '- Preserve the user game idea and current mechanics.',
         '- Keep HUD, labels, buttons, meters, and controls code-rendered, not baked into AI images.',
@@ -3334,43 +3334,30 @@ async function runMakerAgentInspectionTurns({
 }
 
 async function assembleMakerProjectHtml(projectRoot) {
-    let html = await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf8');
-
-    html = await replaceAsync(html, /<link\b([^>]*?)href=["']\.\/(src\/[^"']+\.css)["']([^>]*)>/gi, async (_match, before, relativePath, after) => {
-        try {
-            const { absolutePath } = safeMakerProjectPath(projectRoot, relativePath);
-            const css = await fs.promises.readFile(absolutePath, 'utf8');
-            return `<style data-gametok-source="${relativePath}">\n${css}\n</style>`;
-        } catch {
-            return `<link${before}href="./${relativePath}"${after}>`;
-        }
-    });
-
-    html = await replaceAsync(html, /<script\b([^>]*?)src=["']\.\/(src\/[^"']+\.js)["']([^>]*)><\/script>/gi, async (_match, before, relativePath, after) => {
-        try {
-            const { absolutePath } = safeMakerProjectPath(projectRoot, relativePath);
-            const js = await fs.promises.readFile(absolutePath, 'utf8');
-            const attrs = `${before || ''}${after || ''}`.replace(/\s*type=["']module["']/i, '').trim();
-            return `<script${attrs ? ` ${attrs}` : ''} data-gametok-source="${relativePath}">\n${js}\n</script>`;
-        } catch {
-            return `<script${before}src="./${relativePath}"${after}></script>`;
-        }
-    });
-
-    return normalizeHtmlDocument(html);
+    try {
+        console.log(`[Vite Build] Installing dependencies in ${projectRoot}...`);
+        const { execSync } = await import('child_process');
+        execSync('npm install --no-audit --no-fund', { cwd: projectRoot, stdio: 'inherit' });
+        console.log(`[Vite Build] Building TypeScript project...`);
+        execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
+        
+        const distIndexHtml = path.join(projectRoot, 'dist', 'index.html');
+        let html = await fs.promises.readFile(distIndexHtml, 'utf8');
+        return normalizeHtmlDocument(html);
+    } catch (e) {
+        console.error(`[Vite Build] Failed to assemble Maker project:`, e);
+        throw e;
+    }
 }
 
 async function rebuildMakerProjectDist(projectRoot) {
-    const distRoot = path.join(projectRoot, 'dist');
-    await fs.promises.rm(distRoot, { recursive: true, force: true });
-    await fs.promises.mkdir(distRoot, { recursive: true });
-    await fs.promises.copyFile(path.join(projectRoot, 'index.html'), path.join(distRoot, 'index.html'));
+    // During integration passes, we just run the build again
     try {
-        await fs.promises.cp(path.join(projectRoot, 'src'), path.join(distRoot, 'src'), { recursive: true });
-    } catch {
-        // Source folder is optional for all-inline games.
+        const { execSync } = await import('child_process');
+        execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
+    } catch (e) {
+        console.error(`[Vite Build] Failed to rebuild dist:`, e);
     }
-    return path.join(distRoot, 'index.html');
 }
 
 async function replaceAsync(input, regex, replacer) {

@@ -114,7 +114,7 @@ export function buildMakerAgentInspectionPrompt({
         '',
         'Rules:',
         '- This is not a rewrite pass. Preserve the selected scaffold and existing project shape.',
-        '- Edit only index.html or existing/new src/*.css, src/*.js, src/*.json files.',
+        '- Edit only index.html or existing/new src/*.css, src/*.ts, src/*.js, src/*.json files.',
         '- Return complete contents for any file you edit.',
         '- Check that the code implements the six-section GDD, especially Section 3 entity/function architecture.',
         '- Check that required template functions and window.__GAMETOK_TEMPLATE_PROBE__ methods are present.',
