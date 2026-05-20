@@ -683,7 +683,7 @@ function inferProductionArchetype(qualityIntent = {}) {
         if (perspective === 'third_person') return 'three_third_person';
         return 'three_scene';
     }
-    if (includesAny(text, ['turn-based', 'turn based', 'angle', 'power', 'trajectory', 'wind', 'artillery'])) return 'turn_based_projectile';
+    if (includesAny(text, ['turn-based', 'turn based', 'artillery', 'worms-style', 'tank wars', 'tank warfare', 'scorched earth', 'wind and power'])) return 'turn_based_projectile';
     if (includesAny(text, ['lander', 'thruster', 'fuel', 'landing pad', 'soft touchdown'])) return 'physics_lander';
     if (perspective === 'side_view' && includesAny(text, ['gravity', 'jump', 'platform', 'fall', 'terrain'])) return 'side_physics';
     if (perspective === 'top_down' || perspective === 'isometric') return 'top_down_action';
