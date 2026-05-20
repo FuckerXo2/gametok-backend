@@ -743,32 +743,9 @@ export async function verifyGame(htmlString, options = {}) {
         renderState.templateRuntimeProbe = templateRuntimeProbe;
         renderState.failedContractChecks = [];
 
-        if (
-            templateInspection
-            && templateInspection.requiredFunctionCount >= 5
-            && templateInspection.missingFunctions.length >= Math.ceil(templateInspection.requiredFunctionCount * 0.55)
-        ) {
-            const message = `Template contract not implemented: ${templateInspection.templateId} requires core functions (${templateInspection.missingFunctions.slice(0, 8).join(', ')}). Build inside the selected native template instead of producing a generic game file.`;
-            renderState.failedContractChecks.push({
-                id: 'template_required_functions',
-                templateId: templateInspection.templateId,
-                missingFunctions: templateInspection.missingFunctions,
-                message,
-            });
-            crashes.push(message);
-        }
-
-        if (templateRuntimeProbe && !templateRuntimeProbe.success) {
-            const message = `Template runtime probe failed for ${templateRuntimeProbe.templateId}: ${templateRuntimeProbe.failures.join(' ')}`;
-            renderState.failedContractChecks.push({
-                id: 'template_runtime_probe',
-                templateId: templateRuntimeProbe.templateId,
-                failures: templateRuntimeProbe.failures || [],
-                details: templateRuntimeProbe.details || null,
-                message,
-            });
-            crashes.push(message);
-        }
+        // Legacy function inspection and runtime probe checks removed
+        // since we now use OpenGame Phaser/Vite templates instead of
+        // the old vanilla JS scaffold.
 
         if (assetContractInspection?.usesImageUi) {
             const message = 'Asset contract violation: source appears to use generated images for UI/HUD/button/slider/meter roles. HUD and controls must be code-rendered.';
@@ -835,72 +812,9 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push(`Blank canvas detected: canvas#${blankCanvas.index} has almost no visible pixels. The game must render visible gameplay on boot.`);
         }
 
-        if (requireDreamAssets && renderState.dreamAssetPackCount > 0) {
-            const sourceUsesDreamAssets = /\b(DreamAssets|DREAM_ASSETS|DREAM_ASSET_PACK)\b/.test(sourceHtml);
-            const helperCalls = Number(renderState.dreamAssetUsage?.helperCalls || 0);
-            const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
-            if (!sourceUsesDreamAssets && helperCalls === 0 && usedKeys.length === 0) {
-                const message = `Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`;
-                renderState.failedContractChecks.push({
-                    id: 'asset_pack_ignored',
-                    templateId: options?.assetContract?.templateId || null,
-                    assetCount: renderState.dreamAssetPackCount,
-                    message,
-                });
-                crashes.push(message);
-            }
-            const requiredRoles = Array.from(new Set(Array.isArray(options?.assetContract?.slots)
-                ? options.assetContract.slots.filter((slot) => slot?.required).map((slot) => slot.role || slot.category).filter(Boolean)
-                : []));
-            const usedRoles = renderState.dreamAssetUsage?.usedRoles || {};
-            const renderedRoles = renderState.dreamAssetUsage?.renderedRoles || {};
-            const packRoles = new Set(Array.isArray(renderState.dreamAssetPackRoles) ? renderState.dreamAssetPackRoles : []);
-            const missingRequiredRoleUsage = requiredRoles
-                .filter((role) => packRoles.has(role))
-                .filter((role) => Number(usedRoles[role] || 0) === 0 && Number(renderedRoles[role] || 0) === 0);
-            if (sourceUsesDreamAssets && helperCalls > 0 && missingRequiredRoleUsage.length > 0) {
-                const message = `Required asset slots not consumed: generated assets exist, but these required roles were not used through DreamAssets during boot: ${missingRequiredRoleUsage.join(', ')}.`;
-                renderState.failedContractChecks.push({
-                    id: 'asset_required_roles_unused',
-                    templateId: options?.assetContract?.templateId || null,
-                    missingRoles: missingRequiredRoleUsage,
-                    message,
-                });
-                crashes.push(message);
-            }
-
-            if (renderState.dreamAnimationCount > 0) {
-                const sourceUsesAnimations = /\b(DREAM_ANIMATIONS|createAnimations|animationsFor|applyTween)\b/.test(sourceHtml)
-                    || renderState.dreamAnimationKeys.some((key) => key && sourceHtml.includes(key));
-                const usedAnimations = Object.keys(renderState.dreamAssetUsage?.usedAnimations || {});
-                if (!sourceUsesAnimations && usedAnimations.length === 0) {
-                    const message = `Generated animation frames unused: ${renderState.dreamAnimationCount} frame_sequence animations were injected, but the source never references DREAM_ANIMATIONS, DreamAssets.createAnimations(), DreamAssets.animationsFor(), DreamAssets.applyTween(), or animation keys.`;
-                    renderState.failedContractChecks.push({
-                        id: 'asset_animations_unused',
-                        templateId: options?.assetContract?.templateId || null,
-                        animationKeys: renderState.dreamAnimationKeys,
-                        message,
-                    });
-                    crashes.push(message);
-                }
-            }
-
-            if (renderState.dreamTilesetCount > 0) {
-                const sourceUsesTilesets = /\b(DREAM_TILESETS|firstTileset|getTileset)\b/.test(sourceHtml)
-                    || renderState.dreamTilesetKeys.some((key) => key && sourceHtml.includes(key));
-                const usedTilesets = Object.keys(renderState.dreamAssetUsage?.usedTilesets || {});
-                if (!sourceUsesTilesets && usedTilesets.length === 0) {
-                    const message = `Generated tileset unused: ${renderState.dreamTilesetCount} expanded 7x7 tilesets were injected, but the source never references DREAM_TILESETS, DreamAssets.firstTileset(), DreamAssets.getTileset(), or tileset keys.`;
-                    renderState.failedContractChecks.push({
-                        id: 'asset_tilesets_unused',
-                        templateId: options?.assetContract?.templateId || null,
-                        tilesetKeys: renderState.dreamTilesetKeys,
-                        message,
-                    });
-                    crashes.push(message);
-                }
-            }
-        }
+        // Legacy asset usage and DreamAssets verification removed.
+        // OpenGame templates use their own AssetManager and Vite minification
+        // makes source text scanning unreliable.
 
         if (/error|exception|failed/i.test(renderState.bodyText)) {
             crashes.push(`Visible error text detected: ${renderState.bodyText}`);
