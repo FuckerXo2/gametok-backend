@@ -2609,27 +2609,35 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
         throw new Error('Project build response did not include index.html.');
     }
 
-    await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
-        name: makerSafeFileName(title, 'gametok-game').toLowerCase(),
-        private: true,
-        type: 'module',
-        scripts: {
-            build: 'node build.mjs',
-        },
-    }, null, 2), 'utf8');
+    if (!seen.has('package.json')) {
+        await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
+            name: makerSafeFileName(title, 'gametok-game').toLowerCase(),
+            private: true,
+            type: 'module',
+            scripts: {
+                build: 'node build.mjs',
+            },
+        }, null, 2), 'utf8');
 
-    await fs.promises.writeFile(path.join(projectRoot, 'build.mjs'), [
-        "import fs from 'node:fs/promises';",
-        "import path from 'node:path';",
-        "const root = process.cwd();",
-        "const dist = path.join(root, 'dist');",
-        "await fs.rm(dist, { recursive: true, force: true });",
-        "await fs.mkdir(dist, { recursive: true });",
-        "await fs.cp(path.join(root, 'index.html'), path.join(dist, 'index.html'));",
-        "await fs.cp(path.join(root, 'src'), path.join(dist, 'src'), { recursive: true });",
-        "console.log('Built static GameTok artifact to dist/index.html');",
-        '',
-    ].join('\n'), 'utf8');
+        await fs.promises.writeFile(path.join(projectRoot, 'build.mjs'), [
+            "import fs from 'node:fs/promises';",
+            "import path from 'node:path';",
+            "const root = process.cwd();",
+            "const dist = path.join(root, 'dist');",
+            "await fs.rm(dist, { recursive: true, force: true });",
+            "await fs.mkdir(dist, { recursive: true });",
+            "await fs.cp(path.join(root, 'index.html'), path.join(dist, 'index.html'));",
+            "await fs.cp(path.join(root, 'src'), path.join(dist, 'src'), { recursive: true });",
+            "console.log('Built static GameTok artifact to dist/index.html');",
+            '',
+        ].join('\n'), 'utf8');
+    }
+
+    const manifestFiles = [...files];
+    if (!seen.has('package.json')) {
+        manifestFiles.push({ path: 'package.json', kind: 'manifest' });
+        manifestFiles.push({ path: 'build.mjs', kind: 'build_script' });
+    }
 
     await writeMakerJson(workspace, 'project-files.json', {
         version: 2,
@@ -2638,11 +2646,7 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
         sourceIndex: path.join(projectRoot, 'index.html'),
         buildCommand: 'npm run build',
         artifact: path.join(distRoot, 'index.html'),
-        files: [
-            ...files,
-            { path: 'package.json', kind: 'manifest' },
-            { path: 'build.mjs', kind: 'build_script' },
-        ],
+        files: manifestFiles,
         notes: projectBuild.notes || [],
         usedAssetMap: projectBuild.usedAssetMap || [],
         gameSystemMap: projectBuild.gameSystemMap || [],
@@ -3369,12 +3373,45 @@ async function assembleMakerProjectHtml(projectRoot) {
 }
 
 async function rebuildMakerProjectDist(projectRoot) {
+    // Ensure node_modules is available for Vite/TypeScript builds.
+    // The project directory has no node_modules of its own, so we symlink
+    // the backend's node_modules which already has vite, typescript, phaser, etc.
+    const backendRoot = path.resolve(__dirname, '..', '..');
+    const backendNodeModules = path.join(backendRoot, 'node_modules');
+    const projectNodeModules = path.join(projectRoot, 'node_modules');
+    try {
+        const nmStat = await fs.promises.lstat(projectNodeModules).catch(() => null);
+        if (!nmStat && fs.existsSync(backendNodeModules)) {
+            await fs.promises.symlink(backendNodeModules, projectNodeModules, 'dir');
+            console.log(`[Vite Build] Symlinked node_modules from backend root`);
+        }
+    } catch (symlinkErr) {
+        console.warn(`[Vite Build] Could not symlink node_modules:`, symlinkErr?.message);
+    }
+
     // During integration passes, we just run the build again
     try {
         const { execSync } = await import('child_process');
-        execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
+        execSync('npm run build', { cwd: projectRoot, stdio: 'inherit', timeout: 120_000 });
     } catch (e) {
-        console.error(`[Vite Build] Failed to rebuild dist:`, e);
+        console.error(`[Vite Build] Failed to rebuild dist:`, e?.message || e);
+        // Fallback: if Vite build failed, do a raw copy so at least something is in dist/
+        try {
+            const distRoot = path.join(projectRoot, 'dist');
+            await fs.promises.rm(distRoot, { recursive: true, force: true });
+            await fs.promises.mkdir(distRoot, { recursive: true });
+            const indexSrc = path.join(projectRoot, 'index.html');
+            if (fs.existsSync(indexSrc)) {
+                await fs.promises.copyFile(indexSrc, path.join(distRoot, 'index.html'));
+            }
+            const srcDir = path.join(projectRoot, 'src');
+            if (fs.existsSync(srcDir)) {
+                await fs.promises.cp(srcDir, path.join(distRoot, 'src'), { recursive: true });
+            }
+            console.warn(`[Vite Build] Fell back to raw file copy`);
+        } catch (fallbackErr) {
+            console.error(`[Vite Build] Fallback copy also failed:`, fallbackErr?.message);
+        }
     }
 }
 
