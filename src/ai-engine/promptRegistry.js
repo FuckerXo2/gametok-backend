@@ -14,6 +14,10 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ─────────────────────────────────────────────────────────
 // VISUAL STYLE REFERENCE
@@ -2663,18 +2667,22 @@ export function postProcessRawHtml(rawHtml, generatedAssets = null) {
   // Inject Juice Engine
   let juiceScript = '';
   try {
-    const juicePath = path.join(process.cwd(), 'src/ai-engine/juice.js');
+    const juicePath = path.join(__dirname, 'juice.js');
     const juiceCode = fs.readFileSync(juicePath, 'utf8');
     juiceScript = '<script>' + juiceCode + '</script>';
-  } catch (e) {}
+  } catch (e) {
+    console.error('Failed to load juice.js:', e);
+  }
 
   // Inject Audio Engine
   let audioScript = '';
   try {
-    const audioPath = path.join(process.cwd(), 'src/ai-engine/audio.js');
+    const audioPath = path.join(__dirname, 'audio.js');
     const audioCode = fs.readFileSync(audioPath, 'utf8');
     audioScript = '<script>' + audioCode + '</script>';
-  } catch (e) {}
+  } catch (e) {
+    console.error('Failed to load audio.js:', e);
+  }
 
   const editableBridgeScript = buildGameTokEditableBridgeScript();
   const dreamAssetsScript = buildDreamAssetsScript(generatedAssets);
