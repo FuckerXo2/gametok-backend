@@ -2435,12 +2435,27 @@ function buildMakerProjectFromScaffold(templateScaffold = null, { templateContra
     if (!templateScaffold || !Array.isArray(templateScaffold.files) || templateScaffold.files.length === 0) {
         return null;
     }
-    const projectFiles = templateScaffold.files
+    // Accept all scaffold files — new TypeScript/Vite templates live at root level,
+    // old templates used a project/ prefix. Support both.
+    let projectFiles = templateScaffold.files
         .filter((file) => String(file?.sourcePath || file?.path || '').startsWith('project/'))
         .map((file) => ({
             path: file.path,
             content: file.content,
         }));
+    if (projectFiles.length === 0) {
+        // New-style templates: files are at root (index.html, src/main.ts, package.json, etc.)
+        projectFiles = templateScaffold.files
+            .filter((file) => {
+                const p = String(file?.path || '');
+                // Skip template-api.md and other non-project docs
+                return p && !p.endsWith('template-api.md');
+            })
+            .map((file) => ({
+                path: file.path,
+                content: file.content,
+            }));
+    }
     if (projectFiles.length === 0) {
         return null;
     }
