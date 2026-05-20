@@ -439,7 +439,17 @@ Your job is to deeply understand the requested game BEFORE any code is written.
 
 RULES:
 - Output ONLY raw JSON, no markdown, no explanation.
-- Do not classify the game into a rigid genre template.
+- Classify the game into ONE of these archetypes based purely on PHYSICS and PERSPECTIVE (not genre name):
+  1. turn_based_artillery: turn-based angle/power projectile firing (e.g. Tanks, Angry Birds if turn-based)
+  2. top_down_action: top-down or isometric view, free 8-way movement, entity collisions (e.g. Zelda, Vampire Survivors)
+  3. platformer: side view, Y-axis gravity, running and jumping on platforms (e.g. Mario)
+  4. runner: side view, auto-scrolling, dodging obstacles (e.g. Flappy Bird, Chrome Dino)
+  5. arcade_shooter: free movement + firing projectiles, usually top-down/side space (e.g. Asteroids, Space Invaders)
+  6. physics_simulation: placing objects then simulating rigid body physics (e.g. building contraptions)
+  7. grid_puzzle: movement locked to discrete grid steps (e.g. Sokoban, Match-3, Tetris)
+  8. interactive_story: branching narrative, state machines, choices (e.g. Visual Novel)
+  9. first_person_3d: 3D perspective, moving and looking around (e.g. FPS, walking sim)
+  10. arcade: anything else that doesn't fit the strict physics of the above (e.g. Fruit Ninja swipe games, whack-a-mole, idle games).
 - Think in concrete playable behavior: player verbs, entity rules, feedback, screen composition, and the first 10 seconds.
 - Keep scope realistic for one self-contained mobile HTML5 game.
 - The builder must be able to implement your spec directly.
@@ -472,6 +482,8 @@ Extract this JSON:
     "dimension": "2D | 3D",
     "perspective": "first_person | third_person | top_down | side_view | isometric",
     "preferredEngine": "PHASER | THREE | CANVAS",
+    "archetype": "turn_based_artillery | top_down_action | platformer | runner | arcade_shooter | physics_simulation | grid_puzzle | interactive_story | first_person_3d | arcade",
+    "archetypeReasoning": "Briefly explain why this archetype fits the physics and perspective requested",
     "screenComposition": "Where the player, hazards, runtime HUD, controls, and important action should live on a phone screen",
     "hudPlan": "What the HUD must show as code-rendered interface, not as AI-generated image art"
   },
