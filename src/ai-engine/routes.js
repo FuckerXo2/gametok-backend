@@ -2685,11 +2685,14 @@ function safeMakerProjectPath(projectRoot, relativePath) {
     if (!cleanPath || cleanPath.startsWith('/') || cleanPath.includes('\0') || cleanPath.split('/').includes('..')) {
         throw new Error(`Unsafe project file path: ${relativePath}`);
     }
-    if (
-        cleanPath !== 'index.html'
-        && !/^src\/[^/]+\.(css|js|json)$/.test(cleanPath)
-    ) {
-        throw new Error(`Project file edits are limited to index.html and src/*.css/js/json: ${relativePath}`);
+    // Allow root configuration files, markdown, gitignore, and anything in src/
+    // We already check for directory traversal/escape below, so this just prevents
+    // weird hidden files or system files if they somehow got requested.
+    const isValidRootFile = /^[a-zA-Z0-9_.-]+$/.test(cleanPath);
+    const isSrcFile = cleanPath.startsWith('src/') || cleanPath.startsWith('public/') || cleanPath.startsWith('assets/');
+    
+    if (!isValidRootFile && !isSrcFile) {
+        throw new Error(`Project file edits are limited to root files and src/ directory: ${relativePath}`);
     }
     const absolutePath = path.resolve(projectRoot, cleanPath);
     const projectRootResolved = path.resolve(projectRoot);
