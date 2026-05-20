@@ -151,7 +151,7 @@ function buildSection3EntityArchitecture(qualityIntent = {}, templateContract = 
     return [
         '## Section 3 — Entity / Scene Architecture',
         '',
-        'Downstream consumer: `src/game.js`, scaffold edits, required functions, and live state model.',
+        'Downstream consumer: `src/main.ts`, scaffold edits, required functions, and live state model.',
         '',
         listBlock('Required State', templateContract.requiredState),
         '',
@@ -226,7 +226,7 @@ export function buildMakerDesignBrief({ qualityIntent = {}, prompt = '', templat
                 ['0', 'Technical Architecture', 'builder, selected template, probe API, sandbox'],
                 ['1', 'Visual Style & Asset Registry', 'artist agent, asset-manifest.json, DreamAssets runtime'],
                 ['2', 'Game Configuration', 'state constants, layout, tuning values'],
-                ['3', 'Entity / Scene Architecture', 'src/game.js, scaffold edits, required functions'],
+                ['3', 'Entity / Scene Architecture', 'src/main.ts, scaffold edits, required functions'],
                 ['4', 'Level / Content Design', 'world generation, spawns, terrain/grid/path data'],
                 ['5', 'Implementation Roadmap', 'builder task list, repair loop, acceptance checks'],
             ]

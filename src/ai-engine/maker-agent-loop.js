@@ -107,7 +107,7 @@ export function buildMakerAgentInspectionPrompt({
         '',
         'XML schema:',
         '<notes>Explain what you changed and why</notes>',
-        '<file path="src/game.js">',
+        '<file path="src/main.ts">',
         '// complete replacement file content',
         '</file>',
         'If no edits are needed, return: <no-edits-needed />',

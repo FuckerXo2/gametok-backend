@@ -11,7 +11,7 @@ const COMMON_CONSTRAINTS = {
     files: [
         'index.html',
         'src/styles.css',
-        'src/game.js',
+        'src/main.ts',
     ],
     hardRules: [
         'No external navigation, popups, forms, or remote dependencies.',

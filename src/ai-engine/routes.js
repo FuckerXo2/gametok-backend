@@ -2531,7 +2531,7 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '',
         'Return JSON only. No markdown. No commentary.',
         'Schema:',
-        '{"files":[{"path":"src/game.js","content":"complete replacement file contents"}],"notes":["short note"]}',
+        '{"files":[{"path":"src/main.ts","content":"complete replacement file contents"}],"notes":["short note"]}',
         '',
         'Task:',
         '- Treat the GameTok maker GDD as mandatory. This pass is only successful if the updated files still satisfy Section 0-5.',
@@ -3027,7 +3027,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         'Return XML tags only. No markdown formatting blocks (```). No commentary.',
         'Schema:',
         '<notes>Explain what you are fixing</notes>',
-        '<file path="src/game.js">',
+        '<file path="src/main.ts">',
         '// complete file contents here',
         '</file>',
         '',
@@ -3359,7 +3359,7 @@ async function assembleMakerProjectHtml(projectRoot) {
     try {
         console.log(`[Vite Build] Installing dependencies in ${projectRoot}...`);
         const { execSync } = await import('child_process');
-        execSync('npm install --no-audit --no-fund', { cwd: projectRoot, stdio: 'inherit' });
+        execSync('npm install --include=dev --no-audit --no-fund', { cwd: projectRoot, stdio: 'inherit' });
         console.log(`[Vite Build] Building TypeScript project...`);
         execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
         
