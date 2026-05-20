@@ -812,9 +812,44 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push(`Blank canvas detected: canvas#${blankCanvas.index} has almost no visible pixels. The game must render visible gameplay on boot.`);
         }
 
-        // Legacy asset usage and DreamAssets verification removed.
-        // OpenGame templates use their own AssetManager and Vite minification
-        // makes source text scanning unreliable.
+        if (options.requireDreamAssets && renderState.dreamAssetPackCount > 0) {
+            const helperCalls = Number(renderState.dreamAssetUsage?.helperCalls || 0);
+            const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
+            const sourceUsesDreamAssets = /DreamAssets|DREAM_ASSETS|DREAM_ASSET_PACK|DREAM_ANIMATIONS/.test(sourceHtml);
+            
+            if (!sourceUsesDreamAssets && helperCalls === 0 && usedKeys.length === 0) {
+                const message = `Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets and no runtime asset fetches occurred. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`;
+                renderState.failedContractChecks.push({
+                    id: 'asset_pack_ignored',
+                    templateId: options?.assetContract?.templateId || null,
+                    assetCount: renderState.dreamAssetPackCount,
+                    message,
+                });
+                crashes.push(message);
+            }
+            
+            const requiredRoles = Array.from(new Set(Array.isArray(options?.assetContract?.slots)
+                ? options.assetContract.slots.filter((slot) => slot?.required).map((slot) => slot.role || slot.category).filter(Boolean)
+                : []));
+            const usedRoles = renderState.dreamAssetUsage?.usedRoles || {};
+            const renderedRoles = renderState.dreamAssetUsage?.renderedRoles || {};
+            const packRoles = new Set(Array.isArray(renderState.dreamAssetPackRoles) ? renderState.dreamAssetPackRoles : []);
+            
+            const missingRequiredRoleUsage = requiredRoles
+                .filter((role) => packRoles.has(role))
+                .filter((role) => Number(usedRoles[role] || 0) === 0 && Number(renderedRoles[role] || 0) === 0);
+                
+            if ((sourceUsesDreamAssets || helperCalls > 0) && missingRequiredRoleUsage.length > 0) {
+                const message = `Required asset slots not consumed: generated assets exist, but these required roles were not used through DreamAssets during boot: ${missingRequiredRoleUsage.join(', ')}.`;
+                renderState.failedContractChecks.push({
+                    id: 'asset_required_roles_unused',
+                    templateId: options?.assetContract?.templateId || null,
+                    missingRoles: missingRequiredRoleUsage,
+                    message,
+                });
+                crashes.push(message);
+            }
+        }
 
         if (/error|exception|failed/i.test(renderState.bodyText)) {
             crashes.push(`Visible error text detected: ${renderState.bodyText}`);

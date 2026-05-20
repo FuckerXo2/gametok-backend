@@ -1,0 +1,13 @@
+:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; overflow: hidden; background: #07111f; color: #f8fafc; touch-action: none; }
+#game-shell { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 12px; padding: max(18px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom)); }
+#hud { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 92px; }
+#hud div { border: 1px solid rgba(148,163,184,.3); border-radius: 8px; background: rgba(15,23,42,.84); padding: 10px 8px; text-align: center; }
+#hud span { display: block; color: #94a3b8; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+#hud strong { display: block; margin-top: 3px; font-size: 22px; line-height: 1; }
+#game-canvas { width: 100%; min-height: 0; flex: 1 1 auto; border-radius: 8px; border: 1px solid rgba(96,165,250,.26); background: #0f172a; }
+#controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+button { min-height: 62px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font: inherit; font-size: 18px; font-weight: 950; }
+#jump-button { background: #f59e0b; color: #111827; }
+#restart-button { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); min-width: 190px; background: #22c55e; color: #052e16; }
