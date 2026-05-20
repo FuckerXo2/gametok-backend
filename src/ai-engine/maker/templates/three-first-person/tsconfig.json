@@ -22,7 +22,7 @@
     "exactOptionalPropertyTypes": false,
     "noFallthroughCasesInSwitch": false,
     "noUncheckedSideEffectImports": false,
-    "types": ["vitest"],
+    
     "resolveJsonModule": true
   },
   "include": ["src"]

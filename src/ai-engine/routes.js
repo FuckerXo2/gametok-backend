@@ -3235,12 +3235,33 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
         await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
         return evidence;
     } catch (error) {
+        const isBuildError = error.code === 'TSC_FAILED' || error.code === 'VITE_BUILD_FAILED';
+        const crashes = isBuildError && Array.isArray(error.buildErrors) && error.buildErrors.length > 0
+            ? error.buildErrors.map(e => `BUILD ERROR: ${e}`)
+            : [error.message || String(error)];
+
         const evidence = {
             phase,
             success: false,
-            crashes: [error.message || String(error)],
-            diagnostics: null,
-            targetedRepairTasks: [],
+            crashes,
+            diagnostics: isBuildError ? {
+                buildFailure: {
+                    type: error.code,
+                    errors: error.buildErrors || [],
+                    rawOutput: error.rawOutput || null,
+                },
+                failedContractChecks: [{
+                    id: 'build_compilation_failed',
+                    message: `The project does not compile. Fix all TypeScript/build errors before the sandbox can test it.`,
+                }],
+            } : null,
+            targetedRepairTasks: isBuildError
+                ? (error.buildErrors || []).slice(0, 8).map(e => ({
+                    task: 'fix_build_error',
+                    description: e,
+                    severity: 'critical',
+                }))
+                : [],
         };
         await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
         return evidence;
@@ -3389,30 +3410,50 @@ async function rebuildMakerProjectDist(projectRoot) {
         console.warn(`[Vite Build] Could not symlink node_modules:`, symlinkErr?.message);
     }
 
-    // During integration passes, we just run the build again
+    const { execSync } = await import('child_process');
+
+    // Step 1: Run TypeScript type-check separately so we get clean error output
     try {
-        const { execSync } = await import('child_process');
-        execSync('npm run build', { cwd: projectRoot, stdio: 'inherit', timeout: 120_000 });
-    } catch (e) {
-        console.error(`[Vite Build] Failed to rebuild dist:`, e?.message || e);
-        // Fallback: if Vite build failed, do a raw copy so at least something is in dist/
-        try {
-            const distRoot = path.join(projectRoot, 'dist');
-            await fs.promises.rm(distRoot, { recursive: true, force: true });
-            await fs.promises.mkdir(distRoot, { recursive: true });
-            const indexSrc = path.join(projectRoot, 'index.html');
-            if (fs.existsSync(indexSrc)) {
-                await fs.promises.copyFile(indexSrc, path.join(distRoot, 'index.html'));
-            }
-            const srcDir = path.join(projectRoot, 'src');
-            if (fs.existsSync(srcDir)) {
-                await fs.promises.cp(srcDir, path.join(distRoot, 'src'), { recursive: true });
-            }
-            console.warn(`[Vite Build] Fell back to raw file copy`);
-        } catch (fallbackErr) {
-            console.error(`[Vite Build] Fallback copy also failed:`, fallbackErr?.message);
-        }
+        execSync('npx tsc --noEmit', { cwd: projectRoot, stdio: 'pipe', timeout: 60_000 });
+    } catch (tscError) {
+        const stderr = tscError.stderr?.toString?.() || '';
+        const stdout = tscError.stdout?.toString?.() || '';
+        const rawOutput = (stdout + '\n' + stderr).trim();
+
+        // Parse TS errors into structured diagnostics
+        const tsErrors = rawOutput
+            .split('\n')
+            .filter(line => /^src\/.*\(\d+,\d+\):\s*error\s+TS\d+/.test(line) || /^error\s+TS\d+/.test(line))
+            .slice(0, 15);
+
+        const buildError = new Error(
+            `[Vite Build] TypeScript compilation failed with ${tsErrors.length} error(s):\n${tsErrors.join('\n')}`
+        );
+        buildError.code = 'TSC_FAILED';
+        buildError.buildErrors = tsErrors;
+        buildError.rawOutput = rawOutput.slice(0, 4000);
+        console.error(`[Vite Build] tsc --noEmit failed (${tsErrors.length} errors). NOT falling back to raw copy.`);
+        throw buildError;
     }
+
+    // Step 2: Run Vite build (tsc already passed, so this should rarely fail)
+    try {
+        execSync('npx vite build', { cwd: projectRoot, stdio: 'pipe', timeout: 120_000 });
+    } catch (viteError) {
+        const stderr = viteError.stderr?.toString?.() || '';
+        const stdout = viteError.stdout?.toString?.() || '';
+        const rawOutput = (stdout + '\n' + stderr).trim();
+
+        const buildError = new Error(
+            `[Vite Build] Vite bundling failed:\n${rawOutput.slice(0, 2000)}`
+        );
+        buildError.code = 'VITE_BUILD_FAILED';
+        buildError.rawOutput = rawOutput.slice(0, 4000);
+        console.error(`[Vite Build] Vite build failed. NOT falling back to raw copy.`);
+        throw buildError;
+    }
+
+    console.log(`[Vite Build] ✅ Build succeeded for ${projectRoot}`);
 }
 
 async function replaceAsync(input, regex, replacer) {
