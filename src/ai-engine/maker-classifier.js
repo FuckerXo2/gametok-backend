@@ -67,7 +67,7 @@ const TEMPLATE_CLASSIFIERS = [
         },
         high: ['top down', 'top-down', 'rogue lite', 'roguelite', 'arena survival', 'survive waves', 'wave survival'],
         medium: ['dash', 'slime', 'enemy waves', 'melee', 'spell', 'combo', 'kite enemies', 'area control', 'zombies'],
-        negative: ['turn based', 'turn-based', 'platformer', 'side scroller', 'side-scroller'],
+        negative: ['turn based', 'turn-based', 'platformer', 'side scroller', 'side-scroller', 'swipe', 'fruit ninja'],
     },
     {
         templateId: 'phaser-platformer',
