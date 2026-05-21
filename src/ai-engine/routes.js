@@ -3347,7 +3347,7 @@ async function runMakerAgentInspectionTurns({
             const responseText = await generateCompleteXmlWithBuilder(promptText, {
                 label: `Phase 2 File Agent Turn ${turnNumber}`,
                 jobId,
-                timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
                 maxAttempts: 2,
             });
             await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
@@ -3817,7 +3817,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 const integrationText = await generateCompleteJsonWithBuilder(integrationPrompt, {
                     label: 'Phase 2 Asset Integration',
                     jobId,
-                    timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                    timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
                     maxAttempts: 2,
                     progressBase: 58,
                 });
@@ -4068,7 +4068,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                                 repairText = await generateCompleteXmlWithBuilder(fileRepairPrompt, {
                                     label: 'Phase 3 File Repair',
                                     jobId,
-                                    timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
+                                    timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
                                     maxAttempts: 2,
                                     currentModel: mModel,
                                 });
