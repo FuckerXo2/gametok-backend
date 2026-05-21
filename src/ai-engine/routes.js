@@ -149,7 +149,8 @@ function resolveDreamModel(envName, fallback) {
 const BUILDER_FALLBACK_MODELS = [
     'moonshotai/kimi-k2.6',
     'deepseek-ai/deepseek-v4-pro',
-    'qwen/qwen3-coder-480b-a35b-instruct'
+    'qwen/qwen3-coder-480b-a35b-instruct',
+    'z-ai/glm-5.1'
 ];
 
 const DREAM_MODELS = {
@@ -827,10 +828,6 @@ async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, b
                 lastError = error;
                 const isLastModel = modelIndex === modelsToTry.length - 1;
                 const isLastAttempt = attempt === retriesPerModel;
-                
-                if (!isRetryableProviderError(error, modelsToTry.length > 1) && isLastModel) {
-                    throw error;
-                }
                 
                 if (isLastAttempt && isLastModel) {
                     throw error;
