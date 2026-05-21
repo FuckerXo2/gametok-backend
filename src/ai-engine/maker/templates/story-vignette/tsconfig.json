@@ -25,5 +25,6 @@
     
     "resolveJsonModule": true
   },
+  "exclude": ["src/test"],
   "include": ["src"]
 }
