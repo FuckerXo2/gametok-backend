@@ -4499,6 +4499,10 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
             throw new Error(`Parent draft has no usable code!`);
         }
         
+        if (existingHtml.includes('__GAMETOK_TEMPLATE_PROBE__') || existingHtml.includes('GAMETOK_MAKER') || existingHtml.includes('vite-plugin-singlefile')) {
+            throw new Error("Direct editing is not yet supported for OpenGame Maker architecture games. Please generate a new game instead.");
+        }
+
         console.log(`📊 [EDIT JOB] Parent "${parentDraft.title}" — html: ${existingHtml.length} chars, history: ${editHistory.length} past edits`);
 
         // 2. Search for NEW assets based on edit instructions
