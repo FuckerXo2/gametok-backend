@@ -13,6 +13,20 @@ export class Preloader extends Phaser.Scene {
     this.setupLoadingProgressUI(this);
     // Load all assets from asset pack
     this.load.pack('assetPack', 'assets/asset-pack.json');
+    
+    // Load dynamic Dream Assets if available
+    const pack = (window as any).DREAM_ASSET_PACK;
+    if (Array.isArray(pack)) {
+      pack.forEach(asset => {
+        if (!asset.key || !asset.url) return;
+        const isAudio = asset.role === 'sfx' || asset.role === 'music' || asset.category === 'audio';
+        if (isAudio) {
+          this.load.audio(asset.key, asset.url);
+        } else {
+          this.load.image(asset.key, asset.url);
+        }
+      });
+    }
   }
 
   create(): void {
