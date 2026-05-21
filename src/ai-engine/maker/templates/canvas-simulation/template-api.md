@@ -8,7 +8,7 @@ preserving the edit -> simulate -> result loop.
 
 - `index.html`: DOM shell and canvas mount.
 - `src/styles.css`: mobile-safe editor controls.
-- `src/game.js`: bodies, simple physics, collisions, goal checks, drawing, input.
+- `src/main.ts`: bodies, simple physics, collisions, goal checks, drawing, input.
 
 ## Required State
 

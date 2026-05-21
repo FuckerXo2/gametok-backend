@@ -8,7 +8,7 @@ the core systems intact.
 
 - `index.html`: DOM shell and canvas mount.
 - `src/styles.css`: mobile-safe layout and controls.
-- `src/game.js`: game state, terrain, tanks, projectile physics, explosions,
+- `src/main.ts`: game state, terrain, tanks, projectile physics, explosions,
   drawing, and input.
 
 ## Required State

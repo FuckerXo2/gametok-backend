@@ -65,34 +65,11 @@ const state = {
   assets: {},
 };
 
-function resolveThemeAssets() {
-  const helper = window.DreamAssets;
-  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
-  const byRole = (role) => {
-    if (helper && typeof helper.firstByRole === 'function') {
-      const asset = helper.firstByRole(role);
-      if (asset?.key) return asset.key;
-      if (typeof asset === 'string') return asset;
-    }
-    const entry = pack.find((asset) => asset.role === role || asset.category === role);
-    return entry?.key || null;
-  };
-  state.assets.player = byRole('player');
-  state.assets.enemy = byRole('enemy');
-  state.assets.background = byRole('background') || byRole('environment');
-  state.assets.projectile = byRole('projectile') || byRole('shell') || byRole('prop');
-  state.assets.explosion = byRole('effect') || byRole('explosion');
-}
-
 function getAssetImage(key) {
   if (!key) return null;
-  if (state.assets[key] instanceof Image) return state.assets[key];
-  const dataUrl = window.DreamAssets?.getImage?.(key) || window.DREAM_ASSETS?.[key];
-  if (!dataUrl) return null;
-  const image = new Image();
-  image.src = dataUrl;
-  state.assets[key] = image;
-  return image;
+  const img = window.DREAM_IMAGES?.[key];
+  if (img && img.complete && img.naturalWidth > 0) return img;
+  return null;
 }
 
 function resize() {
@@ -351,27 +328,16 @@ function updateHud() {
 }
 
 function drawBackground() {
-  const backgroundImage = getAssetImage(state.assets.background);
-  if (backgroundImage?.complete && backgroundImage.naturalWidth > 0) {
-    ctx.drawImage(backgroundImage, 0, 0, state.width, state.height);
-    ctx.fillStyle = 'rgba(8, 13, 28, 0.22)';
-    ctx.fillRect(0, 0, state.width, state.height);
-    return;
-  }
+  const backgroundImage = getAssetImage('background');
   const gradient = ctx.createLinearGradient(0, 0, 0, state.height);
-  gradient.addColorStop(0, GAME_THEME.skyTop);
-  gradient.addColorStop(0.58, GAME_THEME.skyBottom);
-  gradient.addColorStop(1, '#fef3c7');
+  gradient.addColorStop(0, THEME.skyA);
+  gradient.addColorStop(1, THEME.skyB);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, state.width, state.height);
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  for (let i = 0; i < 4; i += 1) {
-    const x = (i * 111 + 38) % state.width;
-    const y = state.safeTop + 34 + (i % 2) * 36;
-    ctx.beginPath();
-    ctx.ellipse(x, y, 32, 13, 0, 0, Math.PI * 2);
-    ctx.ellipse(x + 24, y + 4, 24, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
+  if (backgroundImage) {
+    ctx.globalAlpha = 0.28;
+    ctx.drawImage(backgroundImage, 0, 0, state.width, state.height);
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -391,34 +357,28 @@ function drawTerrain() {
   ctx.stroke();
 }
 
-function drawTank(tank, index) {
-  const key = index === 0 ? state.assets.player : state.assets.enemy;
-  const image = getAssetImage(key);
+function drawTank(tank) {
+  const isPlayer = tank === state.tanks[0];
+  const image = getAssetImage(isPlayer ? 'player' : 'enemy');
   ctx.save();
-  ctx.translate(tank.x, tank.y - 12);
-  if (image?.complete && image.naturalWidth > 0) {
-    const flip = tank.direction === -1 ? -1 : 1;
-    ctx.scale(flip, 1);
-    ctx.drawImage(image, -25, -32, 50, 50);
-    ctx.restore();
-    return;
+  ctx.translate(tank.x, tank.y);
+  ctx.rotate(tank.angle);
+  if (image) {
+    ctx.drawImage(image, -24, -32, 48, 48);
+  } else {
+    ctx.fillStyle = tank.color;
+    ctx.fillRect(-CONFIG.tankWidth / 2, -CONFIG.tankHeight, CONFIG.tankWidth, CONFIG.tankHeight);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(-CONFIG.tankWidth / 2 + 4, -5, CONFIG.tankWidth - 8, 8);
+    const muzzle = getMuzzle(tank);
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, -CONFIG.tankHeight + 5);
+    ctx.lineTo(muzzle.x - tank.x, muzzle.y - (tank.y - 12));
+    ctx.stroke();
   }
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath();
-  ctx.ellipse(0, 13, 28, 9, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = tank.color;
-  ctx.fillRect(-CONFIG.tankWidth / 2, -CONFIG.tankHeight, CONFIG.tankWidth, CONFIG.tankHeight);
-  ctx.fillStyle = '#111827';
-  ctx.fillRect(-CONFIG.tankWidth / 2 + 4, -5, CONFIG.tankWidth - 8, 8);
-  const muzzle = getMuzzle(tank);
-  ctx.strokeStyle = '#111827';
-  ctx.lineWidth = 6;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(0, -CONFIG.tankHeight + 5);
-  ctx.lineTo(muzzle.x - tank.x, muzzle.y - (tank.y - 12));
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -426,12 +386,12 @@ function drawExplosion(dt) {
   if (!state.explosion) return;
   state.explosion.age += dt;
   state.explosion.radius += dt * 110;
-  const alpha = Math.max(0, 1 - state.explosion.age / 0.55);
+  const explosionImage = getAssetImage('explosion');
+  const size = state.explosion.radius * 2;
+  const alpha = Math.max(0, 1 - state.explosion.age / 0.5);
   ctx.save();
   ctx.globalAlpha = alpha;
-  const explosionImage = getAssetImage(state.assets.explosion);
-  if (explosionImage?.complete && explosionImage.naturalWidth > 0) {
-    const size = Math.max(38, state.explosion.radius * 2.2);
+  if (explosionImage) {
     ctx.drawImage(explosionImage, state.explosion.x - size / 2, state.explosion.y - size / 2, size, size);
   } else {
     const gradient = ctx.createRadialGradient(state.explosion.x, state.explosion.y, 4, state.explosion.x, state.explosion.y, state.explosion.radius);
@@ -458,18 +418,19 @@ function render(dt) {
   drawTerrain();
   state.tanks.forEach(drawTank);
   if (state.projectile) {
-    const projectileImage = getAssetImage(state.assets.projectile);
-    if (projectileImage?.complete && projectileImage.naturalWidth > 0) {
-      ctx.save();
-      ctx.translate(state.projectile.x, state.projectile.y);
-      ctx.rotate(Math.atan2(state.projectile.vy, state.projectile.vx));
+    const projectileImage = getAssetImage('projectile');
+    ctx.save();
+    ctx.translate(state.projectile.x, state.projectile.y);
+    ctx.rotate(Math.atan2(state.projectile.vy, state.projectile.vx));
+    if (projectileImage) {
       ctx.drawImage(projectileImage, -8, -8, 16, 16);
       ctx.restore();
     } else {
       ctx.fillStyle = GAME_THEME.projectile;
       ctx.beginPath();
-      ctx.arc(state.projectile.x, state.projectile.y, 5, 0, Math.PI * 2);
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
   }
   drawExplosion(dt);
@@ -548,7 +509,6 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
   },
 };
 
-resolveThemeAssets();
 bindInput();
 resize();
 resetRound();
