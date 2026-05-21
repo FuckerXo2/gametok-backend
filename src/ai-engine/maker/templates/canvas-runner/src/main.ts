@@ -25,30 +25,11 @@ const state = {
   assets: {},
 };
 
-function resolveThemeAssets() {
-  const helper = window.DreamAssets;
-  const byRole = (role) => {
-    const asset = helper?.firstByRole?.(role);
-    if (asset?.key) return asset.key;
-    if (typeof asset === 'string') return asset;
-    const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
-    return pack.find((entry) => entry.role === role || entry.category === role)?.key || null;
-  };
-  state.assets.player = byRole('player');
-  state.assets.enemy = byRole('enemy') || byRole('prop');
-  state.assets.item = byRole('item');
-  state.assets.background = byRole('background') || byRole('environment');
-}
-
 function getAssetImage(key) {
   if (!key) return null;
-  if (state.assets[key] instanceof Image) return state.assets[key];
-  const dataUrl = window.DreamAssets?.getImage?.(key) || window.DREAM_ASSETS?.[key];
-  if (!dataUrl) return null;
-  const image = new Image();
-  image.src = dataUrl;
-  state.assets[key] = image;
-  return image;
+  const img = window.DREAM_IMAGES?.[key];
+  if (img && img.complete && img.naturalWidth > 0) return img;
+  return null;
 }
 
 function resize() {
@@ -149,13 +130,13 @@ function resolveCollisions() {
 }
 
 function drawWorld() {
-  const bg = getAssetImage(state.assets.background);
+  const bg = getAssetImage('background');
   const gradient = ctx.createLinearGradient(0, 0, 0, state.height);
   gradient.addColorStop(0, '#0f2d52');
   gradient.addColorStop(1, '#07111f');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, state.width, state.height);
-  if (bg?.complete && bg.naturalWidth > 0) {
+  if (bg) {
     ctx.globalAlpha = 0.28;
     ctx.drawImage(bg, 0, 0, state.width, state.height);
     ctx.globalAlpha = 1;
@@ -169,24 +150,35 @@ function drawWorld() {
   ctx.lineTo(state.width, state.groundY);
   ctx.stroke();
 
-  const enemyImg = getAssetImage(state.assets.enemy);
+  const enemyImg = getAssetImage('enemy');
   for (const obstacle of state.obstacles) {
-    ctx.fillStyle = '#fb7185';
-    ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
-    if (enemyImg?.complete && enemyImg.naturalWidth > 0) ctx.drawImage(enemyImg, obstacle.x - 10, obstacle.y - 12, obstacle.w + 20, obstacle.h + 20);
+    if (enemyImg) {
+      ctx.drawImage(enemyImg, obstacle.x - 10, obstacle.y - 12, obstacle.w + 20, obstacle.h + 20);
+    } else {
+      ctx.fillStyle = '#fb7185';
+      ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+    }
   }
-  const itemImg = getAssetImage(state.assets.item);
+  const itemImg = getAssetImage('item');
   for (const item of state.collectibles) {
-    ctx.fillStyle = '#facc15';
-    ctx.beginPath();
-    ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
-    ctx.fill();
-    if (itemImg?.complete && itemImg.naturalWidth > 0) ctx.drawImage(itemImg, item.x - 16, item.y - 16, 32, 32);
+    if (itemImg) {
+      ctx.drawImage(itemImg, item.x - 16, item.y - 16, 32, 32);
+    } else {
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
-  const playerImg = getAssetImage(state.assets.player);
-  ctx.fillStyle = state.player.invuln > 0 ? '#93c5fd' : '#38bdf8';
-  ctx.fillRect(state.player.x, state.player.y, state.player.w, state.player.h);
-  if (playerImg?.complete && playerImg.naturalWidth > 0) ctx.drawImage(playerImg, state.player.x - 12, state.player.y - 14, state.player.w + 24, state.player.h + 22);
+  const playerImg = getAssetImage('player');
+  if (playerImg) {
+    if (state.player.invuln > 0) ctx.globalAlpha = 0.5;
+    ctx.drawImage(playerImg, state.player.x - 12, state.player.y - 14, state.player.w + 24, state.player.h + 22);
+    ctx.globalAlpha = 1.0;
+  } else {
+    ctx.fillStyle = state.player.invuln > 0 ? '#93c5fd' : '#38bdf8';
+    ctx.fillRect(state.player.x, state.player.y, state.player.w, state.player.h);
+  }
   if (state.gameOver) {
     ctx.fillStyle = 'rgba(2,6,23,.72)';
     ctx.fillRect(0, 0, state.width, state.height);
@@ -261,7 +253,7 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
   reset: resetRun,
 };
 
-resolveThemeAssets();
+
 resize();
 resetRun();
 requestAnimationFrame(loop);
