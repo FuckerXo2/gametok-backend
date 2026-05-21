@@ -3378,10 +3378,25 @@ async function runMakerAgentInspectionTurns({
 
 async function assembleMakerProjectHtml(projectRoot) {
     try {
-        console.log(`[Vite Build] Installing dependencies in ${projectRoot}...`);
-        const { execSync } = await import('child_process');
-        execSync('npm install --include=dev --no-audit --no-fund', { cwd: projectRoot, stdio: 'inherit' });
+        const backendRoot = path.resolve(__dirname, '..', '..');
+        const backendNodeModules = path.join(backendRoot, 'node_modules');
+        const projectNodeModules = path.join(projectRoot, 'node_modules');
+        
+        // Always ensure the symlink is present and correct
+        try {
+            const stat = await fs.promises.lstat(projectNodeModules).catch(() => null);
+            if (!stat || !stat.isSymbolicLink()) {
+                if (stat) await fs.promises.rm(projectNodeModules, { recursive: true, force: true });
+                if (fs.existsSync(backendNodeModules)) {
+                    await fs.promises.symlink(backendNodeModules, projectNodeModules, 'dir');
+                }
+            }
+        } catch (e) {
+            console.warn(`[Vite Build] Symlink error in assembleMakerProjectHtml:`, e?.message);
+        }
+
         console.log(`[Vite Build] Building TypeScript project...`);
+        const { execSync } = await import('child_process');
         execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
         
         const distIndexHtml = path.join(projectRoot, 'dist', 'index.html');
@@ -3396,44 +3411,21 @@ async function assembleMakerProjectHtml(projectRoot) {
 async function rebuildMakerProjectDist(projectRoot) {
     const { execSync } = await import('child_process');
     const projectNodeModules = path.join(projectRoot, 'node_modules');
+    const backendRoot = path.resolve(__dirname, '..', '..');
+    const backendNodeModules = path.join(backendRoot, 'node_modules');
 
-    // Ensure dependencies are installed. Try symlink first for speed,
-    // but if the build tools aren't found, do a real npm install.
-    const hasNodeModules = fs.existsSync(projectNodeModules);
-    if (!hasNodeModules) {
-        const backendRoot = path.resolve(__dirname, '..', '..');
-        const backendNodeModules = path.join(backendRoot, 'node_modules');
-        try {
+    // Always enforce symlink to backend node_modules so we never have to run npm install per-game.
+    // This is instant and ensures all dependencies (vite, tsc, plugins) are globally available.
+    try {
+        const stat = await fs.promises.lstat(projectNodeModules).catch(() => null);
+        if (!stat || !stat.isSymbolicLink()) {
+            if (stat) await fs.promises.rm(projectNodeModules, { recursive: true, force: true });
             if (fs.existsSync(backendNodeModules)) {
                 await fs.promises.symlink(backendNodeModules, projectNodeModules, 'dir');
-                console.log(`[Vite Build] Symlinked node_modules from backend root`);
             }
-        } catch (symlinkErr) {
-            console.warn(`[Vite Build] Symlink failed:`, symlinkErr?.message);
         }
-    }
-
-    // Check if critical build deps exist; if not, do a real install
-    const hasSinglefile = fs.existsSync(path.join(projectNodeModules, 'vite-plugin-singlefile'));
-    const hasVite = fs.existsSync(path.join(projectNodeModules, 'vite'));
-    const hasTsc = fs.existsSync(path.join(projectNodeModules, 'typescript'));
-    if (!hasSinglefile || !hasVite || !hasTsc) {
-        console.log(`[Vite Build] Missing build deps (vite=${hasVite}, tsc=${hasTsc}, singlefile=${hasSinglefile}). Running npm install...`);
-        // Remove broken symlink if present
-        try {
-            const stat = await fs.promises.lstat(projectNodeModules).catch(() => null);
-            if (stat?.isSymbolicLink()) {
-                await fs.promises.unlink(projectNodeModules);
-            }
-        } catch (_) { /* ignore */ }
-        try {
-            execSync('npm install --include=dev --no-audit --no-fund', {
-                cwd: projectRoot, stdio: 'pipe', timeout: 120_000,
-            });
-            console.log(`[Vite Build] npm install completed`);
-        } catch (installErr) {
-            console.error(`[Vite Build] npm install failed:`, installErr.stderr?.toString?.().slice(0, 500));
-        }
+    } catch (symlinkErr) {
+        console.warn(`[Vite Build] Symlink failed in rebuildMakerProjectDist:`, symlinkErr?.message);
     }
 
     // Step 1: TypeScript type-check
