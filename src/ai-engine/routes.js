@@ -3394,25 +3394,49 @@ async function assembleMakerProjectHtml(projectRoot) {
 }
 
 async function rebuildMakerProjectDist(projectRoot) {
-    // Ensure node_modules is available for Vite/TypeScript builds.
-    // The project directory has no node_modules of its own, so we symlink
-    // the backend's node_modules which already has vite, typescript, phaser, etc.
-    const backendRoot = path.resolve(__dirname, '..', '..');
-    const backendNodeModules = path.join(backendRoot, 'node_modules');
+    const { execSync } = await import('child_process');
     const projectNodeModules = path.join(projectRoot, 'node_modules');
-    try {
-        const nmStat = await fs.promises.lstat(projectNodeModules).catch(() => null);
-        if (!nmStat && fs.existsSync(backendNodeModules)) {
-            await fs.promises.symlink(backendNodeModules, projectNodeModules, 'dir');
-            console.log(`[Vite Build] Symlinked node_modules from backend root`);
+
+    // Ensure dependencies are installed. Try symlink first for speed,
+    // but if the build tools aren't found, do a real npm install.
+    const hasNodeModules = fs.existsSync(projectNodeModules);
+    if (!hasNodeModules) {
+        const backendRoot = path.resolve(__dirname, '..', '..');
+        const backendNodeModules = path.join(backendRoot, 'node_modules');
+        try {
+            if (fs.existsSync(backendNodeModules)) {
+                await fs.promises.symlink(backendNodeModules, projectNodeModules, 'dir');
+                console.log(`[Vite Build] Symlinked node_modules from backend root`);
+            }
+        } catch (symlinkErr) {
+            console.warn(`[Vite Build] Symlink failed:`, symlinkErr?.message);
         }
-    } catch (symlinkErr) {
-        console.warn(`[Vite Build] Could not symlink node_modules:`, symlinkErr?.message);
     }
 
-    const { execSync } = await import('child_process');
+    // Check if critical build deps exist; if not, do a real install
+    const hasSinglefile = fs.existsSync(path.join(projectNodeModules, 'vite-plugin-singlefile'));
+    const hasVite = fs.existsSync(path.join(projectNodeModules, 'vite'));
+    const hasTsc = fs.existsSync(path.join(projectNodeModules, 'typescript'));
+    if (!hasSinglefile || !hasVite || !hasTsc) {
+        console.log(`[Vite Build] Missing build deps (vite=${hasVite}, tsc=${hasTsc}, singlefile=${hasSinglefile}). Running npm install...`);
+        // Remove broken symlink if present
+        try {
+            const stat = await fs.promises.lstat(projectNodeModules).catch(() => null);
+            if (stat?.isSymbolicLink()) {
+                await fs.promises.unlink(projectNodeModules);
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            execSync('npm install --include=dev --no-audit --no-fund', {
+                cwd: projectRoot, stdio: 'pipe', timeout: 120_000,
+            });
+            console.log(`[Vite Build] npm install completed`);
+        } catch (installErr) {
+            console.error(`[Vite Build] npm install failed:`, installErr.stderr?.toString?.().slice(0, 500));
+        }
+    }
 
-    // Step 1: Run TypeScript type-check separately so we get clean error output
+    // Step 1: TypeScript type-check
     try {
         execSync('npx tsc --noEmit', { cwd: projectRoot, stdio: 'pipe', timeout: 60_000 });
     } catch (tscError) {
@@ -3420,7 +3444,6 @@ async function rebuildMakerProjectDist(projectRoot) {
         const stdout = tscError.stdout?.toString?.() || '';
         const rawOutput = (stdout + '\n' + stderr).trim();
 
-        // Parse TS errors into structured diagnostics
         const tsErrors = rawOutput
             .split('\n')
             .filter(line => /^src\/.*\(\d+,\d+\):\s*error\s+TS\d+/.test(line) || /^error\s+TS\d+/.test(line))
@@ -3432,11 +3455,11 @@ async function rebuildMakerProjectDist(projectRoot) {
         buildError.code = 'TSC_FAILED';
         buildError.buildErrors = tsErrors;
         buildError.rawOutput = rawOutput.slice(0, 4000);
-        console.error(`[Vite Build] tsc --noEmit failed (${tsErrors.length} errors). NOT falling back to raw copy.`);
+        console.error(`[Vite Build] tsc failed (${tsErrors.length} errors)`);
         throw buildError;
     }
 
-    // Step 2: Run Vite build (tsc already passed, so this should rarely fail)
+    // Step 2: Vite build (tsc passed, so this should rarely fail)
     try {
         execSync('npx vite build', { cwd: projectRoot, stdio: 'pipe', timeout: 120_000 });
     } catch (viteError) {
@@ -3448,12 +3471,13 @@ async function rebuildMakerProjectDist(projectRoot) {
             `[Vite Build] Vite bundling failed:\n${rawOutput.slice(0, 2000)}`
         );
         buildError.code = 'VITE_BUILD_FAILED';
+        buildError.buildErrors = rawOutput.split('\n').filter(l => /error/i.test(l)).slice(0, 10);
         buildError.rawOutput = rawOutput.slice(0, 4000);
-        console.error(`[Vite Build] Vite build failed. NOT falling back to raw copy.`);
+        console.error(`[Vite Build] Vite build failed`);
         throw buildError;
     }
 
-    console.log(`[Vite Build] ✅ Build succeeded for ${projectRoot}`);
+    console.log(`[Vite Build] ✅ Build succeeded`);
 }
 
 async function replaceAsync(input, regex, replacer) {
