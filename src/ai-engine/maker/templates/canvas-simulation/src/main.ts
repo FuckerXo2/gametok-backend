@@ -51,11 +51,32 @@ const state = {
   lastTime: performance.now(),
 };
 
+function resolveThemeAssets() {
+  const helper = window.DreamAssets;
+  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
+  const byRole = (role) => {
+    if (helper && typeof helper.firstByRole === 'function') {
+      const asset = helper.firstByRole(role);
+      if (asset?.key) return asset.key;
+      if (typeof asset === 'string') return asset;
+    }
+    const entry = pack.find((asset) => asset.role === role || asset.category === role);
+    return entry?.key || null;
+  };
+  state.assets.goal = byRole('player') || byRole('goal');
+  state.assets.part = byRole('prop') || byRole('item');
+  state.assets.background = byRole('background') || byRole('environment');
+}
+
 function getAssetImage(key) {
   if (!key) return null;
-  const img = window.DREAM_IMAGES?.[key];
-  if (img && img.complete && img.naturalWidth > 0) return img;
-  return null;
+  if (state.assets[key] instanceof Image) return state.assets[key];
+  const dataUrl = window.DreamAssets?.getImage?.(key) || window.DREAM_ASSETS?.[key];
+  if (!dataUrl) return null;
+  const image = new Image();
+  image.src = dataUrl;
+  state.assets[key] = image;
+  return image;
 }
 
 function resize() {
@@ -216,8 +237,8 @@ function updateHud() {
 }
 
 function drawBackground() {
-  const bg = getAssetImage('background');
-  if (bg) {
+  const bg = getAssetImage(state.assets.background);
+  if (bg?.complete && bg.naturalWidth > 0) {
     ctx.drawImage(bg, 0, 0, state.width, state.height);
     ctx.fillStyle = 'rgba(6, 12, 24, 0.3)';
     ctx.fillRect(0, 0, state.width, state.height);
@@ -246,11 +267,11 @@ function drawBackground() {
 }
 
 function drawBody(body) {
-  const image = getAssetImage('part');
+  const image = getAssetImage(state.assets.part);
   ctx.save();
   ctx.translate(body.x, body.y);
   ctx.rotate(body.angle);
-  if (image) {
+  if (image?.complete && image.naturalWidth > 0) {
     ctx.drawImage(image, -body.width / 2, -body.height / 2, body.width, body.height);
   } else {
     ctx.fillStyle = GAME_THEME.part;
@@ -262,8 +283,8 @@ function drawBody(body) {
 }
 
 function drawGoal() {
-  const image = getAssetImage('goal');
-  if (image) {
+  const image = getAssetImage(state.assets.goal);
+  if (image?.complete && image.naturalWidth > 0) {
     ctx.drawImage(image, state.goalObject.x - 24, state.goalObject.y - 24, 48, 48);
     return;
   }
@@ -376,7 +397,7 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
   },
 };
 
-
+resolveThemeAssets();
 bindInput();
 resize();
 resetSimulation();

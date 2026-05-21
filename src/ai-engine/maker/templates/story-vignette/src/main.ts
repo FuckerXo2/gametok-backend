@@ -97,11 +97,32 @@ function clamp(value, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
 }
 
+function resolveThemeAssets() {
+  const helper = window.DreamAssets;
+  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
+  const byRole = (role) => {
+    if (helper && typeof helper.firstByRole === 'function') {
+      const asset = helper.firstByRole(role);
+      if (asset?.key) return asset.key;
+      if (typeof asset === 'string') return asset;
+    }
+    const entry = pack.find((asset) => asset.role === role || asset.category === role);
+    return entry?.key || null;
+  };
+  state.assets.hero = byRole('player');
+  state.assets.symbol = byRole('prop') || byRole('item');
+  state.assets.background = byRole('background') || byRole('environment');
+}
+
 function getAssetImage(key) {
   if (!key) return null;
-  const img = window.DREAM_IMAGES?.[key];
-  if (img && img.complete && img.naturalWidth > 0) return img;
-  return null;
+  if (state.assets[key] instanceof Image) return state.assets[key];
+  const dataUrl = window.DreamAssets?.getImage?.(key) || window.DREAM_ASSETS?.[key];
+  if (!dataUrl) return null;
+  const image = new Image();
+  image.src = dataUrl;
+  state.assets[key] = image;
+  return image;
 }
 
 function resize() {
@@ -124,13 +145,13 @@ function renderScene() {
   const rect = canvas.getBoundingClientRect();
   const width = rect.width || 362;
   const height = rect.height || 280;
-  const background = getAssetImage('background');
+  const background = getAssetImage(state.assets.background);
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, THEME.backgroundA);
   gradient.addColorStop(1, THEME.backgroundB);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
-  if (background) {
+  if (background?.complete && background.naturalWidth > 0) {
     ctx.globalAlpha = 0.38;
     ctx.drawImage(background, 0, 0, width, height);
     ctx.globalAlpha = 1;
@@ -145,8 +166,8 @@ function renderScene() {
     ctx.stroke();
   }
 
-  const hero = getAssetImage('hero');
-  if (hero) {
+  const hero = getAssetImage(state.assets.hero);
+  if (hero?.complete && hero.naturalWidth > 0) {
     ctx.drawImage(hero, width * 0.18, height * 0.42, 88, 88);
   } else {
     ctx.fillStyle = THEME.hero;
@@ -159,8 +180,8 @@ function renderScene() {
     ctx.fill();
   }
 
-  const symbol = getAssetImage('symbol');
-  if (symbol) {
+  const symbol = getAssetImage(state.assets.symbol);
+  if (symbol?.complete && symbol.naturalWidth > 0) {
     ctx.drawImage(symbol, width * 0.63, height * 0.47, 78, 78);
   } else {
     ctx.fillStyle = state.meters.risk > 65 ? THEME.danger : THEME.symbol;
@@ -271,6 +292,7 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
   reset: restartStory,
 };
 
+resolveThemeAssets();
 renderCurrentNode();
 resize();
 setInterval(renderScene, 1000 / 20);

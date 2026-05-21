@@ -55,6 +55,80 @@ function extractJson(text) {
     return text;
 }
 
+/**
+ * Attempt to repair common LLM JSON mistakes:
+ *  - Strip JS-style single-line (//) and multi-line comments
+ *  - Replace single-quoted strings with double-quoted strings
+ *  - Remove trailing commas before } or ]
+ *  - Fix unquoted property names
+ *  - Remove control characters inside string values
+ */
+function repairJson(text) {
+    if (!text || typeof text !== 'string') return text;
+
+    // First try as-is — maybe it's already valid
+    try { JSON.parse(text); return text; } catch (_) { /* needs repair */ }
+
+    let repaired = text;
+
+    // 1. Strip single-line comments (// ...) but NOT inside strings
+    repaired = repaired.replace(/\/\/[^\n]*/g, '');
+
+    // 2. Strip multi-line comments (/* ... */)
+    repaired = repaired.replace(/\/\*[\s\S]*?\*\//g, '');
+
+    // 3. Replace single-quoted strings with double-quoted strings
+    //    Walk through character by character to handle nested quotes properly
+    try {
+        let result = '';
+        let inDouble = false;
+        let inSingle = false;
+        let escaped = false;
+        for (let i = 0; i < repaired.length; i++) {
+            const ch = repaired[i];
+            if (escaped) {
+                result += ch;
+                escaped = false;
+                continue;
+            }
+            if (ch === '\\') {
+                result += ch;
+                escaped = true;
+                continue;
+            }
+            if (ch === '"' && !inSingle) {
+                inDouble = !inDouble;
+                result += ch;
+            } else if (ch === "'" && !inDouble) {
+                inSingle = !inSingle;
+                result += '"'; // Replace single quote with double quote
+            } else {
+                // If inside a single-quoted string, escape any internal double quotes
+                if (inSingle && ch === '"') {
+                    result += '\\"';
+                } else {
+                    result += ch;
+                }
+            }
+        }
+        repaired = result;
+    } catch (_) { /* keep repaired as-is if quote replacement fails */ }
+
+    // 4. Remove trailing commas before ] or }
+    repaired = repaired.replace(/,\s*([\]}])/g, '$1');
+
+    // 5. Fix unquoted property names: key: -> "key":
+    //    Only outside of string values. This is a best-effort regex.
+    repaired = repaired.replace(/(?<=[\{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '"$1":');
+
+    // 6. Remove control characters (except \n \r \t) that break JSON parsers
+    repaired = repaired.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+
+    // Validate the repair worked
+    try { JSON.parse(repaired); return repaired; } catch (_) { /* return repaired anyway, caller will handle */ }
+    return repaired;
+}
+
 const router = express.Router();
 
 const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.6";
@@ -247,20 +321,30 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
         raw += res.choices[0].message.content || '';
         extracted = extractJson(raw);
 
+        // Try 1: Direct parse
         try {
             return JSON.parse(extracted);
-        } catch (error) {
-            parseError = error;
-            console.error('[callAI] JSON parse failed. Raw response length:', raw.length);
-            console.error('[callAI] Extracted JSON length:', extracted.length);
-            console.error('[callAI] Last 200 chars of extracted:', extracted.slice(-200));
-            if (attempt >= BUILDER_MAX_CONTINUATIONS) break;
-            console.warn(`[callAI] Requesting JSON continuation ${attempt + 1}/${BUILDER_MAX_CONTINUATIONS} after parse failure: ${error.message}`);
-            messages.push({ role: 'assistant', content: raw });
-            messages.push({
-                role: 'user',
-                content: buildBuilderJsonContinuationPrompt(extracted, error),
-            });
+        } catch (directError) {
+            // Try 2: Repair common LLM quirks (single quotes, trailing commas, comments, unquoted keys)
+            try {
+                const repaired = repairJson(extracted);
+                const parsed = JSON.parse(repaired);
+                console.log(`[callAI] JSON repair succeeded (original error: ${directError.message})`);
+                return parsed;
+            } catch (repairError) {
+                parseError = directError;
+                console.error('[callAI] JSON parse failed. Raw response length:', raw.length);
+                console.error('[callAI] Extracted JSON length:', extracted.length);
+                console.error('[callAI] Last 200 chars of extracted:', extracted.slice(-200));
+                console.error('[callAI] Repair also failed:', repairError.message);
+                if (attempt >= BUILDER_MAX_CONTINUATIONS) break;
+                console.warn(`[callAI] Requesting JSON continuation ${attempt + 1}/${BUILDER_MAX_CONTINUATIONS} after parse failure: ${directError.message}`);
+                messages.push({ role: 'assistant', content: raw });
+                messages.push({
+                    role: 'user',
+                    content: buildBuilderJsonContinuationPrompt(extracted, directError),
+                });
+            }
         }
     }
 
@@ -813,7 +897,12 @@ function cleanJsonContinuation(text) {
 
 function parseBuilderJsonText(text) {
     const cleaned = stripMarkdownFences(String(text || ''), 'json');
-    return JSON.parse(extractJson(cleaned));
+    const extracted = extractJson(cleaned);
+    try {
+        return JSON.parse(extracted);
+    } catch (e) {
+        return JSON.parse(repairJson(extracted));
+    }
 }
 
 function buildBuilderContinuationPrompt(partialHtml) {

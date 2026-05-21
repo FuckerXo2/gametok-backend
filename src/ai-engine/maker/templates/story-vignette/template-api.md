@@ -8,7 +8,7 @@ while preserving real branching state and visual feedback.
 
 - `index.html`: DOM story shell, canvas scene, HUD, and choice area.
 - `src/styles.css`: mobile-safe story and choice layout.
-- `src/main.ts`: story graph, flags, meters, choices, consequences, drawing,
+- `src/game.js`: story graph, flags, meters, choices, consequences, drawing,
   restart, and probe API.
 
 ## Required State

@@ -29,11 +29,30 @@ const state = {
   assets: {},
 };
 
+function resolveThemeAssets() {
+  const helper = window.DreamAssets;
+  const byRole = (role) => {
+    const asset = helper?.firstByRole?.(role);
+    if (asset?.key) return asset.key;
+    if (typeof asset === 'string') return asset;
+    const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
+    return pack.find((entry) => entry.role === role || entry.category === role)?.key || null;
+  };
+  state.assets.player = byRole('player');
+  state.assets.enemy = byRole('enemy');
+  state.assets.effect = byRole('effect') || byRole('projectile');
+  state.assets.background = byRole('background') || byRole('environment');
+}
+
 function getAssetImage(key) {
   if (!key) return null;
-  const img = window.DREAM_IMAGES?.[key];
-  if (img && img.complete && img.naturalWidth > 0) return img;
-  return null;
+  if (state.assets[key] instanceof Image) return state.assets[key];
+  const dataUrl = window.DreamAssets?.getImage?.(key) || window.DREAM_ASSETS?.[key];
+  if (!dataUrl) return null;
+  const image = new Image();
+  image.src = dataUrl;
+  state.assets[key] = image;
+  return image;
 }
 
 function resize() {
@@ -117,13 +136,13 @@ function resolveCollisions() {
 }
 
 function drawWorld() {
-  const bg = getAssetImage('background');
+  const bg = getAssetImage(state.assets.background);
   const gradient = ctx.createLinearGradient(0, 0, 0, state.height);
   gradient.addColorStop(0, '#111827');
   gradient.addColorStop(1, '#172554');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, state.width, state.height);
-  if (bg) {
+  if (bg?.complete && bg.naturalWidth > 0) {
     ctx.globalAlpha = 0.24;
     ctx.drawImage(bg, 0, 0, state.width, state.height);
     ctx.globalAlpha = 1;
@@ -135,16 +154,13 @@ function drawWorld() {
     ctx.lineTo(state.width, y);
     ctx.stroke();
   }
-  const enemyImg = getAssetImage('enemy');
+  const enemyImg = getAssetImage(state.assets.enemy);
   for (const enemy of state.enemies) {
-    if (enemyImg) {
-      ctx.drawImage(enemyImg, enemy.x - 24, enemy.y - 24, 48, 48);
-    } else {
-      ctx.fillStyle = '#fb7185';
-      ctx.beginPath();
-      ctx.arc(enemy.x, enemy.y, enemy.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.fillStyle = '#fb7185';
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, enemy.r, 0, Math.PI * 2);
+    ctx.fill();
+    if (enemyImg?.complete && enemyImg.naturalWidth > 0) ctx.drawImage(enemyImg, enemy.x - 24, enemy.y - 24, 48, 48);
   }
   ctx.fillStyle = '#fef08a';
   for (const projectile of state.projectiles) {
@@ -152,17 +168,12 @@ function drawWorld() {
     ctx.arc(projectile.x, projectile.y, projectile.r, 0, Math.PI * 2);
     ctx.fill();
   }
-  const playerImg = getAssetImage('player');
-  if (playerImg) {
-    if (state.player.invuln > 0) ctx.globalAlpha = 0.5;
-    ctx.drawImage(playerImg, state.player.x - 28, state.player.y - 28, 56, 56);
-    ctx.globalAlpha = 1.0;
-  } else {
-    ctx.fillStyle = state.player.invuln > 0 ? '#93c5fd' : '#38bdf8';
-    ctx.beginPath();
-    ctx.arc(state.player.x, state.player.y, state.player.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  const playerImg = getAssetImage(state.assets.player);
+  ctx.fillStyle = state.player.invuln > 0 ? '#93c5fd' : '#38bdf8';
+  ctx.beginPath();
+  ctx.arc(state.player.x, state.player.y, state.player.r, 0, Math.PI * 2);
+  ctx.fill();
+  if (playerImg?.complete && playerImg.naturalWidth > 0) ctx.drawImage(playerImg, state.player.x - 28, state.player.y - 28, 56, 56);
   for (const particle of state.particles) {
     ctx.fillStyle = `rgba(251, 191, 36, ${particle.life * 4})`;
     ctx.beginPath();
@@ -286,7 +297,7 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
   reset: resetShooter,
 };
 
-
+resolveThemeAssets();
 resize();
 resetShooter();
 requestAnimationFrame(loop);
