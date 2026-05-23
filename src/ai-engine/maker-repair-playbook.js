@@ -1,12 +1,14 @@
 const REPAIR_RECIPES = [
     {
-        match: /Cannot create property 'onload' on string|onload.*data:image|data:image\/png;base64/i,
+        match: /Cannot create property 'onload' on string|onload.*data:image|drawImage.*provided value is not of type|data:image\/png;base64/i,
         title: 'Data URL was treated like an Image element',
         steps: [
             'Find the asset loading code that calls DreamAssets.getImage() or reads window.DREAM_ASSETS.',
             'Remember those APIs return data URL strings, not HTMLImageElement objects.',
             'Create a real image with const img = new Image(); assign img.onload/img.onerror on that object; then set img.src = dataUrl.',
+            'For ctx.drawImage, pass the loaded Image object, never the data URL string or manifest object.',
             'Prefer DreamAssets.loadImageElement(keyOrRole) for canvas drawImage paths and cache the resolved image before rendering.',
+            'Keep the original DREAM_ASSET_PACK key/role reference in source so the asset contract still sees the required slot.',
         ],
     },
     {
@@ -37,6 +39,16 @@ const REPAIR_RECIPES = [
             'Prefer const canvas = document.getElementById("game") as HTMLCanvasElement | null; then throw or return if missing.',
             'Only call canvas.getContext("2d") after TypeScript can prove canvas is non-null and assigned.',
             'Do not use non-existent helper methods like getCanvasContext().',
+        ],
+    },
+    {
+        match: /TS2454|Variable '[^']+' is used before being assigned/i,
+        title: 'State variable is used before assignment',
+        steps: [
+            'Find the variable named by TypeScript and initialize it at declaration time.',
+            'If it is game state, create the initial state before registering callbacks, starting loops, or exposing probes.',
+            'Avoid lazy assignment hidden inside init() when render/update/handlers can run first.',
+            'Keep the same live state object connected to update, render, input, and probe methods.',
         ],
     },
     {

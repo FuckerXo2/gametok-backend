@@ -360,7 +360,7 @@ ASSET USAGE CONTRACT:
 - If audio exists in DREAM_AUDIO_MANIFEST, wire at least: ui_tap, impact, collect/reward, primary_action, movement_burst if movement exists, success/failure when those states exist.
 
 CRITICAL INSTRUCTIONS - NO LAZY VISUAL FALLBACKS:
-1. ⚠️ YOU MUST USE PHASER 3 OR THREE.JS - Canvas 2D ctx.fillRect/ctx.arc creates ugly shapes!
+1. Use the selected engine/template correctly. If the selected template is Canvas 2D, render generated PNG assets with loaded HTMLImageElement objects and ctx.drawImage. If it is Phaser or Three.js, use native textures/sprites/materials.
 2. Load ALL image assets from window.DREAM_ASSETS by key. Do not invent data URIs.
 3. Use the player asset for the main character/hero
 4. Use enemy assets for obstacles/opponents/monsters
@@ -369,8 +369,8 @@ CRITICAL INSTRUCTIONS - NO LAZY VISUAL FALLBACKS:
 7. Render HUD, health bars, buttons, labels, and controls in code. Do not use generated images for readable UI.
 8. Use prop assets for obstacles, decorations, interactive objects
 9. All sprites have transparent backgrounds (except backgrounds)
-10. ⚠️ ABSOLUTELY NO SVG CIRCLES OR PROCEDURAL SHAPES - Use the AI-generated PNG assets!
-11. ⚠️ If you use Canvas 2D instead of Phaser, the game will look terrible with ugly circles!
+10. ⚠️ ABSOLUTELY NO SVG CIRCLES OR PROCEDURAL PLACEHOLDER SHAPES for main gameplay entities when matching AI-generated PNG assets exist.
+11. For Canvas 2D, never pass a data URL string directly to ctx.drawImage. Convert it with new Image() or DreamAssets.loadImageElement(keyOrRole), cache it, then draw the HTMLImageElement.
 12. Do NOT fetch external images — these embedded assets are ALL you need for visuals
 13. Use window.DREAM_ASSET_PACK as the source of truth for available assets and roles.
 14. Use window.DREAM_ANIMATIONS and the injected DreamAssets helper to create Phaser frame animations/tweens for idle, movement, hit, defeat, dash, and action feedback. Example: DreamAssets.createAnimations(this); playerSprite.play("player_idle", true); DreamAssets.applyTween(this, playerSprite, "player_idle").
