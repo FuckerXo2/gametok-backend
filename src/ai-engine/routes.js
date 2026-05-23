@@ -28,6 +28,7 @@ import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
+import { nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -174,11 +175,13 @@ const JOB_TITLES = {
     labsPending: '🧪 Labs: Cooking...',
 };
 
-const nvidiaClient = new OpenAI({
-    baseURL: 'https://integrate.api.nvidia.com/v1',
-    apiKey: process.env.NVIDIA_API_KEY || 'missing-key',
-    timeout: Number(process.env.NVIDIA_API_TIMEOUT_MS || 900000),
-});
+function createNvidiaTextClient(apiKey = nextNvidiaTextApiKey()) {
+    return new OpenAI({
+        baseURL: 'https://integrate.api.nvidia.com/v1',
+        apiKey: apiKey || 'missing-key',
+        timeout: Number(process.env.NVIDIA_API_TIMEOUT_MS || 900000),
+    });
+}
 
 // OpenRouter is only used by the experimental Labs route.
 const openRouterClient = new OpenAI({
@@ -310,7 +313,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     let parseError = null;
 
     for (let attempt = 0; attempt <= BUILDER_MAX_CONTINUATIONS; attempt += 1) {
-        const res = await withNvidiaRetries((currentModel) => withAbortableTimeout((signal) => nvidiaClient.chat.completions.create({
+        const res = await withNvidiaRetries((currentModel, client) => withAbortableTimeout((signal) => client.chat.completions.create({
             model: currentModel || DREAM_MODELS.spec,
             messages,
             max_tokens: maxTokens,
@@ -583,7 +586,7 @@ async function classifyPublishedGame({ title = '', prompt = '', description = ''
             setTimeout(() => reject(new Error('Classification timeout after 30s')), 30000);
         });
 
-        const classificationPromise = nvidiaClient.chat.completions.create({
+        const classificationPromise = createNvidiaTextClient().chat.completions.create({
             model,
             messages: [
                 {
@@ -823,7 +826,9 @@ async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, b
                     const globalAttempt = modelIndex * retriesPerModel + attempt;
                     console.log(`🔁 [${logLabel}] Attempt ${attempt}/${retriesPerModel} on ${currentModel || 'default model'} (model ${modelIndex + 1}/${modelsToTry.length})...`);
                 }
-                return await task(currentModel);
+                const apiKey = nextNvidiaTextApiKey();
+                const client = createNvidiaTextClient(apiKey);
+                return await task(currentModel, client, apiKey);
             } catch (error) {
                 lastError = error;
                 const isLastModel = modelIndex === modelsToTry.length - 1;
@@ -971,14 +976,14 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     const logLabel = formatJobLogLabel(label, jobId);
     let lastPartialText = '';
     let lastPartialStopReason = null;
-    const text = await withNvidiaRetries(async (modelParam) => withAbortableTimeout(async (signal) => {
+    const text = await withNvidiaRetries(async (modelParam, client) => withAbortableTimeout(async (signal) => {
         const modelToUse = currentModel || modelParam || DREAM_MODELS.premiumBuilder;
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
         console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse})...`);
         let output = "";
         try {
-            const stream = await nvidiaClient.chat.completions.create({
+            const stream = await client.chat.completions.create({
                 ...getNvidiaChatOptions(modelToUse, BUILDER_MAX_TOKENS),
                 messages: [{ role: 'user', content: userPrompt }],
             }, { signal });
@@ -1620,8 +1625,8 @@ function buildFirstFrameRepairInstruction(specSheet) {
 }
 
 async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature, retryLabel, fallbackModels = [] }) {
-    return withNvidiaRetries(async (currentModel) => {
-        const stream = await nvidiaClient.chat.completions.create({
+    return withNvidiaRetries(async (currentModel, client) => {
+        const stream = await client.chat.completions.create({
             ...getNvidiaChatOptions(currentModel || model, maxTokens),
             messages: [
                 { role: "system", content: systemPrompt },
@@ -4846,7 +4851,7 @@ router.post('/narrative/chat', async (req, res) => {
             'The brief should be a builder-ready prompt for an interactive narrative game with setting, player role, mechanics, choices, tone, and ending direction.',
         ].join('\n');
 
-        const response = await withNvidiaRetries(() => nvidiaClient.chat.completions.create({
+        const response = await withNvidiaRetries((_, client) => client.chat.completions.create({
             model: DREAM_MODELS.narrativeChat,
             messages: [
                 { role: 'system', content: systemPrompt },
@@ -4923,10 +4928,7 @@ router.post('/generate-spec', async (req, res) => {
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
-        const nvidiaClient = new OpenAI({
-            apiKey: process.env.NVIDIA_API_KEY,
-            baseURL: 'https://integrate.api.nvidia.com/v1',
-        });
+        const nvidiaClient = createNvidiaTextClient();
 
         const fallbackSpec = buildFallbackGameSpec(prompt);
         let timeoutId;
@@ -5025,10 +5027,7 @@ router.post('/refine-spec', async (req, res) => {
             return res.status(400).json({ error: "userMessage is required" });
         }
 
-        const nvidiaClient = new OpenAI({
-            apiKey: process.env.NVIDIA_API_KEY,
-            baseURL: 'https://integrate.api.nvidia.com/v1',
-        });
+        const nvidiaClient = createNvidiaTextClient();
 
         // Build conversation messages
         const messages = [

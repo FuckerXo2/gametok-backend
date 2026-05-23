@@ -19,6 +19,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pkg from 'pg';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { maskNvidiaKey, nextNvidiaImageApiKey } from './ai-engine/nvidia-key-pool.js';
 
 const { Pool } = pkg;
 
@@ -39,7 +40,6 @@ const COVER_ROOT = path.join(__dirname, '../public/uploads/covers');
 fs.mkdirSync(COVER_ROOT, { recursive: true });
 
 const NVIDIA_FLUX_URL = 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell';
-const NVIDIA_KEY = process.env.NVIDIA_API_KEY;
 
 // --- Prompt engineering -----------------------------------------------------
 
@@ -273,7 +273,8 @@ export async function buildCoverPrompt({ title, prompt, classification }) {
  * Portrait dimensions 832x1216 fit our portrait card aspect (≈11:14).
  */
 async function callFluxSchnell(prompt, { width = 832, height = 1216, seed = 0, steps = 4 } = {}) {
-    if (!NVIDIA_KEY) {
+    const nvidiaKey = nextNvidiaImageApiKey();
+    if (!nvidiaKey) {
         throw new Error('NVIDIA_API_KEY is not configured');
     }
 
@@ -291,7 +292,7 @@ async function callFluxSchnell(prompt, { width = 832, height = 1216, seed = 0, s
     const res = await fetch(NVIDIA_FLUX_URL, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${NVIDIA_KEY}`,
+            'Authorization': `Bearer ${nvidiaKey}`,
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         },
@@ -300,7 +301,7 @@ async function callFluxSchnell(prompt, { width = 832, height = 1216, seed = 0, s
 
     if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(`FLUX ${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
+        throw new Error(`FLUX ${res.status} ${res.statusText} (${maskNvidiaKey(nvidiaKey)}): ${text.slice(0, 200)}`);
     }
 
     const json = await res.json();

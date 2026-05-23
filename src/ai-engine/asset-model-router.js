@@ -1,3 +1,5 @@
+import { getNvidiaImageKeys, maskNvidiaKey, nextNvidiaImageApiKey } from './nvidia-key-pool.js';
+
 const DEFAULT_NVIDIA_FLUX_URL = 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell';
 const NIM_FLUX_ALLOWED_DIMENSIONS = [768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344];
 
@@ -38,7 +40,7 @@ export function resolveAssetModelConfig(env = process.env) {
         textImage: {
             provider: 'nvidia-nim',
             model: 'black-forest-labs/flux.1-schnell',
-            nvidiaApiKey: env.NVIDIA_API_KEY || "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",
+            nvidiaApiKeys: getNvidiaImageKeys(env),
             nvidiaUrl: env.NVIDIA_FLUX_URL || DEFAULT_NVIDIA_FLUX_URL,
             steps: Number(env.NVIDIA_FLUX_STEPS || 4),
         },
@@ -59,6 +61,7 @@ export class AssetModelRouter {
             textImage: {
                 provider: this.config.textImage.provider,
                 model: this.config.textImage.model,
+                keyCount: this.config.textImage.nvidiaApiKeys?.length || 0,
             },
             imageEdit: {
                 provider: this.config.imageEdit.provider,
@@ -73,10 +76,14 @@ export class AssetModelRouter {
 
     async generateImageWithNvidiaFlux(prompt, dimensions = 768) {
         const { width, height } = normalizeNvidiaFluxDimensions(dimensions);
+        const apiKey = nextNvidiaImageApiKey();
+        if (!apiKey) {
+            throw new Error('NVIDIA image API key is not configured');
+        }
         const response = await fetch(this.config.textImage.nvidiaUrl, {
             method: 'POST',
             headers: {
-                Authorization: `Bearer ${this.config.textImage.nvidiaApiKey}`,
+                Authorization: `Bearer ${apiKey}`,
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
             },
@@ -94,7 +101,7 @@ export class AssetModelRouter {
 
         if (!response.ok) {
             const text = await response.text();
-            throw new Error(`NVIDIA FLUX generation failed: ${response.status} ${text.slice(0, 200)}`);
+            throw new Error(`NVIDIA FLUX generation failed (${maskNvidiaKey(apiKey)}): ${response.status} ${text.slice(0, 200)}`);
         }
 
         const json = await response.json();
