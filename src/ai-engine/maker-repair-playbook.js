@@ -1,5 +1,35 @@
 const REPAIR_RECIPES = [
     {
+        match: /TS2687|identical modifiers|DREAM_ASSETS|DREAM_ASSET_PACK|DreamAssets/i,
+        title: 'Duplicate DreamAssets TypeScript declarations',
+        steps: [
+            'Remove duplicate declare global, declare const, and declare interface Window blocks from gameplay files.',
+            'Use the scaffold-owned global declarations in src/types/global.d.ts instead of redeclaring runtime globals.',
+            'Access runtime asset data through window.DREAM_ASSETS, window.DREAM_ASSET_PACK, and window.DreamAssets.',
+            'Do not change gameplay behavior while fixing declaration conflicts.',
+        ],
+    },
+    {
+        match: /TS2322|not assignable|union|Type .* is not assignable/i,
+        title: 'Over-narrow TypeScript union',
+        steps: [
+            'Find the interface/type alias that excludes a value actually used by live entities.',
+            'Widen the union to include every runtime entity kind, or derive the type from a const array.',
+            'Avoid casting away errors when the entity shape should be corrected instead.',
+            'Keep spawn/update/render code and type declarations aligned.',
+        ],
+    },
+    {
+        match: /TS2454|used before being assigned|canvas/i,
+        title: 'Canvas variable is used before assignment',
+        steps: [
+            'Initialize the canvas variable at declaration time or guard every use after lookup.',
+            'Prefer const canvas = document.getElementById("game") as HTMLCanvasElement | null; then throw or return if missing.',
+            'Only call canvas.getContext("2d") after TypeScript can prove canvas is non-null and assigned.',
+            'Do not use non-existent helper methods like getCanvasContext().',
+        ],
+    },
+    {
         match: /trajectory|arc|setAim/i,
         title: 'Artillery trajectory preview does not respond',
         steps: [

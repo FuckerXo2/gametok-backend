@@ -124,6 +124,8 @@ export function buildMakerAgentInspectionPrompt({
         '- Check builderMaps.usedAssetMap against source code. If the map claims an asset is used but the code does not use it, either wire it up or remove the false claim by writing src/builder-maps.json.',
         '- Check builderMaps.gameSystemMap against source code. Missing input/update/collision/win-loss/reset/probe systems should be repaired in code.',
         '- Check that generated asset slots are consumed through DreamAssets when available.',
+        '- Do not add `declare global`, `declare const`, or `declare interface Window` declarations for DREAM_ASSETS, DREAM_ASSET_PACK, DREAM_ANIMATIONS, DREAM_TILESETS, DREAM_AUDIO_MANIFEST, or DreamAssets in gameplay files. The scaffold already owns those declarations.',
+        '- If the rebuild evidence shows TS2687 identical modifier errors for DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK, remove duplicate runtime global declarations and use window.DreamAssets / window.DREAM_ASSETS / window.DREAM_ASSET_PACK.',
         '- If assetQualitySummary has fatalIssues, do not pretend the affected image is safe. Use a code fallback for that role or avoid the broken key.',
         '- If lastRunEvidence reports failed probes or sandbox crashes, repair the direct failing behavior. Do not make cosmetic changes before gameplay proof.',
         '- You may leave files unchanged only when the current source already satisfies contracts and the latest run evidence is clean or absent.',

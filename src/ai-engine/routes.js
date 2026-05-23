@@ -2439,7 +2439,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     for (const file of split.files) {
         const destination = path.join(projectRoot, file.path);
         await fs.promises.mkdir(path.dirname(destination), { recursive: true });
-        await fs.promises.writeFile(destination, file.content, 'utf8');
+        await fs.promises.writeFile(destination, stripDuplicateDreamRuntimeDeclarations(file.content, file.path), 'utf8');
     }
 
     await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
@@ -2640,6 +2640,8 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
             '- You MUST wire these generated textures into the template\'s renderer. Do NOT invent procedural placeholder graphics if an asset exists for it.'
         ]),
         '- Use the asset keys from DREAM_ASSET_PACK / DreamAssets. Do not paste data URLs into source files.',
+        '- Do not declare DREAM_ASSETS, DREAM_ASSET_PACK, DREAM_ANIMATIONS, DREAM_TILESETS, DREAM_AUDIO_MANIFEST, or DreamAssets in src/main.ts. The scaffold already provides runtime globals and TypeScript declarations.',
+        '- If TypeScript needs access to runtime globals, use window.DREAM_ASSETS, window.DREAM_ASSET_PACK, window.DreamAssets, or `(window as any)` instead of adding `declare global` blocks.',
         '- Respect the asset quality summary. Do not wire assets with fatal quality issues into live gameplay.',
         '- Prefer player/enemy/item/prop/background assets for actual gameplay visuals.',
         '- If frame_sequence animations exist, connect them through DREAM_ANIMATIONS, DreamAssets.createAnimations(), DreamAssets.animationsFor(), DreamAssets.applyTween(), or manual frame cycling.',
@@ -2698,12 +2700,13 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
             throw new Error(`Duplicate project file returned by builder: ${cleanPath}`);
         }
         seen.add(cleanPath);
+        const content = stripDuplicateDreamRuntimeDeclarations(file.content, cleanPath);
         await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
-        await fs.promises.writeFile(absolutePath, file.content, 'utf8');
+        await fs.promises.writeFile(absolutePath, content, 'utf8');
         files.push({
             path: cleanPath,
             kind: cleanPath.endsWith('.css') ? 'css' : cleanPath.endsWith('.js') ? 'js' : cleanPath.endsWith('.json') ? 'json' : 'html',
-            bytes: Buffer.byteLength(file.content, 'utf8'),
+            bytes: Buffer.byteLength(content, 'utf8'),
         });
     }
     if (!seen.has('index.html')) {
@@ -2805,6 +2808,87 @@ function safeMakerProjectPath(projectRoot, relativePath) {
         throw new Error(`Project file path escapes workspace: ${relativePath}`);
     }
     return { cleanPath, absolutePath };
+}
+
+function stripDuplicateDreamRuntimeDeclarations(content = '', cleanPath = '') {
+    const source = String(content || '');
+    const normalizedPath = String(cleanPath || '').replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/i.test(normalizedPath) || /(^|\/)types\/global\.d\.ts$/i.test(normalizedPath)) {
+        return source;
+    }
+    if (!/\b(DREAM_ASSETS|DREAM_ASSET_PACK|DREAM_ANIMATIONS|DREAM_TILESETS|DREAM_AUDIO_MANIFEST|DreamAssets)\b/.test(source)) {
+        return source;
+    }
+
+    const removeBalancedBlocks = (input, markerRegex) => {
+        let cursor = 0;
+        let output = '';
+        const regex = new RegExp(markerRegex.source, `${markerRegex.flags.includes('i') ? 'i' : ''}g`);
+        let match;
+        while ((match = regex.exec(input)) !== null) {
+            const start = match.index;
+            const open = input.indexOf('{', regex.lastIndex);
+            if (open === -1) break;
+            let depth = 0;
+            let end = -1;
+            for (let i = open; i < input.length; i += 1) {
+                if (input[i] === '{') depth += 1;
+                if (input[i] === '}') {
+                    depth -= 1;
+                    if (depth === 0) {
+                        end = i + 1;
+                        break;
+                    }
+                }
+            }
+            if (end === -1) break;
+            let blockEnd = end;
+            const suffix = input.slice(blockEnd).match(/^\s*export\s*\{\s*\}\s*;?/);
+            if (suffix) blockEnd += suffix[0].length;
+            const block = input.slice(start, blockEnd);
+            output += input.slice(cursor, start);
+            output += /\b(DREAM_ASSETS|DREAM_ASSET_PACK|DREAM_ANIMATIONS|DREAM_TILESETS|DREAM_AUDIO_MANIFEST|DreamAssets)\b/.test(block)
+                ? '\n'
+                : block;
+            cursor = blockEnd;
+            regex.lastIndex = blockEnd;
+        }
+        return output + input.slice(cursor);
+    };
+
+    let output = removeBalancedBlocks(source, /declare\s+global\s*/i);
+    output = output.replace(/^\s*declare\s+(?:const|let|var)\s+(?:DREAM_ASSETS|DREAM_ASSET_PACK|DREAM_ANIMATIONS|DREAM_TILESETS|DREAM_AUDIO_MANIFEST|DreamAssets)\b[^\n;]*(?:;|\n)/gm, '');
+    output = removeBalancedBlocks(output, /(?:declare\s+)?interface\s+Window\s*/i);
+    return output.replace(/\n{4,}/g, '\n\n\n');
+}
+
+async function normalizeMakerProjectRuntimeDeclarations(projectRoot) {
+    const srcRoot = path.join(projectRoot, 'src');
+    const visit = async (directory) => {
+        let entries = [];
+        try {
+            entries = await fs.promises.readdir(directory, { withFileTypes: true });
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            const absolute = path.join(directory, entry.name);
+            if (entry.isDirectory()) {
+                await visit(absolute);
+                continue;
+            }
+            if (!entry.isFile()) continue;
+            const relative = path.relative(projectRoot, absolute).replace(/\\/g, '/');
+            if (!/\.(ts|tsx)$/i.test(relative)) continue;
+            const before = await fs.promises.readFile(absolute, 'utf8').catch(() => null);
+            if (before == null) continue;
+            const after = stripDuplicateDreamRuntimeDeclarations(before, relative);
+            if (after !== before) {
+                await fs.promises.writeFile(absolute, after, 'utf8');
+            }
+        }
+    };
+    await visit(srcRoot);
 }
 
 async function readMakerProjectFiles(projectRoot) {
@@ -3156,6 +3240,8 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Do not navigate to external websites, call window.location, submit forms, or open popups.',
         '- Do not add remote dependencies unless the existing project already uses that dependency.',
         '- For canvas games, use canvas.getContext("2d"). HTMLCanvasElement does not have getCanvasContext().',
+        '- Do not add `declare global`, `declare const`, or `declare interface Window` declarations for DREAM_ASSETS, DREAM_ASSET_PACK, DREAM_ANIMATIONS, DREAM_TILESETS, DREAM_AUDIO_MANIFEST, or DreamAssets inside src/main.ts. The scaffold owns those declarations.',
+        '- If TypeScript reports TS2687 for DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK, remove the duplicate declarations from gameplay files and use the existing window globals.',
         '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
         '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
         '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
@@ -3309,11 +3395,12 @@ async function applyMakerFileEdits(projectRoot, edits) {
     const applied = [];
     for (const edit of edits) {
         const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, edit.path);
+        const content = stripDuplicateDreamRuntimeDeclarations(edit.content, cleanPath);
         await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
-        await fs.promises.writeFile(absolutePath, edit.content, 'utf8');
+        await fs.promises.writeFile(absolutePath, content, 'utf8');
         applied.push({
             path: cleanPath,
-            bytes: Buffer.byteLength(edit.content, 'utf8'),
+            bytes: Buffer.byteLength(content, 'utf8'),
         });
     }
     return applied;
@@ -3492,6 +3579,7 @@ async function runMakerAgentInspectionTurns({
 
 async function assembleMakerProjectHtml(projectRoot) {
     try {
+        await normalizeMakerProjectRuntimeDeclarations(projectRoot);
         const backendRoot = path.resolve(__dirname, '..', '..');
         const backendNodeModules = path.join(backendRoot, 'node_modules');
         const projectNodeModules = path.join(projectRoot, 'node_modules');
@@ -3524,6 +3612,7 @@ async function assembleMakerProjectHtml(projectRoot) {
 
 async function rebuildMakerProjectDist(projectRoot) {
     const { execSync } = await import('child_process');
+    await normalizeMakerProjectRuntimeDeclarations(projectRoot);
     const projectNodeModules = path.join(projectRoot, 'node_modules');
     const backendRoot = path.resolve(__dirname, '..', '..');
     const backendNodeModules = path.join(backendRoot, 'node_modules');
