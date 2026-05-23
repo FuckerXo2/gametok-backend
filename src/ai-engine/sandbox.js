@@ -683,6 +683,17 @@ export async function verifyGame(htmlString, options = {}) {
                     .map((asset) => asset.role || asset.category)
                     .filter(Boolean)))
                 : [];
+            const dreamAssetPackEntries = Array.isArray(window.DREAM_ASSET_PACK)
+                ? window.DREAM_ASSET_PACK
+                    .filter((asset) => asset && asset.type === 'image')
+                    .map((asset) => ({
+                        key: asset.key || asset.id || null,
+                        id: asset.id || asset.key || null,
+                        role: asset.role || null,
+                        category: asset.category || null,
+                    }))
+                    .filter((asset) => asset.key || asset.id || asset.role || asset.category)
+                : [];
             const canvasPixelChecks = visibleCanvases.slice(0, 3).map((canvas, index) => {
                 const rect = canvas.getBoundingClientRect();
                 const sampleWidth = Math.max(1, Math.min(32, Math.floor(rect.width)));
@@ -734,6 +745,7 @@ export async function verifyGame(htmlString, options = {}) {
                 dreamTilesetCount,
                 dreamTilesetKeys,
                 dreamAssetPackRoles,
+                dreamAssetPackEntries,
                 canvasPixelChecks,
                 bodyText,
             };
@@ -763,14 +775,50 @@ export async function verifyGame(htmlString, options = {}) {
             && Array.isArray(assetContractInspection.missingRoleReferences)
             && assetContractInspection.missingRoleReferences.length > 0
         ) {
-            const message = `Asset contract violation: required asset slots are not referenced in source: ${assetContractInspection.missingRoleReferences.join(', ')}. Required generated assets must be connected through DreamAssets or DREAM_ASSET_PACK.`;
-            renderState.failedContractChecks.push({
-                id: 'asset_required_slots_unreferenced',
-                templateId: assetContractInspection.templateId,
-                missingSlots: assetContractInspection.missingRoleReferences,
-                message,
+            const renderedRoles = renderState.dreamAssetUsage?.renderedRoles || {};
+            const usedRoles = renderState.dreamAssetUsage?.usedRoles || {};
+            const renderedKeys = renderState.dreamAssetUsage?.renderedKeys || {};
+            const usedKeys = renderState.dreamAssetUsage?.usedKeys || {};
+            const slots = Array.isArray(options?.assetContract?.slots) ? options.assetContract.slots : [];
+            const packEntries = Array.isArray(renderState.dreamAssetPackEntries) ? renderState.dreamAssetPackEntries : [];
+            const hasRuntimeEvidenceFor = (slot) => {
+                const roleValues = [slot.role, slot.category, slot.id].filter(Boolean);
+                const directRoleOrKeyHit = roleValues.some((value) =>
+                    Number(renderedRoles[value] || 0) > 0
+                    || Number(usedRoles[value] || 0) > 0
+                    || Number(renderedKeys[value] || 0) > 0
+                    || Number(usedKeys[value] || 0) > 0
+                );
+                if (directRoleOrKeyHit) return true;
+
+                return packEntries.some((asset) => {
+                    const assetKeys = [asset.key, asset.id].filter(Boolean);
+                    const assetRoles = [asset.role, asset.category].filter(Boolean);
+                    const assetWasUsed = assetKeys.some((key) =>
+                        Number(renderedKeys[key] || 0) > 0
+                        || Number(usedKeys[key] || 0) > 0
+                    );
+                    const assetMatchesSlot = assetRoles.some((role) => roleValues.includes(role))
+                        || assetKeys.some((key) => roleValues.includes(key));
+                    return assetWasUsed && assetMatchesSlot;
+                });
+            };
+            const unresolvedMissingSlots = assetContractInspection.missingRoleReferences.filter((slotId) => {
+                const slot = slots.find((entry) => entry && entry.id === slotId) || {};
+                return !hasRuntimeEvidenceFor(slot);
             });
-            crashes.push(message);
+            assetContractInspection.missingRoleReferences = unresolvedMissingSlots;
+            renderState.assetContractInspection.missingRoleReferences = unresolvedMissingSlots;
+            if (unresolvedMissingSlots.length > 0) {
+                const message = `Asset contract violation: required asset slots are not referenced in source: ${unresolvedMissingSlots.join(', ')}. Required generated assets must be connected through DreamAssets or DREAM_ASSET_PACK.`;
+                renderState.failedContractChecks.push({
+                    id: 'asset_required_slots_unreferenced',
+                    templateId: assetContractInspection.templateId,
+                    missingSlots: unresolvedMissingSlots,
+                    message,
+                });
+                crashes.push(message);
+            }
         }
 
         if (renderState.canvasCount === 0) {

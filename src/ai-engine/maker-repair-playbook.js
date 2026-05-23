@@ -52,6 +52,26 @@ const REPAIR_RECIPES = [
         ],
     },
     {
+        match: /TS2367|no overlap|comparison appears to be unintentional/i,
+        title: 'Impossible comparison from over-narrow literal types',
+        steps: [
+            'Find the compared values and their declared union/string literal types.',
+            'Widen the entity kind/type union to include all real runtime values before comparing.',
+            'If the comparison is stale, replace it with the correct normalized kind value used by spawn/render logic.',
+            'Do not silence the error with casts unless the runtime data genuinely supports the comparison.',
+        ],
+    },
+    {
+        match: /TS1107|Jump target cannot cross function boundary/i,
+        title: 'Invalid break or continue across function boundary',
+        steps: [
+            'Find the reported break/continue/return in a nested callback or helper function.',
+            'Replace it with return from the callback, a boolean flag, or a normal for/of loop in the same function scope.',
+            'Do not use break or continue inside forEach/map/filter callbacks to control an outer loop.',
+            'Keep the gameplay logic equivalent after restructuring the loop.',
+        ],
+    },
+    {
         match: /TS2454|used before being assigned|canvas/i,
         title: 'Canvas variable is used before assignment',
         steps: [

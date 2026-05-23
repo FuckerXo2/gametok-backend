@@ -14,16 +14,21 @@ export class Preloader extends Phaser.Scene {
     // Load all assets from asset pack
     this.load.pack('assetPack', 'assets/asset-pack.json');
     
-    // Load dynamic Dream Assets if available
+    // Load dynamic Dream Assets if available. The runtime manifest may provide
+    // data URLs through DREAM_ASSETS instead of public file URLs.
+    const loadedDreamKeys = new Set(window.DreamAssets?.preloadPhaser?.(this) || []);
+
     const pack = (window as any).DREAM_ASSET_PACK;
     if (Array.isArray(pack)) {
       pack.forEach(asset => {
-        if (!asset.key || !asset.url) return;
+        if (!asset.key) return;
+        const source = asset.url || (window as any).DREAM_ASSETS?.[asset.key];
+        if (!source) return;
         const isAudio = asset.role === 'sfx' || asset.role === 'music' || asset.category === 'audio';
         if (isAudio) {
-          this.load.audio(asset.key, asset.url);
-        } else {
-          this.load.image(asset.key, asset.url);
+          this.load.audio(asset.key, source);
+        } else if (!loadedDreamKeys.has(asset.key) && !this.textures.exists(asset.key)) {
+          this.load.image(asset.key, source);
         }
       });
     }
