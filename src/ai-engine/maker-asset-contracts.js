@@ -401,6 +401,70 @@ export function buildMakerAssetContract(templateContract = null, qualityIntent =
             ],
         };
     }
+    if (templateId === 'canvas-arcade') {
+        return {
+            version: 1,
+            templateId,
+            sourceOfTruth: 'template asset slots consumed by DreamAssets at runtime',
+            hardRules: [
+                'HUD, score, combo labels, timers, announcer text, and touch prompts are code-rendered only.',
+                'Core arcade entities, collisions, swipe/drag/tap detection, score, lives, and progression are code-defined.',
+                'Generated images replace the visible gameplay objects, threats, effects, props, and background.',
+                'If the game has no visible player avatar, do not invent a player slot; require the primary interactive object instead.',
+            ],
+            slots: [
+                {
+                    id: 'arcade_primary_object',
+                    required: true,
+                    assetType: 'sprite',
+                    role: 'item',
+                    category: 'item',
+                    size: 128,
+                    transparent: true,
+                    description: `Primary visible arcade object the player interacts with, such as a fruit, target, collectible, tile, or tappable object. Isolated single subject, readable on mobile, centered on transparent background, no text, no UI, no scenery. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'main arcade object renderer via DreamAssets role item',
+                    fallback: 'code-rendered arcade object',
+                },
+                {
+                    id: 'arcade_primary_threat',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'enemy',
+                    category: 'enemy',
+                    size: 128,
+                    transparent: true,
+                    description: `Primary arcade hazard, bomb, obstacle, opponent, or failure object. Isolated single subject, transparent background, no text, no UI, no scenery. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'threat renderer via DreamAssets role enemy',
+                    fallback: 'code-rendered hazard',
+                },
+                {
+                    id: 'arcade_action_effect',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'effect',
+                    category: 'effect',
+                    size: 128,
+                    transparent: true,
+                    description: `Primary action feedback effect, such as slash trail, impact burst, collection sparkle, or hit effect. Transparent background, no text, no UI. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'action/effect renderer via DreamAssets role effect',
+                    fallback: 'code-rendered particles and trails',
+                },
+                {
+                    id: 'arcade_background',
+                    required: false,
+                    assetType: 'background',
+                    role: 'background',
+                    category: 'environment',
+                    width: 768,
+                    height: 1344,
+                    transparent: false,
+                    description: `Portrait mobile arcade background with readable central action area. No text, no HUD, no controls, no foreground gameplay objects. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'background layer via DreamAssets role background',
+                    fallback: 'code-rendered arcade background',
+                },
+            ],
+        };
+    }
     if (templateId === 'canvas-simulation') {
         return {
             version: 1,
