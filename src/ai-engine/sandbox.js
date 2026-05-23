@@ -831,16 +831,15 @@ export async function verifyGame(htmlString, options = {}) {
             const requiredRoles = Array.from(new Set(Array.isArray(options?.assetContract?.slots)
                 ? options.assetContract.slots.filter((slot) => slot?.required).map((slot) => slot.role || slot.category).filter(Boolean)
                 : []));
-            const usedRoles = renderState.dreamAssetUsage?.usedRoles || {};
             const renderedRoles = renderState.dreamAssetUsage?.renderedRoles || {};
             const packRoles = new Set(Array.isArray(renderState.dreamAssetPackRoles) ? renderState.dreamAssetPackRoles : []);
             
             const missingRequiredRoleUsage = requiredRoles
                 .filter((role) => packRoles.has(role))
-                .filter((role) => Number(usedRoles[role] || 0) === 0 && Number(renderedRoles[role] || 0) === 0);
+                .filter((role) => Number(renderedRoles[role] || 0) === 0);
                 
             if ((sourceUsesDreamAssets || helperCalls > 0) && missingRequiredRoleUsage.length > 0) {
-                const message = `Required asset slots not consumed: generated assets exist, but these required roles were not used through DreamAssets during boot: ${missingRequiredRoleUsage.join(', ')}.`;
+                const message = `Required asset slots not rendered: generated assets exist, but these required roles were only preloaded/referenced or not rendered during boot: ${missingRequiredRoleUsage.join(', ')}. Use the generated player/enemy/background assets for visible gameplay entities instead of placeholder shapes.`;
                 renderState.failedContractChecks.push({
                     id: 'asset_required_roles_unused',
                     templateId: options?.assetContract?.templateId || null,

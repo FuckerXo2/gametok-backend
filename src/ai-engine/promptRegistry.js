@@ -2340,10 +2340,32 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DREAM_AUDIO_MANIFEST = dreamAssetPayload.audio || { sfx: [], music: [] };
         window.DREAM_TILESETS = dreamAssetPayload.tilesets || [];
         window.DREAM_PRODUCTION_CONTRACT = dreamAssetPayload.productionContract || (window.DREAM_ASSET_MANIFEST && window.DREAM_ASSET_MANIFEST.productionContract) || null;
-        window.__DREAM_ASSET_USAGE = window.__DREAM_ASSET_USAGE || { helperCalls: 0, usedKeys: {}, usedRoles: {}, renderedKeys: {}, renderedRoles: {}, usedAnimations: {}, usedTilesets: {} };
+        window.__DREAM_ASSET_USAGE = window.__DREAM_ASSET_USAGE || { helperCalls: 0, usedKeys: {}, usedRoles: {}, preloadedKeys: {}, preloadedRoles: {}, renderedKeys: {}, renderedRoles: {}, usedAnimations: {}, usedTilesets: {} };
+        window.__DREAM_ASSET_URL_TO_KEY = window.__DREAM_ASSET_URL_TO_KEY || {};
+        (window.DREAM_ASSET_PACK || []).forEach(function(asset) {
+          if (!asset || !asset.key || !window.DREAM_ASSETS || !window.DREAM_ASSETS[asset.key]) return;
+          window.__DREAM_ASSET_URL_TO_KEY[window.DREAM_ASSETS[asset.key]] = asset.key;
+        });
+        function dreamAssetForKey(key) {
+          return (window.DREAM_ASSET_PACK || []).find(function(item) {
+            return item && (item.key === key || item.id === key);
+          }) || null;
+        }
+        function dreamAssetForImage(image) {
+          if (!image) return null;
+          var key = image.__dreamAssetKey;
+          if (!key && image.currentSrc) key = window.__DREAM_ASSET_URL_TO_KEY[image.currentSrc];
+          if (!key && image.src) key = window.__DREAM_ASSET_URL_TO_KEY[image.src];
+          return key ? dreamAssetForKey(key) || { key: key } : null;
+        }
         function markDreamAssetUsage(key, role, usageKind) {
           try {
             window.__DREAM_ASSET_USAGE.helperCalls += 1;
+            if (usageKind === 'preload') {
+              if (key) window.__DREAM_ASSET_USAGE.preloadedKeys[key] = (window.__DREAM_ASSET_USAGE.preloadedKeys[key] || 0) + 1;
+              if (role) window.__DREAM_ASSET_USAGE.preloadedRoles[role] = (window.__DREAM_ASSET_USAGE.preloadedRoles[role] || 0) + 1;
+              return;
+            }
             if (key) window.__DREAM_ASSET_USAGE.usedKeys[key] = (window.__DREAM_ASSET_USAGE.usedKeys[key] || 0) + 1;
             if (role) window.__DREAM_ASSET_USAGE.usedRoles[role] = (window.__DREAM_ASSET_USAGE.usedRoles[role] || 0) + 1;
             if (usageKind === 'render') {
@@ -2358,6 +2380,70 @@ function buildDreamAssetsScript(generatedAssets = null) {
             }
           } catch (e) {}
         }
+        function installCanvasRenderTracker() {
+          try {
+            if (window.__dreamCanvasRenderTrackerInstalled) return;
+            window.__dreamCanvasRenderTrackerInstalled = true;
+            var imageDescriptor = Object.getOwnPropertyDescriptor(Image.prototype, 'src')
+              || Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+            if (imageDescriptor && imageDescriptor.set && imageDescriptor.get) {
+              Object.defineProperty(Image.prototype, 'src', {
+                configurable: true,
+                enumerable: imageDescriptor.enumerable,
+                get: function() { return imageDescriptor.get.call(this); },
+                set: function(value) {
+                  try {
+                    var key = window.__DREAM_ASSET_URL_TO_KEY && window.__DREAM_ASSET_URL_TO_KEY[String(value || '')];
+                    if (key) this.__dreamAssetKey = key;
+                  } catch (e) {}
+                  return imageDescriptor.set.call(this, value);
+                }
+              });
+            }
+            var originalDrawImage = CanvasRenderingContext2D && CanvasRenderingContext2D.prototype && CanvasRenderingContext2D.prototype.drawImage;
+            if (originalDrawImage && !originalDrawImage.__dreamTracked) {
+              var trackedDrawImage = function(image) {
+                try {
+                  var asset = dreamAssetForImage(image);
+                  if (asset && asset.key) markDreamAssetUsage(asset.key, asset.role || asset.category, 'render');
+                } catch (e) {}
+                return originalDrawImage.apply(this, arguments);
+              };
+              trackedDrawImage.__dreamTracked = true;
+              CanvasRenderingContext2D.prototype.drawImage = trackedDrawImage;
+            }
+          } catch (e) {}
+        }
+        function installPhaserRenderTracker() {
+          try {
+            if (!window.Phaser || window.__dreamPhaserRenderTrackerInstalled) return false;
+            var factory = window.Phaser.GameObjects && window.Phaser.GameObjects.GameObjectFactory && window.Phaser.GameObjects.GameObjectFactory.prototype;
+            if (!factory) return false;
+            ['image', 'sprite', 'tileSprite'].forEach(function(methodName) {
+              var original = factory[methodName];
+              if (typeof original !== 'function' || original.__dreamTracked) return;
+              var tracked = function(x, y, key) {
+                var result = original.apply(this, arguments);
+                try {
+                  var asset = dreamAssetForKey(key);
+                  if (asset && asset.key) markDreamAssetUsage(asset.key, asset.role || asset.category, 'render');
+                } catch (e) {}
+                return result;
+              };
+              tracked.__dreamTracked = true;
+              factory[methodName] = tracked;
+            });
+            window.__dreamPhaserRenderTrackerInstalled = true;
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+        installCanvasRenderTracker();
+        var phaserTrackerTimer = setInterval(function() {
+          if (installPhaserRenderTracker()) clearInterval(phaserTrackerTimer);
+        }, 25);
+        setTimeout(function() { try { clearInterval(phaserTrackerTimer); } catch (e) {} }, 5000);
         window.__dreamAudioQueue = window.__dreamAudioQueue || [];
         window.DreamAudio = window.DreamAudio || {
           unlock: function() {},
@@ -2399,7 +2485,7 @@ function buildDreamAssetsScript(generatedAssets = null) {
               if (asset.type !== 'image' || !asset.key || !assets[asset.key]) return;
               try {
                 scene.load.image(asset.key, assets[asset.key]);
-                markDreamAssetUsage(asset.key, asset.role || asset.category);
+                markDreamAssetUsage(asset.key, asset.role || asset.category, 'preload');
                 loaded.push(asset.key);
               } catch (e) {}
             });
