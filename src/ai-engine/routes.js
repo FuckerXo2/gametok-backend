@@ -4311,7 +4311,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             if (finalTasks.length) {
                 console.error(`⚠️ Targeted repair tasks: ${finalTasks.join(' | ')}`);
             }
-            console.warn(`⚠️ The user requested to RETURN THE BROKEN GAME INSTEAD OF GIVING UP. Continuing to save...`);
+            throw new Error([
+                `DreamStream verification failed after ${repairAttemptsUsed} repair attempt(s): ${finalCrash}`,
+                finalTasks.length ? `Targeted repair tasks: ${finalTasks.join(' | ')}` : null,
+            ].filter(Boolean).join(' '));
         }
 
         // ── SAVE TO DB ──

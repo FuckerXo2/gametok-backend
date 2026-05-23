@@ -815,12 +815,24 @@ export async function verifyGame(htmlString, options = {}) {
         if (options.requireDreamAssets && renderState.dreamAssetPackCount > 0) {
             const helperCalls = Number(renderState.dreamAssetUsage?.helperCalls || 0);
             const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
+            const renderedKeys = Object.keys(renderState.dreamAssetUsage?.renderedKeys || {});
             const sourceUsesDreamAssets = /DreamAssets|DREAM_ASSETS|DREAM_ASSET_PACK|DREAM_ANIMATIONS/.test(sourceHtml);
             
             if (!sourceUsesDreamAssets && helperCalls === 0 && usedKeys.length === 0) {
                 const message = `Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets and no runtime asset fetches occurred. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`;
                 renderState.failedContractChecks.push({
                     id: 'asset_pack_ignored',
+                    templateId: options?.assetContract?.templateId || null,
+                    assetCount: renderState.dreamAssetPackCount,
+                    message,
+                });
+                crashes.push(message);
+            }
+
+            if ((sourceUsesDreamAssets || helperCalls > 0 || usedKeys.length > 0) && renderedKeys.length === 0) {
+                const message = `Generated asset pack not rendered: ${renderState.dreamAssetPackCount} image assets were injected and referenced/preloaded, but none were observed rendering on canvas or Phaser display objects during boot. Draw gameplay assets with DreamAssets.addSprite/addBackgroundCover or canvas drawImage instead of placeholder shapes.`;
+                renderState.failedContractChecks.push({
+                    id: 'asset_pack_not_rendered',
                     templateId: options?.assetContract?.templateId || null,
                     assetCount: renderState.dreamAssetPackCount,
                     message,
