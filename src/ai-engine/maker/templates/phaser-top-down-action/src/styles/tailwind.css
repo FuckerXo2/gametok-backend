@@ -2,23 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Font Face Definitions */
-@font-face {
-  font-family: 'RetroPixel';
-  src: url('/assets/fronts/retro-pixel-arcade.otf.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'SupercellMagic';
-  src: url('/assets/fronts/supercell-magic_0.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
 /* Custom game UI styles */
 @layer components {
   /* CSS Custom Properties for reusable values */
