@@ -2336,6 +2336,40 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DREAM_ASSETS = dreamAssetPayload.assets || {};
         window.DREAM_ASSET_PACK = dreamAssetPayload.assetPack || [];
         window.DREAM_ASSET_MANIFEST = (dreamAssetPayload.manifest && dreamAssetPayload.manifest.makerAssetManifest) || dreamAssetPayload.manifest || { version: 1, assets: [] };
+        (function installManifestArrayCompat() {
+          var manifest = window.DREAM_ASSET_MANIFEST || { version: 1, assets: [] };
+          var assets = [];
+          if (Array.isArray(manifest)) {
+            assets = manifest;
+          } else if (Array.isArray(manifest.assets)) {
+            assets = manifest.assets;
+          } else if (Array.isArray(window.DREAM_ASSET_PACK)) {
+            assets = window.DREAM_ASSET_PACK;
+          }
+          if (!Array.isArray(manifest)) {
+            ['find', 'filter', 'map', 'forEach', 'some', 'every', 'reduce'].forEach(function(method) {
+              if (typeof manifest[method] === 'function' || typeof assets[method] !== 'function') return;
+              manifest[method] = function() {
+                return assets[method].apply(assets, arguments);
+              };
+            });
+            if (typeof manifest.length !== 'number') manifest.length = assets.length;
+            if (typeof Symbol !== 'undefined' && !manifest[Symbol.iterator]) {
+              manifest[Symbol.iterator] = function() {
+                var index = 0;
+                return {
+                  next: function() {
+                    return index < assets.length
+                      ? { value: assets[index++], done: false }
+                      : { value: undefined, done: true };
+                  }
+                };
+              };
+            }
+          }
+          window.DREAM_ASSET_MANIFEST = manifest;
+          window.DREAM_ASSET_LIST = assets;
+        })();
         window.DREAM_ANIMATIONS = dreamAssetPayload.animations || {};
         window.DREAM_AUDIO_MANIFEST = dreamAssetPayload.audio || { sfx: [], music: [] };
         window.DREAM_TILESETS = dreamAssetPayload.tilesets || [];

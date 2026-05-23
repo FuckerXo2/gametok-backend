@@ -3149,6 +3149,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- Keep the game mobile-first inside a 390x844 webview. Reserve top space for GameTok chrome.',
         '- Do not navigate to external websites, call window.location, submit forms, or open popups.',
         '- Do not add remote dependencies unless the existing project already uses that dependency.',
+        '- For canvas games, use canvas.getContext("2d"). HTMLCanvasElement does not have getCanvasContext().',
         '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
         '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
         '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
@@ -4243,7 +4244,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
                 if (!repairedWithProjectFiles) {
                     if (!ALLOW_LEGACY_HTML_FALLBACK) {
-                        console.warn('⚠️ [Maker Repair] File repair failed and legacy fallback is disabled. Sending game as-is.');
+                        console.warn('⚠️ [Maker Repair] File repair failed and legacy fallback is disabled. Retrying bounded repair if attempts remain.');
+                        if (repairAttemptsUsed < MAKER_SANDBOX_REPAIR_ATTEMPTS) {
+                            continue;
+                        }
                         break;
                     }
                     console.error('[Maker Repair] Using explicitly enabled whole-HTML regeneration fallback.');
