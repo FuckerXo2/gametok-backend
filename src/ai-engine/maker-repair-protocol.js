@@ -160,22 +160,20 @@ export function matchMakerRepairProtocol(protocol, tasks = []) {
 }
 
 /**
- * Returns true if this crash has been seen 3+ times and NEVER been successfully repaired.
- * In that case, don't waste time retrying — just send the game as-is.
+ * Repair attempts are already bounded by MAKER_SANDBOX_REPAIR_ATTEMPTS.
+ * Do not let historical failures bypass the repair loop; use repair memory
+ * as guidance only so verifier regressions can still trigger fresh fixes.
  */
 export function shouldSkipRepair(protocolMatches = []) {
     if (!Array.isArray(protocolMatches) || protocolMatches.length === 0) return false;
     
-    const hopeless = protocolMatches.filter(m => {
+    const unresolvedMatches = protocolMatches.filter(m => {
         if (!m.matched || !m.entry) return false;
-        // Seen 3+ times, never verified, failed 3+ times
         return m.entry.seenCount >= 3 && m.entry.verifiedCount === 0 && m.entry.failedCount >= 3;
     });
 
-    // If ALL crash signatures are hopeless, skip repair
-    if (hopeless.length > 0 && hopeless.length === protocolMatches.filter(m => m.matched).length) {
-        console.warn(`🧠 [Repair Memory] ALL ${hopeless.length} crash signatures are known-hopeless (seen ${hopeless[0].entry.seenCount}x, never fixed). Skipping repair loop.`);
-        return true;
+    if (unresolvedMatches.length > 0 && unresolvedMatches.length === protocolMatches.filter(m => m.matched).length) {
+        console.warn(`🧠 [Repair Memory] ${unresolvedMatches.length} crash signature(s) have failed before, but repair will still run because attempts are bounded.`);
     }
 
     return false;
