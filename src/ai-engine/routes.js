@@ -28,7 +28,7 @@ import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
-import { nextNvidiaTextApiKey } from './nvidia-key-pool.js';
+import { maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -828,6 +828,7 @@ async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, b
                 }
                 const apiKey = nextNvidiaTextApiKey();
                 const client = createNvidiaTextClient(apiKey);
+                console.log(`🔑 [${logLabel}] Text key ${maskNvidiaKey(apiKey)} for ${currentModel || 'default model'} attempt ${attempt}/${retriesPerModel}`);
                 return await task(currentModel, client, apiKey);
             } catch (error) {
                 lastError = error;

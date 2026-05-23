@@ -61,3 +61,17 @@ export function maskNvidiaKey(key = '') {
     if (value.length <= 10) return value ? '***' : 'missing';
     return `${value.slice(0, 8)}...${value.slice(-4)}`;
 }
+
+export function summarizeNvidiaKeyPools(env = process.env) {
+    const imageKeys = getNvidiaImageKeys(env);
+    const textKeys = getNvidiaTextKeys(env);
+    return {
+        imageKeyCount: imageKeys.length,
+        textKeyCount: textKeys.length,
+        imageKeys: imageKeys.map(maskNvidiaKey),
+        textKeys: textKeys.map(maskNvidiaKey),
+        hasSplitImagePool: parseKeyList(env.NIM_IMAGE_API_KEYS || env.NVIDIA_IMAGE_API_KEYS).length > 0,
+        hasSplitTextPool: parseKeyList(env.NIM_TEXT_API_KEYS || env.NVIDIA_TEXT_API_KEYS || env.DREAMSTREAM_NVIDIA_API_KEYS).length > 0,
+        hasLegacyPool: parseKeyList(env.NVIDIA_API_KEY).length > 0,
+    };
+}
