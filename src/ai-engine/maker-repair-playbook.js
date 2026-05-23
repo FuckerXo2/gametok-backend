@@ -1,5 +1,15 @@
 const REPAIR_RECIPES = [
     {
+        match: /Cannot create property 'onload' on string|onload.*data:image|data:image\/png;base64/i,
+        title: 'Data URL was treated like an Image element',
+        steps: [
+            'Find the asset loading code that calls DreamAssets.getImage() or reads window.DREAM_ASSETS.',
+            'Remember those APIs return data URL strings, not HTMLImageElement objects.',
+            'Create a real image with const img = new Image(); assign img.onload/img.onerror on that object; then set img.src = dataUrl.',
+            'Prefer DreamAssets.loadImageElement(keyOrRole) for canvas drawImage paths and cache the resolved image before rendering.',
+        ],
+    },
+    {
         match: /TS2687|identical modifiers|DREAM_ASSETS|DREAM_ASSET_PACK|DreamAssets/i,
         title: 'Duplicate DreamAssets TypeScript declarations',
         steps: [

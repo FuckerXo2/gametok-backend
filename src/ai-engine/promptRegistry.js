@@ -348,6 +348,7 @@ ASSET USAGE CONTRACT:
 - Use DreamAssets.preloadPhaser(this) in preload() to load every image in the manifest.
 - Use DreamAssets.firstByRole("player"), "enemy", "item", "prop", and "background"/"environment" to connect assets to gameplay entities.
 - Use DreamAssets.addSprite(scene, roleOrKey, x, y, { maxW, maxH }) and DreamAssets.addBackgroundCover(scene, roleOrKey, width, height) when helpful.
+- DreamAssets.getImage(key) returns a data URL string, not an HTMLImageElement. For canvas drawImage, use DreamAssets.loadImageElement(key) or create a new Image and set img.src to the data URL. Never set .onload on the data URL string.
 - Use DreamAssets.safeRect(width, height) to place HUD, touch controls, menus, score, lives, wave labels, and inventory inside the GameTok-safe rectangle.
 - Every major gameplay entity on screen must be backed by either an asset key from DREAM_ASSET_PACK or a clearly intentional particle/shape effect. Do not use circles/rectangles as the player or main enemies when matching assets exist.
 - If an asset is marked transparent, render it as a sprite/entity. If transparent is false, render it as a background, floor, arena, or full-scene layer.
@@ -2493,6 +2494,25 @@ function buildDreamAssetsScript(generatedAssets = null) {
             });
             markDreamAssetUsage(key, asset && (asset.role || asset.category));
             return window.DREAM_ASSETS && window.DREAM_ASSETS[key];
+          },
+          loadImageElement: function(keyOrRole) {
+            var asset = (window.DREAM_ASSETS || {})[keyOrRole] ? { key: keyOrRole } : (this.firstByRole(keyOrRole) || this.get(keyOrRole));
+            var key = asset && asset.key ? asset.key : keyOrRole;
+            var dataUrl = this.getImage(key);
+            if (!dataUrl) return Promise.resolve(null);
+            window.DREAM_IMAGES = window.DREAM_IMAGES || {};
+            if (window.DREAM_IMAGES[key]) return Promise.resolve(window.DREAM_IMAGES[key]);
+            return new Promise(function(resolve) {
+              var img = new Image();
+              img.onload = function() {
+                window.DREAM_IMAGES[key] = img;
+                if (asset && (asset.role || asset.category)) window.DREAM_IMAGES[asset.role || asset.category] = img;
+                markDreamAssetUsage(key, asset && (asset.role || asset.category), 'preload');
+                resolve(img);
+              };
+              img.onerror = function() { resolve(null); };
+              img.src = dataUrl;
+            });
           },
           get: function(key) {
             return (window.DREAM_ASSET_PACK || []).find(function(asset) {
