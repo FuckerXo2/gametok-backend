@@ -1,5 +1,25 @@
 const REPAIR_RECIPES = [
     {
+        match: /assets\.find is not a function|\.assets\.find|DREAM_ASSET_MANIFEST\.assets/i,
+        title: 'Manifest assets collection is not an array',
+        steps: [
+            'Use window.DREAM_ASSET_PACK or window.DREAM_ASSET_LIST as the reliable array of generated assets.',
+            'If reading window.DREAM_ASSET_MANIFEST.assets, guard it with Array.isArray() before calling find/filter/map.',
+            'Do not assume manifest.assets is always an array; older payloads may expose an object keyed by asset id.',
+            'Prefer DreamAssets.firstByRole(role), DreamAssets.get(key), and DreamAssets.getPack("image") over raw manifest traversal.',
+        ],
+    },
+    {
+        match: /TS1002|Unterminated string literal/i,
+        title: 'Generated TypeScript contains a broken string literal',
+        steps: [
+            'Find the reported line and close or replace the unterminated string.',
+            'Use template literals only when the content intentionally spans lines; otherwise keep strings on one line.',
+            'Escape apostrophes, quotes, and newlines inside generated UI/game text.',
+            'Run the TypeScript build again before changing gameplay logic.',
+        ],
+    },
+    {
         match: /Cannot create property 'onload' on string|onload.*data:image|drawImage.*provided value is not of type|data:image\/png;base64/i,
         title: 'Data URL was treated like an Image element',
         steps: [

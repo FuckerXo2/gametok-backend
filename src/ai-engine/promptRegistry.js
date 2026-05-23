@@ -2344,10 +2344,18 @@ function buildDreamAssetsScript(generatedAssets = null) {
             assets = manifest;
           } else if (Array.isArray(manifest.assets)) {
             assets = manifest.assets;
+          } else if (manifest.assets && typeof manifest.assets === 'object') {
+            assets = Object.keys(manifest.assets).map(function(key) {
+              var asset = manifest.assets[key];
+              return asset && typeof asset === 'object'
+                ? Object.assign({ key: asset.key || key, id: asset.id || key }, asset)
+                : { key: key, id: key, url: asset };
+            });
           } else if (Array.isArray(window.DREAM_ASSET_PACK)) {
             assets = window.DREAM_ASSET_PACK;
           }
           if (!Array.isArray(manifest)) {
+            if (!Array.isArray(manifest.assets)) manifest.assets = assets;
             ['find', 'filter', 'map', 'forEach', 'some', 'every', 'reduce'].forEach(function(method) {
               if (typeof manifest[method] === 'function' || typeof assets[method] !== 'function') return;
               manifest[method] = function() {
