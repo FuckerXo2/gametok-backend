@@ -274,6 +274,47 @@ function sourceConfigReferences(source) {
     return Array.from(refs);
 }
 
+function htmlIds(html = '') {
+    const ids = new Set();
+    const pattern = /\bid\s*=\s*['"`]([^'"`]+)['"`]/g;
+    let match;
+    while ((match = pattern.exec(html)) !== null) ids.add(match[1]);
+    return ids;
+}
+
+function collectPhaserParentTargets(source = '') {
+    const targets = new Set();
+    const patterns = [
+        /\bparent\s*:\s*['"`]([^'"`]+)['"`]/g,
+        /\bparent\s*:\s*document\.getElementById\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
+    ];
+    for (const pattern of patterns) {
+        let match;
+        while ((match = pattern.exec(source)) !== null) targets.add(match[1]);
+    }
+    return Array.from(targets);
+}
+
+function collectMissingAppendTargets(source = '', ids = new Set()) {
+    const missing = new Set();
+    const directPattern = /document\.getElementById\s*\(\s*['"`]([^'"`]+)['"`]\s*\)\s*(?:!|\?)?\.appendChild\s*\(/g;
+    let match;
+    while ((match = directPattern.exec(source)) !== null) {
+        if (!ids.has(match[1])) missing.add(match[1]);
+    }
+
+    const variableTargets = new Map();
+    const assignmentPattern = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*document\.getElementById\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+    while ((match = assignmentPattern.exec(source)) !== null) variableTargets.set(match[1], match[2]);
+    for (const [variable, id] of variableTargets.entries()) {
+        if (ids.has(id)) continue;
+        const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`\\b${escaped}\\s*(?:!|\\?)?\\.appendChild\\s*\\(`).test(source)) missing.add(id);
+    }
+
+    return Array.from(missing);
+}
+
 export async function runMakerPreflightChecks({ projectRoot, generatedAssets = null, assetContract = null } = {}) {
     const sourcePath = path.join(projectRoot || '', 'src', 'main.ts');
     const source = await readTextIfExists(sourcePath);
@@ -284,6 +325,8 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
     const localAudio = await readJsonIfExists(path.join(projectRoot || '', 'public', 'assets', 'audio-manifest.json'));
     const gameConfig = await readJsonIfExists(path.join(projectRoot || '', 'src', 'gameConfig.json'));
     const packFacts = collectAssetPackFacts(localAssetPack || generatedAssets?.materializedAssetPack || null);
+    const indexHtml = await readTextIfExists(path.join(projectRoot || '', 'index.html'));
+    const indexIds = htmlIds(indexHtml);
     const issues = [];
 
     if (!source.trim()) {
@@ -435,6 +478,28 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
                 repair: 'Add the referenced gameConfig fields or update the source to use fields that exist.',
             });
         }
+    }
+
+    const missingPhaserParents = collectPhaserParentTargets(projectSource).filter((target) => !indexIds.has(target));
+    if (missingPhaserParents.length > 0) {
+        issues.push({
+            id: 'preflight_dom_parent_missing',
+            severity: 'critical',
+            message: `Phaser config references missing DOM parent id(s): ${missingPhaserParents.slice(0, 8).join(', ')}.`,
+            missingKeys: missingPhaserParents.slice(0, 12),
+            repair: 'Keep <div id="game-container"></div> in index.html and set Phaser config parent to "game-container", or add the referenced mount element before new Phaser.Game runs.',
+        });
+    }
+
+    const missingAppendTargets = collectMissingAppendTargets(projectSource, indexIds);
+    if (missingAppendTargets.length > 0) {
+        issues.push({
+            id: 'preflight_dom_append_target_missing',
+            severity: 'critical',
+            message: `Source appends children to missing DOM id(s): ${missingAppendTargets.slice(0, 8).join(', ')}.`,
+            missingKeys: missingAppendTargets.slice(0, 12),
+            repair: 'Only call appendChild on document.body or on DOM IDs present in index.html; for Phaser, use the existing game-container mount element and null-check custom DOM targets.',
+        });
     }
 
     const touchPointerMismatch = /addEventListener\s*\(\s*['"`]touch(?:start|move|end|cancel)['"`][\s\S]{0,240}\(\s*\w+\s*:\s*PointerEvent\s*\)/m.test(projectSource);

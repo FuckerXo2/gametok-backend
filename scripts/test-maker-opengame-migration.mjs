@@ -67,11 +67,11 @@ function generatedAssetsFor(roles) {
   };
 }
 
-async function makeProject(source, generatedAssets) {
+async function makeProject(source, generatedAssets, { indexHtml = '<div id="app"></div><script type="module" src="/src/main.ts"></script>' } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'maker-opengame-test-'));
   const projectRoot = path.join(root, 'project');
   await fs.mkdir(path.join(projectRoot, 'src'), { recursive: true });
-  await fs.writeFile(path.join(projectRoot, 'index.html'), '<div id="app"></div><script type="module" src="/src/main.ts"></script>', 'utf8');
+  await fs.writeFile(path.join(projectRoot, 'index.html'), indexHtml, 'utf8');
   await fs.writeFile(path.join(projectRoot, 'src', 'main.ts'), source, 'utf8');
   await materializeMakerAssetsForProject(projectRoot, generatedAssets, { workspace: root });
   return { root, projectRoot };
@@ -219,6 +219,47 @@ console.log('item_asset', 'enemy_asset', 'background_asset');
   const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
   assert.equal(result.success, false, 'unknown Phaser texture key should fail preflight');
   assert.ok(result.issues.some((issue) => issue.id === 'preflight_asset_key_missing_from_pack'));
+}
+
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+import Phaser from 'phaser';
+class Play extends Phaser.Scene {
+  constructor() { super('Play'); }
+  create() {
+    this.add.image(40, 40, 'item_asset');
+    this.add.image(80, 40, 'enemy_asset');
+    this.add.image(120, 40, 'background_asset');
+  }
+}
+new Phaser.Game({ parent: 'missing-game-container', scene: [Play] });
+void fetch('assets/asset-pack.json');
+console.log('item_asset', 'enemy_asset', 'background_asset');
+`, generated, { indexHtml: '<div id="game-container"></div><script type="module" src="/src/main.ts"></script>' });
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'missing Phaser parent target should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_dom_parent_missing'));
+}
+
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+const canvas = document.createElement('canvas');
+const mount = document.getElementById('missing-mount');
+mount!.appendChild(canvas);
+void fetch('assets/asset-pack.json');
+console.log((window as any).DREAM_IMAGES?.['item'], (window as any).DREAM_IMAGES?.['enemy'], (window as any).DREAM_IMAGES?.['background']);
+function draw() {
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillRect(0, 0, 10, 10);
+  requestAnimationFrame(draw);
+}
+draw();
+`, generated);
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'appendChild to a missing DOM target should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_dom_append_target_missing'));
 }
 
 console.log('maker opengame migration tests passed');

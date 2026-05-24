@@ -3581,10 +3581,30 @@ function removeDuplicateImplementationsAtLines(content = '', lines = []) {
     };
 }
 
+function removeDefiniteAssignmentInitializers(content = '', lines = []) {
+    const starts = lineStartIndexes(content);
+    const changedLines = [];
+    let output = content;
+    for (const lineNumber of Array.from(new Set(lines)).sort((a, b) => b - a)) {
+        const start = starts[Math.max(0, lineNumber - 1)];
+        if (start == null) continue;
+        const end = output.indexOf('\n', start);
+        const lineEnd = end === -1 ? output.length : end;
+        const line = output.slice(start, lineEnd);
+        if (!/!\s*:\s*[^;\n=]+=\s*/.test(line)) continue;
+        const repairedLine = line.replace(/!\s*:/, ':');
+        if (repairedLine === line) continue;
+        output = `${output.slice(0, start)}${repairedLine}${output.slice(lineEnd)}`;
+        changedLines.push(lineNumber);
+    }
+    return { content: output, changedLines };
+}
+
 async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []) {
     const applied = [];
     const errors = Array.isArray(buildErrors) ? buildErrors : [String(buildErrors || '')];
     const duplicateFunctionErrorsByFile = new Map();
+    const definiteAssignmentErrorsByFile = new Map();
 
     for (const error of errors) {
         const ts2393 = /^(src\/[^(]+)\((\d+),\d+\):\s*error\s+TS2393:\s*Duplicate function implementation\./m.exec(String(error || ''));
@@ -3593,6 +3613,15 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
             const lines = duplicateFunctionErrorsByFile.get(relativePath) || [];
             lines.push(Number(line));
             duplicateFunctionErrorsByFile.set(relativePath, lines);
+            continue;
+        }
+
+        const ts1263 = /^(src\/[^(]+)\((\d+),\d+\):\s*error\s+TS1263:\s*Declarations with initializers cannot also have definite assignment assertions\./m.exec(String(error || ''));
+        if (ts1263) {
+            const [, relativePath, line] = ts1263;
+            const lines = definiteAssignmentErrorsByFile.get(relativePath) || [];
+            lines.push(Number(line));
+            definiteAssignmentErrorsByFile.set(relativePath, lines);
             continue;
         }
 
@@ -3613,6 +3642,24 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
                     to: right,
                 });
             }
+        }
+    }
+
+    for (const [relativePath, lines] of definiteAssignmentErrorsByFile.entries()) {
+        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, relativePath);
+        if (isProtectedMakerRuntimeFile(cleanPath)) continue;
+        const before = await fs.promises.readFile(absolutePath, 'utf8').catch(() => null);
+        if (before == null) continue;
+        const repair = removeDefiniteAssignmentInitializers(before, lines);
+        if (repair.content !== before) {
+            await fs.promises.writeFile(absolutePath, repair.content, 'utf8');
+            applied.push({
+                path: cleanPath,
+                type: 'ts1263_definite_assignment_initializer',
+                lines: repair.changedLines,
+                from: '!: with initializer',
+                to: ': with initializer',
+            });
         }
     }
 
