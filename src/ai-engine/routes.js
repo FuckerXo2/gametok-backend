@@ -1757,7 +1757,7 @@ async function ensureGenerationQueueSchema() {
                 prompt TEXT NOT NULL,
                 payload JSONB DEFAULT '{}'::jsonb,
                 attempts INTEGER NOT NULL DEFAULT 0,
-                max_attempts INTEGER NOT NULL DEFAULT 2,
+                max_attempts INTEGER NOT NULL DEFAULT 1,
                 progress INTEGER NOT NULL DEFAULT 0,
                 phase VARCHAR(64) DEFAULT 'queued',
                 status_message TEXT,
@@ -1775,12 +1775,13 @@ async function ensureGenerationQueueSchema() {
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS phase VARCHAR(64) DEFAULT 'queued';
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS status_message TEXT;
+            ALTER TABLE generation_jobs ALTER COLUMN max_attempts SET DEFAULT 1;
         `);
     }
     return generationQueueReadyPromise;
 }
 
-async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'dream', payload = {}, maxAttempts = 2 }) {
+async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'dream', payload = {}, maxAttempts = 1 }) {
     await ensureGenerationQueueSchema();
     const client = await pool.connect();
     const safeTitle = (title || 'Untitled').substring(0, 255);
