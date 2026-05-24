@@ -25,6 +25,7 @@ import { runMakerPreflightChecks } from './maker-preflight-validator.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
+import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
@@ -2293,6 +2294,12 @@ async function writeMakerText(workspace, fileName, value) {
 
 async function writeMakerAssetRuntimeFiles(workspace, generatedAssets = null) {
     if (!workspace || !generatedAssets) return;
+    if (generatedAssets.materializedAssetPack) {
+        await writeMakerJson(workspace, 'asset-pack.json', generatedAssets.materializedAssetPack);
+    }
+    if (generatedAssets.materializedAssetWiringReport) {
+        await writeMakerJson(workspace, 'asset-wiring-report.json', generatedAssets.materializedAssetWiringReport);
+    }
     await writeMakerJson(workspace, 'animations.json', {
         version: 1,
         source: 'gametok-native-maker',
@@ -2490,6 +2497,8 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
         '',
     ].join('\n'), 'utf8');
 
+    const materializedAssets = await materializeMakerAssetsForProject(projectRoot, generatedAssets, { workspace });
+
     await writeMakerJson(workspace, 'project-files.json', {
         version: 1,
         projectRoot,
@@ -2507,6 +2516,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
             { path: 'build.mjs', kind: 'build_script' },
         ],
         assetSummary: summarizeMakerAssets(generatedAssets),
+        materializedAssets: materializedAssets?.wiringReport || null,
     });
 
     await fs.promises.copyFile(path.join(projectRoot, 'index.html'), path.join(distRoot, 'index.html'));
@@ -2764,7 +2774,15 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
         ].join('\n'), 'utf8');
     }
 
+    const materializedAssets = await materializeMakerAssetsForProject(projectRoot, generatedAssets, { workspace });
+
     const manifestFiles = [...files];
+    manifestFiles.push(
+        { path: 'public/assets/asset-pack.json', kind: 'asset_manifest' },
+        { path: 'public/assets/animations.json', kind: 'asset_manifest' },
+        { path: 'public/assets/audio-manifest.json', kind: 'asset_manifest' },
+        { path: 'public/assets/asset-wiring-report.json', kind: 'asset_manifest' },
+    );
     if (!seen.has('package.json')) {
         manifestFiles.push({ path: 'package.json', kind: 'manifest' });
         manifestFiles.push({ path: 'build.mjs', kind: 'build_script' });
@@ -2782,6 +2800,7 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
         usedAssetMap: projectBuild.usedAssetMap || [],
         gameSystemMap: projectBuild.gameSystemMap || [],
         assetSummary: summarizeMakerAssets(generatedAssets),
+        materializedAssets: materializedAssets?.wiringReport || null,
     });
 
     await rebuildMakerProjectDist(projectRoot);
@@ -3447,6 +3466,12 @@ async function applyMakerFileEdits(projectRoot, edits) {
 async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets, templateContract, assetContract, turnNumber, phase = 'agent' }) {
     try {
         const preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
+        await writeMakerJson(workspace, 'preflight-report.json', {
+            phase,
+            turnNumber,
+            at: new Date().toISOString(),
+            ...preflight,
+        });
         if (!preflight.success) {
             const diagnostics = {
                 preflight,
@@ -3469,6 +3494,12 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                 targetedRepairTasks: buildTargetedRepairTasks(diagnostics),
             };
             await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
+            await writeMakerJson(workspace, 'debug-loop-trace.json', {
+                phase,
+                turnNumber,
+                at: new Date().toISOString(),
+                lastEvidence: evidence,
+            });
             return evidence;
         }
         await rebuildMakerProjectDist(projectRoot);
@@ -3498,6 +3529,12 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             targetedRepairTasks: sandbox.success ? [] : buildTargetedRepairTasks(sandbox.diagnostics || null),
         };
         await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
+        await writeMakerJson(workspace, 'debug-loop-trace.json', {
+            phase,
+            turnNumber,
+            at: new Date().toISOString(),
+            lastEvidence: evidence,
+        });
         return evidence;
     } catch (error) {
         const isBuildError = error.code === 'TSC_FAILED' || error.code === 'VITE_BUILD_FAILED';
@@ -3529,6 +3566,12 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                 : [],
         };
         await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
+        await writeMakerJson(workspace, 'debug-loop-trace.json', {
+            phase,
+            turnNumber,
+            at: new Date().toISOString(),
+            lastEvidence: evidence,
+        });
         return evidence;
     }
 }
