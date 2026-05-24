@@ -198,6 +198,7 @@ const cancelledJobs = new Map();
 const GENERATION_WORKER_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
 const GENERATION_JOB_CONCURRENCY = Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || 3));
 const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_POLL_MS || 3000));
+const GENERATION_JOB_MAX_ATTEMPTS = Math.max(1, Number(process.env.GENERATION_JOB_MAX_ATTEMPTS || 1));
 const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 2));
 const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
 const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATION_JOB_HEARTBEAT_MS || 30000));
@@ -1781,7 +1782,7 @@ async function ensureGenerationQueueSchema() {
     return generationQueueReadyPromise;
 }
 
-async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'dream', payload = {}, maxAttempts = 1 }) {
+async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'dream', payload = {}, maxAttempts = GENERATION_JOB_MAX_ATTEMPTS }) {
     await ensureGenerationQueueSchema();
     const client = await pool.connect();
     const safeTitle = (title || 'Untitled').substring(0, 255);
@@ -1895,7 +1896,8 @@ async function markGenerationJobComplete(jobId) {
 }
 
 async function markGenerationJobFailed(job, errorMessage) {
-    const shouldRetry = Number(job.attempts || 0) < Number(job.max_attempts || 1);
+    const effectiveMaxAttempts = Math.min(Number(job.max_attempts || 1), GENERATION_JOB_MAX_ATTEMPTS);
+    const shouldRetry = Number(job.attempts || 0) < effectiveMaxAttempts;
     const nextStatus = shouldRetry ? 'queued' : 'failed';
     await pool.query(
         `UPDATE generation_jobs
