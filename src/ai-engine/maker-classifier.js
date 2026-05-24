@@ -48,17 +48,42 @@ const ARCHETYPE_TO_TEMPLATE = {
     },
 };
 
-const DEFAULT_FALLBACK = ARCHETYPE_TO_TEMPLATE.arcade;
+const DEFAULT_FALLBACK = ARCHETYPE_TO_TEMPLATE.top_down_action;
 
-export function classifyMakerGame(qualityIntent = {}, _prompt = '') {
+function promptLooksLikeFreehandCanvas(prompt = '') {
+    return /\b(draw|drawing|doodle|scribble|sketch|paint|canvas|freehand|brush|pencil|crayon)\b/i.test(String(prompt || ''));
+}
+
+function promptLooksLikeActionArcade(prompt = '') {
+    return /\b(slice|slicing|cut|cleaver|blade|slash|fruit ninja|swipe|combo|bomb|projectile|target|arcade|enemy|threat|hit-stop|screen shake)\b/i.test(String(prompt || ''));
+}
+
+export function classifyMakerGame(qualityIntent = {}, prompt = '') {
     // Read the archetype directly from the LLM's Phase 1 output
     const llmArchetype = String(qualityIntent.technicalRequirements?.archetype || '').trim().toLowerCase();
     const llmReasoning = String(qualityIntent.technicalRequirements?.archetypeReasoning || '');
 
     const match = ARCHETYPE_TO_TEMPLATE[llmArchetype] || null;
-    const selectedTemplateId = match ? match.templateId : DEFAULT_FALLBACK.templateId;
-    const selectedArchetype = match ? llmArchetype : 'arcade';
-    const physicsProfile = match ? match.profile : DEFAULT_FALLBACK.profile;
+    let selectedTemplateId = match ? match.templateId : DEFAULT_FALLBACK.templateId;
+    let selectedArchetype = match ? llmArchetype : 'top_down_action';
+    let physicsProfile = match ? match.profile : DEFAULT_FALLBACK.profile;
+    let routingReason = match
+        ? `LLM selected ${selectedArchetype}: ${llmReasoning}`
+        : `LLM archetype "${llmArchetype}" not recognized; falling back to phaser-top-down-action.`;
+
+    if (selectedTemplateId === 'canvas-arcade' && !promptLooksLikeFreehandCanvas(prompt)) {
+        selectedTemplateId = 'phaser-top-down-action';
+        selectedArchetype = 'top_down_action';
+        physicsProfile = ARCHETYPE_TO_TEMPLATE.top_down_action.profile;
+        routingReason = `OpenGame-style Phaser-first override: generic arcade prompts use phaser-top-down-action unless they are explicitly freehand/drawing canvas games. ${llmReasoning}`;
+    }
+
+    if (promptLooksLikeActionArcade(prompt) && !promptLooksLikeFreehandCanvas(prompt) && /^canvas-/.test(selectedTemplateId)) {
+        selectedTemplateId = 'phaser-top-down-action';
+        selectedArchetype = 'top_down_action';
+        physicsProfile = ARCHETYPE_TO_TEMPLATE.top_down_action.profile;
+        routingReason = `OpenGame-style Phaser-first override: action arcade prompt routed to phaser-top-down-action to use keyed sprites and asset-pack loading. ${llmReasoning}`;
+    }
 
     return {
         version: 2,
@@ -67,8 +92,6 @@ export function classifyMakerGame(qualityIntent = {}, _prompt = '') {
         selectedArchetype,
         confidence: match ? 0.9 : 0.3,
         physicsProfile,
-        reasoning: match
-            ? `LLM selected ${selectedArchetype}: ${llmReasoning}`
-            : `LLM archetype "${llmArchetype}" not recognized; falling back to canvas-arcade.`,
+        reasoning: routingReason,
     };
 }

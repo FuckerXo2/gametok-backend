@@ -60,10 +60,32 @@ function requiredAssetSlots(assetContract = null) {
 
 function generatedAssetRoles(generatedAssets = null) {
     const pack = Array.isArray(generatedAssets?.assetPack) ? generatedAssets.assetPack : [];
-    const materialized = Array.isArray(generatedAssets?.materializedAssetPack?.runtimeAssets)
-        ? generatedAssets.materializedAssetPack.runtimeAssets
-        : [];
+    const materialized = Array.isArray(generatedAssets?.materializedAssetPack?.meta?.runtimeAssets)
+        ? generatedAssets.materializedAssetPack.meta.runtimeAssets
+        : Array.isArray(generatedAssets?.materializedAssetPack?.runtimeAssets)
+            ? generatedAssets.materializedAssetPack.runtimeAssets
+            : [];
     return unique([...pack, ...materialized].map((asset) => String(asset?.role || asset?.category || '').trim()));
+}
+
+function collectOpenGamePackAssets(assetPack = null) {
+    const assets = [];
+    if (!assetPack || typeof assetPack !== 'object') return assets;
+    if (Array.isArray(assetPack?.meta?.runtimeAssets)) assets.push(...assetPack.meta.runtimeAssets);
+    if (Array.isArray(assetPack?.runtimeAssets)) assets.push(...assetPack.runtimeAssets);
+    if (Array.isArray(assetPack?.generated?.files)) assets.push(...assetPack.generated.files);
+    for (const [sectionName, section] of Object.entries(assetPack)) {
+        if (sectionName === 'meta' || !section || typeof section !== 'object') continue;
+        if (!Array.isArray(section.files)) continue;
+        for (const file of section.files) {
+            assets.push({
+                ...file,
+                role: file.role || file.category || sectionName.replace(/s$/, ''),
+                category: file.category || file.role || sectionName.replace(/s$/, ''),
+            });
+        }
+    }
+    return assets;
 }
 
 function sourceReferencesAny(source, values) {
@@ -75,11 +97,7 @@ function sourceReferencesAny(source, values) {
 }
 
 function collectAssetPackFacts(assetPack = null) {
-    const runtimeAssets = Array.isArray(assetPack?.runtimeAssets)
-        ? assetPack.runtimeAssets
-        : Array.isArray(assetPack?.generated?.files)
-            ? assetPack.generated.files
-            : [];
+    const runtimeAssets = collectOpenGamePackAssets(assetPack);
     const keys = new Set();
     const roles = new Set();
     const urls = new Set();
@@ -101,12 +119,147 @@ function sourceAssetReferences(source) {
         /\bDreamAssets\.(?:getImage|loadImageElement|get|firstByRole|addSprite|addBackgroundCover)\s*\(\s*[^,)]*['"`]([^'"`]+)['"`]/g,
         /\bDREAM_IMAGES\s*(?:\?\.)?\s*\[\s*['"`]([^'"`]+)['"`]\s*\]/g,
         /\bDREAM_ASSETS\s*(?:\?\.)?\s*\[\s*['"`]([^'"`]+)['"`]\s*\]/g,
+        /\b(?:this\.)?textures\.exists\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
+        /\b(?:this\.)?load\.(?:image|spritesheet|audio)\s*\(\s*['"`]([^'"`]+)['"`]/g,
+        /\b(?:this\.)?(?:add|physics\.add)\.(?:image|sprite)\s*\(\s*[^,\n]+,\s*[^,\n]+,\s*['"`]([^'"`]+)['"`]/g,
+        /\.setTexture\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
     ];
     for (const pattern of patterns) {
         let match;
         while ((match = pattern.exec(source)) !== null) refs.add(match[1]);
     }
     return Array.from(refs);
+}
+
+function unsafeCanvasDrawImageCalls(source) {
+    const calls = [];
+    const pattern = /\b(?:ctx|context|canvasContext|renderCtx)\.drawImage\s*\(\s*([^,\n)]+)/g;
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+        const firstArg = match[1].trim();
+        if (/DreamAssets\.getImage|DREAM_ASSET_PACK|DREAM_ASSETS|\.find\s*\(|assetPack|asset\s*$|entry\s*$|manifest/i.test(firstArg)) {
+            calls.push(firstArg.slice(0, 120));
+        }
+    }
+    return calls;
+}
+
+function collectAnimationFrameKeys(value, keys = new Set()) {
+    if (!value || typeof value !== 'object') return keys;
+    if (Array.isArray(value)) {
+        for (const item of value) collectAnimationFrameKeys(item, keys);
+        return keys;
+    }
+    for (const [key, item] of Object.entries(value)) {
+        if (['key', 'textureKey', 'assetKey', 'frameKey'].includes(key) && typeof item === 'string') keys.add(item);
+        if (Array.isArray(item) && /frames?/i.test(key)) {
+            for (const frame of item) {
+                if (typeof frame === 'string') keys.add(frame);
+                else collectAnimationFrameKeys(frame, keys);
+            }
+            continue;
+        }
+        collectAnimationFrameKeys(item, keys);
+    }
+    return keys;
+}
+
+function levenshtein(a = '', b = '') {
+    const matrix = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j += 1) matrix[0][j] = j;
+    for (let i = 1; i <= a.length; i += 1) {
+        for (let j = 1; j <= b.length; j += 1) {
+            matrix[i][j] = a[i - 1] === b[j - 1]
+                ? matrix[i - 1][j - 1]
+                : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+        }
+    }
+    return matrix[a.length][b.length];
+}
+
+function extractBalancedObjectLiteral(source, markerRegex) {
+    const marker = markerRegex.exec(source);
+    if (!marker) return '';
+    const start = source.indexOf('{', marker.index);
+    if (start < 0) return '';
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    for (let i = start; i < source.length; i += 1) {
+        const ch = source[i];
+        if (quote) {
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+            quote = ch;
+            continue;
+        }
+        if (ch === '{') depth += 1;
+        if (ch === '}') {
+            depth -= 1;
+            if (depth === 0) return source.slice(start, i + 1);
+        }
+    }
+    return '';
+}
+
+function topLevelObjectKeys(objectLiteral = '') {
+    const keys = new Set();
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    let segmentStart = 1;
+    const pushSegment = (segment) => {
+        const match = /^\s*(?:['"`]([^'"`]+)['"`]|([A-Za-z_$][\w$]*))\s*:/.exec(segment);
+        const key = match?.[1] || match?.[2];
+        if (key) keys.add(key);
+    };
+    for (let i = 1; i < objectLiteral.length - 1; i += 1) {
+        const ch = objectLiteral[i];
+        if (quote) {
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+            quote = ch;
+            continue;
+        }
+        if (ch === '{' || ch === '[' || ch === '(') depth += 1;
+        if (ch === '}' || ch === ']' || ch === ')') depth -= 1;
+        if (ch === ',' && depth === 0) {
+            pushSegment(objectLiteral.slice(segmentStart, i));
+            segmentStart = i + 1;
+        }
+    }
+    pushSegment(objectLiteral.slice(segmentStart, -1));
+    return keys;
+}
+
+function statePropertyIssues(projectSource = '') {
+    const objectLiteral = extractBalancedObjectLiteral(projectSource, /\b(?:const|let|var)\s+state\s*=/g);
+    if (!objectLiteral) return [];
+    const keys = topLevelObjectKeys(objectLiteral);
+    if (keys.size === 0) return [];
+    const refs = new Set();
+    const refPattern = /\bstate\.([A-Za-z_$][\w$]*)/g;
+    let match;
+    while ((match = refPattern.exec(projectSource)) !== null) refs.add(match[1]);
+    return Array.from(refs)
+        .filter((ref) => !keys.has(ref))
+        .map((ref) => {
+            const suggestion = Array.from(keys)
+                .map((key) => ({ key, distance: levenshtein(ref.toLowerCase(), key.toLowerCase()) }))
+                .sort((a, b) => a.distance - b.distance)[0];
+            return {
+                key: ref,
+                suggestion: suggestion && suggestion.distance <= 3 ? suggestion.key : null,
+            };
+        });
 }
 
 function sourceConfigReferences(source) {
@@ -162,7 +315,11 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
 
     const requiredSlots = requiredAssetSlots(assetContract);
     const roles = generatedAssetRoles(generatedAssets);
-    const materializedSlots = localAssetPack?.slots || generatedAssets?.materializedAssetPack?.slots || [];
+    const materializedSlots = localAssetPack?.meta?.slots
+        || localAssetPack?.slots
+        || generatedAssets?.materializedAssetPack?.meta?.slots
+        || generatedAssets?.materializedAssetPack?.slots
+        || [];
     const slotsWithoutRuntimeKey = requiredSlots
         .filter((slot) => {
             const slotReport = materializedSlots.find((entry) => entry?.id === slot.id || entry?.role === slot.role);
@@ -203,6 +360,66 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             message: `Project references asset keys that are not in public/assets/asset-pack.json: ${unknownAssetRefs.slice(0, 8).join(', ')}.`,
             missingKeys: unknownAssetRefs.slice(0, 12),
             repair: 'Use keys from public/assets/asset-pack.json, or add the missing generated asset entries before build.',
+        });
+    }
+
+    const unsafeDraws = unsafeCanvasDrawImageCalls(projectSource);
+    if (unsafeDraws.length > 0) {
+        issues.push({
+            id: 'preflight_unsafe_canvas_draw_image_source',
+            severity: 'critical',
+            message: `Canvas drawImage is called with manifest/data objects instead of loaded image elements: ${unsafeDraws.slice(0, 4).join(', ')}.`,
+            unsafeDraws: unsafeDraws.slice(0, 8),
+            repair: 'For canvas rendering, preload keys through DreamAssets.loadImageElement(keyOrRole) or window.DREAM_IMAGES, cache HTMLImageElement instances, then pass only those loaded elements to ctx.drawImage.',
+        });
+    }
+
+    const missingStateRefs = statePropertyIssues(projectSource);
+    if (missingStateRefs.length > 0) {
+        issues.push({
+            id: 'preflight_state_property_missing',
+            severity: 'critical',
+            message: `Project references state properties not declared in the state object: ${missingStateRefs.map((entry) => entry.suggestion ? `${entry.key} (did you mean ${entry.suggestion})` : entry.key).slice(0, 8).join(', ')}.`,
+            missingKeys: missingStateRefs.slice(0, 12),
+            repair: 'Use the existing state property name or add the missing property to the state initializer before build.',
+        });
+    }
+
+    if (localAnimations) {
+        const animationFrameKeys = Array.from(collectAnimationFrameKeys(localAnimations));
+        const missingFrameKeys = animationFrameKeys.filter((key) => !packFacts.keys.has(key));
+        if (missingFrameKeys.length > 0) {
+            issues.push({
+                id: 'preflight_animation_frame_key_missing_from_pack',
+                severity: 'critical',
+                message: `Animation manifest references frame keys missing from public/assets/asset-pack.json: ${missingFrameKeys.slice(0, 8).join(', ')}.`,
+                missingKeys: missingFrameKeys.slice(0, 12),
+                repair: 'Regenerate/fix animations.json or asset-pack.json so every animation frame key exists in the loaded asset pack.',
+            });
+        }
+    }
+
+    const registeredScenes = new Set();
+    const sceneClassPattern = /class\s+([A-Za-z_$][\w$]*)\s+extends\s+Phaser\.Scene[\s\S]{0,300}?super\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+    let sceneMatch;
+    while ((sceneMatch = sceneClassPattern.exec(projectSource)) !== null) registeredScenes.add(sceneMatch[2]);
+    const sceneArrayPattern = /\bscene\s*:\s*\[([\s\S]*?)\]/g;
+    while ((sceneMatch = sceneArrayPattern.exec(projectSource)) !== null) {
+        const block = sceneMatch[1];
+        const names = block.match(/\b[A-Z][A-Za-z0-9_$]*/g) || [];
+        for (const name of names) registeredScenes.add(name);
+    }
+    const sceneTargets = new Set();
+    const sceneStartPattern = /\.scene\.(?:start|launch|switch)\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+    while ((sceneMatch = sceneStartPattern.exec(projectSource)) !== null) sceneTargets.add(sceneMatch[1]);
+    const missingScenes = Array.from(sceneTargets).filter((scene) => !registeredScenes.has(scene));
+    if (missingScenes.length > 0) {
+        issues.push({
+            id: 'preflight_scene_key_missing',
+            severity: 'critical',
+            message: `Project starts Phaser scenes that are not registered or declared: ${missingScenes.slice(0, 8).join(', ')}.`,
+            missingKeys: missingScenes.slice(0, 12),
+            repair: 'Register every scene key in the Phaser game config and keep scene.start/launch keys identical to each scene constructor key.',
         });
     }
 

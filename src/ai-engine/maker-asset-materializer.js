@@ -84,6 +84,26 @@ function buildRoleIndexes(runtimeAssets = []) {
     return byRole;
 }
 
+function packSectionForAsset(asset = {}) {
+    const type = normalizeRole(asset.type);
+    const role = normalizeRole(asset.role || asset.category);
+    if (type === 'audio' || role === 'sfx' || role === 'music') return 'audio';
+    if (type === 'tileset' || role === 'tileset') return 'tilesets';
+    if (type === 'background' || role === 'background' || role === 'environment') return 'backgrounds';
+    if (type === 'effect' || role === 'effect') return 'effects';
+    return 'images';
+}
+
+function phaserFileForAsset(asset = {}) {
+    const section = packSectionForAsset(asset);
+    const type = section === 'audio' ? 'audio' : 'image';
+    return {
+        type,
+        key: asset.key,
+        url: asset.url,
+    };
+}
+
 function buildSlotReport(makerManifest = null, runtimeAssets = []) {
     const byKey = new Set(runtimeAssets.map((asset) => asset.key).filter(Boolean));
     const byRole = new Set(runtimeAssets.flatMap((asset) => [asset.role, asset.category].map(normalizeRole)).filter(Boolean));
@@ -157,24 +177,25 @@ export async function materializeMakerAssetsForProject(projectRoot, generatedAss
 
     const makerManifest = generatedAssets?.makerAssetManifest || generatedAssets?.manifest?.makerAssetManifest || null;
     const slots = buildSlotReport(makerManifest, runtimeAssets);
-    const phaserFiles = runtimeAssets
-        .filter((asset) => asset.url && asset.key)
-        .map((asset) => ({
-            type: 'image',
-            key: asset.key,
-            url: asset.url,
-        }));
+    const sections = {
+        backgrounds: { files: [] },
+        images: { files: [] },
+        effects: { files: [] },
+        audio: { files: [] },
+        tilesets: { files: [] },
+    };
+    for (const asset of runtimeAssets.filter((entry) => entry.url && entry.key)) {
+        sections[packSectionForAsset(asset)].files.push(phaserFileForAsset(asset));
+    }
     const assetPack = {
-        version: 1,
-        source: 'gametok-maker-materialized-asset-pack',
-        generatedAt: new Date().toISOString(),
-        generated: {
-            files: phaserFiles,
-        },
-        runtimeAssets,
-        slots,
-        roleIndex: buildRoleIndexes(runtimeAssets),
+        ...sections,
         meta: {
+            version: 2,
+            source: 'gametok-maker-materialized-asset-pack',
+            generatedAt: new Date().toISOString(),
+            runtimeAssets,
+            slots,
+            roleIndex: buildRoleIndexes(runtimeAssets),
             imageCount: runtimeAssets.length,
             fileCount: fileWrites.length,
             localPath: 'public/assets',
@@ -194,7 +215,7 @@ export async function materializeMakerAssetsForProject(projectRoot, generatedAss
     const wiringReport = {
         version: 1,
         source: 'gametok-maker-asset-materializer',
-        generatedAt: assetPack.generatedAt,
+        generatedAt: assetPack.meta.generatedAt,
         publicAssetRoot,
         assetPackPath: path.join(publicAssetRoot, 'asset-pack.json'),
         files: fileWrites,

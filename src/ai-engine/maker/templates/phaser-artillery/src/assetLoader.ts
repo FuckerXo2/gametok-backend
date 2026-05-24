@@ -13,8 +13,17 @@ async function readLocalAssetPack(): Promise<DreamAsset[]> {
     const response = await fetch('assets/asset-pack.json', { cache: 'no-store' });
     if (!response.ok) return [];
     const pack = await response.json();
+    if (Array.isArray(pack?.meta?.runtimeAssets)) return pack.meta.runtimeAssets;
     if (Array.isArray(pack?.runtimeAssets)) return pack.runtimeAssets;
     if (Array.isArray(pack?.generated?.files)) return pack.generated.files;
+    const sectionAssets = Object.entries(pack || {})
+      .filter(([name, section]: [string, any]) => name !== 'meta' && Array.isArray(section?.files))
+      .flatMap(([name, section]: [string, any]) => section.files.map((file: DreamAsset) => ({
+        ...file,
+        role: file.role || file.category || name.replace(/s$/, ''),
+        category: file.category || file.role || name.replace(/s$/, ''),
+      })));
+    if (sectionAssets.length > 0) return sectionAssets;
     return [];
   } catch {
     return [];

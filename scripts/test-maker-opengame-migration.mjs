@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { materializeMakerAssetsForProject } from '../src/ai-engine/maker-asset-materializer.js';
+import { classifyMakerGame } from '../src/ai-engine/maker-classifier.js';
 import { runMakerPreflightChecks } from '../src/ai-engine/maker-preflight-validator.js';
 
 const PNG_1X1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -14,6 +15,22 @@ const assetContract = {
     { id: 'arcade_background', role: 'background', required: true },
   ],
 };
+
+{
+  const routed = classifyMakerGame(
+    { technicalRequirements: { archetype: 'arcade', archetypeReasoning: 'generic swipe arcade' } },
+    'Swipe to slice fruit with bombs, combo, hit-stop, and screen shake'
+  );
+  assert.equal(routed.selectedTemplateId, 'phaser-top-down-action', 'action arcade prompts should route to Phaser-first template');
+}
+
+{
+  const routed = classifyMakerGame(
+    { technicalRequirements: { archetype: 'arcade', archetypeReasoning: 'freehand canvas game' } },
+    'Draw a picture against a robot on a canvas'
+  );
+  assert.equal(routed.selectedTemplateId, 'canvas-arcade', 'freehand drawing prompts may keep canvas arcade');
+}
 
 function generatedAssetsFor(roles) {
   const assets = {};
@@ -65,6 +82,7 @@ const canvas = document.createElement('canvas');
 document.body.appendChild(canvas);
 const ctx = canvas.getContext('2d')!;
 void fetch('assets/asset-pack.json');
+console.log('asset keys', 'item_asset', 'enemy_asset', 'background_asset');
 function draw() {
   canvas.width = 320;
   canvas.height = 480;
@@ -83,8 +101,10 @@ draw();
   const { projectRoot } = await makeProject(visibleSource, generated);
   const packRaw = await fs.readFile(path.join(projectRoot, 'public', 'assets', 'asset-pack.json'), 'utf8');
   const pack = JSON.parse(packRaw);
-  assert.equal(pack.runtimeAssets.length, 3, 'materializer should write three runtime assets');
-  assert.ok(pack.runtimeAssets.every((asset) => asset.url.startsWith('assets/')), 'runtime assets should use stable local urls');
+  assert.equal(pack.meta.runtimeAssets.length, 3, 'materializer should write three runtime assets in meta');
+  assert.ok(pack.images.files.some((asset) => asset.key === 'item_asset'), 'OpenGame image section should include item asset');
+  assert.ok(pack.backgrounds.files.some((asset) => asset.key === 'background_asset'), 'OpenGame background section should include background asset');
+  assert.ok(pack.meta.runtimeAssets.every((asset) => asset.url.startsWith('assets/')), 'runtime assets should use stable local urls');
   const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
   assert.equal(result.success, true, `valid project should pass preflight: ${JSON.stringify(result.issues)}`);
 }
@@ -138,6 +158,67 @@ console.log((window as any).DREAM_IMAGES?.['item'], (window as any).DREAM_IMAGES
   const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
   assert.equal(result.success, false, 'invalid touch/pointer listener typing should fail preflight');
   assert.ok(result.issues.some((issue) => issue.id === 'preflight_touch_pointer_event_mismatch'));
+}
+
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+const canvas = document.createElement('canvas');
+document.body.appendChild(canvas);
+const ctx = canvas.getContext('2d')!;
+void fetch('assets/asset-pack.json');
+const asset = (window as any).DREAM_ASSET_PACK?.find((entry: any) => entry.role === 'item');
+function draw() {
+  ctx.fillRect(0, 0, 10, 10);
+  ctx.drawImage(asset, 0, 0, 10, 10);
+  requestAnimationFrame(draw);
+}
+draw();
+console.log((window as any).DREAM_IMAGES?.['item'], (window as any).DREAM_IMAGES?.['enemy'], (window as any).DREAM_IMAGES?.['background']);
+`, generated);
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'unsafe canvas drawImage manifest object should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_unsafe_canvas_draw_image_source'));
+}
+
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+const canvas = document.createElement('canvas');
+document.body.appendChild(canvas);
+void fetch('assets/asset-pack.json');
+const state = { score: 0, bombsSliced: 0, lives: 3 };
+function draw() {
+  state.bombSliced += 1;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillRect(0, 0, 10, 10);
+  requestAnimationFrame(draw);
+}
+draw();
+console.log((window as any).DREAM_IMAGES?.['item'], (window as any).DREAM_IMAGES?.['enemy'], (window as any).DREAM_IMAGES?.['background']);
+`, generated);
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'state property typo should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_state_property_missing'));
+}
+
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+import Phaser from 'phaser';
+class Play extends Phaser.Scene {
+  constructor() { super('Play'); }
+  create() {
+    this.add.image(40, 40, 'ghost_texture');
+  }
+}
+new Phaser.Game({ scene: [Play] });
+void fetch('assets/asset-pack.json');
+console.log('item_asset', 'enemy_asset', 'background_asset');
+`, generated);
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'unknown Phaser texture key should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_asset_key_missing_from_pack'));
 }
 
 console.log('maker opengame migration tests passed');
