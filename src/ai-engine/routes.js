@@ -29,6 +29,7 @@ import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
+import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -3818,7 +3819,21 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         await reportProgress(8, 'spec', 'Reading your idea...');
         console.log(`📋 Phase 1/3: ${DREAM_MODELS.spec} extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt);
-        const qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
+        let qualityIntent;
+        try {
+            qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
+        } catch (phase1Error) {
+            console.warn(`⚠️ Phase 1 JSON extraction failed; using deterministic OpenGame-style fallback spec: ${phase1Error?.message || phase1Error}`);
+            qualityIntent = buildHeuristicQualityIntent(prompt, {
+                reason: phase1Error?.message || 'phase1_json_failed',
+            });
+            await writeMakerJson(makerWorkspace, 'phase1-fallback.json', {
+                used: true,
+                reason: phase1Error?.message || String(phase1Error || 'unknown error'),
+                generatedAt: new Date().toISOString(),
+                qualityIntent,
+            });
+        }
         assertJobNotCancelled(jobId);
         makerTemplateContract = selectMakerTemplateContract(qualityIntent, prompt);
         makerAssetContract = buildMakerAssetContract(makerTemplateContract, qualityIntent);
