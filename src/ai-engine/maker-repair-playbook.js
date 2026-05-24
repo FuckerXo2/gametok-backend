@@ -20,6 +20,26 @@ const REPAIR_RECIPES = [
         ],
     },
     {
+        match: /TS1005|',' expected|'\)' expected|Malformed expression|Unexpected end of input/i,
+        title: 'Generated TypeScript contains malformed syntax',
+        steps: [
+            'Open the exact reported line and the ten lines above it; fix the broken call, array/object literal, or missing delimiter there first.',
+            'Check paired parentheses, brackets, braces, quotes, and trailing commas around the reported location.',
+            'If generated prose leaked into code, remove it and replace it with a valid string, comment, or data literal.',
+            'Keep the repair minimal and run the TypeScript build before changing gameplay behavior.',
+        ],
+    },
+    {
+        match: /TS2769|No overload matches this call|addEventListener|PointerEvent|TouchEvent/i,
+        title: 'DOM event listener type mismatch',
+        steps: [
+            'If a handler is typed as PointerEvent, register it with pointerdown, pointermove, pointerup, or pointercancel.',
+            'If registering touchstart, touchmove, touchend, or touchcancel, type the handler as TouchEvent or Event and narrow with "touches" in event.',
+            'Shared input helpers should accept PointerEvent | TouchEvent | MouseEvent and normalize coordinates after runtime narrowing.',
+            'Do not silence this with a broad cast unless the handler safely handles the actual event object.',
+        ],
+    },
+    {
         match: /Cannot create property 'onload' on string|onload.*data:image|drawImage.*provided value is not of type|data:image\/png;base64/i,
         title: 'Data URL was treated like an Image element',
         steps: [
@@ -229,6 +249,16 @@ const REPAIR_RECIPES = [
             'Keep HUD text, meters, buttons, sliders, labels, and hitboxes code-rendered.',
             'If a required generated role exists, consume it through DreamAssets.firstByRole(role) or getImage(key).',
             'Preserve intentional code fallback art when an asset is missing.',
+        ],
+    },
+    {
+        match: /Blank canvas detected|almost no visible pixels|No canvas element was rendered|visible first frame|preflight_no_visible_first_frame/i,
+        title: 'Canvas renders blank on boot',
+        steps: [
+            'Set canvas CSS size and backing-store size from the mobile viewport before any async asset loading.',
+            'Draw a visible background and at least one gameplay entity synchronously during initialization.',
+            'Start requestAnimationFrame immediately after setup and make the first render path independent of user input.',
+            'Use generated item/enemy/background assets when available, but keep code-rendered fallback shapes visible while images load.',
         ],
     },
 ];

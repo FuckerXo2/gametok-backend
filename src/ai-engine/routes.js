@@ -21,6 +21,7 @@ import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './mak
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
+import { runMakerPreflightChecks } from './maker-preflight-validator.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
@@ -196,7 +197,7 @@ const openRouterClient = new OpenAI({
 const pendingJobBoots = new Map();
 const cancelledJobs = new Map();
 const GENERATION_WORKER_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
-const GENERATION_JOB_CONCURRENCY = Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || 3));
+const GENERATION_JOB_CONCURRENCY = Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || 1));
 const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_POLL_MS || 3000));
 const GENERATION_JOB_MAX_ATTEMPTS = Math.max(1, Number(process.env.GENERATION_JOB_MAX_ATTEMPTS || 1));
 const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 2));
@@ -3119,6 +3120,15 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 directRepairTask: `Required generated asset slots are not connected to gameplay renderers${missing ? `: ${missing}` : ''}.`,
                 repair: 'For each missing required slot, find the matching entry in DREAM_ASSET_PACK by role/key and render it through DreamAssets. Use the generated player/enemy/background assets before procedural placeholders.',
             });
+        } else if (String(check.id || '').startsWith('preflight_')) {
+            tasks.push({
+                priority: check.severity === 'critical' ? 'fatal' : 'major',
+                source: 'opengame_preflight',
+                templateId: check.templateId || null,
+                failure: check.message || 'Maker preflight check failed.',
+                directRepairTask: check.message || directRepairTaskForFailure(check.repair || check.id, check.templateId || null),
+                repair: check.repair || 'Fix this deterministic preflight issue before running build or sandbox checks again.',
+            });
         } else if (check.id === 'asset_animations_unused') {
             const keys = (check.animationKeys || []).slice(0, 8).join(', ');
             tasks.push({
@@ -3414,6 +3424,31 @@ async function applyMakerFileEdits(projectRoot, edits) {
 
 async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets, templateContract, assetContract, turnNumber, phase = 'agent' }) {
     try {
+        const preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
+        if (!preflight.success) {
+            const diagnostics = {
+                preflight,
+                failedContractChecks: preflight.issues.map((issue) => ({
+                    id: issue.id,
+                    severity: issue.severity,
+                    message: issue.message,
+                    repair: issue.repair,
+                    missingSlots: issue.missingSlots || [],
+                })),
+            };
+            const evidence = {
+                phase,
+                success: false,
+                crashes: preflight.issues
+                    .filter((issue) => issue.severity === 'critical')
+                    .map((issue) => `PREFLIGHT ERROR: ${issue.message}`)
+                    .slice(0, 8),
+                diagnostics,
+                targetedRepairTasks: buildTargetedRepairTasks(diagnostics),
+            };
+            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
+            return evidence;
+        }
         await rebuildMakerProjectDist(projectRoot);
         const assembledHtml = await assembleMakerProjectHtml(projectRoot);
         const probeHtml = postProcessRawHtml(assembledHtml, generatedAssets);
@@ -3436,6 +3471,7 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                 horizontalOverflow: sandbox.diagnostics.horizontalOverflow || 0,
                 canvasIssues: sandbox.diagnostics.canvasIssues || [],
                 visibleOutOfBoundsElements: sandbox.diagnostics.visibleOutOfBoundsElements || [],
+                preflight,
             } : null,
             targetedRepairTasks: sandbox.success ? [] : buildTargetedRepairTasks(sandbox.diagnostics || null),
         };
