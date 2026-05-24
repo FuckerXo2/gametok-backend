@@ -262,4 +262,57 @@ draw();
   assert.ok(result.issues.some((issue) => issue.id === 'preflight_dom_append_target_missing'));
 }
 
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+import Phaser from 'phaser';
+class Play extends Phaser.Scene {
+  constructor() { super('Play'); }
+  create() {
+    this.add.dom(0, 0, 'div', 'width: 100%; height: 100%;');
+    this.add.image(40, 40, 'item_asset');
+    this.add.image(80, 40, 'enemy_asset');
+    this.add.image(120, 40, 'background_asset');
+  }
+}
+new Phaser.Game({
+  parent: 'game-container',
+  scene: [Play],
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+});
+void fetch('assets/asset-pack.json');
+`, generated, { indexHtml: '<div id="game-container"></div><script type="module" src="/src/main.ts"></script>' });
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'Phaser DOM objects without dom.createContainer should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_phaser_dom_container_missing'));
+}
+
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+import Phaser from 'phaser';
+class Play extends Phaser.Scene {
+  constructor() { super('Play'); }
+  create() {
+    this.add.image(40, 40, 'item_asset');
+    this.add.image(80, 40, 'enemy_asset');
+    this.add.image(120, 40, 'background_asset');
+  }
+}
+new Phaser.Game({
+  parent: 'game-container',
+  scene: [Play],
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    maxWidth: 390,
+  },
+});
+void fetch('assets/asset-pack.json');
+`, generated, { indexHtml: '<div id="game-container"></div><script type="module" src="/src/main.ts"></script>' });
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'unsupported Phaser ScaleConfig keys should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_phaser_invalid_scale_config'));
+}
+
 console.log('maker opengame migration tests passed');

@@ -315,6 +315,29 @@ function collectMissingAppendTargets(source = '', ids = new Set()) {
     return Array.from(missing);
 }
 
+function usesPhaserDomObjects(source = '') {
+    return /\b(?:this|scene)\.add\.dom\s*\(|\badd\.dom\s*\(|\.createFromHTML\s*\(|\bPhaser\.GameObjects\.DOMElement\b/.test(source);
+}
+
+function hasPhaserDomContainerEnabled(source = '') {
+    return /\bdom\s*:\s*\{[\s\S]{0,300}?\bcreateContainer\s*:\s*true\b/.test(source);
+}
+
+function collectInvalidPhaserScaleKeys(source = '') {
+    const issues = [];
+    const invalidKeys = new Set(['maxWidth', 'maxHeight', 'minWidth', 'minHeight']);
+    const scalePattern = /\bscale\s*:/g;
+    let match;
+    while ((match = scalePattern.exec(source)) !== null) {
+        const literal = extractBalancedObjectLiteral(source.slice(match.index), /\bscale\s*:/g);
+        if (!literal) continue;
+        for (const key of topLevelObjectKeys(literal)) {
+            if (invalidKeys.has(key)) issues.push(key);
+        }
+    }
+    return unique(issues);
+}
+
 export async function runMakerPreflightChecks({ projectRoot, generatedAssets = null, assetContract = null } = {}) {
     const sourcePath = path.join(projectRoot || '', 'src', 'main.ts');
     const source = await readTextIfExists(sourcePath);
@@ -499,6 +522,26 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             message: `Source appends children to missing DOM id(s): ${missingAppendTargets.slice(0, 8).join(', ')}.`,
             missingKeys: missingAppendTargets.slice(0, 12),
             repair: 'Only call appendChild on document.body or on DOM IDs present in index.html; for Phaser, use the existing game-container mount element and null-check custom DOM targets.',
+        });
+    }
+
+    if (usesPhaserDomObjects(projectSource) && !hasPhaserDomContainerEnabled(projectSource)) {
+        issues.push({
+            id: 'preflight_phaser_dom_container_missing',
+            severity: 'critical',
+            message: 'Phaser DOM game objects are used, but the Phaser config does not enable dom.createContainer.',
+            repair: 'Keep dom: { createContainer: true } in the Phaser game config whenever UI scenes or helpers use this.add.dom/createFromHTML, or remove Phaser DOM objects entirely.',
+        });
+    }
+
+    const invalidScaleKeys = collectInvalidPhaserScaleKeys(projectSource);
+    if (invalidScaleKeys.length > 0) {
+        issues.push({
+            id: 'preflight_phaser_invalid_scale_config',
+            severity: 'critical',
+            message: `Phaser ScaleConfig includes unsupported top-level key(s): ${invalidScaleKeys.join(', ')}.`,
+            missingKeys: invalidScaleKeys,
+            repair: 'Remove unsupported ScaleConfig keys such as maxWidth/maxHeight/minWidth/minHeight. Use width, height, mode, autoCenter, and CSS/container constraints instead.',
         });
     }
 
