@@ -306,25 +306,31 @@ setInterval(() => {
 }, 60 * 1000).unref?.();
 
 async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
-    const messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-    ];
     let raw = '';
     let extracted = '';
     let parseError = null;
+    const maxJsonRewriteAttempts = Math.max(1, BUILDER_JSON_REWRITE_ATTEMPTS);
 
-    for (let attempt = 0; attempt <= BUILDER_MAX_CONTINUATIONS; attempt += 1) {
+    for (let attempt = 0; attempt <= maxJsonRewriteAttempts; attempt += 1) {
+        const messages = [
+            { role: "system", content: systemPrompt },
+            {
+                role: "user",
+                content: attempt === 0
+                    ? userPrompt
+                    : buildPhase1JsonRewritePrompt(userPrompt, extracted || raw, parseError),
+            }
+        ];
         const res = await withNvidiaRetries((currentModel, client) => withAbortableTimeout((signal) => client.chat.completions.create({
             model: currentModel || DREAM_MODELS.spec,
             messages,
             max_tokens: maxTokens,
-            temperature: temperature
+            temperature: attempt === 0 ? temperature : Math.min(temperature, 0.15)
         }, { signal }), 120000), { label: 'Phase 1 Builder', maxAttempts: 3, baseDelayMs: 2000, fallbackModels: BUILDER_FALLBACK_MODELS });
         if (!res || !res.choices || !res.choices[0]) {
             throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
         }
-        raw += res.choices[0].message.content || '';
+        raw = res.choices[0].message.content || '';
         extracted = extractJson(raw);
 
         // Try 1: Direct parse
@@ -343,18 +349,13 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
                 console.error('[callAI] Extracted JSON length:', extracted.length);
                 console.error('[callAI] Last 200 chars of extracted:', extracted.slice(-200));
                 console.error('[callAI] Repair also failed:', repairError.message);
-                if (attempt >= BUILDER_MAX_CONTINUATIONS) break;
-                console.warn(`[callAI] Requesting JSON continuation ${attempt + 1}/${BUILDER_MAX_CONTINUATIONS} after parse failure: ${directError.message}`);
-                messages.push({ role: 'assistant', content: raw });
-                messages.push({
-                    role: 'user',
-                    content: buildBuilderJsonContinuationPrompt(extracted, directError),
-                });
+                if (attempt >= maxJsonRewriteAttempts) break;
+                console.warn(`[callAI] Requesting full JSON rewrite ${attempt + 1}/${maxJsonRewriteAttempts} after parse failure: ${directError.message}`);
             }
         }
     }
 
-    throw new Error(`JSON parse failed after continuation attempts: ${parseError?.message || 'unknown parse error'}. Response stayed incomplete (${extracted.length} chars).`);
+    throw new Error(`JSON parse failed after rewrite attempts: ${parseError?.message || 'unknown parse error'}. Response stayed invalid (${extracted.length} chars).`);
 }
 
 const DISCOVERY_TABS = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'];
@@ -964,6 +965,26 @@ function buildBuilderJsonRewritePrompt(originalPrompt, invalidJson, parseError) 
         'Invalid response excerpt:',
         '```json',
         String(invalidJson || '').slice(-12000),
+        '```',
+        '',
+        'Original task:',
+        originalPrompt,
+    ].join('\n');
+}
+
+function buildPhase1JsonRewritePrompt(originalPrompt, invalidJson, parseError) {
+    return [
+        'Your previous response was not valid JSON.',
+        'Return one complete valid JSON object now. No markdown. No commentary.',
+        'Do not continue the broken response. Rewrite the full JSON object from scratch.',
+        'Use strict JSON only: double-quoted strings, no comments, no trailing commas, and no unescaped newlines inside strings.',
+        'Keep the same schema requested by the original prompt.',
+        '',
+        `Parser error: ${parseError?.message || String(parseError || 'unknown parse error')}`,
+        '',
+        'Invalid response excerpt:',
+        '```json',
+        String(invalidJson || '').slice(-8000),
         '```',
         '',
         'Original task:',
