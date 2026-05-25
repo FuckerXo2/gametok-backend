@@ -32,6 +32,7 @@ import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } fro
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { applyOpenGameMakerTemplate, shouldUseOpenGameMakerBuilder } from './maker-opengame-builder.js';
+import { runRealOpenGameBuild, shouldUseRealOpenGameRuntime } from './real-opengame-runner.js';
 import { maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -4178,6 +4179,162 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
 // Phase 2: Kimi builds the game from the spec and asset contract
 // Phase 3: Puppeteer verifies the result and Kimi repairs project files
 // ═══════════════════════════════════════════════════════════
+async function executeRealOpenGameDreamJob({
+    jobId,
+    prompt,
+    workspace,
+    persistToDb,
+    reportProgress,
+}) {
+    await reportProgress(12, 'opengame', 'Starting OpenGame...');
+    const build = await runRealOpenGameBuild({
+        jobId,
+        prompt,
+        workspace,
+        shouldCancel: async () => assertJobNotCancelledShared(jobId, { force: true }),
+    });
+    await writeMakerText(workspace, 'raw-build.html', build.rawHtml);
+    await writeMakerText(workspace, 'artifact/index.html', build.html);
+    await writeMakerJson(workspace, 'real-opengame-result.json', {
+        jobId,
+        buildMode: build.buildMode,
+        projectRoot: build.projectRoot,
+        distIndex: build.distIndex,
+        openGameRoot: build.openGameRoot,
+        model: build.model,
+        htmlBytes: Buffer.byteLength(build.html || '', 'utf8'),
+        completedAt: new Date().toISOString(),
+    });
+
+    if (!build.html || !hasClosedHtmlDocument(build.html)) {
+        throw new Error('Real OpenGame output is missing a complete HTML document.');
+    }
+
+    await reportProgress(72, 'verify', 'Testing OpenGame output...');
+    let sandboxRes;
+    try {
+        sandboxRes = await verifyGame(build.html, {
+            sourceHtml: build.rawHtml,
+        });
+    } catch (validationError) {
+        sandboxRes = {
+            success: false,
+            crashes: [validationError.message || String(validationError)],
+            screenshot: null,
+            diagnostics: null,
+        };
+    }
+    const finalSandboxResult = {
+        success: Boolean(sandboxRes.success),
+        crashes: sandboxRes.crashes || [],
+        hasScreenshot: Boolean(sandboxRes.screenshot),
+        diagnostics: sandboxRes.diagnostics || null,
+        attempt: 1,
+        repairAttemptsUsed: 0,
+        checkedAt: new Date().toISOString(),
+    };
+    await writeMakerJson(workspace, 'sandbox-result.json', finalSandboxResult);
+    if (!sandboxRes.success) {
+        const crash = sandboxRes.crashes?.[0] || 'unknown verifier failure';
+        throw new Error(`Real OpenGame output failed sandbox verification: ${crash}`);
+    }
+
+    await reportProgress(94, 'save', 'Saving your OpenGame build...');
+    const finalTitle = (extractHtmlTitle(build.rawHtml) || 'OpenGame Creation').substring(0, 255);
+    await writeMakerJson(workspace, 'gametok-build-report.json', {
+        version: 2,
+        jobId,
+        title: finalTitle,
+        engine: 'real-opengame',
+        status: 'complete',
+        completedAt: new Date().toISOString(),
+        workspace,
+        projectRoot: build.projectRoot,
+        artifactPath: path.join(workspace, 'artifact/index.html'),
+        rawBuildPath: path.join(workspace, 'raw-build.html'),
+        buildCommand: 'opengame-cli',
+        buildMode: build.buildMode,
+        promptModel: build.model,
+        sandbox: finalSandboxResult,
+        htmlBytes: Buffer.byteLength(build.html || '', 'utf8'),
+        rawHtmlBytes: Buffer.byteLength(build.rawHtml || '', 'utf8'),
+    });
+
+    if (!persistToDb) {
+        console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" exported to ${path.join(workspace, 'artifact/index.html')}`);
+        forgetCancelledJob(jobId);
+        return {
+            jobId,
+            title: finalTitle,
+            html: build.html,
+            rawHtml: build.rawHtml,
+            screenshot: sandboxRes.screenshot || null,
+            workspace,
+            artifactPath: path.join(workspace, 'artifact/index.html'),
+            reportPath: path.join(workspace, 'gametok-build-report.json'),
+            buildMode: build.buildMode,
+            sandbox: finalSandboxResult,
+        };
+    }
+
+    const classification = await classifyPublishedGame({
+        title: finalTitle,
+        prompt,
+        description: 'Real OpenGame Creation: ' + prompt,
+        htmlPayload: build.html,
+    });
+    await pool.query(
+        `UPDATE ai_games
+         SET title = $1,
+             html_payload = $2,
+             raw_code = $3,
+             artist_code = $4,
+             thumbnail = $5,
+             preview_video_url = $6,
+             category = $7,
+             subcategory = $8,
+             primary_tab = $9,
+             interaction_type = $10,
+             classification_confidence = $11,
+             classification_tags = $12,
+             discovery_chips = $13
+         WHERE id = $14`,
+        [
+            finalTitle,
+            build.html,
+            build.rawHtml,
+            null,
+            sandboxRes.screenshot || null,
+            null,
+            classification.category,
+            classification.subcategory,
+            classification.primaryTab,
+            classification.interactionType,
+            classification.confidence,
+            JSON.stringify(classification.tags),
+            JSON.stringify(classification.discoveryChips || []),
+            jobId,
+        ]
+    );
+    console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved through Real OpenGame for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
+    forgetCancelledJob(jobId);
+    pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
+        .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
+        .catch((error) => console.log('[Notifications] Game ready notify error:', error));
+    return {
+        jobId,
+        title: finalTitle,
+        html: build.html,
+        rawHtml: build.rawHtml,
+        screenshot: sandboxRes.screenshot || null,
+        workspace,
+        artifactPath: path.join(workspace, 'artifact/index.html'),
+        reportPath: path.join(workspace, 'gametok-build-report.json'),
+        buildMode: build.buildMode,
+        sandbox: finalSandboxResult,
+    };
+}
+
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     const persistToDb = jobPayload?.persistToDb !== false;
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
@@ -4215,6 +4372,19 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
         await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');
+
+        if (shouldUseRealOpenGameRuntime()) {
+            console.log(`🎮 [Real OpenGame] Using vendored OpenGame CLI runtime for job ${jobId}; GameTok XML/file-agent maker path is bypassed.`);
+            buildMode = 'real-opengame-cli';
+            const result = await executeRealOpenGameDreamJob({
+                jobId,
+                prompt,
+                workspace: makerWorkspace,
+                persistToDb,
+                reportProgress,
+            });
+            return result;
+        }
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
         await reportProgress(8, 'spec', 'Reading your idea...');

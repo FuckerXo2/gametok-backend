@@ -400,7 +400,17 @@ new Phaser.Game({ parent: 'game-container', scene: [] });
 }
 
 {
+  const realOpenGameSource = await fs.readFile(new URL('../src/ai-engine/real-opengame-runner.js', import.meta.url), 'utf8');
+  assert.ok(realOpenGameSource.includes("vendor', 'opengame"), 'backend should vendor and call the real OpenGame runtime');
+  assert.ok(realOpenGameSource.includes("OPENGAME_REASONING_PROVIDER") && realOpenGameSource.includes("openai-compat"), 'real OpenGame runner should use OpenAI-compatible model provider wiring');
+  assert.ok(realOpenGameSource.includes("dist', 'cli.js"), 'real OpenGame runner should execute the OpenGame CLI entrypoint');
+  assert.ok(realOpenGameSource.includes('GAMETOK_USE_REAL_OPENGAME') && realOpenGameSource.includes("!== 'false'"), 'real OpenGame should be the default maker path unless explicitly disabled');
+}
+
+{
   const routesSource = await fs.readFile(new URL('../src/ai-engine/routes.js', import.meta.url), 'utf8');
+  assert.ok(routesSource.includes('shouldUseRealOpenGameRuntime()'), 'Dream jobs should bypass the old maker stack through the real OpenGame runner');
+  assert.ok(routesSource.includes('executeRealOpenGameDreamJob'), 'routes should save and verify real OpenGame output through the normal game persistence path');
   assert.ok(routesSource.includes('const useOpenGameAcceptance = buildMode ==='), 'OpenGame builder should use a separate non-blocking acceptance path');
   assert.ok(routesSource.includes('!makerAcceptanceResult.passed && !useOpenGameAcceptance'), 'OpenGame sandbox passes should not be failed by the legacy acceptance gate');
   assert.ok(routesSource.includes('assetQuality: useOpenGameAcceptance ? null'), 'OpenGame acceptance should not block on generated art quality when deterministic fallbacks exist');
