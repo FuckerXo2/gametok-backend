@@ -398,6 +398,7 @@ async function claimGenerationJob() {
          WHERE id = (
              SELECT id FROM generation_jobs
              WHERE status = 'queued'
+               AND kind = 'dream'
                AND run_after <= NOW()
                AND attempts < max_attempts
              ORDER BY created_at ASC
@@ -830,7 +831,7 @@ router.post('/dream', async (req, res) => {
             userId,
             prompt,
             title: 'OpenGame Pending...',
-            kind: 'dream',
+            kind: 'opengame',
             payload: { mediaAttachments },
         });
         res.json({ success: true, jobId });
@@ -924,7 +925,7 @@ router.post('/dream/retry/:jobId', async (req, res) => {
             userId,
             prompt: job.prompt,
             title: 'OpenGame Pending...',
-            kind: 'dream',
+            kind: 'opengame',
             payload: { mediaAttachments: [] },
         });
         res.json({ success: true, jobId: newJobId });

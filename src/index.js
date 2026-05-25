@@ -14,6 +14,7 @@ import { initializeChatSocket } from './chat-socket.js';
 import { initializePresenceSocket, presenceRouter } from './presence-socket.js';
 import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } from './score-lobby-socket.js';
 import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker } from './ai.js';
+import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
@@ -42,6 +43,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 🔥 NATIVE AI PIPELINE MOUNT 🔥
 app.use('/api/ai', aiRouter);
+app.use('/api/opengame', openGameRouter);
 
 // Global Media & Assets Pool
 app.use('/api/assets', assetsRouter);
@@ -59,6 +61,7 @@ app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thum
 for (const previewRoot of GAME_PREVIEW_ROOTS) {
   app.use('/game-previews', express.static(previewRoot));
 }
+app.use('/opengame-games', express.static(path.join(STORAGE_ROOT, 'opengame-games')));
 
 // Health check / API entry point
 app.get('/', (req, res) => {
