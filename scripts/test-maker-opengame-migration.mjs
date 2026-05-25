@@ -378,10 +378,17 @@ new Phaser.Game({ parent: 'game-container', scene: [] });
   assert.ok(!source.includes('<file path='), 'OpenGame builder source must not contain XML file-agent payloads');
   assert.ok(source.includes('REQUIRED_ASSET_ROLES'), 'OpenGame builder should encode required asset roles');
   assert.ok(source.includes("'player'") && source.includes("'enemy'") && source.includes("'item'"), 'OpenGame builder should reference gameplay asset roles');
+  assert.ok(source.includes('attack: () =>') && source.includes('spawnEnemyNearPlayer: () =>'), 'OpenGame builder should expose the sandbox probe API expected by verification');
   assert.ok(source.includes("dom: { createContainer: true }"), 'OpenGame builder should enable Phaser DOM container by construction');
   assert.ok(!/\bmaxWidth\b|\bmaxHeight\b|\bminWidth\b|\bminHeight\b/.test(source), 'OpenGame builder must not emit unsupported Phaser ScaleConfig keys');
   const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
   assert.equal(result.success, true, `OpenGame template-owned runtime should pass preflight: ${JSON.stringify(result.issues)}`);
+}
+
+{
+  const sandboxSource = await fs.readFile(new URL('../src/ai-engine/sandbox.js', import.meta.url), 'utf8');
+  assert.ok(!sandboxSource.includes('page.setContent('), 'sandbox should load generated games as browser pages instead of document.write/setContent');
+  assert.ok(sandboxSource.includes('page.goto(`file://${htmlPath}`'), 'sandbox should navigate to a temporary file-backed page');
 }
 
 console.log('maker opengame migration tests passed');

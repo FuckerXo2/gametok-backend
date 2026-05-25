@@ -1,4 +1,7 @@
 import puppeteer from 'puppeteer';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 function isLikelyThreeJsBuild(htmlString = '') {
     const source = String(htmlString || '');
@@ -11,6 +14,17 @@ function isHeadlessWebglFailure(crashes = []) {
     return Array.isArray(crashes) && crashes.some((entry) =>
         /webgl context|error creating webgl context|failed to create.*webgl/i.test(String(entry || ''))
     );
+}
+
+async function loadHtmlAsBrowserPage(page, htmlString = '') {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gametok-sandbox-'));
+    const htmlPath = path.join(tempDir, 'index.html');
+    await fs.writeFile(htmlPath, String(htmlString || ''), 'utf8');
+    try {
+        await page.goto(`file://${htmlPath}`, { waitUntil: 'load', timeout: 8000 });
+    } finally {
+        fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
 }
 
 function inspectTemplateContractSource(sourceHtml = '', templateContract = null) {
@@ -550,7 +564,7 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push(err.message);
         });
 
-        await page.setContent(htmlString, { waitUntil: 'load', timeout: 8000 });
+        await loadHtmlAsBrowserPage(page, htmlString);
         
         // Wait briefly for boot
         await new Promise(r => setTimeout(r, 1000));

@@ -4675,6 +4675,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             });
 
             if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length > 0) {
+                if (buildMode === 'opengame-template-native') {
+                    console.warn(`⚠️ [OpenGame Maker] Template-owned runtime failed verification. Model file repair is disabled for this path; fix the deterministic template/sandbox contract instead. (${sandboxRes.crashes[0]})`);
+                    await reportProgress(78, 'verify', 'Template verification failed...');
+                    break;
+                }
                 console.log(`⚠️ Sandbox CRASH DETECTED. Asking main builder to repair... (${sandboxRes.crashes[0]})`);
                 await reportProgress(78, 'repair', 'Repairing a sandbox crash...');
                 const is3DFirstPerson = qualityIntent.technicalRequirements?.dimension === '3D' && qualityIntent.technicalRequirements?.perspective === 'first_person';

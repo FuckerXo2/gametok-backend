@@ -174,6 +174,9 @@ class GameScene extends Phaser.Scene {
   private announcerText!: Phaser.GameObjects.Text;
   private slashGraphics!: Phaser.GameObjects.Graphics;
   private lastSliceAt = 0;
+  private playerState = { x: SAFE_WIDTH / 2, y: SAFE_HEIGHT * 0.72, health: 3 };
+  private probeProjectileCount = 0;
+  private bladeHint?: Phaser.GameObjects.Image;
 
   constructor() {
     super('GameScene');
@@ -194,6 +197,7 @@ class GameScene extends Phaser.Scene {
     this.renderBackground();
     this.createHud();
     this.slashGraphics = this.add.graphics().setDepth(60);
+    this.renderBladeHint();
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.beginSlash(pointer));
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.extendSlash(pointer));
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.finishSlash(pointer));
@@ -207,21 +211,39 @@ class GameScene extends Phaser.Scene {
         score: this.score,
         combo: this.combo,
         lives: this.lives,
+        player: { ...this.playerState, health: this.lives },
+        enemyCount: this.targets.filter((entry) => entry.kind === 'enemy' && !entry.sliced).length,
+        projectileCount: this.probeProjectileCount,
         targets: this.targets.length,
         requiredAssetRoles: REQUIRED_ASSET_ROLES,
         assetContract: ASSET_CONTRACT_SUMMARY,
       }),
-      move: (dx = 80, dy = -30) => {
-        const target = this.targets.find((entry) => entry.kind === 'item') || this.targets[0];
-        if (!target) return false;
-        this.resolveSlice(target, new Phaser.Math.Vector2(dx, dy));
-        return true;
+      move: (dx = 80, dy = 0, duration = 180) => {
+        const startX = this.playerState.x;
+        const startY = this.playerState.y;
+        this.playerState.x = Phaser.Math.Clamp(startX + Number(dx || 0) * Math.max(1, Number(duration || 1)) / 180, 42, SAFE_WIDTH - 42);
+        this.playerState.y = Phaser.Math.Clamp(startY + Number(dy || 0) * Math.max(1, Number(duration || 1)) / 180, 142, SAFE_HEIGHT - 58);
+        this.bladeHint?.setPosition(this.playerState.x, this.playerState.y);
+        this.slash = [
+          { x: startX, y: startY, t: this.time.now },
+          { x: this.playerState.x, y: this.playerState.y, t: this.time.now + 1 },
+        ];
+        this.checkSlashHits(true);
+        return (window as any).__GAMETOK_TEMPLATE_PROBE__.snapshot();
+      },
+      attack: () => {
+        this.probeProjectileCount += 1;
+        this.spawnImpact(this.playerState.x, this.playerState.y - 34, -0.7);
+        const target = this.targets.find((entry) => entry.kind === 'enemy') || this.targets.find((entry) => entry.kind === 'item') || this.spawnTarget('enemy', this.playerState.x, this.playerState.y - 128);
+        if (target) this.resolveSlice(target, new Phaser.Math.Vector2(110, -42));
+        return (window as any).__GAMETOK_TEMPLATE_PROBE__.snapshot();
+      },
+      spawnEnemyNearPlayer: () => {
+        this.spawnTarget('enemy', this.playerState.x, this.playerState.y - 116);
+        return (window as any).__GAMETOK_TEMPLATE_PROBE__.snapshot();
       },
       primaryAction: () => {
-        this.spawnTarget('item');
-        this.combo += 1;
-        this.updateHud();
-        return true;
+        return (window as any).__GAMETOK_TEMPLATE_PROBE__.attack();
       },
       reset: () => {
         this.scene.restart();
@@ -290,26 +312,41 @@ class GameScene extends Phaser.Scene {
     this.updateHud();
   }
 
+  private renderBladeHint() {
+    const key = this.playerKey || this.effectKey || createSlashTexture(this);
+    this.bladeHint = this.add.image(this.playerState.x, this.playerState.y, key);
+    this.bladeHint
+      .setDepth(52)
+      .setAlpha(0.72)
+      .setDisplaySize(94, 94)
+      .setRotation(-0.7)
+      .setData('role', 'player')
+      .setData('assetKey', key);
+  }
+
   private updateHud() {
     this.scoreText.setText('SCORE ' + this.score);
     this.comboText.setText(THEME.scoreLabel.toUpperCase() + ' x' + this.combo);
     this.livesText.setText('LIVES ' + this.lives + '/3');
   }
 
-  private spawnTarget(kind: SpawnKind) {
+  private spawnTarget(kind: SpawnKind, forcedX?: number, forcedY?: number): FlyingTarget {
     const key = kind === 'enemy' ? this.enemyKey : this.itemKey;
-    const x = Phaser.Math.Between(56, SAFE_WIDTH - 56);
-    const sprite = this.physics.add.sprite(x, SAFE_HEIGHT + 40, key);
+    const x = typeof forcedX === 'number' ? Phaser.Math.Clamp(forcedX, 56, SAFE_WIDTH - 56) : Phaser.Math.Between(56, SAFE_WIDTH - 56);
+    const y = typeof forcedY === 'number' ? Phaser.Math.Clamp(forcedY, 128, SAFE_HEIGHT + 40) : SAFE_HEIGHT + 40;
+    const sprite = this.physics.add.sprite(x, y, key);
     sprite.setDepth(kind === 'enemy' ? 35 : 30);
     sprite.setDisplaySize(kind === 'enemy' ? 86 : 96, kind === 'enemy' ? 86 : 96);
     sprite.setCircle(Math.min(sprite.displayWidth, sprite.displayHeight) * 0.36);
     sprite.setBounce(0.9);
     sprite.setAngularVelocity(Phaser.Math.Between(-180, 180));
-    sprite.setVelocity(Phaser.Math.Between(-95, 95), Phaser.Math.Between(-760, -560));
+    sprite.setVelocity(Phaser.Math.Between(-95, 95), typeof forcedY === 'number' ? Phaser.Math.Between(-70, 30) : Phaser.Math.Between(-760, -560));
     sprite.setGravityY(760);
     sprite.setData('role', kind === 'enemy' ? 'enemy' : 'item');
     sprite.setData('assetKey', key);
-    this.targets.push({ sprite, kind, role: kind === 'enemy' ? 'enemy' : 'item', sliced: false, bornAt: this.time.now });
+    const target = { sprite, kind, role: kind === 'enemy' ? 'enemy' : 'item', sliced: false, bornAt: this.time.now };
+    this.targets.push(target);
+    return target;
   }
 
   private beginSlash(pointer: Phaser.Input.Pointer) {
@@ -363,6 +400,7 @@ class GameScene extends Phaser.Scene {
     const normal = swipe.clone().normalize().rotate(Math.PI / 2);
     if (target.kind === 'enemy') {
       this.lives = Math.max(0, this.lives - 1);
+      this.playerState.health = this.lives;
       this.combo = 0;
       this.cameras.main.shake(260, 0.026);
       this.announcer(this.lives === 0 ? 'BOMB HIT. TAP TO RESET.' : 'BOMB!');
