@@ -12,9 +12,9 @@ const VENDORED_OPENGAME_ROOT = path.join(REPO_ROOT, 'vendor', 'opengame');
 const DEFAULT_OPENGAME_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_OPENGAME_MODELS = [
     'qwen/qwen3-coder-480b-a35b-instruct',
+    'z-ai/glm-5.1',
     'moonshotai/kimi-k2.6',
     'deepseek-ai/deepseek-v4-pro',
-    'z-ai/glm-5.1',
 ];
 
 export function shouldUseRealOpenGameRuntime(env = process.env) {
@@ -65,11 +65,10 @@ async function linkBackendNodeModules(projectRoot) {
 
 function buildOpenGamePrompt(prompt) {
     return [
-        'Build a complete playable mobile HTML5 game in this existing Vite/Phaser project.',
-        'Use the current project files as the starting point. Edit code and assets as needed.',
-        'Keep the game self-contained, portrait-mobile friendly, and playable immediately after npm run build.',
-        'Do not leave a blank white screen. The first frame must visibly render the game world, HUD, and interactive objects.',
-        'When done, run the project build if possible so dist/index.html exists.',
+        'Build the complete playable mobile HTML5 game now in this existing OpenGame Vite/Phaser project.',
+        'Do not answer with a plan or explanation. Use your available OpenGame tools and file editing tools immediately.',
+        'Edit the project files, generate any needed assets through OpenGame tools, run the build, and stop only when dist/index.html exists.',
+        'The result must be self-contained, portrait-mobile friendly, visible on first frame, and playable immediately.',
         '',
         'Game request:',
         prompt,
@@ -103,18 +102,24 @@ function createOpenGameEnv({ apiKey, model, baseUrl, env = process.env }) {
 }
 
 function getOpenGameModelCandidates(env = process.env) {
-    const configured = [
-        env.OPENGAME_OPENAI_MODELS,
-        env.OPENGAME_MODEL_FALLBACKS,
+    const explicitList = env.OPENGAME_OPENAI_MODELS || env.OPENGAME_MODEL_FALLBACKS;
+    const configuredList = explicitList
+        ? String(explicitList).split(',')
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : [];
+    const singleConfigured = [
         env.OPENGAME_OPENAI_MODEL,
         env.OPENAI_MODEL,
     ]
         .filter(Boolean)
-        .flatMap((value) => String(value).split(','))
         .map((value) => value.trim())
         .filter(Boolean);
 
-    return [...new Set([...configured, ...DEFAULT_OPENGAME_MODELS])];
+    if (configuredList.length > 0) {
+        return [...new Set([...configuredList, ...singleConfigured, ...DEFAULT_OPENGAME_MODELS])];
+    }
+    return [...new Set([...DEFAULT_OPENGAME_MODELS, ...singleConfigured])];
 }
 
 function extractOpenGameStreamFailure(stdout = '', stderr = '') {
@@ -292,18 +297,17 @@ export async function runRealOpenGameBuild({
             await shouldCancel();
             const run = await spawnWithLogs(process.execPath, [
                 cliPath,
-                '--prompt',
-                buildOpenGamePrompt(prompt),
                 '--auth-type',
                 'openai',
                 '--model',
                 model,
                 '--approval-mode',
                 'yolo',
-                '--output-format',
-                'stream-json',
                 '--channel',
                 'CI',
+                '--max-session-turns',
+                String(Number(env.OPENGAME_MAX_SESSION_TURNS || 40)),
+                buildOpenGamePrompt(prompt),
             ], {
                 cwd: projectRoot,
                 env: openGameEnv,
