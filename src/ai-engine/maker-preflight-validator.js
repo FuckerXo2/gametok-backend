@@ -597,7 +597,9 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         });
     }
 
-    const likelyNoFirstFrame = source.trim()
+    const isPhaserProject = /\bnew\s+Phaser\.Game\s*\(|\bextends\s+Phaser\.Scene\b/.test(projectSource);
+    const likelyNoFirstFrame = !isPhaserProject
+        && source.trim()
         && /document\.createElement\s*\(\s*['"`]canvas['"`]\s*\)|getElementById\s*\(\s*['"`][^'"`]*(?:canvas|game)[^'"`]*['"`]\s*\)/i.test(projectSource)
         && !/requestAnimationFrame|setInterval|setTimeout\s*\(\s*(?:render|draw|loop|tick|update)|\b(?:render|draw|loop|tick|update)\s*\(\s*\)/i.test(projectSource);
     if (likelyNoFirstFrame) {

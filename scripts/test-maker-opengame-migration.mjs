@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { materializeMakerAssetsForProject } from '../src/ai-engine/maker-asset-materializer.js';
 import { classifyMakerGame } from '../src/ai-engine/maker-classifier.js';
+import { applyOpenGameMakerTemplate, shouldUseOpenGameMakerBuilder } from '../src/ai-engine/maker-opengame-builder.js';
 import { runMakerPreflightChecks } from '../src/ai-engine/maker-preflight-validator.js';
 
 const PNG_1X1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -22,6 +23,7 @@ const assetContract = {
     'Swipe to slice fruit with bombs, combo, hit-stop, and screen shake'
   );
   assert.equal(routed.selectedTemplateId, 'phaser-top-down-action', 'action arcade prompts should route to Phaser-first template');
+  assert.equal(shouldUseOpenGameMakerBuilder({ templateId: routed.selectedTemplateId }), true, 'Phaser action maker should use OpenGame-style template builder');
 }
 
 {
@@ -337,6 +339,28 @@ void fetch('assets/asset-pack.json');
   const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
   assert.equal(result.success, false, 'redeclaring inherited scene fields should fail preflight');
   assert.ok(result.issues.some((issue) => issue.id === 'preflight_inherited_scene_property_redeclared'));
+}
+
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+import Phaser from 'phaser';
+new Phaser.Game({ parent: 'game-container', scene: [] });
+`, generated, { indexHtml: '<div id="game-container"></div><script type="module" src="/src/main.ts"></script>' });
+  await applyOpenGameMakerTemplate(projectRoot, {
+    qualityIntent: { title: 'Kinetic Slice', playerActions: ['swipe to slice fruit'] },
+    prompt: 'Swipe to slice fruit with bombs, combo, hit-stop, and screen shake',
+    assetContract,
+    generatedAssets: generated,
+  });
+  const source = await fs.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8');
+  assert.ok(!source.includes('<file path='), 'OpenGame builder source must not contain XML file-agent payloads');
+  assert.ok(source.includes('REQUIRED_ASSET_ROLES'), 'OpenGame builder should encode required asset roles');
+  assert.ok(source.includes("'player'") && source.includes("'enemy'") && source.includes("'item'"), 'OpenGame builder should reference gameplay asset roles');
+  assert.ok(source.includes("dom: { createContainer: true }"), 'OpenGame builder should enable Phaser DOM container by construction');
+  assert.ok(!/\bmaxWidth\b|\bmaxHeight\b|\bminWidth\b|\bminHeight\b/.test(source), 'OpenGame builder must not emit unsupported Phaser ScaleConfig keys');
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, true, `OpenGame template-owned runtime should pass preflight: ${JSON.stringify(result.issues)}`);
 }
 
 console.log('maker opengame migration tests passed');

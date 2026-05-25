@@ -31,6 +31,7 @@ import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentI
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
+import { applyOpenGameMakerTemplate, shouldUseOpenGameMakerBuilder } from './maker-opengame-builder.js';
 import { maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -4515,21 +4516,58 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     );
                 }
             }
-            await runMakerAgentInspectionTurns({
-                workspace: makerWorkspace,
-                projectRoot: makerProject.projectRoot,
-                turns: makerAgentTurns,
-                jobId,
-                prompt,
-                qualityIntent,
-                generatedAssets,
-                templateContract: makerTemplateContract,
-                assetContract: makerAssetContract,
-                debugProtocol: makerDebugProtocol,
-                designBrief: makerDesignBrief,
-                builderMaps: makerBuilderMaps,
-                assetQuality: generatedAssets?.assetQuality || null,
-            });
+            if (shouldUseOpenGameMakerBuilder(makerTemplateContract)) {
+                buildMode = 'opengame-template-native';
+                const applied = await applyOpenGameMakerTemplate(makerProject.projectRoot, {
+                    qualityIntent,
+                    prompt,
+                    templateContract: makerTemplateContract,
+                    assetContract: makerAssetContract,
+                    debugProtocol: makerDebugProtocol,
+                    designBrief: makerDesignBrief,
+                    generatedAssets,
+                });
+                await writeMakerJson(makerWorkspace, 'logs/opengame-template-builder.json', {
+                    mode: buildMode,
+                    source: 'template-owned-runtime',
+                    templateId: makerTemplateContract?.templateId || null,
+                    applied,
+                    note: 'OpenGame-style Maker path: deterministic scaffold owns runtime files; model output is limited to intent/assets and no XML file-agent edits are used.',
+                });
+                await appendMakerAgentTurn(makerWorkspace, makerAgentTurns, {
+                    phase: 'opengame_template_build',
+                    objective: 'Materialize a template-owned playable runtime from the selected scaffold, generated asset pack, and GDD.',
+                    status: 'complete',
+                    model: 'opengame-template-runtime',
+                    editsApplied: applied,
+                    notes: ['Skipped XML file-agent turns for this supported Maker template.'],
+                });
+                await runMakerProjectEvidence({
+                    workspace: makerWorkspace,
+                    projectRoot: makerProject.projectRoot,
+                    generatedAssets,
+                    templateContract: makerTemplateContract,
+                    assetContract: makerAssetContract,
+                    turnNumber: 'opengame-template',
+                    phase: 'after_opengame_template_build',
+                });
+            } else {
+                await runMakerAgentInspectionTurns({
+                    workspace: makerWorkspace,
+                    projectRoot: makerProject.projectRoot,
+                    turns: makerAgentTurns,
+                    jobId,
+                    prompt,
+                    qualityIntent,
+                    generatedAssets,
+                    templateContract: makerTemplateContract,
+                    assetContract: makerAssetContract,
+                    debugProtocol: makerDebugProtocol,
+                    designBrief: makerDesignBrief,
+                    builderMaps: makerBuilderMaps,
+                    assetQuality: generatedAssets?.assetQuality || null,
+                });
+            }
             rawGameHtml = await assembleMakerProjectHtmlWithAutoRepair(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
         } catch (projectBuildError) {
