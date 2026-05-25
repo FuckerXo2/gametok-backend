@@ -222,7 +222,6 @@ export async function runRealOpenGameBuild({
         model,
         '--approval-mode',
         'yolo',
-        '--yolo',
         '--output-format',
         'stream-json',
         '--channel',
