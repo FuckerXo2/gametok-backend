@@ -4580,6 +4580,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         const useOpenGameMinimalRuntime = buildMode === 'opengame-template-native';
+        const useOpenGameAcceptance = buildMode === 'opengame-template-native';
         let finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets, { minimalRuntime: useOpenGameMinimalRuntime });
         await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
         let finalScreenshot = null;
@@ -4641,10 +4642,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 debugProtocol: makerDebugProtocol,
                 assetContract: makerAssetContract,
                 assetManifest: generatedAssets?.makerAssetManifest || null,
-                assetQuality: generatedAssets?.assetQuality || null,
+                assetQuality: useOpenGameAcceptance ? null : (generatedAssets?.assetQuality || null),
                 gddCompliance: makerGddCompliance,
             });
-            if (sandboxRes.success && !makerAcceptanceResult.passed) {
+            if (sandboxRes.success && !makerAcceptanceResult.passed && !useOpenGameAcceptance) {
                 console.warn(`⚠️ Acceptance gate failed after sandbox pass: ${makerAcceptanceResult.grade} (${makerAcceptanceResult.score}/100)`);
                 sandboxRes = mergeAcceptanceIntoSandboxDiagnostics(sandboxRes, makerAcceptanceResult);
                 finalSandboxResult = {
@@ -4658,6 +4659,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     acceptanceGate: makerAcceptanceResult,
                 };
             } else {
+                if (sandboxRes.success && !makerAcceptanceResult.passed && useOpenGameAcceptance) {
+                    console.warn(`⚠️ [OpenGame Maker] Acceptance report is non-blocking after sandbox pass: ${makerAcceptanceResult.grade} (${makerAcceptanceResult.score}/100)`);
+                }
                 finalSandboxResult.acceptanceGate = makerAcceptanceResult;
             }
             await writeMakerJson(makerWorkspace, 'sandbox-result.json', finalSandboxResult);
@@ -4956,7 +4960,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             debugProtocol: makerDebugProtocol,
             assetContract: makerAssetContract,
             assetManifest: generatedAssets?.makerAssetManifest || null,
-            assetQuality: generatedAssets?.assetQuality || null,
+            assetQuality: buildMode === 'opengame-template-native' ? null : (generatedAssets?.assetQuality || null),
             gddCompliance: makerGddCompliance,
         });
         await writeMakerJson(makerWorkspace, 'gdd-compliance.json', makerGddCompliance);
@@ -5130,7 +5134,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 debugProtocol: makerDebugProtocol,
                 assetContract: makerAssetContract,
                 assetManifest: generatedAssets?.makerAssetManifest || null,
-                assetQuality: generatedAssets?.assetQuality || null,
+                assetQuality: buildMode === 'opengame-template-native' ? null : (generatedAssets?.assetQuality || null),
                 gddCompliance: makerGddCompliance,
             });
         }

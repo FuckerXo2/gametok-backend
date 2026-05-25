@@ -400,6 +400,13 @@ new Phaser.Game({ parent: 'game-container', scene: [] });
 }
 
 {
+  const routesSource = await fs.readFile(new URL('../src/ai-engine/routes.js', import.meta.url), 'utf8');
+  assert.ok(routesSource.includes('const useOpenGameAcceptance = buildMode ==='), 'OpenGame builder should use a separate non-blocking acceptance path');
+  assert.ok(routesSource.includes('!makerAcceptanceResult.passed && !useOpenGameAcceptance'), 'OpenGame sandbox passes should not be failed by the legacy acceptance gate');
+  assert.ok(routesSource.includes('assetQuality: useOpenGameAcceptance ? null'), 'OpenGame acceptance should not block on generated art quality when deterministic fallbacks exist');
+}
+
+{
   const qualitySource = await fs.readFile(new URL('../src/ai-engine/maker-asset-quality.js', import.meta.url), 'utf8');
   assert.ok(qualitySource.includes("type !== 'procedural_tween' && frames.length < 2"), 'procedural tween animation plans should not require generated frame assets');
 }
