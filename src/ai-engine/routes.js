@@ -31,21 +31,12 @@ import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentI
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
-import { applyOpenGameMakerTemplate, shouldUseOpenGameMakerBuilder } from './maker-opengame-builder.js';
-import { runRealOpenGameBuild } from './real-opengame-runner.js';
 import { maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
 const GAMETOK_MAKER_ROOT = process.env.GAMETOK_MAKER_ROOT || path.join(STORAGE_ROOT, 'gametok-maker-jobs');
-const OPENGAME_JOB_ROOT = process.env.OPENGAME_JOB_ROOT || path.join(STORAGE_ROOT, 'opengame-jobs');
-
-export function resolveMakerRuntime(env = process.env) {
-    const value = String(env.MAKER_RUNTIME || env.GAMETOK_MAKER_RUNTIME || 'gametok').trim().toLowerCase();
-    if (value === 'opengame' || value === 'open-game') return 'opengame';
-    return 'gametok';
-}
 
 function getRequestOrigin(req) {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
@@ -4192,310 +4183,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
     return userResult.rows[0].id;
 }
 
-async function executeOpenGameDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
-    const persistToDb = jobPayload?.persistToDb !== false;
-    const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
-    const reportProgress = async (progress, phase, statusMessage) => {
-        await assertJobNotCancelledShared(jobId);
-        if (progressSink) {
-            await progressSink({ jobId, progress, phase, statusMessage }).catch((error) => {
-                console.warn(`[OpenGame Job] Progress sink failed for ${jobId}:`, error?.message || error);
-            });
-        }
-        if (persistToDb) await updateGenerationJobProgress(jobId, progress, phase, statusMessage);
-    };
-
-    const workspace = path.join(OPENGAME_JOB_ROOT, jobId);
-    try {
-        assertJobNotCancelled(jobId);
-        await fs.promises.rm(workspace, { recursive: true, force: true });
-        await fs.promises.mkdir(path.join(workspace, 'artifact'), { recursive: true });
-        await fs.promises.writeFile(
-            path.join(workspace, 'request.json'),
-            JSON.stringify({ jobId, prompt, mediaAttachments, startedAt: new Date().toISOString() }, null, 2),
-            'utf8'
-        );
-
-        console.log(`🎮 [OpenGame Job] Started ${jobId}`);
-        console.log(`📁 [OpenGame Workspace] ${workspace}`);
-        await reportProgress(8, 'opengame_start', 'Starting OpenGame...');
-
-        const build = await runRealOpenGameBuild({
-            jobId,
-            prompt,
-            workspace,
-            shouldCancel: async () => {
-                await assertJobNotCancelledShared(jobId);
-                return false;
-            },
-        });
-
-        await reportProgress(78, 'verify', 'Checking the game boots...');
-        const sandboxRes = await verifyGame(build.html);
-        if (!sandboxRes.success && Array.isArray(sandboxRes.crashes) && sandboxRes.crashes.length > 0) {
-            throw new Error(`OpenGame output failed sandbox: ${sandboxRes.crashes[0]}`);
-        }
-        console.log('✅ [OpenGame Sandbox] Zero crashes detected.');
-
-        const finalTitle = (extractHtmlTitle(build.html) || 'OpenGame Creation').substring(0, 255);
-        const classification = await classifyPublishedGame({ title: finalTitle, prompt, htmlPayload: build.html });
-
-        await fs.promises.writeFile(path.join(workspace, 'artifact/index.html'), build.html, 'utf8');
-        await fs.promises.writeFile(
-            path.join(workspace, 'opengame-build-report.json'),
-            JSON.stringify({
-                version: 1,
-                engine: 'real-opengame-cli',
-                status: 'complete',
-                jobId,
-                title: finalTitle,
-                workspace,
-                projectRoot: build.projectRoot,
-                distIndex: build.distIndex,
-                model: build.model,
-                sandbox: { success: sandboxRes.success, crashes: sandboxRes.crashes || [] },
-                completedAt: new Date().toISOString(),
-            }, null, 2),
-            'utf8'
-        );
-
-        if (!persistToDb) {
-            forgetCancelledJob(jobId);
-            return {
-                jobId,
-                title: finalTitle,
-                html: build.html,
-                rawHtml: build.rawHtml,
-                screenshot: sandboxRes.screenshot || null,
-                workspace,
-                artifactPath: path.join(workspace, 'artifact/index.html'),
-                reportPath: path.join(workspace, 'opengame-build-report.json'),
-                buildMode: build.buildMode,
-                sandbox: sandboxRes,
-            };
-        }
-
-        await reportProgress(94, 'save', 'Saving your game...');
-        await pool.query(
-            `UPDATE ai_games
-             SET title = $1,
-                 html_payload = $2,
-                 raw_code = $3,
-                 artist_code = $4,
-                 thumbnail = $5,
-                 preview_video_url = $6,
-                 category = $7,
-                 subcategory = $8,
-                 primary_tab = $9,
-                 interaction_type = $10,
-                 classification_confidence = $11,
-                 classification_tags = $12,
-                 discovery_chips = $13
-             WHERE id = $14`,
-            [
-                finalTitle,
-                build.html,
-                build.rawHtml,
-                null,
-                sandboxRes.screenshot || null,
-                null,
-                classification.category,
-                classification.subcategory,
-                classification.primaryTab,
-                classification.interactionType,
-                classification.confidence,
-                JSON.stringify(classification.tags),
-                JSON.stringify(classification.discoveryChips || []),
-                jobId,
-            ]
-        );
-
-        forgetCancelledJob(jobId);
-        console.log(`✅ [OpenGame Job] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
-        pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
-            .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
-            .catch((error) => console.log('[Notifications] Game ready notify error:', error));
-        return { jobId, title: finalTitle, html: build.html, rawHtml: build.rawHtml, screenshot: sandboxRes.screenshot || null, workspace };
-    } catch (error) {
-        if (isCancellationError(error)) {
-            console.log(`🛑 [OpenGame Job] Canceled ${jobId}.`);
-            if (persistToDb) await markJobCanceled(jobId);
-            else throw error;
-            return;
-        }
-        console.error('❌ [OpenGame Job] Error:', error);
-        if (persistToDb) await markJobError(jobId, 'OpenGame generation failed', error);
-        else throw error;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════
-// DREAMSTREAM MAIN PIPELINE
-// Phase 1: Kimi on NIM extracts a playable spec / unity file
-// Phase 2: Kimi builds the game from the spec and asset contract
-// Phase 3: Puppeteer verifies the result and Kimi repairs project files
-// ═══════════════════════════════════════════════════════════
-async function executeRealOpenGameDreamJob({
-    jobId,
-    prompt,
-    workspace,
-    persistToDb,
-    reportProgress,
-}) {
-    await reportProgress(12, 'opengame', 'Starting OpenGame...');
-    const build = await runRealOpenGameBuild({
-        jobId,
-        prompt,
-        workspace,
-        shouldCancel: async () => assertJobNotCancelledShared(jobId, { force: true }),
-    });
-    await writeMakerText(workspace, 'raw-build.html', build.rawHtml);
-    await writeMakerText(workspace, 'artifact/index.html', build.html);
-    await writeMakerJson(workspace, 'real-opengame-result.json', {
-        jobId,
-        buildMode: build.buildMode,
-        projectRoot: build.projectRoot,
-        distIndex: build.distIndex,
-        openGameRoot: build.openGameRoot,
-        model: build.model,
-        htmlBytes: Buffer.byteLength(build.html || '', 'utf8'),
-        completedAt: new Date().toISOString(),
-    });
-
-    if (!build.html || !hasClosedHtmlDocument(build.html)) {
-        throw new Error('Real OpenGame output is missing a complete HTML document.');
-    }
-
-    await reportProgress(72, 'verify', 'Testing OpenGame output...');
-    let sandboxRes;
-    try {
-        sandboxRes = await verifyGame(build.html, {
-            sourceHtml: build.rawHtml,
-        });
-    } catch (validationError) {
-        sandboxRes = {
-            success: false,
-            crashes: [validationError.message || String(validationError)],
-            screenshot: null,
-            diagnostics: null,
-        };
-    }
-    const finalSandboxResult = {
-        success: Boolean(sandboxRes.success),
-        crashes: sandboxRes.crashes || [],
-        hasScreenshot: Boolean(sandboxRes.screenshot),
-        diagnostics: sandboxRes.diagnostics || null,
-        attempt: 1,
-        repairAttemptsUsed: 0,
-        checkedAt: new Date().toISOString(),
-    };
-    await writeMakerJson(workspace, 'sandbox-result.json', finalSandboxResult);
-    if (!sandboxRes.success) {
-        const crash = sandboxRes.crashes?.[0] || 'unknown verifier failure';
-        throw new Error(`Real OpenGame output failed sandbox verification: ${crash}`);
-    }
-
-    await reportProgress(94, 'save', 'Saving your OpenGame build...');
-    const finalTitle = (extractHtmlTitle(build.rawHtml) || 'OpenGame Creation').substring(0, 255);
-    await writeMakerJson(workspace, 'gametok-build-report.json', {
-        version: 2,
-        jobId,
-        title: finalTitle,
-        engine: 'real-opengame',
-        status: 'complete',
-        completedAt: new Date().toISOString(),
-        workspace,
-        projectRoot: build.projectRoot,
-        artifactPath: path.join(workspace, 'artifact/index.html'),
-        rawBuildPath: path.join(workspace, 'raw-build.html'),
-        buildCommand: 'opengame-cli',
-        buildMode: build.buildMode,
-        promptModel: build.model,
-        sandbox: finalSandboxResult,
-        htmlBytes: Buffer.byteLength(build.html || '', 'utf8'),
-        rawHtmlBytes: Buffer.byteLength(build.rawHtml || '', 'utf8'),
-    });
-
-    if (!persistToDb) {
-        console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" exported to ${path.join(workspace, 'artifact/index.html')}`);
-        forgetCancelledJob(jobId);
-        return {
-            jobId,
-            title: finalTitle,
-            html: build.html,
-            rawHtml: build.rawHtml,
-            screenshot: sandboxRes.screenshot || null,
-            workspace,
-            artifactPath: path.join(workspace, 'artifact/index.html'),
-            reportPath: path.join(workspace, 'gametok-build-report.json'),
-            buildMode: build.buildMode,
-            sandbox: finalSandboxResult,
-        };
-    }
-
-    const classification = await classifyPublishedGame({
-        title: finalTitle,
-        prompt,
-        description: 'Real OpenGame Creation: ' + prompt,
-        htmlPayload: build.html,
-    });
-    await pool.query(
-        `UPDATE ai_games
-         SET title = $1,
-             html_payload = $2,
-             raw_code = $3,
-             artist_code = $4,
-             thumbnail = $5,
-             preview_video_url = $6,
-             category = $7,
-             subcategory = $8,
-             primary_tab = $9,
-             interaction_type = $10,
-             classification_confidence = $11,
-             classification_tags = $12,
-             discovery_chips = $13
-         WHERE id = $14`,
-        [
-            finalTitle,
-            build.html,
-            build.rawHtml,
-            null,
-            sandboxRes.screenshot || null,
-            null,
-            classification.category,
-            classification.subcategory,
-            classification.primaryTab,
-            classification.interactionType,
-            classification.confidence,
-            JSON.stringify(classification.tags),
-            JSON.stringify(classification.discoveryChips || []),
-            jobId,
-        ]
-    );
-    console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved through Real OpenGame for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
-    forgetCancelledJob(jobId);
-    pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
-        .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
-        .catch((error) => console.log('[Notifications] Game ready notify error:', error));
-    return {
-        jobId,
-        title: finalTitle,
-        html: build.html,
-        rawHtml: build.rawHtml,
-        screenshot: sandboxRes.screenshot || null,
-        workspace,
-        artifactPath: path.join(workspace, 'artifact/index.html'),
-        reportPath: path.join(workspace, 'gametok-build-report.json'),
-        buildMode: build.buildMode,
-        sandbox: finalSandboxResult,
-    };
-}
-
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
-    if (resolveMakerRuntime() === 'opengame') {
-        return executeOpenGameDreamJob(jobId, prompt, mediaAttachments, jobPayload);
-    }
-
     const persistToDb = jobPayload?.persistToDb !== false;
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
     const reportProgress = async (progress, phase, statusMessage) => {
@@ -4813,58 +4501,21 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     );
                 }
             }
-            if (shouldUseOpenGameMakerBuilder(makerTemplateContract)) {
-                buildMode = 'opengame-template-native';
-                const applied = await applyOpenGameMakerTemplate(makerProject.projectRoot, {
-                    qualityIntent,
-                    prompt,
-                    templateContract: makerTemplateContract,
-                    assetContract: makerAssetContract,
-                    debugProtocol: makerDebugProtocol,
-                    designBrief: makerDesignBrief,
-                    generatedAssets,
-                });
-                await writeMakerJson(makerWorkspace, 'logs/opengame-template-builder.json', {
-                    mode: buildMode,
-                    source: 'template-owned-runtime',
-                    templateId: makerTemplateContract?.templateId || null,
-                    applied,
-                    note: 'OpenGame-style Maker path: deterministic scaffold owns runtime files; model output is limited to intent/assets and no XML file-agent edits are used.',
-                });
-                await appendMakerAgentTurn(makerWorkspace, makerAgentTurns, {
-                    phase: 'opengame_template_build',
-                    objective: 'Materialize a template-owned playable runtime from the selected scaffold, generated asset pack, and GDD.',
-                    status: 'complete',
-                    model: 'opengame-template-runtime',
-                    editsApplied: applied,
-                    notes: ['Skipped XML file-agent turns for this supported Maker template.'],
-                });
-                await runMakerProjectEvidence({
-                    workspace: makerWorkspace,
-                    projectRoot: makerProject.projectRoot,
-                    generatedAssets,
-                    templateContract: makerTemplateContract,
-                    assetContract: makerAssetContract,
-                    turnNumber: 'opengame-template',
-                    phase: 'after_opengame_template_build',
-                });
-            } else {
-                await runMakerAgentInspectionTurns({
-                    workspace: makerWorkspace,
-                    projectRoot: makerProject.projectRoot,
-                    turns: makerAgentTurns,
-                    jobId,
-                    prompt,
-                    qualityIntent,
-                    generatedAssets,
-                    templateContract: makerTemplateContract,
-                    assetContract: makerAssetContract,
-                    debugProtocol: makerDebugProtocol,
-                    designBrief: makerDesignBrief,
-                    builderMaps: makerBuilderMaps,
-                    assetQuality: generatedAssets?.assetQuality || null,
-                });
-            }
+            await runMakerAgentInspectionTurns({
+                workspace: makerWorkspace,
+                projectRoot: makerProject.projectRoot,
+                turns: makerAgentTurns,
+                jobId,
+                prompt,
+                qualityIntent,
+                generatedAssets,
+                templateContract: makerTemplateContract,
+                assetContract: makerAssetContract,
+                debugProtocol: makerDebugProtocol,
+                designBrief: makerDesignBrief,
+                builderMaps: makerBuilderMaps,
+                assetQuality: generatedAssets?.assetQuality || null,
+            });
             rawGameHtml = await assembleMakerProjectHtmlWithAutoRepair(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
         } catch (projectBuildError) {

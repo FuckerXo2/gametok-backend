@@ -49,11 +49,8 @@ function inferTheme(qualityIntent = {}, prompt = '') {
     };
 }
 
-export function shouldUseOpenGameMakerBuilder(templateContract = null) {
-    const forced = String(process.env.MAKER_ENGINE || process.env.GAMETOK_MAKER_ENGINE || '').toLowerCase();
-    if (forced === 'legacy' || forced === 'file-agent' || forced === 'xml') return false;
-    const templateId = templateContract?.templateId || templateContract?.id || '';
-    return SUPPORTED_OPENGAME_TEMPLATE_IDS.has(templateId);
+export function shouldUseOpenGameMakerBuilder(_templateContract = null) {
+    return false;
 }
 
 export function buildOpenGameMakerSource({
