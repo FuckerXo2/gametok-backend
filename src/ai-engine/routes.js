@@ -3303,12 +3303,33 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
     return [
         'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
         '',
-        'Return XML tags only. No markdown formatting blocks (```). No commentary.',
-        'Schema:',
-        '<notes>Explain what you are fixing</notes>',
-        '<file path="src/main.ts">',
-        '// complete file contents here',
-        '</file>',
+        'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
+        'Protocol schema:',
+        JSON.stringify({
+            protocolVersion: 1,
+            kind: 'maker_protocol_repair',
+            diagnosis: {
+                errorCode: 'string',
+                messagePattern: 'string',
+                rootCause: 'string',
+                matchedProtocolRuleIds: ['string'],
+            },
+            actions: [
+                {
+                    type: 'edit',
+                    path: 'src/main.ts',
+                    reason: 'string',
+                },
+            ],
+            files: [
+                {
+                    path: 'src/main.ts',
+                    content: 'complete replacement file content',
+                },
+            ],
+            notes: ['short notes'],
+            noEditsNeeded: false,
+        }, null, 2),
         '',
         'Rules:',
         ...(isPhaser ? [
@@ -3429,57 +3450,16 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
     ].join('\n');
 }
 
-function parseMakerXmlResponse(text) {
-    const files = [];
-    const fileRegex = /<file path="([^"]+)">([\s\S]*?)<\/file>/g;
-    let match;
-    while ((match = fileRegex.exec(text)) !== null) {
-        files.push({ path: match[1], content: match[2].trim() });
-    }
-    const notesRegex = /<notes>([\s\S]*?)<\/notes>/;
-    const notesMatch = notesRegex.exec(text);
-    const notes = notesMatch ? [notesMatch[1].trim()] : [];
-    
-    if (files.length === 0) {
-        throw new Error('File repair response did not include any <file> tags.');
-    }
-    
-    return { files, notes };
-}
-
-async function generateCompleteXmlWithBuilder(initialPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, currentModel = null } = {}) {
-    assertJobNotCancelled(jobId);
-    let { text, stopReason } = await requestBuilderMessage(initialPrompt, { label, jobId, timeoutMs, maxAttempts, currentModel });
-    
-    let continuationCount = 0;
-    while ((stopReason !== 'stop' && stopReason !== 'finish' && stopReason !== 'end_turn') && continuationCount < BUILDER_MAX_CONTINUATIONS) {
-        const unclosedFile = /<file path="[^"]+">(?![\s\S]*<\/file>)/.test(text);
-        if (!unclosedFile && /<\/file>\s*$/.test(text)) {
-            break;
-        }
-        
-        continuationCount++;
-        console.warn(`⚠️ [${label}] XML output incomplete. Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
-        const continuation = await requestBuilderMessage("Continue exactly from where you left off. Do not repeat code. Do not apologize. Just output the next characters.", {
-            label: `${label} XML Continue`,
-            jobId,
-            timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
-            maxAttempts: 2,
-            currentModel,
-        });
-        text += continuation.text;
-        stopReason = continuation.stopReason;
-    }
-    
-    return text;
-}
-
 function parseMakerFileRepairResponse(text) {
     const parsed = parseBuilderJsonText(text);
     if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) {
         throw new Error('File repair response did not include any file edits.');
     }
     return {
+        protocolVersion: parsed.protocolVersion || 1,
+        kind: parsed.kind || 'maker_protocol_repair',
+        diagnosis: parsed.diagnosis || null,
+        actions: Array.isArray(parsed.actions) ? parsed.actions : [],
         files: parsed.files.map((file) => {
             if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
                 throw new Error('File repair response included an invalid file edit.');
@@ -4009,7 +3989,7 @@ async function runMakerAgentInspectionTurns({
         });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         try {
-            const responseText = await generateCompleteXmlWithBuilder(promptText, {
+            const responseText = await generateCompleteJsonWithBuilder(promptText, {
                 label: `Phase 2 File Agent Turn ${turnNumber}`,
                 jobId,
                 timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
@@ -4778,27 +4758,27 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                                 truncated: Boolean(file.truncated),
                             })),
                         });
-                        let turnSuccess = false;
                         let repairText = '';
+                        let repairError = null;
                         for (let m = 0; m < BUILDER_FALLBACK_MODELS.length; m++) {
                             const mModel = BUILDER_FALLBACK_MODELS[m];
                             try {
-                                repairText = await generateCompleteXmlWithBuilder(fileRepairPrompt, {
+                                repairText = await generateCompleteJsonWithBuilder(fileRepairPrompt, {
                                     label: 'Phase 3 File Repair',
                                     jobId,
                                     timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
                                     maxAttempts: 2,
                                     currentModel: mModel,
                                 });
-                                turnSuccess = true;
                                 break;
                             } catch(e) {
-                                console.error(`⚠️ [Phase 3 Repair] ${mModel} failed repair XML: ${e.message}`);
+                                repairError = e;
+                                console.error(`⚠️ [Phase 3 Repair] ${mModel} failed protocol JSON repair: ${e.message}`);
                             }
                         }
-                        if (!turnSuccess) throw new Error("All models failed Phase 3 File Repair.");
-                        await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.txt`, repairText);
-                        const repair = parseMakerXmlResponse(repairText);
+                        if (!repairText) throw new Error(`All models failed Phase 3 File Repair: ${repairError?.message || 'unknown error'}`);
+                        await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.json`, repairText);
+                        const repair = parseMakerFileRepairResponse(repairText);
                         const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files);
                         await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
                         rawGameHtml = await assembleMakerProjectHtmlWithAutoRepair(makerProject.projectRoot);

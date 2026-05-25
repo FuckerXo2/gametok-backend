@@ -103,14 +103,33 @@ export function buildMakerAgentInspectionPrompt({
         '',
         'This is a multi-turn file inspection pass after the first project build and before sandbox verification.',
         'Read the actual project files, compare them to the builder maps, contracts, and last run evidence, then make targeted file edits.',
-        'Return XML tags only. No markdown formatting blocks (```). No commentary.',
+        'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
         '',
-        'XML schema:',
-        '<notes>Explain what you changed and why</notes>',
-        '<file path="src/main.ts">',
-        '// complete replacement file content',
-        '</file>',
-        'If no edits are needed, return: <no-edits-needed />',
+        'Protocol schema:',
+        JSON.stringify({
+            protocolVersion: 1,
+            kind: 'maker_protocol_repair',
+            diagnosis: {
+                errorCode: 'string',
+                rootCause: 'string',
+                matchedProtocolRuleIds: ['string'],
+            },
+            actions: [
+                {
+                    type: 'edit',
+                    path: 'src/main.ts',
+                    reason: 'string',
+                },
+            ],
+            files: [
+                {
+                    path: 'src/main.ts',
+                    content: 'complete replacement file content',
+                },
+            ],
+            notes: ['short notes'],
+            noEditsNeeded: false,
+        }, null, 2),
         '',
         'Rules:',
         '- CRITICAL ARCHITECTURE RULE (OPENGAME PROTOCOL): NEVER use `Phaser.GameObjects.Graphics` (or raw canvas `ctx.arc()`) to render active gameplay entities (players, enemies, projectiles).',
@@ -187,32 +206,20 @@ export function buildMakerAgentInspectionPrompt({
 }
 
 export function parseMakerAgentInspectionResponse(text) {
-    // Try XML parsing first (new format)
-    const files = [];
-    const fileRegex = /<file path="([^"]+)">([\s\S]*?)<\/file>/g;
-    let match;
-    while ((match = fileRegex.exec(text)) !== null) {
-        files.push({ path: match[1], content: match[2].trim() });
-    }
-    const notesRegex = /<notes>([\s\S]*?)<\/notes>/;
-    const notesMatch = notesRegex.exec(text);
-    const notes = notesMatch ? [notesMatch[1].trim()] : [];
-    const noEditsNeeded = /<no-edits-needed\s*\/>/.test(text) || files.length === 0;
-
-    // Fallback to JSON if no XML tags found (backward compat with in-flight jobs)
-    if (files.length === 0 && !noEditsNeeded) {
-        try {
-            const parsed = JSON.parse(extractJson(stripMarkdownFences(text)));
-            const jsonFiles = Array.isArray(parsed?.files)
-                ? parsed.files.filter((file) => file && typeof file.path === 'string' && typeof file.content === 'string')
-                : [];
-            return {
-                files: jsonFiles.map((file) => ({ path: file.path, content: file.content })),
-                notes: Array.isArray(parsed?.notes) ? parsed.notes.map(String).slice(0, 12) : [],
-                noEditsNeeded: Boolean(parsed?.noEditsNeeded) || jsonFiles.length === 0,
-            };
-        } catch { /* ignore JSON fallback failure */ }
-    }
-
-    return { files, notes, noEditsNeeded };
+    const parsed = JSON.parse(extractJson(stripMarkdownFences(text)));
+    const files = Array.isArray(parsed?.files)
+        ? parsed.files.filter((file) => file && typeof file.path === 'string' && typeof file.content === 'string')
+        : [];
+    const actions = Array.isArray(parsed?.actions)
+        ? parsed.actions.filter((action) => action && typeof action.type === 'string')
+        : [];
+    return {
+        protocolVersion: parsed?.protocolVersion || 1,
+        kind: parsed?.kind || 'maker_protocol_repair',
+        diagnosis: parsed?.diagnosis || null,
+        actions,
+        files: files.map((file) => ({ path: file.path, content: file.content })),
+        notes: Array.isArray(parsed?.notes) ? parsed.notes.map(String).slice(0, 12) : [],
+        noEditsNeeded: Boolean(parsed?.noEditsNeeded) || files.length === 0,
+    };
 }

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { materializeMakerAssetsForProject } from '../src/ai-engine/maker-asset-materializer.js';
 import { classifyMakerGame } from '../src/ai-engine/maker-classifier.js';
+import { buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse } from '../src/ai-engine/maker-agent-loop.js';
 import { applyOpenGameMakerTemplate, shouldUseOpenGameMakerBuilder } from '../src/ai-engine/maker-opengame-builder.js';
 import { runMakerPreflightChecks } from '../src/ai-engine/maker-preflight-validator.js';
 
@@ -202,6 +203,26 @@ console.log((window as any).DREAM_IMAGES?.['item'], (window as any).DREAM_IMAGES
   const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
   assert.equal(result.success, false, 'state property typo should fail preflight');
   assert.ok(result.issues.some((issue) => issue.id === 'preflight_state_property_missing'));
+}
+
+{
+  const prompt = buildMakerAgentInspectionPrompt({
+    prompt: 'Swipe to slice fruit',
+    projectFiles: [{ path: 'src/main.ts', content: 'console.log("hello")' }],
+    turnNumber: 1,
+  });
+  assert.ok(prompt.includes('"protocolVersion"'), 'Maker agent prompt should request protocol JSON');
+  assert.ok(!prompt.includes('<file path='), 'Maker agent prompt should not request XML file tags');
+  const parsed = parseMakerAgentInspectionResponse(JSON.stringify({
+    protocolVersion: 1,
+    kind: 'maker_protocol_repair',
+    diagnosis: { errorCode: 'test', rootCause: 'unit test' },
+    actions: [{ type: 'edit', path: 'src/main.ts', reason: 'test' }],
+    files: [{ path: 'src/main.ts', content: 'console.log("fixed")' }],
+    notes: ['ok'],
+  }));
+  assert.equal(parsed.files.length, 1, 'protocol JSON parser should accept file edits');
+  assert.equal(parsed.actions[0].type, 'edit', 'protocol JSON parser should preserve typed actions');
 }
 
 {
