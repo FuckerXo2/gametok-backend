@@ -390,12 +390,18 @@ new Phaser.Game({ parent: 'game-container', scene: [] });
   const sandboxSource = await fs.readFile(new URL('../src/ai-engine/sandbox.js', import.meta.url), 'utf8');
   assert.ok(!sandboxSource.includes('page.setContent('), 'sandbox should load generated games as browser pages instead of document.write/setContent');
   assert.ok(sandboxSource.includes('page.goto(`file://${htmlPath}`'), 'sandbox should navigate to a temporary file-backed page');
+  assert.ok(sandboxSource.includes('await probe.move(80, 0, 180)'), 'top-down probe movement should be large enough to satisfy its own movement threshold');
 }
 
 {
   const registrySource = await fs.readFile(new URL('../src/ai-engine/promptRegistry.js', import.meta.url), 'utf8');
   assert.ok(registrySource.includes('minimalRuntime'), 'post-process should support an OpenGame-style minimal runtime path');
   assert.ok(registrySource.includes('markRendered: function'), 'DreamAssets should expose explicit render tracking for template-owned runtimes');
+}
+
+{
+  const qualitySource = await fs.readFile(new URL('../src/ai-engine/maker-asset-quality.js', import.meta.url), 'utf8');
+  assert.ok(qualitySource.includes("type !== 'procedural_tween' && frames.length < 2"), 'procedural tween animation plans should not require generated frame assets');
 }
 
 console.log('maker opengame migration tests passed');

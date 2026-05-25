@@ -131,7 +131,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 probe.reset();
                 await wait(80);
                 const initial = probe.snapshot();
-                await probe.move(1, 0, 180);
+                await probe.move(80, 0, 180);
                 await wait(80);
                 const moved = probe.snapshot();
                 if (!moved.player || !initial.player || Math.abs(moved.player.x - initial.player.x) < 5) {

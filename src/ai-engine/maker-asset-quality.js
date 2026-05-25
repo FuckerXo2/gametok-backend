@@ -159,6 +159,7 @@ function analyzeAnimations(generatedAssets = null) {
     const issues = [];
     for (const animation of asArray(generatedAssets?.animations)) {
         const key = animation?.key || animation?.id || animation?.animationKey;
+        const type = String(animation?.type || '').toLowerCase();
         const frames = asArray(animation?.frames).map((frame) => typeof frame === 'string' ? frame : frame?.key).filter(Boolean);
         const missingFrames = frames.filter((frameKey) => !assets[frameKey]);
         const uniqueFrameUrls = new Set(frames.map((frameKey) => assets[frameKey]).filter(Boolean));
@@ -166,7 +167,7 @@ function analyzeAnimations(generatedAssets = null) {
         if (!key) {
             issues.push(issue({ id: 'animation_missing_key', severity: 'fatal', message: 'Animation entry is missing a key.' }));
         }
-        if (frames.length < 2) {
+        if (type !== 'procedural_tween' && frames.length < 2) {
             issues.push(issue({ id: 'animation_too_few_frames', severity: 'fatal', key, message: `${key || 'animation'} has fewer than 2 frames.` }));
         }
         for (const frameKey of missingFrames) {
@@ -177,6 +178,7 @@ function analyzeAnimations(generatedAssets = null) {
         }
         animationResults.push({
             key: key || null,
+            type: type || null,
             frameCount: frames.length,
             missingFrames,
             duplicateFrameCount,
