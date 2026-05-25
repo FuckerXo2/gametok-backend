@@ -315,4 +315,28 @@ void fetch('assets/asset-pack.json');
   assert.ok(result.issues.some((issue) => issue.id === 'preflight_phaser_invalid_scale_config'));
 }
 
+{
+  const generated = generatedAssetsFor(['item', 'enemy', 'background']);
+  const { projectRoot } = await makeProject(`
+import Phaser from 'phaser';
+import { BaseArenaScene } from './scenes/BaseArenaScene';
+type Fruit = { sprite: Phaser.GameObjects.Sprite };
+export class GameScene extends BaseArenaScene {
+  private enemies: Fruit[] = [];
+  constructor() { super({ key: 'GameScene' }); }
+  createBackground() {}
+  createEntities() {
+    this.add.image(40, 40, 'item_asset');
+    this.add.image(80, 40, 'enemy_asset');
+    this.add.image(120, 40, 'background_asset');
+  }
+  spawnEnemy() { return null as any; }
+}
+void fetch('assets/asset-pack.json');
+`, generated);
+  const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
+  assert.equal(result.success, false, 'redeclaring inherited scene fields should fail preflight');
+  assert.ok(result.issues.some((issue) => issue.id === 'preflight_inherited_scene_property_redeclared'));
+}
+
 console.log('maker opengame migration tests passed');

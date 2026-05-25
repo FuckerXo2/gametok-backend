@@ -338,6 +338,37 @@ function collectInvalidPhaserScaleKeys(source = '') {
     return unique(issues);
 }
 
+function collectInheritedScenePropertyRedeclarations(projectSources = []) {
+    const reserved = new Set([
+        'player',
+        'enemies',
+        'enemyMeleeTriggers',
+        'decorations',
+        'obstacles',
+        'playerBullets',
+        'enemyBullets',
+        'ySortGroup',
+        'worldWidth',
+        'worldHeight',
+    ]);
+    const issues = [];
+    for (const file of projectSources) {
+        if (!/\.(ts|tsx|js|jsx)$/i.test(file.path)) continue;
+        if (/\/Base[A-Za-z0-9_$]*\.(ts|tsx|js|jsx)$/i.test(file.path)) continue;
+        if (!/\bextends\s+Base(?:Game|Arena|Level)Scene\b/.test(file.content)) continue;
+        const lines = file.content.split(/\r?\n/);
+        for (let index = 0; index < lines.length; index += 1) {
+            const line = lines[index];
+            const declaration = /^\s*(?:(?:public|private|protected|readonly|override)\s+)*([A-Za-z_$][\w$]*)\s*(?:[!?:=]|:\s*[^=;]+[=;])/.exec(line);
+            const property = declaration?.[1];
+            if (!property || !reserved.has(property)) continue;
+            if (/\b(?:constructor|if|for|while|switch|return|const|let|var|function)\b/.test(line)) continue;
+            issues.push({ path: file.path, line: index + 1, property });
+        }
+    }
+    return issues;
+}
+
 export async function runMakerPreflightChecks({ projectRoot, generatedAssets = null, assetContract = null } = {}) {
     const sourcePath = path.join(projectRoot || '', 'src', 'main.ts');
     const source = await readTextIfExists(sourcePath);
@@ -542,6 +573,17 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             message: `Phaser ScaleConfig includes unsupported top-level key(s): ${invalidScaleKeys.join(', ')}.`,
             missingKeys: invalidScaleKeys,
             repair: 'Remove unsupported ScaleConfig keys such as maxWidth/maxHeight/minWidth/minHeight. Use width, height, mode, autoCenter, and CSS/container constraints instead.',
+        });
+    }
+
+    const inheritedSceneRedeclarations = collectInheritedScenePropertyRedeclarations(projectSources);
+    if (inheritedSceneRedeclarations.length > 0) {
+        issues.push({
+            id: 'preflight_inherited_scene_property_redeclared',
+            severity: 'critical',
+            message: `Generated scene redeclares scaffold-owned property/properties: ${inheritedSceneRedeclarations.map((entry) => `${entry.path}:${entry.line} ${entry.property}`).slice(0, 8).join(', ')}.`,
+            missingKeys: inheritedSceneRedeclarations.map((entry) => entry.property).slice(0, 12),
+            repair: 'Do not redeclare BaseGameScene/BaseArenaScene-owned fields such as player, enemies, bullets, obstacles, or world dimensions. Use the inherited Phaser groups as-is, or rename custom arrays/state to maker-specific names like sliceTargets.',
         });
     }
 
