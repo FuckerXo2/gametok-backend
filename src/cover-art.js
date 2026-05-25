@@ -165,7 +165,7 @@ Make it vibrant, eye-catching, and perfectly matched to THIS specific game. The 
 Return ONLY the image generation prompt, no explanations or meta-commentary.`;
 
     try {
-        // Use the same Llama model that Phase 1 uses for consistency
+        // Use the lightweight text model for concise visual cover prompts.
         const nvidiaClient = await import('openai').then(m => m.default);
         const client = new nvidiaClient({
             baseURL: 'https://integrate.api.nvidia.com/v1',

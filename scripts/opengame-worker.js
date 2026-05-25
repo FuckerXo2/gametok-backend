@@ -2,17 +2,17 @@ import pool, { initDB } from '../src/db.js';
 import { startGenerationQueueWorker, stopGenerationQueueWorker } from '../src/ai.js';
 import { summarizeNvidiaKeyPools } from '../src/ai-engine/nvidia-key-pool.js';
 
-const WORKER_NAME = process.env.GAMETOK_MAKER_WORKER_ID || `${process.env.RAILWAY_SERVICE_ID || 'local'}-${process.pid}`;
+const WORKER_NAME = process.env.OPENGAME_WORKER_ID || `${process.env.RAILWAY_SERVICE_ID || 'local'}-${process.pid}`;
 
 async function main() {
-  console.log(`[GameTok Maker Worker] Starting ${WORKER_NAME}`);
+  console.log(`[OpenGame Worker] Starting ${WORKER_NAME}`);
   const nvidiaPools = summarizeNvidiaKeyPools();
-  console.log(`[GameTok Maker Worker] NVIDIA key pools text=${nvidiaPools.textKeyCount} image=${nvidiaPools.imageKeyCount} splitImage=${nvidiaPools.hasSplitImagePool} splitText=${nvidiaPools.hasSplitTextPool} legacy=${nvidiaPools.hasLegacyPool}`);
+  console.log(`[OpenGame Worker] NVIDIA key pools text=${nvidiaPools.textKeyCount} image=${nvidiaPools.imageKeyCount} splitImage=${nvidiaPools.hasSplitImagePool} splitText=${nvidiaPools.hasSplitTextPool} legacy=${nvidiaPools.hasLegacyPool}`);
   await initDB();
   startGenerationQueueWorker();
 
   const shutdown = async (signal) => {
-    console.log(`[GameTok Maker Worker] ${signal} received; pausing queue claims.`);
+    console.log(`[OpenGame Worker] ${signal} received; pausing queue claims.`);
     stopGenerationQueueWorker(signal);
     await pool.end().catch(() => {});
     process.exit(0);
@@ -23,6 +23,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[GameTok Maker Worker] Fatal:', error);
+  console.error('[OpenGame Worker] Fatal:', error);
   process.exit(1);
 });

@@ -3,9 +3,6 @@
   "version": "1.0.1",
   "description": "GameTok API backend",
   "main": "src/index.js",
-  "bin": {
-    "gametok-maker": "./scripts/gametok-maker.js"
-  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
@@ -21,12 +18,8 @@
     "covers:regenerate": "node regenerate-all-thumbnails.js",
     "covers:regenerate:test": "node regenerate-all-thumbnails.js --limit=5 --dry-run",
     "check:bots": "node --check src/bot-engine.js && node --check src/index.js && node --check scripts/bots-bootstrap.mjs && node --check src/cover-art.js && node --check src/cover-art-router.js && node --check scripts/cover-backfill.mjs",
-    "check:ai-engine": "node --check src/ai-engine/routes.js && node --check src/ai-engine/promptRegistry.js && node --check src/ai-engine/sandbox.js && node --check src/ai-engine/capability-graph.js && node --check src/ai-engine/asset-dictionary.js && node --check src/ai-engine/asset-model-router.js && node --check src/ai-engine/sprite-generator.js && node --check src/ai-engine/maker-repair-playbook.js && node --check src/ai-engine/maker-preflight-validator.js && node --check src/ai-engine/maker-asset-materializer.js && node --check src/ai-engine/maker-intent-fallback.js && node --check src/ai-engine/maker-repair-protocol.js && node --check src/ai-engine/maker-benchmark-suite.js && node --check src/ai-engine/maker-benchmark-results.js && node --check src/ai-engine/maker-asset-quality.js && node --check src/ai-engine/real-opengame-runner.js && node --check scripts/diagnose_assets.mjs && node --check src/db.js",
-    "test:maker-opengame": "node scripts/test-maker-opengame-migration.mjs",
-    "check:capabilities": "node scripts/check_capability_graph.mjs",
-    "assets:diagnose": "node scripts/diagnose_assets.mjs",
-    "backfill:preview-videos": "node scripts/backfill-preview-videos.js",
-    "benchmark:sekai": "node scripts/inspect_sekai_benchmark_suite.mjs",
+    "check:ai-engine": "node --check src/ai-engine/routes.js && node --check src/ai-engine/real-opengame-runner.js && node --check src/ai-engine/sandbox.js && node --check src/ai-engine/nvidia-key-pool.js && node --check src/db.js",
+    "benchmark:sekai": "echo \"Legacy maker benchmark removed; OpenGame is the only maker runtime.\"",
     "catalog:kenney": "node scripts/build_kenney_inventory.mjs",
     "catalog:kenney:full": "node scripts/build_kenney_catalog.mjs",
     "manifest:kenney-wave1": "node scripts/build_kenney_wave1_manifest.mjs",
@@ -37,13 +30,7 @@
     "assets:kenney-wave1:upload": "node scripts/upload_kenney_wave1_assets_to_r2.mjs",
     "assets:kenney:upload": "node scripts/upload_kenney_assets_to_r2.mjs",
     "assets:phaser:upload": "node scripts/upload_phaser_assets_to_r2.mjs",
-    "maker": "node scripts/gametok-maker.js",
-    "maker:env": "node scripts/gametok-maker.js env",
-    "maker:inspect": "node scripts/gametok-maker.js inspect",
-    "maker:templates": "node scripts/gametok-maker.js templates",
-    "maker:benchmark": "node scripts/gametok-maker-benchmark.js",
-    "maker:worker": "node scripts/gametok-maker-worker.js",
-    "opengame:worker": "node scripts/gametok-maker-worker.js"
+    "opengame:worker": "node scripts/opengame-worker.js"
   },
   "engines": {
     "node": ">=20.0.0"

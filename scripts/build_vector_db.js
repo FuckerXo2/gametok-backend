@@ -17,7 +17,7 @@ async function fetchGithubDirectory(dirPath) {
     const url = `https://api.github.com/repos/phaserjs/examples/contents/${dirPath}`;
     console.log(`📡 Scraping: ${url}`);
     
-    const response = await fetch(url, { headers: { 'User-Agent': 'DreamStream-Asset-Scraper' } });
+    const response = await fetch(url, { headers: { 'User-Agent': 'GameTok-Asset-Scraper' } });
     if (!response.ok) {
         console.error(`GitHub API Error: ${response.status} ${response.statusText}`);
         return [];

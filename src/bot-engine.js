@@ -717,7 +717,7 @@ async function botFollow(bot) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Persona-driven prompts for the REAL DreamStream pipeline.
+// Persona-driven prompts for the OpenGame maker pipeline.
 // These mirror what a human player typing in the AI maker would write.
 // ─────────────────────────────────────────────────────────────
 const BOT_DREAM_PROMPTS = {
@@ -817,14 +817,14 @@ async function waitForDreamReady(jobId, { timeoutMs = 5 * 60_000, pollMs = 4000 
   throw new Error('Dream job timed out');
 }
 
-// Run ONE bot through the same DreamStream pipeline a real user uses, then publish.
+// Run ONE bot through the same OpenGame pipeline a real user uses, then publish.
 // This is heavy: it invokes the real AI builder. Use sparingly.
 export async function botDreamGame(bot) {
   if (!bot?.id) throw new Error('bot.id required');
   const { prompt } = makePersonaPrompt(bot);
   const jobId = randomUUID();
 
-  await createPendingJob(bot.id, prompt, 'DreamStream Pending...', jobId);
+  await createPendingJob(bot.id, prompt, 'OpenGame Pending...', jobId);
 
   // Run the real pipeline. executeDreamJob handles its own errors by writing
   // ERROR: ... into the title, so we still need to surface that.
@@ -942,7 +942,7 @@ export async function createBotGames({ count = 10 } = {}) {
 // Refresh the html_payload of existing bot-authored games to use the V2
 // multi-template renderer. Existing V1 bot games are all "tap to score";
 // this rewrites them so the feed actually plays differently per game.
-// Skips real DreamStream-generated games (those have rich HTML we don't want to clobber).
+// Skips generated OpenGame titles (those have rich HTML we don't want to clobber).
 export async function regenerateBotGameHtml({ limit = 200, onProgress } = {}) {
   await ensureBotTables();
   const safeLimit = Math.max(1, Math.min(5000, Number(limit) || 200));

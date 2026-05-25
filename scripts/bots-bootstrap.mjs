@@ -107,7 +107,7 @@ async function run() {
   if (args.dream != null && Number.isFinite(args.dream)) {
     const count = Math.max(1, Math.min(50, args.dream));
     const concurrency = Math.max(1, Math.min(3, args.dreamConcurrency || 1));
-    console.log(`\n🌙 Generating ${count} REAL AI bot games via DreamStream (concurrency=${concurrency})...`);
+    console.log(`\n🌙 Generating ${count} REAL AI bot games via OpenGame (concurrency=${concurrency})...`);
     console.log('   Heads up: this calls the actual AI builder and can take ~30–90s per game.');
     const result = await dreamBotGames({ count, concurrency });
     console.log('   →', JSON.stringify(result, null, 2));
