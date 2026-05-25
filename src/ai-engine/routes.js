@@ -363,7 +363,7 @@ async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'drea
     await createPendingJob(userId, prompt, title, jobId);
     await pool.query(
         `INSERT INTO generation_jobs (id, user_id, kind, status, prompt, payload, attempts, max_attempts, progress, phase, status_message, run_after)
-         VALUES ($1, $2, $3, 'queued', $4, $5::jsonb, 0, $6, 0, 'queued', 'Queued for OpenGame...', NOW())
+         VALUES ($1, $2, $3, 'queued', $4, $5::jsonb, 0, $6, 0, 'queued', 'Queued for generation...', NOW())
          ON CONFLICT (id) DO UPDATE SET
             user_id = EXCLUDED.user_id,
             kind = EXCLUDED.kind,
@@ -374,7 +374,7 @@ async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'drea
             max_attempts = EXCLUDED.max_attempts,
             progress = 0,
             phase = 'queued',
-            status_message = 'Queued for OpenGame...',
+            status_message = 'Queued for generation...',
             error = NULL,
             run_after = NOW(),
             updated_at = NOW(),
@@ -408,7 +408,7 @@ async function claimGenerationJob() {
              updated_at = NOW(),
              progress = GREATEST(progress, 2),
              phase = 'running',
-             status_message = 'OpenGame worker is starting...'
+             status_message = 'Generation worker is starting...'
          WHERE id = (
              SELECT id FROM generation_jobs
              WHERE status = 'queued'
@@ -433,7 +433,7 @@ async function recoverStaleGenerationJobs() {
              locked_by = NULL,
              locked_at = NULL,
              run_after = NOW() + ($2 || ' milliseconds')::interval,
-             error = COALESCE(error, 'Recovered stale OpenGame worker lock'),
+             error = COALESCE(error, 'Recovered stale generation worker lock'),
              updated_at = NOW()
          WHERE status = 'running'
            AND locked_at < NOW() - ($1 || ' minutes')::interval
@@ -849,18 +849,18 @@ router.post('/dream', async (req, res) => {
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
         const mediaAttachments = sanitizeMediaAttachments(attachments);
         const jobId = randomUUID();
-        console.log(`🎮 [OpenGame Route] Creating job for User[${userId}] -> Concept: "${prompt}"`);
+        console.log(`🎮 [Dream Route] Creating job for User[${userId}] -> Concept: "${prompt}"`);
         await enqueueGenerationJob({
             jobId,
             userId,
             prompt,
-            title: 'OpenGame Pending...',
-            kind: 'opengame',
+            title: 'Generating...',
+            kind: 'dream',
             payload: { mediaAttachments },
         });
         res.json({ success: true, jobId });
     } catch (error) {
-        console.error('[OpenGame Route] Error:', error);
+        console.error('[Dream Route] Error:', error);
         res.status(error.statusCode || 500).json({ error: error.message || 'System Error' });
     }
 });
@@ -948,8 +948,8 @@ router.post('/dream/retry/:jobId', async (req, res) => {
             jobId: newJobId,
             userId,
             prompt: job.prompt,
-            title: 'OpenGame Pending...',
-            kind: 'opengame',
+            title: 'Generating...',
+            kind: 'dream',
             payload: { mediaAttachments: [] },
         });
         res.json({ success: true, jobId: newJobId });
