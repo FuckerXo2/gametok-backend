@@ -1714,6 +1714,18 @@ function extractHtmlTitle(html) {
     return match?.[1]?.trim() || null;
 }
 
+const SCAFFOLD_HTML_TITLES = new Set(['gamecursor', 'untitled', 'untitled game', 'game']);
+
+function resolveDreamGameTitle({ specTitle, html, fallback = 'DreamStream Game' } = {}) {
+    const phase1Title = String(specTitle || '').trim();
+    if (phase1Title) return phase1Title.substring(0, 255);
+    const htmlTitle = extractHtmlTitle(html);
+    if (htmlTitle && !SCAFFOLD_HTML_TITLES.has(htmlTitle.toLowerCase())) {
+        return htmlTitle.substring(0, 255);
+    }
+    return String(fallback || 'DreamStream Game').substring(0, 255);
+}
+
 function withTimeout(promise, ms, label) {
     let timeoutId;
     return Promise.race([
@@ -4876,7 +4888,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         }
         if (!makerProject) {
             makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
-                title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
+                title: resolveDreamGameTitle({ specTitle: qualityIntent.title, html: rawGameHtml, fallback: 'GameTok Game' }),
                 generatedAssets,
             });
         }
@@ -5185,7 +5197,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     }
                     await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
                     makerProject = await materializeMakerProject(makerWorkspace, rawGameHtml, {
-                        title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
+                        title: resolveDreamGameTitle({ specTitle: qualityIntent.title, html: rawGameHtml, fallback: 'GameTok Game' }),
                         generatedAssets,
                     });
                     finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets, { minimalRuntime: useOpenGameMinimalRuntime });
@@ -5250,7 +5262,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         // ── SAVE TO DB ──
         assertJobNotCancelled(jobId);
         await reportProgress(94, 'save', 'Saving your game...');
-        const finalTitle = (extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'DreamStream Game').substring(0, 255);
+        const finalTitle = resolveDreamGameTitle({
+            specTitle: qualityIntent.title,
+            html: rawGameHtml,
+            fallback: 'DreamStream Game',
+        });
         makerGddCompliance = verifyMakerGddCompliance({
             gddSummary: makerDesignBriefSummary,
             templateContract: makerTemplateContract,
