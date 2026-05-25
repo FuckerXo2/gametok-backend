@@ -23,6 +23,20 @@ const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATIO
 const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
 const SPEC_MODEL = process.env.OPENGAME_SPEC_MODEL || process.env.DREAMSTREAM_NARRATIVE_MODEL || 'meta/llama-3.3-70b-instruct';
 
+export function resolveMakerRuntime(env = process.env) {
+    const value = String(env.MAKER_RUNTIME || env.GAMETOK_MAKER_RUNTIME || 'gametok').trim().toLowerCase();
+    if (value === 'opengame' || value === 'open-game') return 'opengame';
+    return 'gametok';
+}
+
+let gametokDreamJobLoader = null;
+async function loadGametokDreamJob() {
+    if (!gametokDreamJobLoader) {
+        gametokDreamJobLoader = import('./gametok-maker-pipeline.js').then((mod) => mod.executeGametokDreamJob);
+    }
+    return gametokDreamJobLoader;
+}
+
 const pendingJobBoots = new Map();
 const cancelledJobs = new Map();
 const generationJobRunners = new Map();
@@ -519,7 +533,7 @@ function getQueueProgressPayload(queueJob) {
     };
 }
 
-async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
+async function executeOpenGameDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     const persistToDb = jobPayload?.persistToDb !== false;
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
     const reportProgress = async (progress, phase, statusMessage) => {
@@ -654,6 +668,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         if (persistToDb) await markJobError(jobId, 'OpenGame generation failed', error);
         else throw error;
     }
+}
+
+async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
+    const runtime = resolveMakerRuntime();
+    if (runtime === 'opengame') {
+        return executeOpenGameDreamJob(jobId, prompt, mediaAttachments, jobPayload);
+    }
+    console.log(`🛠️ [Maker Runtime] Using GameTok maker pipeline for ${jobId}`);
+    const executeGametokDreamJob = await loadGametokDreamJob();
+    return executeGametokDreamJob(jobId, prompt, mediaAttachments, jobPayload);
 }
 
 async function runGenerationJob(job) {
