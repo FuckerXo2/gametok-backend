@@ -4579,7 +4579,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         console.log(`✅ Phase 2 complete: ${buildMode} builder generated ${rawGameHtml.length} chars of game code`);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
-        let finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
+        const useOpenGameMinimalRuntime = buildMode === 'opengame-template-native';
+        let finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets, { minimalRuntime: useOpenGameMinimalRuntime });
         await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
         let finalScreenshot = null;
         finalSandboxResult = null;
@@ -4792,7 +4793,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                             throw new Error('Project file repair assembled HTML is missing </html>.');
                         }
                         await writeMakerText(makerWorkspace, 'raw-build.html', rawGameHtml);
-                        finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
+                        finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets, { minimalRuntime: useOpenGameMinimalRuntime });
                         await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
                         makerRepairs.push({
                             attempt: repairAttempt,
@@ -4878,7 +4879,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                         title: extractHtmlTitle(rawGameHtml) || qualityIntent.title || 'GameTok Game',
                         generatedAssets,
                     });
-                    finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets);
+                    finalHtml = postProcessRawHtml(rawGameHtml, generatedAssets, { minimalRuntime: useOpenGameMinimalRuntime });
                     await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
                     makerRepairs.push({
                         attempt: repairAttempt,

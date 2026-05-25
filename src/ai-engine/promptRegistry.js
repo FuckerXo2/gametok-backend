@@ -2496,6 +2496,10 @@ function buildDreamAssetsScript(generatedAssets = null) {
         };
         window.playDreamSound = window.playDreamSound || function(key) { window.DreamAudio.play(key); };
         window.DreamAssets = window.DreamAssets || {
+          markRendered: function(key, role) {
+            markDreamAssetUsage(key, role, 'render');
+            return true;
+          },
           getImage: function(key) {
             var asset = (window.DREAM_ASSET_PACK || []).find(function(item) {
               return item && (item.key === key || item.id === key);
@@ -2678,7 +2682,8 @@ function buildDreamAssetsScript(generatedAssets = null) {
   `;
 }
 
-export function postProcessRawHtml(rawHtml, generatedAssets = null) {
+export function postProcessRawHtml(rawHtml, generatedAssets = null, options = {}) {
+  const minimalRuntime = Boolean(options?.minimalRuntime);
   const runtimeOverlayScript = `
     <script>
       (function() {
@@ -2827,9 +2832,13 @@ export function postProcessRawHtml(rawHtml, generatedAssets = null) {
   // Inject Juice Engine
   let juiceScript = '';
   try {
+    if (minimalRuntime) {
+      juiceScript = '';
+    } else {
     const juicePath = path.join(__dirname, 'juice.js');
     const juiceCode = fs.readFileSync(juicePath, 'utf8');
     juiceScript = '<script>' + juiceCode + '</script>';
+    }
   } catch (e) {
     console.error('Failed to load juice.js:', e);
   }
@@ -2837,14 +2846,18 @@ export function postProcessRawHtml(rawHtml, generatedAssets = null) {
   // Inject Audio Engine
   let audioScript = '';
   try {
+    if (minimalRuntime) {
+      audioScript = '';
+    } else {
     const audioPath = path.join(__dirname, 'audio.js');
     const audioCode = fs.readFileSync(audioPath, 'utf8');
     audioScript = '<script>' + audioCode + '</script>';
+    }
   } catch (e) {
     console.error('Failed to load audio.js:', e);
   }
 
-  const editableBridgeScript = buildGameTokEditableBridgeScript();
+  const editableBridgeScript = minimalRuntime ? '' : buildGameTokEditableBridgeScript();
   const dreamAssetsScript = buildDreamAssetsScript(generatedAssets);
 
   if (dreamAssetsScript) {
@@ -2858,10 +2871,11 @@ export function postProcessRawHtml(rawHtml, generatedAssets = null) {
   }
 
   // Inject right before </body> or at end
+  const runtimeScripts = minimalRuntime ? '' : (editableBridgeScript + runtimeOverlayScript + juiceScript + audioScript);
   if (rawHtml.includes('</body>')) {
-    rawHtml = rawHtml.replace('</body>', editableBridgeScript + runtimeOverlayScript + juiceScript + audioScript + '</body>');
+    rawHtml = rawHtml.replace('</body>', runtimeScripts + '</body>');
   } else {
-    rawHtml += editableBridgeScript + runtimeOverlayScript + juiceScript + audioScript;
+    rawHtml += runtimeScripts;
   }
 
   // Force inject essential mobile metas and strict no-selection CSS

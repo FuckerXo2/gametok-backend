@@ -85,6 +85,8 @@ export function buildOpenGameMakerSource({
     return `import Phaser from 'phaser';
 import './styles/tailwind.css';
 
+(window as any).Phaser = Phaser;
+
 type SpawnKind = 'item' | 'enemy';
 
 type FlyingTarget = {
@@ -106,6 +108,12 @@ const SAFE_HEIGHT = 844;
 
 function dreamAssets(): any {
   return (window as any).DreamAssets || null;
+}
+
+function markRendered(key: string, role: string) {
+  try {
+    dreamAssets()?.markRendered?.(key, role);
+  } catch {}
 }
 
 function firstAssetKey(...roles: string[]): string | null {
@@ -278,6 +286,7 @@ class GameScene extends Phaser.Scene {
   private renderBackground() {
     if (this.backgroundKey && this.textures.exists(this.backgroundKey)) {
       const bg = this.add.image(SAFE_WIDTH / 2, SAFE_HEIGHT / 2, this.backgroundKey);
+      markRendered(this.backgroundKey, 'background');
       const scale = Math.max(SAFE_WIDTH / Math.max(1, bg.width), SAFE_HEIGHT / Math.max(1, bg.height));
       bg.setScale(scale).setDepth(-20).setAlpha(0.86);
     }
@@ -322,6 +331,7 @@ class GameScene extends Phaser.Scene {
       .setRotation(-0.7)
       .setData('role', 'player')
       .setData('assetKey', key);
+    markRendered(key, 'player');
   }
 
   private updateHud() {
@@ -344,6 +354,7 @@ class GameScene extends Phaser.Scene {
     sprite.setGravityY(760);
     sprite.setData('role', kind === 'enemy' ? 'enemy' : 'item');
     sprite.setData('assetKey', key);
+    markRendered(key, kind === 'enemy' ? 'enemy' : 'item');
     const target = { sprite, kind, role: kind === 'enemy' ? 'enemy' : 'item', sliced: false, bornAt: this.time.now };
     this.targets.push(target);
     return target;
@@ -440,6 +451,7 @@ class GameScene extends Phaser.Scene {
 
   private spawnImpact(x: number, y: number, angle: number) {
     const flash = this.add.image(x, y, this.effectKey || this.playerKey);
+    markRendered(this.effectKey || this.playerKey, 'effect');
     flash.setDepth(70).setRotation(angle).setDisplaySize(132, 132).setBlendMode(Phaser.BlendModes.ADD);
     this.tweens.add({ targets: flash, scale: 1.45, alpha: 0, duration: 220, ease: 'Quad.easeOut', onComplete: () => flash.destroy() });
     for (let i = 0; i < 12; i += 1) {

@@ -379,6 +379,7 @@ new Phaser.Game({ parent: 'game-container', scene: [] });
   assert.ok(source.includes('REQUIRED_ASSET_ROLES'), 'OpenGame builder should encode required asset roles');
   assert.ok(source.includes("'player'") && source.includes("'enemy'") && source.includes("'item'"), 'OpenGame builder should reference gameplay asset roles');
   assert.ok(source.includes('attack: () =>') && source.includes('spawnEnemyNearPlayer: () =>'), 'OpenGame builder should expose the sandbox probe API expected by verification');
+  assert.ok(source.includes('markRendered(key, kind ===') && source.includes("markRendered(key, 'player')"), 'OpenGame builder should explicitly report rendered asset roles to sandbox verification');
   assert.ok(source.includes("dom: { createContainer: true }"), 'OpenGame builder should enable Phaser DOM container by construction');
   assert.ok(!/\bmaxWidth\b|\bmaxHeight\b|\bminWidth\b|\bminHeight\b/.test(source), 'OpenGame builder must not emit unsupported Phaser ScaleConfig keys');
   const result = await runMakerPreflightChecks({ projectRoot, generatedAssets: generated, assetContract });
@@ -389,6 +390,12 @@ new Phaser.Game({ parent: 'game-container', scene: [] });
   const sandboxSource = await fs.readFile(new URL('../src/ai-engine/sandbox.js', import.meta.url), 'utf8');
   assert.ok(!sandboxSource.includes('page.setContent('), 'sandbox should load generated games as browser pages instead of document.write/setContent');
   assert.ok(sandboxSource.includes('page.goto(`file://${htmlPath}`'), 'sandbox should navigate to a temporary file-backed page');
+}
+
+{
+  const registrySource = await fs.readFile(new URL('../src/ai-engine/promptRegistry.js', import.meta.url), 'utf8');
+  assert.ok(registrySource.includes('minimalRuntime'), 'post-process should support an OpenGame-style minimal runtime path');
+  assert.ok(registrySource.includes('markRendered: function'), 'DreamAssets should expose explicit render tracking for template-owned runtimes');
 }
 
 console.log('maker opengame migration tests passed');
