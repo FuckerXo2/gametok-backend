@@ -4353,7 +4353,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             assetPlan: dreamAssetPlan,
         });
         const userBgmAttachment = findUserBgmAttachment(mediaAttachments);
-        console.log(`🎵 Audio manifest: ${generatedAssets?.audio?.sfx?.length || 0} sfx, ${generatedAssets?.audio?.music?.length || 0} music (${userBgmAttachment ? 'user-selected BGM' : 'auto library BGM'})`);
+        console.log(`🎵 Audio manifest: ${generatedAssets?.audio?.sfx?.length || 0} sfx, ${generatedAssets?.audio?.music?.length || 0} music (${userBgmAttachment ? 'user-selected BGM' : 'auto Freesound BGM'})`);
 
         makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);

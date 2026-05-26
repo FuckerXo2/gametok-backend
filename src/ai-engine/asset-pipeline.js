@@ -10,6 +10,8 @@ const REPO_ROOT = path.resolve(__dirname, '../..');
 const AUDIO_DIR = path.join(REPO_ROOT, 'public/assets/audio');
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a']);
 const R2_AUDIO_CACHE_TTL_MS = 10 * 60 * 1000;
+const FREESOUND_API_KEY = process.env.FREESOUND_API_KEY || 'mgD2q6sEgb7r8seRdGqRVBgszcAgMqPAzGpHPAkk';
+const FREESOUND_BGM_CACHE_TTL_MS = 5 * 60 * 1000;
 const BACKGROUND_DEFAULT_WIDTH = GAMETOK_UNITY.assetPolicy.background.defaultWidth;
 const BACKGROUND_DEFAULT_HEIGHT = GAMETOK_UNITY.assetPolicy.background.defaultHeight;
 const BACKGROUND_FORBIDDEN_PROMPT = GAMETOK_UNITY.assetPolicy.background.forbiddenPrompt;
@@ -18,6 +20,11 @@ let r2AudioCache = {
     expiresAt: 0,
     promise: null,
     assets: null,
+};
+
+let freesoundBgmCache = {
+    expiresAt: 0,
+    entries: new Map(),
 };
 
 function asArray(value) {
@@ -243,6 +250,115 @@ function scoreAudioAsset(asset, text) {
     if (includesAny(query, ['intense', 'combat', 'boss', 'fast', 'neon']) && includesAny(haystack, ['overkill', 'hardcore', 'goa', 'remix'])) score += 8;
     if (includesAny(query, ['tech', 'cyber', 'future', 'machine', 'robot']) && includesAny(haystack, ['tech', 'synth', 'bass', 'drums'])) score += 8;
     return score;
+}
+
+function buildFreesoundBgmQuery(qualityIntent = {}, musicNeeds = []) {
+    const specText = collectSpecText(qualityIntent);
+    const hint = [
+        ...musicNeeds,
+        qualityIntent?.title,
+        qualityIntent?.playableExperience?.coreFantasy,
+        qualityIntent?.artDirection?.styleName,
+    ].filter(Boolean).join(' ').trim();
+    const seed = hint || specText.split(/\s+/).slice(0, 10).join(' ');
+    return (seed ? `${seed} game music loop` : 'game music loop').slice(0, 140);
+}
+
+function mapFreesoundResult(item = {}) {
+    const previews = item.previews || {};
+    const url = previews['preview-hq-mp3'] || previews['preview-lq-mp3'] || '';
+    if (!url) return null;
+    return {
+        id: item.id,
+        label: item.name || `Freesound ${item.id}`,
+        url,
+        duration: Number(item.duration || 0),
+        tags: asArray(item.tags).map((tag) => String(tag)),
+        source: 'freesound',
+    };
+}
+
+async function searchFreesoundBgm(query = 'game music loop', pageSize = 20) {
+    const normalizedQuery = String(query || 'game music loop').trim() || 'game music loop';
+    const now = Date.now();
+    const cached = freesoundBgmCache.entries.get(normalizedQuery);
+    if (cached && cached.expiresAt > now) {
+        return cached.tracks;
+    }
+
+    if (!FREESOUND_API_KEY) {
+        return [];
+    }
+
+    try {
+        const filter = '&filter=duration:[10.0 TO 300.0]';
+        const url = `https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(normalizedQuery)}&token=${FREESOUND_API_KEY}${filter}&fields=id,name,previews,duration,tags&page_size=${pageSize}&page=1`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Freesound search failed (${response.status})`);
+        }
+        const data = await response.json();
+        const tracks = asArray(data.results)
+            .map((item) => mapFreesoundResult(item))
+            .filter(Boolean);
+        freesoundBgmCache.entries.set(normalizedQuery, {
+            tracks,
+            expiresAt: now + FREESOUND_BGM_CACHE_TTL_MS,
+        });
+        return tracks;
+    } catch (error) {
+        console.warn('[asset-pipeline] Freesound BGM search failed:', error.message);
+        return [];
+    }
+}
+
+function pickFreesoundBgm(tracks = [], specText = '') {
+    if (!tracks.length) return null;
+    const ranked = tracks
+        .map((track) => ({
+            track,
+            score: scoreAudioAsset({ label: track.label, tags: track.tags || [] }, specText),
+        }))
+        .sort((a, b) => b.score - a.score || a.track.label.localeCompare(b.track.label));
+    return ranked[0]?.track || tracks[0] || null;
+}
+
+function mapLibraryMusicTracks(resolvedMusic = [], musicNeeds = []) {
+    return resolvedMusic.map((audioAsset, index) => ({
+        key: index === 0 ? 'bgm_main' : `bgm_${index + 1}`,
+        type: 'audio_file',
+        assetType: 'music',
+        role: 'background_music',
+        trigger: 'gameplay loop',
+        description: musicNeeds[index] || 'looping background music from the local game audio library',
+        label: audioAsset.label,
+        url: audioAsset.url,
+        sourceFile: audioAsset.file,
+        loop: true,
+        source: 'auto_library',
+    }));
+}
+
+async function buildDefaultFreesoundMusic(qualityIntent = {}, musicNeeds = []) {
+    const specText = collectSpecText(qualityIntent);
+    const query = buildFreesoundBgmQuery(qualityIntent, musicNeeds);
+    const tracks = await searchFreesoundBgm(query);
+    const selected = pickFreesoundBgm(tracks, `${specText} ${musicNeeds.join(' ')}`);
+    if (!selected) return [];
+
+    return [{
+        key: 'bgm_main',
+        type: 'audio_file',
+        assetType: 'music',
+        role: 'background_music',
+        trigger: 'gameplay loop',
+        description: `Auto-selected Freesound loop for "${query}"`,
+        label: selected.label,
+        url: selected.url,
+        sourceFile: `freesound:${selected.id}`,
+        loop: true,
+        source: 'freesound_auto',
+    }];
 }
 
 function pickAudioAssets(assets, text, count = 1) {
@@ -607,28 +723,21 @@ async function buildAudioPlan(qualityIntent = {}) {
         })
         .filter(Boolean);
 
-    const music = resolvedMusic.length > 0
-        ? resolvedMusic.map((audioAsset, index) => ({
-            key: index === 0 ? 'bgm_main' : `bgm_${index + 1}`,
-            type: 'audio_file',
-            assetType: 'music',
-            role: 'background_music',
-            trigger: 'gameplay loop',
-            description: musicNeeds[index] || 'looping background music from the local game audio library',
-            label: audioAsset.label,
-            url: audioAsset.url,
-            sourceFile: audioAsset.file,
-            loop: true,
-            source: 'auto_library',
-        }))
-        : [];
-    const librarySource = r2Library.length > 0 ? 'r2' : 'public/assets/audio';
+    let music = await buildDefaultFreesoundMusic(qualityIntent, musicNeeds);
+    if (music.length === 0 && resolvedMusic.length > 0) {
+        music = mapLibraryMusicTracks(resolvedMusic, musicNeeds);
+    }
+
+    const bgmSource = music[0]?.source === 'freesound_auto'
+        ? 'freesound'
+        : (r2Library.length > 0 ? 'r2' : 'public/assets/audio');
 
     return {
         sfx,
         music,
         library: {
-            source: librarySource,
+            source: bgmSource,
+            freesoundSelected: music[0]?.source === 'freesound_auto',
             r2Available: r2Library.length,
             localAvailable: localLibrary.length,
             available: library.length,
