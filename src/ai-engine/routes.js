@@ -13,7 +13,7 @@ import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, ge
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
-import { buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle } from './asset-pipeline.js';
+import { buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle, findUserBgmAttachment, resolveDreamAudioForJob } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
 import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
@@ -4271,12 +4271,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const useArtistAgent = process.env.DISABLE_ARTIST_AGENT !== 'true';
         const hasMakerAssetSlots = Array.isArray(makerAssetContract.slots) && makerAssetContract.slots.length > 0;
         generatedAssets = null;
+        let dreamAssetPlan = null;
         
         if (useArtistAgent && (qualityIntent.visualAssets || hasMakerAssetSlots)) {
             try {
                 console.log(`🎨 Artist Agent: Planning visual asset generation...`);
                 await reportProgress(26, 'assets', 'Planning visual assets...');
                 let assetPlan = await buildDreamAssetPlan(qualityIntent);
+                dreamAssetPlan = assetPlan;
                 assetPlan = mergeMakerAssetContractIntoPlan(assetPlan, makerAssetContract);
                 const assetToolRequest = buildStructuredAssetToolRequest(assetPlan, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-plan.json', {
@@ -4343,6 +4345,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             await writeMakerJson(makerWorkspace, 'asset-manifest.json', emptyAssetManifest.makerAssetManifest);
             await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssetManifest(emptyAssetManifest.makerAssetManifest));
         }
+
+        generatedAssets = await resolveDreamAudioForJob({
+            generatedAssets,
+            mediaAttachments,
+            qualityIntent,
+            assetPlan: dreamAssetPlan,
+        });
+        const userBgmAttachment = findUserBgmAttachment(mediaAttachments);
+        console.log(`🎵 Audio manifest: ${generatedAssets?.audio?.sfx?.length || 0} sfx, ${generatedAssets?.audio?.music?.length || 0} music (${userBgmAttachment ? 'user-selected BGM' : 'auto library BGM'})`);
+
         makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
         const makerTemplateScaffold = await loadMakerTemplateScaffold(makerTemplateContract.templateId);

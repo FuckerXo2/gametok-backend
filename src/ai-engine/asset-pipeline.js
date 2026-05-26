@@ -619,6 +619,7 @@ async function buildAudioPlan(qualityIntent = {}) {
             url: audioAsset.url,
             sourceFile: audioAsset.file,
             loop: true,
+            source: 'auto_library',
         }))
         : [];
     const librarySource = r2Library.length > 0 ? 'r2' : 'public/assets/audio';
@@ -634,6 +635,133 @@ async function buildAudioPlan(qualityIntent = {}) {
             selected: sfx.length + music.length,
         },
     };
+}
+
+function normalizeAttachmentType(type = '') {
+    const normalized = String(type || '').trim().toLowerCase();
+    switch (normalized) {
+        case 'photo':
+        case 'gif':
+        case 'sticker':
+            return 'image';
+        case 'music':
+            return 'bgm';
+        case 'audio':
+            return 'sfx';
+        default:
+            return normalized || 'image';
+    }
+}
+
+function normalizeAttachmentRole(role = '', type = '') {
+    const normalized = String(role || '').trim().toLowerCase();
+    const normalizedType = normalizeAttachmentType(type);
+    if (!normalized) {
+        if (normalizedType === 'bgm') return 'bgm';
+        if (normalizedType === 'sfx') return 'sfx';
+        if (normalizedType === 'video') return 'background';
+        return 'hero';
+    }
+    if (normalized === 'music') return 'bgm';
+    if (normalized === 'audio') return 'sfx';
+    return normalized;
+}
+
+export function findUserBgmAttachment(mediaAttachments = []) {
+    return asArray(mediaAttachments).find((asset) => {
+        if (!asset?.url) return false;
+        const type = normalizeAttachmentType(asset.type);
+        const role = normalizeAttachmentRole(asset.role, asset.type);
+        return type === 'bgm' || role === 'bgm';
+    }) || null;
+}
+
+function buildUserBgmTrack(attachment = {}) {
+    return {
+        key: 'bgm_main',
+        type: 'audio_file',
+        assetType: 'music',
+        role: 'background_music',
+        trigger: 'gameplay loop',
+        description: attachment.instruction || 'User-selected background music',
+        label: attachment.title || attachment.label || 'User BGM',
+        url: attachment.url,
+        sourceFile: attachment.url,
+        loop: true,
+        source: 'user_attachment',
+    };
+}
+
+function isAudioPackEntry(entry = {}) {
+    const type = String(entry?.type || entry?.assetType || '').toLowerCase();
+    const role = String(entry?.role || entry?.category || '').toLowerCase();
+    return ['sfx', 'music', 'audio', 'audio_file'].includes(type)
+        || ['sfx', 'background_music', 'music', 'bgm'].includes(role);
+}
+
+function syncAudioIntoBundle(generatedAssets, audio) {
+    const audioPackEntries = [
+        ...asArray(audio?.sfx).map((sound) => ({ ...sound, type: 'sfx' })),
+        ...asArray(audio?.music).map((track) => ({ ...track, type: 'music' })),
+    ];
+
+    if (!generatedAssets) {
+        return {
+            assets: {},
+            assetPack: audioPackEntries,
+            manifest: {
+                version: 2,
+                assets: [],
+                animations: [],
+                audio,
+                tilesets: [],
+            },
+            animations: [],
+            audio,
+            tilesets: [],
+        };
+    }
+
+    const nonAudioPack = asArray(generatedAssets.assetPack).filter((entry) => !isAudioPackEntry(entry));
+    return {
+        ...generatedAssets,
+        audio,
+        manifest: {
+            ...(generatedAssets.manifest || {}),
+            audio,
+        },
+        assetPack: [...nonAudioPack, ...audioPackEntries],
+    };
+}
+
+export async function resolveDreamAudioForJob({
+    generatedAssets = null,
+    mediaAttachments = [],
+    qualityIntent = {},
+    assetPlan = null,
+} = {}) {
+    const userBgm = findUserBgmAttachment(mediaAttachments);
+    let audio = generatedAssets?.audio || assetPlan?.audio || null;
+
+    if (!audio || (!asArray(audio.music).length && !asArray(audio.sfx).length)) {
+        audio = await buildAudioPlan(qualityIntent);
+    }
+
+    if (userBgm) {
+        const preservedMusic = asArray(audio.music).filter((track) => track.key !== 'bgm_main');
+        audio = {
+            sfx: asArray(audio.sfx),
+            music: [buildUserBgmTrack(userBgm), ...preservedMusic],
+        };
+    } else if (!asArray(audio.music).length) {
+        const fallbackAudio = await buildAudioPlan(qualityIntent);
+        audio = {
+            sfx: asArray(audio.sfx).length ? asArray(audio.sfx) : asArray(fallbackAudio.sfx),
+            music: asArray(fallbackAudio.music),
+        };
+    }
+
+    return syncAudioIntoBundle(generatedAssets, audio);
 }
 
 function buildTilesetPlan(qualityIntent = {}, specText = '') {
