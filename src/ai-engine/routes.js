@@ -32,6 +32,16 @@ import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } fro
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
+import {
+    assertFoundationSupported,
+    buildFoundationAgentPrompt,
+    buildFoundationDebugChecks,
+    buildMakerAssetContractFromFoundation,
+    buildMakerTemplateContractFromFoundation,
+    normalizeFoundationContract,
+    useDynamicFoundation,
+} from './maker-foundation-agent.js';
+import { buildKernelScaffold } from './maker-kernel-scaffold.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -4214,12 +4224,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     let makerGddCompliance = null;
     let makerAcceptanceResult = null;
     let makerBuilderMaps = null;
+    let makerFoundationContract = null;
     const makerAgentTurns = [];
     try {
         assertJobNotCancelled(jobId);
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'}`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
@@ -4248,8 +4259,29 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             });
         }
         assertJobNotCancelled(jobId);
-        makerTemplateContract = selectMakerTemplateContract(qualityIntent, prompt);
-        makerAssetContract = buildMakerAssetContract(makerTemplateContract, qualityIntent);
+
+        const dynamicFoundation = useDynamicFoundation();
+        if (dynamicFoundation) {
+            await reportProgress(14, 'foundation', 'Designing game foundation...');
+            console.log(`🏗️ Phase 1.5/3: ${DREAM_MODELS.spec} architecting dynamic foundation...`);
+            const foundationPrompt = buildFoundationAgentPrompt(qualityIntent, prompt);
+            await writeMakerText(makerWorkspace, 'logs/foundation-agent-prompt.txt', `${foundationPrompt.system}\n\n---\n\n${foundationPrompt.user}`);
+            let rawFoundation;
+            try {
+                rawFoundation = await callAI(foundationPrompt.system, foundationPrompt.user, 4500, 0.25);
+            } catch (foundationError) {
+                throw new Error(`Phase 1.5 foundation architect failed after exhausting text keys/models: ${foundationError?.message || foundationError}`);
+            }
+            makerFoundationContract = normalizeFoundationContract(rawFoundation, qualityIntent);
+            assertFoundationSupported(makerFoundationContract);
+            await writeMakerJson(makerWorkspace, 'foundation-contract.json', makerFoundationContract);
+            makerTemplateContract = buildMakerTemplateContractFromFoundation(makerFoundationContract, qualityIntent);
+            makerAssetContract = buildMakerAssetContractFromFoundation(makerFoundationContract, qualityIntent);
+            console.log(`✅ Phase 1.5: "${makerFoundationContract.title}" foundation=${makerFoundationContract.foundationId} lane=${makerFoundationContract.lane} probes=${makerFoundationContract.probeMethods.length}`);
+        } else {
+            makerTemplateContract = selectMakerTemplateContract(qualityIntent, prompt);
+            makerAssetContract = buildMakerAssetContract(makerTemplateContract, qualityIntent);
+        }
         await writeMakerJson(makerWorkspace, 'template-contract.json', makerTemplateContract);
         await writeMakerJson(makerWorkspace, 'asset-contract.json', makerAssetContract);
         await writeMakerJson(makerWorkspace, 'gametok-plan.json', buildMakerPlan(qualityIntent, prompt, makerTemplateContract));
@@ -4263,8 +4295,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             console.log(`   Primary mechanic: ${qualityIntent.playableExperience.primaryMechanic}`);
         }
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
-        console.log(`   Template: ${makerTemplateContract.templateId} (${makerTemplateContract.engine})`);
-        if (makerTemplateContract.classification) {
+        if (dynamicFoundation && makerFoundationContract) {
+            console.log(`   Foundation: ${makerFoundationContract.foundationId} lane=${makerFoundationContract.lane} engine=${makerFoundationContract.engine}`);
+            console.log(`   Kernel: canvas-kernel (AI-designed contract, shared runtime)`);
+        } else {
+            console.log(`   Template: ${makerTemplateContract.templateId} (${makerTemplateContract.engine})`);
+        }
+        if (!dynamicFoundation && makerTemplateContract.classification) {
             const picked = makerTemplateContract.classification;
             const topScores = (picked.scores || [])
                 .slice(0, 3)
@@ -4364,7 +4401,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
-        const makerTemplateScaffold = await loadMakerTemplateScaffold(makerTemplateContract.templateId);
+        const makerTemplateScaffold = dynamicFoundation && makerFoundationContract
+            ? await buildKernelScaffold(makerFoundationContract, qualityIntent)
+            : await loadMakerTemplateScaffold(makerTemplateContract.templateId);
         if (makerTemplateScaffold) {
             await writeMakerJson(makerWorkspace, 'template-scaffold.json', summarizeMakerTemplateScaffold(makerTemplateScaffold));
             await fs.promises.mkdir(path.join(makerWorkspace, 'template-scaffold'), { recursive: true });

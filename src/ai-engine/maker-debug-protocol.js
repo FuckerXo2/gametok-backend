@@ -1,4 +1,5 @@
 import { summarizeMakerTemplateContract } from './maker-templates.js';
+import { buildFoundationDebugChecks } from './maker-foundation-agent.js';
 
 const BASE_DEBUG_CHECKS = [
     {
@@ -223,6 +224,7 @@ const TEMPLATE_DEBUG_CHECKS = {
 export function buildMakerDebugProtocol(templateContract = null, generatedAssets = null, assetContract = null) {
     const templateSummary = summarizeMakerTemplateContract(templateContract);
     const templateId = templateSummary?.templateId || 'canvas-arcade';
+    const foundation = templateContract?.foundation || null;
     const hasAssets = Boolean(generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0);
     const hasFrameSequences = Array.isArray(generatedAssets?.animations)
         && generatedAssets.animations.some((animation) => animation?.type === 'frame_sequence');
@@ -243,6 +245,7 @@ export function buildMakerDebugProtocol(templateContract = null, generatedAssets
             repair: 'Load the generated 7x7 tileset image and use it as the visual vocabulary for code-defined tile terrain or platform surfaces.',
         }] : []),
         ...(TEMPLATE_DEBUG_CHECKS[templateId] || []),
+        ...(templateId === 'canvas-kernel' && foundation ? buildFoundationDebugChecks(foundation) : []),
     ];
 
     return {
