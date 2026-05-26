@@ -31,7 +31,7 @@ import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentI
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
-import { maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
+import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -169,6 +169,9 @@ const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CON
 const BUILDER_JSON_REWRITE_ATTEMPTS = Math.max(0, Math.min(2, Number(process.env.DREAMSTREAM_BUILDER_JSON_REWRITE_ATTEMPTS || 1)));
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
+const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 180000));
+const PHASE1_ATTEMPTS_PER_MODEL = Math.max(3, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 0) || Math.max(3, getNvidiaTextKeys().length)));
+const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
 const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
 const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
 
@@ -328,7 +331,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
             messages,
             max_tokens: maxTokens,
             temperature: attempt === 0 ? temperature : Math.min(temperature, 0.15)
-        }, { signal }), 120000), { label: 'Phase 1 Builder', maxAttempts: 3, baseDelayMs: 2000, fallbackModels: BUILDER_FALLBACK_MODELS });
+        }, { signal }), PHASE1_TIMEOUT_MS), { label: 'Phase 1 Builder', maxAttempts: PHASE1_ATTEMPTS_PER_MODEL, baseDelayMs: 2000, fallbackModels: BUILDER_FALLBACK_MODELS });
         if (!res || !res.choices || !res.choices[0]) {
             throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
         }
@@ -4216,6 +4219,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         assertJobNotCancelled(jobId);
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
@@ -4229,6 +4233,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         try {
             qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
         } catch (phase1Error) {
+            if (!ALLOW_PHASE1_HEURISTIC_FALLBACK) {
+                throw new Error(`Phase 1 spec extraction failed after exhausting text keys/models: ${phase1Error?.message || phase1Error}`);
+            }
             console.warn(`⚠️ Phase 1 JSON extraction failed; using deterministic OpenGame-style fallback spec: ${phase1Error?.message || phase1Error}`);
             qualityIntent = buildHeuristicQualityIntent(prompt, {
                 reason: phase1Error?.message || 'phase1_json_failed',
