@@ -2383,6 +2383,47 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DREAM_AUDIO_MANIFEST = dreamAssetPayload.audio || { sfx: [], music: [] };
         window.DREAM_TILESETS = dreamAssetPayload.tilesets || [];
         window.DREAM_PRODUCTION_CONTRACT = dreamAssetPayload.productionContract || (window.DREAM_ASSET_MANIFEST && window.DREAM_ASSET_MANIFEST.productionContract) || null;
+        (function mirrorDreamAssetAliases() {
+          var assets = window.DREAM_ASSETS || {};
+          var pack = window.DREAM_ASSET_PACK || [];
+          function assignAlias(alias, sourceKey) {
+            if (!alias || !sourceKey || assets[alias]) return;
+            if (!assets[sourceKey]) return;
+            assets[alias] = assets[sourceKey];
+          }
+          function findBackgroundAsset() {
+            return pack.find(function(asset) {
+              if (!asset || !asset.key) return false;
+              var role = String(asset.role || asset.category || '').toLowerCase();
+              var type = String(asset.type || asset.assetType || '').toLowerCase();
+              return type === 'background' || role === 'background' || role === 'environment';
+            }) || pack.find(function(asset) {
+              return asset && asset.key && /^background/i.test(String(asset.key));
+            }) || null;
+          }
+          var backgroundAsset = findBackgroundAsset();
+          if (backgroundAsset && backgroundAsset.key && assets[backgroundAsset.key]) {
+            ['toybox_background', 'background', 'background1', 'environment', 'stage_background', 'game_background', 'arcade_background', 'simulation_background'].forEach(function(alias) {
+              assignAlias(alias, backgroundAsset.key);
+            });
+          }
+          var itemAssets = pack.filter(function(asset) {
+            if (!asset || !asset.key) return false;
+            var role = String(asset.role || asset.category || '').toLowerCase();
+            return role === 'item' || /^item\\d+$/i.test(String(asset.key));
+          }).sort(function(a, b) {
+            return String(a.key).localeCompare(String(b.key), undefined, { numeric: true });
+          });
+          itemAssets.forEach(function(asset, index) {
+            assignAlias('item' + (index + 1), asset.key);
+            assignAlias(asset.key, asset.key);
+          });
+          (window.DREAM_ASSET_MANIFEST && window.DREAM_ASSET_MANIFEST.slots || []).forEach(function(slot) {
+            if (!slot || !slot.runtimeKey || !assets[slot.runtimeKey]) return;
+            assignAlias(slot.id, slot.runtimeKey);
+            assignAlias(slot.role, slot.runtimeKey);
+          });
+        })();
         window.__DREAM_ASSET_USAGE = window.__DREAM_ASSET_USAGE || { helperCalls: 0, usedKeys: {}, usedRoles: {}, preloadedKeys: {}, preloadedRoles: {}, renderedKeys: {}, renderedRoles: {}, usedAnimations: {}, usedTilesets: {} };
         window.__DREAM_ASSET_URL_TO_KEY = window.__DREAM_ASSET_URL_TO_KEY || {};
         (window.DREAM_ASSET_PACK || []).forEach(function(asset) {

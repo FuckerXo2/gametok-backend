@@ -276,7 +276,8 @@ function pickSfxAsset(assets, cue, specText, usedFiles) {
         .map((asset) => ({ asset, score: scoreSfxAsset(asset, cue, specText) }))
         .filter((entry) => entry.score > 0)
         .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label));
-    return ranked[0]?.asset || null;
+    if (ranked[0]?.asset) return ranked[0].asset;
+    return assets.find((asset) => !usedFiles.has(asset.file)) || null;
 }
 
 function collectSpecText(qualityIntent = {}) {
@@ -574,6 +575,8 @@ async function buildAudioPlan(qualityIntent = {}) {
         { key: 'ui_tap', role: 'ui', trigger: 'button press or menu selection', style: 'short UI cue' },
         { key: 'impact', role: 'feedback', trigger: 'player or enemy takes damage', style: 'impact or tension cue' },
         { key: 'collect', role: 'reward', trigger: 'pickup, score, combo, or resource gain', style: 'reward cue' },
+        { key: 'success', role: 'success', trigger: 'correct action, order complete, or milestone', style: 'short victory sparkle' },
+        { key: 'failure', role: 'failure', trigger: 'wrong action, timeout, or penalty', style: 'short descending sting' },
     ];
 
     if (includesAny(mustExistText, ['cast', 'spell', 'shoot', 'fire', 'attack'])) {
@@ -581,12 +584,6 @@ async function buildAudioPlan(qualityIntent = {}) {
     }
     if (includesAny(mustExistText, ['dash', 'boost', 'jump', 'move'])) {
         defaults.push({ key: 'movement_burst', role: 'movement', trigger: 'dash, jump, boost, or fast movement', style: 'quick whoosh' });
-    }
-    if (includesAny(mustExistText, ['win', 'wave', 'survive', 'level'])) {
-        defaults.push({ key: 'success', role: 'success', trigger: 'wave clear, win, or milestone', style: 'short victory sparkle' });
-    }
-    if (includesAny(mustExistText, ['lose', 'health', 'death', 'fail'])) {
-        defaults.push({ key: 'failure', role: 'failure', trigger: 'loss, defeat, or health depleted', style: 'short descending sting' });
     }
 
     const usedSfxFiles = new Set();

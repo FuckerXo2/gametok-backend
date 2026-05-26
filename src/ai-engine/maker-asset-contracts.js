@@ -488,18 +488,18 @@ export function buildMakerAssetContract(templateContract = null, qualityIntent =
                     consumedBy: 'customer avatar via DreamAssets role enemy',
                     fallback: 'code-rendered customer avatar',
                 },
-                {
-                    id: 'toybox_ingredient',
-                    required: false,
+                ...[1, 2, 3, 4, 5, 6].map((index) => ({
+                    id: `item${index}`,
+                    required: index <= 3,
                     assetType: 'sprite',
                     role: 'item',
                     category: 'item',
                     size: 96,
                     transparent: true,
-                    description: `Primary ingredient icon for pantry cards and slot fills. Isolated food/reagent object, transparent background, no text, no UI, no board. ${artStyleText(qualityIntent)}`.trim(),
-                    consumedBy: 'ingredient cards and slot icons via DreamAssets role item',
+                    description: `Distinct pantry ingredient icon #${index} for toybox cooking games. Each item must look visually different from the other item slots. Isolated food/reagent object, transparent background, no text, no UI, no board. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: `ingredient card ${index} via DreamAssets key item${index}`,
                     fallback: 'code-rendered ingredient emoji cards',
-                },
+                })),
                 {
                     id: 'toybox_station',
                     required: false,
@@ -514,7 +514,7 @@ export function buildMakerAssetContract(templateContract = null, qualityIntent =
                 },
                 {
                     id: 'toybox_background',
-                    required: false,
+                    required: true,
                     assetType: 'background',
                     role: 'background',
                     category: 'environment',

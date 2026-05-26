@@ -32,7 +32,7 @@ const DEFAULT_INGREDIENTS = [
 ];
 
 const ORDER_TIME = 18;
-const ROUND_TIME = 60;
+const ROUND_TIME = 120;
 
 const state = {
   width: 390,
@@ -48,6 +48,8 @@ const state = {
   ordersCompleted: 0,
   cooksAttempted: 0,
   gameOver: false,
+  shiftStarted: false,
+  audioStarted: false,
   lastTick: performance.now(),
   assets: {},
 };
@@ -57,6 +59,96 @@ function getAssetImage(key) {
   const img = window.DREAM_IMAGES?.[key];
   if (img && img.complete && img.naturalWidth > 0) return img;
   return null;
+}
+
+function listPackAssetKeys(filterFn) {
+  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
+  return pack
+    .filter((asset) => asset && filterFn(asset))
+    .map((asset) => asset.key || asset.id || asset.runtimeKey)
+    .filter(Boolean);
+}
+
+function listItemAssetKeys() {
+  const keys = [];
+  const seen = new Set();
+  for (let index = 1; index <= 6; index += 1) {
+    const key = `item${index}`;
+    if (!seen.has(key)) {
+      keys.push(key);
+      seen.add(key);
+    }
+  }
+  for (const key of listPackAssetKeys((asset) => {
+    const role = String(asset.role || asset.category || '').toLowerCase();
+    const type = String(asset.type || asset.assetType || '').toLowerCase();
+    return role === 'item' || /^item\d+$/i.test(String(asset.key || asset.id || ''));
+  })) {
+    if (!seen.has(key)) {
+      keys.push(key);
+      seen.add(key);
+    }
+  }
+  return keys;
+}
+
+function ingredientAssetKey(ingredient, index) {
+  const itemKeys = listItemAssetKeys();
+  const namedKey = `item${index + 1}`;
+  if (getAssetImage(namedKey)) return namedKey;
+  if (itemKeys[index] && getAssetImage(itemKeys[index])) return itemKeys[index];
+  if (itemKeys.length > index && getAssetImage(itemKeys[index])) return itemKeys[index];
+  return null;
+}
+
+function resolveBackgroundImage() {
+  const candidates = [
+    'toybox_background',
+    'background1',
+    'background',
+    'environment',
+    ...listPackAssetKeys((asset) => {
+      const role = String(asset.role || asset.category || '').toLowerCase();
+      const type = String(asset.type || asset.assetType || '').toLowerCase();
+      return type === 'background' || role === 'background' || role === 'environment';
+    }),
+  ];
+  const seen = new Set();
+  for (const key of candidates) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const img = getAssetImage(key);
+    if (img) return img;
+  }
+  return null;
+}
+
+function playGameSound(key) {
+  try {
+    if (!window.DreamAudio) return;
+    window.DreamAudio.unlock?.();
+    window.DreamAudio.play?.(key);
+  } catch (error) {
+    console.warn('DreamAudio play failed:', error);
+  }
+}
+
+function ensureAudioStarted() {
+  if (state.audioStarted) return;
+  state.audioStarted = true;
+  try {
+    window.DreamAudio?.unlock?.();
+    if (window.DreamAudio?.startMusic?.()) return;
+    window.DreamAudio?.play?.('ui_tap');
+  } catch (error) {
+    console.warn('DreamAudio boot failed:', error);
+  }
+}
+
+function startShiftIfNeeded() {
+  if (state.shiftStarted) return;
+  state.shiftStarted = true;
+  ensureAudioStarted();
 }
 
 function ingredientById(id) {
@@ -98,6 +190,7 @@ function resetGame() {
   state.ordersCompleted = 0;
   state.cooksAttempted = 0;
   state.gameOver = false;
+  state.shiftStarted = false;
   generateOrder();
   statusLine.textContent = 'Tap ingredients to fill slots, then cook!';
 }
@@ -115,14 +208,17 @@ function nextEmptySlotIndex() {
 
 function selectIngredient(index) {
   if (state.gameOver) return snapshot();
+  startShiftIfNeeded();
   const ingredient = state.ingredients[index];
   if (!ingredient) return snapshot();
   const slotIndex = nextEmptySlotIndex();
   if (slotIndex === -1) {
     statusLine.textContent = 'Slots full — cook or clear by serving wrong order.';
+    playGameSound('failure');
     return snapshot();
   }
   state.slots[slotIndex] = ingredient.id;
+  playGameSound('ui_tap');
   statusLine.textContent = `Added ${ingredient.label}. ${slotsMatchOrder() ? 'Ready to cook!' : 'Keep building the order.'}`;
   renderAll();
   return snapshot();
@@ -142,8 +238,10 @@ function clearSlots() {
 
 function cookOrder() {
   if (state.gameOver) return snapshot();
+  startShiftIfNeeded();
   if (state.slots.some((slot) => !slot)) {
     statusLine.textContent = 'Fill all three slots before cooking.';
+    playGameSound('failure');
     return snapshot();
   }
   state.cooksAttempted += 1;
@@ -152,11 +250,14 @@ function cookOrder() {
     state.combo = Math.min(10, state.combo + 1);
     state.ordersCompleted += 1;
     statusLine.textContent = `Perfect dish! +${10 * Math.max(1, state.combo - 1)} combo bonus.`;
+    playGameSound('success');
+    playGameSound('collect');
     generateOrder();
   } else {
     state.combo = 1;
     state.score = Math.max(0, state.score - 5);
     statusLine.textContent = 'Wrong recipe — combo reset.';
+    playGameSound('failure');
     clearSlots();
   }
   renderAll();
@@ -164,13 +265,14 @@ function cookOrder() {
 }
 
 function stepGame(dt) {
-  if (state.gameOver) return;
+  if (state.gameOver || !state.shiftStarted) return;
   state.timeLeft = Math.max(0, state.timeLeft - dt);
   state.orderTimeLeft = Math.max(0, state.orderTimeLeft - dt);
   if (state.orderTimeLeft <= 0) {
     state.combo = 1;
     state.score = Math.max(0, state.score - 8);
     statusLine.textContent = 'Customer lost patience — new order incoming.';
+    playGameSound('failure');
     generateOrder();
   }
   if (state.timeLeft <= 0) {
@@ -180,12 +282,15 @@ function stepGame(dt) {
   renderAll();
 }
 
-function renderIngredientThumb(container, ingredient) {
+function renderIngredientThumb(container, ingredient, index = 0) {
   container.innerHTML = '';
-  const itemAsset = getAssetImage(`item_${ingredient.id}`) || getAssetImage('item1') || getAssetImage('item');
-  const img = document.createElement('img');
+  container.style.background = '';
+  const assetKey = ingredientAssetKey(ingredient, index);
+  const itemAsset = assetKey ? getAssetImage(assetKey) : null;
   if (itemAsset) {
+    const img = document.createElement('img');
     img.src = itemAsset.src;
+    img.alt = ingredient.label;
     container.appendChild(img);
     return;
   }
@@ -199,10 +304,13 @@ function renderSlot(slotEl, ingredientId) {
   if (!ingredientId) return;
   const ingredient = ingredientById(ingredientId);
   if (!ingredient) return;
-  const itemAsset = getAssetImage(`item_${ingredientId}`) || getAssetImage('item1');
+  const index = state.ingredients.findIndex((entry) => entry.id === ingredientId);
+  const assetKey = ingredientAssetKey(ingredient, Math.max(0, index));
+  const itemAsset = assetKey ? getAssetImage(assetKey) : null;
   if (itemAsset) {
     const img = document.createElement('img');
     img.src = itemAsset.src;
+    img.alt = ingredient.label;
     slotEl.appendChild(img);
     return;
   }
@@ -216,7 +324,8 @@ function renderOrderIcons() {
     const icon = document.createElement('div');
     icon.className = 'order-icon';
     if (ingredient) {
-      renderIngredientThumb(icon, ingredient);
+      const index = state.ingredients.findIndex((entry) => entry.id === ingredientId);
+      renderIngredientThumb(icon, ingredient, Math.max(0, index));
     }
     orderIconsEl.appendChild(icon);
   }
@@ -231,7 +340,7 @@ function renderIngredientGrid() {
     card.dataset.index = String(index);
     const thumb = document.createElement('div');
     thumb.className = 'ingredient-thumb';
-    renderIngredientThumb(thumb, ingredient);
+    renderIngredientThumb(thumb, ingredient, index);
     const label = document.createElement('div');
     label.className = 'ingredient-label';
     label.textContent = ingredient.label;
@@ -254,10 +363,10 @@ function renderHud() {
 }
 
 function drawBackground() {
-  const bg = getAssetImage('toybox_background') || getAssetImage('background') || getAssetImage('environment');
+  const bg = resolveBackgroundImage();
   if (bg) {
     ctx.drawImage(bg, 0, 0, state.width, state.height);
-    ctx.fillStyle = 'rgba(10, 8, 24, 0.18)';
+    ctx.fillStyle = 'rgba(10, 8, 24, 0.12)';
     ctx.fillRect(0, 0, state.width, state.height);
     return;
   }
@@ -273,7 +382,12 @@ function drawBackground() {
 }
 
 function renderCustomer() {
-  const customerImg = getAssetImage('enemy1') || getAssetImage('enemy') || getAssetImage('customer');
+  const customerKeys = ['enemy1', 'enemy2', 'enemy3', 'toybox_customer', 'enemy', 'customer'];
+  let customerImg = null;
+  for (const key of customerKeys) {
+    customerImg = getAssetImage(key);
+    if (customerImg) break;
+  }
   if (customerImg) {
     customerAvatarEl.classList.add('has-image');
     customerAvatarEl.style.backgroundImage = `url("${customerImg.src}")`;
@@ -321,6 +435,9 @@ function bindInput() {
     event.preventDefault();
     cookOrder();
   });
+  document.getElementById('game-shell')?.addEventListener('pointerdown', () => {
+    ensureAudioStarted();
+  }, { passive: true });
   window.addEventListener('resize', () => {
     resize();
     renderAll();
