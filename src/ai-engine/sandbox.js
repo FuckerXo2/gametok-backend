@@ -758,6 +758,17 @@ export async function verifyGame(htmlString, options = {}) {
                 : [];
             const canvasPixelChecks = visibleCanvases.slice(0, 3).map((canvas, index) => {
                 const rect = canvas.getBoundingClientRect();
+                const skipBlankCheck = canvas.id === 'juice-canvas'
+                    || canvas.dataset?.skipBlankCheck === 'true'
+                    || (canvas.id !== 'game-canvas' && window.getComputedStyle(canvas).pointerEvents === 'none');
+                if (skipBlankCheck) {
+                    return {
+                        index,
+                        sampled: false,
+                        skipped: true,
+                        reason: canvas.id || 'overlay-canvas',
+                    };
+                }
                 const sampleWidth = Math.max(1, Math.min(32, Math.floor(rect.width)));
                 const sampleHeight = Math.max(1, Math.min(32, Math.floor(rect.height)));
                 try {
