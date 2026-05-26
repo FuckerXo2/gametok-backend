@@ -20,25 +20,30 @@ function readPool(env, names = []) {
     return keys;
 }
 
+function readDedicatedPool(env, dedicatedNames = [], fallbackNames = []) {
+    for (const name of dedicatedNames) {
+        const keys = parseKeyList(env[name]);
+        if (keys.length > 0) return keys;
+    }
+    return readPool(env, fallbackNames);
+}
+
 export function getNvidiaImageKeys(env = process.env) {
-    return readPool(env, [
-        'NIM_IMAGE_API_KEYS',
-        'NVIDIA_IMAGE_API_KEYS',
-        'NVIDIA_API_KEY',
-        'NIM_API_KEYS',
-        'NVIDIA_NIM_API_KEY',
-    ]);
+    // If NIM_IMAGE_API_KEYS is set, use only that image pool — do not bleed text keys in.
+    return readDedicatedPool(
+        env,
+        ['NIM_IMAGE_API_KEYS', 'NVIDIA_IMAGE_API_KEYS'],
+        ['NVIDIA_API_KEY', 'NIM_API_KEYS', 'NVIDIA_NIM_API_KEY'],
+    );
 }
 
 export function getNvidiaTextKeys(env = process.env) {
-    return readPool(env, [
-        'NIM_TEXT_API_KEYS',
-        'NVIDIA_TEXT_API_KEYS',
-        'DREAMSTREAM_NVIDIA_API_KEYS',
-        'NVIDIA_API_KEY',
-        'NIM_API_KEYS',
-        'NVIDIA_NIM_API_KEY',
-    ]);
+    // Prefer explicit text pools; otherwise fall back to legacy NVIDIA_API_KEY.
+    return readDedicatedPool(
+        env,
+        ['NIM_TEXT_API_KEYS', 'NVIDIA_TEXT_API_KEYS', 'DREAMSTREAM_NVIDIA_API_KEYS'],
+        ['NVIDIA_API_KEY', 'NIM_API_KEYS', 'NVIDIA_NIM_API_KEY'],
+    );
 }
 
 function nextKey(poolName, keys = []) {
@@ -72,6 +77,8 @@ export function summarizeNvidiaKeyPools(env = process.env) {
         textKeys: textKeys.map(maskNvidiaKey),
         hasSplitImagePool: parseKeyList(env.NIM_IMAGE_API_KEYS || env.NVIDIA_IMAGE_API_KEYS).length > 0,
         hasSplitTextPool: parseKeyList(env.NIM_TEXT_API_KEYS || env.NVIDIA_TEXT_API_KEYS || env.DREAMSTREAM_NVIDIA_API_KEYS).length > 0,
+        usesLegacyTextPool: parseKeyList(env.NVIDIA_API_KEY).length > 0
+            && parseKeyList(env.NIM_TEXT_API_KEYS || env.NVIDIA_TEXT_API_KEYS || env.DREAMSTREAM_NVIDIA_API_KEYS).length === 0,
         hasLegacyPool: parseKeyList(env.NVIDIA_API_KEY).length > 0,
     };
 }
