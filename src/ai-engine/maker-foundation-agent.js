@@ -1,3 +1,5 @@
+import { getMakerSystemManualBlock } from './maker-system-manual.js';
+
 function asArray(value) {
     return Array.isArray(value) ? value : [];
 }
@@ -21,9 +23,11 @@ export function useDynamicFoundation() {
 
 export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
     return {
-        system: `You are the GameTok Foundation Architect for mobile HTML5 canvas games.
+        system: `${getMakerSystemManualBlock('foundation')}
 
-Your job is NOT to pick from a fixed template catalog. You design the per-game foundation contract that the implementation agent will build on top of a shared runtime kernel.
+You are the GameTok Foundation Architect for mobile HTML5 canvas games.
+
+Your job is to design the per-game foundation contract that the implementation agent will build on top of the shared runtime kernel described in the system manual above.
 
 The kernel already provides (DO NOT redesign these):
 - src/bootstrap.ts loads DreamAssets then imports src/main.ts
@@ -52,7 +56,7 @@ Return this JSON shape:
 {
   "foundationId": "short_snake_case_id",
   "title": "Game title",
-  "lane": "simulation_toybox | projectile_action | runner | platform | grid_puzzle | story | arcade | unsupported_3d",
+  "lane": "short_snake_case design lane for this game (e.g. timed_order_cooking, projectile_action, endless_runner — not a legacy template folder name)",
   "dimension": "2D | 3D",
   "perspective": "top_down | side_view | arcade | scene",
   "engine": "canvas-2d",

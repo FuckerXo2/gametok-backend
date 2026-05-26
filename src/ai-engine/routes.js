@@ -42,6 +42,7 @@ import {
     useDynamicFoundation,
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
+import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -4234,12 +4235,16 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
+        await writeMakerText(makerWorkspace, 'maker-system-manual.md', formatMakerSystemManual('full'));
+        await writeMakerJson(makerWorkspace, 'maker-system-manual.json', getMakerSystemManualSummary());
         await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');
+
+        const dynamicFoundation = useDynamicFoundation();
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
         await reportProgress(8, 'spec', 'Reading your idea...');
         console.log(`📋 Phase 1/3: ${DREAM_MODELS.spec} extracting game intent...`);
-        const phase1 = buildPhase1_Quantize(prompt);
+        const phase1 = buildPhase1_Quantize(prompt, { dynamicFoundation });
         let qualityIntent;
         try {
             qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
@@ -4260,7 +4265,6 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         }
         assertJobNotCancelled(jobId);
 
-        const dynamicFoundation = useDynamicFoundation();
         if (dynamicFoundation) {
             await reportProgress(14, 'foundation', 'Designing game foundation...');
             console.log(`🏗️ Phase 1.5/3: ${DREAM_MODELS.spec} architecting dynamic foundation...`);
@@ -4332,7 +4336,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     audioPlan: assetPlan.audio || null,
                     tilesets: assetPlan.tilesets || [],
                 });
-                await writeMakerJson(makerWorkspace, 'asset-tool-request.json', assetToolRequest);
+                await writeMakerJson(makerWorkspace, 'asset-tool-request.json', {
+                    ...assetToolRequest,
+                    ...(dynamicFoundation ? { makerSystemManual: formatMakerSystemManual('artist') } : {}),
+                });
                 const assetRequests = assetPlan.imageRequests;
                 
                 console.log(`🎨 Artist Agent: Generating ${assetRequests.length} visual assets...`);

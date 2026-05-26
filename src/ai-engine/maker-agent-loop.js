@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
+import { getMakerSystemManualBlock } from './maker-system-manual.js';
+
 function extractJson(text) {
     const source = String(text || '');
     const jsonStart = source.indexOf('{');
@@ -99,6 +101,8 @@ export function buildMakerAgentInspectionPrompt({
     objective = '',
 } = {}) {
     return [
+        getMakerSystemManualBlock('fileAgent'),
+        '',
         'You are the GameTok native maker file agent.',
         '',
         'This is a multi-turn file inspection pass after the first project build and before sandbox verification.',
