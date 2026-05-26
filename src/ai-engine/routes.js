@@ -13,7 +13,7 @@ import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, ge
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
-import { buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle, findUserBgmAttachment, resolveDreamAudioForJob } from './asset-pipeline.js';
+import { buildAssetPlanFromMakerContract, buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle, findUserBgmAttachment, resolveDreamAudioForJob } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
 import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
@@ -4321,15 +4321,28 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         generatedAssets = null;
         let dreamAssetPlan = null;
         
-        if (useArtistAgent && (qualityIntent.visualAssets || hasMakerAssetSlots)) {
+        const shouldRunArtistAgent = useArtistAgent && (
+            dynamicFoundation
+                ? hasMakerAssetSlots
+                : (qualityIntent.visualAssets || hasMakerAssetSlots)
+        );
+        if (shouldRunArtistAgent) {
             try {
                 console.log(`🎨 Artist Agent: Planning visual asset generation...`);
                 await reportProgress(26, 'assets', 'Planning visual assets...');
-                let assetPlan = await buildDreamAssetPlan(qualityIntent);
+                let assetPlan;
+                if (dynamicFoundation && makerAssetContract) {
+                    console.log(`🎨 Artist Agent: Using foundation assetSlots only (${makerAssetContract.slots?.length || 0} slots)`);
+                    assetPlan = await buildAssetPlanFromMakerContract(qualityIntent, makerAssetContract);
+                } else {
+                    assetPlan = await buildDreamAssetPlan(qualityIntent);
+                    assetPlan = mergeMakerAssetContractIntoPlan(assetPlan, makerAssetContract);
+                }
                 dreamAssetPlan = assetPlan;
-                assetPlan = mergeMakerAssetContractIntoPlan(assetPlan, makerAssetContract);
                 const assetToolRequest = buildStructuredAssetToolRequest(assetPlan, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-plan.json', {
+                    source: assetPlan.source || null,
+                    sourceOfTruth: assetPlan.sourceOfTruth || makerAssetContract?.sourceOfTruth || null,
                     artDirection: assetPlan.artDirection || qualityIntent.artDirection || null,
                     assetContract: summarizeMakerAssetContract(makerAssetContract),
                     imageRequests: assetPlan.imageRequests || [],

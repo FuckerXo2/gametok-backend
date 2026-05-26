@@ -566,6 +566,62 @@ export async function buildDreamAssetPlan(qualityIntent = {}) {
     };
 }
 
+export async function buildAssetPlanFromMakerContract(qualityIntent = {}, assetContract = null) {
+    const artDirection = qualityIntent.artDirection || {};
+    const requests = [];
+    const seen = new Set();
+
+    for (const slot of asArray(assetContract?.slots)) {
+        if (!slot?.id || !slot?.description) continue;
+        const isBackground = slot.assetType === 'background' || slot.role === 'background';
+        const description = isBackground
+            ? [
+                withArtDirection(slot.description, artDirection, 'background'),
+                BACKGROUND_FORBIDDEN_PROMPT,
+            ].filter(Boolean).join(' ')
+            : withArtDirection(slot.description, artDirection, 'sprite');
+
+        pushRequest(requests, {
+            id: slot.id,
+            assetType: slot.assetType || 'sprite',
+            description,
+            category: slot.category || slot.role || 'prop',
+            role: slot.role || slot.category || 'prop',
+            gameplayRole: slot.consumedBy || '',
+            size: slot.size || null,
+            width: slot.width || undefined,
+            height: slot.height || undefined,
+            transparent: slot.transparent !== false,
+            makerSlot: true,
+            required: Boolean(slot.required),
+        }, seen);
+    }
+
+    const specText = collectSpecText(qualityIntent);
+    const animations = buildAnimationPlan(requests, qualityIntent);
+    const audio = await buildAudioPlan(qualityIntent);
+    const tilesets = buildTilesetPlan(qualityIntent, specText);
+
+    return {
+        version: 2,
+        source: 'foundation-asset-contract',
+        sourceOfTruth: assetContract?.sourceOfTruth || 'foundation architect assetSlots',
+        qualityIntent,
+        artDirection,
+        styleAnchor: [
+            artDirection.styleName,
+            Array.isArray(artDirection.palette) ? artDirection.palette.join(', ') : null,
+            artDirection.spriteStyle,
+        ].filter(Boolean).join('; '),
+        outputDirName: 'runtime/DREAM_ASSET_PACK',
+        imageRequests: requests,
+        animations,
+        audio,
+        tilesets,
+        makerAssetContract: assetContract || null,
+    };
+}
+
 export function buildStructuredAssetToolRequest(assetPlan = {}, assetContract = null) {
     const imageRequests = asArray(assetPlan?.imageRequests).map((request) => {
         const assetType = request.assetType === 'background' ? 'background' : 'image';

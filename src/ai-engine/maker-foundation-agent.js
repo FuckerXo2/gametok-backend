@@ -43,7 +43,9 @@ Rules:
 - requiredFunctions must be real exported/game-level functions the file agent can implement in src/main.ts.
 - probeMethods must include snapshot, step, reset at minimum; add game-specific probe methods when needed.
 - firstFrame must guarantee visible background + gameplay subject + HUD/affordance on boot (never a blank canvas).
-- assetSlots must list the generated art roles this game needs (player, enemy, background, items, props).
+- assetSlots are the ONLY list the artist agent will generate. Translate Phase 1 visualAssets (player, enemies, items, backgrounds, props) into concrete assetSlots with matching ids when possible.
+- Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
+- Do not rely on Phase 1 visualAssets being generated separately — if the game needs an image, it must appear in assetSlots.
 - acceptanceChecks must be testable in a headless sandbox within 10 seconds.
 - Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
         user: `USER PROMPT:
