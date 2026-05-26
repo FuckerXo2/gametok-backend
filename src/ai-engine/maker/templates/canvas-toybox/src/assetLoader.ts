@@ -116,7 +116,6 @@ export async function loadDreamAssets(): Promise<void> {
 
   await Promise.all([...packLoads, ...inlineLoads]);
 
-  const pack = Array.isArray((window as any).DREAM_ASSET_PACK) ? (window as any).DREAM_ASSET_PACK : [];
   const assignAlias = (alias: string, sourceKey: string) => {
     if (!alias || !sourceKey || images[alias]?.complete) return;
     if (images[sourceKey]?.complete && images[sourceKey].naturalWidth > 0) {
