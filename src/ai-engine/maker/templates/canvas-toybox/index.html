@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Cosmic Kitchen</title>
+</head>
+<body>
+  <main id="game-shell" aria-label="GameTok toybox cooking game">
+    <canvas id="game-canvas"></canvas>
+
+    <header id="hud" data-hud>
+      <div class="hud-card hud-score">
+        <span>Score</span>
+        <strong id="score-value">0</strong>
+      </div>
+      <div class="hud-card hud-time">
+        <span>Time</span>
+        <strong id="time-value">60</strong>
+      </div>
+      <div class="hud-card hud-combo">
+        <span>Combo</span>
+        <strong id="combo-value">x1</strong>
+      </div>
+    </header>
+
+    <section id="order-panel" data-order>
+      <div id="customer-wrap">
+        <div id="customer-avatar" aria-hidden="true"></div>
+        <div id="order-bubble">
+          <div id="order-label">Order</div>
+          <div id="order-icons"></div>
+          <div id="order-timer-track">
+            <div id="order-timer-fill"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="workbench" data-workbench>
+      <div id="slot-row">
+        <div class="slot" data-slot="0"></div>
+        <div class="slot" data-slot="1"></div>
+        <div class="slot" data-slot="2"></div>
+      </div>
+      <button id="cook-button" type="button" data-control>COOK!</button>
+    </section>
+
+    <section id="pantry" data-pantry aria-label="Ingredients">
+      <div id="ingredient-grid"></div>
+    </section>
+
+    <div id="status-line" role="status">Tap ingredients to fill slots, then cook!</div>
+  </main>
+  <script type="module" src="/src/bootstrap.ts"></script>
+</body>
+</html>

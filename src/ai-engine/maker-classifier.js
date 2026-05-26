@@ -30,6 +30,10 @@ const ARCHETYPE_TO_TEMPLATE = {
         templateId: 'canvas-simulation',
         profile: { dimension: '2D', perspective: 'side_view', physics: 'sandbox_rigid_body', movement: 'edit_then_simulate' },
     },
+    simulation_toybox: {
+        templateId: 'canvas-toybox',
+        profile: { dimension: '2D', perspective: 'top_down', physics: 'state_machine', movement: 'drag_drop_toybox' },
+    },
     grid_puzzle: {
         templateId: 'canvas-grid-puzzle',
         profile: { dimension: '2D', perspective: 'grid', physics: 'discrete_grid_rules', movement: 'tile_selection' },

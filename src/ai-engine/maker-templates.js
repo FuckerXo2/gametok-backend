@@ -1,4 +1,5 @@
 import { classifyMakerGame } from './maker-classifier.js';
+import { inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 
 const COMMON_CONSTRAINTS = {
     viewport: {
@@ -332,6 +333,67 @@ const TEMPLATE_CONTRACTS = {
             'Do not leave the player alone without threats.',
         ],
     },
+    'canvas-toybox': {
+        templateId: 'canvas-toybox',
+        engine: 'canvas-2d',
+        archetype: 'simulation_toybox',
+        recommendedLibrary: 'Canvas 2D background plus DOM toybox controls.',
+        architecture: [
+            'Toybox state owns score, combo, timers, current order, slot fills, ingredient catalog, and reset.',
+            'DOM renders HUD, customer order bubble, slot row, COOK action, and ingredient grid; canvas renders background art.',
+        ],
+        requiredState: [
+            'score',
+            'combo',
+            'timeLeft',
+            'orderTimeLeft',
+            'slots[]',
+            'currentOrder[]',
+            'ingredients[]',
+            'ordersCompleted',
+            'gameOver',
+        ],
+        requiredFunctions: [
+            'generateOrder',
+            'selectIngredient',
+            'fillOrderSlots',
+            'cookOrder',
+            'stepGame',
+            'resetGame',
+            'renderAll',
+        ],
+        requiredProbeApi: [
+            'window.__GAMETOK_TEMPLATE_PROBE__.snapshot',
+            'window.__GAMETOK_TEMPLATE_PROBE__.selectIngredient',
+            'window.__GAMETOK_TEMPLATE_PROBE__.fillOrderSlots',
+            'window.__GAMETOK_TEMPLATE_PROBE__.cook',
+            'window.__GAMETOK_TEMPLATE_PROBE__.step',
+            'window.__GAMETOK_TEMPLATE_PROBE__.reset',
+        ],
+        controls: [
+            'ingredient grid tap targets',
+            'slot row',
+            'cook/combine button',
+            'order timer feedback',
+        ],
+        firstFrame: [
+            'score/time/combo HUD visible',
+            'customer order bubble visible',
+            'three slots and cook button visible',
+            'ingredient grid visible',
+        ],
+        acceptanceChecks: [
+            'Selecting ingredients fills slots in order.',
+            'Cooking a matched order increases score and combo.',
+            'Timers decrease during step().',
+            'Reset restores a fresh playable shift.',
+        ],
+        antiPatterns: [
+            'Do not replace the toybox layout with a generic arcade movement loop.',
+            'Do not hide the ingredient grid or cook action behind delayed transitions.',
+            'Do not bake HUD text or buttons into generated background images.',
+        ],
+    },
     'canvas-simulation': {
         templateId: 'canvas-simulation',
         engine: 'canvas-2d',
@@ -607,8 +669,38 @@ const TEMPLATE_CONTRACTS = {
     },
 };
 
+function buildMakerLanePrompt(qualityIntent = {}, prompt = '') {
+    return [
+        prompt,
+        qualityIntent?.title,
+        qualityIntent?.userIntent,
+        qualityIntent?.playableExperience?.coreLoop,
+        qualityIntent?.playableExperience?.primaryMechanic,
+    ].filter(Boolean).join(' ');
+}
+
 export function selectMakerTemplateContract(qualityIntent = {}, prompt = '') {
-    const classification = classifyMakerGame(qualityIntent, prompt);
+    const lanePrompt = buildMakerLanePrompt(qualityIntent, prompt);
+    const runtimeLane = inferRuntimeLaneFromPrompt(lanePrompt);
+    let classification = classifyMakerGame(qualityIntent, prompt);
+
+    if (runtimeLane === 'simulation_toybox') {
+        classification = classifyMakerGame({
+            ...qualityIntent,
+            technicalRequirements: {
+                ...(qualityIntent?.technicalRequirements || {}),
+                archetype: 'simulation_toybox',
+                archetypeReasoning: `Runtime lane ${runtimeLane} detected from prompt/spec cues.`,
+            },
+        }, prompt);
+        classification = {
+            ...classification,
+            source: 'gametok-lane-router',
+            confidence: Math.max(Number(classification.confidence || 0), 0.95),
+            reasoning: `Runtime lane "${runtimeLane}" routed to canvas-toybox.`,
+        };
+    }
+
     const templateId = classification.selectedTemplateId || 'canvas-arcade';
 
     const selected = TEMPLATE_CONTRACTS[templateId] || TEMPLATE_CONTRACTS['canvas-arcade'];

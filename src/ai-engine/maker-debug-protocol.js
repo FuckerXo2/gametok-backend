@@ -94,6 +94,26 @@ const TEMPLATE_DEBUG_CHECKS = {
             repair: 'Add large pointer controls outside the main action area and map them to movement state.',
         },
     ],
+    'canvas-toybox': [
+        {
+            id: 'toybox_slot_fill',
+            severity: 'fatal',
+            check: 'Ingredient selection must fill slot state and render visible slot contents.',
+            repair: 'Wire pantry taps to selectIngredient() and update slot DOM/canvas from state.slots.',
+        },
+        {
+            id: 'toybox_cook_loop',
+            severity: 'fatal',
+            check: 'Cooking a matched order must increase score/combo and spawn a new order.',
+            repair: 'Compare sorted slots against currentOrder in cookOrder() and mutate score/combo on success.',
+        },
+        {
+            id: 'toybox_timer_pressure',
+            severity: 'major',
+            check: 'Order or round timers must decrease during gameplay steps.',
+            repair: 'Advance timeLeft/orderTimeLeft inside stepGame() and update HUD bars every frame.',
+        },
+    ],
     'canvas-simulation': [
         {
             id: 'simulation_edit_run_modes',

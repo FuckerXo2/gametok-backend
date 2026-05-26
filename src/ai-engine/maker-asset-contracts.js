@@ -465,6 +465,69 @@ export function buildMakerAssetContract(templateContract = null, qualityIntent =
             ],
         };
     }
+    if (templateId === 'canvas-toybox') {
+        return {
+            version: 1,
+            templateId,
+            sourceOfTruth: 'template asset slots consumed by DreamAssets at runtime',
+            hardRules: [
+                'HUD, score, timer, combo, order bubble, slot outlines, and COOK button are code-rendered only.',
+                'Ingredient selection, slot filling, cook validation, and order timers are code-defined.',
+                'Generated images decorate customer portrait, ingredient icons, station prop, and background only.',
+            ],
+            slots: [
+                {
+                    id: 'toybox_customer',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'enemy',
+                    category: 'enemy',
+                    size: 128,
+                    transparent: true,
+                    description: `Quirky customer or patron portrait for the order bubble area. Single character bust, transparent background, no text, no UI, no scenery. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'customer avatar via DreamAssets role enemy',
+                    fallback: 'code-rendered customer avatar',
+                },
+                {
+                    id: 'toybox_ingredient',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'item',
+                    category: 'item',
+                    size: 96,
+                    transparent: true,
+                    description: `Primary ingredient icon for pantry cards and slot fills. Isolated food/reagent object, transparent background, no text, no UI, no board. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'ingredient cards and slot icons via DreamAssets role item',
+                    fallback: 'code-rendered ingredient emoji cards',
+                },
+                {
+                    id: 'toybox_station',
+                    required: false,
+                    assetType: 'sprite',
+                    role: 'prop',
+                    category: 'prop',
+                    size: 128,
+                    transparent: true,
+                    description: `Central cooking station, cauldron, machine, or workbench prop. Top-down or slight angle, transparent background, no text, no HUD. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'workbench decoration via DreamAssets role prop',
+                    fallback: 'code-rendered slot row only',
+                },
+                {
+                    id: 'toybox_background',
+                    required: false,
+                    assetType: 'background',
+                    role: 'background',
+                    category: 'environment',
+                    width: 768,
+                    height: 1344,
+                    transparent: false,
+                    description: `Portrait mobile diner/lab/kitchen background for toybox games. Full-bleed scenery, no characters, no text, no HUD, no buttons. ${artStyleText(qualityIntent)}`.trim(),
+                    consumedBy: 'canvas background layer via DreamAssets role background',
+                    fallback: 'code-rendered gradient background',
+                },
+            ],
+        };
+    }
     if (templateId === 'canvas-simulation') {
         return {
             version: 1,

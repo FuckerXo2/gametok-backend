@@ -91,6 +91,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         'phaser-top-down-action',
         'phaser-platformer',
         'canvas-simulation',
+        'canvas-toybox',
         'canvas-grid-puzzle',
         'canvas-runner',
         'canvas-arcade-shooter',
@@ -155,6 +156,53 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     success: failures.length === 0,
                     failures,
                     details: { initial, moved, afterSpawn, afterAttack, afterCombat },
+                };
+            } catch (error) {
+                return {
+                    templateId,
+                    success: false,
+                    failures: [error?.message || String(error)],
+                };
+            }
+        }
+
+        if (templateId === 'canvas-toybox') {
+            const requiredMethods = ['snapshot', 'selectIngredient', 'fillOrderSlots', 'cook', 'step', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            try {
+                probe.reset();
+                const initial = probe.snapshot();
+                if (!initial.currentOrder || initial.currentOrder.length < 3) {
+                    failures.push('reset() did not create a three-item order.');
+                }
+                const afterFill = probe.fillOrderSlots();
+                if ((afterFill.slotsFilled || 0) < 3 || !afterFill.readyToCook) {
+                    failures.push('fillOrderSlots() did not populate all three slots.');
+                }
+                const afterCook = probe.cook();
+                if ((afterCook.score || 0) <= (initial.score || 0)) {
+                    failures.push('cook() did not increase score for a matched order.');
+                }
+                if ((afterCook.ordersCompleted || 0) <= (initial.ordersCompleted || 0)) {
+                    failures.push('cook() did not advance completed order count.');
+                }
+                const afterStep = await probe.step(500);
+                if ((afterStep.timeLeft || 0) >= (initial.timeLeft || 0)) {
+                    failures.push('step() did not advance round timer.');
+                }
+                const reset = probe.reset();
+                if ((reset.score || 0) !== 0 || reset.gameOver) {
+                    failures.push('reset() did not restore a fresh playable shift.');
+                }
+                return {
+                    templateId,
+                    success: failures.length === 0,
+                    failures,
+                    details: { initial, afterFill, afterCook, afterStep, reset },
                 };
             } catch (error) {
                 return {

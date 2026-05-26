@@ -122,6 +122,26 @@ const TEMPLATE_MANUALS = {
             'A runner that waits too long before the first obstacle.',
         ],
     },
+    'canvas-toybox': {
+        purpose: 'Mobile toybox loop with order bubble, ingredient grid, slot filling, cook/combine action, timers, and score/combo feedback.',
+        implementationOrder: [
+            'Preserve HUD, order panel, three slots, COOK button, and ingredient grid layout.',
+            'Keep order generation, slot filling, cook validation, timers, score, combo, and reset code-owned.',
+            'Theme customer, ingredients, station, and background using DreamAssets roles.',
+            'Make the first interaction fill a slot and the first valid cook increase score.',
+        ],
+        qualityBar: [
+            'Order bubble and ingredient grid must be visible on first frame.',
+            'Ingredient taps must fill slots in order.',
+            'A matched cook must increase score and advance to a new order.',
+            'Reset must restore a fresh shift without reload.',
+        ],
+        commonMistakes: [
+            'Replacing the toybox with a movement/combat arcade loop.',
+            'Hiding the cook action or ingredient grid behind delayed transitions.',
+            'Using generated images for HUD text or buttons.',
+        ],
+    },
     'canvas-simulation': {
         purpose: 'Editable physics toy/puzzle with build mode, simulate mode, goal object, and target/failure checks.',
         implementationOrder: [
