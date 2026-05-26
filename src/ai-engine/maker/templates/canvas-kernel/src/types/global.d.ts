@@ -5,6 +5,7 @@ declare global {
     DREAM_IMAGES: Record<string, HTMLImageElement>;
     DREAM_ANIMATIONS: any[];
     DREAM_TILESETS: any[];
+    __GAMETOK_TEMPLATE_PROBE__?: Record<string, unknown>;
     DreamAssets: {
       addSprite(scene: any, x: number, y: number, roleOrKey: string): any;
       getImage(roleOrKey: string): string | null;

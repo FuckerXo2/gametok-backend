@@ -404,14 +404,26 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
         return `  ${id}: document.getElementById('${id}-value'),`;
     }).join('\n');
     const stateKeys = asArray(foundation.requiredState).filter((key) => !['width', 'height'].includes(key));
+    const coveredStateKeys = new Set(stateKeys);
     const stateInit = stateKeys.map((key) => {
         if (key === 'score' || key.endsWith('Count')) return `  ${key}: 0,`;
-        if (key === 'combo') return `  ${key}: 1,`;
-        if (key === 'timeLeft' || key === 'orderTimeLeft') return `  ${key}: 120,`;
+        if (key === 'combo' || key === 'comboMultiplier') return `  ${key}: 1,`;
+        if (key === 'timeLeft' || key === 'orderTimeLeft' || key === 'dayTimer' || key === 'time') return `  ${key}: 120,`;
         if (key === 'gameOver' || key.startsWith('is')) return `  ${key}: false,`;
         if (key.endsWith('[]')) return `  ${key}: [],`;
         return `  ${key}: null,`;
     }).join('\n');
+    const hudStateInit = hudBlocks
+        .map((block) => slugify(block))
+        .filter((id) => id !== 'score' && !coveredStateKeys.has(id))
+        .map((id) => {
+            coveredStateKeys.add(id);
+            if (id.includes('time')) return `  ${id}: 120,`;
+            if (id.includes('combo')) return `  ${id}: 1,`;
+            return `  ${id}: 0,`;
+        })
+        .join('\n');
+    const combinedStateInit = [stateInit, hudStateInit].filter(Boolean).join('\n');
 
     const probeMethods = asArray(foundation.probeMethods);
     const extraProbeLines = probeMethods
@@ -437,10 +449,11 @@ if (!(canvasEl instanceof HTMLCanvasElement)) {
   throw new Error('Missing #game-canvas element');
 }
 const canvas = canvasEl;
-const ctx = canvas.getContext('2d');
-if (!ctx) {
+const ctxOrNull = canvas.getContext('2d');
+if (!ctxOrNull) {
   throw new Error('Could not acquire 2D canvas context');
 }
+const ctx = ctxOrNull;
 const statusLine = document.getElementById('status-line');
 const hud = {
   score: document.getElementById('score-value'),
@@ -458,7 +471,7 @@ const GAME_THEME = {
 const state = {
   width: 390,
   height: 844,
-${stateInit}
+${combinedStateInit}
   lastTick: performance.now(),
   started: false,
 };
@@ -536,7 +549,7 @@ function syncHud() {
   if (hud.score) hud.score.textContent = String(state.score ?? 0);
   ${hudBlocks.filter((b) => b !== 'score').map((block) => {
         const id = slugify(block);
-        return `if (hud.${id}) hud.${id}.textContent = String(state.${block} ?? 0);`;
+        return `if (hud.${id}) hud.${id}.textContent = String(state.${id} ?? 0);`;
     }).join('\n  ')}
 }
 
