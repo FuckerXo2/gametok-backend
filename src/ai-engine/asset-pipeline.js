@@ -570,6 +570,9 @@ async function buildAudioPlan(qualityIntent = {}) {
     const musicLibrary = library.filter((asset) => asset.kind === 'music');
     const sfxLibrary = library.filter((asset) => asset.kind === 'sfx');
     const selectedMusic = pickAudioAssets(musicLibrary, `${specText} ${musicNeeds.join(' ')}`, Math.max(1, Math.min(3, musicNeeds.length || 1)));
+    const resolvedMusic = selectedMusic.length > 0
+        ? selectedMusic
+        : musicLibrary.slice(0, Math.max(1, Math.min(3, musicNeeds.length || 1)));
     const mustExistText = asArray(qualityIntent.mustExist).join(' ');
     const defaults = [
         { key: 'ui_tap', role: 'ui', trigger: 'button press or menu selection', style: 'short UI cue' },
@@ -604,8 +607,8 @@ async function buildAudioPlan(qualityIntent = {}) {
         })
         .filter(Boolean);
 
-    const music = selectedMusic.length > 0
-        ? selectedMusic.map((audioAsset, index) => ({
+    const music = resolvedMusic.length > 0
+        ? resolvedMusic.map((audioAsset, index) => ({
             key: index === 0 ? 'bgm_main' : `bgm_${index + 1}`,
             type: 'audio_file',
             assetType: 'music',

@@ -134,12 +134,14 @@ function playGameSound(key) {
 }
 
 function ensureAudioStarted() {
-  if (state.audioStarted) return;
+  if (state.audioStarted && window.DreamAudio?.isMusicPlaying?.()) return;
   state.audioStarted = true;
   try {
     window.DreamAudio?.unlock?.();
-    if (window.DreamAudio?.startMusic?.()) return;
-    window.DreamAudio?.play?.('ui_tap');
+    window.DreamAudio?.ensureBackgroundMusic?.();
+    if (!window.DreamAudio?.isMusicPlaying?.()) {
+      window.DreamAudio?.startMusic?.('bgm_main');
+    }
   } catch (error) {
     console.warn('DreamAudio boot failed:', error);
   }

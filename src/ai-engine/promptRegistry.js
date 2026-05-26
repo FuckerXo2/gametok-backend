@@ -2532,7 +2532,9 @@ function buildDreamAssetsScript(generatedAssets = null) {
         window.DreamAudio = window.DreamAudio || {
           unlock: function() {},
           play: function(key) { window.__dreamAudioQueue.push(['play', key]); },
-          startMusic: function() { window.__dreamAudioQueue.push(['startMusic']); },
+          startMusic: function(key) { window.__dreamAudioQueue.push(['startMusic', key]); },
+          ensureBackgroundMusic: function() { window.__dreamAudioQueue.push(['startMusic']); },
+          isMusicPlaying: function() { return false; },
           getManifest: function() { return window.DREAM_AUDIO_MANIFEST || { sfx: [], music: [] }; }
         };
         window.playDreamSound = window.playDreamSound || function(key) { window.DreamAudio.play(key); };
