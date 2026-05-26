@@ -85,6 +85,8 @@ const ASSET_LAW = [
 
 const SANDBOX_LAW = [
     'Blank canvas = fatal failure.',
+    'Canvas must fill the mobile viewport (0,0 to innerWidth/innerHeight). Default body margin or offset canvas = failure.',
+    'Keep import "./styles.css" in src/main.ts OR rely on index.html critical layout CSS — never leave the page on browser default margins.',
     'Missing required probe methods = failure.',
     'External navigation / window.open = fatal.',
     'Generated assets exist but never drawn = failure.',
@@ -97,6 +99,8 @@ const KNOWN_FAILURES = [
     'Asset orphan pattern: artist generated sprites but main.ts never calls getAssetImage → acceptance fails. Fix: wire assetSlots to renderers.',
     'Transparent player pattern: imgly/RMBG wiped sprite → quality gate fails. Fix: regen asset or code fallback.',
     'Classifier mismatch (legacy): archetype routed to wrong template folder. Fix: dynamic foundation replaces folder picking.',
+    'Canvas viewport overflow pattern: main.ts dropped styles.css or offset the canvas → sandbox fails with rect like 8,8,398,852 on a 390x844 viewport. Fix: full-bleed canvas at 0,0; guard canvas with instanceof HTMLCanvasElement.',
+    'Repair TS18047 canvas-null spiral: after getElementById("game-canvas"), narrow with instanceof HTMLCanvasElement before using canvas.width/height.',
 ];
 
 const ROLE_SECTIONS = {

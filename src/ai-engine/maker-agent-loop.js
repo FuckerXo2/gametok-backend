@@ -143,6 +143,7 @@ export function buildMakerAgentInspectionPrompt({
         '- Edit only index.html or existing/new src/**/*.css, src/**/*.ts, src/**/*.js, src/**/*.json files.',
         '- Protected scaffold/runtime files are read-only: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, src/scenes/Preloader.ts, Base*.ts files, package.json, tsconfig.json, and vite.config.ts.',
         '- For canvas-kernel dynamic foundations, implement the Foundation contract requiredFunctions and probeMethods in src/main.ts. The kernel already boots assets and draws a first-frame stub — replace stubs with the real loop.',
+        '- For canvas-kernel, keep import "./styles.css" in src/main.ts and keep #game-canvas full-bleed at viewport 0,0. After getElementById("game-canvas"), narrow with instanceof HTMLCanvasElement before width/height/getContext calls (avoids TS18047 repair failures).',
         '- OpenGame asset protocol: read/use public/assets/asset-pack.json keys by construction. For Phaser projects, pass texture keys to this.add.image/sprite or this.physics.add.sprite; do not pass manifest objects or data URLs.',
         '- For canvas projects, ctx.drawImage may receive only HTMLImageElement/ImageBitmap/Canvas-like objects. Never pass DreamAssets.getImage(), DREAM_ASSET_PACK entries, asset-pack records, or raw data URL strings to drawImage.',
         '- Return complete contents for any file you edit.',

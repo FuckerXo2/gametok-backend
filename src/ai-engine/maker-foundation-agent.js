@@ -350,6 +350,32 @@ export function buildIndexHtmlFromFoundation(foundation = {}) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>${title}</title>
+  <style>
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100%;
+      height: 100%;
+      overflow: hidden !important;
+    }
+    #game-shell {
+      position: fixed;
+      inset: 0;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #game-canvas {
+      position: fixed !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      display: block;
+    }
+  </style>
 </head>
 <body>
   <main id="game-shell" aria-label="${title}">
@@ -401,14 +427,20 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
         .map((note) => `// ${note}`)
         .join('\n');
 
-    return `// @ts-nocheck
-// GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
+    return `// GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
 ${implNotes}
 import './styles.css';
 
-const canvas = document.getElementById('game-canvas');
+const canvasEl = document.getElementById('game-canvas');
+if (!(canvasEl instanceof HTMLCanvasElement)) {
+  throw new Error('Missing #game-canvas element');
+}
+const canvas = canvasEl;
 const ctx = canvas.getContext('2d');
+if (!ctx) {
+  throw new Error('Could not acquire 2D canvas context');
+}
 const statusLine = document.getElementById('status-line');
 const hud = {
   score: document.getElementById('score-value'),
