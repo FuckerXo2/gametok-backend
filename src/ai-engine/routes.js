@@ -29,6 +29,7 @@ import { materializeMakerAssetsForProject } from './maker-asset-materializer.js'
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse } from './maker-agent-response.js';
+import { buildMakerCompileFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
@@ -3474,22 +3475,44 @@ function parseMakerFileRepairResponse(text) {
     return normalizeMakerProtocolResponse(parsed, { requireFiles: true });
 }
 
-async function applyMakerFileEdits(projectRoot, edits) {
+async function applyMakerFileEdits(projectRoot, edits, { compileGate = false } = {}) {
     const applied = [];
+    const backups = new Map();
+    const touchedPaths = [];
+
     for (const edit of edits) {
         const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, edit.path);
         if (isProtectedMakerRuntimeFile(cleanPath)) {
             console.warn(`[Maker Agent] Skipping protected runtime file edit: ${cleanPath}`);
             continue;
         }
+        if (!backups.has(absolutePath)) {
+            try {
+                backups.set(absolutePath, await fs.promises.readFile(absolutePath, 'utf8'));
+            } catch {
+                backups.set(absolutePath, null);
+            }
+        }
         const content = stripDuplicateDreamRuntimeDeclarations(edit.content, cleanPath);
         await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
         await fs.promises.writeFile(absolutePath, content, 'utf8');
+        touchedPaths.push(absolutePath);
         applied.push({
             path: cleanPath,
             bytes: Buffer.byteLength(content, 'utf8'),
         });
     }
+
+    if (compileGate && touchedPaths.length > 0) {
+        try {
+            await runMakerProjectTscCheck(projectRoot);
+        } catch (error) {
+            await restoreMakerFileBackups(backups);
+            console.warn(`[Maker Agent] Rejected ${touchedPaths.length} file edit(s) after tsc failure; restored previous sources.`);
+            throw error;
+        }
+    }
+
     return applied;
 }
 
@@ -4001,18 +4024,41 @@ async function runMakerAgentInspectionTurns({
             });
             await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
             const inspection = parseMakerAgentInspectionResponse(responseText);
-            const applied = inspection.files.length > 0
-                ? await applyMakerFileEdits(projectRoot, inspection.files)
-                : [];
-            const runEvidence = await runMakerProjectEvidence({
-                workspace,
-                projectRoot,
-                generatedAssets,
-                templateContract,
-                assetContract,
-                turnNumber,
-                phase: 'after_file_agent_turn',
-            });
+            let applied = [];
+            let runEvidence;
+            if (inspection.files.length > 0) {
+                try {
+                    applied = await applyMakerFileEdits(projectRoot, inspection.files, { compileGate: true });
+                    runEvidence = await runMakerProjectEvidence({
+                        workspace,
+                        projectRoot,
+                        generatedAssets,
+                        templateContract,
+                        assetContract,
+                        turnNumber,
+                        phase: 'after_file_agent_turn',
+                    });
+                } catch (applyError) {
+                    if (applyError.code !== 'TSC_FAILED') {
+                        throw applyError;
+                    }
+                    runEvidence = buildMakerCompileFailureEvidence(applyError, {
+                        phase: 'after_file_agent_turn',
+                        turnNumber,
+                    });
+                    await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+                }
+            } else {
+                runEvidence = await runMakerProjectEvidence({
+                    workspace,
+                    projectRoot,
+                    generatedAssets,
+                    templateContract,
+                    assetContract,
+                    turnNumber,
+                    phase: 'after_file_agent_turn',
+                });
+            }
             lastRunEvidence = runEvidence;
             await appendMakerAgentTurn(workspace, turns, {
                 phase: 'file_inspection',
@@ -4046,6 +4092,13 @@ async function runMakerAgentInspectionTurns({
             }
             throw new Error(`Phase 2 file agent turn ${turnNumber} failed: ${error.message}`);
         }
+    }
+
+    if (lastRunEvidence?.success !== true) {
+        const crashSummary = (lastRunEvidence?.crashes || []).slice(0, 2).join(' | ')
+            || (lastRunEvidence?.diagnostics?.buildFailure?.errors || []).slice(0, 2).join(' | ')
+            || 'build or sandbox checks still failing';
+        throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s): ${crashSummary}`);
     }
 }
 
@@ -4105,25 +4158,10 @@ async function rebuildMakerProjectDist(projectRoot) {
 
     // Step 1: TypeScript type-check
     try {
-        execSync('npx tsc --noEmit', { cwd: projectRoot, stdio: 'pipe', timeout: 60_000 });
+        await runMakerProjectTscCheck(projectRoot);
     } catch (tscError) {
-        const stderr = tscError.stderr?.toString?.() || '';
-        const stdout = tscError.stdout?.toString?.() || '';
-        const rawOutput = (stdout + '\n' + stderr).trim();
-
-        const tsErrors = rawOutput
-            .split('\n')
-            .filter(line => /^src\/.*\(\d+,\d+\):\s*error\s+TS\d+/.test(line) || /^error\s+TS\d+/.test(line))
-            .slice(0, 15);
-
-        const buildError = new Error(
-            `[Vite Build] TypeScript compilation failed with ${tsErrors.length} error(s):\n${tsErrors.join('\n')}`
-        );
-        buildError.code = 'TSC_FAILED';
-        buildError.buildErrors = tsErrors;
-        buildError.rawOutput = rawOutput.slice(0, 4000);
-        console.error(`[Vite Build] tsc failed (${tsErrors.length} errors)`);
-        throw buildError;
+        console.error(`[Vite Build] tsc failed (${tscError.buildErrors?.length || 0} errors)`);
+        throw tscError;
     }
 
     // Step 2: Vite build (tsc passed, so this should rarely fail)
@@ -4554,7 +4592,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-response.txt', integrationText);
                 const integration = parseMakerFileRepairResponse(integrationText);
-                await applyMakerFileEdits(makerProject.projectRoot, integration.files);
+                await applyMakerFileEdits(makerProject.projectRoot, integration.files, { compileGate: true });
                 await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
             }
             await runMakerAgentInspectionTurns({
@@ -4813,7 +4851,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                         if (!repairText) throw new Error(`All models failed Phase 3 File Repair: ${repairError?.message || 'unknown error'}`);
                         await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.json`, repairText);
                         const repair = parseMakerFileRepairResponse(repairText);
-                        const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files);
+                        const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files, { compileGate: true });
                         await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
                         rawGameHtml = await assembleMakerProjectHtmlWithAutoRepair(makerProject.projectRoot);
                         assertJobNotCancelled(jobId);

@@ -4,6 +4,18 @@ export function encodeMakerFileContent(content = '') {
     return Buffer.from(String(content), 'utf8').toString('base64');
 }
 
+export function validateMakerFileContent(filePath = '', content = '') {
+    if (typeof content !== 'string') {
+        throw new Error(`Maker file edit ${filePath} decoded to non-string content.`);
+    }
+    if (content.includes('\0')) {
+        throw new Error(`Maker file edit ${filePath} contains null bytes after decode.`);
+    }
+    if (/\.(ts|tsx|js|jsx)$/i.test(filePath) && content.length > 0 && !/[\r\n]/.test(content) && content.length > 120) {
+        throw new Error(`Maker file edit ${filePath} looks like a single-line blob; base64 decode may be corrupted.`);
+    }
+}
+
 export function normalizeMakerFileEdit(file) {
     if (!file || typeof file.path !== 'string') {
         throw new Error('Maker file edit is missing a path.');
@@ -11,6 +23,7 @@ export function normalizeMakerFileEdit(file) {
 
     const encoding = String(file.contentEncoding || file.encoding || '').trim().toLowerCase();
     const base64Payload = typeof file.contentBase64 === 'string' ? file.contentBase64 : null;
+    let decoded;
 
     if (encoding === MAKER_FILE_CONTENT_ENCODING_BASE64 || base64Payload) {
         const payload = base64Payload || file.content;
@@ -18,21 +31,21 @@ export function normalizeMakerFileEdit(file) {
             throw new Error(`Maker file edit ${file.path} requires base64 content.`);
         }
         try {
-            const decoded = Buffer.from(payload.replace(/\s+/g, ''), 'base64').toString('utf8');
+            decoded = Buffer.from(payload.replace(/\s+/g, ''), 'base64').toString('utf8');
             if (!decoded && payload.replace(/\s+/g, '').length > 0) {
                 throw new Error('base64 decode returned empty content');
             }
-            return { path: file.path, content: decoded };
         } catch (error) {
             throw new Error(`Maker file edit ${file.path} has invalid base64 content: ${error.message}`);
         }
-    }
-
-    if (typeof file.content !== 'string') {
+    } else if (typeof file.content !== 'string') {
         throw new Error(`Maker file edit ${file.path} is missing string content.`);
+    } else {
+        decoded = file.content;
     }
 
-    return { path: file.path, content: file.content };
+    validateMakerFileContent(file.path, decoded);
+    return { path: file.path, content: decoded };
 }
 
 export function normalizeMakerProtocolResponse(parsed, { requireFiles = false } = {}) {
@@ -99,5 +112,7 @@ export function getMakerFileJsonEncodingRuleLines() {
         '- Do NOT put raw TypeScript, HTML, CSS, or JSON source inside JSON string literals.',
         '- Do NOT use escaped newlines (\\n), backslashes, or quotes for source code in JSON strings.',
         '- Small files still use base64. For no edits, return {"files":[],"notes":["already compliant"],"noEditsNeeded":true}.',
+        '- After decode, the TypeScript must compile with tsc. Invalid syntax, truncated files, or broken template literals will be rejected.',
+        '- If lastRunEvidence lists buildFailure.errors, fix every listed TS error before making other changes.',
     ];
 }

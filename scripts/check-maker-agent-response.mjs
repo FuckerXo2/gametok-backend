@@ -4,6 +4,7 @@ import {
     getMakerFileJsonSchemaExample,
     normalizeMakerFileEdit,
     normalizeMakerProtocolResponse,
+    validateMakerFileContent,
 } from '../src/ai-engine/maker-agent-response.js';
 
 const sample = 'const x = "quotes\\n and \\ backslashes";\n';
@@ -37,5 +38,10 @@ assert.equal(parsed.files[0].content, 'export {};\n');
 
 const roundTrip = JSON.parse(JSON.stringify(getMakerFileJsonSchemaExample()));
 assert.equal(typeof roundTrip.files[0].content, 'string');
+
+assert.throws(
+    () => validateMakerFileContent('src/main.ts', 'x'.repeat(200)),
+    /single-line blob/,
+);
 
 console.log('check-maker-agent-response: ok');
