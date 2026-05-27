@@ -13,7 +13,7 @@ import { initializeLobbySocket } from './lobby-socket.js';
 import { initializeChatSocket } from './chat-socket.js';
 import { initializePresenceSocket, presenceRouter } from './presence-socket.js';
 import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } from './score-lobby-socket.js';
-import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker } from './ai.js';
+import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startForgeAutoscaler, stopForgeAutoscaler } from './ai.js';
 import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
@@ -4779,6 +4779,7 @@ const start = async () => {
   await runAnonymousTokensMigration();
   await ensureBotTables();
   startGenerationQueueWorker();
+  startForgeAutoscaler();
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
@@ -4790,6 +4791,7 @@ const start = async () => {
     shuttingDown = true;
     console.log(`${signal} received; closing HTTP server and pausing generation queue claims.`);
     stopGenerationQueueWorker(signal);
+    stopForgeAutoscaler();
     server.close(() => {
       console.log('HTTP server closed.');
       process.exit(0);

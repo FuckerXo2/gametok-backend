@@ -776,6 +776,19 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
 
         if (!frameUri) {
             frameUri = await createFrameVariant(dataUri, width, height, variant);
+            generationMethod = 'local-transform';
+        } else {
+            const frameInspection = await inspectGeneratedAssetDataUri(frameUri, {
+                width,
+                height,
+                assetType: 'sprite',
+                category,
+            });
+            if (!frameInspection.ok) {
+                console.warn(`[sprite-gen] Frame ${frameId} failed quality (${frameInspection.reason}); using local transform`);
+                frameUri = await createFrameVariant(dataUri, width, height, variant);
+                generationMethod = 'local-transform-fallback';
+            }
         }
 
         frames.push({

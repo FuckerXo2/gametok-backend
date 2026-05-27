@@ -21,6 +21,38 @@ function issue({ id, severity = 'warning', key = null, message = '', details = n
     return { id, severity, key, message, details };
 }
 
+export const ANIMATION_FRAME_KEY_PATTERN = /_(idle|move|hit|dash|pulse)_\d{2}$/i;
+
+const NON_BLOCKING_ANIMATION_FRAME_ISSUES = new Set([
+    'asset_blank_or_transparent',
+    'asset_decode_failed',
+    'asset_too_small',
+]);
+
+export function isAnimationFrameAssetKey(key = '', asset = {}) {
+    const normalizedKey = String(key || asset?.key || asset?.id || '');
+    return asset?.kind === 'animation_frame' || ANIMATION_FRAME_KEY_PATTERN.test(normalizedKey);
+}
+
+export function softenAnimationFrameIssue(entry = {}, asset = {}, key = '') {
+    if (!entry || entry.severity !== 'fatal') return entry;
+    if (!isAnimationFrameAssetKey(key, asset)) return entry;
+    if (!NON_BLOCKING_ANIMATION_FRAME_ISSUES.has(entry.id)) return entry;
+    return {
+        ...entry,
+        severity: 'warning',
+        message: `${entry.message || entry.id} (animation frame; non-blocking)`,
+    };
+}
+
+export function isBlockingAssetQualityIssue(entry = {}) {
+    if (entry?.severity !== 'fatal') return false;
+    if (isAnimationFrameAssetKey(entry.key) && NON_BLOCKING_ANIMATION_FRAME_ISSUES.has(entry.id)) {
+        return false;
+    }
+    return true;
+}
+
 function colorBucket(r, g, b, a) {
     if (a < 12) return 'transparent';
     return `${r >> 4}:${g >> 4}:${b >> 4}`;
@@ -140,14 +172,16 @@ async function analyzeAssetPack(generatedAssets = null) {
                 url,
             });
             results.push(result);
-            issues.push(...result.issues);
+            for (const entry of result.issues) {
+                issues.push(softenAnimationFrameIssue(entry, asset, key));
+            }
         } catch (error) {
-            issues.push(issue({
+            issues.push(softenAnimationFrameIssue(issue({
                 id: 'asset_decode_failed',
                 severity: 'fatal',
                 key,
                 message: `${key} could not be decoded for quality inspection: ${error.message}`,
-            }));
+            }), asset, key));
         }
     }
     return { assets: results, issues };

@@ -1,3 +1,5 @@
+import { isBlockingAssetQualityIssue } from './maker-asset-quality.js';
+
 function asArray(value) {
     return Array.isArray(value) ? value : [];
 }
@@ -101,8 +103,10 @@ function scoreAssets(sandbox = null, assetContract = null, assetManifest = null,
         failures.push('Generated tilesets are unused.');
     }
     if (assetQuality && assetQuality.passed === false) {
-        const fatalIssues = asArray(assetQuality.issues).filter((entry) => entry?.severity === 'fatal');
-        failures.push(`Generated asset quality failed: ${fatalIssues.map((entry) => entry.message || entry.id).slice(0, 3).join('; ')}`);
+        const fatalIssues = asArray(assetQuality.issues).filter(isBlockingAssetQualityIssue);
+        if (fatalIssues.length > 0) {
+            failures.push(`Generated asset quality failed: ${fatalIssues.map((entry) => entry.message || entry.id).slice(0, 3).join('; ')}`);
+        }
     }
     return {
         score: failures.length === 0 ? 10 : 0,

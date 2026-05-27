@@ -32,6 +32,7 @@ import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, norma
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
+import { buildForgeAutoscaleReport, runForgeAutoscaleTick } from './forge-autoscale.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
@@ -217,7 +218,14 @@ const openRouterClient = new OpenAI({
 const pendingJobBoots = new Map();
 const cancelledJobs = new Map();
 const GENERATION_WORKER_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
-const GENERATION_JOB_CONCURRENCY = Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || 1));
+const IS_RAILWAY = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_REPLICA_ID);
+const GENERATION_WORKER_ENABLED = process.env.GENERATION_WORKER_ENABLED !== 'false';
+const GENERATION_BURST_CONCURRENCY = process.env.GENERATION_BURST_CONCURRENCY !== 'false';
+const GENERATION_JOB_MAX_CONCURRENCY = Math.max(1, Math.min(32, Number(process.env.GENERATION_JOB_MAX_CONCURRENCY || (IS_RAILWAY ? 24 : 8))));
+const GENERATION_JOB_CONCURRENCY = Math.min(
+    GENERATION_JOB_MAX_CONCURRENCY,
+    Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || (IS_RAILWAY ? 8 : 1)))
+);
 const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_POLL_MS || 3000));
 const GENERATION_JOB_MAX_ATTEMPTS = Math.max(1, Number(process.env.GENERATION_JOB_MAX_ATTEMPTS || 1));
 const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 2));
@@ -1914,6 +1922,15 @@ async function enqueueGenerationJob({
     } finally {
         client.release();
     }
+    const queueMetrics = await getGenerationQueueMetrics(jobId);
+    console.log(
+        `🏗️ [GEN QUEUE] Enqueued ${kind} job ${jobId}; queued=${queueMetrics.queued} running=${queueMetrics.running} baseConcurrency=${GENERATION_JOB_CONCURRENCY} maxConcurrency=${GENERATION_JOB_MAX_CONCURRENCY}`
+    );
+    if (process.env.FORGE_AUTOSCALE_ENABLED === 'true' && queueMetrics.queued > 0) {
+        void runForgeAutoscaleTick().catch((error) => {
+            console.warn('[Forge Autoscale] enqueue trigger failed:', error?.message || error);
+        });
+    }
     scheduleGenerationWorker(0);
     return jobId;
 }
@@ -2052,22 +2069,114 @@ async function updateGenerationJobBenchmarkResult(jobId, benchmarkResult) {
     );
 }
 
-function getQueueProgressPayload(queueJob) {
+function getQueueProgressPayload(queueJob, queueMetrics = null) {
     if (!queueJob) return {};
-    return {
+    const payload = {
         progress: clampNumber(Number(queueJob.progress) || 0, 0, 100),
         phase: queueJob.phase || queueJob.status || 'pending',
         statusMessage: queueJob.status_message || null,
     };
+    if (queueMetrics) {
+        payload.queuePosition = queueMetrics.queuePosition;
+        payload.queuedAhead = queueMetrics.queuedAhead;
+        payload.queuedTotal = queueMetrics.queued;
+        payload.runningTotal = queueMetrics.running;
+        payload.workerConcurrency = queueMetrics.workerConcurrency;
+    }
+    return payload;
+}
+
+async function getGenerationQueueMetrics(jobId = null) {
+    await ensureGenerationQueueSchema();
+    const counts = await pool.query(
+        `SELECT
+            COUNT(*) FILTER (WHERE status = 'running' AND kind = 'dream')::int AS running,
+            COUNT(*) FILTER (WHERE status = 'queued' AND kind = 'dream')::int AS queued
+         FROM generation_jobs`
+    );
+    const running = Number(counts.rows[0]?.running || 0);
+    const queued = Number(counts.rows[0]?.queued || 0);
+    let queuePosition = null;
+    let queuedAhead = null;
+
+    if (jobId) {
+        const positionRes = await pool.query(
+            `WITH target AS (
+                SELECT created_at
+                FROM generation_jobs
+                WHERE id = $1
+                  AND status = 'queued'
+                  AND kind = 'dream'
+             )
+             SELECT COUNT(*)::int AS ahead
+             FROM generation_jobs gj, target
+             WHERE gj.status = 'queued'
+               AND gj.kind = 'dream'
+               AND target.created_at IS NOT NULL
+               AND gj.created_at < target.created_at`,
+            [jobId]
+        );
+        queuedAhead = Number.isFinite(Number(positionRes.rows[0]?.ahead))
+            ? Number(positionRes.rows[0]?.ahead)
+            : null;
+        if (queuedAhead !== null) {
+            queuePosition = queuedAhead + 1;
+        }
+    }
+
+    return {
+        running,
+        queued,
+        queuedAhead,
+        queuePosition,
+        workerConcurrency: GENERATION_JOB_CONCURRENCY,
+        workerEnabled: GENERATION_WORKER_ENABLED,
+    };
+}
+
+async function buildQueueProgressPayload(queueJob, jobId = null) {
+    if (!queueJob) return {};
+    const needsQueueMetrics = queueJob.status === 'queued'
+        || queueJob.phase === 'queued'
+        || Number(queueJob.progress || 0) <= 2;
+    const queueMetrics = needsQueueMetrics ? await getGenerationQueueMetrics(jobId || queueJob.id) : null;
+    return getQueueProgressPayload(queueJob, queueMetrics);
 }
 
 function scheduleGenerationWorker(delayMs = GENERATION_JOB_POLL_MS) {
-    if (generationWorkerStopping || generationWorkerTimer) return;
+    if (generationWorkerStopping) return;
+    if (delayMs === 0) {
+        if (generationWorkerTimer) {
+            clearTimeout(generationWorkerTimer);
+            generationWorkerTimer = null;
+        }
+        void drainGenerationQueue();
+        return;
+    }
+    if (generationWorkerTimer) return;
     generationWorkerTimer = setTimeout(() => {
         generationWorkerTimer = null;
         void drainGenerationQueue();
     }, delayMs);
     generationWorkerTimer.unref?.();
+}
+
+async function getEffectiveGenerationConcurrency() {
+    if (!GENERATION_BURST_CONCURRENCY) {
+        return GENERATION_JOB_CONCURRENCY;
+    }
+    const metrics = await getGenerationQueueMetrics();
+    const demand = metrics.running + metrics.queued;
+    const effective = Math.min(
+        GENERATION_JOB_MAX_CONCURRENCY,
+        Math.max(GENERATION_JOB_CONCURRENCY, demand)
+    );
+    if (metrics.queued > 0 && effective >= GENERATION_JOB_MAX_CONCURRENCY) {
+        console.warn(
+            `[GEN QUEUE] Forge at local capacity: queued=${metrics.queued} running=${metrics.running} max=${GENERATION_JOB_MAX_CONCURRENCY}. Add forge replicas (GENERATION_WORKER_ENABLED=true).`
+        );
+    }
+    return effective;
 }
 
 async function runGenerationJob(job) {
@@ -2119,10 +2228,11 @@ async function runGenerationJob(job) {
 }
 
 async function drainGenerationQueue() {
-    if (generationWorkerStopping) return;
+    if (generationWorkerStopping || !GENERATION_WORKER_ENABLED) return;
     try {
         await recoverStaleGenerationJobs();
-        while (!generationWorkerStopping && generationWorkerActiveCount < GENERATION_JOB_CONCURRENCY) {
+        const effectiveConcurrency = await getEffectiveGenerationConcurrency();
+        while (!generationWorkerStopping && generationWorkerActiveCount < effectiveConcurrency) {
             const job = await claimGenerationJob();
             if (!job) break;
             generationWorkerActiveCount++;
@@ -2167,9 +2277,13 @@ async function drainGenerationQueue() {
 }
 
 function startGenerationQueueWorker() {
+    if (!GENERATION_WORKER_ENABLED) {
+        console.log('[GEN QUEUE] Worker disabled on this replica (set GENERATION_WORKER_ENABLED=true on forge workers)');
+        return;
+    }
     void ensureGenerationQueueSchema()
         .then(() => {
-            console.log(`🏗️ [GEN QUEUE] Worker ${GENERATION_WORKER_ID} ready with concurrency ${GENERATION_JOB_CONCURRENCY}`);
+            console.log(`🏗️ [GEN QUEUE] Worker ${GENERATION_WORKER_ID} ready with baseConcurrency=${GENERATION_JOB_CONCURRENCY} maxConcurrency=${GENERATION_JOB_MAX_CONCURRENCY} burst=${GENERATION_BURST_CONCURRENCY}`);
             scheduleGenerationWorker(0);
         })
         .catch((error) => {
@@ -5962,6 +6076,40 @@ Rules for deciding readiness:
     }
 });
 
+function authorizeForgeAutoscaleRequest(req) {
+    const configuredToken = process.env.FORGE_AUTOSCALE_TOKEN || '';
+    if (!configuredToken) return true;
+    const provided = req.headers['x-forge-autoscale-token'] || req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
+    return provided === configuredToken;
+}
+
+router.get('/forge/autoscale', async (req, res) => {
+    try {
+        if (!authorizeForgeAutoscaleRequest(req)) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const report = await buildForgeAutoscaleReport();
+        res.json({ success: true, ...report });
+    } catch (error) {
+        console.error('[Forge Autoscale] report failed:', error);
+        res.status(500).json({ error: error.message || 'Forge autoscale report failed' });
+    }
+});
+
+router.post('/forge/autoscale/tick', async (req, res) => {
+    try {
+        if (!authorizeForgeAutoscaleRequest(req)) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const dryRun = req.body?.dryRun === true || req.query?.dryRun === 'true';
+        const result = await runForgeAutoscaleTick({ apply: !dryRun });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('[Forge Autoscale] tick failed:', error);
+        res.status(500).json({ error: error.message || 'Forge autoscale tick failed' });
+    }
+});
+
 router.post('/dream', async (req, res) => {
     try {
         const { prompt, attachments } = req.body;
@@ -6100,13 +6248,13 @@ router.get('/dream/status/:jobId', async (req, res) => {
             const queueRes = await pool.query('SELECT status, error, progress, phase, status_message FROM generation_jobs WHERE id = $1', [jobId]);
             const queueJob = queueRes.rows[0];
             if (queueJob?.status === 'failed') {
-                return res.json({ status: 'error', error: queueJob.error || 'Generation failed', ...getQueueProgressPayload(queueJob) });
+                return res.json({ status: 'error', error: queueJob.error || 'Generation failed', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
             if (queueJob?.status === 'canceled') {
-                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled', ...getQueueProgressPayload(queueJob) });
+                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
             if (queueJob) {
-                return res.json({ status: 'pending', ...getQueueProgressPayload(queueJob) });
+                return res.json({ status: 'pending', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
             return res.status(404).json({ error: 'Job not found' });
         }
@@ -6124,27 +6272,27 @@ router.get('/dream/status/:jobId', async (req, res) => {
             const queueRes = await pool.query('SELECT status, error, progress, phase, status_message, updated_at FROM generation_jobs WHERE id = $1', [jobId]);
             const queueJob = queueRes.rows[0];
             if (queueJob?.status === 'failed') {
-                return res.json({ status: 'error', error: queueJob.error || 'Generation failed', ...getQueueProgressPayload(queueJob) });
+                return res.json({ status: 'error', error: queueJob.error || 'Generation failed', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
             if (queueJob?.status === 'canceled') {
-                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled', ...getQueueProgressPayload(queueJob) });
+                return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
             // Zombie detection: generation_jobs says 'complete' but html_payload is empty.
             // The worker crashed after marking complete but before writing the game HTML.
             if (queueJob?.status === 'complete') {
                 console.warn(`⚠️ Zombie job detected: ${jobId} — generation_jobs='complete' but ai_games.html_payload is empty`);
-                return res.json({ status: 'error', error: 'Build completed but the game was lost during save. Please retry.', ...getQueueProgressPayload(queueJob) });
+                return res.json({ status: 'error', error: 'Build completed but the game was lost during save. Please retry.', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
             // Stale job detection: if progress >= 90 and no update in 5+ minutes, it's dead
             if (queueJob && queueJob.progress >= 90 && queueJob.updated_at) {
                 const staleMins = (Date.now() - new Date(queueJob.updated_at).getTime()) / 60000;
                 if (staleMins > 5) {
                     console.warn(`⚠️ Stale job detected: ${jobId} — progress ${queueJob.progress}% but no update in ${Math.round(staleMins)}min`);
-                    return res.json({ status: 'error', error: 'Build stalled — the forge worker may have crashed. Please retry.', ...getQueueProgressPayload(queueJob) });
+                    return res.json({ status: 'error', error: 'Build stalled — the forge worker may have crashed. Please retry.', ...(await buildQueueProgressPayload(queueJob, jobId)) });
                 }
             }
             if (queueJob) {
-                return res.json({ status: 'pending', ...getQueueProgressPayload(queueJob) });
+                return res.json({ status: 'pending', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
             return res.json({ status: 'pending' });
         }
@@ -6160,7 +6308,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             title: row.title,
             htmlPreview: row.html_payload,
             classification: getStoredDraftClassification(row),
-            ...getQueueProgressPayload(completeQueueJob || { progress: 100, phase: 'complete', status_message: 'Your game is ready.' }),
+            ...(await buildQueueProgressPayload(completeQueueJob || { progress: 100, phase: 'complete', status_message: 'Your game is ready.' }, jobId)),
         });
 
     } catch(e) { 
