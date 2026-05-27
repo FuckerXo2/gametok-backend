@@ -429,8 +429,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
     const extraProbeLines = probeMethods
         .filter((probe) => !['snapshot', 'step', 'reset'].includes(probe.name))
         .map((probe) => `  ${probe.name}(...args) {
-    // Foundation probe: ${probe.description || probe.name}
-    if (typeof state.${probe.name} === 'function') return state.${probe.name}(...args);
+    // Foundation probe stub — Phase 2 agent implements ${probe.name}(): ${probe.description || probe.name}
     return null;
   },`)
         .join('\n');
