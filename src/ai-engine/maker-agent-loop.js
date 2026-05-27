@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
+import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse } from './maker-agent-response.js';
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
 
 function extractJson(text) {
@@ -110,32 +111,10 @@ export function buildMakerAgentInspectionPrompt({
         'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
         '',
         'Protocol schema:',
-        JSON.stringify({
-            protocolVersion: 1,
-            kind: 'maker_protocol_repair',
-            diagnosis: {
-                errorCode: 'string',
-                rootCause: 'string',
-                matchedProtocolRuleIds: ['string'],
-            },
-            actions: [
-                {
-                    type: 'edit',
-                    path: 'src/main.ts',
-                    reason: 'string',
-                },
-            ],
-            files: [
-                {
-                    path: 'src/main.ts',
-                    content: 'complete replacement file content',
-                },
-            ],
-            notes: ['short notes'],
-            noEditsNeeded: false,
-        }, null, 2),
+        JSON.stringify(getMakerFileJsonSchemaExample(), null, 2),
         '',
         'Rules:',
+        ...getMakerFileJsonEncodingRuleLines(),
         '- CRITICAL ARCHITECTURE RULE (OPENGAME PROTOCOL): NEVER use `Phaser.GameObjects.Graphics` (or raw canvas `ctx.arc()`) to render active gameplay entities (players, enemies, projectiles).',
         '- You MUST use Sprites and Arcade Physics bodies (`this.physics.add.sprite`) for all physical gameplay objects.',
         '- If you absolutely must use Graphics for UI, background, or drawing, you MUST call `graphics.clear()` at the beginning of every `update()` loop frame to prevent ghosting and trails. Failure to do this will result in immediate rejection.',
@@ -218,19 +197,5 @@ export function buildMakerAgentInspectionPrompt({
 
 export function parseMakerAgentInspectionResponse(text) {
     const parsed = JSON.parse(extractJson(stripMarkdownFences(text)));
-    const files = Array.isArray(parsed?.files)
-        ? parsed.files.filter((file) => file && typeof file.path === 'string' && typeof file.content === 'string')
-        : [];
-    const actions = Array.isArray(parsed?.actions)
-        ? parsed.actions.filter((action) => action && typeof action.type === 'string')
-        : [];
-    return {
-        protocolVersion: parsed?.protocolVersion || 1,
-        kind: parsed?.kind || 'maker_protocol_repair',
-        diagnosis: parsed?.diagnosis || null,
-        actions,
-        files: files.map((file) => ({ path: file.path, content: file.content })),
-        notes: Array.isArray(parsed?.notes) ? parsed.notes.map(String).slice(0, 12) : [],
-        noEditsNeeded: Boolean(parsed?.noEditsNeeded) || files.length === 0,
-    };
+    return normalizeMakerProtocolResponse(parsed);
 }

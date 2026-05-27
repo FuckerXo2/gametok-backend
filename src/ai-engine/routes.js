@@ -28,6 +28,7 @@ import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-as
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
+import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse } from './maker-agent-response.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
@@ -957,6 +958,7 @@ function buildBuilderJsonContinuationPrompt(partialJson, parseError) {
         'Do NOT repeat earlier keys or file contents.',
         'Do NOT wrap the answer in markdown.',
         'Do NOT explain anything.',
+        ...getMakerFileJsonEncodingRuleLines(),
         '',
         `The parser currently fails with: ${parseError?.message || String(parseError || 'unknown parse error')}`,
         '',
@@ -976,6 +978,7 @@ function buildBuilderJsonRewritePrompt(originalPrompt, invalidJson, parseError) 
         'Do not continue the broken response. Rewrite the full JSON object from scratch.',
         'Keep edits targeted and only include complete replacement file contents for files that need changes.',
         'If the safest answer is no edit, return {"files":[],"notes":["already compliant"],"noEditsNeeded":true}.',
+        ...getMakerFileJsonEncodingRuleLines(),
         '',
         `Parser error: ${parseError?.message || String(parseError || 'unknown parse error')}`,
         '',
@@ -1144,8 +1147,8 @@ async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = n
         let continuationCount = 0;
         while (continuationCount <= BUILDER_MAX_CONTINUATIONS) {
             try {
-                parseBuilderJsonText(jsonText);
-                return jsonText;
+                const parsed = parseBuilderJsonText(jsonText);
+                return JSON.stringify(parsed);
             } catch (parseError) {
                 lastParseError = parseError;
                 lastJsonText = jsonText;
@@ -2688,7 +2691,13 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '',
         'Return JSON only. No markdown. No commentary.',
         'Schema:',
-        '{"files":[{"path":"src/main.ts","content":"complete replacement file contents"}],"notes":["short note"]}',
+        JSON.stringify(getMakerFileJsonSchemaExample({
+            actions: undefined,
+            diagnosis: undefined,
+            noEditsNeeded: undefined,
+        }), null, 2),
+        '',
+        ...getMakerFileJsonEncodingRuleLines(),
         '',
         'Task:',
         '- Treat the GameTok maker GDD as mandatory. This pass is only successful if the updated files still satisfy Section 0-5.',
@@ -3331,33 +3340,17 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '',
         'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
         'Protocol schema:',
-        JSON.stringify({
-            protocolVersion: 1,
-            kind: 'maker_protocol_repair',
+        JSON.stringify(getMakerFileJsonSchemaExample({
             diagnosis: {
                 errorCode: 'string',
                 messagePattern: 'string',
                 rootCause: 'string',
                 matchedProtocolRuleIds: ['string'],
             },
-            actions: [
-                {
-                    type: 'edit',
-                    path: 'src/main.ts',
-                    reason: 'string',
-                },
-            ],
-            files: [
-                {
-                    path: 'src/main.ts',
-                    content: 'complete replacement file content',
-                },
-            ],
-            notes: ['short notes'],
-            noEditsNeeded: false,
-        }, null, 2),
+        }), null, 2),
         '',
         'Rules:',
+        ...getMakerFileJsonEncodingRuleLines(),
         ...(isPhaser ? [
             '- CRITICAL ARCHITECTURE RULE (OPENGAME PROTOCOL): NEVER use `Phaser.GameObjects.Graphics` (or raw canvas `ctx.arc()`) to render active gameplay entities (players, enemies, projectiles).',
             '- You MUST use Sprites and Arcade Physics bodies (`this.physics.add.sprite`).',
@@ -3478,22 +3471,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
 
 function parseMakerFileRepairResponse(text) {
     const parsed = parseBuilderJsonText(text);
-    if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) {
-        throw new Error('File repair response did not include any file edits.');
-    }
-    return {
-        protocolVersion: parsed.protocolVersion || 1,
-        kind: parsed.kind || 'maker_protocol_repair',
-        diagnosis: parsed.diagnosis || null,
-        actions: Array.isArray(parsed.actions) ? parsed.actions : [],
-        files: parsed.files.map((file) => {
-            if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') {
-                throw new Error('File repair response included an invalid file edit.');
-            }
-            return { path: file.path, content: file.content };
-        }),
-        notes: Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 12) : [],
-    };
+    return normalizeMakerProtocolResponse(parsed, { requireFiles: true });
 }
 
 async function applyMakerFileEdits(projectRoot, edits) {
@@ -4063,7 +4041,10 @@ async function runMakerAgentInspectionTurns({
                 filesRead: summarizeMakerProjectFiles(projectFiles),
                 error: error.message,
             });
-            break;
+            if (error.partialText) {
+                await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}-invalid.txt`, error.partialText);
+            }
+            throw new Error(`Phase 2 file agent turn ${turnNumber} failed: ${error.message}`);
         }
     }
 }
@@ -4572,18 +4553,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     progressBase: 58,
                 });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-response.txt', integrationText);
-                try {
-                    const integration = parseMakerFileRepairResponse(integrationText);
-                    await applyMakerFileEdits(makerProject.projectRoot, integration.files);
-                    await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
-                } catch (integrationError) {
-                    console.warn(`[Maker Build] Asset integration response was not valid JSON; continuing with initial project files: ${integrationError.message}`);
-                    await writeMakerText(
-                        makerWorkspace,
-                        'logs/project-asset-integration-parse-error.txt',
-                        integrationError.stack || integrationError.message
-                    );
-                }
+                const integration = parseMakerFileRepairResponse(integrationText);
+                await applyMakerFileEdits(makerProject.projectRoot, integration.files);
+                await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
             }
             await runMakerAgentInspectionTurns({
                 workspace: makerWorkspace,
