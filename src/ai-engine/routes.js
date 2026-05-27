@@ -42,6 +42,7 @@ import {
     useDynamicFoundation,
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
+import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -4282,6 +4283,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             makerTemplateContract = buildMakerTemplateContractFromFoundation(makerFoundationContract, qualityIntent);
             makerAssetContract = buildMakerAssetContractFromFoundation(makerFoundationContract, qualityIntent);
             console.log(`✅ Phase 1.5: "${makerFoundationContract.title}" foundation=${makerFoundationContract.foundationId} lane=${makerFoundationContract.lane} probes=${makerFoundationContract.probeMethods.length}`);
+            if (process.env.GAMETOK_SKIP_STUB_PREFLIGHT !== 'true') {
+                console.log('🧪 Foundation stub preflight: validating generated main.ts stub (static + tsc) before artist...');
+                await runFoundationStubPreflight(makerFoundationContract, qualityIntent);
+                console.log('✅ Foundation stub preflight passed');
+            }
         } else {
             makerTemplateContract = selectMakerTemplateContract(qualityIntent, prompt);
             makerAssetContract = buildMakerAssetContract(makerTemplateContract, qualityIntent);

@@ -3,6 +3,7 @@ import {
     buildIndexHtmlFromFoundation,
     buildMainTsStubFromFoundation,
 } from './maker-foundation-agent.js';
+import { validateFoundationStubSources } from './maker-foundation-stub-validator.js';
 
 export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
     const base = await loadMakerTemplateScaffold('canvas-kernel');
@@ -12,6 +13,7 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
 
     const generatedMain = buildMainTsStubFromFoundation(foundation, qualityIntent);
     const generatedIndex = buildIndexHtmlFromFoundation(foundation);
+    validateFoundationStubSources(generatedMain, generatedIndex);
     const files = base.files.map((file) => {
         const pathKey = String(file.path || '');
         if (pathKey === 'src/main.ts') {
