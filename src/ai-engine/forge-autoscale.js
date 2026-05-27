@@ -16,7 +16,7 @@ const FORGE_AUTOSCALE_JOBS_PER_REPLICA = Math.max(1, Number(process.env.FORGE_AU
 const FORGE_AUTOSCALE_MIN_REPLICAS = Math.max(1, Number(process.env.FORGE_AUTOSCALE_MIN_REPLICAS || 1));
 const FORGE_AUTOSCALE_MAX_REPLICAS = Math.max(
     FORGE_AUTOSCALE_MIN_REPLICAS,
-    Number(process.env.FORGE_AUTOSCALE_MAX_REPLICAS || 12)
+    Number(process.env.FORGE_AUTOSCALE_MAX_REPLICAS || (IS_RAILWAY ? 64 : 12))
 );
 const FORGE_AUTOSCALE_SCALE_DOWN_AFTER_MS = Math.max(
     60000,
@@ -327,7 +327,9 @@ export function startForgeAutoscaler() {
         `[Forge Autoscale] Leader loop started on Railway=${config.isRailway} interval=${FORGE_AUTOSCALE_INTERVAL_MS}ms jobsPerReplica=${FORGE_AUTOSCALE_JOBS_PER_REPLICA} min=${FORGE_AUTOSCALE_MIN_REPLICAS} max=${FORGE_AUTOSCALE_MAX_REPLICAS} env=${config.environmentId || 'auto-missing'} service=${config.forgeServiceId || 'auto-missing'} apiToken=${config.hasApiToken ? 'yes' : 'no'}`
     );
     if (!config.hasApiToken) {
-        console.warn('[Forge Autoscale] No RAILWAY_API_TOKEN yet; 8-parallel burst is active, replica autoscaling waits for one project token.');
+        console.warn('[Forge Autoscale] Horizontal scale locked: add RAILWAY_API_TOKEN once at the Railway project level to spin up more forge boxes on demand.');
+    } else {
+        console.log(`[Forge Autoscale] Horizontal scale armed (up to ${FORGE_AUTOSCALE_MAX_REPLICAS} replicas, ${FORGE_AUTOSCALE_JOBS_PER_REPLICA} builds each).`);
     }
 
     const tick = () => {
