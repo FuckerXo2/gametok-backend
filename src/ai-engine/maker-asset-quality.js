@@ -153,7 +153,7 @@ async function analyzeAssetPack(generatedAssets = null) {
     return { assets: results, issues };
 }
 
-function analyzeAnimations(generatedAssets = null) {
+export function analyzeAnimations(generatedAssets = null) {
     const assets = generatedAssets?.assets || {};
     const animationResults = [];
     const issues = [];
@@ -168,7 +168,13 @@ function analyzeAnimations(generatedAssets = null) {
             issues.push(issue({ id: 'animation_missing_key', severity: 'fatal', message: 'Animation entry is missing a key.' }));
         }
         if (type !== 'procedural_tween' && frames.length < 2) {
-            issues.push(issue({ id: 'animation_too_few_frames', severity: 'fatal', key, message: `${key || 'animation'} has fewer than 2 frames.` }));
+            const isSingleFrameReaction = /_(hit|dash)$/i.test(String(key || '')) && frames.length === 1;
+            issues.push(issue({
+                id: 'animation_too_few_frames',
+                severity: isSingleFrameReaction ? 'warning' : 'fatal',
+                key,
+                message: `${key || 'animation'} has fewer than 2 frames.`,
+            }));
         }
         for (const frameKey of missingFrames) {
             issues.push(issue({ id: 'animation_frame_missing_asset', severity: 'fatal', key, message: `${key} references missing frame ${frameKey}.` }));

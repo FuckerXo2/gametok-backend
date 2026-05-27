@@ -28,6 +28,135 @@ function stripDataUrl(imageBase64OrDataUrl) {
     return String(imageBase64OrDataUrl || '').replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
 }
 
+function normalizeSpriteCategory(category = 'item', assetType = 'sprite') {
+    const value = String(category || 'item').toLowerCase();
+    if (assetType === 'background' || value === 'environment' || value === 'background') return 'background';
+    return value;
+}
+
+export async function inspectGeneratedAssetDataUri(dataUri, {
+    width = 128,
+    height = 128,
+    assetType = 'sprite',
+    category = 'item',
+} = {}) {
+    const text = String(dataUri || '');
+    if (!text.startsWith('data:image/')) {
+        return { ok: false, reason: 'missing_data_uri' };
+    }
+
+    const normalizedCategory = normalizeSpriteCategory(category, assetType);
+    const isBackground = assetType === 'background' || normalizedCategory === 'background';
+    const minChars = isBackground
+        ? Math.max(8000, Math.round((width * height) / 20))
+        : Math.max(350, Math.round((width * height) / 16));
+
+    if (text.length < minChars) {
+        return { ok: false, reason: `payload_too_small (${text.length} chars)` };
+    }
+
+    try {
+        const sharp = (await import('sharp')).default;
+        const buffer = Buffer.from(stripDataUrl(text), 'base64');
+        if (buffer.length < 256) {
+            return { ok: false, reason: `decoded_too_small (${buffer.length} bytes)` };
+        }
+
+        const metadata = await sharp(buffer).metadata();
+        if ((metadata.width || 0) < 8 || (metadata.height || 0) < 8) {
+            return { ok: false, reason: 'invalid_dimensions' };
+        }
+
+        if (isBackground) {
+            return { ok: true, reason: 'background_ok' };
+        }
+
+        const sample = await sharp(buffer)
+            .ensureAlpha()
+            .resize(48, 48, { fit: 'inside', withoutEnlargement: true })
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        const pixels = sample.info.width * sample.info.height;
+        let visible = 0;
+        for (let i = 3; i < sample.data.length; i += 4) {
+            if (sample.data[i] > 24) visible += 1;
+        }
+        const visibleRatio = pixels ? visible / pixels : 0;
+        if (visibleRatio < 0.015) {
+            return { ok: false, reason: 'blank_or_transparent' };
+        }
+        return { ok: true, reason: 'visible_content' };
+    } catch (error) {
+        return { ok: false, reason: `decode_failed: ${error.message}` };
+    }
+}
+
+async function resolveGeneratedAssetDataUri(dataUri, request, label = 'asset') {
+    const {
+        assetType = 'sprite',
+        category = 'item',
+        size = 128,
+        width,
+        height,
+    } = request;
+    const targetWidth = Number(width || size || 128);
+    const targetHeight = Number(height || width || size || 128);
+    const inspection = await inspectGeneratedAssetDataUri(dataUri, {
+        width: targetWidth,
+        height: targetHeight,
+        assetType,
+        category,
+    });
+    if (inspection.ok) {
+        return { dataUri, inspection, usedFallback: false, retried: false };
+    }
+
+    console.warn(`[Artist Agent] ${label} failed quality check (${inspection.reason}); retrying once...`);
+    const typeMap = {
+        player: 'character',
+        enemy: 'enemy',
+        item: 'item',
+        vehicle: 'vehicle',
+        environment: 'background',
+        background: 'background',
+        ui: 'ui',
+        prop: 'item',
+        obstacle: 'item',
+    };
+    const spriteType = assetType === 'background' ? 'background' : (typeMap[category] || 'character');
+    try {
+        const retryBase64 = await generateSprite({
+            description: request.description,
+            type: spriteType,
+            targetSize: targetWidth === targetHeight
+                ? targetWidth
+                : { width: targetWidth, height: targetHeight },
+            removeBg: spriteType === 'background' ? false : request.transparent !== false,
+        });
+        const retryUri = `data:image/png;base64,${retryBase64}`;
+        const retryInspection = await inspectGeneratedAssetDataUri(retryUri, {
+            width: targetWidth,
+            height: targetHeight,
+            assetType,
+            category,
+        });
+        if (retryInspection.ok) {
+            return { dataUri: retryUri, inspection: retryInspection, usedFallback: false, retried: true };
+        }
+        console.warn(`[Artist Agent] ${label} retry still failed (${retryInspection.reason}); using fallback art.`);
+    } catch (retryError) {
+        console.warn(`[Artist Agent] ${label} retry threw: ${retryError.message}`);
+    }
+
+    const fallbackUri = await generateFallbackAsset(Math.max(targetWidth, targetHeight), category);
+    return {
+        dataUri: fallbackUri,
+        inspection: { ok: true, reason: 'fallback_asset' },
+        usedFallback: true,
+        retried: true,
+    };
+}
+
 function asPngDataUrl(imageBase64OrDataUrl) {
     const value = String(imageBase64OrDataUrl || '');
     return value.startsWith('data:image/') ? value : `data:image/png;base64,${value}`;
@@ -473,40 +602,52 @@ export async function artistAgent(request) {
             targetSize: width || height ? { width: width || size, height: height || width || size } : size,
             removeBg: spriteType === 'background' ? false : transparent,
         });
-        
-        // Return as data URI
-        const dataUri = `data:image/png;base64,${base64Image}`;
-        console.log(`[Artist Agent] ✓ Generated ${assetType} (${dataUri.length} chars)`);
-        
-        return dataUri;
+
+        const resolved = await resolveGeneratedAssetDataUri(
+            `data:image/png;base64,${base64Image}`,
+            request,
+            `${assetType}:${category}`,
+        );
+        console.log(
+            `[Artist Agent] ✓ Generated ${assetType} (${resolved.dataUri.length} chars`
+            + `${resolved.usedFallback ? ', fallback' : resolved.retried ? ', retried' : ''})`,
+        );
+        return resolved.dataUri;
     } catch (error) {
         console.error(`[Artist Agent] Failed to generate ${assetType}:`, error.message);
-        // Return a fallback colored square so the game doesn't break
         return generateFallbackAsset(size, category);
     }
 }
 
 /**
- * Generate a fallback colored square if AI generation fails
+ * Generate a fallback PNG placeholder if AI generation fails or quality checks reject output.
  */
-function generateFallbackAsset(size, category) {
-    // Simple colored square as fallback
+async function generateFallbackAsset(size, category) {
     const colors = {
         player: '#4ade80',
         enemy: '#f87171',
         item: '#fbbf24',
         vehicle: '#60a5fa',
         environment: '#94a3b8',
+        background: '#475569',
         ui: '#a78bfa',
         prop: '#c084fc',
         obstacle: '#c084fc',
     };
     const color = colors[category] || '#9ca3af';
-    
-    // Create a simple SVG square and convert to data URI
-    const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg"><rect width="${size}" height="${size}" fill="${color}"/></svg>`;
-    const base64 = Buffer.from(svg).toString('base64');
-    return `data:image/svg+xml;base64,${base64}`;
+    const dimension = Math.max(32, Number(size) || 128);
+    const radius = Math.round(dimension * 0.34);
+    const cx = Math.round(dimension / 2);
+    const cy = Math.round(dimension / 2);
+    const eyeRadius = Math.max(2, Math.round(radius * 0.14));
+    const svg = `<svg width="${dimension}" height="${dimension}" xmlns="http://www.w3.org/2000/svg">
+<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${color}" />
+<circle cx="${cx - Math.round(radius * 0.25)}" cy="${cy - Math.round(radius * 0.18)}" r="${eyeRadius}" fill="#ffffff" opacity="0.9" />
+<circle cx="${cx + Math.round(radius * 0.25)}" cy="${cy - Math.round(radius * 0.18)}" r="${eyeRadius}" fill="#ffffff" opacity="0.9" />
+</svg>`;
+    const sharp = (await import('sharp')).default;
+    const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    return `data:image/png;base64,${buffer.toString('base64')}`;
 }
 
 async function createFrameVariant(dataUri, width, height, variant = {}) {
@@ -606,6 +747,7 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
             { name: 'move', scaleX: 1.08, scaleY: 0.92, dx: -2, dy: 1, duration: 90 },
             { name: 'move', scaleX: 0.94, scaleY: 1.06, dx: 2, dy: -1, duration: 90 },
             { name: 'hit', scaleX: 1.12, scaleY: 0.88, brightness: 1.25, duration: 70 },
+            { name: 'hit', scaleX: 0.92, scaleY: 1.08, brightness: 1.08, duration: 70 },
         ]
         : [
             { name: 'pulse', scaleX: 1, scaleY: 1, duration: 260 },
@@ -927,7 +1069,7 @@ export async function batchArtistAgent(requests, options = {}) {
             console.error(`[Batch Artist Agent] Failed to generate ${id}:`, error.message);
             errors.push({ id, error: error.message });
             // Generate fallback
-            const dataUri = generateFallbackAsset(Math.max(width, height), category);
+            const dataUri = await generateFallbackAsset(Math.max(width, height), category);
             results[id] = dataUri;
             const assetMeta = {
                 id,

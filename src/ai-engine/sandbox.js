@@ -84,6 +84,31 @@ function inspectAssetContractSource(sourceHtml = '', assetContract = null) {
     };
 }
 
+function parseRequiredProbeMethodNames(templateContract = null) {
+    const names = new Set(['snapshot', 'step', 'reset']);
+    for (const entry of [
+        ...(Array.isArray(templateContract?.requiredProbeApi) ? templateContract.requiredProbeApi : []),
+        ...(Array.isArray(templateContract?.foundation?.probeMethods) ? templateContract.foundation.probeMethods : []),
+    ]) {
+        if (typeof entry === 'string') {
+            const match = entry.match(/__GAMETOK_TEMPLATE_PROBE__\.(\w+)/);
+            if (match?.[1]) names.add(match[1]);
+            continue;
+        }
+        if (entry?.name) names.add(String(entry.name));
+    }
+    return [...names];
+}
+
+function buildCanvasKernelProbeContract(templateContract = null) {
+    return {
+        requiredMethods: parseRequiredProbeMethodNames(templateContract),
+        lane: templateContract?.archetype
+            || templateContract?.foundation?.lane
+            || null,
+    };
+}
+
 async function runTemplateRuntimeProbe(page, templateContract = null) {
     const templateId = templateContract?.templateId || null;
     if (![
@@ -97,9 +122,14 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         'canvas-arcade-shooter',
         'story-vignette',
         'canvas-arcade',
+        'canvas-kernel',
     ].includes(templateId)) return null;
 
-    return page.evaluate(async (expectedTemplateId) => {
+    const canvasKernelProbeContract = templateId === 'canvas-kernel'
+        ? buildCanvasKernelProbeContract(templateContract)
+        : null;
+
+    return page.evaluate(async (expectedTemplateId, kernelProbeContract) => {
         const probe = window.__GAMETOK_TEMPLATE_PROBE__;
         const templateId = expectedTemplateId || probe?.templateId || 'unknown';
         if (!probe) {
@@ -111,6 +141,48 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         }
 
         const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        if (templateId === 'canvas-kernel') {
+            const requiredMethods = Array.isArray(kernelProbeContract?.requiredMethods)
+                ? kernelProbeContract.requiredMethods
+                : ['snapshot', 'step', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            try {
+                if (typeof probe.reset === 'function') probe.reset();
+                await wait(40);
+                const initial = typeof probe.snapshot === 'function' ? probe.snapshot() : null;
+                if (!initial || typeof initial !== 'object') {
+                    failures.push('snapshot() did not return a state object.');
+                }
+                if (typeof probe.step === 'function') {
+                    const stepped = probe.step(16);
+                    if (stepped && typeof stepped.then === 'function') {
+                        await stepped;
+                    }
+                }
+                return {
+                    templateId,
+                    success: failures.length === 0,
+                    failures,
+                    details: {
+                        lane: kernelProbeContract?.lane || null,
+                        initial,
+                        requiredMethods,
+                    },
+                };
+            } catch (error) {
+                return {
+                    templateId,
+                    success: false,
+                    failures: [error?.message || String(error)],
+                };
+            }
+        }
+
         const samePoint = (a, b, threshold = 3) => {
             if (!a || !b) return false;
             return Math.abs(Number(a.x || 0) - Number(b.x || 0)) <= threshold
@@ -554,7 +626,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 failures: [error?.message || String(error)],
             };
         }
-    }, templateId);
+    }, templateId, canvasKernelProbeContract);
 }
 
 export async function verifyGame(htmlString, options = {}) {

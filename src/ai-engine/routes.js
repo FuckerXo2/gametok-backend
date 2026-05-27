@@ -1840,8 +1840,41 @@ async function ensureGenerationQueueSchema() {
     return generationQueueReadyPromise;
 }
 
-async function enqueueGenerationJob({ jobId, userId, prompt, title, kind = 'dream', payload = {}, maxAttempts = GENERATION_JOB_MAX_ATTEMPTS }) {
+async function findActiveDuplicateGenerationJob(userId, kind, prompt) {
     await ensureGenerationQueueSchema();
+    const result = await pool.query(
+        `SELECT id, status, created_at
+         FROM generation_jobs
+         WHERE user_id = $1
+           AND kind = $2
+           AND status IN ('queued', 'running')
+           AND lower(trim(prompt)) = lower(trim($3))
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [userId, kind, prompt]
+    );
+    return result.rows[0] || null;
+}
+
+async function enqueueGenerationJob({
+    jobId,
+    userId,
+    prompt,
+    title,
+    kind = 'dream',
+    payload = {},
+    maxAttempts = GENERATION_JOB_MAX_ATTEMPTS,
+    allowDuplicate = false,
+}) {
+    await ensureGenerationQueueSchema();
+    if (!allowDuplicate) {
+        const duplicate = await findActiveDuplicateGenerationJob(userId, kind, prompt);
+        if (duplicate) {
+            console.log(`🏗️ [GEN QUEUE] Deduped ${kind} job for user ${userId} -> existing ${duplicate.id} (${duplicate.status})`);
+            scheduleGenerationWorker(0);
+            return duplicate.id;
+        }
+    }
     const client = await pool.connect();
     const safeTitle = (title || 'Untitled').substring(0, 255);
     try {
@@ -2506,7 +2539,7 @@ async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Ga
     for (const file of split.files) {
         const destination = path.join(projectRoot, file.path);
         await fs.promises.mkdir(path.dirname(destination), { recursive: true });
-        await fs.promises.writeFile(destination, stripDuplicateDreamRuntimeDeclarations(file.content, file.path), 'utf8');
+        await fs.promises.writeFile(destination, sanitizeMakerMainTsContent(file.content, file.path), 'utf8');
     }
 
     await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
@@ -2782,7 +2815,7 @@ async function materializeMakerProjectFiles(workspace, projectBuild, { title = '
             throw new Error(`Duplicate project file returned by builder: ${cleanPath}`);
         }
         seen.add(cleanPath);
-        const content = stripDuplicateDreamRuntimeDeclarations(file.content, cleanPath);
+        const content = sanitizeMakerMainTsContent(file.content, cleanPath);
         await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
         await fs.promises.writeFile(absolutePath, content, 'utf8');
         files.push({
@@ -2953,6 +2986,58 @@ function stripDuplicateDreamRuntimeDeclarations(content = '', cleanPath = '') {
     return output.replace(/\n{4,}/g, '\n\n\n');
 }
 
+function stripDuplicateTopLevelFunctions(content = '', cleanPath = '') {
+    const source = String(content || '');
+    const normalizedPath = String(cleanPath || '').replace(/\\/g, '/');
+    if (!/(^|\/)src\/main\.ts$/i.test(normalizedPath)) {
+        return source;
+    }
+
+    const declRegex = /^(export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+    const blocks = [];
+    let match;
+    while ((match = declRegex.exec(source)) !== null) {
+        const name = match[2];
+        const start = match.index;
+        const braceStart = source.indexOf('{', declRegex.lastIndex);
+        if (braceStart === -1) continue;
+        let depth = 0;
+        let end = -1;
+        for (let i = braceStart; i < source.length; i += 1) {
+            if (source[i] === '{') depth += 1;
+            if (source[i] === '}') {
+                depth -= 1;
+                if (depth === 0) {
+                    end = i + 1;
+                    break;
+                }
+            }
+        }
+        if (end === -1) continue;
+        blocks.push({ name, start, end });
+    }
+
+    const seen = new Set();
+    const duplicates = blocks.filter((block) => {
+        if (seen.has(block.name)) return true;
+        seen.add(block.name);
+        return false;
+    });
+    if (duplicates.length === 0) return source;
+
+    let output = source;
+    for (const block of duplicates.sort((a, b) => b.start - a.start)) {
+        output = output.slice(0, block.start) + output.slice(block.end);
+    }
+    return output.replace(/\n{4,}/g, '\n\n\n');
+}
+
+function sanitizeMakerMainTsContent(content = '', cleanPath = '') {
+    let output = stripDuplicateDreamRuntimeDeclarations(content, cleanPath);
+    output = stripDuplicateTopLevelFunctions(output, cleanPath);
+    return output;
+}
+
 async function normalizeMakerProjectRuntimeDeclarations(projectRoot) {
     const srcRoot = path.join(projectRoot, 'src');
     const visit = async (directory) => {
@@ -2973,7 +3058,7 @@ async function normalizeMakerProjectRuntimeDeclarations(projectRoot) {
             if (!/\.(ts|tsx)$/i.test(relative)) continue;
             const before = await fs.promises.readFile(absolute, 'utf8').catch(() => null);
             if (before == null) continue;
-            const after = stripDuplicateDreamRuntimeDeclarations(before, relative);
+            const after = sanitizeMakerMainTsContent(before, relative);
             if (after !== before) {
                 await fs.promises.writeFile(absolute, after, 'utf8');
             }
@@ -3495,7 +3580,7 @@ async function resolveMakerProtocolEdits(projectRoot, inspection) {
         const patched = applyPatchReplacements(currentContent, patch.replacements, { path: cleanPath });
         edits.push({
             path: cleanPath,
-            content: stripDuplicateDreamRuntimeDeclarations(patched.content, cleanPath),
+            content: sanitizeMakerMainTsContent(patched.content, cleanPath),
             patchReplacements: patched.applied,
         });
     }
@@ -3521,7 +3606,7 @@ async function applyMakerFileEdits(projectRoot, edits, { compileGate = false } =
                 backups.set(absolutePath, null);
             }
         }
-        const content = stripDuplicateDreamRuntimeDeclarations(edit.content, cleanPath);
+        const content = sanitizeMakerMainTsContent(edit.content, cleanPath);
         await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
         await fs.promises.writeFile(absolutePath, content, 'utf8');
         touchedPaths.push(absolutePath);
@@ -5887,6 +5972,13 @@ router.post('/dream', async (req, res) => {
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
+
+        const existingJob = await findActiveDuplicateGenerationJob(userId, 'dream', prompt);
+        if (existingJob) {
+            console.log(`🧠 [DREAM ROUTE] Deduped to active job ${existingJob.id} (${existingJob.status}) for User[${userId}]`);
+            return res.json({ success: true, jobId: existingJob.id, deduped: true });
+        }
+
         console.log(`🧠 [DREAM ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
         const jobId = randomUUID();
@@ -5897,6 +5989,7 @@ router.post('/dream', async (req, res) => {
             title: JOB_TITLES.dreamPending,
             kind: 'dream',
             payload: { mediaAttachments },
+            allowDuplicate: true,
         });
 
         res.json({ success: true, jobId: jobId });
@@ -6109,6 +6202,7 @@ router.post('/dream/retry/:jobId', async (req, res) => {
             title: JOB_TITLES.dreamPending,
             kind: 'dream',
             payload: { mediaAttachments: [] },
+            allowDuplicate: true,
         });
 
         res.json({ success: true, jobId: newJobId });
@@ -6479,6 +6573,13 @@ router.post('/dream-labs', async (req, res) => {
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
+
+        const existingJob = await findActiveDuplicateGenerationJob(userId, 'labs', prompt);
+        if (existingJob) {
+            console.log(`🧪 [LABS ROUTE] Deduped to active job ${existingJob.id} (${existingJob.status}) for User[${userId}]`);
+            return res.json({ success: true, jobId: existingJob.id, deduped: true });
+        }
+
         console.log(`🧪 [LABS ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
 
         const jobId = randomUUID();
@@ -6489,6 +6590,7 @@ router.post('/dream-labs', async (req, res) => {
             title: JOB_TITLES.labsPending,
             kind: 'labs',
             payload: { mediaAttachments },
+            allowDuplicate: true,
         });
 
         res.json({ success: true, jobId: jobId });
