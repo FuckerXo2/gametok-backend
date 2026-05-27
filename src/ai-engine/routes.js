@@ -28,7 +28,7 @@ import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-as
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
-import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse } from './maker-agent-response.js';
+import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
@@ -186,7 +186,7 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(3, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 0) || Math.max(3, getNvidiaTextKeys().length)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
+const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(5, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 4)));
 const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
 
 const JOB_TITLES = {
@@ -1149,6 +1149,7 @@ async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = n
         while (continuationCount <= BUILDER_MAX_CONTINUATIONS) {
             try {
                 const parsed = parseBuilderJsonText(jsonText);
+                validateMakerProtocolJsonPayload(parsed);
                 return JSON.stringify(parsed);
             } catch (parseError) {
                 lastParseError = parseError;

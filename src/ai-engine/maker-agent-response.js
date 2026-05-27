@@ -7,18 +7,53 @@ export function encodeMakerFileContent(content = '') {
     return Buffer.from(String(content), 'utf8').toString('base64');
 }
 
+export function getMakerFileBase64Payload(file = {}) {
+    if (Array.isArray(file.contentParts) && file.contentParts.length > 0) {
+        return file.contentParts.map(String).join('');
+    }
+    if (typeof file.contentBase64 === 'string') {
+        return file.contentBase64;
+    }
+    return file.content;
+}
+
+export function repairBase64Payload(payload = '') {
+    let cleaned = String(payload || '').replace(/\s+/g, '');
+    cleaned = cleaned.replace(/[^A-Za-z0-9+/=]/g, '');
+    cleaned = cleaned.replace(/=+$/, '');
+
+    if (!cleaned) {
+        throw new Error('base64 payload is empty');
+    }
+
+    let remainder = cleaned.length % 4;
+    if (remainder === 1) {
+        cleaned = cleaned.slice(0, -1);
+        remainder = cleaned.length % 4;
+    }
+
+    if (remainder === 2 || remainder === 3) {
+        cleaned += '='.repeat(4 - remainder);
+    }
+
+    if (!BASE64_ALPHABET.test(cleaned)) {
+        throw new Error('content is not valid base64 alphabet');
+    }
+
+    return cleaned;
+}
+
 export function normalizeBase64Payload(payload = '') {
     const cleaned = String(payload || '').replace(/\s+/g, '');
     if (!cleaned) {
         throw new Error('base64 payload is empty');
     }
-    if (!BASE64_ALPHABET.test(cleaned)) {
-        throw new Error('content is not valid base64 alphabet');
+
+    if (BASE64_ALPHABET.test(cleaned) && cleaned.length % 4 === 0) {
+        return cleaned;
     }
-    if (cleaned.length % 4 !== 0) {
-        throw new Error('base64 length is not a multiple of 4');
-    }
-    return cleaned;
+
+    return repairBase64Payload(payload);
 }
 
 export function looksLikePlainSourceText(payload = '', filePath = '') {
@@ -101,18 +136,23 @@ export function normalizeMakerFileEdit(file) {
     }
 
     const encoding = String(file.contentEncoding || file.encoding || '').trim().toLowerCase();
-    const base64Payload = typeof file.contentBase64 === 'string' ? file.contentBase64 : null;
+    const payload = getMakerFileBase64Payload(file);
     let decoded;
 
-    if (encoding === MAKER_FILE_CONTENT_ENCODING_BASE64 || base64Payload) {
-        const payload = base64Payload || file.content;
+    if (encoding === MAKER_FILE_CONTENT_ENCODING_BASE64
+        || Array.isArray(file.contentParts)
+        || typeof file.contentBase64 === 'string') {
         if (typeof payload !== 'string' || !payload.trim()) {
             throw new Error(`Maker file edit ${file.path} requires base64 content.`);
         }
         try {
             decoded = decodeBase64FileContent(payload, file.path);
         } catch (error) {
-            throw new Error(`Maker file edit ${file.path} has invalid base64 content: ${error.message}`);
+            if (looksLikePlainSourceText(payload, file.path)) {
+                decoded = sanitizeMakerTextContent(file.path, payload);
+            } else {
+                throw new Error(`Maker file edit ${file.path} has invalid base64 content: ${error.message}`);
+            }
         }
     } else if (typeof file.content !== 'string') {
         throw new Error(`Maker file edit ${file.path} is missing string content.`);
@@ -166,7 +206,26 @@ export function normalizeMakerProtocolResponse(parsed, { requireFiles = false } 
     };
 }
 
+export function validateMakerProtocolJsonPayload(parsed) {
+    if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Maker protocol response was not a JSON object.');
+    }
+
+    const fileEntries = Array.isArray(parsed.files) ? parsed.files : [];
+    if (fileEntries.length === 0 || parsed.noEditsNeeded) {
+        return parsed;
+    }
+
+    const normalized = normalizeMakerProtocolResponse(parsed);
+    if (normalized.files.length === 0) {
+        throw new Error(normalized.decodeErrors?.[0] || 'Maker file payloads could not be decoded.');
+    }
+
+    return parsed;
+}
+
 export function getMakerFileJsonSchemaExample(extra = {}) {
+    const sample = encodeMakerFileContent('import "./styles.css";\n');
     return {
         protocolVersion: 1,
         kind: 'maker_protocol_repair',
@@ -186,7 +245,7 @@ export function getMakerFileJsonSchemaExample(extra = {}) {
             {
                 path: 'src/main.ts',
                 contentEncoding: MAKER_FILE_CONTENT_ENCODING_BASE64,
-                content: encodeMakerFileContent('import "./styles.css";\n'),
+                contentParts: [sample],
             },
         ],
         notes: ['short notes'],
@@ -198,8 +257,9 @@ export function getMakerFileJsonSchemaExample(extra = {}) {
 export function getMakerFileJsonEncodingRuleLines() {
     return [
         '- CRITICAL JSON TRANSPORT RULE: Every file edit MUST use contentEncoding "base64".',
-        '- Base64 must encode UTF-8 text only (not UTF-16). Use standard base64 alphabet (A-Z, a-z, 0-9, +, /, =).',
-        '- Put the UTF-8 file body in "content" as one continuous base64 string with no raw source code.',
+        '- Prefer contentParts: ["chunk1","chunk2",...] for large files instead of one giant content string.',
+        '- Split src/main.ts base64 into multiple contentParts under 6000 chars each. Parts are joined in order before decode.',
+        '- Base64 must encode UTF-8 text only (not UTF-16). Alphabet: A-Z, a-z, 0-9, +, /. Padding = may be omitted; backend will repair padding.',
         '- Do NOT put raw TypeScript, HTML, CSS, or JSON source inside JSON string literals.',
         '- Do NOT use escaped newlines (\\n), backslashes, or quotes for source code in JSON strings.',
         '- Small files still use base64. For no edits, return {"files":[],"notes":["already compliant"],"noEditsNeeded":true}.',
