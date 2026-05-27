@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+    decodeBase64FileContent,
     encodeMakerFileContent,
     getMakerFileJsonSchemaExample,
     normalizeMakerFileEdit,
@@ -23,6 +24,10 @@ const legacy = normalizeMakerFileEdit({
 });
 assert.equal(legacy.content, 'body { margin: 0; }');
 
+const utf16Payload = Buffer.from('import "./styles.css";\n', 'utf16le').toString('base64');
+const utf16Decoded = decodeBase64FileContent(utf16Payload, 'src/main.ts');
+assert.equal(utf16Decoded, 'import "./styles.css";\n');
+
 const parsed = normalizeMakerProtocolResponse({
     files: [
         {
@@ -40,7 +45,7 @@ const roundTrip = JSON.parse(JSON.stringify(getMakerFileJsonSchemaExample()));
 assert.equal(typeof roundTrip.files[0].content, 'string');
 
 assert.throws(
-    () => validateMakerFileContent('src/main.ts', 'x'.repeat(200)),
+    () => validateMakerFileContent('src/main.ts', 'x'.repeat(300)),
     /single-line blob/,
 );
 

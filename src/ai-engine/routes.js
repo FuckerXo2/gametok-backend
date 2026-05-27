@@ -29,7 +29,7 @@ import { materializeMakerAssetsForProject } from './maker-asset-materializer.js'
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse } from './maker-agent-response.js';
-import { buildMakerCompileFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
+import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
@@ -4023,7 +4023,31 @@ async function runMakerAgentInspectionTurns({
                 maxAttempts: 2,
             });
             await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
-            const inspection = parseMakerAgentInspectionResponse(responseText);
+            let inspection;
+            try {
+                inspection = parseMakerAgentInspectionResponse(responseText);
+            } catch (decodeError) {
+                console.warn(`[Maker Agent] Turn ${turnNumber} file payload decode failed: ${decodeError.message}`);
+                const runEvidence = buildMakerDecodeFailureEvidence(decodeError, {
+                    phase: 'after_file_agent_turn',
+                    turnNumber,
+                });
+                lastRunEvidence = runEvidence;
+                await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+                await appendMakerAgentTurn(workspace, turns, {
+                    phase: 'file_inspection',
+                    objective,
+                    status: 'needs_followup',
+                    model: DREAM_MODELS.premiumBuilder,
+                    filesRead: summarizeMakerProjectFiles(projectFiles),
+                    editsApplied: [],
+                    targetedRepairTasks: runEvidence.targetedRepairTasks || [],
+                    sandbox: runEvidence,
+                    notes: [],
+                    error: decodeError.message,
+                });
+                continue;
+            }
             let applied = [];
             let runEvidence;
             if (inspection.files.length > 0) {

@@ -68,3 +68,29 @@ export function buildMakerCompileFailureEvidence(error, { phase = 'after_file_ag
         turnNumber,
     };
 }
+
+export function buildMakerDecodeFailureEvidence(error, { phase = 'after_file_agent_turn', turnNumber = null } = {}) {
+    const message = error?.message || 'Maker file payload could not be decoded.';
+    return {
+        phase,
+        success: false,
+        crashes: [`DECODE ERROR: ${message}`],
+        diagnostics: {
+            decodeFailure: {
+                type: 'MAKER_FILE_DECODE_FAILED',
+                message,
+                rejectedEdits: true,
+            },
+            failedContractChecks: [{
+                id: 'file_payload_decode_failed',
+                message: 'Proposed file edits were rejected because base64 content could not be decoded into valid UTF-8 source. Re-encode UTF-8 only.',
+            }],
+        },
+        targetedRepairTasks: [{
+            task: 'fix_file_payload',
+            description: message,
+            severity: 'critical',
+        }],
+        turnNumber,
+    };
+}
