@@ -110,6 +110,8 @@ export function buildMakerAgentInspectionPrompt({
         'Read the actual project files, compare them to the builder maps, contracts, and last run evidence, then make targeted file edits.',
         'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
         '',
+        'Use patch-based protocolVersion 2 responses. Patch the existing scaffold in small steps; do not rewrite entire files unless absolutely required.',
+        '',
         'Protocol schema:',
         JSON.stringify(getMakerFileJsonSchemaExample(), null, 2),
         '',

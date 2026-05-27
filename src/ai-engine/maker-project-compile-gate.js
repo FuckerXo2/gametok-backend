@@ -69,6 +69,32 @@ export function buildMakerCompileFailureEvidence(error, { phase = 'after_file_ag
     };
 }
 
+export function buildMakerPatchFailureEvidence(error, { phase = 'after_file_agent_turn', turnNumber = null } = {}) {
+    const message = error?.message || 'Maker patch anchors could not be applied.';
+    return {
+        phase,
+        success: false,
+        crashes: [`PATCH ERROR: ${message}`],
+        diagnostics: {
+            patchFailure: {
+                type: 'MAKER_PATCH_APPLY_FAILED',
+                message,
+                rejectedEdits: true,
+            },
+            failedContractChecks: [{
+                id: 'patch_anchor_not_found',
+                message: 'Proposed find/replace anchors did not match the current source. Copy exact text from the project files.',
+            }],
+        },
+        targetedRepairTasks: [{
+            task: 'fix_patch_anchor',
+            description: message,
+            severity: 'critical',
+        }],
+        turnNumber,
+    };
+}
+
 export function buildMakerDecodeFailureEvidence(error, { phase = 'after_file_agent_turn', turnNumber = null } = {}) {
     const message = error?.message || 'Maker file payload could not be decoded.';
     return {

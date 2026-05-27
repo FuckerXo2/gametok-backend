@@ -1,3 +1,10 @@
+import {
+    getMakerPatchJsonSchemaExample,
+    getMakerPatchProtocolRuleLines,
+    normalizeMakerPatchesFromParsed,
+    validateMakerPatchProtocolPayload,
+} from './maker-agent-patches.js';
+
 export const MAKER_FILE_CONTENT_ENCODING_BASE64 = 'base64';
 
 const BASE64_ALPHABET = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -164,7 +171,7 @@ export function normalizeMakerFileEdit(file) {
     return { path: file.path, content: decoded };
 }
 
-export function normalizeMakerProtocolResponse(parsed, { requireFiles = false } = {}) {
+export function normalizeMakerProtocolResponse(parsed, { requireFiles = false, requireEdits = false } = {}) {
     if (!parsed || typeof parsed !== 'object') {
         throw new Error('Maker protocol response was not a JSON object.');
     }
@@ -179,40 +186,72 @@ export function normalizeMakerProtocolResponse(parsed, { requireFiles = false } 
         }
     }
 
-    if (decodeErrors.length > 0 && (requireFiles || files.length === 0)) {
+    let patches = [];
+    const patchErrors = [];
+    if (Array.isArray(parsed.patches) && parsed.patches.length > 0) {
+        try {
+            patches = normalizeMakerPatchesFromParsed(parsed);
+        } catch (error) {
+            patchErrors.push(error.message || String(error));
+        }
+    }
+
+    if (patchErrors.length > 0 && (requireEdits || patches.length === 0)) {
+        throw new Error(patchErrors[0]);
+    }
+
+    if (decodeErrors.length > 0 && (requireFiles || (files.length === 0 && patches.length === 0))) {
         throw new Error(decodeErrors[0]);
     }
 
-    if (requireFiles && files.length === 0) {
+    if (requireFiles && files.length === 0 && patches.length === 0) {
         throw new Error('Maker protocol response did not include any file edits.');
+    }
+
+    if (requireEdits && files.length === 0 && patches.length === 0 && !parsed.noEditsNeeded) {
+        throw new Error('Maker protocol response did not include any patches or file edits.');
     }
 
     const actions = Array.isArray(parsed.actions)
         ? parsed.actions.filter((action) => action && typeof action.type === 'string')
         : [];
 
+    const hasEdits = files.length > 0 || patches.length > 0;
+
     return {
-        protocolVersion: parsed.protocolVersion || 1,
-        kind: parsed.kind || 'maker_protocol_repair',
+        protocolVersion: parsed.protocolVersion || (patches.length > 0 ? 2 : 1),
+        kind: parsed.kind || (patches.length > 0 ? 'maker_protocol_patch' : 'maker_protocol_repair'),
         diagnosis: parsed.diagnosis || null,
         actions,
+        patches,
         files,
         notes: [
+            ...patchErrors.map((message) => `patch rejected: ${message}`),
             ...decodeErrors.map((message) => `decode rejected: ${message}`),
             ...(Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 12) : []),
         ].slice(0, 12),
-        noEditsNeeded: Boolean(parsed.noEditsNeeded) || files.length === 0,
+        noEditsNeeded: Boolean(parsed.noEditsNeeded) || !hasEdits,
         decodeErrors,
+        patchErrors,
     };
 }
 
 export function validateMakerProtocolJsonPayload(parsed) {
+    validateMakerPatchProtocolPayload(parsed);
+
     if (!parsed || typeof parsed !== 'object') {
         throw new Error('Maker protocol response was not a JSON object.');
     }
 
+    const patchEntries = Array.isArray(parsed.patches) ? parsed.patches : [];
     const fileEntries = Array.isArray(parsed.files) ? parsed.files : [];
-    if (fileEntries.length === 0 || parsed.noEditsNeeded) {
+
+    if (parsed.noEditsNeeded || (patchEntries.length === 0 && fileEntries.length === 0)) {
+        return parsed;
+    }
+
+    if (patchEntries.length > 0) {
+        normalizeMakerPatchesFromParsed(parsed);
         return parsed;
     }
 
@@ -225,45 +264,9 @@ export function validateMakerProtocolJsonPayload(parsed) {
 }
 
 export function getMakerFileJsonSchemaExample(extra = {}) {
-    const sample = encodeMakerFileContent('import "./styles.css";\n');
-    return {
-        protocolVersion: 1,
-        kind: 'maker_protocol_repair',
-        diagnosis: {
-            errorCode: 'string',
-            rootCause: 'string',
-            matchedProtocolRuleIds: ['string'],
-        },
-        actions: [
-            {
-                type: 'edit',
-                path: 'src/main.ts',
-                reason: 'string',
-            },
-        ],
-        files: [
-            {
-                path: 'src/main.ts',
-                contentEncoding: MAKER_FILE_CONTENT_ENCODING_BASE64,
-                contentParts: [sample],
-            },
-        ],
-        notes: ['short notes'],
-        noEditsNeeded: false,
-        ...extra,
-    };
+    return getMakerPatchJsonSchemaExample(extra);
 }
 
 export function getMakerFileJsonEncodingRuleLines() {
-    return [
-        '- CRITICAL JSON TRANSPORT RULE: Every file edit MUST use contentEncoding "base64".',
-        '- Prefer contentParts: ["chunk1","chunk2",...] for large files instead of one giant content string.',
-        '- Split src/main.ts base64 into multiple contentParts under 6000 chars each. Parts are joined in order before decode.',
-        '- Base64 must encode UTF-8 text only (not UTF-16). Alphabet: A-Z, a-z, 0-9, +, /. Padding = may be omitted; backend will repair padding.',
-        '- Do NOT put raw TypeScript, HTML, CSS, or JSON source inside JSON string literals.',
-        '- Do NOT use escaped newlines (\\n), backslashes, or quotes for source code in JSON strings.',
-        '- Small files still use base64. For no edits, return {"files":[],"notes":["already compliant"],"noEditsNeeded":true}.',
-        '- After decode, the TypeScript must compile with tsc. Invalid syntax, truncated files, or broken template literals will be rejected.',
-        '- If lastRunEvidence lists buildFailure.errors, fix every listed TS error before making other changes.',
-    ];
+    return getMakerPatchProtocolRuleLines();
 }

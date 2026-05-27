@@ -29,7 +29,8 @@ import { materializeMakerAssetsForProject } from './maker-asset-materializer.js'
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
-import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
+import { applyPatchReplacements } from './maker-agent-patches.js';
+import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
@@ -978,7 +979,8 @@ function buildBuilderJsonRewritePrompt(originalPrompt, invalidJson, parseError) 
         'Return one complete valid JSON object now. No markdown. No commentary.',
         'Do not continue the broken response. Rewrite the full JSON object from scratch.',
         'Keep edits targeted and only include complete replacement file contents for files that need changes.',
-        'If the safest answer is no edit, return {"files":[],"notes":["already compliant"],"noEditsNeeded":true}.',
+        'Prefer protocolVersion 2 patch responses with patches[].replacements find/replace pairs copied from current project files.',
+        'If the safest answer is no edit, return {"patches":[],"notes":["already compliant"],"noEditsNeeded":true}.',
         ...getMakerFileJsonEncodingRuleLines(),
         '',
         `Parser error: ${parseError?.message || String(parseError || 'unknown parse error')}`,
@@ -2706,7 +2708,7 @@ function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', pro
         '- Edit only files needed to use the newly generated assets.',
         '- Valid paths are index.html and existing src/**/*.css, src/**/*.ts, src/**/*.js, src/**/*.json files.',
         '- Protected scaffold/runtime files are read-only: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, src/scenes/Preloader.ts, Base*.ts files, package.json, tsconfig.json, and vite.config.ts.',
-        '- Return complete contents for every file you edit.',
+        '- Use patches[].replacements find/replace pairs copied exactly from the current project files.',
         '- Do not append duplicate implementations of an existing function or class method. Modify the existing function in place; TypeScript TS2393 is a hard failure.',
         '- Do not redeclare scaffold-owned BaseGameScene/BaseArenaScene fields such as player, enemies, enemyMeleeTriggers, decorations, obstacles, playerBullets, enemyBullets, ySortGroup, worldWidth, or worldHeight. Use inherited groups as-is, or name custom arrays sliceTargets/customEnemies/etc.',
         ...(isPhaser ? [
@@ -3372,7 +3374,7 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
         '- If a repair conflicts with the GDD, satisfy the GDD and explain the constrained repair in notes.',
         '- Edit only the files that need changes.',
         '- Valid paths are index.html and existing src/*.css, src/*.ts, src/*.js, src/*.json files.',
-        '- Return complete contents for every file you edit.',
+        '- Use patches[].replacements find/replace pairs copied exactly from the current project files.',
         '- Preserve the user game idea and current mechanics.',
         '- Keep HUD, labels, buttons, meters, and controls code-rendered, not baked into AI images.',
         '- Keep the game mobile-first inside a 390x844 webview. Reserve top space for GameTok chrome.',
@@ -3473,7 +3475,32 @@ function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '
 
 function parseMakerFileRepairResponse(text) {
     const parsed = parseBuilderJsonText(text);
-    return normalizeMakerProtocolResponse(parsed, { requireFiles: true });
+    return normalizeMakerProtocolResponse(parsed, { requireEdits: true });
+}
+
+async function resolveMakerProtocolEdits(projectRoot, inspection) {
+    const edits = [];
+
+    for (const file of inspection.files || []) {
+        edits.push(file);
+    }
+
+    for (const patch of inspection.patches || []) {
+        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, patch.path);
+        if (isProtectedMakerRuntimeFile(cleanPath)) {
+            console.warn(`[Maker Agent] Skipping protected runtime file patch: ${cleanPath}`);
+            continue;
+        }
+        const currentContent = await fs.promises.readFile(absolutePath, 'utf8');
+        const patched = applyPatchReplacements(currentContent, patch.replacements, { path: cleanPath });
+        edits.push({
+            path: cleanPath,
+            content: stripDuplicateDreamRuntimeDeclarations(patched.content, cleanPath),
+            patchReplacements: patched.applied,
+        });
+    }
+
+    return edits;
 }
 
 async function applyMakerFileEdits(projectRoot, edits, { compileGate = false } = {}) {
@@ -3501,6 +3528,7 @@ async function applyMakerFileEdits(projectRoot, edits, { compileGate = false } =
         applied.push({
             path: cleanPath,
             bytes: Buffer.byteLength(content, 'utf8'),
+            patchReplacements: Array.isArray(edit.patchReplacements) ? edit.patchReplacements.length : 0,
         });
     }
 
@@ -4051,27 +4079,49 @@ async function runMakerAgentInspectionTurns({
             }
             let applied = [];
             let runEvidence;
-            if (inspection.files.length > 0) {
+            const hasProtocolEdits = (inspection.patches?.length > 0) || (inspection.files?.length > 0);
+            if (hasProtocolEdits) {
                 try {
-                    applied = await applyMakerFileEdits(projectRoot, inspection.files, { compileGate: true });
-                    runEvidence = await runMakerProjectEvidence({
-                        workspace,
-                        projectRoot,
-                        generatedAssets,
-                        templateContract,
-                        assetContract,
-                        turnNumber,
-                        phase: 'after_file_agent_turn',
-                    });
+                    const pendingEdits = await resolveMakerProtocolEdits(projectRoot, inspection);
+                    if (pendingEdits.length === 0) {
+                        runEvidence = await runMakerProjectEvidence({
+                            workspace,
+                            projectRoot,
+                            generatedAssets,
+                            templateContract,
+                            assetContract,
+                            turnNumber,
+                            phase: 'after_file_agent_turn',
+                        });
+                    } else {
+                        applied = await applyMakerFileEdits(projectRoot, pendingEdits, { compileGate: true });
+                        runEvidence = await runMakerProjectEvidence({
+                            workspace,
+                            projectRoot,
+                            generatedAssets,
+                            templateContract,
+                            assetContract,
+                            turnNumber,
+                            phase: 'after_file_agent_turn',
+                        });
+                    }
                 } catch (applyError) {
-                    if (applyError.code !== 'TSC_FAILED') {
+                    if (applyError.code === 'TSC_FAILED') {
+                        runEvidence = buildMakerCompileFailureEvidence(applyError, {
+                            phase: 'after_file_agent_turn',
+                            turnNumber,
+                        });
+                        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+                    } else if (/Patch for /.test(applyError.message || '')) {
+                        console.warn(`[Maker Agent] Turn ${turnNumber} patch apply failed: ${applyError.message}`);
+                        runEvidence = buildMakerPatchFailureEvidence(applyError, {
+                            phase: 'after_file_agent_turn',
+                            turnNumber,
+                        });
+                        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+                    } else {
                         throw applyError;
                     }
-                    runEvidence = buildMakerCompileFailureEvidence(applyError, {
-                        phase: 'after_file_agent_turn',
-                        turnNumber,
-                    });
-                    await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
                 }
             } else {
                 runEvidence = await runMakerProjectEvidence({
@@ -4617,7 +4667,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 });
                 await writeMakerText(makerWorkspace, 'logs/project-asset-integration-response.txt', integrationText);
                 const integration = parseMakerFileRepairResponse(integrationText);
-                await applyMakerFileEdits(makerProject.projectRoot, integration.files, { compileGate: true });
+                const integrationEdits = await resolveMakerProtocolEdits(makerProject.projectRoot, integration);
+                await applyMakerFileEdits(makerProject.projectRoot, integrationEdits, { compileGate: true });
                 await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
             }
             await runMakerAgentInspectionTurns({
@@ -4876,7 +4927,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                         if (!repairText) throw new Error(`All models failed Phase 3 File Repair: ${repairError?.message || 'unknown error'}`);
                         await writeMakerText(makerWorkspace, `logs/file-repair-response-${repairAttempt}.json`, repairText);
                         const repair = parseMakerFileRepairResponse(repairText);
-                        const applied = await applyMakerFileEdits(makerProject.projectRoot, repair.files, { compileGate: true });
+                        const repairEdits = await resolveMakerProtocolEdits(makerProject.projectRoot, repair);
+                        const applied = await applyMakerFileEdits(makerProject.projectRoot, repairEdits, { compileGate: true });
                         await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
                         rawGameHtml = await assembleMakerProjectHtmlWithAutoRepair(makerProject.projectRoot);
                         assertJobNotCancelled(jobId);
