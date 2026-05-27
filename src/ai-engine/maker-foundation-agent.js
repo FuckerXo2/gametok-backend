@@ -335,7 +335,13 @@ export function buildMakerAssetContractFromFoundation(foundation = {}, qualityIn
 
 export function buildIndexHtmlFromFoundation(foundation = {}) {
     const title = asString(foundation.title, 'GameTok Game');
-    const hudBlocks = asArray(foundation.hudBlocks);
+    const hudIdsSeen = new Set();
+    const hudBlocks = asArray(foundation.hudBlocks).filter((block) => {
+        const id = slugify(block);
+        if (hudIdsSeen.has(id)) return false;
+        hudIdsSeen.add(id);
+        return true;
+    });
     const hudHtml = hudBlocks.map((block) => {
         const id = slugify(block);
         return `      <div class="hud-chip hud-${id}">
@@ -399,11 +405,17 @@ function jsString(value = '') {
 export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
     const hudBlocks = asArray(foundation.hudBlocks);
-    const hudRefs = hudBlocks.map((block) => {
-        const id = slugify(block);
-        return `  ${id}: document.getElementById('${id}-value'),`;
-    }).join('\n');
-    const stateKeys = asArray(foundation.requiredState).filter((key) => !['width', 'height'].includes(key));
+    const hudIdsSeen = new Set(['score']);
+    const hudRefs = hudBlocks
+        .map((block) => slugify(block))
+        .filter((id) => {
+            if (hudIdsSeen.has(id)) return false;
+            hudIdsSeen.add(id);
+            return true;
+        })
+        .map((id) => `  ${id}: document.getElementById('${id}-value'),`)
+        .join('\n');
+    const stateKeys = [...new Set(asArray(foundation.requiredState).filter((key) => !['width', 'height'].includes(key)))];
     const coveredStateKeys = new Set(stateKeys);
     const stateInit = stateKeys.map((key) => {
         if (key === 'score' || key.endsWith('Count')) return `  ${key}: 0,`;
@@ -415,7 +427,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
     }).join('\n');
     const hudStateInit = hudBlocks
         .map((block) => slugify(block))
-        .filter((id) => id !== 'score' && !coveredStateKeys.has(id))
+        .filter((id, index, ids) => id !== 'score' && !coveredStateKeys.has(id) && ids.indexOf(id) === index)
         .map((id) => {
             coveredStateKeys.add(id);
             if (id.includes('time')) return `  ${id}: 120,`;
@@ -438,7 +450,8 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
         .map((note) => `// ${note}`)
         .join('\n');
 
-    return `// GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
+    return `// @ts-nocheck
+// GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
 ${implNotes}
 import './styles.css';
