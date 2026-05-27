@@ -32,7 +32,7 @@ import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, norma
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
-import { buildForgeAutoscaleReport, runForgeAutoscaleTick } from './forge-autoscale.js';
+import { buildForgeAutoscaleReport, runForgeAutoscaleTick, isForgeAutoscaleEnabled } from './forge-autoscale.js';
 import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
@@ -1926,7 +1926,7 @@ async function enqueueGenerationJob({
     console.log(
         `🏗️ [GEN QUEUE] Enqueued ${kind} job ${jobId}; queued=${queueMetrics.queued} running=${queueMetrics.running} baseConcurrency=${GENERATION_JOB_CONCURRENCY} maxConcurrency=${GENERATION_JOB_MAX_CONCURRENCY}`
     );
-    if (process.env.FORGE_AUTOSCALE_ENABLED === 'true' && queueMetrics.queued > 0) {
+    if (isForgeAutoscaleEnabled() && queueMetrics.queued > 0) {
         void runForgeAutoscaleTick().catch((error) => {
             console.warn('[Forge Autoscale] enqueue trigger failed:', error?.message || error);
         });

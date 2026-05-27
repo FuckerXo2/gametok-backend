@@ -1,7 +1,15 @@
 import pool from '../db.js';
 
 const RAILWAY_GRAPHQL_URL = process.env.RAILWAY_GRAPHQL_URL || 'https://backboard.railway.com/graphql/v2';
-const FORGE_AUTOSCALE_ENABLED = process.env.FORGE_AUTOSCALE_ENABLED === 'true';
+const IS_RAILWAY = Boolean(
+    process.env.RAILWAY_ENVIRONMENT
+    || process.env.RAILWAY_REPLICA_ID
+    || process.env.RAILWAY_ENVIRONMENT_ID
+    || process.env.RAILWAY_SERVICE_ID
+);
+const FORGE_AUTOSCALE_ENABLED = process.env.FORGE_AUTOSCALE_ENABLED === 'false'
+    ? false
+    : (process.env.FORGE_AUTOSCALE_ENABLED === 'true' || IS_RAILWAY);
 const FORGE_AUTOSCALE_APPLY = process.env.FORGE_AUTOSCALE_APPLY !== 'false';
 const FORGE_AUTOSCALE_INTERVAL_MS = Math.max(15000, Number(process.env.FORGE_AUTOSCALE_INTERVAL_MS || 30000));
 const FORGE_AUTOSCALE_JOBS_PER_REPLICA = Math.max(1, Number(process.env.FORGE_AUTOSCALE_JOBS_PER_REPLICA || 4));
@@ -17,12 +25,36 @@ const FORGE_AUTOSCALE_SCALE_DOWN_AFTER_MS = Math.max(
 const FORGE_AUTOSCALE_ADVISORY_LOCK_KEY = 8450921;
 
 const RAILWAY_API_TOKEN = process.env.RAILWAY_API_TOKEN || process.env.RAILWAY_TOKEN || '';
-const RAILWAY_ENVIRONMENT_ID = process.env.RAILWAY_ENVIRONMENT_ID || process.env.RAILWAY_ENVIRONMENT || '';
-const RAILWAY_FORGE_SERVICE_ID = process.env.RAILWAY_FORGE_SERVICE_ID || '';
+const RAILWAY_ENVIRONMENT_ID = process.env.RAILWAY_ENVIRONMENT_ID
+    || process.env.RAILWAY_ENVIRONMENT
+    || '';
+const RAILWAY_FORGE_SERVICE_ID = process.env.RAILWAY_FORGE_SERVICE_ID
+    || process.env.RAILWAY_SERVICE_ID
+    || '';
 const RAILWAY_FORGE_REGION = process.env.RAILWAY_FORGE_REGION
     || process.env.RAILWAY_REPLICA_REGION
     || process.env.RAILWAY_REGION
     || 'us-west1';
+
+export function isForgeAutoscaleEnabled() {
+    return FORGE_AUTOSCALE_ENABLED;
+}
+
+export function getForgeAutoscaleConfig() {
+    return {
+        enabled: FORGE_AUTOSCALE_ENABLED,
+        apply: FORGE_AUTOSCALE_APPLY,
+        isRailway: IS_RAILWAY,
+        hasApiToken: Boolean(RAILWAY_API_TOKEN),
+        environmentId: RAILWAY_ENVIRONMENT_ID || null,
+        forgeServiceId: RAILWAY_FORGE_SERVICE_ID || null,
+        region: RAILWAY_FORGE_REGION,
+        jobsPerReplica: FORGE_AUTOSCALE_JOBS_PER_REPLICA,
+        minReplicas: FORGE_AUTOSCALE_MIN_REPLICAS,
+        maxReplicas: FORGE_AUTOSCALE_MAX_REPLICAS,
+        intervalMs: FORGE_AUTOSCALE_INTERVAL_MS,
+    };
+}
 
 const autoscalerState = {
     lastDemandAt: Date.now(),
@@ -249,11 +281,20 @@ export async function runForgeAutoscaleTick({ apply = FORGE_AUTOSCALE_APPLY } = 
             return { ...report, applied: false, dryRun: true };
         }
 
-        if (!RAILWAY_API_TOKEN || !RAILWAY_ENVIRONMENT_ID || !RAILWAY_FORGE_SERVICE_ID) {
-            const message = 'Missing RAILWAY_API_TOKEN, RAILWAY_ENVIRONMENT_ID, or RAILWAY_FORGE_SERVICE_ID';
+        if (!RAILWAY_API_TOKEN) {
+            const message = 'RAILWAY_API_TOKEN not set; using in-box burst concurrency only (add one project token to enable replica autoscaling)';
+            if (!autoscalerState.lastError || autoscalerState.lastError !== message) {
+                autoscalerState.lastError = message;
+                console.warn(`[Forge Autoscale] ${message}`);
+            }
+            return { ...report, applied: false, error: message, mode: 'burst_only' };
+        }
+
+        if (!RAILWAY_ENVIRONMENT_ID || !RAILWAY_FORGE_SERVICE_ID) {
+            const message = 'Railway service/environment IDs unavailable; using in-box burst concurrency only';
             autoscalerState.lastError = message;
             console.warn(`[Forge Autoscale] ${message}`);
-            return { ...report, applied: false, error: message };
+            return { ...report, applied: false, error: message, mode: 'burst_only' };
         }
 
         const appliedReplicas = await scaleRailwayForgeReplicas(
@@ -275,12 +316,19 @@ export async function runForgeAutoscaleTick({ apply = FORGE_AUTOSCALE_APPLY } = 
 
 export function startForgeAutoscaler() {
     if (!FORGE_AUTOSCALE_ENABLED || autoscalerState.timer) {
+        if (!FORGE_AUTOSCALE_ENABLED) {
+            console.log('[Forge Autoscale] Disabled on this replica');
+        }
         return;
     }
     autoscalerState.stopping = false;
+    const config = getForgeAutoscaleConfig();
     console.log(
-        `[Forge Autoscale] Leader loop started (interval=${FORGE_AUTOSCALE_INTERVAL_MS}ms, jobsPerReplica=${FORGE_AUTOSCALE_JOBS_PER_REPLICA}, min=${FORGE_AUTOSCALE_MIN_REPLICAS}, max=${FORGE_AUTOSCALE_MAX_REPLICAS})`
+        `[Forge Autoscale] Leader loop started on Railway=${config.isRailway} interval=${FORGE_AUTOSCALE_INTERVAL_MS}ms jobsPerReplica=${FORGE_AUTOSCALE_JOBS_PER_REPLICA} min=${FORGE_AUTOSCALE_MIN_REPLICAS} max=${FORGE_AUTOSCALE_MAX_REPLICAS} env=${config.environmentId || 'auto-missing'} service=${config.forgeServiceId || 'auto-missing'} apiToken=${config.hasApiToken ? 'yes' : 'no'}`
     );
+    if (!config.hasApiToken) {
+        console.warn('[Forge Autoscale] No RAILWAY_API_TOKEN yet; 8-parallel burst is active, replica autoscaling waits for one project token.');
+    }
 
     const tick = () => {
         if (autoscalerState.stopping) return;
