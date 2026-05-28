@@ -61,9 +61,26 @@ const autoscalerState = {
     lastAppliedReplicas: null,
     lastTickAt: null,
     lastError: null,
+    lastStatusSignature: null,
     timer: null,
     stopping: false,
 };
+
+function formatForgeAutoscaleStatus(report = {}) {
+    return `[Forge Autoscale] ${report.action || 'hold'} replicas=${report.currentReplicas} running=${report.running} queued=${report.queued}`;
+}
+
+function shouldLogForgeAutoscaleStatus(report = {}) {
+    const signature = `${report.action}|${report.currentReplicas}|${report.running}|${report.queued}|${report.shouldScale}|${autoscalerState.lastError || ''}`;
+    if (signature === autoscalerState.lastStatusSignature) {
+        return false;
+    }
+    autoscalerState.lastStatusSignature = signature;
+    if (report.running > 0 || report.queued > 0 || report.shouldScale) {
+        return true;
+    }
+    return false;
+}
 
 export function computeForgeAutoscalePlan({
     running = 0,
@@ -272,7 +289,9 @@ export async function runForgeAutoscaleTick({ apply = FORGE_AUTOSCALE_APPLY } = 
         autoscalerState.lastTickAt = new Date().toISOString();
 
         if (!report.shouldScale) {
-            console.log(`[Forge Autoscale] hold replicas=${report.currentReplicas} running=${report.running} queued=${report.queued}`);
+            if (shouldLogForgeAutoscaleStatus(report)) {
+                console.log(formatForgeAutoscaleStatus(report));
+            }
             return { ...report, applied: false };
         }
 
