@@ -28,6 +28,7 @@ import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-as
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
+import { getMakerAgentToolDefinitions, runMakerAgentToolTurn, useMakerAgentTools } from './maker-agent-tools.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
@@ -76,12 +77,71 @@ function extractJson(text) {
 }
 
 /**
+ * Escape raw control characters inside JSON double-quoted string literals.
+ * LLM builders often paste multiline find/replace or file content with literal
+ * newlines — JSON.parse rejects those as "Bad control character in string literal".
+ */
+function escapeControlCharsInJsonStrings(text) {
+    if (!text || typeof text !== 'string') return text;
+
+    let result = '';
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        const code = ch.charCodeAt(0);
+
+        if (!inString) {
+            result += ch;
+            if (ch === '"') {
+                inString = true;
+            }
+            continue;
+        }
+
+        if (escaped) {
+            result += ch;
+            escaped = false;
+            continue;
+        }
+
+        if (ch === '\\') {
+            result += ch;
+            escaped = true;
+            continue;
+        }
+
+        if (ch === '"') {
+            result += ch;
+            inString = false;
+            continue;
+        }
+
+        if (code >= 0x00 && code <= 0x1f) {
+            if (ch === '\n') {
+                result += '\\n';
+            } else if (ch === '\r') {
+                result += '\\r';
+            } else if (ch === '\t') {
+                result += '\\t';
+            }
+            continue;
+        }
+
+        result += ch;
+    }
+
+    return result;
+}
+
+/**
  * Attempt to repair common LLM JSON mistakes:
  *  - Strip JS-style single-line (//) and multi-line comments
  *  - Replace single-quoted strings with double-quoted strings
  *  - Remove trailing commas before } or ]
  *  - Fix unquoted property names
- *  - Remove control characters inside string values
+ *  - Escape control characters inside string values
  */
 function repairJson(text) {
     if (!text || typeof text !== 'string') return text;
@@ -141,8 +201,8 @@ function repairJson(text) {
     //    Only outside of string values. This is a best-effort regex.
     repaired = repaired.replace(/(?<=[\{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '"$1":');
 
-    // 6. Remove control characters (except \n \r \t) that break JSON parsers
-    repaired = repaired.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+    // 6. Escape raw control characters inside JSON string literals
+    repaired = escapeControlCharsInJsonStrings(repaired);
 
     // Validate the repair worked
     try { JSON.parse(repaired); return repaired; } catch (_) { /* return repaired anyway, caller will handle */ }
@@ -932,10 +992,11 @@ function cleanJsonContinuation(text) {
 function parseBuilderJsonText(text) {
     const cleaned = stripMarkdownFences(String(text || ''), 'json');
     const extracted = extractJson(cleaned);
+    const sanitized = escapeControlCharsInJsonStrings(extracted);
     try {
-        return JSON.parse(extracted);
+        return JSON.parse(sanitized);
     } catch (e) {
-        return JSON.parse(repairJson(extracted));
+        return JSON.parse(repairJson(sanitized));
     }
 }
 
@@ -1080,6 +1141,40 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
         text,
         stopReason: finishReason,
     };
+}
+
+async function requestMakerToolCompletion(messages, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3, currentModel = null } = {}) {
+    assertJobNotCancelled(jobId);
+    await assertJobNotCancelledShared(jobId, { force: true });
+    const logLabel = formatJobLogLabel(label, jobId);
+    const toolCompatibleFallbacks = BUILDER_FALLBACK_MODELS.filter((model) => !TOOL_INCOMPATIBLE_MAKER_MODELS.has(model));
+
+    return withNvidiaRetries(async (modelParam, client) => withAbortableTimeout(async (signal) => {
+        const modelToUse = currentModel || modelParam || DREAM_MODELS.premiumBuilder;
+        assertJobNotCancelled(jobId);
+        await assertJobNotCancelledShared(jobId);
+        console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse})...`);
+        const response = await client.chat.completions.create({
+            ...getNvidiaChatOptions(modelToUse, BUILDER_MAX_TOKENS),
+            stream: false,
+            messages,
+            tools: getMakerAgentToolDefinitions(),
+            tool_choice: 'auto',
+        }, { signal });
+        const message = response?.choices?.[0]?.message;
+        if (!message) {
+            throw new Error('Tool completion returned no assistant message.');
+        }
+        const toolCallCount = Array.isArray(message.tool_calls) ? message.tool_calls.length : 0;
+        console.log(`🛠️ [${logLabel}] tool_calls=${toolCallCount} content_chars=${String(message.content || '').length}`);
+        return message;
+    }, timeoutMs, logLabel), {
+        label,
+        jobId,
+        maxAttempts,
+        baseDelayMs: 1500,
+        fallbackModels: currentModel ? [currentModel] : toolCompatibleFallbacks,
+    });
 }
 
 async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = null, currentModel = null } = {}) {
@@ -4226,6 +4321,7 @@ async function runMakerAgentInspectionTurns({
         lastRunEvidence = preRunEvidence;
         const projectFiles = await readMakerProjectFiles(projectRoot);
         const objective = objectives[turnNumber - 1] || objectives[objectives.length - 1];
+        const makerAgentUsesTools = useMakerAgentTools();
         const promptText = buildMakerAgentInspectionPrompt({
             prompt,
             qualityIntent,
@@ -4241,88 +4337,63 @@ async function runMakerAgentInspectionTurns({
             lastRunEvidence,
             turnNumber,
             objective,
+            transport: makerAgentUsesTools ? 'tools' : 'json',
         });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         try {
-            const responseText = await generateCompleteJsonWithBuilder(promptText, {
-                label: `Phase 2 File Agent Turn ${turnNumber}`,
-                jobId,
-                timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
-                maxAttempts: 2,
-            });
-            await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
             let inspection;
-            try {
-                inspection = parseMakerAgentInspectionResponse(responseText);
-            } catch (decodeError) {
-                console.warn(`[Maker Agent] Turn ${turnNumber} file payload decode failed: ${decodeError.message}`);
-                const runEvidence = buildMakerDecodeFailureEvidence(decodeError, {
-                    phase: 'after_file_agent_turn',
-                    turnNumber,
-                });
-                lastRunEvidence = runEvidence;
-                await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-                await appendMakerAgentTurn(workspace, turns, {
-                    phase: 'file_inspection',
-                    objective,
-                    status: 'needs_followup',
-                    model: DREAM_MODELS.premiumBuilder,
-                    filesRead: summarizeMakerProjectFiles(projectFiles),
-                    editsApplied: [],
-                    targetedRepairTasks: runEvidence.targetedRepairTasks || [],
-                    sandbox: runEvidence,
-                    notes: [],
-                    error: decodeError.message,
-                });
-                continue;
-            }
             let applied = [];
             let runEvidence;
-            const hasProtocolEdits = (inspection.patches?.length > 0) || (inspection.files?.length > 0);
-            if (hasProtocolEdits) {
-                try {
-                    const pendingEdits = await resolveMakerProtocolEdits(projectRoot, inspection);
-                    if (pendingEdits.length === 0) {
-                        runEvidence = await runMakerProjectEvidence({
-                            workspace,
-                            projectRoot,
-                            generatedAssets,
-                            templateContract,
-                            assetContract,
-                            turnNumber,
-                            phase: 'after_file_agent_turn',
-                        });
-                    } else {
-                        applied = await applyMakerFileEdits(projectRoot, pendingEdits, { compileGate: true });
-                        runEvidence = await runMakerProjectEvidence({
-                            workspace,
-                            projectRoot,
-                            generatedAssets,
-                            templateContract,
-                            assetContract,
-                            turnNumber,
-                            phase: 'after_file_agent_turn',
-                        });
-                    }
-                } catch (applyError) {
-                    if (applyError.code === 'TSC_FAILED') {
-                        runEvidence = buildMakerCompileFailureEvidence(applyError, {
-                            phase: 'after_file_agent_turn',
-                            turnNumber,
-                        });
-                        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-                    } else if (/Patch for /.test(applyError.message || '')) {
-                        console.warn(`[Maker Agent] Turn ${turnNumber} patch apply failed: ${applyError.message}`);
-                        runEvidence = buildMakerPatchFailureEvidence(applyError, {
+
+            if (makerAgentUsesTools) {
+                const toolTurn = await runMakerAgentToolTurn({
+                    userPrompt: promptText,
+                    projectRoot,
+                    requestCompletion: (messages) => requestMakerToolCompletion(messages, {
+                        label: `Phase 2 File Agent Turn ${turnNumber}`,
+                        jobId,
+                        timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
+                        maxAttempts: 2,
+                    }),
+                    helpers: {
+                        safeMakerProjectPath,
+                        isProtectedMakerRuntimeFile,
+                        sanitizeMakerMainTsContent,
+                    },
+                });
+                await writeMakerJson(workspace, `logs/agent-tool-turn-${turnNumber}.json`, toolTurn.log);
+                inspection = {
+                    patches: [],
+                    files: [],
+                    noEditsNeeded: toolTurn.noEditsNeeded,
+                    notes: toolTurn.notes,
+                };
+                applied = toolTurn.editsApplied;
+                if (applied.length > 0) {
+                    try {
+                        await runMakerProjectTscCheck(projectRoot);
+                    } catch (compileError) {
+                        runEvidence = buildMakerCompileFailureEvidence(compileError, {
                             phase: 'after_file_agent_turn',
                             turnNumber,
                         });
                         await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-                    } else {
-                        throw applyError;
+                        lastRunEvidence = runEvidence;
+                        await appendMakerAgentTurn(workspace, turns, {
+                            phase: 'file_inspection',
+                            objective,
+                            status: 'needs_followup',
+                            model: DREAM_MODELS.premiumBuilder,
+                            filesRead: summarizeMakerProjectFiles(projectFiles),
+                            editsApplied: applied,
+                            targetedRepairTasks: runEvidence.targetedRepairTasks || [],
+                            sandbox: runEvidence,
+                            notes: inspection.notes,
+                            error: compileError.message,
+                        });
+                        continue;
                     }
                 }
-            } else {
                 runEvidence = await runMakerProjectEvidence({
                     workspace,
                     projectRoot,
@@ -4332,6 +4403,93 @@ async function runMakerAgentInspectionTurns({
                     turnNumber,
                     phase: 'after_file_agent_turn',
                 });
+            } else {
+                const responseText = await generateCompleteJsonWithBuilder(promptText, {
+                    label: `Phase 2 File Agent Turn ${turnNumber}`,
+                    jobId,
+                    timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
+                    maxAttempts: 2,
+                });
+                await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
+                try {
+                    inspection = parseMakerAgentInspectionResponse(responseText);
+                } catch (decodeError) {
+                    console.warn(`[Maker Agent] Turn ${turnNumber} file payload decode failed: ${decodeError.message}`);
+                    const decodeEvidence = buildMakerDecodeFailureEvidence(decodeError, {
+                        phase: 'after_file_agent_turn',
+                        turnNumber,
+                    });
+                    lastRunEvidence = decodeEvidence;
+                    await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, decodeEvidence);
+                    await appendMakerAgentTurn(workspace, turns, {
+                        phase: 'file_inspection',
+                        objective,
+                        status: 'needs_followup',
+                        model: DREAM_MODELS.premiumBuilder,
+                        filesRead: summarizeMakerProjectFiles(projectFiles),
+                        editsApplied: [],
+                        targetedRepairTasks: decodeEvidence.targetedRepairTasks || [],
+                        sandbox: decodeEvidence,
+                        notes: [],
+                        error: decodeError.message,
+                    });
+                    continue;
+                }
+                const hasProtocolEdits = (inspection.patches?.length > 0) || (inspection.files?.length > 0);
+                if (hasProtocolEdits) {
+                    try {
+                        const pendingEdits = await resolveMakerProtocolEdits(projectRoot, inspection);
+                        if (pendingEdits.length === 0) {
+                            runEvidence = await runMakerProjectEvidence({
+                                workspace,
+                                projectRoot,
+                                generatedAssets,
+                                templateContract,
+                                assetContract,
+                                turnNumber,
+                                phase: 'after_file_agent_turn',
+                            });
+                        } else {
+                            applied = await applyMakerFileEdits(projectRoot, pendingEdits, { compileGate: true });
+                            runEvidence = await runMakerProjectEvidence({
+                                workspace,
+                                projectRoot,
+                                generatedAssets,
+                                templateContract,
+                                assetContract,
+                                turnNumber,
+                                phase: 'after_file_agent_turn',
+                            });
+                        }
+                    } catch (applyError) {
+                        if (applyError.code === 'TSC_FAILED') {
+                            runEvidence = buildMakerCompileFailureEvidence(applyError, {
+                                phase: 'after_file_agent_turn',
+                                turnNumber,
+                            });
+                            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+                        } else if (/Patch for /.test(applyError.message || '')) {
+                            console.warn(`[Maker Agent] Turn ${turnNumber} patch apply failed: ${applyError.message}`);
+                            runEvidence = buildMakerPatchFailureEvidence(applyError, {
+                                phase: 'after_file_agent_turn',
+                                turnNumber,
+                            });
+                            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+                        } else {
+                            throw applyError;
+                        }
+                    }
+                } else {
+                    runEvidence = await runMakerProjectEvidence({
+                        workspace,
+                        projectRoot,
+                        generatedAssets,
+                        templateContract,
+                        assetContract,
+                        turnNumber,
+                        phase: 'after_file_agent_turn',
+                    });
+                }
             }
             lastRunEvidence = runEvidence;
             await appendMakerAgentTurn(workspace, turns, {
@@ -4525,7 +4683,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         assertJobNotCancelled(jobId);
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'}`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);

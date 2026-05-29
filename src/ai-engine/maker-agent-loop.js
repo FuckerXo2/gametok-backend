@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse } from './maker-agent-response.js';
+import { getMakerAgentToolInstructionLines } from './maker-agent-tools.js';
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
 
 function extractJson(text) {
@@ -100,7 +101,9 @@ export function buildMakerAgentInspectionPrompt({
     lastRunEvidence = null,
     turnNumber = 1,
     objective = '',
+    transport = 'tools',
 } = {}) {
+    const useTools = transport === 'tools';
     return [
         getMakerSystemManualBlock('fileAgent'),
         '',
@@ -108,15 +111,22 @@ export function buildMakerAgentInspectionPrompt({
         '',
         'This is a multi-turn file inspection pass after the first project build and before sandbox verification.',
         'Read the actual project files, compare them to the builder maps, contracts, and last run evidence, then make targeted file edits.',
-        'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
-        '',
-        'Use patch-based protocolVersion 2 responses. Patch the existing scaffold in small steps; do not rewrite entire files unless absolutely required.',
-        '',
-        'Protocol schema:',
-        JSON.stringify(getMakerFileJsonSchemaExample(), null, 2),
-        '',
-        'Rules:',
-        ...getMakerFileJsonEncodingRuleLines(),
+        ...(useTools ? [
+            'Use the provided NVIDIA tools to edit files. Do not dump a JSON protocol blob in plain message text.',
+            '',
+            'Tool rules:',
+            ...getMakerAgentToolInstructionLines(),
+        ] : [
+            'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
+            '',
+            'Use patch-based protocolVersion 2 responses. Patch the existing scaffold in small steps; do not rewrite entire files unless absolutely required.',
+            '',
+            'Protocol schema:',
+            JSON.stringify(getMakerFileJsonSchemaExample(), null, 2),
+            '',
+            'Rules:',
+            ...getMakerFileJsonEncodingRuleLines(),
+        ]),
         '- CRITICAL ARCHITECTURE RULE (OPENGAME PROTOCOL): NEVER use `Phaser.GameObjects.Graphics` (or raw canvas `ctx.arc()`) to render active gameplay entities (players, enemies, projectiles).',
         '- You MUST use Sprites and Arcade Physics bodies (`this.physics.add.sprite`) for all physical gameplay objects.',
         '- If you absolutely must use Graphics for UI, background, or drawing, you MUST call `graphics.clear()` at the beginning of every `update()` loop frame to prevent ghosting and trails. Failure to do this will result in immediate rejection.',

@@ -37,6 +37,7 @@ export function getMakerPatchProtocolRuleLines() {
         '- CRITICAL TRANSPORT RULE: Prefer patch-based edits. Return small find/replace pairs, NOT full file contents.',
         '- Use protocolVersion 2 and kind "maker_protocol_patch".',
         '- patches[].path is a project-relative path. patches[].replacements[] uses plain JSON strings for find and replace.',
+        '- CRITICAL: find/replace strings must be valid JSON — escape newlines as \\n, tabs as \\t, quotes as \\". Never paste raw line breaks inside JSON string values.',
         '- Each find MUST be copied exactly from the current Project files text, including whitespace and punctuation.',
         '- Each find must be unique in the target file. If it would match twice, lengthen find with more surrounding lines.',
         '- Keep each replacement focused. Use 3-10 replacements per turn instead of one giant rewrite.',
