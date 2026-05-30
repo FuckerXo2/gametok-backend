@@ -34,6 +34,27 @@ export function summarizeMakerProjectFiles(projectFiles = []) {
     }));
 }
 
+const MAKER_AGENT_FILE_PROMPT_CHARS = Math.max(
+    4000,
+    Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_FILE_PROMPT_CHARS || 12000)),
+);
+
+export function summarizeProjectFilesForPrompt(projectFiles = [], maxCharsPerFile = MAKER_AGENT_FILE_PROMPT_CHARS) {
+    return (Array.isArray(projectFiles) ? projectFiles : []).map((file) => {
+        const pathValue = file.path || null;
+        const content = String(file.content || '');
+        if (content.length <= maxCharsPerFile) {
+            return { path: pathValue, content, truncated: false };
+        }
+        return {
+            path: pathValue,
+            content: `${content.slice(0, maxCharsPerFile)}\n/* ... truncated for prompt (${content.length} chars total). Copy find anchors from this excerpt only; lengthen find with nearby lines if needed. */`,
+            truncated: true,
+            originalChars: content.length,
+        };
+    });
+}
+
 export async function appendMakerAgentTurn(workspace, turns, turn) {
     const normalized = {
         index: (Array.isArray(turns) ? turns.length : 0) + 1,
@@ -203,7 +224,7 @@ export function buildMakerAgentInspectionPrompt({
         JSON.stringify(lastRunEvidence || null, null, 2),
         '',
         'Project files:',
-        JSON.stringify(projectFiles, null, 2),
+        JSON.stringify(summarizeProjectFilesForPrompt(projectFiles), null, 2),
     ].join('\n');
 }
 

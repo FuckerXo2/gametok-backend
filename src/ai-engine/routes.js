@@ -241,6 +241,8 @@ const DREAM_MODELS = {
 };
 
 const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 256000);
+const MAKER_TOOL_MAX_TOKENS = Math.max(1024, Math.min(16384, Number(process.env.GAMETOK_MAKER_TOOL_MAX_TOKENS || 8192)));
+const GLM_MAX_OUTPUT_TOKENS = Math.max(4096, Math.min(200000, Number(process.env.GAMETOK_GLM_MAX_OUTPUT_TOKENS || 128000)));
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 const BUILDER_JSON_REWRITE_ATTEMPTS = Math.max(0, Math.min(2, Number(process.env.DREAMSTREAM_BUILDER_JSON_REWRITE_ATTEMPTS || 1)));
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
@@ -952,11 +954,19 @@ function isDeepSeekV4Model(model) {
     return typeof model === 'string' && model.startsWith('deepseek-ai/deepseek-v4');
 }
 
+function isGlmModel(model) {
+    return typeof model === 'string' && /^z-ai\/glm/i.test(model);
+}
+
 function getMaxTokensForModel(model, requestedMaxTokens) {
+    const requested = Number(requestedMaxTokens || 8192);
     if (isDeepSeekV4Model(model)) {
-        return Math.min(Number(requestedMaxTokens || 8192), 16384);
+        return Math.min(requested, 16384);
     }
-    return requestedMaxTokens;
+    if (isGlmModel(model)) {
+        return Math.min(requested, GLM_MAX_OUTPUT_TOKENS);
+    }
+    return requested;
 }
 
 function getNvidiaChatOptions(model, requestedMaxTokens) {
@@ -1154,13 +1164,15 @@ async function requestMakerToolCompletion(messages, { label, jobId = null, timeo
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
         console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse})...`);
+        const toolMaxTokens = getMaxTokensForModel(modelToUse, MAKER_TOOL_MAX_TOKENS);
         const response = await client.chat.completions.create({
-            ...getNvidiaChatOptions(modelToUse, BUILDER_MAX_TOKENS),
+            ...getNvidiaChatOptions(modelToUse, toolMaxTokens),
             stream: false,
             messages,
             tools: getMakerAgentToolDefinitions(),
             tool_choice: 'auto',
         }, { signal });
+        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens}`);
         const message = response?.choices?.[0]?.message;
         if (!message) {
             throw new Error('Tool completion returned no assistant message.');
