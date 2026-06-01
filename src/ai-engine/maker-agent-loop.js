@@ -2,7 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse } from './maker-agent-response.js';
-import { getMakerAgentToolInstructionLines } from './maker-agent-tools.js';
+import { buildAllowedAssetKeysPromptBlock } from './maker-agent-asset-keys.js';
+import {
+    getMakerAgentToolInstructionLines,
+    MAKER_AGENT_TURN_MODE_IMPLEMENT,
+    MAKER_AGENT_TURN_MODE_REPAIR,
+} from './maker-agent-tools.js';
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
 
 function extractJson(text) {
@@ -123,20 +128,29 @@ export function buildMakerAgentInspectionPrompt({
     turnNumber = 1,
     objective = '',
     transport = 'tools',
+    mode = MAKER_AGENT_TURN_MODE_REPAIR,
+    allowedAssetKeys = [],
+    assetSlotHints = [],
 } = {}) {
     const useTools = transport === 'tools';
+    const implementMode = useTools && mode === MAKER_AGENT_TURN_MODE_IMPLEMENT;
     return [
         getMakerSystemManualBlock('fileAgent'),
         '',
         'You are the GameTok native maker file agent.',
         '',
-        'This is a multi-turn file inspection pass after the first project build and before sandbox verification.',
-        'Read the actual project files, compare them to the builder maps, contracts, and last run evidence, then make targeted file edits.',
+        ...(implementMode ? [
+            'IMPLEMENT PASS: Replace the foundation stub in src/main.ts with the full playable game loop in ONE write_file call.',
+            'Foundation HTML, HUD shell, canvas boot, and asset loader are already materialized. Do not redesign the page layout.',
+        ] : [
+            'This is a repair pass after build/preflight/sandbox evidence. Make the smallest edits that fix the reported failures.',
+            'Read the actual project files, compare them to contracts and last run evidence, then patch in place.',
+        ]),
         ...(useTools ? [
             'Use the provided NVIDIA tools to edit files. Do not dump a JSON protocol blob in plain message text.',
             '',
             'Tool rules:',
-            ...getMakerAgentToolInstructionLines(),
+            ...getMakerAgentToolInstructionLines(mode),
         ] : [
             'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
             '',
@@ -151,14 +165,22 @@ export function buildMakerAgentInspectionPrompt({
         '- CRITICAL ARCHITECTURE RULE (OPENGAME PROTOCOL): NEVER use `Phaser.GameObjects.Graphics` (or raw canvas `ctx.arc()`) to render active gameplay entities (players, enemies, projectiles).',
         '- You MUST use Sprites and Arcade Physics bodies (`this.physics.add.sprite`) for all physical gameplay objects.',
         '- If you absolutely must use Graphics for UI, background, or drawing, you MUST call `graphics.clear()` at the beginning of every `update()` loop frame to prevent ghosting and trails. Failure to do this will result in immediate rejection.',
-        '- This is not a rewrite pass. Preserve the selected scaffold and existing project shape.',
+        ...(implementMode ? [
+            '- IMPLEMENT: write the complete src/main.ts in one write_file call, then finish_inspection.',
+            '- Preserve kernel boot shape: import "./styles.css", #game-canvas, resizeCanvas, getAssetImage helpers unless foundation requires otherwise.',
+        ] : [
+            '- REPAIR: preserve the selected scaffold and existing project shape.',
+            '- Use patches[].replacements with find text copied exactly from Project files.',
+        ]),
         '- Edit only index.html or existing/new src/**/*.css, src/**/*.ts, src/**/*.js, src/**/*.json files.',
         '- Protected scaffold/runtime files are read-only: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, src/scenes/Preloader.ts, Base*.ts files, package.json, tsconfig.json, and vite.config.ts.',
         '- For canvas-kernel dynamic foundations, implement the Foundation contract requiredFunctions and probeMethods in src/main.ts. The kernel already boots assets and draws a first-frame stub — replace stubs with the real loop.',
         '- For canvas-kernel, keep import "./styles.css" in src/main.ts and keep #game-canvas full-bleed at viewport 0,0. After getElementById("game-canvas"), narrow with instanceof HTMLCanvasElement before width/height/getContext calls (avoids TS18047 repair failures).',
         '- OpenGame asset protocol: read/use public/assets/asset-pack.json keys by construction. For Phaser projects, pass texture keys to this.add.image/sprite or this.physics.add.sprite; do not pass manifest objects or data URLs.',
         '- For canvas projects, ctx.drawImage may receive only HTMLImageElement/ImageBitmap/Canvas-like objects. Never pass DreamAssets.getImage(), DREAM_ASSET_PACK entries, asset-pack records, or raw data URL strings to drawImage.',
-        '- Use patches[].replacements with find text copied exactly from Project files. Do not rewrite entire src/main.ts in one response.',
+        ...(implementMode ? [] : [
+            '- Do not rewrite entire src/main.ts unless the file is corrupt or evidence requires it.',
+        ]),
         '- Do not append duplicate implementations of an existing function or class method. Modify the existing function in place; TypeScript TS2393 is a hard failure.',
         '- Check that the code implements the six-section GDD, especially Section 3 entity/function architecture.',
         '- Check that required template functions and window.__GAMETOK_TEMPLATE_PROBE__ methods are present.',
@@ -174,7 +196,10 @@ export function buildMakerAgentInspectionPrompt({
         '- Do not add external navigation, forms, remote pages, or new remote dependencies.',
         '',
         `Turn: ${turnNumber}`,
+        `Mode: ${mode}`,
         `Objective: ${objective || 'Audit generated files against maker contracts.'}`,
+        '',
+        buildAllowedAssetKeysPromptBlock(allowedAssetKeys, assetSlotHints),
         '',
         'Original user prompt:',
         prompt,

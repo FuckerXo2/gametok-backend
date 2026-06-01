@@ -28,7 +28,19 @@ import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-as
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
-import { getMakerAgentToolDefinitions, runMakerAgentToolTurn, useMakerAgentTools } from './maker-agent-tools.js';
+import {
+    buildAssetSlotRuntimeHints,
+    collectAllowedAssetPackKeys,
+    normalizeMainTsAssetKeys,
+    readProjectAssetPackKeys,
+} from './maker-agent-asset-keys.js';
+import {
+    getMakerAgentToolDefinitions,
+    resolveMakerAgentTurnMode,
+    runMakerAgentToolTurn,
+    useMakerAgentImplementMode,
+    useMakerAgentTools,
+} from './maker-agent-tools.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
@@ -4313,10 +4325,10 @@ async function runMakerAgentInspectionTurns({
     maxTurns = MAKER_AGENT_INSPECTION_TURNS,
 }) {
     const objectives = [
-        'Customize the scaffold into the requested game while preserving required template functions, state, controls, and probe API.',
-        'Wire generated assets through DreamAssets/DREAM_ASSET_PACK and update gameplay copy, tuning, entities, and feedback to match the GDD.',
-        'Run against rebuild/sandbox evidence from the previous turn and repair direct runtime, input, probe, or acceptance failures.',
-        'Re-read after edits and make one final targeted compliance cleanup if needed.',
+        'Implement the full gameplay loop in src/main.ts with ONE write_file call. Wire foundation requiredFunctions, probeMethods, HUD, controls, and exact asset-pack keys.',
+        'Repair direct preflight, compile, probe, or sandbox failures with small apply_patch edits. Do not rewrite unrelated systems.',
+        'Run against rebuild/sandbox evidence from the previous turn and repair remaining runtime or acceptance failures.',
+        'Make one final targeted compliance cleanup if evidence still reports issues.',
     ];
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
@@ -4334,6 +4346,12 @@ async function runMakerAgentInspectionTurns({
         const projectFiles = await readMakerProjectFiles(projectRoot);
         const objective = objectives[turnNumber - 1] || objectives[objectives.length - 1];
         const makerAgentUsesTools = useMakerAgentTools();
+        const turnMode = resolveMakerAgentTurnMode(turnNumber);
+        const allowedAssetKeys = [...new Set([
+            ...await readProjectAssetPackKeys(projectRoot),
+            ...collectAllowedAssetPackKeys({ generatedAssets }),
+        ])].sort();
+        const assetSlotHints = buildAssetSlotRuntimeHints({ assetContract, generatedAssets });
         const promptText = buildMakerAgentInspectionPrompt({
             prompt,
             qualityIntent,
@@ -4350,6 +4368,9 @@ async function runMakerAgentInspectionTurns({
             turnNumber,
             objective,
             transport: makerAgentUsesTools ? 'tools' : 'json',
+            mode: turnMode,
+            allowedAssetKeys,
+            assetSlotHints,
         });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         try {
@@ -4358,9 +4379,11 @@ async function runMakerAgentInspectionTurns({
             let runEvidence;
 
             if (makerAgentUsesTools) {
+                console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] mode=${turnMode} assetKeys=${allowedAssetKeys.length}`);
                 const toolTurn = await runMakerAgentToolTurn({
                     userPrompt: promptText,
                     projectRoot,
+                    mode: turnMode,
                     requestCompletion: (messages) => requestMakerToolCompletion(messages, {
                         label: `Phase 2 File Agent Turn ${turnNumber}`,
                         jobId,
@@ -4382,6 +4405,10 @@ async function runMakerAgentInspectionTurns({
                 };
                 applied = toolTurn.editsApplied;
                 if (applied.length > 0) {
+                    const keyNormalize = await normalizeMainTsAssetKeys(projectRoot, allowedAssetKeys);
+                    if (keyNormalize.changed) {
+                        console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Normalized asset key casing in src/main.ts`);
+                    }
                     try {
                         await runMakerProjectTscCheck(projectRoot);
                     } catch (compileError) {
@@ -4695,7 +4722,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         assertJobNotCancelled(jobId);
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'}`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
