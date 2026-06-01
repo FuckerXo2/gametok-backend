@@ -276,6 +276,16 @@ const DREAM_MODELS = {
     narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
 
+function getDreamTextModelLabel() {
+    if (isDeepSeekPrimaryEnabled()) {
+        return getDeepSeekTextConfig()?.model || 'deepseek-v4-pro';
+    }
+    if (isMoonshotPrimaryEnabled()) {
+        return getMoonshotTextConfig()?.model || DEFAULT_KIMI_BUILDER_MODEL;
+    }
+    return DREAM_MODELS.premiumBuilder || DREAM_MODELS.spec;
+}
+
 const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 256000);
 const MAKER_TOOL_MAX_TOKENS = Math.max(1024, Math.min(16384, Number(process.env.GAMETOK_MAKER_TOOL_MAX_TOKENS || 8192)));
 const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
@@ -5084,7 +5094,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
         await reportProgress(8, 'spec', 'Reading your idea...');
-        console.log(`📋 Phase 1/3: ${DREAM_MODELS.spec} extracting game intent...`);
+        console.log(`📋 Phase 1/3: ${getDreamTextModelLabel()} extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt, { dynamicFoundation });
         let qualityIntent;
         try {
@@ -5108,7 +5118,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         if (dynamicFoundation) {
             await reportProgress(14, 'foundation', 'Designing game foundation...');
-            console.log(`🏗️ Phase 1.5/3: ${DREAM_MODELS.spec} architecting dynamic foundation...`);
+            console.log(`🏗️ Phase 1.5/3: ${getDreamTextModelLabel()} architecting dynamic foundation...`);
             const foundationPrompt = buildFoundationAgentPrompt(qualityIntent, prompt);
             await writeMakerText(makerWorkspace, 'logs/foundation-agent-prompt.txt', `${foundationPrompt.system}\n\n---\n\n${foundationPrompt.user}`);
             let rawFoundation;
