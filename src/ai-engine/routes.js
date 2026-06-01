@@ -288,7 +288,7 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(4, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 2)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(8, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 6)));
+const MAKER_AGENT_INSPECTION_TURNS = Math.max(1, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 2)));
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
 const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
 
@@ -4538,12 +4538,9 @@ async function runMakerAgentInspectionTurns({
 }) {
     const objectives = [
         'Implement the gameplay loop incrementally in src/main.ts. Use read_file/grep_project, apply_patch (preferred), and run_tsc_check. Each edit saves to disk immediately.',
-        'Fix TypeScript, preflight, probe, or sandbox failures from last run evidence with targeted apply_patch edits.',
-        'Continue repairing until sandbox evidence passes or no progress remains.',
-        'Final compliance pass: wire missing probes, asset keys, and acceptance checks.',
-        'Last-chance sandbox repair for any remaining runtime failures.',
-        'One final polish turn if evidence still reports minor issues.',
+        'Repair pass only: fix the targetedRepairTasks and failed checks from the latest sandbox/build evidence with the smallest apply_patch edits. Do not re-audit the whole project.',
     ];
+    console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turn 1=implement, up to ${Math.max(0, maxTurns - 1)} repair turn(s) only if sandbox still fails (maxTurns=${maxTurns})`);
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
@@ -4601,6 +4598,8 @@ async function runMakerAgentInspectionTurns({
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         if (isImplementTurn) {
             console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] implement prompt_chars=${promptText.length} timeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s max_tokens=${MAKER_IMPLEMENT_MAX_TOKENS} models=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
+        } else {
+            console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] repair prompt_chars=${promptText.length} timeout=${Math.round(BUILDER_REQUEST_TIMEOUT_MS / 1000)}s max_tokens=${MAKER_TOOL_MAX_TOKENS}`);
         }
         try {
             let inspection;
@@ -4803,7 +4802,18 @@ async function runMakerAgentInspectionTurns({
                 notes: inspection.notes,
             });
             if (runEvidence?.success) {
+                console.log(`✅ [Phase 2 job=${jobId}] Sandbox/build passed after turn ${turnNumber} — skipping remaining agent turns`);
                 break;
+            }
+            if (turnNumber === 1 && maxTurns > 1) {
+                const failurePreview = (runEvidence?.targetedRepairTasks || [])
+                    .slice(0, 3)
+                    .map((task) => task.directRepairTask || task.description || task.id || task.task)
+                    .filter(Boolean)
+                    .join(' | ')
+                    || (runEvidence?.crashes || []).slice(0, 2).join(' | ')
+                    || 'sandbox/build checks still failing';
+                console.log(`🔧 [Phase 2 job=${jobId}] Implement turn incomplete — running repair turn 2/2. Focus: ${failurePreview}`);
             }
             if ((inspection.noEditsNeeded || applied.length === 0) && turnNumber >= maxTurns) {
                 break;
@@ -4829,7 +4839,7 @@ async function runMakerAgentInspectionTurns({
         const crashSummary = (lastRunEvidence?.crashes || []).slice(0, 2).join(' | ')
             || (lastRunEvidence?.diagnostics?.buildFailure?.errors || []).slice(0, 2).join(' | ')
             || 'build or sandbox checks still failing';
-        throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s): ${crashSummary}`);
+        throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s) (implement + ${Math.max(0, maxTurns - 1)} repair): ${crashSummary}`);
     }
     return lastRunEvidence;
 }
@@ -4987,7 +4997,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const streamStall = getStreamStallConfig();
         const moonshotConfig = getMoonshotTextConfig();
         const moonshotPrimary = isMoonshotPrimaryEnabled();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
