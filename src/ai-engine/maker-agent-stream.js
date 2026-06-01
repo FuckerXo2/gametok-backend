@@ -307,6 +307,22 @@ export async function streamChatCompletionToMessage(client, createOptions, {
     console.log(
         `📡 [${logLabel}] stream complete finish=${state.finishReason || 'unknown'} content=${stats.contentChars} tool_calls=${stats.toolCallCount} tool_args=${stats.argumentChars}`,
     );
+
+    if (stats.totalChars === 0 && stats.toolCallCount === 0) {
+        const emptyError = new Error(`Stream completed with no content and no tool_calls (finish=${state.finishReason || 'unknown'})`);
+        emptyError.code = 'STREAM_EMPTY';
+        emptyError.status = connectDiagnostics?.status ?? 502;
+        emptyError.streamDiagnostics = buildStreamStallDiagnostics({
+            requestStartedAt,
+            connectDiagnostics,
+            firstChunkAt,
+            gotBytes,
+            idleMs: Date.now() - lastByteAt,
+            limitMs: 0,
+        });
+        throw emptyError;
+    }
+
     return message;
 }
 

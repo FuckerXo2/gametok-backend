@@ -250,9 +250,9 @@ function resolveDreamModel(envName, fallback) {
 }
 
 const BUILDER_FALLBACK_MODELS = [
+    'qwen/qwen3-coder-480b-a35b-instruct',
     'moonshotai/kimi-k2.6',
     'deepseek-ai/deepseek-v4-pro',
-    'qwen/qwen3-coder-480b-a35b-instruct',
 ];
 
 const DREAM_MODELS = {
@@ -1390,6 +1390,11 @@ async function requestMakerToolCompletion(messages, {
             throw new Error('Tool completion returned no assistant message.');
         }
         const toolCallCount = Array.isArray(message.tool_calls) ? message.tool_calls.length : 0;
+        if (toolCallCount === 0 && !String(message.content || '').trim()) {
+            const emptyError = new Error('Tool completion returned empty assistant message (no content, no tool_calls).');
+            emptyError.code = 'STREAM_EMPTY';
+            throw emptyError;
+        }
         console.log(`🛠️ [${logLabel}] tool_calls=${toolCallCount} content_chars=${String(message.content || '').length}`);
         if (typeof onResolvedModel === 'function') {
             onResolvedModel(modelToUse);

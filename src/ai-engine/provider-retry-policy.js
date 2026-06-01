@@ -48,6 +48,10 @@ export function classifyProviderError(error) {
         return { kind: ProviderFailureKind.KEY, reason: 'rate_limit', status };
     }
 
+    if (code === 'stream_empty' || /no content and no tool_calls|stream completed with no content/.test(message)) {
+        return { kind: ProviderFailureKind.STALL, reason: 'provider_empty_response', status: status ?? 502 };
+    }
+
     if (status === 404 || /model.*not found|unknown model|does not exist|not available/.test(message)) {
         return { kind: ProviderFailureKind.MODEL, reason: 'model_not_found', status };
     }
@@ -80,7 +84,7 @@ export function decideProviderRetryAction(classification, {
     }
 
     if (classification.kind === ProviderFailureKind.STALL) {
-        if (classification.reason === 'provider_server_error' || classification.reason === 'provider_queue' || classification.reason === 'connect_hang') {
+        if (classification.reason === 'provider_server_error' || classification.reason === 'provider_queue' || classification.reason === 'connect_hang' || classification.reason === 'provider_empty_response') {
             return 'switch_model';
         }
         if (classification.reason === 'provider_midstream') {

@@ -36,16 +36,24 @@ const IMPLEMENT_MAX_TOOL_CALLS = Math.max(
 );
 const IMPLEMENT_EDIT_PATHS = new Set(['src/main.ts', 'src/styles.css']);
 const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
-    4000,
-    Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 16000)),
+    2000,
+    Math.min(12000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 6000)),
 );
 const REPAIR_MAX_TOOL_CALLS = Math.max(
     6,
     Math.min(16, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 12)),
 );
 const READ_FILE_MAX_CHARS = Math.max(
-    4000,
-    Math.min(48000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 32000)),
+    2000,
+    Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 12000)),
+);
+const MAKER_AGENT_MAX_PROMPT_CHARS = Math.max(
+    16000,
+    Math.min(64000, Number(process.env.GAMETOK_MAKER_AGENT_MAX_PROMPT_CHARS || 28000)),
+);
+const READ_FILE_HISTORY_PREVIEW_CHARS = Math.max(
+    400,
+    Math.min(4000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_HISTORY_PREVIEW || 1200)),
 );
 const GREP_MAX_MATCHES = Math.max(8, Math.min(80, Number(process.env.GAMETOK_MAKER_AGENT_GREP_MAX_MATCHES || 40)));
 const TSC_AFTER_EACH_EDIT = String(process.env.GAMETOK_MAKER_TSC_AFTER_EACH_EDIT || 'true').toLowerCase() !== 'false';
@@ -574,7 +582,116 @@ function resolveTurnLimits(mode = MAKER_AGENT_TURN_MODE_REPAIR) {
     };
 }
 
-async function appendImplementFileSnapshot(projectRoot, messages) {
+function measureMakerAgentMessagesChars(messages = []) {
+    return messages.reduce((sum, message) => {
+        const contentChars = String(message?.content || '').length;
+        const toolCallChars = Array.isArray(message?.tool_calls)
+            ? JSON.stringify(message.tool_calls).length
+            : 0;
+        return sum + contentChars + toolCallChars;
+    }, 0);
+}
+
+function parseToolMessagePayload(content = '') {
+    try {
+        return JSON.parse(String(content || ''));
+    } catch {
+        return null;
+    }
+}
+
+function isReadFileToolMessage(message = {}) {
+    if (message?.role !== 'tool') return false;
+    const payload = parseToolMessagePayload(message.content);
+    return payload?.tool === MAKER_TOOL_READ_FILE;
+}
+
+function isSnapshotUserMessage(message = {}) {
+    return message?.role === 'user'
+        && String(message?.content || '').includes('Live project files on disk after your last edits');
+}
+
+function elideReadFileToolMessage(message = {}) {
+    const payload = parseToolMessagePayload(message.content);
+    if (!payload || payload.tool !== MAKER_TOOL_READ_FILE) {
+        return message;
+    }
+    const preview = String(payload.content || '').slice(0, READ_FILE_HISTORY_PREVIEW_CHARS);
+    return {
+        ...message,
+        content: JSON.stringify({
+            ok: payload.ok,
+            tool: payload.tool,
+            path: payload.path,
+            bytes: payload.bytes,
+            truncated: payload.truncated,
+            contentPreview: preview ? `${preview}...` : '',
+            note: 'Full file content elided from history to save context. Call read_file again for the section you need.',
+        }),
+    };
+}
+
+function elideSnapshotUserMessage(message = {}) {
+    return {
+        role: 'user',
+        content: '[Earlier on-disk file snapshot elided from history. Use read_file or grep_project for current source.]',
+    };
+}
+
+/**
+ * Keep the latest tool context while preventing read_file + snapshot duplication from blowing past provider limits.
+ */
+export function compactMakerAgentMessages(messages = []) {
+    if (!Array.isArray(messages) || messages.length <= 1) {
+        return messages;
+    }
+
+    const compacted = messages.map((message) => ({ ...message }));
+    let latestReadFileIdx = -1;
+    for (let index = compacted.length - 1; index >= 0; index -= 1) {
+        if (isReadFileToolMessage(compacted[index])) {
+            latestReadFileIdx = index;
+            break;
+        }
+    }
+
+    for (let index = 0; index < compacted.length; index += 1) {
+        if (isReadFileToolMessage(compacted[index]) && index !== latestReadFileIdx) {
+            compacted[index] = elideReadFileToolMessage(compacted[index]);
+        }
+    }
+
+    let keptLatestSnapshot = false;
+    for (let index = compacted.length - 1; index >= 0; index -= 1) {
+        if (!isSnapshotUserMessage(compacted[index])) continue;
+        if (!keptLatestSnapshot) {
+            keptLatestSnapshot = true;
+            continue;
+        }
+        compacted[index] = elideSnapshotUserMessage(compacted[index]);
+    }
+
+    if (measureMakerAgentMessagesChars(compacted) <= MAKER_AGENT_MAX_PROMPT_CHARS) {
+        return compacted;
+    }
+
+    for (let index = 1; index < compacted.length && measureMakerAgentMessagesChars(compacted) > MAKER_AGENT_MAX_PROMPT_CHARS; index += 1) {
+        if (isReadFileToolMessage(compacted[index])) {
+            compacted[index] = elideReadFileToolMessage(compacted[index]);
+            continue;
+        }
+        if (isSnapshotUserMessage(compacted[index])) {
+            compacted[index] = elideSnapshotUserMessage(compacted[index]);
+        }
+    }
+
+    return compacted;
+}
+
+async function appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound = false } = {}) {
+    if (skipIfReadFileThisRound) {
+        return;
+    }
     const blocks = [];
     for (const relPath of IMPLEMENT_EDIT_PATHS) {
         try {
@@ -639,7 +756,17 @@ export async function runMakerAgentToolTurn({
 
     for (let round = 0; round < effectiveMaxRounds && !finished; round += 1) {
         log.rounds = round + 1;
-        const message = await requestCompletion(messages);
+        const compactedMessages = compactMakerAgentMessages(messages);
+        const promptChars = measureMakerAgentMessagesChars(compactedMessages);
+        if (promptChars !== measureMakerAgentMessagesChars(messages)) {
+            log.events.push({
+                round: round + 1,
+                type: 'context_compact',
+                beforeChars: measureMakerAgentMessagesChars(messages),
+                afterChars: promptChars,
+            });
+        }
+        const message = await requestCompletion(compactedMessages);
         const assistantEntry = {
             role: 'assistant',
             content: message?.content || null,
@@ -671,6 +798,7 @@ export async function runMakerAgentToolTurn({
         }
 
         let roundEdited = false;
+        let roundReadFile = false;
         for (const toolCall of toolCalls) {
             if (log.toolCalls >= effectiveMaxToolCalls) {
                 throw new Error(`Maker tool turn exceeded max tool calls (${effectiveMaxToolCalls}) in ${mode} mode`);
@@ -704,6 +832,10 @@ export async function runMakerAgentToolTurn({
                 error: result.error || null,
             });
 
+            if (toolName === MAKER_TOOL_READ_FILE && result.ok !== false) {
+                roundReadFile = true;
+            }
+
             messages.push({
                 role: 'tool',
                 tool_call_id: toolCallId,
@@ -735,7 +867,7 @@ export async function runMakerAgentToolTurn({
         }
 
         if ((mode === MAKER_AGENT_TURN_MODE_IMPLEMENT || mode === MAKER_AGENT_TURN_MODE_REPAIR) && roundEdited && !finished) {
-            await appendImplementFileSnapshot(projectRoot, messages);
+            await appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound: roundReadFile });
         }
     }
 

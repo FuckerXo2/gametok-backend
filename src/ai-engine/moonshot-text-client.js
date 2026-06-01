@@ -19,10 +19,10 @@ export function isMoonshotFailoverEnabled(env = process.env) {
     return String(env.GAMETOK_MOONSHOT_FAILOVER || 'true').toLowerCase() !== 'false';
 }
 
-/** When MOONSHOT_API_KEY is set, route all text agents through Moonshot first (not NVIDIA). */
+/** Opt-in: route text agents through Moonshot when MOONSHOT_API_KEY is set. Default off — NVIDIA path. */
 export function isMoonshotPrimaryEnabled(env = process.env) {
     if (!getMoonshotTextConfig(env)) return false;
-    return String(env.GAMETOK_MOONSHOT_PRIMARY || 'true').toLowerCase() !== 'false';
+    return String(env.GAMETOK_MOONSHOT_PRIMARY || 'false').toLowerCase() === 'true';
 }
 
 export function isMoonshotDirectProvider(providerTag = '') {

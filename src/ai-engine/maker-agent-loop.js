@@ -49,7 +49,7 @@ const MAKER_IMPLEMENT_GDD_CHARS = Math.max(
 );
 const MAKER_IMPLEMENT_MAIN_TS_CHARS = Math.max(
     4000,
-    Math.min(24000, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAIN_TS_CHARS || 16000)),
+    Math.min(20000, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAIN_TS_CHARS || 10000)),
 );
 
 function pickProjectFileContent(projectFiles = [], filePath, maxChars = MAKER_AGENT_FILE_PROMPT_CHARS) {
