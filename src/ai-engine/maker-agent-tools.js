@@ -19,16 +19,21 @@ const MAX_WRITE_FILE_CHARS_MAIN = Math.max(
 const DEFAULT_MAX_ROUNDS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
 const IMPLEMENT_MAX_ROUNDS = Math.max(
-    2,
-    Math.min(6, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_ROUNDS || 4)),
+    4,
+    Math.min(16, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_ROUNDS || 10)),
 );
 const REPAIR_MAX_ROUNDS = Math.max(
     4,
     Math.min(12, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_ROUNDS || 8)),
 );
 const IMPLEMENT_MAX_TOOL_CALLS = Math.max(
-    2,
-    Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 3)),
+    6,
+    Math.min(32, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 20)),
+);
+const IMPLEMENT_EDIT_PATHS = new Set(['src/main.ts', 'src/styles.css']);
+const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
+    4000,
+    Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 16000)),
 );
 const REPAIR_MAX_TOOL_CALLS = Math.max(
     6,
@@ -90,7 +95,7 @@ export function getMakerAgentToolDefinitions() {
             type: 'function',
             function: {
                 name: MAKER_TOOL_WRITE_FILE,
-                description: 'Write a project file in full. On implement turn 1, use this once for src/main.ts with the complete game loop.',
+                description: 'Write a project file in full. Prefer apply_patch for incremental implement edits; use write_file for small files or a full src/main.ts rewrite when simpler.',
                 parameters: {
                     type: 'object',
                     properties: {
@@ -141,11 +146,12 @@ export function getMakerAgentToolDefinitions() {
 export function getMakerAgentToolInstructionLines(mode = MAKER_AGENT_TURN_MODE_REPAIR) {
     if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
         return [
-            'IMPLEMENT MODE (turn 1): ship the game in one shot.',
-            'Call write_file ONCE with the complete src/main.ts implementation (full file, not a diff).',
-            'Then call finish_inspection immediately. Do NOT call apply_patch on this turn.',
-            'You may optionally call write_file for src/styles.css if needed, then finish_inspection.',
-            'Keep import "./styles.css", #game-canvas boot, foundation probeMethods, and requiredFunctions from the stub unless the foundation contract requires changes.',
+            'IMPLEMENT MODE (turn 1): build the game incrementally like a coding agent — each tool call writes to disk immediately.',
+            'Prefer apply_patch on src/main.ts: replace stub sections with pantry drag, cauldron slots, cook button, customers, timers, probes.',
+            'Make 4-12 focused apply_patch edits across rounds. Read the latest file snapshot before each find anchor.',
+            'write_file is allowed for src/main.ts or src/styles.css when a full rewrite is simpler than many patches.',
+            'Call finish_inspection when the loop is complete. Do not dump plain text or JSON blobs.',
+            'Keep import "./styles.css", #game-canvas boot, foundation requiredFunctions, and probeMethods.',
             'Use ONLY asset keys from the ALLOWED ASSET PACK KEYS block (exact spelling).',
             'Protected read-only files: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, package.json, tsconfig.json, vite.config.ts.',
         ];
@@ -181,10 +187,6 @@ function isMainTsPath(filePath = '') {
 }
 
 async function executeApplyPatch(projectRoot, helpers, args = {}, { mode = MAKER_AGENT_TURN_MODE_REPAIR } = {}) {
-    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
-        throw new Error('apply_patch is disabled in implement mode — use write_file("src/main.ts", fullContent) once, then finish_inspection');
-    }
-
     const filePath = args.path;
     const find = args.find;
     const replace = args.replace;
@@ -200,9 +202,14 @@ async function executeApplyPatch(projectRoot, helpers, args = {}, { mode = MAKER
         throw new Error('apply_patch requires replace string');
     }
 
-    const { cleanPath, absolutePath } = helpers.safeMakerProjectPath(projectRoot, filePath);
-    if (helpers.isProtectedMakerRuntimeFile(cleanPath)) {
-        throw new Error(`apply_patch blocked on protected file: ${cleanPath}`);
+    const cleanPath = normalizeMakerToolPath(filePath);
+    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !IMPLEMENT_EDIT_PATHS.has(cleanPath)) {
+        throw new Error(`implement mode apply_patch allowed only for src/main.ts or src/styles.css (got ${cleanPath})`);
+    }
+
+    const { cleanPath: resolvedPath, absolutePath } = helpers.safeMakerProjectPath(projectRoot, filePath);
+    if (helpers.isProtectedMakerRuntimeFile(resolvedPath)) {
+        throw new Error(`apply_patch blocked on protected file: ${resolvedPath}`);
     }
 
     const currentContent = await fs.promises.readFile(absolutePath, 'utf8');
@@ -210,14 +217,14 @@ async function executeApplyPatch(projectRoot, helpers, args = {}, { mode = MAKER
         find,
         replace,
         replaceAll,
-    }], { path: cleanPath });
-    const content = helpers.sanitizeMakerMainTsContent(patched.content, cleanPath);
+    }], { path: resolvedPath });
+    const content = helpers.sanitizeMakerMainTsContent(patched.content, resolvedPath);
     await fs.promises.writeFile(absolutePath, content, 'utf8');
 
     return {
         ok: true,
         tool: MAKER_TOOL_APPLY_PATCH,
-        path: cleanPath,
+        path: resolvedPath,
         bytes: Buffer.byteLength(content, 'utf8'),
         replacements: patched.applied.length,
     };
@@ -316,6 +323,30 @@ function resolveTurnLimits(mode = MAKER_AGENT_TURN_MODE_REPAIR) {
     };
 }
 
+async function appendImplementFileSnapshot(projectRoot, messages) {
+    const blocks = [];
+    for (const relPath of IMPLEMENT_EDIT_PATHS) {
+        try {
+            const absolutePath = path.join(projectRoot, relPath);
+            const content = await fs.promises.readFile(absolutePath, 'utf8');
+            const excerpt = content.length > IMPLEMENT_FILE_SNAPSHOT_CHARS
+                ? `${content.slice(0, IMPLEMENT_FILE_SNAPSHOT_CHARS)}\n/* ... truncated (${content.length} chars total). Copy find anchors from this excerpt. */`
+                : content;
+            blocks.push(`${relPath}:\n${excerpt}`);
+        } catch {
+            // File may not exist yet.
+        }
+    }
+    if (blocks.length === 0) return;
+    messages.push({
+        role: 'user',
+        content: [
+            'Live project files on disk after your last edits — copy find text exactly from here:',
+            ...blocks,
+        ].join('\n\n'),
+    });
+}
+
 /**
  * Multi-turn NVIDIA tool session for one file-agent inspection turn.
  * Applies edits immediately so follow-up tool calls see updated files.
@@ -328,6 +359,7 @@ export async function runMakerAgentToolTurn({
     mode = MAKER_AGENT_TURN_MODE_REPAIR,
     maxRounds,
     maxToolCalls,
+    onEditApplied = null,
 } = {}) {
     if (!projectRoot || !helpers?.safeMakerProjectPath || !helpers?.isProtectedMakerRuntimeFile || !helpers?.sanitizeMakerMainTsContent) {
         throw new Error('runMakerAgentToolTurn requires projectRoot and path/sanitize helpers');
@@ -352,7 +384,7 @@ export async function runMakerAgentToolTurn({
     let noEditsNeeded = false;
     let notes = [];
     let finished = false;
-    let wroteMainTs = false;
+    let touchedMainTs = false;
 
     for (let round = 0; round < effectiveMaxRounds && !finished; round += 1) {
         log.rounds = round + 1;
@@ -374,7 +406,7 @@ export async function runMakerAgentToolTurn({
             if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
                 messages.push({
                     role: 'user',
-                    content: 'Implement mode: call write_file for src/main.ts with the FULL game implementation, then call finish_inspection. Do not reply with plain text or JSON.',
+                    content: 'Implement mode: use apply_patch on src/main.ts (preferred) or write_file, then finish_inspection when the game loop is complete. Each edit is saved to disk immediately.',
                 });
             } else if (round >= effectiveMaxRounds - 1) {
                 break;
@@ -387,6 +419,7 @@ export async function runMakerAgentToolTurn({
             continue;
         }
 
+        let roundEdited = false;
         for (const toolCall of toolCalls) {
             if (log.toolCalls >= effectiveMaxToolCalls) {
                 throw new Error(`Maker tool turn exceeded max tool calls (${effectiveMaxToolCalls}) in ${mode} mode`);
@@ -430,8 +463,16 @@ export async function runMakerAgentToolTurn({
             if (editSummary) {
                 editsApplied.push(editSummary);
                 noEditsNeeded = false;
-                if (editSummary.path === 'src/main.ts' && editSummary.tool === MAKER_TOOL_WRITE_FILE) {
-                    wroteMainTs = true;
+                roundEdited = true;
+                if (editSummary.path === 'src/main.ts') {
+                    touchedMainTs = true;
+                }
+                if (typeof onEditApplied === 'function') {
+                    await onEditApplied(editSummary, {
+                        round: round + 1,
+                        toolCall: log.toolCalls,
+                        mode,
+                    });
                 }
             }
 
@@ -441,11 +482,15 @@ export async function runMakerAgentToolTurn({
                 notes = Array.isArray(result.notes) ? result.notes : [];
             }
         }
+
+        if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && roundEdited && !finished) {
+            await appendImplementFileSnapshot(projectRoot, messages);
+        }
     }
 
-    if (!finished && mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && wroteMainTs) {
+    if (!finished && mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && touchedMainTs) {
         finished = true;
-        notes = ['Auto-finished implement turn after successful src/main.ts write_file.'];
+        notes = ['Auto-finished implement turn after incremental src/main.ts edits on disk.'];
     }
 
     if (!finished) {
@@ -455,8 +500,8 @@ export async function runMakerAgentToolTurn({
             : [`Tool session ended without edits (${mode} mode).`];
     }
 
-    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !wroteMainTs && editsApplied.length === 0) {
-        throw new Error('Implement mode requires write_file("src/main.ts", ...) with the full game loop');
+    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !touchedMainTs && editsApplied.length === 0) {
+        throw new Error('Implement mode requires apply_patch or write_file edits to src/main.ts');
     }
 
     return {
@@ -466,6 +511,6 @@ export async function runMakerAgentToolTurn({
         log,
         messageCount: messages.length,
         mode,
-        wroteMainTs,
+        touchedMainTs,
     };
 }

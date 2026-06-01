@@ -174,16 +174,17 @@ export function buildMakerAgentImplementPrompt({
         : `${gdd.slice(0, MAKER_IMPLEMENT_GDD_CHARS)}\n\n/* GDD truncated for implement pass (${gdd.length} chars total). Section 3 entity architecture above is authoritative. */`;
 
     return [
-        'You are the GameTok Phase 2 implement agent. Ship the playable game in ONE write_file call.',
+        'You are the GameTok Phase 2 implement agent. Build the game incrementally — each tool call writes to the project on disk immediately.',
         '',
         'IMPLEMENT RULES:',
         ...getMakerAgentToolInstructionLines(MAKER_AGENT_TURN_MODE_IMPLEMENT),
+        '- Start from the stub below. Use apply_patch to replace stub sections with real pantry drag, cauldron slots, cook button, customers, timers.',
+        '- After each round your edits are saved; the next message includes the live file snapshot — copy find anchors from it.',
         '- Kernel boot is already wired: loadDreamAssets → import main.ts. Replace stub logic only.',
         '- Keep import "./styles.css", #game-canvas at viewport 0,0, getAssetImage/firstByRole for sprites.',
         '- Canvas game: guard canvas with instanceof HTMLCanvasElement before width/height/getContext.',
         '- Implement foundation requiredFunctions + probeMethods on window.__GAMETOK_TEMPLATE_PROBE__.',
         '- HUD, buttons, timers, order bubbles: code-rendered only (canvas/DOM). No Phaser for canvas-kernel.',
-        '- Target src/main.ts under ~18000 chars: complete loop, no filler comments, no duplicate functions.',
         '- Use ONLY asset keys from ALLOWED ASSET PACK KEYS (exact spelling).',
         '',
         `Objective: ${objective || 'Implement full gameplay loop in src/main.ts.'}`,

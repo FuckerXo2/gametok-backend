@@ -4385,7 +4385,7 @@ async function runMakerAgentInspectionTurns({
     maxTurns = MAKER_AGENT_INSPECTION_TURNS,
 }) {
     const objectives = [
-        'Implement the full gameplay loop in src/main.ts with ONE write_file call. Wire foundation requiredFunctions, probeMethods, HUD, controls, and exact asset-pack keys.',
+        'Implement the gameplay loop incrementally in src/main.ts using apply_patch (preferred) or write_file. Each tool call saves to disk immediately; build pantry drag, cauldron slots, cook flow, customers, timers, and probes across multiple rounds.',
         'Repair direct preflight, compile, probe, or sandbox failures with small apply_patch edits. Do not rewrite unrelated systems.',
         'Run against rebuild/sandbox evidence from the previous turn and repair remaining runtime or acceptance failures.',
         'Make one final targeted compliance cleanup if evidence still reports issues.',
@@ -4469,6 +4469,18 @@ async function runMakerAgentInspectionTurns({
                         reasoningEffort: isImplementTurn ? MAKER_IMPLEMENT_REASONING_EFFORT : null,
                         mode: turnMode,
                     }),
+                    onEditApplied: async (edit, meta) => {
+                        console.log(`✏️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] ${edit.tool} ${edit.path} bytes=${edit.bytes} round=${meta.round} call=${meta.toolCall}`);
+                        if (jobId) {
+                            const editCount = meta.toolCall;
+                            await updateGenerationJobProgress(
+                                jobId,
+                                Math.min(68, 56 + editCount),
+                                'build',
+                                `Live edit: ${edit.tool} ${edit.path} (${edit.bytes} bytes)`,
+                            );
+                        }
+                    },
                     helpers: {
                         safeMakerProjectPath,
                         isProtectedMakerRuntimeFile,
