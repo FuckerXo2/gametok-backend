@@ -70,6 +70,7 @@ import {
     isDeepSeekDirectProvider,
     isDeepSeekPrimaryEnabled,
     isDeepSeekV4ModelName,
+    isNvidiaFailoverFromDeepSeekEnabled,
     maskDeepSeekKey,
     resolveDeepSeekModel,
 } from './deepseek-text-client.js';
@@ -328,7 +329,7 @@ const MAKER_IMPLEMENT_TIMEOUT_MS = Math.max(
 );
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
-const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(4, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 2)));
+const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 4)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
 const MAKER_AGENT_INSPECTION_TURNS = Math.max(1, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 2)));
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
@@ -1018,6 +1019,7 @@ async function withNvidiaRetries(task, {
     if (deepseekPrimary) {
         const deepseekConfig = getDeepSeekTextConfig();
         const deepseekClient = createDeepSeekTextClient();
+        let deepseekFailed = false;
         if (deepseekConfig && deepseekClient) {
             const modelsToTry = [...new Set(
                 (fallbackModels.length > 0 ? fallbackModels : [deepseekConfig.model])
@@ -1038,13 +1040,14 @@ async function withNvidiaRetries(task, {
                     } catch (error) {
                         lastError = error;
                         const classification = classifyProviderError(error);
-                        console.warn(`🧭 [${logLabel}] ${formatProviderRetryDecision(classification, attempt < maxAttempts ? 'rotate_key' : 'switch_model')} on DeepSeek ${currentModel} (attempt ${attempt}/${maxAttempts})`);
+                        const retryAction = attempt < maxAttempts ? 'retry' : 'failover';
+                        console.warn(`🧭 [${logLabel}] ${formatProviderRetryDecision(classification, retryAction)} on DeepSeek ${currentModel} (attempt ${attempt}/${maxAttempts})`);
 
                         const isLastModel = modelIndex === modelsToTry.length - 1;
-                        if (classification.kind === ProviderFailureKind.MODEL || attempt >= maxAttempts) {
-                            if (!isLastModel) {
-                                console.warn(`⏭️ [${logLabel}] Escalating from ${currentModel} to ${modelsToTry[modelIndex + 1]} after ${classification.reason}`);
-                            }
+                        if (attempt >= maxAttempts && isLastModel) {
+                            break;
+                        }
+                        if (attempt >= maxAttempts) {
                             break;
                         }
 
@@ -1053,12 +1056,19 @@ async function withNvidiaRetries(task, {
                 }
             }
 
+            deepseekFailed = true;
+        } else {
+            console.warn(`🐋 [${logLabel}] DeepSeek primary requested but DEEPSEEK_API_KEY missing — using NVIDIA text path`);
+        }
+
+        if (!deepseekFailed) {
+            // Missing DeepSeek key — fall through to NVIDIA.
+        } else if (isNvidiaFailoverFromDeepSeekEnabled() && getNvidiaTextKeys().length > 0) {
+            console.warn(`🐋→🔑 [${logLabel}] DeepSeek direct exhausted — failing over to NVIDIA NIM (${(fallbackModels.length > 0 ? fallbackModels : BUILDER_FALLBACK_MODELS).join('>')})`);
+        } else {
             throw lastError;
         }
-        console.warn(`🐋 [${logLabel}] DeepSeek primary requested but DEEPSEEK_API_KEY missing — using NVIDIA text path`);
-    }
-
-    if (moonshotPrimary) {
+    } else if (moonshotPrimary) {
         const moonshotConfig = getMoonshotTextConfig();
         const moonshotClient = createMoonshotTextClient();
         if (moonshotConfig && moonshotClient) {
@@ -1181,7 +1191,7 @@ function isGlmModel(model) {
 function getMaxTokensForModel(model, requestedMaxTokens) {
     const requested = Number(requestedMaxTokens || 8192);
     if (isDeepSeekV4Model(model)) {
-        return Math.min(requested, 16384);
+        return getDeepSeekMaxOutputTokens(requested);
     }
     if (isGlmModel(model)) {
         return Math.min(requested, GLM_MAX_OUTPUT_TOKENS);
@@ -5098,9 +5108,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const streamStall = getStreamStallConfig();
         const deepseekConfig = getDeepSeekTextConfig();
         const deepseekPrimary = isDeepSeekPrimaryEnabled();
+        const nvidiaFailoverFromDeepseek = isNvidiaFailoverFromDeepSeekEnabled();
         const moonshotConfig = getMoonshotTextConfig();
         const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} phase2ImplementMaxTokens=${MAKER_IMPLEMENT_MAX_TOKENS} phase2RepairMaxTokens=${MAKER_TOOL_MAX_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} phase2ImplementMaxTokens=${MAKER_IMPLEMENT_MAX_TOKENS} phase2RepairMaxTokens=${MAKER_TOOL_MAX_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} nvidiaFailover=${nvidiaFailoverFromDeepseek ? 'on' : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { getNvidiaTextKeys } from './nvidia-key-pool.js';
 
 export const DEEPSEEK_DIRECT_PROVIDER = 'deepseek-direct';
 
@@ -13,6 +14,13 @@ export function getDeepSeekTextConfig(env = process.env) {
         baseURL: String(env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
         model: String(env.DEEPSEEK_MODEL || 'deepseek-v4-pro').trim(),
     };
+}
+
+/** Opt-in: after DeepSeek direct fails, retry on NVIDIA NIM with the same model chain. Default on. */
+export function isNvidiaFailoverFromDeepSeekEnabled(env = process.env) {
+    if (!isDeepSeekPrimaryEnabled(env)) return false;
+    if (!getNvidiaTextKeys(env).length) return false;
+    return String(env.GAMETOK_NVIDIA_FAILOVER || 'true').toLowerCase() !== 'false';
 }
 
 /** Opt-in: route all text agents through DeepSeek direct API when DEEPSEEK_API_KEY is set. */
@@ -87,8 +95,8 @@ export function buildDeepSeekChatOptions(model, requestedMaxTokens, {
         options.temperature = temperature ?? 0.1;
     } else {
         options.reasoning_effort = reasoningEffort
-            || String(env.DEEPSEEK_V4_REASONING_EFFORT || 'medium').trim()
-            || 'medium';
+            || String(env.DEEPSEEK_V4_REASONING_EFFORT || 'low').trim()
+            || 'low';
         if (temperature !== undefined) {
             options.temperature = temperature;
         }

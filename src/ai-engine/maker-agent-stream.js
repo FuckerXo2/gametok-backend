@@ -98,7 +98,7 @@ export function finalizeStreamedMessage(state) {
 
 export function getStreamStallConfig() {
     return {
-        firstByteMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_FIRST_BYTE_MS || 60000)),
+        firstByteMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_FIRST_BYTE_MS || 180000)),
         stallMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_STALL_MS || 45000)),
         pollMs: Math.max(2000, Number(process.env.GAMETOK_STREAM_STALL_POLL_MS || 5000)),
     };
