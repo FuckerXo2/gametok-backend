@@ -27,7 +27,7 @@ import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
-import { appendMakerAgentTurn, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
+import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import {
     buildAssetSlotRuntimeHints,
     collectAllowedAssetPackKeys,
@@ -36,6 +36,7 @@ import {
 } from './maker-agent-asset-keys.js';
 import {
     getMakerAgentToolDefinitions,
+    MAKER_AGENT_TURN_MODE_IMPLEMENT,
     resolveMakerAgentTurnMode,
     runMakerAgentToolTurn,
     useMakerAgentImplementMode,
@@ -254,10 +255,27 @@ const DREAM_MODELS = {
 
 const BUILDER_MAX_TOKENS = Number(process.env.DREAMSTREAM_BUILDER_MAX_TOKENS || 256000);
 const MAKER_TOOL_MAX_TOKENS = Math.max(1024, Math.min(16384, Number(process.env.GAMETOK_MAKER_TOOL_MAX_TOKENS || 8192)));
+const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
+    8192,
+    Math.min(32768, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAX_TOKENS || 16384)),
+);
+const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'low').trim() || 'low';
+const MAKER_IMPLEMENT_FALLBACK_MODELS = (
+    process.env.GAMETOK_MAKER_IMPLEMENT_MODELS
+        || 'deepseek-ai/deepseek-v4-pro,moonshotai/kimi-k2.6,z-ai/glm-5.1'
+)
+    .split(',')
+    .map((model) => model.trim())
+    .filter(Boolean)
+    .filter((model) => !TOOL_INCOMPATIBLE_MAKER_MODELS.has(model));
 const GLM_MAX_OUTPUT_TOKENS = Math.max(4096, Math.min(200000, Number(process.env.GAMETOK_GLM_MAX_OUTPUT_TOKENS || 128000)));
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 const BUILDER_JSON_REWRITE_ATTEMPTS = Math.max(0, Math.min(2, Number(process.env.DREAMSTREAM_BUILDER_JSON_REWRITE_ATTEMPTS || 1)));
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
+const MAKER_IMPLEMENT_TIMEOUT_MS = Math.max(
+    BUILDER_REQUEST_TIMEOUT_MS,
+    Number(process.env.GAMETOK_MAKER_IMPLEMENT_TIMEOUT_MS || 900000),
+);
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(3, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 0) || Math.max(3, getNvidiaTextKeys().length)));
@@ -981,7 +999,7 @@ function getMaxTokensForModel(model, requestedMaxTokens) {
     return requested;
 }
 
-function getNvidiaChatOptions(model, requestedMaxTokens) {
+function getNvidiaChatOptions(model, requestedMaxTokens, { reasoningEffort = null } = {}) {
     const options = {
         model,
         max_tokens: getMaxTokensForModel(model, requestedMaxTokens),
@@ -990,7 +1008,7 @@ function getNvidiaChatOptions(model, requestedMaxTokens) {
     };
 
     if (isDeepSeekV4Model(model)) {
-        options.reasoning_effort = process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high';
+        options.reasoning_effort = reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high';
     }
 
     return options;
@@ -1165,26 +1183,40 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     };
 }
 
-async function requestMakerToolCompletion(messages, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3, currentModel = null } = {}) {
+async function requestMakerToolCompletion(messages, {
+    label,
+    jobId = null,
+    timeoutMs = BUILDER_REQUEST_TIMEOUT_MS,
+    maxAttempts = 3,
+    currentModel = null,
+    maxTokens = MAKER_TOOL_MAX_TOKENS,
+    fallbackModels = null,
+    reasoningEffort = null,
+    mode = null,
+} = {}) {
     assertJobNotCancelled(jobId);
     await assertJobNotCancelledShared(jobId, { force: true });
     const logLabel = formatJobLogLabel(label, jobId);
     const toolCompatibleFallbacks = BUILDER_FALLBACK_MODELS.filter((model) => !TOOL_INCOMPATIBLE_MAKER_MODELS.has(model));
+    const modelsToTry = Array.isArray(fallbackModels) && fallbackModels.length > 0
+        ? fallbackModels
+        : (currentModel ? [currentModel] : toolCompatibleFallbacks);
 
     return withNvidiaRetries(async (modelParam, client) => withAbortableTimeout(async (signal) => {
         const modelToUse = currentModel || modelParam || DREAM_MODELS.premiumBuilder;
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
-        console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse})...`);
-        const toolMaxTokens = getMaxTokensForModel(modelToUse, MAKER_TOOL_MAX_TOKENS);
+        const promptChars = messages.reduce((sum, message) => sum + String(message?.content || '').length, 0);
+        console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse}, mode: ${mode || 'default'}, prompt_chars=${promptChars})...`);
+        const toolMaxTokens = getMaxTokensForModel(modelToUse, maxTokens);
         const response = await client.chat.completions.create({
-            ...getNvidiaChatOptions(modelToUse, toolMaxTokens),
+            ...getNvidiaChatOptions(modelToUse, toolMaxTokens, { reasoningEffort }),
             stream: false,
             messages,
             tools: getMakerAgentToolDefinitions(),
             tool_choice: 'auto',
         }, { signal });
-        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens}`);
+        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${isDeepSeekV4Model(modelToUse) ? (reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high') : 'n/a'}`);
         const message = response?.choices?.[0]?.message;
         if (!message) {
             throw new Error('Tool completion returned no assistant message.');
@@ -1197,7 +1229,7 @@ async function requestMakerToolCompletion(messages, { label, jobId = null, timeo
         jobId,
         maxAttempts,
         baseDelayMs: 1500,
-        fallbackModels: currentModel ? [currentModel] : toolCompatibleFallbacks,
+        fallbackModels: modelsToTry,
     });
 }
 
@@ -4352,27 +4384,42 @@ async function runMakerAgentInspectionTurns({
             ...collectAllowedAssetPackKeys({ generatedAssets }),
         ])].sort();
         const assetSlotHints = buildAssetSlotRuntimeHints({ assetContract, generatedAssets });
-        const promptText = buildMakerAgentInspectionPrompt({
-            prompt,
-            qualityIntent,
-            projectFiles,
-            templateContract,
-            assetContract,
-            debugProtocol,
-            designBrief,
-            generatedAssetsSummary: summarizeMakerAssets(generatedAssets),
-            assetQualitySummary: summarizeMakerAssetQuality(assetQuality || generatedAssets?.assetQuality || null),
-            builderMaps,
-            loopHistory: summarizeMakerAgentTurns(turns),
-            lastRunEvidence,
-            turnNumber,
-            objective,
-            transport: makerAgentUsesTools ? 'tools' : 'json',
-            mode: turnMode,
-            allowedAssetKeys,
-            assetSlotHints,
-        });
+        const isImplementTurn = turnMode === MAKER_AGENT_TURN_MODE_IMPLEMENT;
+        const promptText = isImplementTurn
+            ? buildMakerAgentImplementPrompt({
+                prompt,
+                qualityIntent,
+                projectFiles,
+                templateContract,
+                designBrief,
+                objective,
+                allowedAssetKeys,
+                assetSlotHints,
+            })
+            : buildMakerAgentInspectionPrompt({
+                prompt,
+                qualityIntent,
+                projectFiles,
+                templateContract,
+                assetContract,
+                debugProtocol,
+                designBrief,
+                generatedAssetsSummary: summarizeMakerAssets(generatedAssets),
+                assetQualitySummary: summarizeMakerAssetQuality(assetQuality || generatedAssets?.assetQuality || null),
+                builderMaps,
+                loopHistory: summarizeMakerAgentTurns(turns),
+                lastRunEvidence,
+                turnNumber,
+                objective,
+                transport: makerAgentUsesTools ? 'tools' : 'json',
+                mode: turnMode,
+                allowedAssetKeys,
+                assetSlotHints,
+            });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
+        if (isImplementTurn) {
+            console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] implement prompt_chars=${promptText.length} timeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s max_tokens=${MAKER_IMPLEMENT_MAX_TOKENS} models=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
+        }
         try {
             let inspection;
             let applied = [];
@@ -4387,8 +4434,12 @@ async function runMakerAgentInspectionTurns({
                     requestCompletion: (messages) => requestMakerToolCompletion(messages, {
                         label: `Phase 2 File Agent Turn ${turnNumber}`,
                         jobId,
-                        timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
-                        maxAttempts: 2,
+                        timeoutMs: isImplementTurn ? MAKER_IMPLEMENT_TIMEOUT_MS : BUILDER_REQUEST_TIMEOUT_MS,
+                        maxAttempts: isImplementTurn ? 1 : 2,
+                        maxTokens: isImplementTurn ? MAKER_IMPLEMENT_MAX_TOKENS : MAKER_TOOL_MAX_TOKENS,
+                        fallbackModels: isImplementTurn ? MAKER_IMPLEMENT_FALLBACK_MODELS : null,
+                        reasoningEffort: isImplementTurn ? MAKER_IMPLEMENT_REASONING_EFFORT : null,
+                        mode: turnMode,
                     }),
                     helpers: {
                         safeMakerProjectPath,
@@ -4722,7 +4773,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         assertJobNotCancelled(jobId);
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'}`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);

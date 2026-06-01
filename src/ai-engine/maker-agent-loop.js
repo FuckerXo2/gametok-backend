@@ -43,6 +43,49 @@ const MAKER_AGENT_FILE_PROMPT_CHARS = Math.max(
     4000,
     Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_FILE_PROMPT_CHARS || 12000)),
 );
+const MAKER_IMPLEMENT_GDD_CHARS = Math.max(
+    4000,
+    Math.min(32000, Number(process.env.GAMETOK_MAKER_IMPLEMENT_GDD_CHARS || 14000)),
+);
+const MAKER_IMPLEMENT_MAIN_TS_CHARS = Math.max(
+    4000,
+    Math.min(24000, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAIN_TS_CHARS || 16000)),
+);
+
+function pickProjectFileContent(projectFiles = [], filePath, maxChars = MAKER_AGENT_FILE_PROMPT_CHARS) {
+    const file = (Array.isArray(projectFiles) ? projectFiles : []).find((entry) => entry.path === filePath);
+    if (!file) return null;
+    const content = String(file.content || '');
+    if (content.length <= maxChars) {
+        return { path: filePath, content, truncated: false };
+    }
+    return {
+        path: filePath,
+        content: `${content.slice(0, maxChars)}\n/* ... stub truncated (${content.length} chars total) — replace entire file via write_file. */`,
+        truncated: true,
+        originalChars: content.length,
+    };
+}
+
+function summarizeFoundationForImplement(foundation = null) {
+    if (!foundation || typeof foundation !== 'object') return null;
+    return {
+        foundationId: foundation.foundationId || null,
+        lane: foundation.lane || null,
+        requiredState: foundation.requiredState || [],
+        requiredFunctions: foundation.requiredFunctions || [],
+        probeMethods: foundation.probeMethods || [],
+        firstFrame: foundation.firstFrame || null,
+        acceptanceChecks: foundation.acceptanceChecks || [],
+        implementationNotes: foundation.implementationNotes || [],
+        assetSlots: Array.isArray(foundation.assetSlots)
+            ? foundation.assetSlots.map((slot) => ({
+                id: slot?.id || slot?.role || null,
+                role: slot?.role || null,
+            }))
+            : [],
+    };
+}
 
 export function summarizeProjectFilesForPrompt(projectFiles = [], maxCharsPerFile = MAKER_AGENT_FILE_PROMPT_CHARS) {
     return (Array.isArray(projectFiles) ? projectFiles : []).map((file) => {
@@ -110,6 +153,70 @@ export function summarizeMakerAgentTurns(turns = []) {
             error: turn.error || null,
         })),
     };
+}
+
+export function buildMakerAgentImplementPrompt({
+    prompt = '',
+    qualityIntent = {},
+    projectFiles = [],
+    templateContract = null,
+    designBrief = '',
+    objective = '',
+    allowedAssetKeys = [],
+    assetSlotHints = [],
+} = {}) {
+    const foundation = templateContract?.foundation || null;
+    const mainTs = pickProjectFileContent(projectFiles, 'src/main.ts', MAKER_IMPLEMENT_MAIN_TS_CHARS);
+    const stylesCss = pickProjectFileContent(projectFiles, 'src/styles.css', 4000);
+    const gdd = String(designBrief || '');
+    const gddBody = gdd.length <= MAKER_IMPLEMENT_GDD_CHARS
+        ? gdd
+        : `${gdd.slice(0, MAKER_IMPLEMENT_GDD_CHARS)}\n\n/* GDD truncated for implement pass (${gdd.length} chars total). Section 3 entity architecture above is authoritative. */`;
+
+    return [
+        'You are the GameTok Phase 2 implement agent. Ship the playable game in ONE write_file call.',
+        '',
+        'IMPLEMENT RULES:',
+        ...getMakerAgentToolInstructionLines(MAKER_AGENT_TURN_MODE_IMPLEMENT),
+        '- Kernel boot is already wired: loadDreamAssets → import main.ts. Replace stub logic only.',
+        '- Keep import "./styles.css", #game-canvas at viewport 0,0, getAssetImage/firstByRole for sprites.',
+        '- Canvas game: guard canvas with instanceof HTMLCanvasElement before width/height/getContext.',
+        '- Implement foundation requiredFunctions + probeMethods on window.__GAMETOK_TEMPLATE_PROBE__.',
+        '- HUD, buttons, timers, order bubbles: code-rendered only (canvas/DOM). No Phaser for canvas-kernel.',
+        '- Target src/main.ts under ~18000 chars: complete loop, no filler comments, no duplicate functions.',
+        '- Use ONLY asset keys from ALLOWED ASSET PACK KEYS (exact spelling).',
+        '',
+        `Objective: ${objective || 'Implement full gameplay loop in src/main.ts.'}`,
+        '',
+        buildAllowedAssetKeysPromptBlock(allowedAssetKeys, assetSlotHints),
+        '',
+        'User prompt:',
+        prompt,
+        '',
+        'Playable intent:',
+        JSON.stringify({
+            title: qualityIntent.title || null,
+            playableExperience: qualityIntent.playableExperience || null,
+            primaryMechanic: qualityIntent.primaryMechanic || qualityIntent.playerActions?.[0] || null,
+            mobileControls: qualityIntent.mobileControls || [],
+            mustExist: qualityIntent.mustExist || [],
+            failureModesToAvoid: qualityIntent.failureModesToAvoid || [],
+        }, null, 2),
+        '',
+        'Foundation contract (implement these):',
+        JSON.stringify(summarizeFoundationForImplement(foundation), null, 2),
+        '',
+        'GDD (design reference):',
+        gddBody,
+        '',
+        'Current src/main.ts stub (replace entirely):',
+        JSON.stringify(mainTs, null, 2),
+        ...(stylesCss ? [
+            '',
+            'Current src/styles.css (optional tweak):',
+            JSON.stringify(stylesCss, null, 2),
+        ] : []),
+    ].join('\n');
 }
 
 export function buildMakerAgentInspectionPrompt({
