@@ -60,7 +60,7 @@ export function isDeepSeekV4ModelName(model = '') {
 
 export function getDeepSeekMaxOutputTokens(requestedMaxTokens, env = process.env) {
     const requested = Number(requestedMaxTokens || 8192);
-    const cap = Math.max(4096, Math.min(384000, Number(env.DEEPSEEK_MAX_OUTPUT_TOKENS || 128000)));
+    const cap = Math.max(4096, Math.min(384000, Number(env.DEEPSEEK_MAX_OUTPUT_TOKENS || 384000)));
     return Math.min(requested, cap);
 }
 
