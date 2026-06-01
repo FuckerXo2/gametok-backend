@@ -281,7 +281,8 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(3, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 0) || Math.max(3, getNvidiaTextKeys().length)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(5, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 4)));
+const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(8, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 6)));
+const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
 const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
 
 const JOB_TITLES = {
@@ -4383,12 +4384,15 @@ async function runMakerAgentInspectionTurns({
     builderMaps = null,
     assetQuality = null,
     maxTurns = MAKER_AGENT_INSPECTION_TURNS,
+    reportProgress = null,
 }) {
     const objectives = [
-        'Implement the gameplay loop incrementally in src/main.ts using apply_patch (preferred) or write_file. Each tool call saves to disk immediately; build pantry drag, cauldron slots, cook flow, customers, timers, and probes across multiple rounds.',
-        'Repair direct preflight, compile, probe, or sandbox failures with small apply_patch edits. Do not rewrite unrelated systems.',
-        'Run against rebuild/sandbox evidence from the previous turn and repair remaining runtime or acceptance failures.',
-        'Make one final targeted compliance cleanup if evidence still reports issues.',
+        'Implement the gameplay loop incrementally in src/main.ts. Use read_file/grep_project, apply_patch (preferred), and run_tsc_check. Each edit saves to disk immediately.',
+        'Fix TypeScript, preflight, probe, or sandbox failures from last run evidence with targeted apply_patch edits.',
+        'Continue repairing until sandbox evidence passes or no progress remains.',
+        'Final compliance pass: wire missing probes, asset keys, and acceptance checks.',
+        'Last-chance sandbox repair for any remaining runtime failures.',
+        'One final polish turn if evidence still reports minor issues.',
     ];
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
@@ -4470,14 +4474,13 @@ async function runMakerAgentInspectionTurns({
                         mode: turnMode,
                     }),
                     onEditApplied: async (edit, meta) => {
-                        console.log(`✏️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] ${edit.tool} ${edit.path} bytes=${edit.bytes} round=${meta.round} call=${meta.toolCall}`);
-                        if (jobId) {
-                            const editCount = meta.toolCall;
-                            await updateGenerationJobProgress(
-                                jobId,
-                                Math.min(68, 56 + editCount),
+                        const tscNote = edit.tool === 'apply_patch' || edit.tool === 'write_file' ? ' (tsc checked)' : '';
+                        console.log(`✏️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] ${edit.tool} ${edit.path} bytes=${edit.bytes} round=${meta.round} call=${meta.toolCall}${tscNote}`);
+                        if (jobId && typeof reportProgress === 'function') {
+                            await reportProgress(
+                                Math.min(72, 56 + meta.toolCall),
                                 'build',
-                                `Live edit: ${edit.tool} ${edit.path} (${edit.bytes} bytes)`,
+                                `Live edit: ${edit.tool} ${edit.path}${tscNote}`,
                             );
                         }
                     },
@@ -4485,6 +4488,7 @@ async function runMakerAgentInspectionTurns({
                         safeMakerProjectPath,
                         isProtectedMakerRuntimeFile,
                         sanitizeMakerMainTsContent,
+                        runTscCheck: (root) => runMakerProjectTscCheck(root, { timeoutMs: 45_000 }),
                     },
                 });
                 await writeMakerJson(workspace, `logs/agent-tool-turn-${turnNumber}.json`, toolTurn.log);
@@ -4523,6 +4527,13 @@ async function runMakerAgentInspectionTurns({
                         });
                         continue;
                     }
+                }
+                if (jobId && typeof reportProgress === 'function') {
+                    await reportProgress(
+                        Math.min(73, 68 + turnNumber),
+                        'verify',
+                        `Running sandbox + build checks (agent turn ${turnNumber})...`,
+                    );
                 }
                 runEvidence = await runMakerProjectEvidence({
                     workspace,
@@ -4662,6 +4673,7 @@ async function runMakerAgentInspectionTurns({
             || 'build or sandbox checks still failing';
         throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s): ${crashSummary}`);
     }
+    return lastRunEvidence;
 }
 
 async function assembleMakerProjectHtml(projectRoot) {
@@ -4803,6 +4815,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     let generatedAssets = null;
     let finalSandboxResult = null;
     let buildMode = null;
+    let phase2Evidence = null;
     let makerDesignBriefSummary = null;
     let makerGddCompliance = null;
     let makerAcceptanceResult = null;
@@ -5158,7 +5171,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await applyMakerFileEdits(makerProject.projectRoot, integrationEdits, { compileGate: true });
                 await rebuildMakerProjectDistWithAutoRepair(makerProject.projectRoot);
             }
-            await runMakerAgentInspectionTurns({
+            phase2Evidence = await runMakerAgentInspectionTurns({
                 workspace: makerWorkspace,
                 projectRoot: makerProject.projectRoot,
                 turns: makerAgentTurns,
@@ -5172,6 +5185,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 designBrief: makerDesignBrief,
                 builderMaps: makerBuilderMaps,
                 assetQuality: generatedAssets?.assetQuality || null,
+                reportProgress,
             });
             rawGameHtml = await assembleMakerProjectHtmlWithAutoRepair(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
@@ -5216,6 +5230,23 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         let sandboxVerifyAttempt = 0;
         let p3Success = false;
         const pendingRepairProtocolRecords = [];
+        const phase2AgentLoopPassed = Boolean(phase2Evidence?.success) && useMakerAgentTools();
+
+        if (SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES && phase2AgentLoopPassed) {
+            console.log('✅ Phase 2 forge agent loop passed sandbox/build evidence — skipping Phase 3 JSON repair loop');
+            await reportProgress(78, 'verify', 'Game verified in forge agent loop...');
+            p3Success = true;
+            finalSandboxResult = {
+                success: true,
+                crashes: [],
+                hasScreenshot: Boolean(phase2Evidence?.screenshot),
+                diagnostics: phase2Evidence?.diagnostics || null,
+                attempt: 1,
+                repairAttemptsUsed: 0,
+                checkedAt: new Date().toISOString(),
+                skippedPhase3Repair: true,
+            };
+        }
         
         while (!p3Success) {
             assertJobNotCancelled(jobId);

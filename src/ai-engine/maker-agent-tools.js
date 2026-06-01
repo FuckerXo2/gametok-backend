@@ -2,9 +2,13 @@ import fs from 'fs';
 import path from 'path';
 
 import { applyPatchReplacements } from './maker-agent-patches.js';
+import { parseTscOutput } from './maker-project-compile-gate.js';
 
 export const MAKER_TOOL_APPLY_PATCH = 'apply_patch';
 export const MAKER_TOOL_WRITE_FILE = 'write_file';
+export const MAKER_TOOL_READ_FILE = 'read_file';
+export const MAKER_TOOL_GREP_PROJECT = 'grep_project';
+export const MAKER_TOOL_RUN_TSC = 'run_tsc_check';
 export const MAKER_TOOL_FINISH_INSPECTION = 'finish_inspection';
 
 export const MAKER_AGENT_TURN_MODE_IMPLEMENT = 'implement';
@@ -39,6 +43,13 @@ const REPAIR_MAX_TOOL_CALLS = Math.max(
     6,
     Math.min(16, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 12)),
 );
+const READ_FILE_MAX_CHARS = Math.max(
+    4000,
+    Math.min(48000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 32000)),
+);
+const GREP_MAX_MATCHES = Math.max(8, Math.min(80, Number(process.env.GAMETOK_MAKER_AGENT_GREP_MAX_MATCHES || 40)));
+const TSC_AFTER_EACH_EDIT = String(process.env.GAMETOK_MAKER_TSC_AFTER_EACH_EDIT || 'true').toLowerCase() !== 'false';
+const AGENT_READABLE_ROOTS = ['src/', 'public/'];
 
 export function useMakerAgentTools() {
     return String(process.env.GAMETOK_MAKER_AGENT_TOOLS || 'true').toLowerCase() !== 'false';
@@ -120,6 +131,71 @@ export function getMakerAgentToolDefinitions() {
         {
             type: 'function',
             function: {
+                name: MAKER_TOOL_READ_FILE,
+                description: 'Read a project file from disk. Use before apply_patch to copy exact find anchors.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        path: {
+                            type: 'string',
+                            description: 'Project-relative path under src/ or public/, e.g. src/main.ts',
+                        },
+                        max_chars: {
+                            type: 'number',
+                            description: 'Optional max chars to return (default 32000)',
+                        },
+                    },
+                    required: ['path'],
+                    additionalProperties: false,
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: MAKER_TOOL_GREP_PROJECT,
+                description: 'Search project source files for a string or regex pattern.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        pattern: {
+                            type: 'string',
+                            description: 'Text or regex pattern to search for',
+                        },
+                        path_prefix: {
+                            type: 'string',
+                            description: 'Optional path prefix filter, e.g. src/main.ts or src/',
+                        },
+                        case_sensitive: {
+                            type: 'boolean',
+                            description: 'Case sensitive search when true',
+                        },
+                    },
+                    required: ['pattern'],
+                    additionalProperties: false,
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: MAKER_TOOL_RUN_TSC,
+                description: 'Run TypeScript compile check (tsc --noEmit) on the project and return errors.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        reason: {
+                            type: 'string',
+                            description: 'Why you are running tsc now',
+                        },
+                    },
+                    additionalProperties: false,
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
                 name: MAKER_TOOL_FINISH_INSPECTION,
                 description: 'Signal that this inspection turn is complete. Call when done editing or when no changes are needed.',
                 parameters: {
@@ -146,10 +222,13 @@ export function getMakerAgentToolDefinitions() {
 export function getMakerAgentToolInstructionLines(mode = MAKER_AGENT_TURN_MODE_REPAIR) {
     if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
         return [
-            'IMPLEMENT MODE (turn 1): build the game incrementally like a coding agent — each tool call writes to disk immediately.',
+            'IMPLEMENT MODE (turn 1): build the game incrementally like a coding agent — each edit tool writes to disk immediately.',
+            'Use read_file / grep_project to inspect the live project before patching.',
             'Prefer apply_patch on src/main.ts: replace stub sections with pantry drag, cauldron slots, cook button, customers, timers, probes.',
-            'Make 4-12 focused apply_patch edits across rounds. Read the latest file snapshot before each find anchor.',
-            'write_file is allowed for src/main.ts or src/styles.css when a full rewrite is simpler than many patches.',
+            'After each edit, tsc runs automatically — fix any TypeScript errors before continuing.',
+            'You may call run_tsc_check manually after a batch of edits.',
+            'Make 4-12 focused apply_patch edits across rounds.',
+            'write_file is allowed for src/main.ts or src/styles.css when a full rewrite is simpler.',
             'Call finish_inspection when the loop is complete. Do not dump plain text or JSON blobs.',
             'Keep import "./styles.css", #game-canvas boot, foundation requiredFunctions, and probeMethods.',
             'Use ONLY asset keys from the ALLOWED ASSET PACK KEYS block (exact spelling).',
@@ -158,7 +237,9 @@ export function getMakerAgentToolInstructionLines(mode = MAKER_AGENT_TURN_MODE_R
     }
     return [
         'REPAIR MODE: fix the specific preflight/build/sandbox failures shown in last run evidence.',
-        'Prefer apply_patch with exact find anchors copied from Project files.',
+        'Use read_file / grep_project to inspect current source before patching.',
+        'Prefer apply_patch with exact find anchors copied from read_file output.',
+        'run_tsc_check runs automatically after edits; fix all TS errors before finish_inspection.',
         'Call write_file only for small files (styles.css, tiny helpers). Avoid full src/main.ts rewrites unless evidence shows the file is corrupt.',
         'Call finish_inspection when done. Set no_edits_needed=true only if the project already passes the objective.',
         'Make 1-6 focused apply_patch calls per turn when changes are needed.',
@@ -184,6 +265,166 @@ function normalizeMakerToolPath(filePath = '') {
 
 function isMainTsPath(filePath = '') {
     return normalizeMakerToolPath(filePath) === 'src/main.ts';
+}
+
+function isAgentReadablePath(cleanPath = '') {
+    const normalized = normalizeMakerToolPath(cleanPath);
+    return AGENT_READABLE_ROOTS.some((prefix) => normalized.startsWith(prefix));
+}
+
+async function walkSearchFiles(projectRoot, relativeDir, matches = []) {
+    const absoluteDir = path.join(projectRoot, relativeDir);
+    let entries = [];
+    try {
+        entries = await fs.promises.readdir(absoluteDir, { withFileTypes: true });
+    } catch {
+        return matches;
+    }
+    for (const entry of entries) {
+        const relPath = path.join(relativeDir, entry.name).replace(/\\/g, '/');
+        if (entry.isDirectory()) {
+            await walkSearchFiles(projectRoot, relPath, matches);
+            continue;
+        }
+        if (!/\.(ts|tsx|js|jsx|css|json|html)$/i.test(entry.name)) continue;
+        matches.push(relPath);
+    }
+    return matches;
+}
+
+async function executeReadFile(projectRoot, helpers, args = {}) {
+    const filePath = args.path;
+    if (typeof filePath !== 'string' || !filePath.trim()) {
+        throw new Error('read_file requires path');
+    }
+    const cleanPath = normalizeMakerToolPath(filePath);
+    if (!isAgentReadablePath(cleanPath)) {
+        throw new Error(`read_file allowed only under src/ or public/ (got ${cleanPath})`);
+    }
+    const { cleanPath: resolvedPath, absolutePath } = helpers.safeMakerProjectPath(projectRoot, filePath);
+    if (helpers.isProtectedMakerRuntimeFile(resolvedPath)) {
+        throw new Error(`read_file blocked on protected file: ${resolvedPath}`);
+    }
+    const content = await fs.promises.readFile(absolutePath, 'utf8');
+    const maxChars = Math.min(
+        READ_FILE_MAX_CHARS,
+        Math.max(1000, Number(args.max_chars || READ_FILE_MAX_CHARS)),
+    );
+    const truncated = content.length > maxChars;
+    return {
+        ok: true,
+        tool: MAKER_TOOL_READ_FILE,
+        path: resolvedPath,
+        bytes: Buffer.byteLength(content, 'utf8'),
+        truncated,
+        content: truncated
+            ? `${content.slice(0, maxChars)}\n/* ... truncated (${content.length} chars total) */`
+            : content,
+    };
+}
+
+async function executeGrepProject(projectRoot, helpers, args = {}) {
+    const pattern = args.pattern;
+    if (typeof pattern !== 'string' || !pattern.trim()) {
+        throw new Error('grep_project requires pattern');
+    }
+    const pathPrefix = normalizeMakerToolPath(args.path_prefix || 'src/');
+    const caseSensitive = Boolean(args.case_sensitive);
+    let regex;
+    try {
+        regex = new RegExp(pattern, caseSensitive ? 'g' : 'gi');
+    } catch {
+        regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
+    }
+
+    const files = [];
+    if (pathPrefix.endsWith('.ts') || pathPrefix.endsWith('.js') || pathPrefix.endsWith('.css')) {
+        files.push(pathPrefix);
+    } else {
+        const roots = pathPrefix.startsWith('public/') ? ['public'] : ['src', 'public'];
+        for (const root of roots) {
+            await walkSearchFiles(projectRoot, root, files);
+        }
+    }
+
+    const matches = [];
+    for (const relPath of files) {
+        if (pathPrefix && !relPath.startsWith(pathPrefix)) continue;
+        const { absolutePath, cleanPath } = helpers.safeMakerProjectPath(projectRoot, relPath);
+        if (helpers.isProtectedMakerRuntimeFile(cleanPath)) continue;
+        let content = '';
+        try {
+            content = await fs.promises.readFile(absolutePath, 'utf8');
+        } catch {
+            continue;
+        }
+        const lines = content.split('\n');
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+            if (!regex.test(lines[lineIndex])) {
+                regex.lastIndex = 0;
+                continue;
+            }
+            regex.lastIndex = 0;
+            matches.push({
+                path: cleanPath,
+                line: lineIndex + 1,
+                text: lines[lineIndex].trim().slice(0, 240),
+            });
+            if (matches.length >= GREP_MAX_MATCHES) break;
+        }
+        if (matches.length >= GREP_MAX_MATCHES) break;
+    }
+
+    return {
+        ok: true,
+        tool: MAKER_TOOL_GREP_PROJECT,
+        pattern,
+        matchCount: matches.length,
+        truncated: matches.length >= GREP_MAX_MATCHES,
+        matches,
+    };
+}
+
+async function executeRunTsc(projectRoot, helpers) {
+    if (typeof helpers.runTscCheck !== 'function') {
+        throw new Error('run_tsc_check is unavailable in this session');
+    }
+    try {
+        await helpers.runTscCheck(projectRoot);
+        return {
+            ok: true,
+            tool: MAKER_TOOL_RUN_TSC,
+            tsc: { ok: true, errors: [] },
+        };
+    } catch (error) {
+        return {
+            ok: true,
+            tool: MAKER_TOOL_RUN_TSC,
+            tsc: {
+                ok: false,
+                errors: error.buildErrors || parseTscOutput(error.rawOutput || error.message),
+                message: error.message || String(error),
+            },
+        };
+    }
+}
+
+async function attachTscResultAfterEdit(projectRoot, helpers, result, toolName) {
+    if (!TSC_AFTER_EACH_EDIT || !result?.ok || !result.path) return result;
+    if (toolName !== MAKER_TOOL_APPLY_PATCH && toolName !== MAKER_TOOL_WRITE_FILE) return result;
+    if (!/\.(ts|tsx)$/i.test(result.path)) return result;
+    if (typeof helpers.runTscCheck !== 'function') return result;
+    try {
+        await helpers.runTscCheck(projectRoot);
+        result.tsc = { ok: true, errors: [] };
+    } catch (error) {
+        result.tsc = {
+            ok: false,
+            errors: error.buildErrors || parseTscOutput(error.rawOutput || error.message),
+            message: error.message || String(error),
+        };
+    }
+    return result;
 }
 
 async function executeApplyPatch(projectRoot, helpers, args = {}, { mode = MAKER_AGENT_TURN_MODE_REPAIR } = {}) {
@@ -287,10 +528,20 @@ function executeFinishInspection(args = {}) {
 async function executeMakerToolCall(projectRoot, helpers, toolName, rawArgs, options = {}) {
     const args = parseToolArguments(rawArgs);
     switch (toolName) {
-        case MAKER_TOOL_APPLY_PATCH:
-            return executeApplyPatch(projectRoot, helpers, args, options);
-        case MAKER_TOOL_WRITE_FILE:
-            return executeWriteFile(projectRoot, helpers, args, options);
+        case MAKER_TOOL_APPLY_PATCH: {
+            const result = await executeApplyPatch(projectRoot, helpers, args, options);
+            return attachTscResultAfterEdit(projectRoot, helpers, result, toolName);
+        }
+        case MAKER_TOOL_WRITE_FILE: {
+            const result = await executeWriteFile(projectRoot, helpers, args, options);
+            return attachTscResultAfterEdit(projectRoot, helpers, result, toolName);
+        }
+        case MAKER_TOOL_READ_FILE:
+            return executeReadFile(projectRoot, helpers, args);
+        case MAKER_TOOL_GREP_PROJECT:
+            return executeGrepProject(projectRoot, helpers, args);
+        case MAKER_TOOL_RUN_TSC:
+            return executeRunTsc(projectRoot, helpers);
         case MAKER_TOOL_FINISH_INSPECTION:
             return executeFinishInspection(args);
         default:
@@ -406,7 +657,7 @@ export async function runMakerAgentToolTurn({
             if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
                 messages.push({
                     role: 'user',
-                    content: 'Implement mode: use apply_patch on src/main.ts (preferred) or write_file, then finish_inspection when the game loop is complete. Each edit is saved to disk immediately.',
+                    content: 'Implement mode: use read_file/grep_project to inspect, apply_patch or write_file to edit (saved immediately), fix any tsc errors shown in tool results, then finish_inspection when complete.',
                 });
             } else if (round >= effectiveMaxRounds - 1) {
                 break;
@@ -483,7 +734,7 @@ export async function runMakerAgentToolTurn({
             }
         }
 
-        if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && roundEdited && !finished) {
+        if ((mode === MAKER_AGENT_TURN_MODE_IMPLEMENT || mode === MAKER_AGENT_TURN_MODE_REPAIR) && roundEdited && !finished) {
             await appendImplementFileSnapshot(projectRoot, messages);
         }
     }
