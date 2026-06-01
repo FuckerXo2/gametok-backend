@@ -296,11 +296,11 @@ const BUILDER_MAX_TOKENS = Math.max(
 );
 const MAKER_TOOL_MAX_TOKENS = Math.max(
     1024,
-    Math.min(DEEPSEEK_MAX_OUTPUT_TOKENS, Number(process.env.GAMETOK_MAKER_TOOL_MAX_TOKENS || 8192)),
+    Math.min(DEEPSEEK_MAX_OUTPUT_TOKENS, Number(process.env.GAMETOK_MAKER_TOOL_MAX_TOKENS || 65536)),
 );
 const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
     8192,
-    Math.min(DEEPSEEK_MAX_OUTPUT_TOKENS, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAX_TOKENS || 16384)),
+    Math.min(DEEPSEEK_MAX_OUTPUT_TOKENS, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAX_TOKENS || 128000)),
 );
 const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'low').trim() || 'low';
 const MAKER_IMPLEMENT_FALLBACK_MODELS = (
@@ -5100,7 +5100,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const deepseekPrimary = isDeepSeekPrimaryEnabled();
         const moonshotConfig = getMoonshotTextConfig();
         const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} phase2ImplementMaxTokens=${MAKER_IMPLEMENT_MAX_TOKENS} phase2RepairMaxTokens=${MAKER_TOOL_MAX_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
