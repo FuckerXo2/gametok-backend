@@ -266,7 +266,7 @@ const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
 const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'low').trim() || 'low';
 const MAKER_IMPLEMENT_FALLBACK_MODELS = (
     process.env.GAMETOK_MAKER_IMPLEMENT_MODELS
-        || 'deepseek-ai/deepseek-v4-pro,moonshotai/kimi-k2.6,qwen/qwen3-coder-480b-a35b-instruct'
+        || 'qwen/qwen3-coder-480b-a35b-instruct,moonshotai/kimi-k2.6,deepseek-ai/deepseek-v4-pro'
 )
     .split(',')
     .map((model) => model.trim())
@@ -1259,14 +1259,17 @@ async function requestMakerToolCompletion(messages, {
     fallbackModels = null,
     reasoningEffort = null,
     mode = null,
+    onResolvedModel = null,
 } = {}) {
     assertJobNotCancelled(jobId);
     await assertJobNotCancelledShared(jobId, { force: true });
     const logLabel = formatJobLogLabel(label, jobId);
     const toolCompatibleFallbacks = BUILDER_FALLBACK_MODELS;
-    const modelsToTry = Array.isArray(fallbackModels) && fallbackModels.length > 0
-        ? fallbackModels
-        : (currentModel ? [currentModel] : toolCompatibleFallbacks);
+    const modelsToTry = currentModel
+        ? [currentModel]
+        : (Array.isArray(fallbackModels) && fallbackModels.length > 0
+            ? fallbackModels
+            : toolCompatibleFallbacks);
 
     return withNvidiaRetries(async (modelParam, client) => withAbortableTimeout(async (signal) => {
         const modelToUse = currentModel || modelParam || DREAM_MODELS.premiumBuilder;
@@ -1305,6 +1308,9 @@ async function requestMakerToolCompletion(messages, {
         }
         const toolCallCount = Array.isArray(message.tool_calls) ? message.tool_calls.length : 0;
         console.log(`🛠️ [${logLabel}] tool_calls=${toolCallCount} content_chars=${String(message.content || '').length}`);
+        if (typeof onResolvedModel === 'function') {
+            onResolvedModel(modelToUse);
+        }
         return message;
     }, timeoutMs, logLabel), {
         label,
@@ -4512,6 +4518,7 @@ async function runMakerAgentInspectionTurns({
 
             if (makerAgentUsesTools) {
                 console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] mode=${turnMode} assetKeys=${allowedAssetKeys.length}`);
+                let stickyImplementModel = null;
                 const toolTurn = await runMakerAgentToolTurn({
                     userPrompt: promptText,
                     projectRoot,
@@ -4520,11 +4527,18 @@ async function runMakerAgentInspectionTurns({
                         label: `Phase 2 File Agent Turn ${turnNumber}`,
                         jobId,
                         timeoutMs: isImplementTurn ? MAKER_IMPLEMENT_TIMEOUT_MS : BUILDER_REQUEST_TIMEOUT_MS,
-                        maxAttempts: isImplementTurn ? 1 : 2,
+                        maxAttempts: 2,
                         maxTokens: isImplementTurn ? MAKER_IMPLEMENT_MAX_TOKENS : MAKER_TOOL_MAX_TOKENS,
+                        currentModel: stickyImplementModel,
                         fallbackModels: isImplementTurn ? MAKER_IMPLEMENT_FALLBACK_MODELS : null,
                         reasoningEffort: isImplementTurn ? MAKER_IMPLEMENT_REASONING_EFFORT : null,
                         mode: turnMode,
+                        onResolvedModel: (model) => {
+                            if (!stickyImplementModel) {
+                                console.log(`📌 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Sticky implement model: ${model}`);
+                            }
+                            stickyImplementModel = model;
+                        },
                     }),
                     onEditApplied: async (edit, meta) => {
                         const tscNote = edit.tool === 'apply_patch' || edit.tool === 'write_file' ? ' (tsc checked)' : '';
