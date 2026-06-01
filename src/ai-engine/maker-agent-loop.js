@@ -51,6 +51,11 @@ const MAKER_IMPLEMENT_MAIN_TS_CHARS = Math.max(
     4000,
     Math.min(20000, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAIN_TS_CHARS || 10000)),
 );
+const MAKER_REPAIR_GDD_CHARS = Math.max(
+    2000,
+    Math.min(12000, Number(process.env.GAMETOK_MAKER_REPAIR_GDD_CHARS || 4000)),
+);
+const MAKER_REPAIR_EVIDENCE_TASKS = Math.max(2, Math.min(12, Number(process.env.GAMETOK_MAKER_REPAIR_EVIDENCE_TASKS || 6)));
 
 function pickProjectFileContent(projectFiles = [], filePath, maxChars = MAKER_AGENT_FILE_PROMPT_CHARS) {
     const file = (Array.isArray(projectFiles) ? projectFiles : []).find((entry) => entry.path === filePath);
@@ -155,6 +160,61 @@ export function summarizeMakerAgentTurns(turns = []) {
     };
 }
 
+function truncatePromptText(text = '', maxChars = 4000, label = 'content') {
+    const value = String(text || '');
+    if (value.length <= maxChars) return value;
+    return `${value.slice(0, maxChars)}\n\n/* ${label} truncated (${value.length} chars total). Use read_file for live source. */`;
+}
+
+function summarizeEvidenceForRepairPrompt(evidence = null) {
+    if (!evidence || typeof evidence !== 'object') return null;
+    return {
+        success: evidence.success,
+        phase: evidence.phase,
+        crashes: Array.isArray(evidence.crashes) ? evidence.crashes.slice(0, 4) : [],
+        targetedRepairTasks: Array.isArray(evidence.targetedRepairTasks)
+            ? evidence.targetedRepairTasks.slice(0, MAKER_REPAIR_EVIDENCE_TASKS)
+            : [],
+        failedContractChecks: Array.isArray(evidence.diagnostics?.failedContractChecks)
+            ? evidence.diagnostics.failedContractChecks.slice(0, MAKER_REPAIR_EVIDENCE_TASKS)
+            : [],
+        buildFailure: evidence.diagnostics?.buildFailure
+            ? {
+                type: evidence.diagnostics.buildFailure.type,
+                errors: (evidence.diagnostics.buildFailure.errors || []).slice(0, 6),
+            }
+            : null,
+    };
+}
+
+function summarizeLoopHistoryForRepair(loopHistory = null) {
+    const priorTurns = Array.isArray(loopHistory?.turns) ? loopHistory.turns : [];
+    return {
+        turnCount: loopHistory?.turnCount || priorTurns.length,
+        editsApplied: loopHistory?.editsApplied || 0,
+        targetedRepairTaskCount: loopHistory?.targetedRepairTaskCount || 0,
+        turns: priorTurns.slice(-2),
+    };
+}
+
+function summarizeTemplateContractForRepair(templateContract = null) {
+    if (!templateContract || typeof templateContract !== 'object') return null;
+    return {
+        templateId: templateContract.templateId || templateContract.foundation?.foundationId || null,
+        lane: templateContract.foundation?.lane || templateContract.lane || null,
+        foundation: summarizeFoundationForImplement(templateContract.foundation),
+    };
+}
+
+function summarizeAssetContractForRepair(assetContract = null) {
+    if (!assetContract || typeof assetContract !== 'object') return null;
+    const slots = Array.isArray(assetContract.slots) ? assetContract.slots : [];
+    return {
+        slotCount: slots.length,
+        roles: slots.slice(0, 12).map((slot) => slot?.role || slot?.id || null).filter(Boolean),
+    };
+}
+
 export function buildMakerAgentImplementPrompt({
     prompt = '',
     qualityIntent = {},
@@ -242,9 +302,14 @@ export function buildMakerAgentInspectionPrompt({
 } = {}) {
     const useTools = transport === 'tools';
     const implementMode = useTools && mode === MAKER_AGENT_TURN_MODE_IMPLEMENT;
+    const repairMode = useTools && !implementMode;
+    const gddBody = implementMode
+        ? (String(designBrief || '').length <= MAKER_IMPLEMENT_GDD_CHARS
+            ? designBrief
+            : truncatePromptText(designBrief, MAKER_IMPLEMENT_GDD_CHARS, 'GDD'))
+        : truncatePromptText(designBrief, MAKER_REPAIR_GDD_CHARS, 'GDD');
     return [
-        getMakerSystemManualBlock('fileAgent'),
-        '',
+        ...(implementMode ? [getMakerSystemManualBlock('fileAgent'), ''] : []),
         'You are the GameTok native maker file agent.',
         '',
         ...(implementMode ? [
@@ -252,7 +317,8 @@ export function buildMakerAgentInspectionPrompt({
             'Foundation HTML, HUD shell, canvas boot, and asset loader are already materialized. Do not redesign the page layout.',
         ] : [
             'This is a repair pass after build/preflight/sandbox evidence. Make the smallest edits that fix the reported failures.',
-            'Read the actual project files, compare them to contracts and last run evidence, then patch in place.',
+            'Use read_file once per path, then apply_patch. Do not re-read the same file repeatedly without editing it.',
+            'Focus on targetedRepairTasks and failed checks below — ignore unrelated contract noise.',
         ]),
         ...(useTools ? [
             'Use the provided NVIDIA tools to edit files. Do not dump a JSON protocol blob in plain message text.',
@@ -325,39 +391,49 @@ export function buildMakerAgentInspectionPrompt({
         }, null, 2),
         '',
         'GDD:',
-        designBrief,
+        gddBody,
         '',
         'Template contract:',
-        JSON.stringify(templateContract || null, null, 2),
+        JSON.stringify(repairMode ? summarizeTemplateContractForRepair(templateContract) : (templateContract || null), null, 2),
         '',
-        ...(templateContract?.foundation ? [
+        ...(templateContract?.foundation && !repairMode ? [
             'Foundation contract (AI architect — this job custom rules):',
             JSON.stringify(templateContract.foundation, null, 2),
             '',
         ] : []),
         'Asset contract:',
-        JSON.stringify(assetContract || null, null, 2),
+        JSON.stringify(repairMode ? summarizeAssetContractForRepair(assetContract) : (assetContract || null), null, 2),
         '',
-        'Debug protocol:',
-        JSON.stringify(debugProtocol || null, null, 2),
-        '',
-        'Generated asset summary:',
-        JSON.stringify(generatedAssetsSummary || null, null, 2),
-        '',
-        'Asset quality summary:',
-        JSON.stringify(assetQualitySummary || null, null, 2),
-        '',
-        'Builder tool-use/system maps:',
-        JSON.stringify(builderMaps || null, null, 2),
-        '',
+        ...(repairMode ? [] : [
+            'Debug protocol:',
+            JSON.stringify(debugProtocol || null, null, 2),
+            '',
+            'Generated asset summary:',
+            JSON.stringify(generatedAssetsSummary || null, null, 2),
+            '',
+            'Asset quality summary:',
+            JSON.stringify(assetQualitySummary || null, null, 2),
+            '',
+            'Builder tool-use/system maps:',
+            JSON.stringify(builderMaps || null, null, 2),
+            '',
+        ]),
         'Previous file-agent turns:',
-        JSON.stringify(loopHistory || null, null, 2),
+        JSON.stringify(repairMode ? summarizeLoopHistoryForRepair(loopHistory) : (loopHistory || null), null, 2),
         '',
         'Last rebuild/sandbox run evidence:',
-        JSON.stringify(lastRunEvidence || null, null, 2),
+        JSON.stringify(repairMode ? summarizeEvidenceForRepairPrompt(lastRunEvidence) : (lastRunEvidence || null), null, 2),
         '',
-        'Project files:',
-        JSON.stringify(summarizeProjectFilesForPrompt(projectFiles), null, 2),
+        repairMode
+            ? 'Project files (paths only — use read_file/grep_project before editing):'
+            : 'Project files:',
+        JSON.stringify(
+            repairMode
+                ? summarizeMakerProjectFiles(projectFiles)
+                : summarizeProjectFilesForPrompt(projectFiles),
+            null,
+            2,
+        ),
     ].join('\n');
 }
 

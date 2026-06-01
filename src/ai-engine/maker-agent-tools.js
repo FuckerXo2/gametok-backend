@@ -40,8 +40,8 @@ const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
     Math.min(12000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 6000)),
 );
 const REPAIR_MAX_TOOL_CALLS = Math.max(
-    6,
-    Math.min(16, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 12)),
+    8,
+    Math.min(24, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 18)),
 );
 const READ_FILE_MAX_CHARS = Math.max(
     2000,
@@ -799,6 +799,7 @@ export async function runMakerAgentToolTurn({
 
         let roundEdited = false;
         let roundReadFile = false;
+        const readPathsThisRound = new Set();
         for (const toolCall of toolCalls) {
             if (log.toolCalls >= effectiveMaxToolCalls) {
                 throw new Error(`Maker tool turn exceeded max tool calls (${effectiveMaxToolCalls}) in ${mode} mode`);
@@ -834,6 +835,12 @@ export async function runMakerAgentToolTurn({
 
             if (toolName === MAKER_TOOL_READ_FILE && result.ok !== false) {
                 roundReadFile = true;
+                const readPath = result.path;
+                if (readPath && readPathsThisRound.has(readPath)) {
+                    result.note = `Already read ${readPath} this round. Use apply_patch with find text from the earlier read_file result instead of reading again.`;
+                } else if (readPath) {
+                    readPathsThisRound.add(readPath);
+                }
             }
 
             messages.push({

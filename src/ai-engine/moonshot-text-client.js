@@ -16,7 +16,7 @@ export function getMoonshotTextConfig(env = process.env) {
 export function isMoonshotFailoverEnabled(env = process.env) {
     if (!getMoonshotTextConfig(env)) return false;
     if (isMoonshotPrimaryEnabled(env)) return false;
-    return String(env.GAMETOK_MOONSHOT_FAILOVER || 'true').toLowerCase() !== 'false';
+    return String(env.GAMETOK_MOONSHOT_FAILOVER || 'false').toLowerCase() === 'true';
 }
 
 /** Opt-in: route text agents through Moonshot when MOONSHOT_API_KEY is set. Default off — NVIDIA path. */
