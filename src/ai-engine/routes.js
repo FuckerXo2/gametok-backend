@@ -1218,12 +1218,14 @@ function getTextChatOptions(model, requestedMaxTokens, {
     reasoningEffort = null,
     providerTag = null,
     hasTools = false,
+    toolThinkingEnabled = false,
     stream = true,
     temperature = undefined,
 } = {}) {
     if (isDeepSeekDirectProvider(providerTag)) {
         return buildDeepSeekChatOptions(resolveDeepSeekModel(model), requestedMaxTokens, {
             hasTools,
+            toolThinkingEnabled,
             stream,
             reasoningEffort,
             temperature,
@@ -1465,16 +1467,26 @@ async function requestMakerToolCompletion(messages, {
             : isDeepSeekDirectProvider(providerTag)
                 ? getDeepSeekMaxOutputTokens(maxTokens || MAKER_TOOL_MAX_TOKENS)
                 : getMaxTokensForModel(modelToUse, maxTokens);
+        const deepseekToolThinking = isDeepSeekDirectProvider(providerTag) && mode === MAKER_AGENT_TURN_MODE_IMPLEMENT;
         const usesDeepSeekReasoning = (isDeepSeekDirectProvider(providerTag) || isDeepSeekV4Model(modelToUse))
             && !isMoonshotDirectProvider(providerTag);
+        let loggedReasoning = 'n/a';
+        if (isDeepSeekDirectProvider(providerTag)) {
+            loggedReasoning = deepseekToolThinking
+                ? (reasoningEffort || process.env.DEEPSEEK_V4_IMPLEMENT_REASONING_EFFORT || process.env.DEEPSEEK_V4_TOOL_REASONING_EFFORT || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'low')
+                : 'off';
+        } else if (usesDeepSeekReasoning) {
+            loggedReasoning = reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high';
+        }
         console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse}, mode: ${mode || 'default'}, streaming: ${streaming ? 'on' : 'off'}, prompt_chars=${promptChars})...`);
-        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${usesDeepSeekReasoning ? (reasoningEffort || process.env.DEEPSEEK_V4_TOOL_REASONING_EFFORT || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'low') : 'n/a'}`);
+        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${loggedReasoning} thinking=${isDeepSeekDirectProvider(providerTag) ? (deepseekToolThinking ? 'on' : 'off') : 'n/a'}`);
 
         const chatOptions = {
             ...getTextChatOptions(modelToUse, toolMaxTokens, {
                 reasoningEffort,
                 providerTag,
                 hasTools: true,
+                toolThinkingEnabled: deepseekToolThinking,
                 stream: streaming,
             }),
             messages,

@@ -74,11 +74,13 @@ export function getDeepSeekMaxOutputTokens(requestedMaxTokens, env = process.env
 
 /**
  * DeepSeek V4 chat options.
- * Tool turns: disable thinking only (API rejects thinking=disabled + reasoning_effort together).
- * JSON/spec turns: reasoning_effort without forcing thinking off.
+ * Tool implement: thinking enabled + reasoning_effort (plan before write_file).
+ * Tool repair: thinking disabled only (fast patches; API rejects disabled + reasoning_effort).
+ * JSON/spec turns: reasoning_effort without an explicit thinking block.
  */
 export function buildDeepSeekChatOptions(model, requestedMaxTokens, {
     hasTools = false,
+    toolThinkingEnabled = false,
     stream = true,
     reasoningEffort = null,
     temperature = undefined,
@@ -90,7 +92,14 @@ export function buildDeepSeekChatOptions(model, requestedMaxTokens, {
     };
 
     if (hasTools) {
-        options.thinking = { type: 'disabled' };
+        if (toolThinkingEnabled) {
+            options.thinking = { type: 'enabled' };
+            options.reasoning_effort = reasoningEffort
+                || String(env.DEEPSEEK_V4_IMPLEMENT_REASONING_EFFORT || env.DEEPSEEK_V4_TOOL_REASONING_EFFORT || env.DEEPSEEK_V4_REASONING_EFFORT || 'low').trim()
+                || 'low';
+        } else {
+            options.thinking = { type: 'disabled' };
+        }
         options.temperature = temperature ?? 0.1;
     } else {
         options.reasoning_effort = reasoningEffort
