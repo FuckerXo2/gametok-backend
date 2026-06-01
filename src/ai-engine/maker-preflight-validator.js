@@ -206,16 +206,24 @@ function extractBalancedObjectLiteral(source, markerRegex) {
     return '';
 }
 
-function topLevelObjectKeys(objectLiteral = '') {
-    const keys = new Set();
+function segmentObjectKey(segment = '') {
+    const trimmed = String(segment || '').trim();
+    if (!trimmed || trimmed.startsWith('...')) return null;
+    if (/^(?:get|set|async)\s+/i.test(trimmed)) return null;
+    const explicit = /^(?:['"`]([^'"`]+)['"`]|([A-Za-z_$][\w$]*))\s*:/.exec(trimmed);
+    if (explicit?.[1] || explicit?.[2]) return explicit[1] || explicit[2];
+    const shorthand = /^(?:['"`]([^'"`]+)['"`]|([A-Za-z_$][\w$]*))(?:\s*,?\s*)$/.exec(trimmed);
+    return shorthand?.[1] || shorthand?.[2] || null;
+}
+
+function splitTopLevelObjectSegments(objectLiteral = '') {
+    const segments = [];
     let depth = 0;
     let quote = null;
     let escaped = false;
     let segmentStart = 1;
     const pushSegment = (segment) => {
-        const match = /^\s*(?:['"`]([^'"`]+)['"`]|([A-Za-z_$][\w$]*))\s*:/.exec(segment);
-        const key = match?.[1] || match?.[2];
-        if (key) keys.add(key);
+        if (String(segment || '').trim()) segments.push(segment);
     };
     for (let i = 1; i < objectLiteral.length - 1; i += 1) {
         const ch = objectLiteral[i];
@@ -237,18 +245,50 @@ function topLevelObjectKeys(objectLiteral = '') {
         }
     }
     pushSegment(objectLiteral.slice(segmentStart, -1));
+    return segments;
+}
+
+function topLevelObjectKeys(objectLiteral = '') {
+    const keys = new Set();
+    for (const segment of splitTopLevelObjectSegments(objectLiteral)) {
+        const key = segmentObjectKey(segment);
+        if (key) keys.add(key);
+    }
     return keys;
 }
 
-function statePropertyIssues(projectSource = '') {
-    const objectLiteral = extractBalancedObjectLiteral(projectSource, /\b(?:const|let|var)\s+state\s*=/g);
+function dedupeTopLevelObjectLiteral(objectLiteral = '') {
+    const segments = splitTopLevelObjectSegments(objectLiteral);
+    const seen = new Set();
+    const kept = [];
+    const removed = [];
+    for (const segment of segments) {
+        const key = segmentObjectKey(segment);
+        if (key && seen.has(key)) {
+            removed.push(key);
+            continue;
+        }
+        if (key) seen.add(key);
+        kept.push(segment);
+    }
+    if (removed.length === 0) return { objectLiteral, removed };
+    const inner = kept.length > 0 ? `\n${kept.join(',\n')}\n` : '';
+    return { objectLiteral: `{${inner}}`, removed };
+}
+
+function extractMainStateObjectLiteral(source = '') {
+    return extractBalancedObjectLiteral(source, /\b(?:const|let|var)\s+state\s*=/g);
+}
+
+function statePropertyIssues(mainSource = '') {
+    const objectLiteral = extractMainStateObjectLiteral(mainSource);
     if (!objectLiteral) return [];
     const keys = topLevelObjectKeys(objectLiteral);
     if (keys.size === 0) return [];
     const refs = new Set();
     const refPattern = /\bstate\.([A-Za-z_$][\w$]*)/g;
     let match;
-    while ((match = refPattern.exec(projectSource)) !== null) refs.add(match[1]);
+    while ((match = refPattern.exec(mainSource)) !== null) refs.add(match[1]);
     return Array.from(refs)
         .filter((ref) => !keys.has(ref))
         .map((ref) => {
@@ -311,16 +351,17 @@ function renameMisspelledStateProperties(source = '', missingEntries = []) {
 }
 
 function addMissingStateProperties(source = '', missingEntries = []) {
-    const toAdd = (Array.isArray(missingEntries) ? missingEntries : [])
-        .filter((entry) => entry?.key && !entry?.suggestion);
-    if (toAdd.length === 0) return { content: source, added: [] };
-
     const markerMatch = /\b(?:const|let|var)\s+state\s*=/.exec(source);
     if (!markerMatch) return { content: source, added: [] };
 
-    const objectLiteral = extractBalancedObjectLiteral(source, /\b(?:const|let|var)\s+state\s*=/g);
+    const objectLiteral = extractMainStateObjectLiteral(source);
     const literalStart = source.indexOf('{', markerMatch.index);
     if (!objectLiteral || literalStart < 0) return { content: source, added: [] };
+
+    const existingKeys = topLevelObjectKeys(objectLiteral);
+    const toAdd = (Array.isArray(missingEntries) ? missingEntries : [])
+        .filter((entry) => entry?.key && !entry?.suggestion && !existingKeys.has(entry.key));
+    if (toAdd.length === 0) return { content: source, added: [] };
 
     const literalEnd = literalStart + objectLiteral.length;
     const inner = objectLiteral.slice(1, -1);
@@ -336,17 +377,40 @@ function addMissingStateProperties(source = '', missingEntries = []) {
     };
 }
 
+function dedupeStateObjectProperties(source = '') {
+    const markerMatch = /\b(?:const|let|var)\s+state\s*=/.exec(source);
+    if (!markerMatch) return { content: source, removed: [] };
+
+    const objectLiteral = extractMainStateObjectLiteral(source);
+    const literalStart = source.indexOf('{', markerMatch.index);
+    if (!objectLiteral || literalStart < 0) return { content: source, removed: [] };
+
+    const deduped = dedupeTopLevelObjectLiteral(objectLiteral);
+    if (deduped.removed.length === 0) return { content: source, removed: [] };
+    return {
+        content: `${source.slice(0, literalStart)}${deduped.objectLiteral}${source.slice(literalStart + objectLiteral.length)}`,
+        removed: deduped.removed,
+    };
+}
+
 export function applyDeterministicStatePropertyRepairs(source = '', missingEntries = []) {
     const rename = renameMisspelledStateProperties(source, missingEntries);
     const renamedKeys = new Set(rename.renamed.map((entry) => entry.from));
     const toAddEntries = (Array.isArray(missingEntries) ? missingEntries : [])
         .filter((entry) => entry?.key && !entry?.suggestion && !renamedKeys.has(entry.key));
     const add = addMissingStateProperties(rename.content, toAddEntries);
+    const dedupe = dedupeStateObjectProperties(add.content);
     return {
-        content: add.content,
+        content: dedupe.content,
         renamed: rename.renamed,
         added: add.added,
+        deduped: dedupe.removed,
     };
+}
+
+export function applyDeterministicStateObjectDedupeRepairs(source = '') {
+    const dedupe = dedupeStateObjectProperties(source);
+    return dedupe.removed.length > 0 ? dedupe : { content: source, removed: [] };
 }
 
 export async function applyDeterministicPreflightRepairs(projectRoot, preflight = {}) {
@@ -360,7 +424,7 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
             continue;
         }
         const repair = applyDeterministicStatePropertyRepairs(source, issue.missingKeys);
-        if (repair.renamed.length === 0 && repair.added.length === 0) continue;
+        if (repair.renamed.length === 0 && repair.added.length === 0 && repair.deduped.length === 0) continue;
         source = repair.content;
         if (repair.renamed.length > 0) {
             applied.push({
@@ -378,6 +442,15 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
                 keys: repair.added,
                 from: 'undeclared state refs',
                 to: repair.added.join(', '),
+            });
+        }
+        if (repair.deduped?.length > 0) {
+            applied.push({
+                path: 'src/main.ts',
+                type: 'preflight_state_property_deduped',
+                keys: repair.deduped,
+                from: 'duplicate state keys',
+                to: repair.deduped.join(', '),
             });
         }
     }
@@ -597,7 +670,7 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         });
     }
 
-    const missingStateRefs = statePropertyIssues(projectSource);
+    const missingStateRefs = statePropertyIssues(source);
     if (missingStateRefs.length > 0) {
         issues.push({
             id: 'preflight_state_property_missing',

@@ -21,7 +21,7 @@ import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './mak
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
-import { applyDeterministicPreflightRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
+import { applyDeterministicPreflightRepairs, applyDeterministicStateObjectDedupeRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
@@ -4368,8 +4368,15 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
     const definiteAssignmentErrorsByFile = new Map();
     const invalidScaleConfigErrorsByFile = new Map();
     const inheritedPropertyErrorsByFile = new Map();
+    let duplicateStateObjectLiteral = false;
 
     for (const error of errors) {
+        const ts1117 = /^(src\/main\.ts)\(\d+,\d+\):\s*error\s+TS1117:\s*An object literal cannot have multiple properties with the same name\./m.exec(String(error || ''));
+        if (ts1117) {
+            duplicateStateObjectLiteral = true;
+            continue;
+        }
+
         const ts2393 = /^(src\/[^(]+)\((\d+),\d+\):\s*error\s+TS2393:\s*Duplicate function implementation\./m.exec(String(error || ''));
         if (ts2393) {
             const [, relativePath, line] = ts2393;
@@ -4424,6 +4431,24 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
                     type: 'ts2551_property_typo',
                     from: wrong,
                     to: right,
+                });
+            }
+        }
+    }
+
+    if (duplicateStateObjectLiteral) {
+        const mainPath = path.join(projectRoot, 'src', 'main.ts');
+        const before = await fs.promises.readFile(mainPath, 'utf8').catch(() => null);
+        if (before != null) {
+            const repair = applyDeterministicStateObjectDedupeRepairs(before);
+            if (repair.removed.length > 0) {
+                await fs.promises.writeFile(mainPath, repair.content, 'utf8');
+                applied.push({
+                    path: 'src/main.ts',
+                    type: 'ts1117_duplicate_state_property',
+                    removed: repair.removed,
+                    from: repair.removed.join(', '),
+                    to: 'kept first declaration only',
                 });
             }
         }
