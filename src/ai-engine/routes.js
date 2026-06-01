@@ -51,10 +51,15 @@ import {
     shouldMoonshotFailover,
 } from './provider-retry-policy.js';
 import {
+    buildMoonshotChatOptions,
     createMoonshotTextClient,
     getMoonshotTextConfig,
+    isMoonshotDirectProvider,
     isMoonshotFailoverEnabled,
+    isMoonshotPrimaryEnabled,
     maskMoonshotKey,
+    MOONSHOT_DIRECT_PROVIDER,
+    resolveMoonshotModel,
 } from './moonshot-text-client.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { applyPatchReplacements } from './maker-agent-patches.js';
@@ -445,14 +450,18 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
                     : buildPhase1JsonRewritePrompt(userPrompt, extracted || raw, parseError),
             }
         ];
-        const res = await withNvidiaRetries((currentModel, client) => withAbortableTimeout(async (signal) => {
-            const modelToUse = currentModel || DREAM_MODELS.spec;
+        const res = await withNvidiaRetries((currentModel, client, providerTag) => withAbortableTimeout(async (signal) => {
+            const modelToUse = resolveTextModelForProvider(currentModel || DREAM_MODELS.spec, providerTag);
             const chatOptions = {
-                model: modelToUse,
+                ...getTextChatOptions(modelToUse, maxTokens, {
+                    providerTag,
+                    stream: useMakerAgentStreaming(),
+                }),
                 messages,
-                max_tokens: maxTokens,
-                temperature: attempt === 0 ? temperature : Math.min(temperature, 0.15),
             };
+            if (!isMoonshotDirectProvider(providerTag)) {
+                chatOptions.temperature = attempt === 0 ? temperature : Math.min(temperature, 0.15);
+            }
             if (useMakerAgentStreaming()) {
                 const message = await streamChatCompletionToMessage(client, chatOptions, {
                     signal,
@@ -960,10 +969,39 @@ async function withNvidiaRetries(task, {
 } = {}) {
     let lastError;
     const logLabel = formatJobLogLabel(label, jobId);
+    const moonshotPrimary = isMoonshotPrimaryEnabled();
+    const moonshotFailover = !moonshotPrimary && (enableMoonshotFailover ?? isMoonshotFailoverEnabled());
+
+    if (moonshotPrimary) {
+        const moonshotConfig = getMoonshotTextConfig();
+        const moonshotClient = createMoonshotTextClient();
+        if (moonshotConfig && moonshotClient) {
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+                try {
+                    if (attempt > 1) {
+                        console.log(`🌙 [${logLabel}] Moonshot primary retry ${attempt}/${maxAttempts} (${moonshotConfig.model})...`);
+                    } else {
+                        console.log(`🌙 [${logLabel}] Moonshot primary (${moonshotConfig.model}, key ${maskMoonshotKey(moonshotConfig.apiKey)})`);
+                    }
+                    return await task(moonshotConfig.model, moonshotClient, MOONSHOT_DIRECT_PROVIDER);
+                } catch (error) {
+                    lastError = error;
+                    const classification = classifyProviderError(error);
+                    console.warn(`🌙 [${logLabel}] ${formatProviderRetryDecision(classification, attempt < maxAttempts ? 'rotate_key' : 'throw')} on Moonshot direct (attempt ${attempt}/${maxAttempts})`);
+                    if (attempt >= maxAttempts) {
+                        break;
+                    }
+                    await sleep(baseDelayMs * attempt);
+                }
+            }
+            throw lastError;
+        }
+        console.warn(`🌙 [${logLabel}] Moonshot primary requested but MOONSHOT_API_KEY missing — using NVIDIA text path`);
+    }
+
     const modelsToTry = fallbackModels.length > 0 ? fallbackModels : [null];
     const retriesPerModel = maxAttempts;
     const modelFailures = [];
-    const moonshotFailover = enableMoonshotFailover ?? isMoonshotFailoverEnabled();
 
     for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex += 1) {
         const currentModel = modelsToTry[modelIndex];
@@ -1078,6 +1116,32 @@ function getNvidiaChatOptions(model, requestedMaxTokens, { reasoningEffort = nul
     }
 
     return options;
+}
+
+function getTextChatOptions(model, requestedMaxTokens, {
+    reasoningEffort = null,
+    providerTag = null,
+    hasTools = false,
+    stream = true,
+    temperature = undefined,
+} = {}) {
+    if (isMoonshotDirectProvider(providerTag)) {
+        return buildMoonshotChatOptions(resolveMoonshotModel(model), requestedMaxTokens, { hasTools, stream });
+    }
+
+    const options = getNvidiaChatOptions(model, requestedMaxTokens, { reasoningEffort });
+    options.stream = stream;
+    if (temperature !== undefined) {
+        options.temperature = temperature;
+    }
+    return options;
+}
+
+function resolveTextModelForProvider(model, providerTag) {
+    if (isMoonshotDirectProvider(providerTag)) {
+        return resolveMoonshotModel(model);
+    }
+    return model;
 }
 
 function hasClosedHtmlDocument(html) {
@@ -1198,15 +1262,15 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     const logLabel = formatJobLogLabel(label, jobId);
     let lastPartialText = '';
     let lastPartialStopReason = null;
-    const text = await withNvidiaRetries(async (modelParam, client) => withAbortableTimeout(async (signal) => {
-        const modelToUse = currentModel || modelParam || DREAM_MODELS.premiumBuilder;
+    const text = await withNvidiaRetries(async (modelParam, client, providerTag) => withAbortableTimeout(async (signal) => {
+        const modelToUse = resolveTextModelForProvider(currentModel || modelParam || DREAM_MODELS.premiumBuilder, providerTag);
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
         console.log(`⏳ [${logLabel}] Requesting builder output (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse})...`);
         let output = "";
         try {
             const stream = await client.chat.completions.create({
-                ...getNvidiaChatOptions(modelToUse, BUILDER_MAX_TOKENS),
+                ...getTextChatOptions(modelToUse, BUILDER_MAX_TOKENS, { providerTag }),
                 messages: [{ role: 'user', content: userPrompt }],
             }, { signal });
 
@@ -1283,18 +1347,25 @@ async function requestMakerToolCompletion(messages, {
         console.log(`📌 [${logLabel}] Preferred model ${preferredModel} with fallback chain ${modelsToTry.join('>')}`);
     }
 
-    return withNvidiaRetries(async (modelParam, client) => withAbortableTimeout(async (signal) => {
-        const modelToUse = modelParam || preferredModel || DREAM_MODELS.premiumBuilder;
+    return withNvidiaRetries(async (modelParam, client, providerTag) => withAbortableTimeout(async (signal) => {
+        const modelToUse = resolveTextModelForProvider(modelParam || preferredModel || DREAM_MODELS.premiumBuilder, providerTag);
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
         const promptChars = messages.reduce((sum, message) => sum + String(message?.content || '').length, 0);
-        const toolMaxTokens = getMaxTokensForModel(modelToUse, maxTokens);
+        const toolMaxTokens = isMoonshotDirectProvider(providerTag)
+            ? Math.max(1024, Math.min(32768, Number(maxTokens || MAKER_TOOL_MAX_TOKENS)))
+            : getMaxTokensForModel(modelToUse, maxTokens);
         const streaming = useMakerAgentStreaming();
         console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse}, mode: ${mode || 'default'}, streaming: ${streaming ? 'on' : 'off'}, prompt_chars=${promptChars})...`);
-        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${isDeepSeekV4Model(modelToUse) ? (reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high') : 'n/a'}`);
+        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${!isMoonshotDirectProvider(providerTag) && isDeepSeekV4Model(modelToUse) ? (reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high') : 'n/a'}`);
 
         const chatOptions = {
-            ...getNvidiaChatOptions(modelToUse, toolMaxTokens, { reasoningEffort }),
+            ...getTextChatOptions(modelToUse, toolMaxTokens, {
+                reasoningEffort,
+                providerTag,
+                hasTools: true,
+                stream: streaming,
+            }),
             messages,
             tools: getMakerAgentToolDefinitions(),
             tool_choice: 'auto',
@@ -1932,14 +2003,17 @@ function buildFirstFrameRepairInstruction(specSheet) {
 }
 
 async function streamNvidiaText({ model, systemPrompt, userPrompt, maxTokens, temperature, retryLabel, fallbackModels = [] }) {
-    return withNvidiaRetries(async (currentModel, client) => {
+    return withNvidiaRetries(async (currentModel, client, providerTag) => {
+        const modelToUse = resolveTextModelForProvider(currentModel || model, providerTag);
         const stream = await client.chat.completions.create({
-            ...getNvidiaChatOptions(currentModel || model, maxTokens),
+            ...getTextChatOptions(modelToUse, maxTokens, {
+                providerTag,
+                temperature: isMoonshotDirectProvider(providerTag) ? undefined : temperature,
+            }),
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
             ],
-            temperature,
         });
 
         let output = "";
@@ -4907,7 +4981,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
         const streamStall = getStreamStallConfig();
         const moonshotConfig = getMoonshotTextConfig();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s moonshotFailover=${moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
+        const moonshotPrimary = isMoonshotPrimaryEnabled();
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
@@ -6209,15 +6284,20 @@ router.post('/narrative/chat', async (req, res) => {
             'The brief should be a builder-ready prompt for an interactive narrative game with setting, player role, mechanics, choices, tone, and ending direction.',
         ].join('\n');
 
-        const response = await withNvidiaRetries((_, client) => client.chat.completions.create({
-            model: DREAM_MODELS.narrativeChat,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                ...messages,
-            ],
-            max_tokens: 900,
-            temperature: 0.55,
-        }), { label: 'Narrative Chat', maxAttempts: 2, baseDelayMs: 1000 });
+        const response = await withNvidiaRetries((_, client, providerTag) => {
+            const modelToUse = resolveTextModelForProvider(DREAM_MODELS.narrativeChat, providerTag);
+            return client.chat.completions.create({
+                ...getTextChatOptions(modelToUse, 900, {
+                    providerTag,
+                    stream: false,
+                    temperature: isMoonshotDirectProvider(providerTag) ? undefined : 0.55,
+                }),
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    ...messages,
+                ],
+            });
+        }, { label: 'Narrative Chat', maxAttempts: 2, baseDelayMs: 1000 });
 
         const raw = extractText(response);
         let parsed;

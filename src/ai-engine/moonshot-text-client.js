@@ -1,19 +1,32 @@
 import OpenAI from 'openai';
 
+export const MOONSHOT_DIRECT_PROVIDER = 'moonshot-direct';
+
 export function getMoonshotTextConfig(env = process.env) {
     const apiKey = String(env.MOONSHOT_API_KEY || '').trim();
     if (!apiKey) return null;
 
     return {
         apiKey,
-        baseURL: String(env.MOONSHOT_BASE_URL || 'https://api.moonshot.cn/v1').replace(/\/+$/, ''),
-        model: String(env.MOONSHOT_MODEL || 'kimi-k2-0711-preview').trim(),
+        baseURL: String(env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1').replace(/\/+$/, ''),
+        model: String(env.MOONSHOT_MODEL || 'kimi-k2.6').trim(),
     };
 }
 
 export function isMoonshotFailoverEnabled(env = process.env) {
     if (!getMoonshotTextConfig(env)) return false;
+    if (isMoonshotPrimaryEnabled(env)) return false;
     return String(env.GAMETOK_MOONSHOT_FAILOVER || 'true').toLowerCase() !== 'false';
+}
+
+/** When MOONSHOT_API_KEY is set, route all text agents through Moonshot first (not NVIDIA). */
+export function isMoonshotPrimaryEnabled(env = process.env) {
+    if (!getMoonshotTextConfig(env)) return false;
+    return String(env.GAMETOK_MOONSHOT_PRIMARY || 'true').toLowerCase() !== 'false';
+}
+
+export function isMoonshotDirectProvider(providerTag = '') {
+    return providerTag === MOONSHOT_DIRECT_PROVIDER;
 }
 
 export function createMoonshotTextClient(env = process.env) {
@@ -31,4 +44,28 @@ export function maskMoonshotKey(key = '') {
     const value = String(key || '');
     if (value.length <= 10) return value ? '***' : 'missing';
     return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+export function resolveMoonshotModel(_nvidiaModel = null, env = process.env) {
+    return getMoonshotTextConfig(env)?.model || 'kimi-k2.6';
+}
+
+/**
+ * Kimi K2.6 rejects custom temperature/top_p. Disable thinking for tool-calling turns.
+ */
+export function buildMoonshotChatOptions(model, requestedMaxTokens, { hasTools = false, stream = true } = {}) {
+    const requested = Number(requestedMaxTokens || 8192);
+    const maxTokens = Math.max(256, Math.min(32768, requested));
+
+    const options = {
+        model: model || 'kimi-k2.6',
+        max_tokens: maxTokens,
+        stream,
+    };
+
+    if (hasTools) {
+        options.thinking = { type: 'disabled' };
+    }
+
+    return options;
 }
