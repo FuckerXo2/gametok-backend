@@ -1,9 +1,28 @@
+import {
+    buildStreamStallDiagnostics,
+    captureStreamConnectDiagnostics,
+    captureStreamConnectError,
+    formatStreamConnectLog,
+    formatStreamDiagnosticsSummary,
+} from './stream-diagnostics.js';
+
 export function createStreamAccumulator() {
     return {
         content: '',
         toolCallsByIndex: new Map(),
         finishReason: null,
+        streamErrors: [],
     };
+}
+
+function chunkHasPayload(chunk) {
+    const choice = chunk?.choices?.[0];
+    if (!choice) return false;
+    if (choice.finish_reason) return true;
+    const delta = choice.delta || {};
+    if (delta.content) return true;
+    if (Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) return true;
+    return false;
 }
 
 export function applyStreamChunk(state, chunk) {
@@ -40,6 +59,10 @@ export function applyStreamChunk(state, chunk) {
                 existing.function.arguments += toolDelta.function.arguments;
             }
         }
+    }
+
+    if (chunk?.error) {
+        state.streamErrors.push(chunk.error);
     }
 
     return state;
@@ -96,6 +119,38 @@ function linkAbortSignal(source, targetController) {
     return () => source.removeEventListener('abort', onAbort);
 }
 
+function buildStallError({
+    gotBytes,
+    idleStallMs,
+    firstByteTimeoutMs,
+    requestStartedAt,
+    connectDiagnostics,
+    firstChunkAt,
+    idleMs,
+    limitMs,
+    partialMessage,
+    partialStreamStats,
+}) {
+    const streamDiagnostics = buildStreamStallDiagnostics({
+        requestStartedAt,
+        connectDiagnostics,
+        firstChunkAt,
+        gotBytes,
+        idleMs,
+        limitMs,
+    });
+    const limitSec = Math.round(limitMs / 1000);
+    const stallError = new Error(`Stream stalled: no tokens for ${limitSec}s (${streamDiagnostics.inferredCause})`);
+    stallError.code = 'STREAM_STALL';
+    stallError.streamDiagnostics = streamDiagnostics;
+    stallError.partialMessage = partialMessage;
+    stallError.partialStreamStats = partialStreamStats;
+    if (streamDiagnostics.status) {
+        stallError.status = streamDiagnostics.status;
+    }
+    return stallError;
+}
+
 /**
  * Stream an NVIDIA chat completion and assemble the final assistant message.
  * Aborts early when no bytes arrive within firstByteMs, or when idle for stallMs mid-stream.
@@ -115,11 +170,16 @@ export async function streamChatCompletionToMessage(client, createOptions, {
     const pollMs = stallConfig.pollMs;
 
     const state = createStreamAccumulator();
+    const requestStartedAt = Date.now();
     let lastLogAt = Date.now();
     let lastLoggedChars = 0;
-    let lastByteAt = Date.now();
+    let lastByteAt = requestStartedAt;
     let gotBytes = false;
     let stallAborted = false;
+    let connectDiagnostics = null;
+    let firstChunkAt = null;
+    let stallIdleMs = 0;
+    let stallLimitMs = firstByteTimeoutMs;
 
     const stallController = new AbortController();
     const requestController = new AbortController();
@@ -134,8 +194,18 @@ export async function streamChatCompletionToMessage(client, createOptions, {
         const idleMs = Date.now() - lastByteAt;
         const limitMs = gotBytes ? idleStallMs : firstByteTimeoutMs;
         if (idleMs >= limitMs) {
+            stallIdleMs = idleMs;
+            stallLimitMs = limitMs;
+            const preview = buildStreamStallDiagnostics({
+                requestStartedAt,
+                connectDiagnostics,
+                firstChunkAt,
+                gotBytes,
+                idleMs,
+                limitMs,
+            });
             console.warn(
-                `📡 [${logLabel}] stream stall: idle ${Math.round(idleMs / 1000)}s (limit ${Math.round(limitMs / 1000)}s, firstByte=${gotBytes ? 'yes' : 'no'})`,
+                `📡 [${logLabel}] stream stall: ${formatStreamDiagnosticsSummary(preview)} firstByte=${gotBytes ? 'yes' : 'no'}`,
             );
             stallController.abort();
         }
@@ -143,14 +213,41 @@ export async function streamChatCompletionToMessage(client, createOptions, {
     stallTimer.unref?.();
 
     try {
-        const stream = await client.chat.completions.create({
+        const createPromise = client.chat.completions.create({
             ...createOptions,
             stream: true,
         }, { signal: requestController.signal });
 
+        createPromise.asResponse()
+            .then((response) => {
+                connectDiagnostics = captureStreamConnectDiagnostics(response, requestStartedAt);
+                console.log(`📡 [${logLabel}] stream connected ${formatStreamConnectLog(connectDiagnostics)}`);
+            })
+            .catch((connectError) => {
+                if (!connectDiagnostics) {
+                    connectDiagnostics = captureStreamConnectError(connectError, requestStartedAt);
+                    console.warn(`📡 [${logLabel}] stream connect failed ${formatStreamConnectLog(connectDiagnostics)} msg=${connectDiagnostics.errorMessage || 'unknown'}`);
+                }
+            });
+
+        const stream = await createPromise;
+
         for await (const chunk of stream) {
-            lastByteAt = Date.now();
-            gotBytes = true;
+            if (chunkHasPayload(chunk)) {
+                if (!firstChunkAt) {
+                    firstChunkAt = Date.now();
+                    const ttfbMs = firstChunkAt - requestStartedAt;
+                    const afterConnectMs = connectDiagnostics?.connectMs != null
+                        ? Math.max(0, firstChunkAt - requestStartedAt - connectDiagnostics.connectMs)
+                        : null;
+                    console.log(
+                        `📡 [${logLabel}] first chunk ttfbMs=${ttfbMs}${afterConnectMs != null ? ` afterConnectMs=${afterConnectMs}` : ''}`,
+                    );
+                }
+                lastByteAt = Date.now();
+                gotBytes = true;
+            }
+
             applyStreamChunk(state, chunk);
             if (typeof onChunk === 'function') {
                 onChunk(chunk, state, getStreamProgressStats(state));
@@ -179,13 +276,23 @@ export async function streamChatCompletionToMessage(client, createOptions, {
             error.partialStreamStats = stats;
         }
 
+        if (Array.isArray(state.streamErrors) && state.streamErrors.length > 0) {
+            console.warn(`📡 [${logLabel}] stream error events=${JSON.stringify(state.streamErrors).slice(0, 400)}`);
+        }
+
         if (stallAborted && !signal?.aborted) {
-            const limitSec = Math.round((gotBytes ? idleStallMs : firstByteTimeoutMs) / 1000);
-            const stallError = new Error(`Stream stalled: no tokens for ${limitSec}s`);
-            stallError.code = 'STREAM_STALL';
-            stallError.partialMessage = error.partialMessage;
-            stallError.partialStreamStats = error.partialStreamStats;
-            throw stallError;
+            throw buildStallError({
+                gotBytes,
+                idleStallMs,
+                firstByteTimeoutMs,
+                requestStartedAt,
+                connectDiagnostics,
+                firstChunkAt,
+                idleMs: stallIdleMs || (Date.now() - lastByteAt),
+                limitMs: stallLimitMs,
+                partialMessage: error.partialMessage,
+                partialStreamStats: error.partialStreamStats,
+            });
         }
 
         throw error;

@@ -1,4 +1,5 @@
 import { isStreamStallError } from './maker-agent-stream.js';
+import { mapInferredCauseToFailureKind } from './stream-diagnostics.js';
 
 export const ProviderFailureKind = {
     KEY: 'key',
@@ -24,7 +25,19 @@ export function classifyProviderError(error) {
     const message = String(error?.message || error || '').toLowerCase();
 
     if (isStreamStallError(error)) {
-        return { kind: ProviderFailureKind.STALL, reason: 'stream_stall', status };
+        const inferredCause = error?.streamDiagnostics?.inferredCause || 'stream_stall';
+        const mappedKind = mapInferredCauseToFailureKind(inferredCause);
+        const kind = mappedKind === 'key'
+            ? ProviderFailureKind.KEY
+            : mappedKind === 'model'
+                ? ProviderFailureKind.MODEL
+                : ProviderFailureKind.STALL;
+        return {
+            kind,
+            reason: inferredCause,
+            status: error?.streamDiagnostics?.status ?? status,
+            summary: error?.streamDiagnostics?.summary ?? null,
+        };
     }
 
     if (status === 401 || status === 403 || code === 'invalid_api_key' || /invalid.*api.*key|unauthorized|authentication|permission denied/.test(message)) {
@@ -63,6 +76,12 @@ export function decideProviderRetryAction(classification, {
     }
 
     if (classification.kind === ProviderFailureKind.STALL) {
+        if (classification.reason === 'provider_queue' || classification.reason === 'connect_hang') {
+            return 'switch_model';
+        }
+        if (classification.reason === 'provider_midstream') {
+            return attempt < maxAttempts ? 'rotate_key' : 'switch_model';
+        }
         if (stallsOnCurrentModel >= 2) {
             return 'switch_model';
         }
@@ -88,7 +107,10 @@ export function formatProviderRetryDecision(classification, action) {
     }[action] || action;
 
     const statusSuffix = classification.status ? ` status=${classification.status}` : '';
-    return `${classification.kind}/${classification.reason}${statusSuffix} → ${actionText}`;
+    const causeSuffix = classification.reason && classification.reason !== 'stream_stall'
+        ? ` cause=${classification.reason}`
+        : '';
+    return `${classification.kind}/${classification.reason}${statusSuffix}${causeSuffix} → ${actionText}`;
 }
 
 export function shouldMoonshotFailover(modelFailures = [], lastError = null) {
