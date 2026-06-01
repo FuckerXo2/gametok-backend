@@ -61,6 +61,18 @@ import {
     MOONSHOT_DIRECT_PROVIDER,
     resolveMoonshotModel,
 } from './moonshot-text-client.js';
+import {
+    buildDeepSeekChatOptions,
+    createDeepSeekTextClient,
+    DEEPSEEK_DIRECT_PROVIDER,
+    getDeepSeekTextConfig,
+    getDeepSeekMaxOutputTokens,
+    isDeepSeekDirectProvider,
+    isDeepSeekPrimaryEnabled,
+    isDeepSeekV4ModelName,
+    maskDeepSeekKey,
+    resolveDeepSeekModel,
+} from './deepseek-text-client.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
@@ -249,11 +261,13 @@ function resolveDreamModel(envName, fallback) {
     return requested || fallback;
 }
 
-const BUILDER_FALLBACK_MODELS = [
-    'qwen/qwen3-coder-480b-a35b-instruct',
-    'moonshotai/kimi-k2.6',
-    'deepseek-ai/deepseek-v4-pro',
-];
+const BUILDER_FALLBACK_MODELS = (
+    process.env.GAMETOK_BUILDER_MODELS
+        || 'deepseek-ai/deepseek-v4-pro'
+)
+    .split(',')
+    .map((model) => model.trim())
+    .filter(Boolean);
 
 const DREAM_MODELS = {
     spec: resolveDreamModel('DREAMSTREAM_SPEC_MODEL', DEFAULT_KIMI_BUILDER_MODEL), // Use Kimi for Phase 1 too
@@ -271,7 +285,7 @@ const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
 const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'low').trim() || 'low';
 const MAKER_IMPLEMENT_FALLBACK_MODELS = (
     process.env.GAMETOK_MAKER_IMPLEMENT_MODELS
-        || 'qwen/qwen3-coder-480b-a35b-instruct,moonshotai/kimi-k2.6,deepseek-ai/deepseek-v4-pro'
+        || 'deepseek-ai/deepseek-v4-pro'
 )
     .split(',')
     .map((model) => model.trim())
@@ -459,7 +473,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
                 }),
                 messages,
             };
-            if (!isMoonshotDirectProvider(providerTag)) {
+            if (!isMoonshotDirectProvider(providerTag) && !isDeepSeekDirectProvider(providerTag)) {
                 chatOptions.temperature = attempt === 0 ? temperature : Math.min(temperature, 0.15);
             }
             if (useMakerAgentStreaming()) {
@@ -969,8 +983,52 @@ async function withNvidiaRetries(task, {
 } = {}) {
     let lastError;
     const logLabel = formatJobLogLabel(label, jobId);
-    const moonshotPrimary = isMoonshotPrimaryEnabled();
-    const moonshotFailover = !moonshotPrimary && (enableMoonshotFailover ?? isMoonshotFailoverEnabled());
+    const deepseekPrimary = isDeepSeekPrimaryEnabled();
+    const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
+    const moonshotFailover = !deepseekPrimary && !moonshotPrimary && (enableMoonshotFailover ?? isMoonshotFailoverEnabled());
+
+    if (deepseekPrimary) {
+        const deepseekConfig = getDeepSeekTextConfig();
+        const deepseekClient = createDeepSeekTextClient();
+        if (deepseekConfig && deepseekClient) {
+            const modelsToTry = [...new Set(
+                (fallbackModels.length > 0 ? fallbackModels : [deepseekConfig.model])
+                    .map((model) => resolveDeepSeekModel(model)),
+            )];
+
+            for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex += 1) {
+                const currentModel = modelsToTry[modelIndex];
+
+                for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+                    try {
+                        if (modelIndex > 0 || attempt > 1) {
+                            console.log(`🔁 [${logLabel}] DeepSeek attempt ${attempt}/${maxAttempts} on ${currentModel} (model ${modelIndex + 1}/${modelsToTry.length})...`);
+                        } else {
+                            console.log(`🐋 [${logLabel}] DeepSeek direct (${currentModel}, key ${maskDeepSeekKey(deepseekConfig.apiKey)})`);
+                        }
+                        return await task(currentModel, deepseekClient, DEEPSEEK_DIRECT_PROVIDER);
+                    } catch (error) {
+                        lastError = error;
+                        const classification = classifyProviderError(error);
+                        console.warn(`🧭 [${logLabel}] ${formatProviderRetryDecision(classification, attempt < maxAttempts ? 'rotate_key' : 'switch_model')} on DeepSeek ${currentModel} (attempt ${attempt}/${maxAttempts})`);
+
+                        const isLastModel = modelIndex === modelsToTry.length - 1;
+                        if (classification.kind === ProviderFailureKind.MODEL || attempt >= maxAttempts) {
+                            if (!isLastModel) {
+                                console.warn(`⏭️ [${logLabel}] Escalating from ${currentModel} to ${modelsToTry[modelIndex + 1]} after ${classification.reason}`);
+                            }
+                            break;
+                        }
+
+                        await sleep(baseDelayMs * attempt);
+                    }
+                }
+            }
+
+            throw lastError;
+        }
+        console.warn(`🐋 [${logLabel}] DeepSeek primary requested but DEEPSEEK_API_KEY missing — using NVIDIA text path`);
+    }
 
     if (moonshotPrimary) {
         const moonshotConfig = getMoonshotTextConfig();
@@ -1085,7 +1143,7 @@ function extractText(response) {
 }
 
 function isDeepSeekV4Model(model) {
-    return typeof model === 'string' && model.startsWith('deepseek-ai/deepseek-v4');
+    return isDeepSeekV4ModelName(model);
 }
 
 function isGlmModel(model) {
@@ -1125,6 +1183,14 @@ function getTextChatOptions(model, requestedMaxTokens, {
     stream = true,
     temperature = undefined,
 } = {}) {
+    if (isDeepSeekDirectProvider(providerTag)) {
+        return buildDeepSeekChatOptions(resolveDeepSeekModel(model), requestedMaxTokens, {
+            hasTools,
+            stream,
+            reasoningEffort,
+            temperature,
+        });
+    }
     if (isMoonshotDirectProvider(providerTag)) {
         return buildMoonshotChatOptions(resolveMoonshotModel(model), requestedMaxTokens, { hasTools, stream });
     }
@@ -1138,6 +1204,9 @@ function getTextChatOptions(model, requestedMaxTokens, {
 }
 
 function resolveTextModelForProvider(model, providerTag) {
+    if (isDeepSeekDirectProvider(providerTag)) {
+        return resolveDeepSeekModel(model);
+    }
     if (isMoonshotDirectProvider(providerTag)) {
         return resolveMoonshotModel(model);
     }
@@ -1352,12 +1421,16 @@ async function requestMakerToolCompletion(messages, {
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
         const promptChars = messages.reduce((sum, message) => sum + String(message?.content || '').length, 0);
+        const streaming = useMakerAgentStreaming();
         const toolMaxTokens = isMoonshotDirectProvider(providerTag)
             ? Math.max(1024, Math.min(32768, Number(maxTokens || MAKER_TOOL_MAX_TOKENS)))
-            : getMaxTokensForModel(modelToUse, maxTokens);
-        const streaming = useMakerAgentStreaming();
+            : isDeepSeekDirectProvider(providerTag)
+                ? getDeepSeekMaxOutputTokens(maxTokens || MAKER_TOOL_MAX_TOKENS)
+                : getMaxTokensForModel(modelToUse, maxTokens);
+        const usesDeepSeekReasoning = (isDeepSeekDirectProvider(providerTag) || isDeepSeekV4Model(modelToUse))
+            && !isMoonshotDirectProvider(providerTag);
         console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse}, mode: ${mode || 'default'}, streaming: ${streaming ? 'on' : 'off'}, prompt_chars=${promptChars})...`);
-        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${!isMoonshotDirectProvider(providerTag) && isDeepSeekV4Model(modelToUse) ? (reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high') : 'n/a'}`);
+        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${usesDeepSeekReasoning ? (reasoningEffort || process.env.DEEPSEEK_V4_TOOL_REASONING_EFFORT || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'low') : 'n/a'}`);
 
         const chatOptions = {
             ...getTextChatOptions(modelToUse, toolMaxTokens, {
@@ -4995,9 +5068,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
         const streamStall = getStreamStallConfig();
+        const deepseekConfig = getDeepSeekTextConfig();
+        const deepseekPrimary = isDeepSeekPrimaryEnabled();
         const moonshotConfig = getMoonshotTextConfig();
-        const moonshotPrimary = isMoonshotPrimaryEnabled();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
+        const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
