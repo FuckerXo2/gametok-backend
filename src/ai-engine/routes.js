@@ -303,6 +303,14 @@ const MAKER_IMPLEMENT_FALLBACK_MODELS = (
 const GLM_MAX_OUTPUT_TOKENS = Math.max(4096, Math.min(200000, Number(process.env.GAMETOK_GLM_MAX_OUTPUT_TOKENS || 128000)));
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 const BUILDER_JSON_REWRITE_ATTEMPTS = Math.max(0, Math.min(2, Number(process.env.DREAMSTREAM_BUILDER_JSON_REWRITE_ATTEMPTS || 1)));
+const PHASE1_MAX_OUTPUT_TOKENS = Math.max(
+    8192,
+    Math.min(128000, Number(process.env.DREAMSTREAM_PHASE1_MAX_TOKENS || 65536)),
+);
+const PHASE1_5_MAX_OUTPUT_TOKENS = Math.max(
+    8192,
+    Math.min(128000, Number(process.env.DREAMSTREAM_PHASE1_5_MAX_TOKENS || 65536)),
+);
 const BUILDER_REQUEST_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_BUILDER_TIMEOUT_MS || 600000));
 const MAKER_IMPLEMENT_TIMEOUT_MS = Math.max(
     BUILDER_REQUEST_TIMEOUT_MS,
@@ -5082,7 +5090,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const deepseekPrimary = isDeepSeekPrimaryEnabled();
         const moonshotConfig = getMoonshotTextConfig();
         const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
@@ -5098,7 +5106,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const phase1 = buildPhase1_Quantize(prompt, { dynamicFoundation });
         let qualityIntent;
         try {
-            qualityIntent = await callAI(phase1.system, phase1.user, 5000, 0.35);
+            qualityIntent = await callAI(phase1.system, phase1.user, PHASE1_MAX_OUTPUT_TOKENS, 0.35);
         } catch (phase1Error) {
             if (!ALLOW_PHASE1_HEURISTIC_FALLBACK) {
                 throw new Error(`Phase 1 spec extraction failed after exhausting text keys/models: ${phase1Error?.message || phase1Error}`);
@@ -5123,7 +5131,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             await writeMakerText(makerWorkspace, 'logs/foundation-agent-prompt.txt', `${foundationPrompt.system}\n\n---\n\n${foundationPrompt.user}`);
             let rawFoundation;
             try {
-                rawFoundation = await callAI(foundationPrompt.system, foundationPrompt.user, 4500, 0.25);
+                rawFoundation = await callAI(foundationPrompt.system, foundationPrompt.user, PHASE1_5_MAX_OUTPUT_TOKENS, 0.25);
             } catch (foundationError) {
                 throw new Error(`Phase 1.5 foundation architect failed after exhausting text keys/models: ${foundationError?.message || foundationError}`);
             }
