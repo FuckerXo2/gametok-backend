@@ -42,7 +42,7 @@ import {
     useMakerAgentImplementMode,
     useMakerAgentTools,
 } from './maker-agent-tools.js';
-import { streamChatCompletionToMessage, useMakerAgentStreaming } from './maker-agent-stream.js';
+import { getStreamStallConfig, isStreamStallError, streamChatCompletionToMessage, useMakerAgentStreaming } from './maker-agent-stream.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
@@ -243,8 +243,6 @@ function resolveDreamModel(envName, fallback) {
 const BUILDER_FALLBACK_MODELS = [
     'moonshotai/kimi-k2.6',
     'deepseek-ai/deepseek-v4-pro',
-    'qwen/qwen3-coder-480b-a35b-instruct',
-    'z-ai/glm-5.1'
 ];
 
 const DREAM_MODELS = {
@@ -263,7 +261,7 @@ const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
 const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'low').trim() || 'low';
 const MAKER_IMPLEMENT_FALLBACK_MODELS = (
     process.env.GAMETOK_MAKER_IMPLEMENT_MODELS
-        || 'deepseek-ai/deepseek-v4-pro,moonshotai/kimi-k2.6,z-ai/glm-5.1'
+        || 'deepseek-ai/deepseek-v4-pro,moonshotai/kimi-k2.6'
 )
     .split(',')
     .map((model) => model.trim())
@@ -279,7 +277,7 @@ const MAKER_IMPLEMENT_TIMEOUT_MS = Math.max(
 );
 const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAMSTREAM_BUILDER_CONTINUATION_TIMEOUT_MS || 180000));
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
-const PHASE1_ATTEMPTS_PER_MODEL = Math.max(3, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 0) || Math.max(3, getNvidiaTextKeys().length)));
+const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(4, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 2)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
 const MAKER_AGENT_INSPECTION_TURNS = Math.max(0, Math.min(8, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 6)));
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
@@ -948,7 +946,7 @@ async function withAbortableTimeout(task, timeoutMs, label) {
     }
 }
 
-async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, baseDelayMs = 1500, fallbackModels = [] }) {
+async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 2, baseDelayMs = 1500, fallbackModels = [] }) {
     let lastError;
     const logLabel = formatJobLogLabel(label, jobId);
     const modelsToTry = fallbackModels.length > 0 ? fallbackModels : [null];
@@ -981,7 +979,10 @@ async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 3, b
                 }
                 
                 const waitMs = baseDelayMs * attempt;
-                console.warn(`⚠️ [${logLabel}] Provider hiccup on ${currentModel || 'default model'}: ${error?.message || error}. Retrying in ${waitMs}ms (attempt ${attempt}/${retriesPerModel})...`);
+                const retryReason = isStreamStallError(error)
+                    ? 'stream stall — rotating API key'
+                    : (error?.message || error);
+                console.warn(`⚠️ [${logLabel}] Provider hiccup on ${currentModel || 'default model'}: ${retryReason}. Retrying in ${waitMs}ms (attempt ${attempt}/${retriesPerModel})...`);
                 await sleep(waitMs);
             }
         }
@@ -1137,7 +1138,7 @@ function buildPhase1JsonRewritePrompt(originalPrompt, invalidJson, parseError) {
     ].join('\n');
 }
 
-async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 3, currentModel = null } = {}) {
+async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, currentModel = null } = {}) {
     assertJobNotCancelled(jobId);
     await assertJobNotCancelledShared(jobId, { force: true });
     
@@ -1200,7 +1201,7 @@ async function requestMakerToolCompletion(messages, {
     label,
     jobId = null,
     timeoutMs = BUILDER_REQUEST_TIMEOUT_MS,
-    maxAttempts = 3,
+    maxAttempts = 2,
     currentModel = null,
     maxTokens = MAKER_TOOL_MAX_TOKENS,
     fallbackModels = null,
@@ -4826,7 +4827,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         assertJobNotCancelled(jobId);
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
+        const streamStall = getStreamStallConfig();
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);

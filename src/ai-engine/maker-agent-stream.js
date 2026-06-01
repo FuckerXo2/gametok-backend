@@ -73,8 +73,32 @@ export function finalizeStreamedMessage(state) {
     };
 }
 
+export function getStreamStallConfig() {
+    return {
+        firstByteMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_FIRST_BYTE_MS || 60000)),
+        stallMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_STALL_MS || 45000)),
+        pollMs: Math.max(2000, Number(process.env.GAMETOK_STREAM_STALL_POLL_MS || 5000)),
+    };
+}
+
+export function isStreamStallError(error) {
+    return error?.code === 'STREAM_STALL' || /stream stalled/i.test(String(error?.message || ''));
+}
+
+function linkAbortSignal(source, targetController) {
+    if (!source) return () => {};
+    if (source.aborted) {
+        targetController.abort();
+        return () => {};
+    }
+    const onAbort = () => targetController.abort();
+    source.addEventListener('abort', onAbort, { once: true });
+    return () => source.removeEventListener('abort', onAbort);
+}
+
 /**
  * Stream an NVIDIA chat completion and assemble the final assistant message.
+ * Aborts early when no bytes arrive within firstByteMs, or when idle for stallMs mid-stream.
  */
 export async function streamChatCompletionToMessage(client, createOptions, {
     signal,
@@ -82,18 +106,51 @@ export async function streamChatCompletionToMessage(client, createOptions, {
     onChunk = null,
     progressIntervalMs = 15000,
     progressCharStep = 8192,
+    firstByteMs = null,
+    stallMs = null,
 } = {}) {
+    const stallConfig = getStreamStallConfig();
+    const firstByteTimeoutMs = firstByteMs ?? stallConfig.firstByteMs;
+    const idleStallMs = stallMs ?? stallConfig.stallMs;
+    const pollMs = stallConfig.pollMs;
+
     const state = createStreamAccumulator();
     let lastLogAt = Date.now();
     let lastLoggedChars = 0;
+    let lastByteAt = Date.now();
+    let gotBytes = false;
+    let stallAborted = false;
 
-    const stream = await client.chat.completions.create({
-        ...createOptions,
-        stream: true,
-    }, { signal });
+    const stallController = new AbortController();
+    const requestController = new AbortController();
+    const unlinkExternal = linkAbortSignal(signal, requestController);
+    const unlinkStall = linkAbortSignal(stallController.signal, requestController);
+
+    stallController.signal.addEventListener('abort', () => {
+        stallAborted = true;
+    }, { once: true });
+
+    const stallTimer = setInterval(() => {
+        const idleMs = Date.now() - lastByteAt;
+        const limitMs = gotBytes ? idleStallMs : firstByteTimeoutMs;
+        if (idleMs >= limitMs) {
+            console.warn(
+                `📡 [${logLabel}] stream stall: idle ${Math.round(idleMs / 1000)}s (limit ${Math.round(limitMs / 1000)}s, firstByte=${gotBytes ? 'yes' : 'no'})`,
+            );
+            stallController.abort();
+        }
+    }, pollMs);
+    stallTimer.unref?.();
 
     try {
+        const stream = await client.chat.completions.create({
+            ...createOptions,
+            stream: true,
+        }, { signal: requestController.signal });
+
         for await (const chunk of stream) {
+            lastByteAt = Date.now();
+            gotBytes = true;
             applyStreamChunk(state, chunk);
             if (typeof onChunk === 'function') {
                 onChunk(chunk, state, getStreamProgressStats(state));
@@ -121,7 +178,21 @@ export async function streamChatCompletionToMessage(client, createOptions, {
             error.partialMessage = finalizeStreamedMessage(state);
             error.partialStreamStats = stats;
         }
+
+        if (stallAborted && !signal?.aborted) {
+            const limitSec = Math.round((gotBytes ? idleStallMs : firstByteTimeoutMs) / 1000);
+            const stallError = new Error(`Stream stalled: no tokens for ${limitSec}s`);
+            stallError.code = 'STREAM_STALL';
+            stallError.partialMessage = error.partialMessage;
+            stallError.partialStreamStats = error.partialStreamStats;
+            throw stallError;
+        }
+
         throw error;
+    } finally {
+        clearInterval(stallTimer);
+        unlinkExternal();
+        unlinkStall();
     }
 
     const message = finalizeStreamedMessage(state);
