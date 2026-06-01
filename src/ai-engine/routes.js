@@ -42,6 +42,7 @@ import {
     useMakerAgentImplementMode,
     useMakerAgentTools,
 } from './maker-agent-tools.js';
+import { streamChatCompletionToMessage, useMakerAgentStreaming } from './maker-agent-stream.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
@@ -441,12 +442,23 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
                     : buildPhase1JsonRewritePrompt(userPrompt, extracted || raw, parseError),
             }
         ];
-        const res = await withNvidiaRetries((currentModel, client) => withAbortableTimeout((signal) => client.chat.completions.create({
-            model: currentModel || DREAM_MODELS.spec,
-            messages,
-            max_tokens: maxTokens,
-            temperature: attempt === 0 ? temperature : Math.min(temperature, 0.15)
-        }, { signal }), PHASE1_TIMEOUT_MS), { label: 'Phase 1 Builder', maxAttempts: PHASE1_ATTEMPTS_PER_MODEL, baseDelayMs: 2000, fallbackModels: BUILDER_FALLBACK_MODELS });
+        const res = await withNvidiaRetries((currentModel, client) => withAbortableTimeout(async (signal) => {
+            const modelToUse = currentModel || DREAM_MODELS.spec;
+            const chatOptions = {
+                model: modelToUse,
+                messages,
+                max_tokens: maxTokens,
+                temperature: attempt === 0 ? temperature : Math.min(temperature, 0.15),
+            };
+            if (useMakerAgentStreaming()) {
+                const message = await streamChatCompletionToMessage(client, chatOptions, {
+                    signal,
+                    logLabel: `Phase 1 Builder rewrite=${attempt}`,
+                });
+                return { choices: [{ message }] };
+            }
+            return client.chat.completions.create(chatOptions, { signal });
+        }, PHASE1_TIMEOUT_MS, 'Phase 1 Builder'), { label: 'Phase 1 Builder', maxAttempts: PHASE1_ATTEMPTS_PER_MODEL, baseDelayMs: 2000, fallbackModels: BUILDER_FALLBACK_MODELS });
         if (!res || !res.choices || !res.choices[0]) {
             throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
         }
@@ -1207,17 +1219,33 @@ async function requestMakerToolCompletion(messages, {
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
         const promptChars = messages.reduce((sum, message) => sum + String(message?.content || '').length, 0);
-        console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse}, mode: ${mode || 'default'}, prompt_chars=${promptChars})...`);
         const toolMaxTokens = getMaxTokensForModel(modelToUse, maxTokens);
-        const response = await client.chat.completions.create({
+        const streaming = useMakerAgentStreaming();
+        console.log(`🛠️ [${logLabel}] Requesting tool completion (timeout ${Math.round(timeoutMs / 1000)}s, model: ${modelToUse}, mode: ${mode || 'default'}, streaming: ${streaming ? 'on' : 'off'}, prompt_chars=${promptChars})...`);
+        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${isDeepSeekV4Model(modelToUse) ? (reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high') : 'n/a'}`);
+
+        const chatOptions = {
             ...getNvidiaChatOptions(modelToUse, toolMaxTokens, { reasoningEffort }),
-            stream: false,
             messages,
             tools: getMakerAgentToolDefinitions(),
             tool_choice: 'auto',
-        }, { signal });
-        console.log(`🛠️ [${logLabel}] max_tokens=${toolMaxTokens} reasoning=${isDeepSeekV4Model(modelToUse) ? (reasoningEffort || process.env.DEEPSEEK_V4_REASONING_EFFORT || 'high') : 'n/a'}`);
-        const message = response?.choices?.[0]?.message;
+        };
+
+        let message;
+        if (streaming) {
+            message = await streamChatCompletionToMessage(client, chatOptions, {
+                signal,
+                logLabel,
+                progressIntervalMs: mode === MAKER_AGENT_TURN_MODE_IMPLEMENT ? 10000 : 15000,
+            });
+        } else {
+            const response = await client.chat.completions.create({
+                ...chatOptions,
+                stream: false,
+            }, { signal });
+            message = response?.choices?.[0]?.message;
+        }
+
         if (!message) {
             throw new Error('Tool completion returned no assistant message.');
         }
@@ -4773,7 +4801,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         assertJobNotCancelled(jobId);
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
