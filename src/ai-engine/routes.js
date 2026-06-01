@@ -226,23 +226,15 @@ function repairJson(text) {
 const router = express.Router();
 
 const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.6";
-const TOOL_INCOMPATIBLE_MAKER_MODELS = new Set([
-    'qwen/qwen3-coder-480b-a35b-instruct',
-]);
-
 function resolveDreamModel(envName, fallback) {
     const requested = String(process.env[envName] || '').trim();
-    if (!requested) return fallback;
-    if (TOOL_INCOMPATIBLE_MAKER_MODELS.has(requested)) {
-        console.warn(`[DREAM MODEL] Ignoring tool-incompatible maker fallback ${envName}=${requested}; using ${fallback}.`);
-        return fallback;
-    }
-    return requested;
+    return requested || fallback;
 }
 
 const BUILDER_FALLBACK_MODELS = [
     'moonshotai/kimi-k2.6',
     'deepseek-ai/deepseek-v4-pro',
+    'qwen/qwen3-coder-480b-a35b-instruct',
 ];
 
 const DREAM_MODELS = {
@@ -261,12 +253,11 @@ const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
 const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'low').trim() || 'low';
 const MAKER_IMPLEMENT_FALLBACK_MODELS = (
     process.env.GAMETOK_MAKER_IMPLEMENT_MODELS
-        || 'deepseek-ai/deepseek-v4-pro,moonshotai/kimi-k2.6'
+        || 'deepseek-ai/deepseek-v4-pro,moonshotai/kimi-k2.6,qwen/qwen3-coder-480b-a35b-instruct'
 )
     .split(',')
     .map((model) => model.trim())
-    .filter(Boolean)
-    .filter((model) => !TOOL_INCOMPATIBLE_MAKER_MODELS.has(model));
+    .filter(Boolean);
 const GLM_MAX_OUTPUT_TOKENS = Math.max(4096, Math.min(200000, Number(process.env.GAMETOK_GLM_MAX_OUTPUT_TOKENS || 128000)));
 const BUILDER_MAX_CONTINUATIONS = Number(process.env.DREAMSTREAM_BUILDER_MAX_CONTINUATIONS || 2);
 const BUILDER_JSON_REWRITE_ATTEMPTS = Math.max(0, Math.min(2, Number(process.env.DREAMSTREAM_BUILDER_JSON_REWRITE_ATTEMPTS || 1)));
@@ -1211,7 +1202,7 @@ async function requestMakerToolCompletion(messages, {
     assertJobNotCancelled(jobId);
     await assertJobNotCancelledShared(jobId, { force: true });
     const logLabel = formatJobLogLabel(label, jobId);
-    const toolCompatibleFallbacks = BUILDER_FALLBACK_MODELS.filter((model) => !TOOL_INCOMPATIBLE_MAKER_MODELS.has(model));
+    const toolCompatibleFallbacks = BUILDER_FALLBACK_MODELS;
     const modelsToTry = Array.isArray(fallbackModels) && fallbackModels.length > 0
         ? fallbackModels
         : (currentModel ? [currentModel] : toolCompatibleFallbacks);
