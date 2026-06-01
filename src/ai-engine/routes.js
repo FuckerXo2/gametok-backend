@@ -21,7 +21,7 @@ import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './mak
 import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
-import { runMakerPreflightChecks } from './maker-preflight-validator.js';
+import { applyDeterministicPreflightRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
@@ -4531,13 +4531,27 @@ async function assembleMakerProjectHtmlWithAutoRepair(projectRoot) {
 
 async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets, templateContract, assetContract, turnNumber, phase = 'agent' }) {
     try {
-        const preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
+        let preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
         await writeMakerJson(workspace, 'preflight-report.json', {
             phase,
             turnNumber,
             at: new Date().toISOString(),
             ...preflight,
         });
+        if (!preflight.success) {
+            const preflightRepairs = await applyDeterministicPreflightRepairs(projectRoot, preflight);
+            if (preflightRepairs.length > 0) {
+                console.warn(`[Maker AutoRepair] Applied deterministic preflight fixes: ${preflightRepairs.map((entry) => `${entry.path}:${entry.type}${entry.keys ? `(${entry.keys.join(',')})` : ''}`).join(', ')}`);
+                preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
+                await writeMakerJson(workspace, 'preflight-report-after-repair.json', {
+                    phase,
+                    turnNumber,
+                    at: new Date().toISOString(),
+                    repairs: preflightRepairs,
+                    ...preflight,
+                });
+            }
+        }
         if (!preflight.success) {
             const diagnostics = {
                 preflight,

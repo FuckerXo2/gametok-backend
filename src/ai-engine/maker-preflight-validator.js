@@ -262,6 +262,132 @@ function statePropertyIssues(projectSource = '') {
         });
 }
 
+function collectStatePropertyUsageSnippets(key, source = '') {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`\\bstate\\.${escaped}\\b[\\s\\S]{0,80}`, 'g');
+    const snippets = [];
+    let match;
+    while ((match = pattern.exec(source)) !== null) snippets.push(match[0]);
+    return snippets.join(' ');
+}
+
+function inferStatePropertyInitializer(key, source = '') {
+    const usageText = collectStatePropertyUsageSnippets(key, source);
+    if (/\.(?:push|pop|shift|unshift|splice|filter|map|forEach|find|some|every|includes|slice)\s*\(/.test(usageText)
+        || /\[\s*\d+\s*\]/.test(usageText)
+        || /\.length\s*(?:[><=!+\-]|(?:\+\+|--))/.test(usageText)) {
+        return '[]';
+    }
+    if (/\b=\s*['"`]/.test(usageText)) return "''";
+    if (/\b=\s*(?:true|false)\b/.test(usageText)) return 'false';
+    if (/\b(?:\+\+|--|[+\-*\/]=|[><=!]=?)\s*$|\b=\s*\d/.test(usageText)) return '0';
+    if (/^(?:is|has|show|enabled|active|visible|dragging|cooking|paused)/i.test(key)) return 'false';
+    if (/Expression|Mode|Status|Phase|Label|Text|Name|Type|Kind|Tone|Message/i.test(key)) return "''";
+    if (/Map|Record|Settings|Config|Lookup|Index|Registry/i.test(key)) return '{}';
+    if (/Flash|Cooldown|Timer|Score|Time|Count|Delay|Duration|Patience|Elapsed|Progress|Level|Wave|Offset|Alpha|Opacity|Frame|Tick|Remaining|Interval|Patience|Shift/i.test(key)) {
+        return '0';
+    }
+    if (/pantry|particles|items|slots|orders|ingredients|list|targets|enemies|effects|trail|queue|cards|customers|rows|cells|nodes|history|events|bullets|drops|pickups/i.test(key)) {
+        return '[]';
+    }
+    return 'null';
+}
+
+function renameMisspelledStateProperties(source = '', missingEntries = []) {
+    let content = source;
+    const renamed = [];
+    for (const entry of missingEntries) {
+        const wrong = entry?.key;
+        const right = entry?.suggestion;
+        if (!wrong || !right || wrong === right) continue;
+        const pattern = new RegExp(`\\bstate\\.${wrong.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+        const after = content.replace(pattern, `state.${right}`);
+        if (after !== content) {
+            renamed.push({ from: wrong, to: right });
+            content = after;
+        }
+    }
+    return { content, renamed };
+}
+
+function addMissingStateProperties(source = '', missingEntries = []) {
+    const toAdd = (Array.isArray(missingEntries) ? missingEntries : [])
+        .filter((entry) => entry?.key && !entry?.suggestion);
+    if (toAdd.length === 0) return { content: source, added: [] };
+
+    const markerMatch = /\b(?:const|let|var)\s+state\s*=/.exec(source);
+    if (!markerMatch) return { content: source, added: [] };
+
+    const objectLiteral = extractBalancedObjectLiteral(source, /\b(?:const|let|var)\s+state\s*=/g);
+    const literalStart = source.indexOf('{', markerMatch.index);
+    if (!objectLiteral || literalStart < 0) return { content: source, added: [] };
+
+    const literalEnd = literalStart + objectLiteral.length;
+    const inner = objectLiteral.slice(1, -1);
+    const trimmedInner = inner.trim();
+    const additions = toAdd.map(({ key }) => `  ${key}: ${inferStatePropertyInitializer(key, source)}`);
+    const newInner = trimmedInner
+        ? `${inner}${trimmedInner.endsWith(',') ? '' : ','}\n${additions.join(',\n')}\n`
+        : `\n${additions.join(',\n')}\n`;
+    const newLiteral = `{${newInner}}`;
+    return {
+        content: `${source.slice(0, literalStart)}${newLiteral}${source.slice(literalEnd)}`,
+        added: toAdd.map((entry) => entry.key),
+    };
+}
+
+export function applyDeterministicStatePropertyRepairs(source = '', missingEntries = []) {
+    const rename = renameMisspelledStateProperties(source, missingEntries);
+    const renamedKeys = new Set(rename.renamed.map((entry) => entry.from));
+    const toAddEntries = (Array.isArray(missingEntries) ? missingEntries : [])
+        .filter((entry) => entry?.key && !entry?.suggestion && !renamedKeys.has(entry.key));
+    const add = addMissingStateProperties(rename.content, toAddEntries);
+    return {
+        content: add.content,
+        renamed: rename.renamed,
+        added: add.added,
+    };
+}
+
+export async function applyDeterministicPreflightRepairs(projectRoot, preflight = {}) {
+    const applied = [];
+    const mainPath = path.join(projectRoot || '', 'src', 'main.ts');
+    let source = await readTextIfExists(mainPath);
+    if (!source.trim()) return applied;
+
+    for (const issue of preflight.issues || []) {
+        if (issue.id !== 'preflight_state_property_missing' || !Array.isArray(issue.missingKeys) || issue.missingKeys.length === 0) {
+            continue;
+        }
+        const repair = applyDeterministicStatePropertyRepairs(source, issue.missingKeys);
+        if (repair.renamed.length === 0 && repair.added.length === 0) continue;
+        source = repair.content;
+        if (repair.renamed.length > 0) {
+            applied.push({
+                path: 'src/main.ts',
+                type: 'preflight_state_property_typo_rename',
+                renamed: repair.renamed,
+                from: repair.renamed.map((entry) => entry.from).join(', '),
+                to: repair.renamed.map((entry) => entry.to).join(', '),
+            });
+        }
+        if (repair.added.length > 0) {
+            applied.push({
+                path: 'src/main.ts',
+                type: 'preflight_state_property_auto_declared',
+                keys: repair.added,
+                from: 'undeclared state refs',
+                to: repair.added.join(', '),
+            });
+        }
+    }
+
+    if (applied.length > 0) {
+        await fs.writeFile(mainPath, source, 'utf8');
+    }
+    return applied;
+}
+
 function sourceConfigReferences(source) {
     const refs = new Set();
     const patterns = [
