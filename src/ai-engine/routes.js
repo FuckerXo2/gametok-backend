@@ -42,7 +42,20 @@ import {
     useMakerAgentImplementMode,
     useMakerAgentTools,
 } from './maker-agent-tools.js';
-import { getStreamStallConfig, isStreamStallError, streamChatCompletionToMessage, useMakerAgentStreaming } from './maker-agent-stream.js';
+import { getStreamStallConfig, streamChatCompletionToMessage, useMakerAgentStreaming } from './maker-agent-stream.js';
+import {
+    classifyProviderError,
+    decideProviderRetryAction,
+    formatProviderRetryDecision,
+    ProviderFailureKind,
+    shouldMoonshotFailover,
+} from './provider-retry-policy.js';
+import {
+    createMoonshotTextClient,
+    getMoonshotTextConfig,
+    isMoonshotFailoverEnabled,
+    maskMoonshotKey,
+} from './moonshot-text-client.js';
 import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
@@ -937,18 +950,29 @@ async function withAbortableTimeout(task, timeoutMs, label) {
     }
 }
 
-async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 2, baseDelayMs = 1500, fallbackModels = [] }) {
+async function withNvidiaRetries(task, {
+    label,
+    jobId = null,
+    maxAttempts = 2,
+    baseDelayMs = 1500,
+    fallbackModels = [],
+    enableMoonshotFailover = null,
+} = {}) {
     let lastError;
     const logLabel = formatJobLogLabel(label, jobId);
     const modelsToTry = fallbackModels.length > 0 ? fallbackModels : [null];
     const retriesPerModel = maxAttempts;
-    
-    for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex++) {
+    const modelFailures = [];
+    const moonshotFailover = enableMoonshotFailover ?? isMoonshotFailoverEnabled();
+
+    for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex += 1) {
         const currentModel = modelsToTry[modelIndex];
-        for (let attempt = 1; attempt <= retriesPerModel; attempt++) {
+        let stallsOnModel = 0;
+        const failureKinds = [];
+
+        for (let attempt = 1; attempt <= retriesPerModel; attempt += 1) {
             try {
                 if (modelIndex > 0 || attempt > 1) {
-                    const globalAttempt = modelIndex * retriesPerModel + attempt;
                     console.log(`🔁 [${logLabel}] Attempt ${attempt}/${retriesPerModel} on ${currentModel || 'default model'} (model ${modelIndex + 1}/${modelsToTry.length})...`);
                 }
                 const apiKey = nextNvidiaTextApiKey();
@@ -957,27 +981,64 @@ async function withNvidiaRetries(task, { label, jobId = null, maxAttempts = 2, b
                 return await task(currentModel, client, apiKey);
             } catch (error) {
                 lastError = error;
-                const isLastModel = modelIndex === modelsToTry.length - 1;
-                const isLastAttempt = attempt === retriesPerModel;
-                
-                if (isLastAttempt && isLastModel) {
-                    throw error;
+                const classification = classifyProviderError(error);
+                if (classification.kind === ProviderFailureKind.STALL) {
+                    stallsOnModel += 1;
                 }
-                
-                if (isLastAttempt && !isLastModel) {
-                    console.warn(`⚠️ [${logLabel}] ${currentModel || 'default model'} failed all ${retriesPerModel} attempts. Escalating to next model: ${modelsToTry[modelIndex + 1]}...`);
+                failureKinds.push(classification.kind);
+
+                const action = decideProviderRetryAction(classification, {
+                    attempt,
+                    maxAttempts: retriesPerModel,
+                    stallsOnCurrentModel: stallsOnModel,
+                });
+                console.warn(`🧭 [${logLabel}] ${formatProviderRetryDecision(classification, action)} on ${currentModel || 'default model'} (attempt ${attempt}/${retriesPerModel})`);
+
+                const isLastModel = modelIndex === modelsToTry.length - 1;
+
+                if (action === 'switch_model') {
+                    if (!isLastModel) {
+                        console.warn(`⏭️ [${logLabel}] Escalating from ${currentModel || 'default model'} to ${modelsToTry[modelIndex + 1]} after ${classification.reason}`);
+                    }
                     break;
                 }
-                
+
+                if (attempt >= retriesPerModel) {
+                    if (isLastModel) {
+                        break;
+                    }
+                    break;
+                }
+
                 const waitMs = baseDelayMs * attempt;
-                const retryReason = isStreamStallError(error)
-                    ? 'stream stall — rotating API key'
-                    : (error?.message || error);
-                console.warn(`⚠️ [${logLabel}] Provider hiccup on ${currentModel || 'default model'}: ${retryReason}. Retrying in ${waitMs}ms (attempt ${attempt}/${retriesPerModel})...`);
                 await sleep(waitMs);
             }
         }
+
+        modelFailures.push({
+            model: currentModel,
+            stalls: stallsOnModel,
+            kinds: failureKinds,
+        });
     }
+
+    if (moonshotFailover && shouldMoonshotFailover(modelFailures, lastError)) {
+        const moonshotConfig = getMoonshotTextConfig();
+        const moonshotClient = createMoonshotTextClient();
+        if (moonshotConfig && moonshotClient) {
+            console.warn(`🌙 [${logLabel}] NVIDIA text path blocked on ${modelFailures.length} model(s) — failing over to Moonshot direct (${moonshotConfig.model}, key ${maskMoonshotKey(moonshotConfig.apiKey)})`);
+            try {
+                return await task(moonshotConfig.model, moonshotClient, 'moonshot-direct');
+            } catch (moonshotError) {
+                lastError = moonshotError;
+                const moonshotClassification = classifyProviderError(moonshotError);
+                console.error(`🌙 [${logLabel}] Moonshot failover failed: ${formatProviderRetryDecision(moonshotClassification, 'throw')}`);
+            }
+        } else {
+            console.warn(`🌙 [${logLabel}] Moonshot failover skipped — MOONSHOT_API_KEY not configured`);
+        }
+    }
+
     throw lastError;
 }
 
@@ -4819,7 +4880,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         console.log(`🧠 [DREAM JOB] Started DreamStream structured pipeline for job: ${jobId} using ${DREAM_MODELS.premiumBuilder}`);
         const streamStall = getStreamStallConfig();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
+        const moonshotConfig = getMoonshotTextConfig();
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s moonshotFailover=${moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
