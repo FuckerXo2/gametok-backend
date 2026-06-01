@@ -1249,12 +1249,22 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     };
 }
 
+function buildMakerToolModelsToTry({ preferredModel = null, fallbackModels = null, defaultFallbacks = BUILDER_FALLBACK_MODELS } = {}) {
+    const chain = Array.isArray(fallbackModels) && fallbackModels.length > 0
+        ? [...fallbackModels]
+        : [...defaultFallbacks];
+    if (!preferredModel) {
+        return chain;
+    }
+    return [preferredModel, ...chain.filter((model) => model !== preferredModel)];
+}
+
 async function requestMakerToolCompletion(messages, {
     label,
     jobId = null,
     timeoutMs = BUILDER_REQUEST_TIMEOUT_MS,
     maxAttempts = 2,
-    currentModel = null,
+    preferredModel = null,
     maxTokens = MAKER_TOOL_MAX_TOKENS,
     fallbackModels = null,
     reasoningEffort = null,
@@ -1264,15 +1274,17 @@ async function requestMakerToolCompletion(messages, {
     assertJobNotCancelled(jobId);
     await assertJobNotCancelledShared(jobId, { force: true });
     const logLabel = formatJobLogLabel(label, jobId);
-    const toolCompatibleFallbacks = BUILDER_FALLBACK_MODELS;
-    const modelsToTry = currentModel
-        ? [currentModel]
-        : (Array.isArray(fallbackModels) && fallbackModels.length > 0
-            ? fallbackModels
-            : toolCompatibleFallbacks);
+    const modelsToTry = buildMakerToolModelsToTry({
+        preferredModel,
+        fallbackModels,
+    });
+
+    if (preferredModel && modelsToTry.length > 1) {
+        console.log(`📌 [${logLabel}] Preferred model ${preferredModel} with fallback chain ${modelsToTry.join('>')}`);
+    }
 
     return withNvidiaRetries(async (modelParam, client) => withAbortableTimeout(async (signal) => {
-        const modelToUse = currentModel || modelParam || DREAM_MODELS.premiumBuilder;
+        const modelToUse = modelParam || preferredModel || DREAM_MODELS.premiumBuilder;
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
         const promptChars = messages.reduce((sum, message) => sum + String(message?.content || '').length, 0);
@@ -4529,7 +4541,7 @@ async function runMakerAgentInspectionTurns({
                         timeoutMs: isImplementTurn ? MAKER_IMPLEMENT_TIMEOUT_MS : BUILDER_REQUEST_TIMEOUT_MS,
                         maxAttempts: 2,
                         maxTokens: isImplementTurn ? MAKER_IMPLEMENT_MAX_TOKENS : MAKER_TOOL_MAX_TOKENS,
-                        currentModel: stickyImplementModel,
+                        preferredModel: stickyImplementModel,
                         fallbackModels: isImplementTurn ? MAKER_IMPLEMENT_FALLBACK_MODELS : null,
                         reasoningEffort: isImplementTurn ? MAKER_IMPLEMENT_REASONING_EFFORT : null,
                         mode: turnMode,

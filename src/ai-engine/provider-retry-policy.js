@@ -52,6 +52,10 @@ export function classifyProviderError(error) {
         return { kind: ProviderFailureKind.MODEL, reason: 'model_not_found', status };
     }
 
+    if (status >= 500 && status < 600) {
+        return { kind: ProviderFailureKind.STALL, reason: 'provider_server_error', status };
+    }
+
     if (/timed out after \d+s/.test(message) || code === 'etimedout' || code === 'econnaborted') {
         return { kind: ProviderFailureKind.TIMEOUT, reason: 'hard_timeout', status };
     }
@@ -76,7 +80,7 @@ export function decideProviderRetryAction(classification, {
     }
 
     if (classification.kind === ProviderFailureKind.STALL) {
-        if (classification.reason === 'provider_queue' || classification.reason === 'connect_hang') {
+        if (classification.reason === 'provider_server_error' || classification.reason === 'provider_queue' || classification.reason === 'connect_hang') {
             return 'switch_model';
         }
         if (classification.reason === 'provider_midstream') {
