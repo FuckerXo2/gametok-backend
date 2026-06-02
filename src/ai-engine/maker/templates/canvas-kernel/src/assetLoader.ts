@@ -206,8 +206,11 @@ function installDreamAssetUsageTracker() {
 
   const proto = CanvasRenderingContext2D.prototype;
   const originalDrawImage = proto.drawImage;
-  proto.drawImage = function drawImageWithUsage(...args: Parameters<CanvasRenderingContext2D['drawImage']>) {
+  proto.drawImage = function drawImageWithUsage(
+    this: CanvasRenderingContext2D,
+    ...args: any[]
+  ): void {
     noteRenderedImage(args[0] as CanvasImageSource);
-    return originalDrawImage.apply(this, args);
-  };
+    (originalDrawImage as (...inner: any[]) => void).apply(this, args);
+  } as typeof proto.drawImage;
 }
