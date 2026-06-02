@@ -50,6 +50,8 @@ Rules:
 - firstFrame must guarantee visible background + gameplay subject + HUD/affordance on boot (never a blank canvas).
 - assetSlots are the ONLY list the artist agent will generate. Translate Phase 1 visualAssets (player, enemies, items, backgrounds, props) into concrete assetSlots with matching ids when possible.
 - Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
+- background assetSlot is REQUIRED for every game: vivid portrait environment art (768x1344), scene-specific to the prompt, premium App Store mobile game quality — not abstract color fields.
+- assetSlots for ingredients/items must share palette, line weight, and style with the background artDirection.
 - Do not rely on Phase 1 visualAssets being generated separately — if the game needs an image, it must appear in assetSlots.
 - acceptanceChecks must be testable in a headless sandbox within 10 seconds.
 - uiAuthority: pick canvas, dom, or hybrid-zoned — the file agent must NOT duplicate the same HUD/order/end-state on canvas AND DOM.
@@ -239,7 +241,7 @@ function buildDefaultAssetSlots(qualityIntent = {}, entityBlueprints = []) {
             width: 768,
             height: 1344,
             transparent: false,
-            description: `Portrait mobile gameplay background, scenery only, no HUD or characters. ${artStyle}`.trim(),
+            description: `Portrait mobile gameplay environment for this game world — layered scenery, rich color, premium shipped mobile game quality, scenery only, no HUD or characters. ${artStyle}`.trim(),
         });
     }
     return slots;

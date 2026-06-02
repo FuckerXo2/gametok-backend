@@ -1043,8 +1043,8 @@ export async function verifyGame(htmlString, options = {}) {
                 .filter((role) => packRoles.has(role))
                 .filter((role) => Number(renderedRoles[role] || 0) === 0);
                 
-            if ((sourceUsesDreamAssets || helperCalls > 0) && missingRequiredRoleUsage.length > 0) {
-                const message = `Required asset slots not rendered: generated assets exist, but these required roles were only preloaded/referenced or not rendered during boot: ${missingRequiredRoleUsage.join(', ')}. Use the generated player/enemy/background assets for visible gameplay entities instead of placeholder shapes.`;
+            if (missingRequiredRoleUsage.length > 0) {
+                const message = `Required asset slots not rendered: generated assets exist, but these required roles were only preloaded/referenced or not rendered during boot: ${missingRequiredRoleUsage.join(', ')}. Use the generated player/enemy/background assets for visible gameplay entities instead of placeholder shapes or flat gradient fills.`;
                 renderState.failedContractChecks.push({
                     id: 'asset_required_roles_unused',
                     templateId: options?.assetContract?.templateId || null,

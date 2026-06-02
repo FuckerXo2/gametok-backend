@@ -4700,8 +4700,8 @@ async function runMakerAgentInspectionTurns({
     reportProgress = null,
 }) {
     const objectives = [
-        'Implement turn 1: wire core loop (input, timers, cooking flow, asset rendering) incrementally in src/main.ts.',
-        'Implement turn 2: finish remaining gameplay systems, probe methods, and polish. Extend lane scaffold in place — do not duplicate state keys.',
+        'Implement turn 1: wire core loop (input, timers, cooking flow, asset rendering) incrementally in src/main.ts. Draw generated background full-bleed on frame 1.',
+        'Implement turn 2: finish remaining gameplay systems, probe methods, visual polish, and cohesive UI styling. Keep resolveBackgroundImage() drawing artist background art.',
         'Repair pass only: fix targetedRepairTasks and failed checks from latest evidence with apply_patch/write_file. Stop reading after one src/main.ts pass.',
     ];
     const implementTurns = Math.max(1, Math.min(maxTurns - 1, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS || 2)));

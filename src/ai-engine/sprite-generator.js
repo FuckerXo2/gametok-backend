@@ -483,7 +483,7 @@ function buildSpritePrompt(description, type = 'character', wantsTransparent = f
         vehicle: 'professional mobile game sprite, vehicle design, centered, readable silhouette, game asset style',
         item: 'professional mobile game sprite, item design, centered, clean silhouette, game asset style',
         enemy: 'professional mobile game sprite, creature or opponent design, centered, full body view, clean silhouette, game asset style',
-        background: 'professional mobile game background, environment scene, atmospheric, layered scenery, game asset style',
+        background: 'premium mobile game environment background, rich layered scenery, atmospheric depth, polished App Store game art, cinematic composition, vivid color',
         ui: 'professional mobile game icon or decorative UI source art, clean design, game asset style',
     };
     
@@ -501,7 +501,7 @@ function buildSpritePrompt(description, type = 'character', wantsTransparent = f
         .replace(/\bviolent\b/gi, 'action-packed');
     
     const backgroundInstruction = type === 'background'
-        ? 'full-bleed scenery only, layered depth, clean readable composition, no text, no labels, no HUD, no buttons, no foreground characters, no UI overlays'
+        ? 'portrait 9:16 full-bleed environment, layered depth, vivid premium mobile game scenery, clean readable composition, no text, no labels, no HUD, no buttons, no foreground characters, no UI overlays, no flat single-color fill'
         : wantsTransparent
         ? 'single foreground asset, centered with clear empty margin, no text'
         : 'simple background';

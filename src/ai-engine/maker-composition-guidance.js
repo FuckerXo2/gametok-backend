@@ -15,6 +15,8 @@ const GLOBAL_ANTI_PATTERNS = [
     'Stacking duplicate end-state copy (Shift Over + Game Over + status line all visible)',
     'More than 3 HUD stat chips visible at once',
     'Leaving pantry/order controls visible when gameOver is true or screenPhase is GAME_OVER',
+    'Replacing the generated background image with a flat CSS/canvas gradient when DREAM_IMAGES has a background role',
+    'Generic slate/navy placeholder gradients instead of the artist-generated environment art',
 ];
 
 const GLOBAL_ACCEPTANCE_CHECKS = [
@@ -22,6 +24,15 @@ const GLOBAL_ACCEPTANCE_CHECKS = [
     'When gameOver is true, gameplay controls and order UI are hidden',
     'HUD shows at most three distinct stats (score, time, combo/lives — pick what fits)',
     'First frame shows background, primary subject, and one clear affordance — not a blank canvas',
+    'Generated background image is drawn full-bleed via drawImage/resolveBackgroundImage on frame 1 when a background asset exists',
+    'Ingredient/order icons share the same art style and palette as the background scene',
+];
+
+const PREMIUM_VISUAL_RULES = [
+    'Premium mobile game bar: cohesive palette, readable silhouettes, one hero focal point per screen',
+    'Background is a vivid generated environment scene — never a flat dev gradient if background art exists',
+    'Pantry cards, customer bubble, and HUD chips use matching border radius, spacing, and contrast',
+    'Touch targets at least 44px; bottom pantry strip feels intentional, not cramped debug UI',
 ];
 
 const COOKING_LAYOUT_RULES = [
@@ -85,6 +96,7 @@ export function mergeCompositionGuidance(foundation = {}) {
         layoutRules: [...new Set([
             ...asArray(defaults.layoutRules),
             ...asArray(sourceLayout.layoutRules),
+            ...PREMIUM_VISUAL_RULES,
         ])],
     };
 
@@ -113,7 +125,8 @@ export function mergeCompositionGuidance(foundation = {}) {
         `Own screen flow via state.${screenStateKey} — render only the active screen state.`,
         `Follow layoutComposition zones; uiAuthority=${uiAuthority}. Do not duplicate UI across canvas and DOM.`,
         ...layoutComposition.layoutRules.slice(0, 3).map((rule) => `Layout: ${rule}`),
-    ])].slice(0, 12);
+        'Visual: draw generated background full-bleed in renderAll before gameplay entities — keep resolveBackgroundImage() or equivalent.',
+    ])].slice(0, 14);
 
     return {
         ...foundation,
@@ -151,6 +164,10 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
         `- UI authority: ${composition.uiAuthority || 'canvas'}. Each zone uses ONE layer only — never mirror order/HUD/end-state on canvas and DOM.`,
         '- At most 3 HUD stats. Hide pantry, slots, order bubble, and duplicate labels when gameOver or end-state screen is active.',
         '- One end-state headline per screen — no stacked Shift Over + Game Over + status spam.',
+        'VISUAL PREMIUM (competitor bar — art must feel shipped, not debug):',
+        '- Frame 1 MUST drawImage the generated background (background1/background role) full-bleed — never ship flat slate/navy gradients if DREAM_IMAGES has background art.',
+        '- Preserve or reimplement resolveBackgroundImage() + cover-scale drawImage before entities/HUD.',
+        '- Pantry cards, order icons, and HUD chips share one palette/radius/spacing system tied to artDirection.',
     ];
     const rules = composition.layoutComposition?.layoutRules || [];
     for (const rule of rules.slice(0, 5)) {

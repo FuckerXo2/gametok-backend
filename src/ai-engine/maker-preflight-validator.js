@@ -647,6 +647,24 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         });
     }
 
+    const requiresBackgroundArt = requiredSlots.some((slot) => slot.required && (
+        slot.role === 'background'
+        || slot.assetType === 'background'
+        || slot.category === 'environment'
+    ));
+    const packHasBackgroundArt = packFacts.roles.has('background')
+        || packFacts.roles.has('environment')
+        || [...packFacts.keys].some((key) => /^background/i.test(String(key)));
+    const wiresBackgroundRenderer = /resolveBackgroundImage|function drawBackground|getAssetImage\(['"](?:background1|background|environment)['"]\)/.test(source);
+    if (requiresBackgroundArt && packHasBackgroundArt && hasVisualAssets && !wiresBackgroundRenderer) {
+        issues.push({
+            id: 'preflight_background_not_wired',
+            severity: 'critical',
+            message: 'A generated background asset exists in the pack, but src/main.ts does not draw it (missing resolveBackgroundImage/drawBackground/getAssetImage background wiring).',
+            repair: 'In renderAll, call resolveBackgroundImage() or getAssetImage("background1") and ctx.drawImage the result full-bleed before entities. Do not ship flat gradient placeholders when background art exists.',
+        });
+    }
+
     const unknownAssetRefs = sourceAssetReferences(projectSource)
         .filter((ref) => !packFacts.keys.has(ref) && !packFacts.roles.has(ref) && !['player', 'enemy', 'item', 'prop', 'effect', 'background', 'environment', 'collectible', 'sfx', 'music'].includes(ref));
     if (localAssetPack && unknownAssetRefs.length > 0) {

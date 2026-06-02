@@ -148,4 +148,66 @@ export async function loadDreamAssets(): Promise<void> {
     const sourceKey = String(asset.key || asset.id || asset.runtimeKey || '');
     assignAlias(`item${index + 1}`, sourceKey);
   });
+
+  installDreamAssetUsageTracker();
+}
+
+type DreamAssetUsage = {
+  helperCalls: number;
+  usedKeys: Record<string, number>;
+  usedRoles: Record<string, number>;
+  renderedKeys: Record<string, number>;
+  renderedRoles: Record<string, number>;
+};
+
+function installDreamAssetUsageTracker() {
+  const w = window as typeof window & {
+    __DREAM_ASSET_USAGE_INSTALLED?: boolean;
+    __DREAM_ASSET_USAGE?: DreamAssetUsage;
+    DREAM_IMAGES?: Record<string, HTMLImageElement>;
+    DREAM_ASSET_PACK?: DreamAsset[];
+  };
+  if (w.__DREAM_ASSET_USAGE_INSTALLED) return;
+  w.__DREAM_ASSET_USAGE_INSTALLED = true;
+  w.__DREAM_ASSET_USAGE = w.__DREAM_ASSET_USAGE || {
+    helperCalls: 0,
+    usedKeys: {},
+    usedRoles: {},
+    renderedKeys: {},
+    renderedRoles: {},
+  };
+
+  const resolveRoleForKey = (key: string): string | null => {
+    const pack = Array.isArray(w.DREAM_ASSET_PACK) ? w.DREAM_ASSET_PACK : [];
+    for (const asset of pack) {
+      const assetKey = String(asset?.key || asset?.id || asset?.runtimeKey || '');
+      if (assetKey && assetKey === key) {
+        return String(asset.role || asset.category || '').toLowerCase() || null;
+      }
+    }
+    if (/^background/i.test(key) || key === 'environment') return 'background';
+    return null;
+  };
+
+  const noteRenderedImage = (image: CanvasImageSource) => {
+    if (!(image instanceof HTMLImageElement)) return;
+    const usage = w.__DREAM_ASSET_USAGE;
+    if (!usage) return;
+    const images = w.DREAM_IMAGES || {};
+    for (const [key, img] of Object.entries(images)) {
+      if (img !== image) continue;
+      usage.renderedKeys[key] = (usage.renderedKeys[key] || 0) + 1;
+      const role = resolveRoleForKey(key);
+      if (role) {
+        usage.renderedRoles[role] = (usage.renderedRoles[role] || 0) + 1;
+      }
+    }
+  };
+
+  const proto = CanvasRenderingContext2D.prototype;
+  const originalDrawImage = proto.drawImage;
+  proto.drawImage = function drawImageWithUsage(...args: Parameters<CanvasRenderingContext2D['drawImage']>) {
+    noteRenderedImage(args[0] as CanvasImageSource);
+    return originalDrawImage.apply(this, args);
+  };
 }
