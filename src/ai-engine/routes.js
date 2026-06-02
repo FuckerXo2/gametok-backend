@@ -29,6 +29,7 @@ import { materializeMakerAssetsForProject } from './maker-asset-materializer.js'
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import {
+    applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
     collectAllowedAssetPackKeys,
     normalizeMainTsAssetKeys,
@@ -4565,7 +4566,10 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             ...preflight,
         });
         if (!preflight.success) {
-            const preflightRepairs = await applyDeterministicPreflightRepairs(projectRoot, preflight);
+            const preflightRepairs = await applyDeterministicPreflightRepairs(projectRoot, preflight, {
+                generatedAssets,
+                assetContract,
+            });
             if (preflightRepairs.length > 0) {
                 console.warn(`[Maker AutoRepair] Applied deterministic preflight fixes: ${preflightRepairs.map((entry) => `${entry.path}:${entry.type}${entry.keys ? `(${entry.keys.join(',')})` : ''}`).join(', ')}`);
                 preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
@@ -4830,6 +4834,14 @@ async function runMakerAgentInspectionTurns({
                     const keyNormalize = await normalizeMainTsAssetKeys(projectRoot, allowedAssetKeys);
                     if (keyNormalize.changed) {
                         console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Normalized asset key casing in src/main.ts`);
+                    }
+                    const wiringRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
+                        allowedKeys: allowedAssetKeys,
+                        assetContract,
+                        generatedAssets,
+                    });
+                    if (wiringRepairs.length > 0) {
+                        console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Auto-repaired asset wiring in src/main.ts (${wiringRepairs[0]?.repairs?.join(', ') || 'ok'})`);
                     }
                     try {
                         await runMakerProjectTscCheck(projectRoot);

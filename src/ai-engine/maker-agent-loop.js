@@ -172,10 +172,20 @@ function truncatePromptText(text = '', maxChars = 4000, label = 'content') {
 
 function summarizeEvidenceForRepairPrompt(evidence = null) {
     if (!evidence || typeof evidence !== 'object') return null;
+    const preflightIssues = Array.isArray(evidence?.diagnostics?.preflight?.issues)
+        ? evidence.diagnostics.preflight.issues
+        : [];
     return {
         success: evidence.success,
         phase: evidence.phase,
         crashes: Array.isArray(evidence.crashes) ? evidence.crashes.slice(0, 4) : [],
+        preflightIssues: preflightIssues.slice(0, 8).map((issue) => ({
+            id: issue.id,
+            message: issue.message,
+            missingSlots: issue.missingSlots || [],
+            missingKeys: issue.missingKeys || [],
+            repair: issue.repair || null,
+        })),
         targetedRepairTasks: Array.isArray(evidence.targetedRepairTasks)
             ? evidence.targetedRepairTasks.slice(0, MAKER_REPAIR_EVIDENCE_TASKS)
             : [],
@@ -326,7 +336,10 @@ export function buildMakerAgentInspectionPrompt({
             buildCompositionGuidancePromptBlock(templateContract?.foundation) || '',
         ].filter(Boolean) : [
             'This is a repair pass after build/preflight/sandbox evidence. Make the smallest edits that fix the reported failures.',
-            'Use read_file once per path, then apply_patch. Do not re-read the same file repeatedly without editing it.',
+            'Use read_file once per path, then apply_patch or write_file. Do not re-read the same file repeatedly without editing it.',
+            'You MUST apply at least one write_file/apply_patch edit before finish_inspection. Reading alone is not a repair.',
+            'If preflight says required asset slots are unreferenced: add getAssetImage(key) calls using ALLOWED ASSET PACK KEYS and draw generated backgrounds in renderAll.',
+            'If preflight lists unknown keys like prop1/item1: replace them with exact keys from ALLOWED ASSET PACK KEYS or remove the reference.',
             'Focus on targetedRepairTasks and failed checks below — ignore unrelated contract noise.',
         ]),
         ...(useTools ? [

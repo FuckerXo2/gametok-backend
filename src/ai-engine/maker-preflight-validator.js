@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { applyMainTsAssetWiringRepairs } from './maker-agent-asset-keys.js';
 
 async function readTextIfExists(filePath) {
     try {
@@ -413,11 +414,30 @@ export function applyDeterministicStateObjectDedupeRepairs(source = '') {
     return dedupe.removed.length > 0 ? dedupe : { content: source, removed: [] };
 }
 
-export async function applyDeterministicPreflightRepairs(projectRoot, preflight = {}) {
+export async function applyDeterministicPreflightRepairs(projectRoot, preflight = {}, options = {}) {
     const applied = [];
     const mainPath = path.join(projectRoot || '', 'src', 'main.ts');
     let source = await readTextIfExists(mainPath);
     if (!source.trim()) return applied;
+
+    const assetIssues = (preflight.issues || []).filter((issue) => [
+        'preflight_required_asset_slots_unreferenced',
+        'preflight_asset_key_missing_from_pack',
+        'preflight_background_not_wired',
+    ].includes(issue.id));
+    if (assetIssues.length > 0) {
+        const assetRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
+            allowedKeys: options.allowedKeys || [],
+            assetContract: options.assetContract || null,
+            generatedAssets: options.generatedAssets || null,
+        });
+        for (const repair of assetRepairs) {
+            applied.push(repair);
+        }
+        if (assetRepairs.length > 0) {
+            source = await readTextIfExists(mainPath);
+        }
+    }
 
     for (const issue of preflight.issues || []) {
         if (issue.id !== 'preflight_state_property_missing' || !Array.isArray(issue.missingKeys) || issue.missingKeys.length === 0) {
