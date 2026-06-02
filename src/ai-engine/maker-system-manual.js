@@ -66,13 +66,26 @@ const FOUNDATION_CONTRACT = {
         assetSlots: 'Roles the artist generates (player, enemy, background, item, prop).',
         acceptanceChecks: 'Testable gameplay proofs for this specific game.',
         implementationNotes: 'Concrete guidance for the Phase 2 file agent.',
+        uiAuthority: 'canvas | dom | hybrid-zoned — file agent must not duplicate UI across layers.',
+        screenStateKey: 'State key (e.g. screenPhase) — only one screen state renders at a time.',
+        layoutComposition: 'Zones (layer + region + maxElements) and layoutRules — architect designs layout; no fixed HTML templates.',
     },
     scaffoldAssembly: [
         'Kernel files are copied from canvas-kernel/.',
-        'index.html + src/main.ts stub are generated from the foundation contract.',
-        'Stub already draws background + player + HUD — Phase 2 replaces stub logic with the real game.',
+        'Minimal index.html + src/main.ts stub from foundation (canvas, HUD shell, status line only).',
+        'Phase 2 file agent owns full mobile layout per layoutComposition — replaces stub with real game.',
     ],
 };
+
+const COMPOSITION_LAW = [
+    'The foundation architect designs layout zones — we do NOT ship fixed competitor HTML templates.',
+    'Each UI zone uses ONE layer: canvas OR DOM, never both for the same affordance (order bubble, HUD stat, end-state headline).',
+    'Screen flow via screenStateKey (default screenPhase): only PLAYING, SHIFT_END, or GAME_OVER chrome visible at once.',
+    'HUD cap: at most 3 stat chips (score, time, combo/lives).',
+    'End states: one headline — no stacked Shift Over + Game Over + status line + canvas duplicate.',
+    'Cooking lanes: order bubble icons must use the same asset keys as pantry cards.',
+    'When gameOver is true, hide pantry, slots, order UI, and gameplay controls.',
+];
 
 const ASSET_LAW = [
     'Sprites: transparent PNG subjects (player, enemy, item, prop, effect).',
@@ -101,12 +114,14 @@ const KNOWN_FAILURES = [
     'Classifier mismatch (legacy): archetype routed to wrong template folder. Fix: dynamic foundation replaces folder picking.',
     'Canvas viewport overflow pattern: main.ts dropped styles.css or offset the canvas → sandbox fails with rect like 8,8,398,852 on a 390x844 viewport. Fix: full-bleed canvas at 0,0; guard canvas with instanceof HTMLCanvasElement.',
     'Repair TS18047 canvas-null spiral: after getElementById("game-canvas"), narrow with instanceof HTMLCanvasElement before using canvas.width/height.',
+    'Dual UI pattern: agent draws order/HUD/end-state on canvas while DOM scaffold also shows the same chrome → overlapping mess. Fix: follow layoutComposition uiAuthority; one layer per zone.',
+    'Multi screen-state pattern: PLAYING pantry visible while GAME_OVER overlay and status line also show. Fix: gate renderAll/DOM visibility on screenPhase.',
 ];
 
 const ROLE_SECTIONS = {
     phase1: ['pipeline', 'agents.spec', 'assetLaw', 'sandboxLaw'],
-    foundation: ['pipeline', 'agents.foundation', 'kernel', 'foundationContract', 'assetLaw', 'firstFrame', 'knownFailures'],
-    fileAgent: ['pipeline', 'agents.fileAgent', 'kernel', 'foundationContract', 'assetLaw', 'sandboxLaw', 'firstFrame', 'knownFailures'],
+    foundation: ['pipeline', 'agents.foundation', 'kernel', 'foundationContract', 'compositionLaw', 'assetLaw', 'firstFrame', 'knownFailures'],
+    fileAgent: ['pipeline', 'agents.fileAgent', 'kernel', 'foundationContract', 'compositionLaw', 'assetLaw', 'sandboxLaw', 'firstFrame', 'knownFailures'],
     artist: ['pipeline', 'agents.artist', 'assetLaw', 'foundationContract.assetSlots'],
 };
 
@@ -165,10 +180,15 @@ function sectionKnownFailures() {
     return ['## Known Failure Patterns (avoid these)', ...KNOWN_FAILURES.map((line) => `- ${line}`)].join('\n');
 }
 
+function sectionCompositionLaw() {
+    return ['## Mobile Composition Law', ...COMPOSITION_LAW.map((line) => `- ${line}`)].join('\n');
+}
+
 const SECTION_BUILDERS = {
     pipeline: sectionPipeline,
     kernel: sectionKernel,
     foundationContract: sectionFoundationContract,
+    compositionLaw: sectionCompositionLaw,
     assetLaw: sectionAssetLaw,
     sandboxLaw: sectionSandboxLaw,
     firstFrame: sectionFirstFrame,

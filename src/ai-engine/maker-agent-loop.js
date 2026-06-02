@@ -8,6 +8,7 @@ import {
     MAKER_AGENT_TURN_MODE_IMPLEMENT,
     MAKER_AGENT_TURN_MODE_REPAIR,
 } from './maker-agent-tools.js';
+import { buildCompositionGuidancePromptBlock, summarizeCompositionForImplement } from './maker-composition-guidance.js';
 import { summarizeLaneScaffoldForImplement } from './maker-lane-scaffolds.js';
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
 
@@ -84,7 +85,8 @@ function summarizeFoundationForImplement(foundation = null) {
         firstFrame: foundation.firstFrame || null,
         acceptanceChecks: foundation.acceptanceChecks || [],
         implementationNotes: foundation.implementationNotes || [],
-        laneScaffold: summarizeLaneScaffoldForImplement(foundation),
+        composition: summarizeCompositionForImplement(foundation),
+        laneRequirements: summarizeLaneScaffoldForImplement(foundation),
         assetSlots: Array.isArray(foundation.assetSlots)
             ? foundation.assetSlots.map((slot) => ({
                 id: slot?.id || slot?.role || null,
@@ -240,7 +242,8 @@ export function buildMakerAgentImplementPrompt({
         '',
         'IMPLEMENT RULES:',
         ...getMakerAgentToolInstructionLines(MAKER_AGENT_TURN_MODE_IMPLEMENT),
-        '- Start from the scaffold below. Pantry/slots/COOK DOM and cooking state may already exist for timed_order lanes — extend, do not redeclare.',
+        '- You own the full mobile layout: index.html structure, src/styles.css, and src/main.ts gameplay.',
+        '- Follow foundation layoutComposition and composition law below — no fixed template shell is provided.',
         '- Use read_file / grep_project / apply_patch to build incrementally on disk.',
         '- After each edit, tsc runs automatically — read tsc errors in tool results and fix before continuing.',
         '- Kernel boot is already wired: loadDreamAssets → import main.ts. Replace stub logic only.',
@@ -249,6 +252,8 @@ export function buildMakerAgentImplementPrompt({
         '- Implement foundation requiredFunctions + probeMethods on window.__GAMETOK_TEMPLATE_PROBE__.',
         '- HUD, buttons, timers, order bubbles: code-rendered only (canvas/DOM). No Phaser for canvas-kernel.',
         '- Use ONLY asset keys from ALLOWED ASSET PACK KEYS (exact spelling).',
+        '',
+        buildCompositionGuidancePromptBlock(foundation),
         '',
         `Objective: ${objective || 'Implement full gameplay loop in src/main.ts.'}`,
         '',
@@ -273,7 +278,7 @@ export function buildMakerAgentImplementPrompt({
         'GDD (design reference):',
         gddBody,
         '',
-        'Current src/main.ts scaffold (extend in place; do not duplicate state keys or DOM ids):',
+        'Current src/main.ts scaffold (extend in place; implement layoutComposition zones yourself):',
         JSON.stringify(mainTs, null, 2),
         ...(stylesCss ? [
             '',
@@ -317,8 +322,9 @@ export function buildMakerAgentInspectionPrompt({
         '',
         ...(implementMode ? [
             'IMPLEMENT PASS: Replace the foundation stub in src/main.ts with the full playable game loop in ONE write_file call.',
-            'Foundation HTML, HUD shell, canvas boot, and asset loader are already materialized. Do not redesign the page layout.',
-        ] : [
+            'Design mobile layout yourself in index.html + src/styles.css + main.ts per foundation layoutComposition — no fixed template shell.',
+            buildCompositionGuidancePromptBlock(templateContract?.foundation) || '',
+        ].filter(Boolean) : [
             'This is a repair pass after build/preflight/sandbox evidence. Make the smallest edits that fix the reported failures.',
             'Use read_file once per path, then apply_patch. Do not re-read the same file repeatedly without editing it.',
             'Focus on targetedRepairTasks and failed checks below — ignore unrelated contract noise.',

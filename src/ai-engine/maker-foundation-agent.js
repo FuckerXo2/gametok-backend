@@ -1,12 +1,7 @@
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
+import { mergeCompositionGuidance } from './maker-composition-guidance.js';
 import {
-    buildLaneIndexHtmlExtras,
-    buildLaneLifecycleExtras,
-    buildLaneMainTsExtras,
-    buildLaneProbeExtras,
-    buildLaneStylesCssExtras,
     inferFoundationStateInitializer,
-    isTimedOrderCookingLane,
     mergeLaneRequiredState,
 } from './maker-lane-scaffolds.js';
 
@@ -57,6 +52,11 @@ Rules:
 - Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
 - Do not rely on Phase 1 visualAssets being generated separately — if the game needs an image, it must appear in assetSlots.
 - acceptanceChecks must be testable in a headless sandbox within 10 seconds.
+- uiAuthority: pick canvas, dom, or hybrid-zoned — the file agent must NOT duplicate the same HUD/order/end-state on canvas AND DOM.
+- screenStateKey + screenStates: define a screen flow (e.g. PLAYING → SHIFT_END → GAME_OVER). Only one screen state may render at a time.
+- layoutComposition.zones: describe WHERE each UI zone lives (layer + region + maxElements). You design layout; we do NOT ship fixed HTML templates.
+- layoutComposition.layoutRules: concrete composition law for this game (hide pantry on game over, max 3 HUD chips, one end-state headline, etc.).
+- antiPatterns must include overlapping UI and duplicate end-state copy when relevant.
 - Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
         user: `USER PROMPT:
 ${prompt}
@@ -81,6 +81,16 @@ Return this JSON shape:
     { "name": "step", "description": "Advance simulation ms" },
     { "name": "reset", "description": "Reset round" }
   ],
+  "uiAuthority": "canvas | dom | hybrid-zoned",
+  "screenStateKey": "screenPhase",
+  "screenStates": ["PLAYING", "SHIFT_END", "GAME_OVER"],
+  "layoutComposition": {
+    "zones": [
+      { "id": "world", "purpose": "Background staging", "layer": "canvas", "region": "upper-60%" },
+      { "id": "hud", "purpose": "Score and timer only", "layer": "dom", "region": "top-safe", "maxElements": 3 }
+    ],
+    "layoutRules": ["Only one screen state visible at a time", "Hide gameplay chrome on GAME_OVER"]
+  },
   "hudBlocks": ["score", "time"],
   "firstFrame": ["Draw background image", "Draw player", "Show score HUD"],
   "interactionLoops": ["short description of core input loop"],
@@ -145,7 +155,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
     const assetSlots = asArray(source.assetSlots);
     const entityBlueprints = asArray(source.entityBlueprints);
 
-    return mergeLaneRequiredState({
+    return mergeCompositionGuidance(mergeLaneRequiredState({
         version: 1,
         source: 'gametok-foundation-architect',
         foundationId: slugify(source.foundationId || qualityIntent.title || 'dynamic_game'),
@@ -156,6 +166,12 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         engine: asString(source.engine, 'canvas-2d'),
         initialState: asString(source.initialState, 'PLAYING'),
         stateFlow: asArray(source.stateFlow).length ? asArray(source.stateFlow) : ['PLAYING', 'RESULT'],
+        uiAuthority: asString(source.uiAuthority, ''),
+        screenStateKey: asString(source.screenStateKey, 'screenPhase'),
+        screenStates: asArray(source.screenStates),
+        layoutComposition: source.layoutComposition && typeof source.layoutComposition === 'object'
+            ? source.layoutComposition
+            : null,
         requiredState,
         requiredFunctions,
         probeMethods,
@@ -174,7 +190,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         assetSlots: assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints),
         statusCopy: asString(source.statusCopy, 'Tap to play!'),
         userIntent: qualityIntent.userIntent || null,
-    });
+    }));
 }
 
 function buildDefaultAssetSlots(qualityIntent = {}, entityBlueprints = []) {
@@ -257,6 +273,9 @@ export function buildMakerTemplateContractFromFoundation(foundation = {}, qualit
             'Images are used for world art, sprites, props, items, and backgrounds only.',
             'The first frame must show the game world, primary actor, key goal/threat, and usable controls or affordances.',
             'All mutable game state resets cleanly on restart or round transition.',
+            `Screen flow via state.${foundation.screenStateKey || 'screenPhase'} — only one screen state visible at a time.`,
+            'Do not duplicate HUD, order UI, or end-state on canvas AND DOM.',
+            ...(foundation.layoutComposition?.layoutRules || []).slice(0, 4),
         ],
         dreamAssets: [
             'Use window.DREAM_IMAGES, DREAM_ASSET_PACK keys, or getAssetImage(key) helpers.',
@@ -399,8 +418,7 @@ export function buildIndexHtmlFromFoundation(foundation = {}) {
     <header id="hud" data-hud>
 ${hudHtml || '      <div class="hud-chip hud-score"><span>Score</span><strong id="score-value">0</strong></div>'}
     </header>
-    <div id="controls-layer" data-controls>${buildLaneIndexHtmlExtras(foundation)}
-    </div>
+    <div id="controls-layer" data-controls></div>
     <div id="status-line" role="status">${asString(foundation.statusCopy, 'Tap to play!')}</div>
   </main>
   <script type="module" src="/src/bootstrap.ts"></script>
@@ -457,21 +475,15 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
     return null;
   },`)
         .join('\n');
-    const laneProbeExtras = buildLaneProbeExtras(foundation);
-    const laneMainExtras = buildLaneMainTsExtras(foundation);
-    const laneLifecycleExtras = buildLaneLifecycleExtras(foundation);
-    const laneNote = isTimedOrderCookingLane(foundation)
-        ? '\n// Lane scaffold: pantry grid, cauldron slots, COOK button, and cooking probes are pre-wired. Implement drag/order/timer logic only.\n'
-        : '';
-
-    const implNotes = asArray(foundation.implementationNotes).slice(0, 6)
+    const implNotes = asArray(foundation.implementationNotes).slice(0, 8)
         .map((note) => `// ${note}`)
         .join('\n');
 
     return `// @ts-nocheck
 // GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
-${laneNote}${implNotes}
+// Phase 2 owns full layout (index.html, styles.css, main.ts) — follow layoutComposition in foundation contract.
+${implNotes}
 import './styles.css';
 
 const canvasEl = document.getElementById('game-canvas');
@@ -506,7 +518,6 @@ ${combinedStateInit}
   started: false,
 };
 
-${laneMainExtras}
 function resizeCanvas() {
   state.width = window.innerWidth || 390;
   state.height = window.innerHeight || 844;
@@ -636,11 +647,10 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
     resetGame();
     return this.snapshot();
   },
-${laneProbeExtras}${extraProbeLines ? `${extraProbeLines}\n` : ''}};
+${extraProbeLines ? `${extraProbeLines}\n` : ''}};
 
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
-${laneLifecycleExtras}
 canvas.addEventListener('pointerdown', () => {
   state.started = true;
   if (statusLine) statusLine.textContent = 'Playing!';
