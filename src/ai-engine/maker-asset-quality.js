@@ -278,10 +278,53 @@ async function analyzeTilesets(generatedAssets = null) {
     return { tilesets: results, issues };
 }
 
+function normalizeAssetKey(value = '') {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
 function isBackgroundAsset(asset = {}) {
     const role = String(asset?.role || asset?.category || '').toLowerCase();
-    const type = String(asset?.type || asset?.kind || '').toLowerCase();
+    const type = String(asset?.type || asset?.kind || asset?.assetType || '').toLowerCase();
     return type === 'background' || role === 'background' || role === 'environment';
+}
+
+function findBackgroundAssetForSlot(slot = {}, packEntries = [], packById = new Map()) {
+    const slotId = String(slot.id || slot.role || '');
+    const slotKeys = [slotId, slot.role, slot.category]
+        .map(normalizeAssetKey)
+        .filter(Boolean);
+
+    for (const key of slotKeys) {
+        const direct = packById.get(key);
+        if (direct) return direct;
+    }
+
+    const roleMatch = packEntries.find((entry) => {
+        if (!isBackgroundAsset(entry)) return false;
+        const entryKeys = [entry.id, entry.key, entry.role, entry.category]
+            .map(normalizeAssetKey)
+            .filter(Boolean);
+        return slotKeys.some((slotKey) => entryKeys.includes(slotKey));
+    });
+    if (roleMatch) return roleMatch;
+
+    const slotRole = normalizeAssetKey(slot.role || slot.category);
+    if (slotRole) {
+        const byRole = packEntries.find((entry) => {
+            if (!isBackgroundAsset(entry)) return false;
+            const entryRole = normalizeAssetKey(entry.role || entry.category);
+            return entryRole && entryRole === slotRole;
+        });
+        if (byRole) return byRole;
+    }
+
+    const backgrounds = packEntries.filter(isBackgroundAsset);
+    if (backgrounds.length === 1) return backgrounds[0];
+    return null;
 }
 
 function analyzeRequiredBackgroundFallbacks(generatedAssets = null, assetContract = null) {
@@ -292,14 +335,18 @@ function analyzeRequiredBackgroundFallbacks(generatedAssets = null, assetContrac
     const packEntries = asArray(generatedAssets?.assetPack);
     const packById = new Map();
     for (const asset of packEntries) {
-        const id = asset?.id || asset?.key;
-        if (id) packById.set(String(id), asset);
+        for (const rawKey of [asset?.id, asset?.key]) {
+            if (!rawKey) continue;
+            const text = String(rawKey);
+            packById.set(text, asset);
+            const normalized = normalizeAssetKey(text);
+            if (normalized) packById.set(normalized, asset);
+        }
     }
 
     for (const slot of requiredSlots) {
         const slotId = String(slot.id || slot.role || '');
-        const asset = packById.get(slotId)
-            || packEntries.find((entry) => isBackgroundAsset(entry) && (entry.id === slotId || entry.key === slotId));
+        const asset = findBackgroundAssetForSlot(slot, packEntries, packById);
         if (!asset) {
             issues.push(issue({
                 id: 'required_background_missing',

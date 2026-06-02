@@ -449,9 +449,13 @@ function withArtDirection(description, artDirection = {}, kind = 'sprite') {
 }
 
 function pushRequest(requests, request, seen) {
-    const id = safeId(request.id, `asset_${requests.length + 1}`);
-    if (seen.has(id)) return;
-    seen.add(id);
+    const rawId = String(request.id || '').trim();
+    const id = request.makerSlot
+        ? (rawId || `asset_${requests.length + 1}`)
+        : safeId(rawId, `asset_${requests.length + 1}`);
+    const dedupeKey = safeId(id, id);
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
     requests.push({
         ...request,
         id,
@@ -573,7 +577,10 @@ export async function buildAssetPlanFromMakerContract(qualityIntent = {}, assetC
 
     for (const slot of asArray(assetContract?.slots)) {
         if (!slot?.id || !slot?.description) continue;
-        const isBackground = slot.assetType === 'background' || slot.role === 'background';
+        const isBackground = slot.assetType === 'background'
+            || slot.role === 'background'
+            || slot.role === 'environment'
+            || slot.category === 'environment';
         const description = isBackground
             ? [
                 withArtDirection(slot.description, artDirection, 'background'),
