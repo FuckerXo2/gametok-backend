@@ -43,6 +43,14 @@ const REPAIR_MAX_TOOL_CALLS = Math.max(
     8,
     Math.min(24, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 18)),
 );
+const MAKER_AGENT_IMPLEMENT_TURNS = Math.max(
+    1,
+    Math.min(3, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS || 2)),
+);
+const REPAIR_MAX_READ_ONLY_ROUNDS = Math.max(
+    1,
+    Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_READ_ONLY_ROUNDS || 2)),
+);
 const READ_FILE_MAX_CHARS = Math.max(
     2000,
     Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 12000)),
@@ -68,9 +76,15 @@ export function useMakerAgentImplementMode() {
         && String(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MODE || 'true').toLowerCase() !== 'false';
 }
 
-export function resolveMakerAgentTurnMode(turnNumber = 1) {
+export function resolveMakerAgentTurnMode(turnNumber = 1, { maxTurns = null } = {}) {
     if (!useMakerAgentTools()) return 'json';
-    if (useMakerAgentImplementMode() && turnNumber === 1) return MAKER_AGENT_TURN_MODE_IMPLEMENT;
+    if (!useMakerAgentImplementMode()) return MAKER_AGENT_TURN_MODE_REPAIR;
+    const totalTurns = Math.max(2, Math.min(4, Number(maxTurns || process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
+    const implementTurns = Math.max(
+        1,
+        Math.min(totalTurns - 1, MAKER_AGENT_IMPLEMENT_TURNS),
+    );
+    if (turnNumber <= implementTurns) return MAKER_AGENT_TURN_MODE_IMPLEMENT;
     return MAKER_AGENT_TURN_MODE_REPAIR;
 }
 
@@ -230,9 +244,10 @@ export function getMakerAgentToolDefinitions() {
 export function getMakerAgentToolInstructionLines(mode = MAKER_AGENT_TURN_MODE_REPAIR) {
     if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
         return [
-            'IMPLEMENT MODE (turn 1): build the game incrementally like a coding agent — each edit tool writes to disk immediately.',
+            'IMPLEMENT MODE: build the game incrementally like a coding agent — each edit tool writes to disk immediately.',
             'Use read_file / grep_project to inspect the live project before patching.',
-            'Prefer apply_patch on src/main.ts: replace stub sections with pantry drag, cauldron slots, cook button, customers, timers, probes.',
+            'Prefer apply_patch on src/main.ts: wire drag/drop, timers, order matching, rendering, and probe behavior.',
+            'Scaffold may already include pantry grid, cauldron slots, COOK button, and cooking state — extend it, do not duplicate keys or DOM ids.',
             'After each edit, tsc runs automatically — fix any TypeScript errors before continuing.',
             'You may call run_tsc_check manually after a batch of edits.',
             'Make 4-12 focused apply_patch edits across rounds.',
@@ -245,10 +260,11 @@ export function getMakerAgentToolInstructionLines(mode = MAKER_AGENT_TURN_MODE_R
     }
     return [
         'REPAIR MODE: fix the specific preflight/build/sandbox failures shown in last run evidence.',
-        'Use read_file / grep_project to inspect current source before patching.',
+        'You MUST call apply_patch or write_file on src/main.ts within the first 2 tool rounds — do not read the same file repeatedly.',
+        'Use read_file once to copy exact find anchors, then patch immediately.',
         'Prefer apply_patch with exact find anchors copied from read_file output.',
+        'write_file on src/main.ts is allowed when compile errors or duplicate state keys require a structural fix.',
         'run_tsc_check runs automatically after edits; fix all TS errors before finish_inspection.',
-        'Call write_file only for small files (styles.css, tiny helpers). Avoid full src/main.ts rewrites unless evidence shows the file is corrupt.',
         'Call finish_inspection when done. Set no_edits_needed=true only if the project already passes the objective.',
         'Make 1-6 focused apply_patch calls per turn when changes are needed.',
         'Protected read-only files: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, package.json, tsconfig.json, vite.config.ts.',
@@ -753,6 +769,8 @@ export async function runMakerAgentToolTurn({
     let notes = [];
     let finished = false;
     let touchedMainTs = false;
+    let repairReadOnlyRounds = 0;
+    const readPathCounts = new Map();
 
     for (let round = 0; round < effectiveMaxRounds && !finished; round += 1) {
         log.rounds = round + 1;
@@ -836,10 +854,15 @@ export async function runMakerAgentToolTurn({
             if (toolName === MAKER_TOOL_READ_FILE && result.ok !== false) {
                 roundReadFile = true;
                 const readPath = result.path;
+                const priorReads = readPathCounts.get(readPath) || 0;
+                readPathCounts.set(readPath, priorReads + 1);
                 if (readPath && readPathsThisRound.has(readPath)) {
                     result.note = `Already read ${readPath} this round. Use apply_patch with find text from the earlier read_file result instead of reading again.`;
                 } else if (readPath) {
                     readPathsThisRound.add(readPath);
+                }
+                if (mode === MAKER_AGENT_TURN_MODE_REPAIR && priorReads >= 1 && !roundEdited) {
+                    result.note = `${result.note ? `${result.note} ` : ''}REPAIR: ${readPath} was already read earlier this turn. You must apply_patch or write_file next.`;
                 }
             }
 
@@ -875,6 +898,15 @@ export async function runMakerAgentToolTurn({
 
         if ((mode === MAKER_AGENT_TURN_MODE_IMPLEMENT || mode === MAKER_AGENT_TURN_MODE_REPAIR) && roundEdited && !finished) {
             await appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound: roundReadFile });
+            repairReadOnlyRounds = 0;
+        } else if (mode === MAKER_AGENT_TURN_MODE_REPAIR && roundReadFile && !roundEdited) {
+            repairReadOnlyRounds += 1;
+            if (repairReadOnlyRounds >= REPAIR_MAX_READ_ONLY_ROUNDS) {
+                messages.push({
+                    role: 'user',
+                    content: 'REPAIR REQUIRED: Stop reading files. Call apply_patch or write_file on src/main.ts now to fix the targeted failures from last run evidence.',
+                });
+            }
         }
     }
 

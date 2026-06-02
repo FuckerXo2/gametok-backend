@@ -8,6 +8,7 @@ import {
     MAKER_AGENT_TURN_MODE_IMPLEMENT,
     MAKER_AGENT_TURN_MODE_REPAIR,
 } from './maker-agent-tools.js';
+import { summarizeLaneScaffoldForImplement } from './maker-lane-scaffolds.js';
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
 
 function extractJson(text) {
@@ -83,6 +84,7 @@ function summarizeFoundationForImplement(foundation = null) {
         firstFrame: foundation.firstFrame || null,
         acceptanceChecks: foundation.acceptanceChecks || [],
         implementationNotes: foundation.implementationNotes || [],
+        laneScaffold: summarizeLaneScaffoldForImplement(foundation),
         assetSlots: Array.isArray(foundation.assetSlots)
             ? foundation.assetSlots.map((slot) => ({
                 id: slot?.id || slot?.role || null,
@@ -238,7 +240,8 @@ export function buildMakerAgentImplementPrompt({
         '',
         'IMPLEMENT RULES:',
         ...getMakerAgentToolInstructionLines(MAKER_AGENT_TURN_MODE_IMPLEMENT),
-        '- Start from the stub below. Use read_file / grep_project / apply_patch to build incrementally on disk.',
+        '- Start from the scaffold below. Pantry/slots/COOK DOM and cooking state may already exist for timed_order lanes — extend, do not redeclare.',
+        '- Use read_file / grep_project / apply_patch to build incrementally on disk.',
         '- After each edit, tsc runs automatically — read tsc errors in tool results and fix before continuing.',
         '- Kernel boot is already wired: loadDreamAssets → import main.ts. Replace stub logic only.',
         '- Keep import "./styles.css", #game-canvas at viewport 0,0, getAssetImage/firstByRole for sprites.',
@@ -270,7 +273,7 @@ export function buildMakerAgentImplementPrompt({
         'GDD (design reference):',
         gddBody,
         '',
-        'Current src/main.ts stub (replace entirely):',
+        'Current src/main.ts scaffold (extend in place; do not duplicate state keys or DOM ids):',
         JSON.stringify(mainTs, null, 2),
         ...(stylesCss ? [
             '',

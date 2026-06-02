@@ -331,7 +331,8 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 4)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-const MAKER_AGENT_INSPECTION_TURNS = Math.max(1, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 2)));
+const MAKER_AGENT_INSPECTION_TURNS = Math.max(1, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
+const SKIP_TURN1_PRERUN_EVIDENCE = String(process.env.GAMETOK_MAKER_SKIP_TURN1_PRERUN_EVIDENCE || 'true').toLowerCase() !== 'false';
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
 const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
 
@@ -4699,27 +4700,34 @@ async function runMakerAgentInspectionTurns({
     reportProgress = null,
 }) {
     const objectives = [
-        'Implement the gameplay loop incrementally in src/main.ts. Use read_file/grep_project, apply_patch (preferred), and run_tsc_check. Each edit saves to disk immediately.',
-        'Repair pass only: fix the targetedRepairTasks and failed checks from the latest sandbox/build evidence with the smallest apply_patch edits. Do not re-audit the whole project.',
+        'Implement turn 1: wire core loop (input, timers, cooking flow, asset rendering) incrementally in src/main.ts.',
+        'Implement turn 2: finish remaining gameplay systems, probe methods, and polish. Extend lane scaffold in place — do not duplicate state keys.',
+        'Repair pass only: fix targetedRepairTasks and failed checks from latest evidence with apply_patch/write_file. Stop reading after one src/main.ts pass.',
     ];
-    console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turn 1=implement, up to ${Math.max(0, maxTurns - 1)} repair turn(s) only if sandbox still fails (maxTurns=${maxTurns})`);
+    const implementTurns = Math.max(1, Math.min(maxTurns - 1, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS || 2)));
+    console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turns 1-${implementTurns}=implement, turns ${implementTurns + 1}-${maxTurns}=repair if needed (maxTurns=${maxTurns}, skipTurn1PreRun=${SKIP_TURN1_PRERUN_EVIDENCE})`);
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
-        const preRunEvidence = await runMakerProjectEvidence({
-            workspace,
-            projectRoot,
-            generatedAssets,
-            templateContract,
-            assetContract,
-            turnNumber: `${turnNumber}-pre`,
-            phase: 'before_file_agent_turn',
-        });
-        lastRunEvidence = preRunEvidence;
+        let preRunEvidence = null;
+        if (!(turnNumber === 1 && SKIP_TURN1_PRERUN_EVIDENCE)) {
+            preRunEvidence = await runMakerProjectEvidence({
+                workspace,
+                projectRoot,
+                generatedAssets,
+                templateContract,
+                assetContract,
+                turnNumber: `${turnNumber}-pre`,
+                phase: 'before_file_agent_turn',
+            });
+            lastRunEvidence = preRunEvidence;
+        } else {
+            console.log(`🛠️ [Phase 2 job=${jobId}] Skipping turn ${turnNumber} pre-run sandbox (stub expected incomplete until agent edits)`);
+        }
         const projectFiles = await readMakerProjectFiles(projectRoot);
-        const objective = objectives[turnNumber - 1] || objectives[objectives.length - 1];
+        const objective = objectives[Math.min(turnNumber - 1, objectives.length - 1)] || objectives[objectives.length - 1];
         const makerAgentUsesTools = useMakerAgentTools();
-        const turnMode = resolveMakerAgentTurnMode(turnNumber);
+        const turnMode = resolveMakerAgentTurnMode(turnNumber, { maxTurns });
         const allowedAssetKeys = [...new Set([
             ...await readProjectAssetPackKeys(projectRoot),
             ...collectAllowedAssetPackKeys({ generatedAssets }),
@@ -4967,7 +4975,7 @@ async function runMakerAgentInspectionTurns({
                 console.log(`✅ [Phase 2 job=${jobId}] Sandbox/build passed after turn ${turnNumber} — skipping remaining agent turns`);
                 break;
             }
-            if (turnNumber === 1 && maxTurns > 1) {
+            if (isImplementTurn && turnNumber < maxTurns && turnNumber <= implementTurns) {
                 const failurePreview = (runEvidence?.targetedRepairTasks || [])
                     .slice(0, 3)
                     .map((task) => task.directRepairTask || task.description || task.id || task.task)
@@ -4975,7 +4983,16 @@ async function runMakerAgentInspectionTurns({
                     .join(' | ')
                     || (runEvidence?.crashes || []).slice(0, 2).join(' | ')
                     || 'sandbox/build checks still failing';
-                console.log(`🔧 [Phase 2 job=${jobId}] Implement turn incomplete — running repair turn 2/2. Focus: ${failurePreview}`);
+                console.log(`🔧 [Phase 2 job=${jobId}] Implement turn ${turnNumber} incomplete — continuing with turn ${turnNumber + 1}. Focus: ${failurePreview}`);
+            } else if (turnNumber === implementTurns && maxTurns > implementTurns) {
+                const failurePreview = (runEvidence?.targetedRepairTasks || [])
+                    .slice(0, 3)
+                    .map((task) => task.directRepairTask || task.description || task.id || task.task)
+                    .filter(Boolean)
+                    .join(' | ')
+                    || (runEvidence?.crashes || []).slice(0, 2).join(' | ')
+                    || 'sandbox/build checks still failing';
+                console.log(`🔧 [Phase 2 job=${jobId}] Implement turns exhausted — running repair turn ${turnNumber + 1}/${maxTurns}. Focus: ${failurePreview}`);
             }
             if ((inspection.noEditsNeeded || applied.length === 0) && turnNumber >= maxTurns) {
                 break;

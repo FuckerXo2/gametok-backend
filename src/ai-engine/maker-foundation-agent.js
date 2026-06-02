@@ -1,4 +1,14 @@
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
+import {
+    buildLaneIndexHtmlExtras,
+    buildLaneLifecycleExtras,
+    buildLaneMainTsExtras,
+    buildLaneProbeExtras,
+    buildLaneStylesCssExtras,
+    inferFoundationStateInitializer,
+    isTimedOrderCookingLane,
+    mergeLaneRequiredState,
+} from './maker-lane-scaffolds.js';
 
 function asArray(value) {
     return Array.isArray(value) ? value : [];
@@ -135,7 +145,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
     const assetSlots = asArray(source.assetSlots);
     const entityBlueprints = asArray(source.entityBlueprints);
 
-    return {
+    return mergeLaneRequiredState({
         version: 1,
         source: 'gametok-foundation-architect',
         foundationId: slugify(source.foundationId || qualityIntent.title || 'dynamic_game'),
@@ -164,7 +174,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         assetSlots: assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints),
         statusCopy: asString(source.statusCopy, 'Tap to play!'),
         userIntent: qualityIntent.userIntent || null,
-    };
+    });
 }
 
 function buildDefaultAssetSlots(qualityIntent = {}, entityBlueprints = []) {
@@ -389,7 +399,8 @@ export function buildIndexHtmlFromFoundation(foundation = {}) {
     <header id="hud" data-hud>
 ${hudHtml || '      <div class="hud-chip hud-score"><span>Score</span><strong id="score-value">0</strong></div>'}
     </header>
-    <div id="controls-layer" data-controls></div>
+    <div id="controls-layer" data-controls>${buildLaneIndexHtmlExtras(foundation)}
+    </div>
     <div id="status-line" role="status">${asString(foundation.statusCopy, 'Tap to play!')}</div>
   </main>
   <script type="module" src="/src/bootstrap.ts"></script>
@@ -423,7 +434,8 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
         if (key === 'timeLeft' || key === 'orderTimeLeft' || key === 'dayTimer' || key === 'time') return `  ${key}: 120,`;
         if (key === 'gameOver' || key.startsWith('is')) return `  ${key}: false,`;
         if (key.endsWith('[]')) return `  ${key}: [],`;
-        return `  ${key}: null,`;
+        const laneInit = inferFoundationStateInitializer(key, foundation);
+        return `  ${key}: ${laneInit},`;
     }).join('\n');
     const hudStateInit = hudBlocks
         .map((block) => slugify(block))
@@ -439,12 +451,18 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
 
     const probeMethods = asArray(foundation.probeMethods);
     const extraProbeLines = probeMethods
-        .filter((probe) => !['snapshot', 'step', 'reset'].includes(probe.name))
+        .filter((probe) => !['snapshot', 'step', 'reset', 'placeIngredient', 'triggerCooking', 'serveOrder', 'spawnCustomer'].includes(probe.name))
         .map((probe) => `  ${probe.name}(...args) {
     // Foundation probe stub — Phase 2 agent implements ${probe.name}(): ${probe.description || probe.name}
     return null;
   },`)
         .join('\n');
+    const laneProbeExtras = buildLaneProbeExtras(foundation);
+    const laneMainExtras = buildLaneMainTsExtras(foundation);
+    const laneLifecycleExtras = buildLaneLifecycleExtras(foundation);
+    const laneNote = isTimedOrderCookingLane(foundation)
+        ? '\n// Lane scaffold: pantry grid, cauldron slots, COOK button, and cooking probes are pre-wired. Implement drag/order/timer logic only.\n'
+        : '';
 
     const implNotes = asArray(foundation.implementationNotes).slice(0, 6)
         .map((note) => `// ${note}`)
@@ -453,7 +471,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
     return `// @ts-nocheck
 // GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
-${implNotes}
+${laneNote}${implNotes}
 import './styles.css';
 
 const canvasEl = document.getElementById('game-canvas');
@@ -488,6 +506,7 @@ ${combinedStateInit}
   started: false,
 };
 
+${laneMainExtras}
 function resizeCanvas() {
   state.width = window.innerWidth || 390;
   state.height = window.innerHeight || 844;
@@ -586,6 +605,8 @@ export function resetGame() {
   state.gameOver = false;
   state.started = false;
   state.lastTick = performance.now();
+  if (Array.isArray(state.cauldronSlots)) state.cauldronSlots = [null, null, null];
+  if (Array.isArray(state.pantry)) state.pantry.length = 0;
   renderAll();
 }
 
@@ -615,10 +636,11 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
     resetGame();
     return this.snapshot();
   },
-${extraProbeLines ? `${extraProbeLines}\n` : ''}};
+${laneProbeExtras}${extraProbeLines ? `${extraProbeLines}\n` : ''}};
 
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+${laneLifecycleExtras}
 canvas.addEventListener('pointerdown', () => {
   state.started = true;
   if (statusLine) statusLine.textContent = 'Playing!';

@@ -4,6 +4,13 @@ import {
     buildMainTsStubFromFoundation,
 } from './maker-foundation-agent.js';
 import { validateFoundationStubSources } from './maker-foundation-stub-validator.js';
+import { buildLaneStylesCssExtras } from './maker-lane-scaffolds.js';
+
+function appendLaneStylesCss(content = '', foundation = {}) {
+    const extras = buildLaneStylesCssExtras(foundation);
+    if (!extras.trim()) return content;
+    return `${String(content || '').trim()}\n${extras.trim()}\n`;
+}
 
 export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
     const base = await loadMakerTemplateScaffold('canvas-kernel');
@@ -21,6 +28,9 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         }
         if (pathKey === 'index.html') {
             return { ...file, path: pathKey, content: generatedIndex };
+        }
+        if (pathKey === 'src/styles.css') {
+            return { ...file, path: pathKey, content: appendLaneStylesCss(file.content, foundation) };
         }
         return file;
     });
