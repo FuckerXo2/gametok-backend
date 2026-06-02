@@ -111,11 +111,39 @@ export class AssetModelRouter {
     async generateImageDetailed(prompt, dimensions = 768, options = {}) {
         const profile = resolveFluxModelProfile(options.model === 'dev' ? 'dev' : 'schnell');
         const { width, height } = normalizeNvidiaFluxDimensions(dimensions);
-        const apiKey = nextNvidiaImageApiKey();
-        if (!apiKey) {
+        const imageKeys = getNvidiaImageKeys();
+        if (!imageKeys.length) {
             throw new Error('NVIDIA image API key is not configured');
         }
+        const maxKeyAttempts = Math.min(imageKeys.length, 3);
+        let lastError = null;
 
+        for (let keyAttempt = 0; keyAttempt < maxKeyAttempts; keyAttempt += 1) {
+            const apiKey = nextNvidiaImageApiKey();
+            try {
+                return await this.generateImageDetailedOnce({
+                    prompt,
+                    profile,
+                    apiKey,
+                    width,
+                    height,
+                });
+            } catch (error) {
+                lastError = error;
+                const retryable = /finishReason=CONTENT_FILTERED|finishReason=ERROR/.test(String(error.message || ''));
+                if (!retryable || keyAttempt + 1 >= maxKeyAttempts) {
+                    throw error;
+                }
+                console.warn(
+                    `[asset-router] FLUX ${profile.model} key ${maskNvidiaKey(apiKey)} blocked (${error.message}); rotating key`,
+                );
+            }
+        }
+
+        throw lastError || new Error(`NVIDIA FLUX ${profile.model} generation failed`);
+    }
+
+    async generateImageDetailedOnce({ prompt, profile, apiKey, width, height }) {
         const response = await fetch(profile.nvidiaUrl, {
             method: 'POST',
             headers: {

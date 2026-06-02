@@ -218,9 +218,80 @@ function normalizeDimensions(widthOrSize = 768, height = null) {
     };
 }
 
+function compactFluxDescription(description = '', maxLen = 360) {
+    let text = String(description || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const boilerplatePatterns = [
+        /\.\s*Art style:[^.]*(?=(\.|$))/gi,
+        /\.\s*Palette:[^.]*(?=(\.|$))/gi,
+        /\.\s*Sprite style:[^.]*(?=(\.|$))/gi,
+        /\.\s*Background style:[^.]*(?=(\.|$))/gi,
+        /\.\s*Mobile composition:[^.]*(?=(\.|$))/gi,
+        /\.\s*Camera angle:[^.]*(?=(\.|$))/gi,
+        /\.\s*Consistency:[^.]*(?=(\.|$))/gi,
+        /\.\s*Scenery only[^.]*(?=(\.|$))/gi,
+    ];
+    for (const pattern of boilerplatePatterns) {
+        text = text.replace(pattern, '.');
+    }
+    text = text.replace(/\s+/g, ' ').replace(/\.+/g, '.').trim();
+    const sentences = text.split(/\.\s+/).filter(Boolean);
+    text = sentences.slice(0, 2).join('. ');
+    if (text.length > maxLen) {
+        text = text.slice(0, maxLen).trim();
+    }
+    return text;
+}
+
 async function generateWithFlux(prompt, dimensions = 768, options = {}) {
-    const result = await assetModelRouter.generateImageDetailed(prompt, dimensions, options);
-    return result.base64;
+    const attempts = [
+        prompt,
+        compactFluxDescription(prompt, 220),
+        compactFluxDescription(prompt, 120),
+    ].filter((value, index, list) => value && list.indexOf(value) === index);
+
+    let lastError = null;
+    for (let index = 0; index < attempts.length; index += 1) {
+        const attemptPrompt = attempts[index];
+        try {
+            const result = await assetModelRouter.generateImageDetailed(attemptPrompt, dimensions, options);
+            if (index > 0) {
+                console.log(`[sprite-gen] FLUX accepted compact prompt attempt ${index + 1} (${attemptPrompt.length} chars)`);
+            }
+            return result.base64;
+        } catch (error) {
+            lastError = error;
+            const message = String(error.message || '');
+            const retryable = /finishReason=CONTENT_FILTERED|finishReason=ERROR/.test(message);
+            if (!retryable || index + 1 >= attempts.length) {
+                throw error;
+            }
+            console.warn(
+                `[sprite-gen] FLUX content filtered on attempt ${index + 1}; retrying shorter prompt`,
+            );
+        }
+    }
+
+    throw lastError || new Error('NVIDIA FLUX generation failed');
+}
+
+function resolveAssetTargetSize(request, spriteType) {
+    const { size = 128, width, height, assetType } = request;
+    const isBackground = spriteType === 'background' || assetType === 'background';
+    if (isBackground) {
+        return {
+            width: Number(width || 768),
+            height: Number(height || 1344),
+        };
+    }
+    if (width || height) {
+        return {
+            width: Number(width || size || 128),
+            height: Number(height || width || size || 128),
+        };
+    }
+    return Number(size || 128);
 }
 
 async function inspectBackgroundRaster(base64, targetWidth, targetHeight) {
@@ -281,26 +352,24 @@ async function inspectBackgroundRaster(base64, targetWidth, targetHeight) {
 }
 
 function buildBackgroundFluxPrompt(description = '', variant = 0) {
-    const safeDescription = String(description)
-        .replace(/\s+/g, ' ')
-        .trim();
+    const safeDescription = compactFluxDescription(description, variant === 2 ? 120 : variant === 1 ? 180 : 260);
     if (variant === 1) {
         return [
             'mobile game environment background',
             'layered scenery, vivid colors, atmospheric depth',
             'no text, no hud, no characters',
-            safeDescription.slice(0, 280),
+            safeDescription,
         ].join(', ');
     }
     if (variant === 2) {
-        return `video game background art, atmospheric environment scene, no text, ${safeDescription.slice(0, 200)}`;
+        return `video game background art, atmospheric environment scene, no text, ${safeDescription}`;
     }
     return [
         'premium mobile game environment background art',
         'portrait orientation layered scenery',
         'vivid color, atmospheric depth, cinematic composition',
         'no text, no hud, no characters, no buttons, no ui overlays',
-        safeDescription.slice(0, 420),
+        safeDescription,
     ].join(', ');
 }
 
@@ -727,16 +796,19 @@ function buildSpritePrompt(description, type = 'character', wantsTransparent = f
     const base = basePrompts[type] || basePrompts.character;
     
     // Content filter avoidance: replace sensitive words
-    const safeDescription = String(description)
-        .replace(/\bzombie\b/gi, 'undead creature')
-        .replace(/\bgun\b/gi, 'blaster')
-        .replace(/\brifle\b/gi, 'weapon')
-        .replace(/\bblood\b/gi, 'red particles')
-        .replace(/\bgore\b/gi, 'effects')
-        .replace(/\bkill\b/gi, 'defeat')
-        .replace(/\bdead\b/gi, 'fallen')
-        .replace(/\bviolent\b/gi, 'action-packed');
-    
+    const safeDescription = compactFluxDescription(
+        String(description)
+            .replace(/\bzombie\b/gi, 'undead creature')
+            .replace(/\bgun\b/gi, 'blaster')
+            .replace(/\brifle\b/gi, 'weapon')
+            .replace(/\bblood\b/gi, 'red particles')
+            .replace(/\bgore\b/gi, 'effects')
+            .replace(/\bkill\b/gi, 'defeat')
+            .replace(/\bdead\b/gi, 'fallen')
+            .replace(/\bviolent\b/gi, 'action-packed'),
+        type === 'background' ? 260 : 220,
+    );
+
     const backgroundInstruction = type === 'background'
         ? 'portrait 9:16 full-bleed environment, layered depth, vivid premium mobile game scenery, clean readable composition, no text, no labels, no HUD, no buttons, no foreground characters, no UI overlays, no flat single-color fill'
         : wantsTransparent
@@ -841,7 +913,7 @@ export async function artistAgent(request) {
         const base64Image = await generateSprite({
             description,
             type: spriteType,
-            targetSize: width || height ? { width: width || size, height: height || width || size } : size,
+            targetSize: resolveAssetTargetSize(request, spriteType),
             removeBg: spriteType === 'background' ? false : transparent,
         });
 
