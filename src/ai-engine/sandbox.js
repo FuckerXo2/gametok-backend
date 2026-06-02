@@ -16,6 +16,47 @@ function isHeadlessWebglFailure(crashes = []) {
     );
 }
 
+function normalizeRequiredAssetRole(role = '') {
+    const normalized = String(role || '').toLowerCase();
+    if (normalized === 'environment' || normalized === 'background') return 'background';
+    return normalized;
+}
+
+function getRenderedRoleCount(renderedRoles = {}, role = '') {
+    const normalized = normalizeRequiredAssetRole(role);
+    if (normalized === 'background') {
+        return Math.max(
+            Number(renderedRoles.background || 0),
+            Number(renderedRoles.environment || 0),
+        );
+    }
+    return Number(renderedRoles[normalized] || 0);
+}
+
+function roleUsageCountsForEvidence(renderedRoles = {}, usedRoles = {}, renderedKeys = {}, usedKeys = {}, role = '') {
+    const values = new Set([role, normalizeRequiredAssetRole(role)].filter(Boolean));
+    if (normalizeRequiredAssetRole(role) === 'background') {
+        values.add('background');
+        values.add('environment');
+    }
+    let rendered = 0;
+    let used = 0;
+    for (const value of values) {
+        rendered = Math.max(rendered, Number(renderedRoles[value] || 0));
+        used = Math.max(used, Number(usedRoles[value] || 0));
+        rendered = Math.max(rendered, Number(renderedKeys[value] || 0));
+        used = Math.max(used, Number(usedKeys[value] || 0));
+    }
+    return { rendered, used };
+}
+
+function isSceneryAssetRole(values = []) {
+    return values.some((value) => {
+        const normalized = normalizeRequiredAssetRole(value);
+        return normalized === 'background';
+    });
+}
+
 async function loadHtmlAsBrowserPage(page, htmlString = '') {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gametok-sandbox-'));
     const htmlPath = path.join(tempDir, 'index.html');
@@ -814,8 +855,7 @@ export async function verifyGame(htmlString, options = {}) {
             const dreamAssetPackRoles = Array.isArray(window.DREAM_ASSET_PACK)
                 ? Array.from(new Set(window.DREAM_ASSET_PACK
                     .filter((asset) => asset && asset.type === 'image')
-                    .map((asset) => asset.role || asset.category)
-                    .filter(Boolean)))
+                    .flatMap((asset) => [asset.role, asset.category].filter(Boolean))))
                 : [];
             const dreamAssetPackEntries = Array.isArray(window.DREAM_ASSET_PACK)
                 ? window.DREAM_ASSET_PACK
@@ -928,12 +968,10 @@ export async function verifyGame(htmlString, options = {}) {
             const packEntries = Array.isArray(renderState.dreamAssetPackEntries) ? renderState.dreamAssetPackEntries : [];
             const hasRuntimeEvidenceFor = (slot) => {
                 const roleValues = [slot.role, slot.category, slot.id].filter(Boolean);
-                const directRoleOrKeyHit = roleValues.some((value) =>
-                    Number(renderedRoles[value] || 0) > 0
-                    || Number(usedRoles[value] || 0) > 0
-                    || Number(renderedKeys[value] || 0) > 0
-                    || Number(usedKeys[value] || 0) > 0
-                );
+                const directRoleOrKeyHit = roleValues.some((value) => {
+                    const usage = roleUsageCountsForEvidence(renderedRoles, usedRoles, renderedKeys, usedKeys, value);
+                    return usage.rendered > 0 || usage.used > 0;
+                });
                 if (directRoleOrKeyHit) return true;
 
                 return packEntries.some((asset) => {
@@ -944,7 +982,11 @@ export async function verifyGame(htmlString, options = {}) {
                         || Number(usedKeys[key] || 0) > 0
                     );
                     const assetMatchesSlot = assetRoles.some((role) => roleValues.includes(role))
-                        || assetKeys.some((key) => roleValues.includes(key));
+                        || assetKeys.some((key) => roleValues.includes(key))
+                        || (
+                            isSceneryAssetRole(roleValues)
+                            && assetRoles.some((role) => isSceneryAssetRole([role]))
+                        );
                     return assetWasUsed && assetMatchesSlot;
                 });
             };
@@ -1034,14 +1076,20 @@ export async function verifyGame(htmlString, options = {}) {
             }
             
             const requiredRoles = Array.from(new Set(Array.isArray(options?.assetContract?.slots)
-                ? options.assetContract.slots.filter((slot) => slot?.required).map((slot) => slot.role || slot.category).filter(Boolean)
+                ? options.assetContract.slots
+                    .filter((slot) => slot?.required)
+                    .map((slot) => normalizeRequiredAssetRole(slot.role || slot.category))
+                    .filter(Boolean)
                 : []));
             const renderedRoles = renderState.dreamAssetUsage?.renderedRoles || {};
-            const packRoles = new Set(Array.isArray(renderState.dreamAssetPackRoles) ? renderState.dreamAssetPackRoles : []);
+            const packRoles = new Set(
+                (Array.isArray(renderState.dreamAssetPackRoles) ? renderState.dreamAssetPackRoles : [])
+                    .map((role) => normalizeRequiredAssetRole(role)),
+            );
             
             const missingRequiredRoleUsage = requiredRoles
                 .filter((role) => packRoles.has(role))
-                .filter((role) => Number(renderedRoles[role] || 0) === 0);
+                .filter((role) => getRenderedRoleCount(renderedRoles, role) === 0);
                 
             if (missingRequiredRoleUsage.length > 0) {
                 const message = `Required asset slots not rendered: generated assets exist, but these required roles were only preloaded/referenced or not rendered during boot: ${missingRequiredRoleUsage.join(', ')}. Use the generated player/enemy/background assets for visible gameplay entities instead of placeholder shapes or flat gradient fills.`;

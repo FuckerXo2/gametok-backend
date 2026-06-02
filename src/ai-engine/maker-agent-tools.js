@@ -51,6 +51,10 @@ const REPAIR_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
     Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_READ_ONLY_ROUNDS || 2)),
 );
+const IMPLEMENT_MAX_READ_ONLY_ROUNDS = Math.max(
+    1,
+    Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_READ_ONLY_ROUNDS || 2)),
+);
 const READ_FILE_MAX_CHARS = Math.max(
     2000,
     Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 12000)),
@@ -770,6 +774,7 @@ export async function runMakerAgentToolTurn({
     let finished = false;
     let touchedMainTs = false;
     let repairReadOnlyRounds = 0;
+    let implementReadOnlyRounds = 0;
     const readPathCounts = new Map();
 
     for (let round = 0; round < effectiveMaxRounds && !finished; round += 1) {
@@ -863,6 +868,8 @@ export async function runMakerAgentToolTurn({
                 }
                 if (mode === MAKER_AGENT_TURN_MODE_REPAIR && priorReads >= 1 && !roundEdited) {
                     result.note = `${result.note ? `${result.note} ` : ''}REPAIR: ${readPath} was already read earlier this turn. You must apply_patch or write_file next.`;
+                } else if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && priorReads >= 1 && !roundEdited) {
+                    result.note = `${result.note ? `${result.note} ` : ''}IMPLEMENT: ${readPath} was already read earlier this turn. Use write_file or apply_patch on src/main.ts next.`;
                 }
             }
 
@@ -899,12 +906,21 @@ export async function runMakerAgentToolTurn({
         if ((mode === MAKER_AGENT_TURN_MODE_IMPLEMENT || mode === MAKER_AGENT_TURN_MODE_REPAIR) && roundEdited && !finished) {
             await appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound: roundReadFile });
             repairReadOnlyRounds = 0;
+            implementReadOnlyRounds = 0;
         } else if (mode === MAKER_AGENT_TURN_MODE_REPAIR && roundReadFile && !roundEdited) {
             repairReadOnlyRounds += 1;
             if (repairReadOnlyRounds >= REPAIR_MAX_READ_ONLY_ROUNDS) {
                 messages.push({
                     role: 'user',
                     content: 'REPAIR REQUIRED: Stop reading files. Call apply_patch or write_file on src/main.ts now to fix the targeted failures from last run evidence.',
+                });
+            }
+        } else if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && roundReadFile && !roundEdited) {
+            implementReadOnlyRounds += 1;
+            if (implementReadOnlyRounds >= IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
+                messages.push({
+                    role: 'user',
+                    content: 'IMPLEMENT REQUIRED: Stop re-reading files. Call write_file or apply_patch on src/main.ts now to implement the gameplay loop and draw generated background art with ctx.drawImage.',
                 });
             }
         }

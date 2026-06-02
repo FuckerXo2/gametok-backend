@@ -335,21 +335,55 @@ function artStyleText(qualityIntent = {}) {
     ].filter(Boolean).join(' ');
 }
 
+function isSceneryAssetSlot(slot = {}) {
+    const role = String(slot.role || slot.category || '').toLowerCase();
+    const category = String(slot.category || slot.role || '').toLowerCase();
+    return slot.assetType === 'background'
+        || role === 'background'
+        || role === 'environment'
+        || category === 'environment';
+}
+
+function normalizeSceneryAssetSlot(slot = {}) {
+    if (!isSceneryAssetSlot(slot)) {
+        return {
+            ...slot,
+            role: slot.role || slot.category || 'prop',
+            category: slot.category || slot.role || 'prop',
+        };
+    }
+    return {
+        ...slot,
+        role: 'background',
+        category: 'environment',
+        assetType: slot.assetType || 'background',
+    };
+}
+
 export function buildMakerAssetContractFromFoundation(foundation = {}, qualityIntent = {}) {
-    const slots = asArray(foundation.assetSlots).map((slot) => ({
-        id: slot.id,
-        required: Boolean(slot.required),
-        assetType: slot.assetType || 'sprite',
-        role: slot.role || slot.category || 'prop',
-        category: slot.category || slot.role || 'prop',
-        size: slot.size || undefined,
-        width: slot.width || undefined,
-        height: slot.height || undefined,
-        transparent: slot.transparent !== false,
-        description: `${slot.description || slot.role}. ${artStyleText(qualityIntent)}`.trim(),
-        consumedBy: slot.consumedBy || `renderer via getAssetImage('${slot.id}') or role ${slot.role}`,
-        fallback: slot.fallback || 'code-rendered shape',
-    }));
+    const slots = [];
+    let scenerySlotSeen = false;
+    for (const rawSlot of asArray(foundation.assetSlots)) {
+        const slot = normalizeSceneryAssetSlot(rawSlot);
+        if (slot.role === 'background') {
+            if (scenerySlotSeen) continue;
+            scenerySlotSeen = true;
+        }
+        slots.push({
+            id: slot.id,
+            required: Boolean(slot.required),
+            assetType: slot.assetType || 'sprite',
+            role: slot.role || slot.category || 'prop',
+            category: slot.category || slot.role || 'prop',
+            size: slot.size || undefined,
+            width: slot.width || undefined,
+            height: slot.height || undefined,
+            transparent: slot.transparent !== false,
+            description: `${slot.description || slot.role}. ${artStyleText(qualityIntent)}`.trim(),
+            consumedBy: slot.consumedBy || `renderer via getAssetImage('${slot.id}') or role ${slot.role}`,
+            fallback: slot.fallback || 'code-rendered shape',
+        });
+    }
 
     return {
         version: 1,

@@ -189,6 +189,14 @@ function installDreamAssetUsageTracker() {
     return null;
   };
 
+  const noteSceneryRoleUsage = (usage: DreamAssetUsage, role: string) => {
+    usage.renderedRoles[role] = (usage.renderedRoles[role] || 0) + 1;
+    if (role === 'background' || role === 'environment') {
+      const aliasRole = role === 'background' ? 'environment' : 'background';
+      usage.renderedRoles[aliasRole] = (usage.renderedRoles[aliasRole] || 0) + 1;
+    }
+  };
+
   const noteRenderedImage = (image: CanvasImageSource) => {
     if (!(image instanceof HTMLImageElement)) return;
     const usage = w.__DREAM_ASSET_USAGE;
@@ -199,7 +207,7 @@ function installDreamAssetUsageTracker() {
       usage.renderedKeys[key] = (usage.renderedKeys[key] || 0) + 1;
       const role = resolveRoleForKey(key);
       if (role) {
-        usage.renderedRoles[role] = (usage.renderedRoles[role] || 0) + 1;
+        noteSceneryRoleUsage(usage, role);
       }
     }
   };
