@@ -1,6 +1,7 @@
 import { getNvidiaImageKeys, maskNvidiaKey, nextNvidiaImageApiKey } from './nvidia-key-pool.js';
 
 const DEFAULT_NVIDIA_FLUX_URL = 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell';
+const DEFAULT_NVIDIA_FLUX_DEV_URL = 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev';
 const NIM_FLUX_ALLOWED_DIMENSIONS = [768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344];
 
 export function stripImageDataUrl(imageBase64OrDataUrl) {
@@ -35,14 +36,42 @@ export function normalizeNvidiaFluxDimensions(widthOrSize = 768, height = null) 
     };
 }
 
+export function resolveFluxModelProfile(model = 'schnell', env = process.env) {
+    if (model === 'dev') {
+        return {
+            key: 'dev',
+            model: 'black-forest-labs/flux.1-dev',
+            nvidiaUrl: env.NVIDIA_FLUX_DEV_URL || DEFAULT_NVIDIA_FLUX_DEV_URL,
+            steps: Number(env.NVIDIA_FLUX_DEV_STEPS || 28),
+            cfgScale: Number(env.NVIDIA_FLUX_DEV_CFG_SCALE || 3.5),
+        };
+    }
+    return {
+        key: 'schnell',
+        model: 'black-forest-labs/flux.1-schnell',
+        nvidiaUrl: env.NVIDIA_FLUX_URL || DEFAULT_NVIDIA_FLUX_URL,
+        steps: Number(env.NVIDIA_FLUX_STEPS || 4),
+        cfgScale: 0,
+    };
+}
+
 export function resolveAssetModelConfig(env = process.env) {
+    const schnell = resolveFluxModelProfile('schnell', env);
+    const dev = resolveFluxModelProfile('dev', env);
     return {
         textImage: {
             provider: 'nvidia-nim',
-            model: 'black-forest-labs/flux.1-schnell',
+            model: schnell.model,
             nvidiaApiKeys: getNvidiaImageKeys(env),
-            nvidiaUrl: env.NVIDIA_FLUX_URL || DEFAULT_NVIDIA_FLUX_URL,
-            steps: Number(env.NVIDIA_FLUX_STEPS || 4),
+            nvidiaUrl: schnell.nvidiaUrl,
+            steps: schnell.steps,
+        },
+        backgroundFallback: {
+            enabled: env.NVIDIA_FLUX_BACKGROUND_DEV_FALLBACK !== 'false',
+            model: dev.model,
+            nvidiaUrl: dev.nvidiaUrl,
+            steps: dev.steps,
+            cfgScale: dev.cfgScale,
         },
         imageEdit: {
             provider: 'disabled',
@@ -63,6 +92,10 @@ export class AssetModelRouter {
                 model: this.config.textImage.model,
                 keyCount: this.config.textImage.nvidiaApiKeys?.length || 0,
             },
+            backgroundFallback: {
+                enabled: this.config.backgroundFallback.enabled,
+                model: this.config.backgroundFallback.model,
+            },
             imageEdit: {
                 provider: this.config.imageEdit.provider,
                 model: this.config.imageEdit.model,
@@ -70,17 +103,20 @@ export class AssetModelRouter {
         };
     }
 
-    async generateImage(prompt, dimensions = 768) {
-        return this.generateImageWithNvidiaFlux(prompt, dimensions);
+    async generateImage(prompt, dimensions = 768, options = {}) {
+        const result = await this.generateImageDetailed(prompt, dimensions, options);
+        return result.base64;
     }
 
-    async generateImageWithNvidiaFlux(prompt, dimensions = 768) {
+    async generateImageDetailed(prompt, dimensions = 768, options = {}) {
+        const profile = resolveFluxModelProfile(options.model === 'dev' ? 'dev' : 'schnell');
         const { width, height } = normalizeNvidiaFluxDimensions(dimensions);
         const apiKey = nextNvidiaImageApiKey();
         if (!apiKey) {
             throw new Error('NVIDIA image API key is not configured');
         }
-        const response = await fetch(this.config.textImage.nvidiaUrl, {
+
+        const response = await fetch(profile.nvidiaUrl, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${apiKey}`,
@@ -91,29 +127,56 @@ export class AssetModelRouter {
                 prompt,
                 width,
                 height,
-                cfg_scale: 0,
+                cfg_scale: profile.cfgScale,
                 mode: 'base',
                 samples: 1,
-                steps: this.config.textImage.steps,
+                steps: profile.steps,
                 seed: Math.floor(Math.random() * 4_000_000_000),
             }),
         });
 
         if (!response.ok) {
             const text = await response.text();
-            throw new Error(`NVIDIA FLUX generation failed (${maskNvidiaKey(apiKey)}): ${response.status} ${text.slice(0, 200)}`);
+            throw new Error(
+                `NVIDIA FLUX ${profile.model} failed (${maskNvidiaKey(apiKey)}): ${response.status} ${text.slice(0, 200)}`,
+            );
         }
 
         const json = await response.json();
         const artifact = json?.artifacts?.[0];
         if (!artifact || !artifact.base64) {
-            throw new Error('NVIDIA FLUX returned no image');
+            throw new Error(`NVIDIA FLUX ${profile.model} returned no image`);
         }
+
+        const finishReason = String(artifact.finishReason || 'UNKNOWN').toUpperCase();
         const decodedBytes = Buffer.from(artifact.base64, 'base64').length;
-        if (decodedBytes < 2500) {
-            throw new Error(`NVIDIA FLUX returned suspiciously small image (${decodedBytes} bytes) for ${width}x${height}`);
+        if (finishReason !== 'SUCCESS') {
+            throw new Error(
+                `NVIDIA FLUX ${profile.model} finishReason=${finishReason} for ${width}x${height}`
+                + ` (${decodedBytes} bytes)`,
+            );
         }
-        return artifact.base64;
+        if (decodedBytes < 2500) {
+            throw new Error(
+                `NVIDIA FLUX ${profile.model} returned suspiciously small image (${decodedBytes} bytes)`
+                + ` for ${width}x${height}`,
+            );
+        }
+
+        return {
+            base64: artifact.base64,
+            finishReason,
+            seed: artifact.seed,
+            model: profile.model,
+            modelKey: profile.key,
+            width,
+            height,
+            decodedBytes,
+        };
+    }
+
+    isBackgroundDevFallbackEnabled() {
+        return Boolean(this.config.backgroundFallback.enabled);
     }
 
     async editImage() {

@@ -218,42 +218,9 @@ function normalizeDimensions(widthOrSize = 768, height = null) {
     };
 }
 
-async function generateWithFlux(prompt, dimensions = 768) {
-    return assetModelRouter.generateImage(prompt, dimensions);
-}
-
-async function validateFluxBase64(base64, {
-    minBytes = 3500,
-    minWidth = 256,
-    minHeight = 256,
-} = {}) {
-    const buffer = Buffer.from(stripDataUrl(base64), 'base64');
-    if (buffer.length < minBytes) {
-        return { ok: false, reason: `flux_decode_too_small (${buffer.length} bytes)` };
-    }
-    const sharp = (await import('sharp')).default;
-    const metadata = await sharp(buffer).metadata();
-    const width = Number(metadata.width || 0);
-    const height = Number(metadata.height || 0);
-    if (width < minWidth || height < minHeight) {
-        return { ok: false, reason: `flux_dimensions_too_small (${width}x${height})` };
-    }
-    return { ok: true, buffer, metadata: { width, height } };
-}
-
-async function downscaleBackgroundImage(imageBase64, targetSize = { width: 768, height: 1344 }) {
-    const sharp = (await import('sharp')).default;
-    const buffer = Buffer.from(stripDataUrl(imageBase64), 'base64');
-    const { width, height } = normalizeDimensions(targetSize);
-    const resized = await sharp(buffer)
-        .resize(width, height, {
-            kernel: 'lanczos3',
-            fit: 'cover',
-            position: 'centre',
-        })
-        .png({ compressionLevel: 6 })
-        .toBuffer();
-    return resized.toString('base64');
+async function generateWithFlux(prompt, dimensions = 768, options = {}) {
+    const result = await assetModelRouter.generateImageDetailed(prompt, dimensions, options);
+    return result.base64;
 }
 
 async function inspectBackgroundRaster(base64, targetWidth, targetHeight) {
@@ -337,64 +304,129 @@ function buildBackgroundFluxPrompt(description = '', variant = 0) {
     ].join(', ');
 }
 
-async function generateBackgroundFluxImage(description, targetSize) {
-    const targetDims = normalizeDimensions(targetSize);
-    const fluxSizes = [
-        { width: 768, height: 768, label: '768 square (NIM default)' },
-        { width: 1024, height: 1024, label: '1024 square' },
-    ];
+function buildBackgroundFluxSizes(targetDims) {
+    const sizes = [];
+    const nativeLabel = `${targetDims.width}x${targetDims.height} native portrait`;
+    sizes.push({
+        width: targetDims.width,
+        height: targetDims.height,
+        label: nativeLabel,
+    });
+    if (targetDims.width !== 768 || targetDims.height !== 768) {
+        sizes.push({ width: 768, height: 768, label: '768 square (NIM default)' });
+    }
+    if (targetDims.width !== 1024 || targetDims.height !== 1024) {
+        sizes.push({ width: 1024, height: 1024, label: '1024 square' });
+    }
+    return sizes;
+}
+
+async function attemptBackgroundFluxAtSize({
+    description,
+    targetDims,
+    size,
+    model = 'schnell',
+    retry = 0,
+}) {
+    const prompt = buildBackgroundFluxPrompt(description, retry);
+    const fluxImage = await generateWithFlux(prompt, size, { model });
+    const inspected = await inspectBackgroundRaster(
+        fluxImage,
+        targetDims.width,
+        targetDims.height,
+    );
+    return { inspected, promptVariant: retry };
+}
+
+async function attemptBackgroundSpritePathFallback(description, targetDims, model = 'schnell') {
+    const spritePrompt = buildSpritePrompt(
+        `${description}. Full environment scenery plate spanning the whole frame, rich layered background, no characters, no text, no hud.`,
+        'background',
+        false,
+    );
+    const fluxImage = await generateWithFlux(spritePrompt, { width: 128, height: 128 }, { model });
+    return inspectBackgroundRaster(
+        fluxImage,
+        targetDims.width,
+        targetDims.height,
+    );
+}
+
+async function generateBackgroundWithFluxModel(description, targetDims, model = 'schnell') {
+    const modelLabel = model === 'dev' ? 'flux.1-dev' : 'flux.1-schnell';
+    const fluxSizes = buildBackgroundFluxSizes(targetDims);
+
     for (const size of fluxSizes) {
         for (let retry = 0; retry < 3; retry += 1) {
-            const prompt = buildBackgroundFluxPrompt(description, retry);
             try {
-                const fluxImage = await generateWithFlux(prompt, size);
-                const inspected = await inspectBackgroundRaster(
-                    fluxImage,
-                    targetDims.width,
-                    targetDims.height,
-                );
+                const { inspected } = await attemptBackgroundFluxAtSize({
+                    description,
+                    targetDims,
+                    size,
+                    model,
+                    retry,
+                });
                 if (!inspected.ok) {
-                    console.warn(`[sprite-gen] FLUX background ${size.label} retry=${retry + 1} rejected: ${inspected.reason}`);
+                    console.warn(
+                        `[sprite-gen] FLUX background ${modelLabel} ${size.label}`
+                        + ` retry=${retry + 1} rejected: ${inspected.reason}`,
+                    );
                     continue;
                 }
                 console.log(
-                    `[sprite-gen] ✓ FLUX background accepted at ${size.label} retry=${retry + 1}`
+                    `[sprite-gen] ✓ FLUX background accepted (${modelLabel}) at ${size.label} retry=${retry + 1}`
                     + ` (source ${inspected.metadata.width}x${inspected.metadata.height}`
                     + ` -> ${targetDims.width}x${targetDims.height}, ${inspected.buffer.length} bytes)`,
                 );
                 return inspected.buffer.toString('base64');
             } catch (error) {
-                console.warn(`[sprite-gen] FLUX background ${size.label} retry=${retry + 1} failed: ${error.message}`);
+                console.warn(
+                    `[sprite-gen] FLUX background ${modelLabel} ${size.label}`
+                    + ` retry=${retry + 1} failed: ${error.message}`,
+                );
             }
         }
     }
 
     try {
-        const spritePrompt = buildSpritePrompt(
-            `${description}. Full environment scenery plate spanning the whole frame, rich layered background, no characters, no text, no hud.`,
-            'background',
-            false,
-        );
-        const fluxImage = await generateWithFlux(spritePrompt, { width: 128, height: 128 });
-        const inspected = await inspectBackgroundRaster(
-            fluxImage,
-            targetDims.width,
-            targetDims.height,
-        );
+        const inspected = await attemptBackgroundSpritePathFallback(description, targetDims, model);
         if (inspected.ok) {
             console.log(
-                `[sprite-gen] ✓ FLUX background accepted via sprite-path fallback`
+                `[sprite-gen] ✓ FLUX background accepted (${modelLabel}) via sprite-path fallback`
                 + ` (source ${inspected.metadata.width}x${inspected.metadata.height}`
                 + ` -> ${targetDims.width}x${targetDims.height}, ${inspected.buffer.length} bytes)`,
             );
             return inspected.buffer.toString('base64');
         }
-        console.warn(`[sprite-gen] FLUX background sprite-path fallback rejected: ${inspected.reason}`);
+        console.warn(
+            `[sprite-gen] FLUX background ${modelLabel} sprite-path fallback rejected: ${inspected.reason}`,
+        );
     } catch (error) {
-        console.warn(`[sprite-gen] FLUX background sprite-path fallback failed: ${error.message}`);
+        console.warn(
+            `[sprite-gen] FLUX background ${modelLabel} sprite-path fallback failed: ${error.message}`,
+        );
     }
 
-    throw new Error('FLUX background generation failed after all dimension attempts');
+    return null;
+}
+
+async function generateBackgroundFluxImage(description, targetSize) {
+    const targetDims = normalizeDimensions(targetSize);
+
+    const schnellResult = await generateBackgroundWithFluxModel(description, targetDims, 'schnell');
+    if (schnellResult) {
+        return schnellResult;
+    }
+
+    if (assetModelRouter.isBackgroundDevFallbackEnabled()) {
+        console.log('[sprite-gen] FLUX schnell background exhausted; trying flux.1-dev fallback...');
+        const devResult = await generateBackgroundWithFluxModel(description, targetDims, 'dev');
+        if (devResult) {
+            return devResult;
+        }
+    }
+
+    throw new Error('FLUX background generation failed after schnell and dev attempts');
 }
 
 /**
