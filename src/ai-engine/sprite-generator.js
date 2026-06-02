@@ -47,13 +47,6 @@ export async function inspectGeneratedAssetDataUri(dataUri, {
 
     const normalizedCategory = normalizeSpriteCategory(category, assetType);
     const isBackground = assetType === 'background' || normalizedCategory === 'background';
-    const minChars = isBackground
-        ? Math.max(8000, Math.round((width * height) / 20))
-        : Math.max(350, Math.round((width * height) / 16));
-
-    if (text.length < minChars) {
-        return { ok: false, reason: `payload_too_small (${text.length} chars)` };
-    }
 
     try {
         const sharp = (await import('sharp')).default;
@@ -68,7 +61,39 @@ export async function inspectGeneratedAssetDataUri(dataUri, {
         }
 
         if (isBackground) {
+            const minBytes = Math.max(8000, Math.round((width * height) / 200));
+            if (buffer.length < minBytes) {
+                return { ok: false, reason: `payload_too_small (${buffer.length} bytes decoded)` };
+            }
+            const sample = await sharp(buffer)
+                .resize(64, 64, { fit: 'cover' })
+                .ensureAlpha()
+                .raw()
+                .toBuffer({ resolveWithObject: true });
+            const buckets = new Set();
+            let lumaSum = 0;
+            let lumaSq = 0;
+            const pixels = sample.info.width * sample.info.height;
+            for (let i = 0; i < sample.data.length; i += 4) {
+                const r = sample.data[i];
+                const g = sample.data[i + 1];
+                const b = sample.data[i + 2];
+                buckets.add(`${r >> 4}:${g >> 4}:${b >> 4}`);
+                const luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+                lumaSum += luma;
+                lumaSq += luma * luma;
+            }
+            const avgLuma = pixels ? lumaSum / pixels : 0;
+            const lumaVariance = pixels ? (lumaSq / pixels) - (avgLuma * avgLuma) : 0;
+            if (buckets.size <= 3 || lumaVariance < 2) {
+                return { ok: false, reason: `background_too_flat (buckets=${buckets.size})` };
+            }
             return { ok: true, reason: 'background_ok' };
+        }
+
+        const minChars = Math.max(350, Math.round((width * height) / 16));
+        if (text.length < minChars) {
+            return { ok: false, reason: `payload_too_small (${text.length} chars)` };
         }
 
         const sample = await sharp(buffer)
@@ -198,7 +223,7 @@ async function generateWithFlux(prompt, dimensions = 768) {
 }
 
 async function validateFluxBase64(base64, {
-    minBytes = 12000,
+    minBytes = 3500,
     minWidth = 256,
     minHeight = 256,
 } = {}) {
@@ -231,32 +256,144 @@ async function downscaleBackgroundImage(imageBase64, targetSize = { width: 768, 
     return resized.toString('base64');
 }
 
-async function generateBackgroundFluxImage(prompt, targetSize) {
+async function inspectBackgroundRaster(base64, targetWidth, targetHeight) {
+    const sharp = (await import('sharp')).default;
+    const buffer = Buffer.from(stripDataUrl(base64), 'base64');
+    if (buffer.length < 3500) {
+        return { ok: false, reason: `flux_decode_too_small (${buffer.length} bytes)` };
+    }
+    let metadata;
+    try {
+        metadata = await sharp(buffer).metadata();
+    } catch (error) {
+        return { ok: false, reason: `flux_decode_failed: ${error.message}` };
+    }
+    const width = Number(metadata.width || 0);
+    const height = Number(metadata.height || 0);
+    if (width < 256 || height < 256) {
+        return { ok: false, reason: `flux_dimensions_too_small (${width}x${height})` };
+    }
+
+    const sample = await sharp(buffer)
+        .resize(64, 64, { fit: 'cover' })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+    const buckets = new Set();
+    let lumaSum = 0;
+    let lumaSq = 0;
+    const pixels = sample.info.width * sample.info.height;
+    for (let i = 0; i < sample.data.length; i += 4) {
+        const r = sample.data[i];
+        const g = sample.data[i + 1];
+        const b = sample.data[i + 2];
+        buckets.add(`${r >> 4}:${g >> 4}:${b >> 4}`);
+        const luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+        lumaSum += luma;
+        lumaSq += luma * luma;
+    }
+    const avgLuma = pixels ? lumaSum / pixels : 0;
+    const lumaVariance = pixels ? (lumaSq / pixels) - (avgLuma * avgLuma) : 0;
+    if (buckets.size <= 3 || lumaVariance < 2) {
+        return { ok: false, reason: `background_too_flat (buckets=${buckets.size}, variance=${lumaVariance.toFixed(2)})` };
+    }
+
+    const cropped = await sharp(buffer)
+        .resize(targetWidth, targetHeight, {
+            kernel: 'lanczos3',
+            fit: 'cover',
+            position: 'centre',
+        })
+        .png({ compressionLevel: 6 })
+        .toBuffer();
+    return {
+        ok: true,
+        buffer: cropped,
+        metadata: { width, height },
+    };
+}
+
+function buildBackgroundFluxPrompt(description = '', variant = 0) {
+    const safeDescription = String(description)
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (variant === 1) {
+        return [
+            'mobile game environment background',
+            'layered scenery, vivid colors, atmospheric depth',
+            'no text, no hud, no characters',
+            safeDescription.slice(0, 280),
+        ].join(', ');
+    }
+    if (variant === 2) {
+        return `video game background art, atmospheric environment scene, no text, ${safeDescription.slice(0, 200)}`;
+    }
+    return [
+        'premium mobile game environment background art',
+        'portrait orientation layered scenery',
+        'vivid color, atmospheric depth, cinematic composition',
+        'no text, no hud, no characters, no buttons, no ui overlays',
+        safeDescription.slice(0, 420),
+    ].join(', ');
+}
+
+async function generateBackgroundFluxImage(description, targetSize) {
     const targetDims = normalizeDimensions(targetSize);
-    const attempts = [
+    const fluxSizes = [
+        { width: 768, height: 768, label: '768 square (NIM default)' },
         { width: 1024, height: 1024, label: '1024 square' },
-        { width: 768, height: 768, label: '768 square' },
-        { width: 1024, height: 1536, label: '1024x1536 portrait' },
-        { width: 768, height: 1344, label: '768x1344 portrait' },
     ];
-    for (const attempt of attempts) {
-        try {
-            const fluxImage = await generateWithFlux(prompt, attempt);
-            const check = await validateFluxBase64(fluxImage, {
-                minBytes: 16000,
-                minWidth: 512,
-                minHeight: 512,
-            });
-            if (!check.ok) {
-                console.warn(`[sprite-gen] FLUX background ${attempt.label} rejected: ${check.reason}`);
-                continue;
+    for (const size of fluxSizes) {
+        for (let retry = 0; retry < 3; retry += 1) {
+            const prompt = buildBackgroundFluxPrompt(description, retry);
+            try {
+                const fluxImage = await generateWithFlux(prompt, size);
+                const inspected = await inspectBackgroundRaster(
+                    fluxImage,
+                    targetDims.width,
+                    targetDims.height,
+                );
+                if (!inspected.ok) {
+                    console.warn(`[sprite-gen] FLUX background ${size.label} retry=${retry + 1} rejected: ${inspected.reason}`);
+                    continue;
+                }
+                console.log(
+                    `[sprite-gen] ✓ FLUX background accepted at ${size.label} retry=${retry + 1}`
+                    + ` (source ${inspected.metadata.width}x${inspected.metadata.height}`
+                    + ` -> ${targetDims.width}x${targetDims.height}, ${inspected.buffer.length} bytes)`,
+                );
+                return inspected.buffer.toString('base64');
+            } catch (error) {
+                console.warn(`[sprite-gen] FLUX background ${size.label} retry=${retry + 1} failed: ${error.message}`);
             }
-            console.log(`[sprite-gen] ✓ FLUX background accepted at ${attempt.label} (${check.metadata.width}x${check.metadata.height})`);
-            return await downscaleBackgroundImage(fluxImage, targetDims);
-        } catch (error) {
-            console.warn(`[sprite-gen] FLUX background ${attempt.label} failed: ${error.message}`);
         }
     }
+
+    try {
+        const spritePrompt = buildSpritePrompt(
+            `${description}. Full environment scenery plate spanning the whole frame, rich layered background, no characters, no text, no hud.`,
+            'background',
+            false,
+        );
+        const fluxImage = await generateWithFlux(spritePrompt, { width: 128, height: 128 });
+        const inspected = await inspectBackgroundRaster(
+            fluxImage,
+            targetDims.width,
+            targetDims.height,
+        );
+        if (inspected.ok) {
+            console.log(
+                `[sprite-gen] ✓ FLUX background accepted via sprite-path fallback`
+                + ` (source ${inspected.metadata.width}x${inspected.metadata.height}`
+                + ` -> ${targetDims.width}x${targetDims.height}, ${inspected.buffer.length} bytes)`,
+            );
+            return inspected.buffer.toString('base64');
+        }
+        console.warn(`[sprite-gen] FLUX background sprite-path fallback rejected: ${inspected.reason}`);
+    } catch (error) {
+        console.warn(`[sprite-gen] FLUX background sprite-path fallback failed: ${error.message}`);
+    }
+
     throw new Error('FLUX background generation failed after all dimension attempts');
 }
 
@@ -600,7 +737,7 @@ export async function generateSprite({
     const shouldRemoveBackground = removeBg && type !== 'background' && type !== 'ui';
     const prompt = buildSpritePrompt(description, type, shouldRemoveBackground);
     if (type === 'background') {
-        const finalImage = await generateBackgroundFluxImage(prompt, targetSize);
+        const finalImage = await generateBackgroundFluxImage(description, targetSize);
         console.log(`[sprite-gen] ✓ Background ready at ${dimensions.width}x${dimensions.height}`);
         return finalImage;
     }

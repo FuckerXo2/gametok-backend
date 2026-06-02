@@ -109,6 +109,10 @@ export class AssetModelRouter {
         if (!artifact || !artifact.base64) {
             throw new Error('NVIDIA FLUX returned no image');
         }
+        const decodedBytes = Buffer.from(artifact.base64, 'base64').length;
+        if (decodedBytes < 2500) {
+            throw new Error(`NVIDIA FLUX returned suspiciously small image (${decodedBytes} bytes) for ${width}x${height}`);
+        }
         return artifact.base64;
     }
 
