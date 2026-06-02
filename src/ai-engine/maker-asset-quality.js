@@ -278,7 +278,59 @@ async function analyzeTilesets(generatedAssets = null) {
     return { tilesets: results, issues };
 }
 
-export async function analyzeMakerAssetQuality(generatedAssets = null) {
+function isBackgroundAsset(asset = {}) {
+    const role = String(asset?.role || asset?.category || '').toLowerCase();
+    const type = String(asset?.type || asset?.kind || '').toLowerCase();
+    return type === 'background' || role === 'background' || role === 'environment';
+}
+
+function analyzeRequiredBackgroundFallbacks(generatedAssets = null, assetContract = null) {
+    const issues = [];
+    const requiredSlots = asArray(assetContract?.slots).filter((slot) => slot?.required && isBackgroundAsset(slot));
+    if (requiredSlots.length === 0) return issues;
+
+    const packEntries = asArray(generatedAssets?.assetPack);
+    const packById = new Map();
+    for (const asset of packEntries) {
+        const id = asset?.id || asset?.key;
+        if (id) packById.set(String(id), asset);
+    }
+
+    for (const slot of requiredSlots) {
+        const slotId = String(slot.id || slot.role || '');
+        const asset = packById.get(slotId)
+            || packEntries.find((entry) => isBackgroundAsset(entry) && (entry.id === slotId || entry.key === slotId));
+        if (!asset) {
+            issues.push(issue({
+                id: 'required_background_missing',
+                severity: 'fatal',
+                key: slotId || 'background',
+                message: `Required background slot ${slotId || 'background'} is missing from the generated asset pack.`,
+            }));
+            continue;
+        }
+        if (asset.fallback || asset.generationSource === 'fallback') {
+            issues.push(issue({
+                id: 'required_background_used_fallback',
+                severity: 'fatal',
+                key: slotId || asset.key || asset.id,
+                message: `Required background ${slotId || asset.key || asset.id} used fallback art instead of generated FLUX scenery.`,
+            }));
+        }
+    }
+    return issues;
+}
+
+export function assertRequiredBackgroundArt(generatedAssets = null, assetContract = null) {
+    const issues = analyzeRequiredBackgroundFallbacks(generatedAssets, assetContract);
+    if (issues.length === 0) return;
+    const error = new Error(`Required background art generation failed: ${issues.map((entry) => entry.message).join(' ')}`);
+    error.code = 'REQUIRED_BACKGROUND_ART_FAILED';
+    error.issues = issues;
+    throw error;
+}
+
+export async function analyzeMakerAssetQuality(generatedAssets = null, options = {}) {
     if (!generatedAssets) {
         return {
             version: 1,
@@ -295,10 +347,12 @@ export async function analyzeMakerAssetQuality(generatedAssets = null) {
     const assetPack = await analyzeAssetPack(generatedAssets);
     const animations = analyzeAnimations(generatedAssets);
     const tilesets = await analyzeTilesets(generatedAssets);
+    const backgroundFallbackIssues = analyzeRequiredBackgroundFallbacks(generatedAssets, options.assetContract || null);
     const issues = [
         ...assetPack.issues,
         ...animations.issues,
         ...tilesets.issues,
+        ...backgroundFallbackIssues,
     ].sort((a, b) => severityRank(b.severity) - severityRank(a.severity));
     const fatalIssues = issues.filter((entry) => entry.severity === 'fatal');
     const score = Math.max(0, 100 - (fatalIssues.length * 25) - ((issues.length - fatalIssues.length) * 6));

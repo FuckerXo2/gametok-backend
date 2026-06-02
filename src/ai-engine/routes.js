@@ -79,7 +79,7 @@ import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { buildForgeAutoscaleReport, runForgeAutoscaleTick, isForgeAutoscaleEnabled } from './forge-autoscale.js';
-import { analyzeMakerAssetQuality, summarizeMakerAssetQuality } from './maker-asset-quality.js';
+import { analyzeMakerAssetQuality, assertRequiredBackgroundArt, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 import {
@@ -2947,8 +2947,8 @@ async function writeMakerAssetRuntimeFiles(workspace, generatedAssets = null) {
     });
 }
 
-async function analyzeAndWriteMakerAssetQuality(workspace, generatedAssets = null) {
-    const report = await analyzeMakerAssetQuality(generatedAssets);
+async function analyzeAndWriteMakerAssetQuality(workspace, generatedAssets = null, assetContract = null) {
+    const report = await analyzeMakerAssetQuality(generatedAssets, { assetContract });
     if (generatedAssets) {
         generatedAssets.assetQuality = report;
         generatedAssets.manifest = {
@@ -5326,7 +5326,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     qualityIntent,
                 });
                 assertJobNotCancelled(jobId);
-                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets);
+                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets, makerAssetContract);
+                assertRequiredBackgroundArt(generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
@@ -5338,6 +5339,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     console.warn(`⚠️ Artist Agent: ${generatedAssets.errors.length} assets used fallbacks`);
                 }
             } catch (error) {
+                if (error?.code === 'REQUIRED_BACKGROUND_ART_FAILED') {
+                    throw error;
+                }
                 console.error(`❌ Artist Agent failed:`, error.message);
                 console.log(`   Falling back to procedural generation`);
                 generatedAssets = null;
@@ -5491,7 +5495,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     templateContract: makerTemplateContract,
                     qualityIntent,
                 });
-                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets);
+                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets, makerAssetContract);
+                assertRequiredBackgroundArt(generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);

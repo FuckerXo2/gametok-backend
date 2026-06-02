@@ -148,7 +148,12 @@ async function resolveGeneratedAssetDataUri(dataUri, request, label = 'asset') {
         console.warn(`[Artist Agent] ${label} retry threw: ${retryError.message}`);
     }
 
-    const fallbackUri = await generateFallbackAsset(Math.max(targetWidth, targetHeight), category);
+    const fallbackUri = await generateFallbackAsset(
+        Math.max(targetWidth, targetHeight),
+        category,
+        assetType,
+        { width: targetWidth, height: targetHeight },
+    );
     return {
         dataUri: fallbackUri,
         inspection: { ok: true, reason: 'fallback_asset' },
@@ -190,6 +195,69 @@ function normalizeDimensions(widthOrSize = 768, height = null) {
 
 async function generateWithFlux(prompt, dimensions = 768) {
     return assetModelRouter.generateImage(prompt, dimensions);
+}
+
+async function validateFluxBase64(base64, {
+    minBytes = 12000,
+    minWidth = 256,
+    minHeight = 256,
+} = {}) {
+    const buffer = Buffer.from(stripDataUrl(base64), 'base64');
+    if (buffer.length < minBytes) {
+        return { ok: false, reason: `flux_decode_too_small (${buffer.length} bytes)` };
+    }
+    const sharp = (await import('sharp')).default;
+    const metadata = await sharp(buffer).metadata();
+    const width = Number(metadata.width || 0);
+    const height = Number(metadata.height || 0);
+    if (width < minWidth || height < minHeight) {
+        return { ok: false, reason: `flux_dimensions_too_small (${width}x${height})` };
+    }
+    return { ok: true, buffer, metadata: { width, height } };
+}
+
+async function downscaleBackgroundImage(imageBase64, targetSize = { width: 768, height: 1344 }) {
+    const sharp = (await import('sharp')).default;
+    const buffer = Buffer.from(stripDataUrl(imageBase64), 'base64');
+    const { width, height } = normalizeDimensions(targetSize);
+    const resized = await sharp(buffer)
+        .resize(width, height, {
+            kernel: 'lanczos3',
+            fit: 'cover',
+            position: 'centre',
+        })
+        .png({ compressionLevel: 6 })
+        .toBuffer();
+    return resized.toString('base64');
+}
+
+async function generateBackgroundFluxImage(prompt, targetSize) {
+    const targetDims = normalizeDimensions(targetSize);
+    const attempts = [
+        { width: 1024, height: 1024, label: '1024 square' },
+        { width: 768, height: 768, label: '768 square' },
+        { width: 1024, height: 1536, label: '1024x1536 portrait' },
+        { width: 768, height: 1344, label: '768x1344 portrait' },
+    ];
+    for (const attempt of attempts) {
+        try {
+            const fluxImage = await generateWithFlux(prompt, attempt);
+            const check = await validateFluxBase64(fluxImage, {
+                minBytes: 16000,
+                minWidth: 512,
+                minHeight: 512,
+            });
+            if (!check.ok) {
+                console.warn(`[sprite-gen] FLUX background ${attempt.label} rejected: ${check.reason}`);
+                continue;
+            }
+            console.log(`[sprite-gen] ✓ FLUX background accepted at ${attempt.label} (${check.metadata.width}x${check.metadata.height})`);
+            return await downscaleBackgroundImage(fluxImage, targetDims);
+        } catch (error) {
+            console.warn(`[sprite-gen] FLUX background ${attempt.label} failed: ${error.message}`);
+        }
+    }
+    throw new Error('FLUX background generation failed after all dimension attempts');
 }
 
 /**
@@ -531,6 +599,11 @@ export async function generateSprite({
     // Step 1: Generate with FLUX
     const shouldRemoveBackground = removeBg && type !== 'background' && type !== 'ui';
     const prompt = buildSpritePrompt(description, type, shouldRemoveBackground);
+    if (type === 'background') {
+        const finalImage = await generateBackgroundFluxImage(prompt, targetSize);
+        console.log(`[sprite-gen] ✓ Background ready at ${dimensions.width}x${dimensions.height}`);
+        return finalImage;
+    }
     const fluxImage = await generateWithFlux(prompt, dimensions);
     console.log(`[sprite-gen] ✓ Generated source image for ${dimensions.width}x${dimensions.height} target`);
     
@@ -608,21 +681,84 @@ export async function artistAgent(request) {
             request,
             `${assetType}:${category}`,
         );
+        const generationSource = resolved.usedFallback
+            ? 'fallback'
+            : (resolved.retried ? 'flux_retry' : 'flux');
         console.log(
             `[Artist Agent] ✓ Generated ${assetType} (${resolved.dataUri.length} chars`
             + `${resolved.usedFallback ? ', fallback' : resolved.retried ? ', retried' : ''})`,
         );
-        return resolved.dataUri;
+        return {
+            dataUri: resolved.dataUri,
+            usedFallback: Boolean(resolved.usedFallback),
+            retried: Boolean(resolved.retried),
+            generationSource,
+            inspectionReason: resolved.inspection?.reason || null,
+        };
     } catch (error) {
         console.error(`[Artist Agent] Failed to generate ${assetType}:`, error.message);
-        return generateFallbackAsset(size, category);
+        const targetWidth = Number(width || size || 128);
+        const targetHeight = Number(height || width || size || 128);
+        const dataUri = await generateFallbackAsset(
+            Math.max(targetWidth, targetHeight),
+            category,
+            assetType,
+            { width: targetWidth, height: targetHeight },
+        );
+        return {
+            dataUri,
+            usedFallback: true,
+            retried: false,
+            generationSource: 'fallback',
+            inspectionReason: error.message || 'generation_failed',
+        };
     }
+}
+
+async function generateFallbackBackgroundAsset(width = 768, height = 1344) {
+    const w = Math.max(320, Math.round(Number(width) || 768));
+    const h = Math.max(480, Math.round(Number(height) || 1344));
+    const horizonY = Math.round(h * 0.58);
+    const floorY = Math.round(h * 0.68);
+    const windowY = Math.round(h * 0.14);
+    const svg = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#120826"/>
+    <stop offset="45%" stop-color="#2e1b4a"/>
+    <stop offset="100%" stop-color="#0b1220"/>
+  </linearGradient>
+  <radialGradient id="nebula" cx="72%" cy="18%" r="42%">
+    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.45"/>
+    <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#334155"/>
+    <stop offset="100%" stop-color="#111827"/>
+  </linearGradient>
+</defs>
+<rect width="${w}" height="${h}" fill="url(#sky)"/>
+<rect width="${w}" height="${h}" fill="url(#nebula)"/>
+<circle cx="${Math.round(w * 0.78)}" cy="${Math.round(h * 0.16)}" r="${Math.round(Math.min(w, h) * 0.08)}" fill="#f9dc5c" opacity="0.85"/>
+<rect x="${Math.round(w * 0.12)}" y="${windowY}" width="${Math.round(w * 0.28)}" height="${Math.round(h * 0.18)}" rx="18" fill="#0ea5e9" opacity="0.35"/>
+<rect x="0" y="${horizonY}" width="${w}" height="${Math.round(h * 0.08)}" fill="#475569" opacity="0.55"/>
+<rect x="0" y="${floorY}" width="${w}" height="${h - floorY}" fill="url(#floor)"/>
+<rect x="0" y="${Math.round(h * 0.82)}" width="${w}" height="3" fill="#00c9db" opacity="0.65"/>
+</svg>`;
+    const sharp = (await import('sharp')).default;
+    const buffer = await sharp(Buffer.from(svg)).png({ compressionLevel: 6 }).toBuffer();
+    return `data:image/png;base64,${buffer.toString('base64')}`;
 }
 
 /**
  * Generate a fallback PNG placeholder if AI generation fails or quality checks reject output.
  */
-async function generateFallbackAsset(size, category) {
+async function generateFallbackAsset(size, category, assetType = 'sprite', dimensions = null) {
+    const normalizedCategory = normalizeSpriteCategory(category, assetType);
+    if (normalizedCategory === 'background') {
+        const { width, height } = normalizeDimensions(dimensions || { width: 768, height: 1344 });
+        return generateFallbackBackgroundAsset(width, height);
+    }
     const colors = {
         player: '#4ade80',
         enemy: '#f87171',
@@ -1009,6 +1145,7 @@ export async function batchArtistAgent(requests, options = {}) {
     const assetPack = [];
     const animations = [];
     const tilesets = [];
+    let fallbackCount = 0;
     
     // Generate assets sequentially to avoid rate limits
     // (NVIDIA free tier has rate limits)
@@ -1023,7 +1160,21 @@ export async function batchArtistAgent(requests, options = {}) {
         const size = width === height ? width : { width, height };
         
         try {
-            const dataUri = await artistAgent(assetRequest);
+            const artistResult = await artistAgent(assetRequest);
+            const dataUri = typeof artistResult === 'string' ? artistResult : artistResult.dataUri;
+            const usedFallback = typeof artistResult === 'object' ? Boolean(artistResult.usedFallback) : false;
+            const generationSource = typeof artistResult === 'object'
+                ? (artistResult.generationSource || (usedFallback ? 'fallback' : 'flux'))
+                : 'flux';
+            if (usedFallback) {
+                fallbackCount += 1;
+                errors.push({
+                    id,
+                    phase: 'asset_generation',
+                    error: artistResult?.inspectionReason || 'fallback_art_used',
+                    generationSource,
+                });
+            }
             results[id] = dataUri;
             const assetMeta = {
                 id,
@@ -1038,6 +1189,8 @@ export async function batchArtistAgent(requests, options = {}) {
                 description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
                 url: dataUri,
+                fallback: usedFallback,
+                generationSource,
             };
             manifestAssets.push(assetMeta);
             assetPack.push({
@@ -1053,6 +1206,8 @@ export async function batchArtistAgent(requests, options = {}) {
                 transparent: assetRequest.transparent !== false,
                 description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
+                fallback: usedFallback,
+                generationSource,
             });
 
             try {
@@ -1080,9 +1235,14 @@ export async function batchArtistAgent(requests, options = {}) {
                 throw error;
             }
             console.error(`[Batch Artist Agent] Failed to generate ${id}:`, error.message);
-            errors.push({ id, error: error.message });
-            // Generate fallback
-            const dataUri = await generateFallbackAsset(Math.max(width, height), category);
+            errors.push({ id, error: error.message, generationSource: 'fallback' });
+            fallbackCount += 1;
+            const dataUri = await generateFallbackAsset(
+                Math.max(width, height),
+                category,
+                assetRequest.assetType || request.assetType || 'sprite',
+                { width, height },
+            );
             results[id] = dataUri;
             const assetMeta = {
                 id,
@@ -1098,6 +1258,7 @@ export async function batchArtistAgent(requests, options = {}) {
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
                 url: dataUri,
                 fallback: true,
+                generationSource: 'fallback',
             };
             manifestAssets.push(assetMeta);
             assetPack.push({
@@ -1114,6 +1275,7 @@ export async function batchArtistAgent(requests, options = {}) {
                 description: assetRequest.description || request.description || '',
                 gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
                 fallback: true,
+                generationSource: 'fallback',
             });
         }
     }
@@ -1131,7 +1293,7 @@ export async function batchArtistAgent(requests, options = {}) {
         errors.push(...tilesetBundle.errors);
     }
     
-    console.log(`[Batch Artist Agent] ✓ Generated ${Object.keys(results).length} assets (${errors.length} fallbacks)`);
+    console.log(`[Batch Artist Agent] ✓ Generated ${Object.keys(results).length} assets (${fallbackCount} fallbacks)`);
     
     return {
         assets: results,
@@ -1143,5 +1305,6 @@ export async function batchArtistAgent(requests, options = {}) {
         animations,
         tilesets,
         errors: errors.length > 0 ? errors : null,
+        fallbackCount,
     };
 }
