@@ -29,12 +29,15 @@ function readDedicatedPool(env, dedicatedNames = [], fallbackNames = []) {
 }
 
 export function getNvidiaImageKeys(env = process.env) {
-    // If NIM_IMAGE_API_KEYS is set, use only that image pool — do not bleed text keys in.
-    return readDedicatedPool(
-        env,
-        ['NIM_IMAGE_API_KEYS', 'NVIDIA_IMAGE_API_KEYS'],
-        ['NVIDIA_API_KEY', 'NIM_API_KEYS', 'NVIDIA_NIM_API_KEY'],
-    );
+    // Prefer dedicated image pools, then merge legacy NVIDIA keys (deduped).
+    // DeepSeek handles text generation; NVIDIA keys are primarily for FLUX image NIM.
+    return readPool(env, [
+        'NIM_IMAGE_API_KEYS',
+        'NVIDIA_IMAGE_API_KEYS',
+        'NVIDIA_API_KEY',
+        'NIM_API_KEYS',
+        'NVIDIA_NIM_API_KEY',
+    ]);
 }
 
 export function getNvidiaTextKeys(env = process.env) {
@@ -76,6 +79,7 @@ export function summarizeNvidiaKeyPools(env = process.env) {
         imageKeys: imageKeys.map(maskNvidiaKey),
         textKeys: textKeys.map(maskNvidiaKey),
         hasSplitImagePool: parseKeyList(env.NIM_IMAGE_API_KEYS || env.NVIDIA_IMAGE_API_KEYS).length > 0,
+        usesLegacyImagePool: parseKeyList(env.NVIDIA_API_KEY).length > 0,
         hasSplitTextPool: parseKeyList(env.NIM_TEXT_API_KEYS || env.NVIDIA_TEXT_API_KEYS || env.DREAMSTREAM_NVIDIA_API_KEYS).length > 0,
         usesLegacyTextPool: parseKeyList(env.NVIDIA_API_KEY).length > 0
             && parseKeyList(env.NIM_TEXT_API_KEYS || env.NVIDIA_TEXT_API_KEYS || env.DREAMSTREAM_NVIDIA_API_KEYS).length === 0,
