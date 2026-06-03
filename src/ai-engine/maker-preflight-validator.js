@@ -420,6 +420,19 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     let source = await readTextIfExists(mainPath);
     if (!source.trim()) return applied;
 
+    const stubMaxBytes = Math.max(
+        4000,
+        Number(process.env.GAMETOK_MAKER_STUB_MAX_BYTES || 12000),
+    );
+    if (Buffer.byteLength(source, 'utf8') < stubMaxBytes) {
+        return applied;
+    }
+
+    const allowedKeys = [...new Set((options.allowedKeys || []).filter(Boolean))];
+    const foundationLane = String(options.foundationLane || options.lane || '');
+    const isCookingFoundation = /cook|pantry|diner|ingredient|cauldron|order/i.test(foundationLane);
+    const cookingOnlyStateKeys = new Set(['pantry', 'cauldronSlots', 'cookingSlots', 'orderQueue']);
+
     const assetIssues = (preflight.issues || []).filter((issue) => [
         'preflight_required_asset_slots_unreferenced',
         'preflight_asset_key_missing_from_pack',
@@ -427,7 +440,7 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     ].includes(issue.id));
     if (assetIssues.length > 0) {
         const assetRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
-            allowedKeys: options.allowedKeys || [],
+            allowedKeys: allowedKeys.length > 0 ? allowedKeys : undefined,
             assetContract: options.assetContract || null,
             generatedAssets: options.generatedAssets || null,
         });
@@ -443,7 +456,11 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
         if (issue.id !== 'preflight_state_property_missing' || !Array.isArray(issue.missingKeys) || issue.missingKeys.length === 0) {
             continue;
         }
-        const repair = applyDeterministicStatePropertyRepairs(source, issue.missingKeys);
+        const missingKeys = isCookingFoundation
+            ? issue.missingKeys
+            : issue.missingKeys.filter((entry) => !cookingOnlyStateKeys.has(entry?.key));
+        if (missingKeys.length === 0) continue;
+        const repair = applyDeterministicStatePropertyRepairs(source, missingKeys);
         if (repair.renamed.length === 0 && repair.added.length === 0 && repair.deduped.length === 0) continue;
         source = repair.content;
         if (repair.renamed.length > 0) {
@@ -473,6 +490,18 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
                 to: repair.deduped.join(', '),
             });
         }
+    }
+
+    const dedupe = applyDeterministicStateObjectDedupeRepairs(source);
+    if (dedupe.removed.length > 0) {
+        source = dedupe.content;
+        applied.push({
+            path: 'src/main.ts',
+            type: 'preflight_state_property_deduped',
+            keys: dedupe.removed,
+            from: 'duplicate state keys',
+            to: dedupe.removed.join(', '),
+        });
     }
 
     if (applied.length > 0) {

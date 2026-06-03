@@ -249,8 +249,9 @@ function remapUnknownAssetKey(ref = '', allowedKeys = []) {
     if (/^item\d+$/i.test(key)) {
         return pickFirstMatchingKey(allowedKeys, /item|ingredient/i) || allowedKeys[0] || key;
     }
-    if (key === 'player1') {
-        return allowedKeys.includes('player') ? 'player' : key;
+    if (key === 'player1' || key === 'player') {
+        return pickFirstMatchingKey(allowedKeys, /^player/i)
+            || (allowedKeys.includes('player_car') ? 'player_car' : key);
     }
     if (/^enemy\d+$/i.test(key) && !allowedKeys.includes(key)) {
         return pickFirstMatchingKey(allowedKeys, /^enemy\d+/i)
@@ -326,20 +327,26 @@ function collectRequiredAssetKeyRefs(assetContract = null, slotHints = [], allow
 
 function injectGameTokAssetContractWiring(source = '', requiredKeyRefs = [], allowedKeys = []) {
     if (!requiredKeyRefs.length) return source;
+    const usesAssetKeysModule = /from\s+['"]\.\/assetKeys(?:\.ts)?['"]/.test(source)
+        || /import\s*\{[^}]*__GT_CONTRACT_ASSET_KEYS__/.test(source);
     const missingRefs = requiredKeyRefs.filter((ref) => !sourceReferencesToken(source, ref));
     const needsBackgroundHelper = !/resolveBackgroundImage|function drawBackground|__gtResolveGeneratedBackground/.test(source)
         && !/getAssetImage\(['"](?:background1|background|environment)['"]\)/.test(source);
     if (missingRefs.length === 0 && !needsBackgroundHelper) return source;
+    if (usesAssetKeysModule && !needsBackgroundHelper) return source;
 
-    const keysLiteral = JSON.stringify([...new Set([...requiredKeyRefs, ...missingRefs])]);
+    const keysLiteral = usesAssetKeysModule
+        ? '__GT_CONTRACT_ASSET_KEYS__'
+        : JSON.stringify([...new Set([...requiredKeyRefs, ...missingRefs])]);
     const backgroundKey = pickFirstMatchingKey(allowedKeys, /background|environment|diner|bg/i) || 'background1';
     let block = '';
     if (!source.includes(GAME_TOK_WIRING_MARKER)) {
         block = `
 ${GAME_TOK_WIRING_MARKER}
-const __GT_CONTRACT_ASSET_KEYS__ = ${keysLiteral};
+${usesAssetKeysModule ? '' : `const __GT_CONTRACT_ASSET_KEYS__ = ${keysLiteral};\n`}
 function __gtEnsureContractAssetsReferenced() {
-  for (const assetKey of __GT_CONTRACT_ASSET_KEYS__) {
+  const assetKeys = ${usesAssetKeysModule ? '__GT_CONTRACT_ASSET_KEYS__' : keysLiteral};
+  for (const assetKey of assetKeys) {
     void getAssetImage(assetKey);
   }
 }
@@ -447,6 +454,11 @@ export function repairMainTsAssetWiringInSource(source = '', {
 }
 ${content}`;
         repairs.push('injected_getAssetImage_helper');
+    }
+    if (!/from\s+['"]\.\/assetKeys(?:\.ts)?['"]/.test(content)
+        && !/const\s+__GT_CONTRACT_ASSET_KEYS__\s*=/.test(content)) {
+        content = `import { __GT_CONTRACT_ASSET_KEYS__ } from './assetKeys.ts';\n${content}`;
+        repairs.push('imported_asset_keys_module');
     }
     const wired = injectGameTokAssetContractWiring(content, requiredKeyRefs, allowedKeys);
     if (wired !== content) {

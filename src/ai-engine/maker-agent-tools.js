@@ -71,6 +71,10 @@ const IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES = Math.max(
     8000,
     Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES || 12000),
 );
+const IMPLEMENT_STUB_MAX_BYTES = Math.max(
+    4000,
+    Number(process.env.GAMETOK_MAKER_STUB_MAX_BYTES || 12000),
+);
 const READ_FILE_MAX_CHARS = Math.max(
     2000,
     Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 12000)),
@@ -266,8 +270,8 @@ export function getMakerAgentToolInstructionLines(mode = MAKER_AGENT_TURN_MODE_R
         return [
             'IMPLEMENT MODE: build the game incrementally like a coding agent — each edit tool writes to disk immediately.',
             'Use read_file / grep_project to inspect the live project before patching.',
-            'Prefer apply_patch on src/main.ts: wire drag/drop, timers, order matching, rendering, and probe behavior.',
-            'Scaffold may already include pantry grid, cauldron slots, COOK button, and cooking state — extend it, do not duplicate keys or DOM ids.',
+            'Prefer apply_patch on src/main.ts: wire lane movement, traffic, fuel/distance HUD, rendering, and probe behavior.',
+            'Extend the foundation stub in place — do not duplicate state keys or DOM ids.',
             'After each edit, tsc runs automatically — fix any TypeScript errors before continuing.',
             'You may call run_tsc_check manually after a batch of edits.',
             'Make 4-12 focused apply_patch edits across rounds.',
@@ -967,20 +971,26 @@ export async function runMakerAgentToolTurn({
             await appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound: roundReadFile });
             repairReadOnlyRounds = 0;
             implementReadOnlyRounds = 0;
+        } else if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && roundReadFile && !roundEdited) {
+            implementReadOnlyRounds += 1;
+            if (!touchedMainTs && implementReadOnlyRounds > IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
+                throw new Error('Implement mode stalled on read-only tool calls — write src/main.ts with write_file now');
+            }
+            if (implementReadOnlyRounds >= IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
+                messages.push({
+                    role: 'user',
+                    content: 'IMPLEMENT REQUIRED: Stop re-reading files. Call write_file on src/main.ts now with the full highway/runner loop, import keys from ./assetKeys.ts, and drawBackground() for the generated background.',
+                });
+            }
         } else if (mode === MAKER_AGENT_TURN_MODE_REPAIR && roundReadFile && !roundEdited) {
             repairReadOnlyRounds += 1;
+            if (repairReadOnlyRounds > REPAIR_MAX_READ_ONLY_ROUNDS) {
+                throw new Error('Repair mode stalled on read-only tool calls — apply_patch or write_file on src/main.ts now');
+            }
             if (repairReadOnlyRounds >= REPAIR_MAX_READ_ONLY_ROUNDS) {
                 messages.push({
                     role: 'user',
                     content: 'REPAIR REQUIRED: Stop reading files. Call apply_patch or write_file on src/main.ts now to fix the targeted failures from last run evidence.',
-                });
-            }
-        } else if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && roundReadFile && !roundEdited) {
-            implementReadOnlyRounds += 1;
-            if (implementReadOnlyRounds >= IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
-                messages.push({
-                    role: 'user',
-                    content: 'IMPLEMENT REQUIRED: Stop re-reading files. Call write_file or apply_patch on src/main.ts now to implement the gameplay loop and draw generated background art with ctx.drawImage.',
                 });
             }
         }

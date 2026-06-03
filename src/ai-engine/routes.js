@@ -4557,8 +4557,12 @@ async function assembleMakerProjectHtmlWithAutoRepair(projectRoot) {
     }
 }
 
-async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets, templateContract, assetContract, turnNumber, phase = 'agent' }) {
+async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets, templateContract, assetContract, turnNumber, phase = 'agent', allowedKeys = null, foundationLane = null }) {
     try {
+        const packKeys = allowedKeys || [...new Set([
+            ...await readProjectAssetPackKeys(projectRoot),
+            ...collectAllowedAssetPackKeys({ generatedAssets }),
+        ])].sort();
         let preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
         await writeMakerJson(workspace, 'preflight-report.json', {
             phase,
@@ -4570,6 +4574,8 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             const preflightRepairs = await applyDeterministicPreflightRepairs(projectRoot, preflight, {
                 generatedAssets,
                 assetContract,
+                allowedKeys: packKeys,
+                foundationLane: foundationLane || assetContract?.lane || templateContract?.lane || null,
             });
             if (preflightRepairs.length > 0) {
                 console.warn(`[Maker AutoRepair] Applied deterministic preflight fixes: ${preflightRepairs.map((entry) => `${entry.path}:${entry.type}${entry.keys ? `(${entry.keys.join(',')})` : ''}`).join(', ')}`);
@@ -4736,6 +4742,8 @@ async function runMakerAgentInspectionTurns({
                 assetContract,
                 turnNumber: `${turnNumber}-pre`,
                 phase: 'before_file_agent_turn',
+                allowedKeys: phase2AllowedAssetKeys,
+                foundationLane: assetContract?.lane || templateContract?.lane || null,
             });
             lastRunEvidence = preRunEvidence;
         } else {
@@ -4860,28 +4868,48 @@ async function runMakerAgentInspectionTurns({
                     if (wiringRepairs.length > 0) {
                         console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Auto-repaired asset wiring in src/main.ts (${wiringRepairs[0]?.repairs?.join(', ') || 'ok'})`);
                     }
+                    const dedupeRepair = applyDeterministicStateObjectDedupeRepairs(
+                        await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8').catch(() => ''),
+                    );
+                    if (dedupeRepair.removed.length > 0) {
+                        await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), dedupeRepair.content, 'utf8');
+                        console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Deduped duplicate state keys: ${dedupeRepair.removed.join(', ')}`);
+                    }
                     try {
                         await runMakerProjectTscCheck(projectRoot);
                     } catch (compileError) {
-                        runEvidence = buildMakerCompileFailureEvidence(compileError, {
-                            phase: 'after_file_agent_turn',
-                            turnNumber,
-                        });
-                        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-                        lastRunEvidence = runEvidence;
-                        await appendMakerAgentTurn(workspace, turns, {
-                            phase: 'file_inspection',
-                            objective,
-                            status: 'needs_followup',
-                            model: DREAM_MODELS.premiumBuilder,
-                            filesRead: summarizeMakerProjectFiles(projectFiles),
-                            editsApplied: applied,
-                            targetedRepairTasks: runEvidence.targetedRepairTasks || [],
-                            sandbox: runEvidence,
-                            notes: inspection.notes,
-                            error: compileError.message,
-                        });
-                        continue;
+                        let compileErrorResolved = false;
+                        const buildRepairs = await applyDeterministicMakerBuildRepairs(projectRoot, compileError.buildErrors || []);
+                        if (buildRepairs.length > 0) {
+                            console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Auto-fixed compile errors: ${buildRepairs.map((entry) => entry.type).join(', ')}`);
+                            try {
+                                await runMakerProjectTscCheck(projectRoot);
+                                compileErrorResolved = true;
+                            } catch (retryError) {
+                                compileError = retryError;
+                            }
+                        }
+                        if (!compileErrorResolved) {
+                            runEvidence = buildMakerCompileFailureEvidence(compileError, {
+                                phase: 'after_file_agent_turn',
+                                turnNumber,
+                            });
+                            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
+                            lastRunEvidence = runEvidence;
+                            await appendMakerAgentTurn(workspace, turns, {
+                                phase: 'file_inspection',
+                                objective,
+                                status: 'needs_followup',
+                                model: DREAM_MODELS.premiumBuilder,
+                                filesRead: summarizeMakerProjectFiles(projectFiles),
+                                editsApplied: applied,
+                                targetedRepairTasks: runEvidence.targetedRepairTasks || [],
+                                sandbox: runEvidence,
+                                notes: inspection.notes,
+                                error: compileError.message,
+                            });
+                            continue;
+                        }
                     }
                 }
                 if (jobId && typeof reportProgress === 'function') {
@@ -4899,6 +4927,8 @@ async function runMakerAgentInspectionTurns({
                     assetContract,
                     turnNumber,
                     phase: 'after_file_agent_turn',
+                    allowedKeys: allowedAssetKeys,
+                    foundationLane: assetContract?.lane || templateContract?.lane || null,
                 });
             } else {
                 const responseText = await generateCompleteJsonWithBuilder(promptText, {
