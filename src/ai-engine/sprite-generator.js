@@ -1372,6 +1372,37 @@ function batchHealDelayMs() {
     return Math.max(200, Number(process.env.GAMETOK_ARTIST_HEAL_DELAY_MS || 800));
 }
 
+/** Batch/heal may pass either in-flight state ({ results }) or batchArtistAgent return ({ assets }). */
+export function normalizeBatchState(batchState = {}) {
+    if (!batchState || typeof batchState !== 'object') {
+        return {
+            results: {},
+            assets: {},
+            manifestAssets: [],
+            assetPack: [],
+            animations: [],
+            errors: [],
+            fallbackCount: 0,
+        };
+    }
+    if (!batchState.results && batchState.assets) {
+        batchState.results = batchState.assets;
+    }
+    if (!batchState.assets && batchState.results) {
+        batchState.assets = batchState.results;
+    }
+    if (!batchState.results) {
+        batchState.results = {};
+        batchState.assets = batchState.results;
+    }
+    if (!Array.isArray(batchState.manifestAssets)) batchState.manifestAssets = [];
+    if (!Array.isArray(batchState.assetPack)) batchState.assetPack = [];
+    if (!Array.isArray(batchState.animations)) batchState.animations = [];
+    if (!Array.isArray(batchState.errors)) batchState.errors = [];
+    if (typeof batchState.fallbackCount !== 'number') batchState.fallbackCount = 0;
+    return batchState;
+}
+
 function isRequiredBatchSlot(id, options = {}) {
     const required = options.requiredSlotIds;
     if (!required) return false;
@@ -1381,6 +1412,7 @@ function isRequiredBatchSlot(id, options = {}) {
 }
 
 function purgeBatchAssetFrames(batchState, sourceId) {
+    normalizeBatchState(batchState);
     const hadFallback = batchState.assetPack.some((asset) => (
         (asset?.id === sourceId || asset?.key === sourceId) && asset?.fallback
     ));
@@ -1429,6 +1461,7 @@ function buildBatchAssetMeta(id, request, dataUri, { usedFallback = false, gener
 }
 
 function recordBatchAssetSuccess(batchState, id, request, dataUri, artistResult) {
+    normalizeBatchState(batchState);
     const usedFallback = typeof artistResult === 'object' ? Boolean(artistResult.usedFallback) : false;
     const generationSource = typeof artistResult === 'object'
         ? (artistResult.generationSource || (usedFallback ? 'fallback' : 'flux'))
@@ -1491,6 +1524,7 @@ async function recordBatchAssetFallback(batchState, id, request, width, height, 
  * Required slots retry FLUX before accepting procedural fallback.
  */
 export async function generateOneBatchAsset(batchState, request, id, options = {}) {
+    normalizeBatchState(batchState);
     const { id: requestId, ...assetRequest } = request;
     const category = assetRequest.category || request.category || 'item';
     const width = Number(assetRequest.width || request.width || assetRequest.size || request.size || 128);
@@ -1561,14 +1595,15 @@ export async function batchArtistAgent(requests, options = {}) {
     
     // Generate assets sequentially to avoid rate limits
     // (NVIDIA free tier has rate limits)
-    const batchState = {
+    const batchState = normalizeBatchState({
         results,
+        assets: results,
         errors,
         manifestAssets,
         assetPack,
         animations,
         fallbackCount,
-    };
+    });
 
     for (const request of requests) {
         const { id } = request;
@@ -1598,6 +1633,7 @@ export async function batchArtistAgent(requests, options = {}) {
     
     return {
         assets: results,
+        results,
         manifest: {
             version: 1,
             assets: manifestAssets,

@@ -303,6 +303,25 @@ function isBackgroundAsset(asset = {}) {
     return type === 'background' || role === 'background' || role === 'environment';
 }
 
+/** Procedural/failed art only — ignore contract metadata strings like "code-rendered shape". */
+function usedProceduralFallback(asset = {}) {
+    return asset?.fallback === true || asset?.generationSource === 'fallback';
+}
+
+function isPrimaryPackAsset(asset = {}) {
+    if (!asset || typeof asset !== 'object') return false;
+    if (asset.kind === 'animation_frame') return false;
+    const key = String(asset.key || asset.id || '');
+    if (ANIMATION_FRAME_KEY_PATTERN.test(key)) return false;
+    return true;
+}
+
+function pickPrimaryPackAsset(candidates = []) {
+    const list = asArray(candidates).filter(isPrimaryPackAsset);
+    if (list.length === 0) return null;
+    return list.find((entry) => !usedProceduralFallback(entry)) || list[0];
+}
+
 function findBackgroundAssetForSlot(slot = {}, packEntries = [], packById = new Map()) {
     const slotId = String(slot.id || slot.role || '');
     const slotKeys = [slotId, slot.role, slot.category]
@@ -340,7 +359,7 @@ function findBackgroundAssetForSlot(slot = {}, packEntries = [], packById = new 
 
 function analyzeRequiredBackgroundFallbacks(generatedAssets = null, assetContract = null) {
     const issues = [];
-    const requiredSlots = asArray(assetContract?.slots).filter((slot) => slot?.required && isBackgroundAsset(slot));
+    const requiredSlots = asArray(assetContract?.slots).filter((slot) => isRequiredVisualSlot(slot) && isBackgroundAsset(slot));
     if (requiredSlots.length === 0) return issues;
 
     const packEntries = asArray(generatedAssets?.assetPack);
@@ -367,7 +386,7 @@ function analyzeRequiredBackgroundFallbacks(generatedAssets = null, assetContrac
             }));
             continue;
         }
-        if (asset.fallback || asset.generationSource === 'fallback') {
+        if (usedProceduralFallback(asset)) {
             issues.push(issue({
                 id: 'required_background_used_fallback',
                 severity: 'fatal',
@@ -397,30 +416,35 @@ function isRequiredVisualSlot(slot = {}) {
 
 function findPackAssetForSlot(slot = {}, packEntries = [], packById = new Map()) {
     const slotId = String(slot.id || slot.role || '');
-    if (slotId && packById.has(slotId)) return packById.get(slotId);
+    if (slotId && packById.has(slotId)) {
+        const direct = packById.get(slotId);
+        if (isPrimaryPackAsset(direct)) return direct;
+    }
     const slotRole = String(slot.role || slot.category || '').toLowerCase();
     if (slotRole) {
-        const byRole = packEntries.find((entry) => String(entry.role || entry.category || '').toLowerCase() === slotRole);
+        const byRole = pickPrimaryPackAsset(
+            packEntries.filter((entry) => String(entry.role || entry.category || '').toLowerCase() === slotRole),
+        );
         if (byRole) return byRole;
     }
     if (/^item\d+$/i.test(slotId)) {
-        return packEntries.find((entry) => /^item\d*$/i.test(String(entry.key || entry.id || '')));
+        return pickPrimaryPackAsset(packEntries.filter((entry) => /^item\d*$/i.test(String(entry.key || entry.id || ''))));
     }
     if (/^prop\d+$/i.test(slotId)) {
-        return packEntries.find((entry) => String(entry.role || entry.category || '').toLowerCase() === 'prop'
-            || /^prop\d*$/i.test(String(entry.key || entry.id || '')));
+        return pickPrimaryPackAsset(packEntries.filter((entry) => String(entry.role || entry.category || '').toLowerCase() === 'prop'
+            || /^prop\d*$/i.test(String(entry.key || entry.id || ''))));
     }
     if (/^obstacle\d+$/i.test(slotId)) {
-        return packEntries.find((entry) => String(entry.role || entry.category || '').toLowerCase() === 'obstacle'
-            || /^obstacle\d*$/i.test(String(entry.key || entry.id || '')));
+        return pickPrimaryPackAsset(packEntries.filter((entry) => String(entry.role || entry.category || '').toLowerCase() === 'obstacle'
+            || /^obstacle\d*$/i.test(String(entry.key || entry.id || ''))));
     }
     if (/^enemy\d+$/i.test(slotId)) {
-        return packEntries.find((entry) => /^enemy\d*$/i.test(String(entry.key || entry.id || ''))
-            || String(entry.role || '').toLowerCase() === 'enemy');
+        return pickPrimaryPackAsset(packEntries.filter((entry) => /^enemy\d*$/i.test(String(entry.key || entry.id || ''))
+            || String(entry.role || '').toLowerCase() === 'enemy'));
     }
     if (slotRole === 'player') {
-        return packEntries.find((entry) => String(entry.role || '').toLowerCase() === 'player'
-            || /^player/i.test(String(entry.key || entry.id || '')));
+        return pickPrimaryPackAsset(packEntries.filter((entry) => String(entry.role || '').toLowerCase() === 'player'
+            || /^player/i.test(String(entry.key || entry.id || ''))));
     }
     return null;
 }
@@ -452,7 +476,7 @@ function analyzeRequiredSlotFallbacks(generatedAssets = null, assetContract = nu
             }));
             continue;
         }
-        if (asset.fallback || asset.generationSource === 'fallback') {
+        if (usedProceduralFallback(asset)) {
             issues.push(issue({
                 id: 'required_slot_used_fallback',
                 severity: 'fatal',

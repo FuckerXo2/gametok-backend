@@ -1,5 +1,5 @@
 import { collectRequiredContractArtIssues } from './maker-asset-quality.js';
-import { generateOneBatchAsset } from './sprite-generator.js';
+import { generateOneBatchAsset, normalizeBatchState } from './sprite-generator.js';
 
 function asArray(value) {
     return Array.isArray(value) ? value : [];
@@ -26,9 +26,10 @@ function resolveHealRequest(assetRequests = [], slotId = '') {
 }
 
 function snapshotForQualityCheck(batchResult = {}) {
+    const batch = normalizeBatchState(batchResult);
     return {
-        assetPack: batchResult.assetPack || [],
-        assets: batchResult.results || {},
+        assetPack: batch.assetPack || [],
+        assets: batch.results || batch.assets || {},
     };
 }
 
@@ -37,6 +38,7 @@ function snapshotForQualityCheck(batchResult = {}) {
  * Mutates batchResult in place; returns whether all required art healed.
  */
 export async function healRequiredContractArt(batchResult, assetRequests = [], assetContract = null, options = {}) {
+    const batch = normalizeBatchState(batchResult);
     const maxPasses = Math.max(1, Math.min(3, Number(
         options.maxHealPasses ?? process.env.GAMETOK_ARTIST_HEAL_PASSES ?? 2,
     )));
@@ -47,13 +49,13 @@ export async function healRequiredContractArt(batchResult, assetRequests = [], a
 
     for (let pass = 1; pass <= maxPasses; pass += 1) {
         const remainingBefore = collectRequiredContractArtIssues(
-            snapshotForQualityCheck(batchResult),
+            snapshotForQualityCheck(batch),
             assetContract,
         );
         if (remainingBefore.length === 0) {
             return {
                 healed: true,
-                batchResult,
+                batchResult: batch,
                 passes: pass - 1,
                 healLog,
                 remainingIssues: [],
@@ -69,7 +71,7 @@ export async function healRequiredContractArt(batchResult, assetRequests = [], a
                 healLog.push({ pass, slotId, ok: false, skipped: 'no_matching_request' });
                 continue;
             }
-            const outcome = await generateOneBatchAsset(batchResult, request, slotId, {
+            const outcome = await generateOneBatchAsset(batch, request, slotId, {
                 ...options,
                 maxRetriesPerRequired: maxRetriesPerSlot,
                 requiredSlotIds: new Set([slotId]),
@@ -79,12 +81,12 @@ export async function healRequiredContractArt(batchResult, assetRequests = [], a
     }
 
     const remainingIssues = collectRequiredContractArtIssues(
-        snapshotForQualityCheck(batchResult),
+        snapshotForQualityCheck(batch),
         assetContract,
     );
     return {
         healed: remainingIssues.length === 0,
-        batchResult,
+        batchResult: batch,
         passes: maxPasses,
         healLog,
         remainingIssues,

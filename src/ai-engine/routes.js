@@ -89,8 +89,14 @@ import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { buildForgeAutoscaleReport, runForgeAutoscaleTick, isForgeAutoscaleEnabled } from './forge-autoscale.js';
-import { analyzeMakerAssetQuality, assertRequiredContractArt, summarizeMakerAssetQuality } from './maker-asset-quality.js';
+import { analyzeMakerAssetQuality, collectRequiredContractArtIssues, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { getRequiredContractSlotIds, healRequiredContractArt } from './maker-artist-heal.js';
+import {
+    assertMakerAssetsReadyForPhase2,
+    finalizeMakerArtistPhase,
+    PHASE2_ASSET_PACK_INCOMPLETE,
+    preparePhase2ProjectAssets,
+} from './maker-asset-phase-gate.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 import {
@@ -4829,26 +4835,15 @@ async function runMakerAgentInspectionTurns({
     ];
     const implementTurns = resolveMakerAgentImplementTurns(maxTurns);
     console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turns 1-${implementTurns}=implement, turns ${implementTurns + 1}-${maxTurns}=repair if needed (maxTurns=${maxTurns}, factoryMinimal=${isMakerFactoryMinimalMode() ? 'on' : 'off'}, skipTurn1PreRun=${SKIP_TURN1_PRERUN_EVIDENCE})`);
-    const phase2AllowedAssetKeys = [...new Set([
-        ...await readProjectAssetPackKeys(projectRoot),
-        ...collectAllowedAssetPackKeys({ generatedAssets }),
-    ])].sort();
-    const phase2AssetSlotHints = buildAssetSlotRuntimeHints({ assetContract, generatedAssets });
-    if (phase2AllowedAssetKeys.length > 0) {
-        const assetKeysManifest = await writeMakerAssetKeysTs(projectRoot, {
-            allowedKeys: phase2AllowedAssetKeys,
-            slotHints: phase2AssetSlotHints,
-        });
-        console.log(`📦 [Phase 2 job=${jobId}] Wrote ${assetKeysManifest.path} (${assetKeysManifest.keyCount} runtime keys, ${phase2AssetSlotHints.length} contract slots)`);
-    }
-    const shiftLeftWiring = await applyMainTsAssetWiringRepairs(projectRoot, {
+    const {
         allowedKeys: phase2AllowedAssetKeys,
-        assetContract,
+        slotHints: phase2AssetSlotHints,
+    } = await preparePhase2ProjectAssets({
+        projectRoot,
         generatedAssets,
+        assetContract,
+        jobId,
     });
-    if (shiftLeftWiring.length > 0) {
-        console.log(`📦 [Phase 2 job=${jobId}] Shift-left asset wiring on scaffold: ${shiftLeftWiring[0]?.repairs?.join(', ') || 'ok'}`);
-    }
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
@@ -5562,6 +5557,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 : (qualityIntent.visualAssets || hasMakerAssetSlots)
         );
         if (shouldRunArtistAgent) {
+            let generatedImages = null;
             try {
                 console.log(`🎨 Artist Agent: Planning visual asset generation...`);
                 await reportProgress(26, 'assets', 'Planning visual assets...');
@@ -5599,43 +5595,47 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     await assertJobNotCancelledShared(jobId, { force: true });
                     return false;
                 };
-                let generatedImages = await batchArtistAgent(assetRequests, {
+                generatedImages = await batchArtistAgent(assetRequests, {
                     tilesets: assetPlan.tilesets || [],
                     requiredSlotIds,
                     shouldCancel: artistCancel,
                 });
-                const healResult = await healRequiredContractArt(
-                    generatedImages,
-                    assetRequests,
-                    makerAssetContract,
-                    { shouldCancel: artistCancel },
-                );
-                generatedImages = healResult.batchResult;
-                if (healResult.passes > 0) {
-                    const healedSlots = healResult.healLog
-                        .filter((entry) => entry.ok)
-                        .map((entry) => entry.slotId)
-                        .filter(Boolean);
-                    if (healResult.healed) {
-                        console.log(`[Artist Heal] Recovered required art after ${healResult.passes} pass(es)${healedSlots.length ? `: ${healedSlots.join(', ')}` : ''}`);
-                    } else {
-                        console.warn(`[Artist Heal] Still missing required art after ${healResult.passes} pass(es): ${
-                            (healResult.remainingIssues || []).map((entry) => entry.key || entry.id).join(', ')
-                        }`);
+                const preHealIssues = collectRequiredContractArtIssues(generatedImages, makerAssetContract);
+                if (preHealIssues.length > 0) {
+                    const healResult = await healRequiredContractArt(
+                        generatedImages,
+                        assetRequests,
+                        makerAssetContract,
+                        { shouldCancel: artistCancel },
+                    );
+                    generatedImages = healResult.batchResult;
+                    if (healResult.passes > 0) {
+                        const healedSlots = healResult.healLog
+                            .filter((entry) => entry.ok)
+                            .map((entry) => entry.slotId)
+                            .filter(Boolean);
+                        if (healResult.healed) {
+                            console.log(`[Artist Heal] Recovered required art after ${healResult.passes} pass(es)${healedSlots.length ? `: ${healedSlots.join(', ')}` : ''}`);
+                        } else {
+                            console.warn(`[Artist Heal] Still missing required art after ${healResult.passes} pass(es): ${
+                                (healResult.remainingIssues || []).map((entry) => entry.key || entry.id).join(', ')
+                            }`);
+                        }
                     }
+                } else if (Number(generatedImages?.fallbackCount) === 0) {
+                    console.log('[Artist Heal] Skipped — required contract art already satisfied after batch');
                 }
                 generatedAssets = compileDreamAssetBundle(generatedImages, assetPlan);
-                attachMakerAssetManifest(generatedAssets, {
+                await finalizeMakerArtistPhase({
+                    workspace: makerWorkspace,
+                    generatedAssets,
                     assetContract: makerAssetContract,
                     templateContract: makerTemplateContract,
                     qualityIntent,
                 });
                 assertJobNotCancelled(jobId);
-                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets, makerAssetContract);
-                assertRequiredContractArt(generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
-                await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
                 await reportProgress(42, 'assets', 'Visual assets prepared...');
                 
                 console.log(`✅ Artist Agent: Generated ${Object.keys(generatedAssets.assets).length} custom assets`);
@@ -5645,20 +5645,51 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 }
             } catch (error) {
                 if (error?.code === 'REQUIRED_BACKGROUND_ART_FAILED'
-                    || error?.code === 'REQUIRED_CONTRACT_ART_FAILED') {
+                    || error?.code === 'REQUIRED_CONTRACT_ART_FAILED'
+                    || error?.code === PHASE2_ASSET_PACK_INCOMPLETE) {
                     throw error;
                 }
-                console.error(`❌ Artist Agent failed:`, error.message);
-                console.log(`   Falling back to procedural generation`);
-                generatedAssets = null;
-                const failedAssetManifest = attachMakerAssetManifest(null, {
-                    assetContract: makerAssetContract,
-                    templateContract: makerTemplateContract,
-                    qualityIntent,
-                    errors: [{ phase: 'asset_generation', message: error.message }],
-                }).makerAssetManifest;
-                await writeMakerJson(makerWorkspace, 'asset-manifest.json', failedAssetManifest);
-                await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssetManifest(failedAssetManifest));
+                const batchHadFluxArt = dreamAssetPlan && generatedImages
+                    && Number(generatedImages.fallbackCount) === 0
+                    && Array.isArray(generatedImages.assetPack)
+                    && generatedImages.assetPack.some((entry) => String(entry?.url || '').startsWith('data:image/'));
+                if (batchHadFluxArt) {
+                    console.warn(`[Artist Agent] Post-batch step failed (${error.message}); keeping generated pack and continuing`);
+                    try {
+                        generatedAssets = compileDreamAssetBundle(generatedImages, dreamAssetPlan);
+                        await finalizeMakerArtistPhase({
+                            workspace: makerWorkspace,
+                            generatedAssets,
+                            assetContract: makerAssetContract,
+                            templateContract: makerTemplateContract,
+                            qualityIntent,
+                            errors: [{ phase: 'asset_generation', message: error.message }],
+                        });
+                        await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
+                        await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
+                    } catch (recoveryError) {
+                        if (recoveryError?.code === 'REQUIRED_BACKGROUND_ART_FAILED'
+                            || recoveryError?.code === 'REQUIRED_CONTRACT_ART_FAILED'
+                            || recoveryError?.code === PHASE2_ASSET_PACK_INCOMPLETE) {
+                            throw recoveryError;
+                        }
+                        console.error(`❌ Artist Agent failed after batch recovery:`, recoveryError.message);
+                        generatedAssets = null;
+                    }
+                }
+                if (!generatedAssets) {
+                    console.error(`❌ Artist Agent failed:`, error.message);
+                    console.log(`   Falling back to procedural generation`);
+                    generatedAssets = null;
+                    const failedAssetManifest = attachMakerAssetManifest(null, {
+                        assetContract: makerAssetContract,
+                        templateContract: makerTemplateContract,
+                        qualityIntent,
+                        errors: [{ phase: 'asset_generation', message: error.message }],
+                    }).makerAssetManifest;
+                    await writeMakerJson(makerWorkspace, 'asset-manifest.json', failedAssetManifest);
+                    await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssetManifest(failedAssetManifest));
+                }
             }
         }
 
@@ -5712,6 +5743,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const assetBundle = null; // Completely disabled
         
         assertJobNotCancelled(jobId);
+
+        assertMakerAssetsReadyForPhase2({
+            generatedAssets,
+            assetContract: makerAssetContract,
+            artistWasRequired: shouldRunArtistAgent && hasMakerAssetSlots,
+        });
 
         // ── PHASE 2: KIMI BUILDS THE GAME ──
         console.log(`🔨 Phase 2/3: ${DREAM_MODELS.premiumBuilder} building...`);
@@ -5795,29 +5832,34 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                         return false;
                     },
                 });
-                const requestedHeal = await healRequiredContractArt(
-                    requestedImages,
-                    projectBuild.assetRequests,
-                    makerAssetContract,
-                    {
-                        shouldCancel: async () => {
-                            await assertJobNotCancelledShared(jobId, { force: true });
-                            return false;
+                let requestedBatch = requestedImages;
+                const requestedPreHealIssues = collectRequiredContractArtIssues(requestedBatch, makerAssetContract);
+                if (requestedPreHealIssues.length > 0) {
+                    const requestedHeal = await healRequiredContractArt(
+                        requestedBatch,
+                        projectBuild.assetRequests,
+                        makerAssetContract,
+                        {
+                            shouldCancel: async () => {
+                                await assertJobNotCancelledShared(jobId, { force: true });
+                                return false;
+                            },
                         },
-                    },
-                );
-                const requestedBundle = compileDreamAssetBundle(requestedHeal.batchResult, requestPlan);
+                    );
+                    requestedBatch = requestedHeal.batchResult;
+                }
+                const requestedBundle = compileDreamAssetBundle(requestedBatch, requestPlan);
                 generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
-                attachMakerAssetManifest(generatedAssets, {
+                await finalizeMakerArtistPhase({
+                    workspace: makerWorkspace,
+                    generatedAssets,
                     assetContract: makerAssetContract,
                     templateContract: makerTemplateContract,
                     qualityIntent,
                 });
-                await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets, makerAssetContract);
-                assertRequiredContractArt(generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
-                await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
+                await materializeMakerAssetsForProject(makerProject.projectRoot, generatedAssets, { workspace: makerWorkspace });
                 makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
 

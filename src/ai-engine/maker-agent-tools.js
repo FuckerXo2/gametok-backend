@@ -53,8 +53,8 @@ const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
     Math.min(12000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 6000)),
 );
 const REPAIR_MAX_TOOL_CALLS = Math.max(
-    8,
-    Math.min(24, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 18)),
+    18,
+    Math.min(40, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 28)),
 );
 const REPAIR_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
