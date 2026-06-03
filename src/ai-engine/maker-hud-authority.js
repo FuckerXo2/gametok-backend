@@ -1,5 +1,3 @@
-import { isTimedOrderCookingLane } from './maker-lane-scaffolds.js';
-
 function asArray(value) {
     return Array.isArray(value) ? value : [];
 }
@@ -30,9 +28,6 @@ export function normalizeHudDesignForFoundation(foundation = {}, qualityIntent =
         || qualityIntent?.hudPlan,
     );
     if (hudPlan) return hudPlan;
-    if (isTimedOrderCookingLane(foundation)) {
-        return 'Minimal shift HUD: score and order timer only when playing; hide on game over.';
-    }
     return 'Minimal mobile HUD: only stats required by the core loop; match game art style; no generic dev chips.';
 }
 
@@ -70,7 +65,7 @@ export function resolveHudAuthority(foundation = {}) {
 
     const uiAuthority = asString(foundation.uiAuthority, '').toLowerCase();
     if (uiAuthority === 'canvas') return 'canvas';
-    if (isTimedOrderCookingLane(foundation) || uiAuthority === 'hybrid-zoned') return 'agent';
+    if (uiAuthority === 'hybrid-zoned' || uiAuthority === 'dom') return 'agent';
     return 'agent';
 }
 

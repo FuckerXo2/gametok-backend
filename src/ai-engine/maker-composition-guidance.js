@@ -1,4 +1,3 @@
-import { isTimedOrderCookingLane } from './maker-lane-scaffolds.js';
 import { resolveHudAuthority } from './maker-hud-authority.js';
 
 function asArray(value) {
@@ -38,51 +37,41 @@ const PREMIUM_VISUAL_RULES = [
     'Touch targets at least 44px; bottom pantry strip feels intentional, not cramped debug UI',
 ];
 
-const COOKING_LAYOUT_RULES = [
-    'Background and character staging on canvas; interactive pantry, slots, and COOK on DOM OR all on canvas — pick one authority per zone, never both',
-    'Customer order bubble icons must reference the same asset keys as pantry ingredient cards',
-    'When screenPhase is SHIFT_END or GAME_OVER, hide order station, pantry, and duplicate HUD labels',
-    'Use one headline for end states — do not show BLEH, Game Over, and Shift Over at once',
-];
-
-const COOKING_ZONES = [
-    { id: 'world', purpose: 'Background + character staging', layer: 'canvas', region: 'upper-60%' },
-    { id: 'orderStation', purpose: 'Customer bubble, cauldron slots, cook action', layer: 'dom', region: 'center' },
-    { id: 'pantry', purpose: 'Ingredient picker (touch/drag)', layer: 'dom', region: 'bottom-strip' },
-    { id: 'hud', purpose: 'Agent-designed minimal shift HUD', layer: 'agent', region: 'top-safe', maxElements: 4 },
-];
-
 export function inferDefaultLayoutComposition(foundation = {}) {
     const architectScreenStates = asArray(foundation.screenStates);
     const flowFromArchitect = architectScreenStates.length
         ? architectScreenStates
         : asArray(foundation.stateFlow);
-    const hasShiftFlow = flowFromArchitect.some((state) => /shift|round|wave/i.test(String(state)));
+    const architectLayout = foundation.layoutComposition && typeof foundation.layoutComposition === 'object'
+        ? foundation.layoutComposition
+        : null;
+    const architectZones = asArray(architectLayout?.zones);
+    const architectRules = asArray(architectLayout?.layoutRules);
 
-    if (isTimedOrderCookingLane(foundation)) {
+    if (architectZones.length > 0) {
         return {
-            uiAuthority: 'hybrid-zoned',
-            screenStateKey: 'screenPhase',
-            screenStates: hasShiftFlow && flowFromArchitect.length >= 2
-                ? flowFromArchitect
-                : ['PLAYING', 'SHIFT_END', 'GAME_OVER'],
-            zones: COOKING_ZONES,
-            layoutRules: COOKING_LAYOUT_RULES,
+            uiAuthority: asString(foundation.uiAuthority, architectLayout?.uiAuthority || 'agent-designed'),
+            screenStateKey: asString(foundation.screenStateKey, 'screenPhase'),
+            screenStates: flowFromArchitect.length >= 2 ? flowFromArchitect : ['PLAYING', 'GAME_OVER'],
+            zones: architectZones,
+            layoutRules: architectRules.length ? architectRules : [
+                'Only one screen state visible at a time',
+                'Do not duplicate the same HUD on canvas and DOM',
+            ],
         };
     }
+
     return {
-        uiAuthority: 'agent-designed',
-        screenStateKey: 'screenPhase',
-        screenStates: asArray(foundation.stateFlow).length >= 2
-            ? asArray(foundation.stateFlow)
-            : ['PLAYING', 'GAME_OVER'],
+        uiAuthority: asString(foundation.uiAuthority, 'agent-designed'),
+        screenStateKey: asString(foundation.screenStateKey, 'screenPhase'),
+        screenStates: flowFromArchitect.length >= 2 ? flowFromArchitect : ['PLAYING', 'GAME_OVER'],
         zones: [
             { id: 'world', purpose: 'Gameplay world', layer: 'canvas', region: 'full-bleed' },
             { id: 'hud', purpose: 'Minimal custom HUD', layer: 'agent', region: 'top-safe', maxElements: 4 },
         ],
         layoutRules: [
             'You design HUD in index.html + styles.css + drawHud() — only stats this game needs; match pixel/art style',
-            'Prefer corner panels and meters (fuel bar, distance readout) over three identical top pills',
+            'Prefer corner panels and meters over three identical top pills',
             'Only one screen state visible at a time',
         ],
     };
@@ -185,12 +174,12 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
         `- HUD authority: ${hudAuthority}. #hud is an empty mount — YOU design markup + CSS + drawHud() (competitor bar: Astrocade — only what is needed, corners/meters, match game art).`,
         ...(hudDesign ? [`- HUD brief: ${hudDesign}`] : []),
         '- Forbidden: three identical generic slate stat pills; Score+Time+Fuel defaults; duplicate same stat on canvas and DOM.',
-        '- Hide pantry, slots, order bubble, and HUD chrome when gameOver or end-state screen is active.',
+        '- Hide gameplay chrome and HUD when gameOver or end-state screen is active.',
         '- One end-state headline per screen — no stacked Shift Over + Game Over + status spam.',
         'VISUAL PREMIUM (competitor bar — art must feel shipped, not debug):',
         '- Frame 1 MUST drawImage the generated background (background1/background role) full-bleed — never ship flat slate/navy gradients if DREAM_IMAGES has background art.',
         '- Preserve or reimplement resolveBackgroundImage() + cover-scale drawImage before entities/HUD.',
-        '- Pantry cards, order icons, and HUD chips share one palette/radius/spacing system tied to artDirection.',
+        '- HUD and world UI share one palette/radius/spacing system tied to artDirection.',
     ];
     const rules = composition.layoutComposition?.layoutRules || [];
     for (const rule of rules.slice(0, 5)) {

@@ -9,7 +9,6 @@ import {
     MAKER_AGENT_TURN_MODE_REPAIR,
 } from './maker-agent-tools.js';
 import { buildCompositionGuidancePromptBlock, summarizeCompositionForImplement } from './maker-composition-guidance.js';
-import { summarizeLaneScaffoldForImplement } from './maker-lane-scaffolds.js';
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
 
 function extractJson(text) {
@@ -87,7 +86,6 @@ function summarizeFoundationForImplement(foundation = null) {
         implementationNotes: foundation.implementationNotes || [],
         hudDesign: foundation.hudDesign || null,
         composition: summarizeCompositionForImplement(foundation),
-        laneRequirements: summarizeLaneScaffoldForImplement(foundation),
         assetSlots: Array.isArray(foundation.assetSlots)
             ? foundation.assetSlots.map((slot) => ({
                 id: slot?.id || slot?.role || null,

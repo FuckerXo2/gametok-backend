@@ -96,7 +96,7 @@ import {
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
 import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
-import { stripCookingStateLeaksFromSource } from './maker-lane-scaffolds.js';
+import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -4537,7 +4537,7 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
         const mainPath = path.join(projectRoot, 'src', 'main.ts');
         const before = await fs.promises.readFile(mainPath, 'utf8').catch(() => null);
         if (before != null) {
-            const repair = stripCookingStateLeaksFromSource(before, { lane: '' });
+            const repair = stripCookingStateLeaksFromSource(before, { requiredState: [] });
             if (repair.changed) {
                 await fs.promises.writeFile(mainPath, repair.content, 'utf8');
                 applied.push({
@@ -4618,6 +4618,7 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                 assetContract,
                 allowedKeys: packKeys,
                 foundationLane: foundationLane || assetContract?.lane || templateContract?.lane || null,
+                foundationRequiredState: templateContract?.foundation?.requiredState || [],
             });
             if (preflightRepairs.length > 0) {
                 console.warn(`[Maker AutoRepair] Applied deterministic preflight fixes: ${preflightRepairs.map((entry) => `${entry.path}:${entry.type}${entry.keys ? `(${entry.keys.join(',')})` : ''}`).join(', ')}`);

@@ -5,12 +5,22 @@ import {
     normalizeHudDesignForFoundation,
     usesKernelHudScaffold,
 } from './maker-hud-authority.js';
-import {
-    inferFoundationStateInitializer,
-    isTimedOrderCookingLane,
-    mergeLaneRequiredState,
-    stripCookingStateLeaksFromSource,
-} from './maker-lane-scaffolds.js';
+import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
+
+function inferFoundationStateInitializer(key = '', foundation = {}) {
+    if (key === 'screenPhase' || key === 'screenState') return "'PLAYING'";
+    if (key === 'pantry' || key === 'particles' || key === 'customers' || key === 'ingredients') return '[]';
+    if (key === 'cauldronSlots' || key === 'slots') return '[null, null, null]';
+    if (key === 'drag') return 'null';
+    if (key === 'activeOrder' || key === 'currentCustomer') return 'null';
+    if (key === 'customerExpression' || key === 'customerType' || key === 'cookFeedback') return "''";
+    if (key === 'gameOver' || key.startsWith('is')) return 'false';
+    if (key === 'combo' || key === 'comboMultiplier') return '1';
+    if (key === 'score' || key.endsWith('Count')) return '0';
+    if (/Flash|Cooldown|Timer|Patience|shift|order|bubble|time|Time|Remaining|Duration/i.test(key)) return '0';
+    if (key.endsWith('[]')) return '[]';
+    return 'null';
+}
 
 function asArray(value) {
     return Array.isArray(value) ? value : [];
@@ -171,7 +181,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
     const assetSlots = asArray(source.assetSlots);
     const entityBlueprints = asArray(source.entityBlueprints);
 
-    const merged = mergeCompositionGuidance(mergeLaneRequiredState({
+    const merged = mergeCompositionGuidance({
         version: 1,
         source: 'gametok-foundation-architect',
         foundationId: slugify(source.foundationId || qualityIntent.title || 'dynamic_game'),
@@ -209,7 +219,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         assetSlots: assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints),
         statusCopy: asString(source.statusCopy, 'Tap to play!'),
         userIntent: qualityIntent.userIntent || null,
-    }));
+    });
 
     return {
         ...merged,
@@ -495,7 +505,6 @@ function jsString(value = '') {
 }
 
 export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
-    const cookingLane = isTimedOrderCookingLane(foundation);
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
     const hudBlocks = asArray(foundation.hudBlocks);
     const useHudScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
@@ -688,9 +697,7 @@ export function resetGame() {
   state.gameOver = false;
   state.started = false;
   state.lastTick = performance.now();
-${cookingLane ? `  if (Array.isArray(state.cauldronSlots)) state.cauldronSlots = [null, null, null];
-  if (Array.isArray(state.pantry)) state.pantry.length = 0;
-` : ''}  renderAll();
+  renderAll();
 }
 
 function gameLoop(now) {

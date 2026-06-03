@@ -5,7 +5,7 @@ import {
     applyDuplicateHudCanvasRepairs,
     detectDuplicateHudRendering,
 } from './maker-hud-authority.js';
-import { stripCookingStateLeaksFromSource } from './maker-lane-scaffolds.js';
+import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 
 async function readTextIfExists(filePath) {
     try {
@@ -435,7 +435,9 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     const isCookingFoundation = /cook|pantry|diner|ingredient|cauldron|order/i.test(foundationLane);
     const cookingOnlyStateKeys = new Set(['pantry', 'cauldronSlots', 'cookingSlots', 'orderQueue']);
 
-    const cookingLeakRepair = stripCookingStateLeaksFromSource(source, { lane: foundationLane });
+    const cookingLeakRepair = stripCookingStateLeaksFromSource(source, {
+        requiredState: options.foundationRequiredState || [],
+    });
     if (cookingLeakRepair.changed) {
         source = cookingLeakRepair.content;
         await fs.writeFile(mainPath, source, 'utf8');
