@@ -22,6 +22,7 @@
     "check:foundation-stub": "node scripts/check-foundation-stub.mjs",
     "check:foundation-stub:compile": "node scripts/check-foundation-stub.mjs --compile",
     "benchmark:sekai": "node scripts/gametok-maker-benchmark.js",
+    "golden:highway": "node scripts/golden-highway-run.mjs",
     "maker": "node scripts/gametok-maker.js",
     "maker:env": "node scripts/gametok-maker.js env",
     "maker:inspect": "node scripts/gametok-maker.js inspect",
