@@ -11,7 +11,7 @@ async function walkDir(dir, fileList = []) {
     const files = await fs.promises.readdir(dir);
     for (const file of files) {
         // Skip ignored directories
-        if (file === 'node_modules' || file === 'dist' || file === '.git' || file === '.vite') {
+        if (file === 'node_modules' || file === 'dist' || file === '.git') {
             continue;
         }
         

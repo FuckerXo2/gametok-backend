@@ -13,7 +13,7 @@ import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, ge
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
-import { buildAssetPlanFromMakerContract, buildDreamAssetPlan, buildStructuredAssetToolRequest, buildTilesetPlan, compileDreamAssetBundle, findUserBgmAttachment, resolveDreamAudioForJob } from './asset-pipeline.js';
+import { buildAssetPlanFromMakerContract, buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle, findUserBgmAttachment, resolveDreamAudioForJob } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
 import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
@@ -109,8 +109,6 @@ import {
     useDynamicFoundation,
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
-import { applyLaneToFoundationContract, selectMakerLane } from './maker-lane-library.js';
-import { buildMakerScaffoldForLane } from './maker-scaffold-router.js';
 import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
@@ -5447,7 +5445,6 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     let makerAcceptanceResult = null;
     let makerBuilderMaps = null;
     let makerFoundationContract = null;
-    let makerLaneSelection = null;
     const makerAgentTurns = [];
     try {
         assertJobNotCancelled(jobId);
@@ -5493,21 +5490,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         }
         assertJobNotCancelled(jobId);
 
-        makerLaneSelection = selectMakerLane(prompt, qualityIntent);
-        await writeMakerJson(makerWorkspace, 'maker-lane.json', {
-            selected: makerLaneSelection,
-            generatedAt: new Date().toISOString(),
-        });
-        console.log(
-            `📚 [Maker Lane] libraryLane=${makerLaneSelection.laneId} engine=${makerLaneSelection.engine}`
-            + ` scaffold=${makerLaneSelection.scaffoldTemplateId} score=${makerLaneSelection.score}`
-            + (makerLaneSelection.runnersUp?.length ? ` alt=${makerLaneSelection.runnersUp.map((r) => `${r.laneId}:${r.score}`).join(',')}` : ''),
-        );
-
         if (dynamicFoundation) {
             await reportProgress(14, 'foundation', 'Designing game foundation...');
             console.log(`🏗️ Phase 1.5/3: ${getDreamTextModelLabel()} architecting dynamic foundation...`);
-            const foundationPrompt = buildFoundationAgentPrompt(qualityIntent, prompt, makerLaneSelection);
+            const foundationPrompt = buildFoundationAgentPrompt(qualityIntent, prompt);
             await writeMakerText(makerWorkspace, 'logs/foundation-agent-prompt.txt', `${foundationPrompt.system}\n\n---\n\n${foundationPrompt.user}`);
             let rawFoundation;
             try {
@@ -5515,17 +5501,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             } catch (foundationError) {
                 throw new Error(`Phase 1.5 foundation architect failed after exhausting text keys/models: ${foundationError?.message || foundationError}`);
             }
-            makerFoundationContract = applyLaneToFoundationContract(
-                normalizeFoundationContract(rawFoundation, qualityIntent),
-                makerLaneSelection,
-            );
+            makerFoundationContract = normalizeFoundationContract(rawFoundation, qualityIntent);
             assertFoundationSupported(makerFoundationContract);
             await writeMakerJson(makerWorkspace, 'foundation-contract.json', makerFoundationContract);
             makerTemplateContract = buildMakerTemplateContractFromFoundation(makerFoundationContract, qualityIntent);
             makerAssetContract = buildMakerAssetContractFromFoundation(makerFoundationContract, qualityIntent);
             console.log(`✅ Phase 1.5: "${makerFoundationContract.title}" foundation=${makerFoundationContract.foundationId} lane=${makerFoundationContract.lane} probes=${makerFoundationContract.probeMethods.length}`);
-            if (process.env.GAMETOK_SKIP_STUB_PREFLIGHT !== 'true'
-                && String(makerFoundationContract.engine || '').toLowerCase() !== 'phaser-tilemap') {
+            if (process.env.GAMETOK_SKIP_STUB_PREFLIGHT !== 'true') {
                 console.log('🧪 Foundation stub preflight: validating generated main.ts stub (static + tsc) before artist...');
                 await runFoundationStubPreflight(makerFoundationContract, qualityIntent);
                 console.log('✅ Foundation stub preflight passed');
@@ -5549,8 +5531,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
         if (dynamicFoundation && makerFoundationContract) {
             console.log(`   Foundation: ${makerFoundationContract.foundationId} lane=${makerFoundationContract.lane} engine=${makerFoundationContract.engine}`);
-            const scaffoldId = makerLaneSelection?.scaffoldTemplateId || 'canvas-kernel';
-            console.log(`   Scaffold: ${scaffoldId} (library lane ${makerLaneSelection?.laneId || makerFoundationContract.libraryLaneId || 'unknown'})`);
+            console.log(`   Kernel: canvas-kernel (AI-designed contract, shared runtime)`);
         } else {
             console.log(`   Template: ${makerTemplateContract.templateId} (${makerTemplateContract.engine})`);
         }
@@ -5589,18 +5570,6 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     assetPlan = mergeMakerAssetContractIntoPlan(assetPlan, makerAssetContract);
                 }
                 dreamAssetPlan = assetPlan;
-                if (makerLaneSelection?.requiresTileset) {
-                    const specText = [
-                        prompt,
-                        qualityIntent?.playableExperience?.coreLoop,
-                        qualityIntent?.title,
-                    ].filter(Boolean).join(' ');
-                    const tilesets = buildTilesetPlan(qualityIntent, specText);
-                    if (tilesets.length > 0) {
-                        dreamAssetPlan.tilesets = tilesets;
-                        assetPlan.tilesets = tilesets;
-                    }
-                }
                 const assetToolRequest = buildStructuredAssetToolRequest(assetPlan, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-plan.json', {
                     source: assetPlan.source || null,
@@ -5747,7 +5716,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
         const makerTemplateScaffold = dynamicFoundation && makerFoundationContract
-            ? await buildMakerScaffoldForLane(makerFoundationContract, qualityIntent, makerLaneSelection)
+            ? await buildKernelScaffold(makerFoundationContract, qualityIntent)
             : await loadMakerTemplateScaffold(makerTemplateContract.templateId);
         if (makerTemplateScaffold) {
             await writeMakerJson(makerWorkspace, 'template-scaffold.json', summarizeMakerTemplateScaffold(makerTemplateScaffold));

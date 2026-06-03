@@ -207,26 +207,13 @@ export async function preparePhase2ProjectAssets({
         }
     }
 
-    let wiringRepairs = [];
-    if (projectRoot) {
-        let mainSource = '';
-        try {
-            mainSource = await fs.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8');
-        } catch {
-            mainSource = '';
-        }
-        const isPhaserProject = /from\s+['"]phaser['"]/i.test(mainSource)
-            || /new\s+Phaser\.Game/i.test(mainSource);
-        if (!isPhaserProject) {
-            wiringRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
-                allowedKeys,
-                assetContract,
-                generatedAssets,
-            });
-        } else if (jobId) {
-            console.log(`📦 [Phase 2 job=${jobId}] Phaser scaffold — skipping canvas main.ts wiring injectors`);
-        }
-    }
+    const wiringRepairs = projectRoot
+        ? await applyMainTsAssetWiringRepairs(projectRoot, {
+            allowedKeys,
+            assetContract,
+            generatedAssets,
+        })
+        : [];
 
     if (jobId && wiringRepairs.length > 0) {
         console.log(
