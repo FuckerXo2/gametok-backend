@@ -149,6 +149,32 @@ export async function loadDreamAssets(): Promise<void> {
     assignAlias(`item${index + 1}`, sourceKey);
   });
 
+  const propAssets = pack
+    .filter((asset: DreamAsset) => {
+      const role = String(asset.role || asset.category || '').toLowerCase();
+      return role === 'prop' || /^prop\d+$/i.test(String(asset.key || asset.id || ''));
+    })
+    .sort((a: DreamAsset, b: DreamAsset) => String(a.key || a.id).localeCompare(String(b.key || b.id), undefined, { numeric: true }));
+
+  propAssets.forEach((asset: DreamAsset, index: number) => {
+    const sourceKey = String(asset.key || asset.id || asset.runtimeKey || '');
+    assignAlias(`prop${index + 1}`, sourceKey);
+    if (asset.key && asset.key !== sourceKey) assignAlias(String(asset.key), sourceKey);
+  });
+
+  const obstacleAssets = pack
+    .filter((asset: DreamAsset) => {
+      const role = String(asset.role || asset.category || '').toLowerCase();
+      return role === 'obstacle' || /^obstacle\d+$/i.test(String(asset.key || asset.id || ''));
+    })
+    .sort((a: DreamAsset, b: DreamAsset) => String(a.key || a.id).localeCompare(String(b.key || b.id), undefined, { numeric: true }));
+
+  obstacleAssets.forEach((asset: DreamAsset, index: number) => {
+    const sourceKey = String(asset.key || asset.id || asset.runtimeKey || '');
+    assignAlias(`obstacle${index + 1}`, sourceKey);
+    if (asset.key && asset.key !== sourceKey) assignAlias(String(asset.key), sourceKey);
+  });
+
   installDreamAssetUsageTracker();
 }
 

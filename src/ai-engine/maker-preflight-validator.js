@@ -461,6 +461,28 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
         });
     }
 
+    const assetIssues = (preflight.issues || []).filter((issue) => [
+        'preflight_required_asset_slots_unreferenced',
+        'preflight_asset_key_missing_from_pack',
+        'preflight_background_not_wired',
+        'preflight_item_not_wired',
+        'preflight_prop_not_wired',
+        'preflight_obstacle_not_wired',
+    ].includes(issue.id));
+    if (assetIssues.length > 0) {
+        const assetRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
+            allowedKeys: allowedKeys.length > 0 ? allowedKeys : undefined,
+            assetContract: options.assetContract || null,
+            generatedAssets: options.generatedAssets || null,
+        });
+        for (const repair of assetRepairs) {
+            applied.push(repair);
+        }
+        if (assetRepairs.length > 0) {
+            source = await readTextIfExists(mainPath);
+        }
+    }
+
     const stubMaxBytes = Math.max(
         4000,
         Number(process.env.GAMETOK_MAKER_STUB_MAX_BYTES || 12000),
@@ -479,26 +501,6 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
             from: 'duplicate state keys (pre-repair)',
             to: initialDedupe.removed.join(', '),
         });
-    }
-
-    const assetIssues = (preflight.issues || []).filter((issue) => [
-        'preflight_required_asset_slots_unreferenced',
-        'preflight_asset_key_missing_from_pack',
-        'preflight_background_not_wired',
-        'preflight_item_not_wired',
-    ].includes(issue.id));
-    if (assetIssues.length > 0) {
-        const assetRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
-            allowedKeys: allowedKeys.length > 0 ? allowedKeys : undefined,
-            assetContract: options.assetContract || null,
-            generatedAssets: options.generatedAssets || null,
-        });
-        for (const repair of assetRepairs) {
-            applied.push(repair);
-        }
-        if (assetRepairs.length > 0) {
-            source = await readTextIfExists(mainPath);
-        }
     }
 
     for (const issue of preflight.issues || []) {
@@ -808,6 +810,42 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             severity: 'critical',
             message: 'Generated item/gas pickup art exists in the pack, but src/main.ts never draws item sprites with ctx.drawImage(getAssetImage(...)).',
             repair: 'Spawn lane pickups/collectibles and draw item1/item2 (or item role assets) each frame in renderAll. Do not use flat placeholder shapes when generated gas/item art exists.',
+        });
+    }
+
+    const requiresPropArt = requiredSlots.some((slot) => slot.required && (
+        slot.role === 'prop'
+        || slot.category === 'prop'
+        || /^prop\d+$/i.test(String(slot.id || ''))
+    ));
+    const packHasPropArt = packFacts.roles.has('prop')
+        || [...packFacts.keys].some((key) => /^prop\d*$/i.test(String(key)));
+    const wiresPropRenderer = /__gtDrawProps|__gtPropAssetKeys|drawImage\([^;]{0,200}getAssetImage\(\s*['"`]prop/i.test(source)
+        || /firstByRole\(\s*['"`]prop['"`]\s*\)[^;{]*drawImage/is.test(source);
+    if (requiresPropArt && packHasPropArt && hasVisualAssets && !wiresPropRenderer) {
+        issues.push({
+            id: 'preflight_prop_not_wired',
+            severity: 'critical',
+            message: 'Generated prop/hazard art exists in the pack, but src/main.ts never draws prop sprites during renderAll.',
+            repair: 'Draw prop1/prop2 (or prop role assets) with getAssetImage + ctx.drawImage in the gameplay render loop.',
+        });
+    }
+
+    const requiresObstacleArt = requiredSlots.some((slot) => slot.required && (
+        slot.role === 'obstacle'
+        || slot.category === 'obstacle'
+        || /^obstacle\d+$/i.test(String(slot.id || ''))
+    ));
+    const packHasObstacleArt = packFacts.roles.has('obstacle')
+        || [...packFacts.keys].some((key) => /^obstacle\d*$/i.test(String(key)));
+    const wiresObstacleRenderer = /__gtDrawHazards|__gtObstacleAssetKeys|drawImage\([^;]{0,200}getAssetImage\(\s*['"`]obstacle/i.test(source)
+        || /firstByRole\(\s*['"`]obstacle['"`]\s*\)[^;{]*drawImage/is.test(source);
+    if (requiresObstacleArt && packHasObstacleArt && hasVisualAssets && !wiresObstacleRenderer) {
+        issues.push({
+            id: 'preflight_obstacle_not_wired',
+            severity: 'critical',
+            message: 'Generated obstacle art exists in the pack, but src/main.ts never draws obstacle sprites during renderAll.',
+            repair: 'Draw obstacle1/obstacle2 (or obstacle role assets) with getAssetImage + ctx.drawImage in the gameplay render loop.',
         });
     }
 

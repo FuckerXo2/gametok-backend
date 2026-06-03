@@ -145,8 +145,8 @@ async function resolveGeneratedAssetDataUri(dataUri, request, label = 'asset') {
         environment: 'background',
         background: 'background',
         ui: 'ui',
-        prop: 'item',
-        obstacle: 'item',
+        prop: 'prop',
+        obstacle: 'obstacle',
     };
     const spriteType = assetType === 'background' ? 'background' : (typeMap[category] || 'character');
     try {
@@ -788,6 +788,8 @@ function buildSpritePrompt(description, type = 'character', wantsTransparent = f
         character: 'professional mobile game sprite, character design, centered, full body view, clean silhouette, game asset style',
         vehicle: 'professional mobile game sprite, vehicle design, centered, readable silhouette, game asset style',
         item: 'professional mobile game sprite, item design, centered, clean silhouette, game asset style',
+        prop: 'professional mobile game sprite, road hazard or scenery prop, centered, clean silhouette, game asset style',
+        obstacle: 'professional mobile game sprite, hazard or obstacle object, centered, clean silhouette, game asset style',
         enemy: 'professional mobile game sprite, creature or opponent design, centered, full body view, clean silhouette, game asset style',
         background: 'premium mobile game environment background, rich layered scenery, atmospheric depth, polished App Store game art, cinematic composition, vivid color',
         ui: 'professional mobile game icon or decorative UI source art, clean design, game asset style',

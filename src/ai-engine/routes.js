@@ -26,6 +26,7 @@ import {
     isMakerFactoryMinimalMode,
     resolveMakerAgentImplementTurns,
     resolveMakerAgentInspectionTurns,
+    shouldBlockOnPreflight,
 } from './maker-factory-mode.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
@@ -88,7 +89,7 @@ import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { buildForgeAutoscaleReport, runForgeAutoscaleTick, isForgeAutoscaleEnabled } from './forge-autoscale.js';
-import { analyzeMakerAssetQuality, assertRequiredBackgroundArt, summarizeMakerAssetQuality } from './maker-asset-quality.js';
+import { analyzeMakerAssetQuality, assertRequiredContractArt, summarizeMakerAssetQuality } from './maker-asset-quality.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 import {
@@ -341,8 +342,8 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 4)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-function getMakerAgentInspectionTurns() {
-    return resolveMakerAgentInspectionTurns();
+function getMakerAgentInspectionTurns(assetSlotCount = 0) {
+    return resolveMakerAgentInspectionTurns(assetSlotCount);
 }
 const SKIP_TURN1_PRERUN_EVIDENCE = String(process.env.GAMETOK_MAKER_SKIP_TURN1_PRERUN_EVIDENCE || 'true').toLowerCase() !== 'false';
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
@@ -4662,7 +4663,7 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                 });
             }
         }
-        if (!preflight.success && !factoryMinimal) {
+        if (shouldBlockOnPreflight(preflight, factoryMinimal)) {
             const diagnostics = {
                 preflight,
                 failedContractChecks: preflight.issues.map((issue) => ({
@@ -4695,6 +4696,7 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
         if (!preflight.success && factoryMinimal) {
             const preview = preflight.issues
                 .filter((issue) => issue.severity === 'critical')
+                .filter((issue) => !shouldBlockOnPreflight({ issues: [issue] }, true))
                 .slice(0, 3)
                 .map((issue) => issue.id || issue.message)
                 .join(', ');
@@ -4722,8 +4724,10 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             });
             const assetRoleRepairs = (itemWiringRepairs[0]?.repairs || []);
             if (assetRoleRepairs.includes('injected_collectible_item_rendering')
+                || assetRoleRepairs.includes('injected_prop_rendering')
+                || assetRoleRepairs.includes('injected_obstacle_rendering')
                 || assetRoleRepairs.includes('injected_obstacle_prop_rendering')) {
-                console.warn('[Maker AutoRepair] Injected collectible/obstacle rendering after sandbox miss; re-verifying...');
+                console.warn('[Maker AutoRepair] Injected role rendering after sandbox miss; re-verifying...');
                 await rebuildMakerProjectDistWithAutoRepair(projectRoot);
                 const retryHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
                 const retryProbe = postProcessRawHtml(retryHtml, generatedAssets);
@@ -4814,7 +4818,7 @@ async function runMakerAgentInspectionTurns({
     designBrief,
     builderMaps = null,
     assetQuality = null,
-    maxTurns = getMakerAgentInspectionTurns(),
+    maxTurns = getMakerAgentInspectionTurns((assetContract?.slots || []).length),
     reportProgress = null,
 }) {
     const objectives = [
@@ -4835,6 +4839,14 @@ async function runMakerAgentInspectionTurns({
             slotHints: phase2AssetSlotHints,
         });
         console.log(`📦 [Phase 2 job=${jobId}] Wrote ${assetKeysManifest.path} (${assetKeysManifest.keyCount} runtime keys, ${phase2AssetSlotHints.length} contract slots)`);
+    }
+    const shiftLeftWiring = await applyMainTsAssetWiringRepairs(projectRoot, {
+        allowedKeys: phase2AllowedAssetKeys,
+        assetContract,
+        generatedAssets,
+    });
+    if (shiftLeftWiring.length > 0) {
+        console.log(`📦 [Phase 2 job=${jobId}] Shift-left asset wiring on scaffold: ${shiftLeftWiring[0]?.repairs?.join(', ') || 'ok'}`);
     }
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
@@ -5153,8 +5165,10 @@ async function runMakerAgentInspectionTurns({
                 });
                 const rescueRepairIds = rescueRepairs[0]?.repairs || [];
                 if (rescueRepairIds.includes('injected_collectible_item_rendering')
+                    || rescueRepairIds.includes('injected_prop_rendering')
+                    || rescueRepairIds.includes('injected_obstacle_rendering')
                     || rescueRepairIds.includes('injected_obstacle_prop_rendering')) {
-                    console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Agent stalled on item/obstacle role — applied deterministic asset wiring`);
+                    console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Agent stalled on asset role — applied deterministic wiring`);
                     runEvidence = await runMakerProjectEvidence({
                         workspace,
                         projectRoot,
@@ -5230,6 +5244,33 @@ async function runMakerAgentInspectionTurns({
         ].map((entry) => String(entry || ''));
         const needsStateDedupe = preThrowErrors.some((entry) => /TS1117/.test(entry))
             || preThrowErrors.some((entry) => /duplicate state|multiple properties with the same name/i.test(entry));
+        const needsGtDtStrip = preThrowErrors.some((entry) => /TS2448:.*\b'dt'\b/.test(entry));
+        if (needsGtDtStrip) {
+            const mainPath = path.join(projectRoot, 'src', 'main.ts');
+            const before = await fs.promises.readFile(mainPath, 'utf8').catch(() => null);
+            if (before != null) {
+                const stripped = stripGtWiringDtUpdateHooks(before);
+                if (stripped !== before) {
+                    await fs.promises.writeFile(mainPath, stripped, 'utf8');
+                    console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: stripped __gtUpdate* dt hooks (TS2448)`);
+                    try {
+                        lastRunEvidence = await runMakerProjectEvidence({
+                            workspace,
+                            projectRoot,
+                            generatedAssets,
+                            templateContract,
+                            assetContract,
+                            turnNumber: `${maxTurns}-final-dt-rescue`,
+                            phase: 'after_final_dt_hook_strip',
+                            allowedKeys: phase2AllowedAssetKeys,
+                            foundationLane: templateContract?.lane || assetContract?.lane || null,
+                        });
+                    } catch (rescueError) {
+                        console.warn(`🔧 [Phase 2 job=${jobId}] Final dt-hook rescue failed: ${rescueError.message}`);
+                    }
+                }
+            }
+        }
         const dedupeRepairs = await dedupeMakerMainTsState(projectRoot);
         if (needsStateDedupe || dedupeRepairs.length > 0) {
             if (dedupeRepairs.length > 0) {
@@ -5567,7 +5608,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 });
                 assertJobNotCancelled(jobId);
                 await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets, makerAssetContract);
-                assertRequiredBackgroundArt(generatedAssets, makerAssetContract);
+                assertRequiredContractArt(generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
@@ -5736,7 +5777,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     qualityIntent,
                 });
                 await analyzeAndWriteMakerAssetQuality(makerWorkspace, generatedAssets, makerAssetContract);
-                assertRequiredBackgroundArt(generatedAssets, makerAssetContract);
+                assertRequiredContractArt(generatedAssets, makerAssetContract);
                 await writeMakerJson(makerWorkspace, 'asset-manifest.json', generatedAssets.makerAssetManifest);
                 await writeMakerJson(makerWorkspace, 'asset-summary.json', summarizeMakerAssets(generatedAssets));
                 await writeMakerAssetRuntimeFiles(makerWorkspace, generatedAssets);
@@ -5829,9 +5870,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         let p3Success = false;
         const pendingRepairProtocolRecords = [];
         const phase2AgentLoopPassed = Boolean(phase2Evidence?.success) && useMakerAgentTools();
+        const phase2ContractChecksClean = !(phase2Evidence?.diagnostics?.failedContractChecks || []).length;
 
-        if (SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES && phase2AgentLoopPassed) {
-            console.log('✅ Phase 2 forge agent loop passed sandbox/build evidence — skipping Phase 3 JSON repair loop');
+        if (SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES && phase2AgentLoopPassed && phase2ContractChecksClean) {
+            console.log('✅ Phase 2 forge agent loop passed sandbox/build with clean contract checks — skipping Phase 3 JSON repair loop');
             await reportProgress(78, 'verify', 'Game verified in forge agent loop...');
             p3Success = true;
             finalSandboxResult = {

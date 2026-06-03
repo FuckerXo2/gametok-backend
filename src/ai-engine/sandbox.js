@@ -40,7 +40,7 @@ function getRenderedRoleCount(renderedRoles = {}, role = '', renderedKeys = {}) 
     }
     if (normalized === 'obstacle') {
         for (const [key, hits] of Object.entries(renderedKeys || {})) {
-            if (/^(obstacle|prop)\d*$/i.test(String(key))) {
+            if (/^obstacle\d*$/i.test(String(key))) {
                 count = Math.max(count, Number(hits || 0));
             }
         }
@@ -1066,7 +1066,7 @@ export async function verifyGame(htmlString, options = {}) {
             const helperCalls = Number(renderState.dreamAssetUsage?.helperCalls || 0);
             const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
             const renderedKeys = Object.keys(renderState.dreamAssetUsage?.renderedKeys || {});
-            const sourceUsesDreamAssets = /DreamAssets|DREAM_ASSETS|DREAM_ASSET_PACK|DREAM_ANIMATIONS/.test(sourceHtml);
+            const sourceUsesDreamAssets = /DreamAssets|DREAM_ASSETS|DREAM_ASSET_PACK|DREAM_ANIMATIONS|getAssetImage|DREAM_IMAGES/.test(sourceHtml);
             
             if (!sourceUsesDreamAssets && helperCalls === 0 && usedKeys.length === 0) {
                 const message = `Generated asset pack ignored: ${renderState.dreamAssetPackCount} image assets were injected, but the game source never references DreamAssets and no runtime asset fetches occurred. Use the custom asset pack for player, enemies, props, items, or backgrounds instead of placeholder shapes.`;

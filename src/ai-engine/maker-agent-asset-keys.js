@@ -244,10 +244,19 @@ function remapUnknownAssetKey(ref = '', allowedKeys = []) {
     if (GENERIC_ASSET_ROLE_WORDS.has(lower)) return key;
 
     if (/^prop\d+$/i.test(key)) {
-        return pickFirstMatchingKey(allowedKeys, /prop|ingredient|item/i) || allowedKeys[0] || key;
+        return pickFirstMatchingKey(allowedKeys, /^prop\d+/i)
+            || pickFirstMatchingKey(allowedKeys, /^prop/i)
+            || key;
+    }
+    if (/^obstacle\d+$/i.test(key)) {
+        return pickFirstMatchingKey(allowedKeys, /^obstacle\d+/i)
+            || pickFirstMatchingKey(allowedKeys, /^obstacle/i)
+            || key;
     }
     if (/^item\d+$/i.test(key)) {
-        return pickFirstMatchingKey(allowedKeys, /item|ingredient/i) || allowedKeys[0] || key;
+        return pickFirstMatchingKey(allowedKeys, /^item\d+/i)
+            || pickFirstMatchingKey(allowedKeys, /item|ingredient/i)
+            || key;
     }
     if (key === 'player1' || key === 'player') {
         return pickFirstMatchingKey(allowedKeys, /^player/i)
@@ -318,22 +327,45 @@ function collectRequiredAssetKeyRefs(assetContract = null, slotHints = [], allow
         if (slot?.required === false) continue;
         const hint = slotHints.find((entry) => entry.id === slot.id || entry.role === slot.role);
         const runtimeKey = hint?.runtimeKey || slot.id || slot.role;
-        if (runtimeKey && allowedKeys.includes(runtimeKey)) refs.push(runtimeKey);
-        else if (slot.id) refs.push(slot.id);
-        else if (slot.role) refs.push(slot.role);
+        if (runtimeKey) refs.push(runtimeKey);
+    }
+    for (const key of allowedKeys) {
+        if (/^(player|enemy\d*|item\d*|prop\d*|obstacle\d*|background)/i.test(String(key))) {
+            refs.push(key);
+        }
     }
     return [...new Set(refs.filter(Boolean))];
 }
 
-function injectGameTokAssetContractWiring(source = '', requiredKeyRefs = [], allowedKeys = []) {
-    if (!requiredKeyRefs.length) return source;
+function contractNeedsInjectedDrawWiring(source = '', assetContract = null, allowedKeys = []) {
+    if (contractRequiresItemRole(assetContract, allowedKeys)
+        && !sourceRendersItemAssets(source, allowedKeys)
+        && !/__gtDrawPickups\s*\(/.test(source)) {
+        return true;
+    }
+    if (contractRequiresPropRole(assetContract, allowedKeys)
+        && !sourceRendersPropAssets(source, allowedKeys)
+        && !/__gtDrawProps\s*\(/.test(source)) {
+        return true;
+    }
+    if (contractRequiresObstacleRole(assetContract, allowedKeys)
+        && !sourceRendersObstacleAssets(source, allowedKeys)
+        && !/__gtDrawHazards\s*\(/.test(source)) {
+        return true;
+    }
+    return false;
+}
+
+function injectGameTokAssetContractWiring(source = '', requiredKeyRefs = [], allowedKeys = [], assetContract = null) {
+    if (!requiredKeyRefs.length && !contractNeedsInjectedDrawWiring(source, assetContract, allowedKeys)) return source;
     const usesAssetKeysModule = /from\s+['"]\.\/assetKeys(?:\.ts)?['"]/.test(source)
         || /import\s*\{[^}]*__GT_CONTRACT_ASSET_KEYS__/.test(source);
     const missingRefs = requiredKeyRefs.filter((ref) => !sourceReferencesToken(source, ref));
     const needsBackgroundHelper = !/resolveBackgroundImage|function drawBackground|__gtResolveGeneratedBackground/.test(source)
         && !/getAssetImage\(['"](?:background1|background|environment)['"]\)/.test(source);
-    if (missingRefs.length === 0 && !needsBackgroundHelper) return source;
-    if (usesAssetKeysModule && !needsBackgroundHelper) return source;
+    const needsDrawWiring = contractNeedsInjectedDrawWiring(source, assetContract, allowedKeys);
+    if (missingRefs.length === 0 && !needsBackgroundHelper && !needsDrawWiring) return source;
+    if (usesAssetKeysModule && !needsBackgroundHelper && !needsDrawWiring) return source;
 
     const keysLiteral = usesAssetKeysModule
         ? '__GT_CONTRACT_ASSET_KEYS__'
@@ -535,24 +567,46 @@ function __gtDrawPickups(ctxRef, stateRef) {
     return out;
 }
 
+const PROP_WIRING_MARKER = '// @gameTokPropWiring';
 const OBSTACLE_WIRING_MARKER = '// @gameTokObstacleWiring';
+
+function contractRequiresPropRole(assetContract = null, allowedKeys = []) {
+    const slots = Array.isArray(assetContract?.slots) ? assetContract.slots : [];
+    const slotRequiresProp = slots.some((slot) => slot?.required !== false && (
+        String(slot?.role || '').toLowerCase() === 'prop'
+        || String(slot?.category || '').toLowerCase() === 'prop'
+        || /^prop\d+$/i.test(String(slot?.id || ''))
+    ));
+    const packHasPropKeys = allowedKeys.some((key) => /^prop\d*$/i.test(String(key)));
+    return slotRequiresProp || packHasPropKeys;
+}
 
 function contractRequiresObstacleRole(assetContract = null, allowedKeys = []) {
     const slots = Array.isArray(assetContract?.slots) ? assetContract.slots : [];
     const slotRequiresObstacle = slots.some((slot) => slot?.required !== false && (
         String(slot?.role || '').toLowerCase() === 'obstacle'
         || String(slot?.category || '').toLowerCase() === 'obstacle'
-        || String(slot?.role || '').toLowerCase() === 'prop'
-        || String(slot?.category || '').toLowerCase() === 'prop'
         || /^obstacle\d+$/i.test(String(slot?.id || ''))
-        || /^prop\d+$/i.test(String(slot?.id || ''))
     ));
-    const packHasObstacleKeys = allowedKeys.some((key) => /^(obstacle|prop)\d*$/i.test(String(key)));
+    const packHasObstacleKeys = allowedKeys.some((key) => /^obstacle\d*$/i.test(String(key)));
     return slotRequiresObstacle || packHasObstacleKeys;
 }
 
+function sourceRendersPropAssets(source = '', allowedKeys = []) {
+    const propKeys = allowedKeys.filter((key) => /^prop\d*$/i.test(String(key)));
+    const drawsPropKey = propKeys.some((key) => {
+        const escaped = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`getAssetImage\\(\\s*['"\`]${escaped}['"\`]\\s*\\)[^;{]*drawImage`, 's').test(source)
+            || new RegExp(`drawImage\\(\\s*getAssetImage\\(\\s*['"\`]${escaped}['"\`]`, 's').test(source)
+            || new RegExp(`drawImage\\([^;]{0,240}${escaped}`, 's').test(source);
+    });
+    if (drawsPropKey) return true;
+    return /firstByRole\(\s*['"`]prop['"`]\s*\)[^;{]*drawImage/is.test(source)
+        || /__gtDrawProps\s*\(/.test(source);
+}
+
 function sourceRendersObstacleAssets(source = '', allowedKeys = []) {
-    const obstacleKeys = allowedKeys.filter((key) => /^(obstacle|prop)\d*$/i.test(String(key)));
+    const obstacleKeys = allowedKeys.filter((key) => /^obstacle\d*$/i.test(String(key)));
     const drawsObstacleKey = obstacleKeys.some((key) => {
         const escaped = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         return new RegExp(`getAssetImage\\(\\s*['"\`]${escaped}['"\`]\\s*\\)[^;{]*drawImage`, 's').test(source)
@@ -560,10 +614,96 @@ function sourceRendersObstacleAssets(source = '', allowedKeys = []) {
             || new RegExp(`drawImage\\([^;]{0,240}${escaped}`, 's').test(source);
     });
     if (drawsObstacleKey) return true;
-    return /drawImage\(\s*[^,)]*(?:obstacle\d*|prop\d*|['"`]obstacle['"`])/i.test(source)
+    return /drawImage\(\s*[^,)]*(?:obstacle\d*|['"`]obstacle['"`])/i.test(source)
         || /firstByRole\(\s*['"`]obstacle['"`]\s*\)[^;{]*drawImage/is.test(source)
-        || /(?:obstacles|hazards|props|barriers|cones|barrels)\.forEach\([\s\S]{0,400}drawImage/is.test(source)
+        || /(?:obstacles|hazards|barriers|cones)\.forEach\([\s\S]{0,400}drawImage/is.test(source)
         || /__gtDrawHazards\s*\(/.test(source);
+}
+
+function injectPropAssetRendering(source = '', allowedKeys = [], assetContract = null) {
+    if (!contractRequiresPropRole(assetContract, allowedKeys)) return source;
+    if (source.includes(PROP_WIRING_MARKER)) return source;
+    if (sourceRendersPropAssets(source, allowedKeys)) return source;
+
+    const block = `
+${PROP_WIRING_MARKER}
+function __gtPropAssetKeys() {
+  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
+  const fromPack = pack
+    .filter((asset) => String(asset?.role || asset?.category || '').toLowerCase() === 'prop')
+    .map((asset) => String(asset.key || asset.id || asset.runtimeKey || ''))
+    .filter(Boolean);
+  const fallback = ${JSON.stringify(allowedKeys.filter((key) => /^prop\d*$/i.test(String(key))))};
+  const seen = new Set();
+  const keys = [];
+  for (const key of [...fromPack, ...fallback, 'prop1', 'prop2']) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    if (getAssetImage(key)) keys.push(key);
+  }
+  return keys;
+}
+function __gtEnsureProps(stateRef) {
+  const keys = __gtPropAssetKeys();
+  if (keys.length === 0) return;
+  if (!Array.isArray(stateRef.__gtRoadProps)) stateRef.__gtRoadProps = [];
+  while (stateRef.__gtRoadProps.length < Math.min(2, keys.length)) {
+    const key = keys[stateRef.__gtRoadProps.length % keys.length];
+    stateRef.__gtRoadProps.push({ key, lane: stateRef.__gtRoadProps.length % 3, y: -120 - stateRef.__gtRoadProps.length * 140, w: 80, h: 80 });
+  }
+}
+function __gtUpdateProps(stateRef, dt) {
+  __gtEnsureProps(stateRef);
+  if (!stateRef.__gtRoadProps?.length) return;
+  const speed = Number(stateRef.roadScroll ?? stateRef.scrollSpeed ?? stateRef.speed ?? 140) || 140;
+  for (const prop of stateRef.__gtRoadProps) {
+    prop.y += speed * dt;
+    if (prop.y > stateRef.height + 120) {
+      prop.y = -80 - Math.random() * 180;
+      prop.lane = Math.floor(Math.random() * 3);
+    }
+  }
+}
+function __gtDrawProps(ctxRef, stateRef) {
+  __gtUpdateProps(stateRef, 1 / 60);
+  __gtEnsureProps(stateRef);
+  if (!ctxRef || !stateRef.__gtRoadProps?.length) return;
+  const lanes = Math.max(3, Number(stateRef.laneCount || stateRef.lanes || 3));
+  const laneWidth = stateRef.width / lanes;
+  for (const prop of stateRef.__gtRoadProps) {
+    const img = getAssetImage(prop.key);
+    if (!img) continue;
+    const w = prop.w || Math.min(96, img.naturalWidth || 72);
+    const h = prop.h || Math.min(96, img.naturalHeight || 72);
+    const x = laneWidth * (prop.lane + 0.5) - w / 2;
+    ctxRef.drawImage(img, x, prop.y, w, h);
+  }
+}
+`;
+
+    let out = source;
+    const anchor = out.match(/\nfunction getAssetImage\s*\(/);
+    if (anchor && anchor.index !== undefined) {
+        out = `${out.slice(0, anchor.index)}${block}${out.slice(anchor.index)}`;
+    } else {
+        out = `${block}${out}`;
+    }
+
+    if (!/__gtDrawProps\s*\(/.test(out)) {
+        if (/(?:export )?function renderAll\s*\(\)/.test(out)) {
+            out = out.replace(
+                /((?:export )?function renderAll\s*\(\)\s*\{)/,
+                '$1\n  __gtDrawProps(ctx, state);',
+            );
+        } else if (/(?:export )?function render\s*\(/.test(out)) {
+            out = out.replace(
+                /((?:export )?function render\s*\([^)]*\)\s*\{)/,
+                '$1\n  __gtDrawProps(ctx, state);',
+            );
+        }
+    }
+
+    return out;
 }
 
 function injectObstacleAssetRendering(source = '', allowedKeys = [], assetContract = null) {
@@ -576,13 +716,13 @@ ${OBSTACLE_WIRING_MARKER}
 function __gtObstacleAssetKeys() {
   const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
   const fromPack = pack
-    .filter((asset) => ['obstacle', 'prop'].includes(String(asset?.role || asset?.category || '').toLowerCase()))
+    .filter((asset) => String(asset?.role || asset?.category || '').toLowerCase() === 'obstacle')
     .map((asset) => String(asset.key || asset.id || asset.runtimeKey || ''))
     .filter(Boolean);
-  const fallback = ${JSON.stringify(allowedKeys.filter((key) => /^(obstacle|prop)\d*$/i.test(String(key))))};
+  const fallback = ${JSON.stringify(allowedKeys.filter((key) => /^obstacle\d*$/i.test(String(key))))};
   const seen = new Set();
   const keys = [];
-  for (const key of [...fromPack, ...fallback, 'prop1', 'prop2', 'obstacle1', 'obstacle2']) {
+  for (const key of [...fromPack, ...fallback, 'obstacle1', 'obstacle2']) {
     if (!key || seen.has(key)) continue;
     seen.add(key);
     if (getAssetImage(key)) keys.push(key);
@@ -700,7 +840,7 @@ ${content}`;
         content = `import { __GT_CONTRACT_ASSET_KEYS__ } from './assetKeys.ts';\n${content}`;
         repairs.push('imported_asset_keys_module');
     }
-    const wired = injectGameTokAssetContractWiring(content, requiredKeyRefs, allowedKeys);
+    const wired = injectGameTokAssetContractWiring(content, requiredKeyRefs, allowedKeys, assetContract);
     if (wired !== content) {
         content = wired;
         repairs.push('injected_contract_asset_wiring');
@@ -712,10 +852,16 @@ ${content}`;
         repairs.push('injected_collectible_item_rendering');
     }
 
+    const propWired = injectPropAssetRendering(content, allowedKeys, assetContract);
+    if (propWired !== content) {
+        content = propWired;
+        repairs.push('injected_prop_rendering');
+    }
+
     const obstacleWired = injectObstacleAssetRendering(content, allowedKeys, assetContract);
     if (obstacleWired !== content) {
         content = obstacleWired;
-        repairs.push('injected_obstacle_prop_rendering');
+        repairs.push('injected_obstacle_rendering');
     }
 
     const dtHookStripped = stripGtWiringDtUpdateHooks(content);

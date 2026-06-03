@@ -388,6 +388,95 @@ export function assertRequiredBackgroundArt(generatedAssets = null, assetContrac
     throw error;
 }
 
+function isRequiredVisualSlot(slot = {}) {
+    if (slot?.required === false) return false;
+    const role = String(slot.role || slot.category || '').toLowerCase();
+    if (!role || ['sfx', 'music', 'audio', 'sound'].includes(role)) return false;
+    return true;
+}
+
+function findPackAssetForSlot(slot = {}, packEntries = [], packById = new Map()) {
+    const slotId = String(slot.id || slot.role || '');
+    if (slotId && packById.has(slotId)) return packById.get(slotId);
+    const slotRole = String(slot.role || slot.category || '').toLowerCase();
+    if (slotRole) {
+        const byRole = packEntries.find((entry) => String(entry.role || entry.category || '').toLowerCase() === slotRole);
+        if (byRole) return byRole;
+    }
+    if (/^item\d+$/i.test(slotId)) {
+        return packEntries.find((entry) => /^item\d*$/i.test(String(entry.key || entry.id || '')));
+    }
+    if (/^prop\d+$/i.test(slotId)) {
+        return packEntries.find((entry) => String(entry.role || entry.category || '').toLowerCase() === 'prop'
+            || /^prop\d*$/i.test(String(entry.key || entry.id || '')));
+    }
+    if (/^obstacle\d+$/i.test(slotId)) {
+        return packEntries.find((entry) => String(entry.role || entry.category || '').toLowerCase() === 'obstacle'
+            || /^obstacle\d*$/i.test(String(entry.key || entry.id || '')));
+    }
+    if (/^enemy\d+$/i.test(slotId)) {
+        return packEntries.find((entry) => /^enemy\d*$/i.test(String(entry.key || entry.id || ''))
+            || String(entry.role || '').toLowerCase() === 'enemy');
+    }
+    if (slotRole === 'player') {
+        return packEntries.find((entry) => String(entry.role || '').toLowerCase() === 'player'
+            || /^player/i.test(String(entry.key || entry.id || '')));
+    }
+    return null;
+}
+
+function analyzeRequiredSlotFallbacks(generatedAssets = null, assetContract = null) {
+    const issues = [];
+    const requiredSlots = asArray(assetContract?.slots).filter(isRequiredVisualSlot)
+        .filter((slot) => !isBackgroundAsset(slot));
+    if (requiredSlots.length === 0) return issues;
+
+    const packEntries = asArray(generatedAssets?.assetPack);
+    const packById = new Map();
+    for (const asset of packEntries) {
+        for (const rawKey of [asset?.id, asset?.key]) {
+            if (!rawKey) continue;
+            packById.set(String(rawKey), asset);
+        }
+    }
+
+    for (const slot of requiredSlots) {
+        const slotId = String(slot.id || slot.role || '');
+        const asset = findPackAssetForSlot(slot, packEntries, packById);
+        if (!asset) {
+            issues.push(issue({
+                id: 'required_slot_missing',
+                severity: 'fatal',
+                key: slotId,
+                message: `Required ${slot.role || slot.category || 'asset'} slot ${slotId} is missing from the generated asset pack.`,
+            }));
+            continue;
+        }
+        if (asset.fallback || asset.generationSource === 'fallback') {
+            issues.push(issue({
+                id: 'required_slot_used_fallback',
+                severity: 'fatal',
+                key: slotId || asset.key || asset.id,
+                message: `Required ${slot.role || slot.category || 'asset'} ${slotId || asset.key || asset.id} used procedural fallback instead of generated art.`,
+            }));
+        }
+    }
+    return issues;
+}
+
+/** Fail artist phase when any required visual slot is missing or fell back to procedural art. */
+export function assertRequiredContractArt(generatedAssets = null, assetContract = null) {
+    const issues = [
+        ...analyzeRequiredBackgroundFallbacks(generatedAssets, assetContract),
+        ...analyzeRequiredSlotFallbacks(generatedAssets, assetContract),
+    ];
+    if (issues.length === 0) return;
+    const error = new Error(`Required contract art generation failed: ${issues.map((entry) => entry.message).join(' ')}`);
+    error.code = 'REQUIRED_CONTRACT_ART_FAILED';
+    error.issues = issues;
+    throw error;
+}
+
 export async function analyzeMakerAssetQuality(generatedAssets = null, options = {}) {
     if (!generatedAssets) {
         return {
@@ -406,11 +495,13 @@ export async function analyzeMakerAssetQuality(generatedAssets = null, options =
     const animations = analyzeAnimations(generatedAssets);
     const tilesets = await analyzeTilesets(generatedAssets);
     const backgroundFallbackIssues = analyzeRequiredBackgroundFallbacks(generatedAssets, options.assetContract || null);
+    const slotFallbackIssues = analyzeRequiredSlotFallbacks(generatedAssets, options.assetContract || null);
     const issues = [
         ...assetPack.issues,
         ...animations.issues,
         ...tilesets.issues,
         ...backgroundFallbackIssues,
+        ...slotFallbackIssues,
     ].sort((a, b) => severityRank(b.severity) - severityRank(a.severity));
     const fatalIssues = issues.filter((entry) => entry.severity === 'fatal');
     const score = Math.max(0, 100 - (fatalIssues.length * 25) - ((issues.length - fatalIssues.length) * 6));
