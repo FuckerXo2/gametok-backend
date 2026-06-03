@@ -5620,7 +5620,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     console.warn(`⚠️ Artist Agent: ${generatedAssets.errors.length} assets used fallbacks`);
                 }
             } catch (error) {
-                if (error?.code === 'REQUIRED_BACKGROUND_ART_FAILED') {
+                if (error?.code === 'REQUIRED_BACKGROUND_ART_FAILED'
+                    || error?.code === 'REQUIRED_CONTRACT_ART_FAILED') {
                     throw error;
                 }
                 console.error(`❌ Artist Agent failed:`, error.message);
