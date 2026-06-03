@@ -98,7 +98,13 @@ export function finalizeStreamedMessage(state) {
 
 export function getStreamStallConfig() {
     return {
-        firstByteMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_FIRST_BYTE_MS || 180000)),
+        // First-byte timeout. A warm provider streams its first token in 1-12s; a value this high
+        // only ever waits out a *cold provider queue* before the retry layer re-fires (which on
+        // observed runs then gets first byte in ~4s). 180s of dead waiting per cold call was the
+        // single biggest avoidable latency sink, so default to 45s — generous headroom for
+        // thinking-mode first tokens, but no more 3-minute stalls. Tune via env if a deployment
+        // legitimately needs longer (or shorter, for more aggressive failover).
+        firstByteMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_FIRST_BYTE_MS || 45000)),
         stallMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_STALL_MS || 45000)),
         pollMs: Math.max(2000, Number(process.env.GAMETOK_STREAM_STALL_POLL_MS || 5000)),
     };
