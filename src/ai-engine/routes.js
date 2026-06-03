@@ -39,6 +39,7 @@ import {
 import {
     getMakerAgentToolDefinitions,
     MAKER_AGENT_TURN_MODE_IMPLEMENT,
+    MAKER_AGENT_TURN_MODE_REPAIR,
     resolveMakerAgentTurnMode,
     runMakerAgentToolTurn,
     useMakerAgentImplementMode,
@@ -4532,12 +4533,32 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
     return applied;
 }
 
+async function dedupeMakerMainTsState(projectRoot) {
+    const mainPath = path.join(projectRoot || '', 'src', 'main.ts');
+    const before = await fs.promises.readFile(mainPath, 'utf8').catch(() => null);
+    if (before == null) return [];
+    const repair = applyDeterministicStateObjectDedupeRepairs(before);
+    if (repair.removed.length === 0) return [];
+    await fs.promises.writeFile(mainPath, repair.content, 'utf8');
+    return [{
+        path: 'src/main.ts',
+        type: 'ts1117_duplicate_state_property',
+        removed: repair.removed,
+        from: repair.removed.join(', '),
+        to: 'kept first declaration only',
+    }];
+}
+
 async function rebuildMakerProjectDistWithAutoRepair(projectRoot) {
+    const preBuildDedupe = await dedupeMakerMainTsState(projectRoot);
+    if (preBuildDedupe.length > 0) {
+        console.warn(`[Maker AutoRepair] Deduped state before build: ${preBuildDedupe[0].removed.join(', ')}`);
+    }
     try {
         await rebuildMakerProjectDist(projectRoot);
-        return [];
+        return preBuildDedupe;
     } catch (error) {
-        const applied = await applyDeterministicMakerBuildRepairs(projectRoot, error.buildErrors || []);
+        const applied = [...preBuildDedupe, ...await applyDeterministicMakerBuildRepairs(projectRoot, error.buildErrors || [])];
         if (applied.length === 0) throw error;
         console.warn(`[Maker AutoRepair] Applied deterministic build fixes: ${applied.map((entry) => `${entry.path}:${entry.from}->${entry.to}`).join(', ')}`);
         await rebuildMakerProjectDist(projectRoot);
@@ -4855,6 +4876,13 @@ async function runMakerAgentInspectionTurns({
                     notes: toolTurn.notes,
                 };
                 applied = toolTurn.editsApplied;
+                if (turnMode === MAKER_AGENT_TURN_MODE_REPAIR && applied.length === 0) {
+                    const rescueDedupe = await dedupeMakerMainTsState(projectRoot);
+                    if (rescueDedupe.length > 0) {
+                        console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Repair rescue: deduped duplicate state keys (${rescueDedupe[0].removed.join(', ')})`);
+                        applied.push({ path: 'src/main.ts', tool: 'auto_repair', bytes: 0 });
+                    }
+                }
                 if (applied.length > 0) {
                     const keyNormalize = await normalizeMainTsAssetKeys(projectRoot, allowedAssetKeys);
                     if (keyNormalize.changed) {

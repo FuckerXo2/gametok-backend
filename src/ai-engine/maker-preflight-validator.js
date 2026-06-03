@@ -364,8 +364,13 @@ function addMissingStateProperties(source = '', missingEntries = []) {
     if (!objectLiteral || literalStart < 0) return { content: source, added: [] };
 
     const existingKeys = topLevelObjectKeys(objectLiteral);
+    const existingLower = new Set(Array.from(existingKeys).map((key) => key.toLowerCase()));
     const toAdd = (Array.isArray(missingEntries) ? missingEntries : [])
-        .filter((entry) => entry?.key && !entry?.suggestion && !existingKeys.has(entry.key));
+        .filter((entry) => {
+            if (!entry?.key || entry?.suggestion) return false;
+            const key = entry.key;
+            return !existingKeys.has(key) && !existingLower.has(key.toLowerCase());
+        });
     if (toAdd.length === 0) return { content: source, added: [] };
 
     const literalEnd = literalStart + objectLiteral.length;
@@ -430,6 +435,18 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     );
     if (Buffer.byteLength(source, 'utf8') < stubMaxBytes) {
         return applied;
+    }
+
+    const initialDedupe = applyDeterministicStateObjectDedupeRepairs(source);
+    if (initialDedupe.removed.length > 0) {
+        source = initialDedupe.content;
+        applied.push({
+            path: 'src/main.ts',
+            type: 'preflight_state_property_deduped',
+            keys: initialDedupe.removed,
+            from: 'duplicate state keys (pre-repair)',
+            to: initialDedupe.removed.join(', '),
+        });
     }
 
     const allowedKeys = [...new Set((options.allowedKeys || []).filter(Boolean))];
@@ -523,7 +540,19 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
         }
     }
 
-    if (applied.length > 0) {
+    const finalDedupe = applyDeterministicStateObjectDedupeRepairs(source);
+    if (finalDedupe.removed.length > 0) {
+        source = finalDedupe.content;
+        applied.push({
+            path: 'src/main.ts',
+            type: 'preflight_state_property_deduped',
+            keys: finalDedupe.removed,
+            from: 'duplicate state keys (post-repair)',
+            to: finalDedupe.removed.join(', '),
+        });
+    }
+
+    if (applied.length > 0 || finalDedupe.removed.length > 0 || initialDedupe.removed.length > 0) {
         await fs.writeFile(mainPath, source, 'utf8');
     }
     return applied;
