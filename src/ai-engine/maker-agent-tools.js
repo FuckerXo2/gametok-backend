@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { applyPatchReplacements } from './maker-agent-patches.js';
+import { resolveMakerAgentImplementTurns, resolveMakerAgentInspectionTurns } from './maker-factory-mode.js';
 import { parseTscOutput } from './maker-project-compile-gate.js';
 
 export const MAKER_TOOL_APPLY_PATCH = 'apply_patch';
@@ -55,10 +56,6 @@ const REPAIR_MAX_TOOL_CALLS = Math.max(
     8,
     Math.min(24, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 18)),
 );
-const MAKER_AGENT_IMPLEMENT_TURNS = Math.max(
-    1,
-    Math.min(3, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS || 2)),
-);
 const REPAIR_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
     Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_READ_ONLY_ROUNDS || 2)),
@@ -103,11 +100,8 @@ export function useMakerAgentImplementMode() {
 export function resolveMakerAgentTurnMode(turnNumber = 1, { maxTurns = null } = {}) {
     if (!useMakerAgentTools()) return 'json';
     if (!useMakerAgentImplementMode()) return MAKER_AGENT_TURN_MODE_REPAIR;
-    const totalTurns = Math.max(2, Math.min(4, Number(maxTurns || process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
-    const implementTurns = Math.max(
-        1,
-        Math.min(totalTurns - 1, MAKER_AGENT_IMPLEMENT_TURNS),
-    );
+    const totalTurns = Math.max(2, Math.min(4, Number(maxTurns || resolveMakerAgentInspectionTurns())));
+    const implementTurns = resolveMakerAgentImplementTurns(totalTurns);
     if (turnNumber <= implementTurns) return MAKER_AGENT_TURN_MODE_IMPLEMENT;
     return MAKER_AGENT_TURN_MODE_REPAIR;
 }

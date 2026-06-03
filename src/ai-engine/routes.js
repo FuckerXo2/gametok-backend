@@ -22,6 +22,11 @@ import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMake
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { applyDeterministicPreflightRepairs, applyDeterministicStateObjectDedupeRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
+import {
+    isMakerFactoryMinimalMode,
+    resolveMakerAgentImplementTurns,
+    resolveMakerAgentInspectionTurns,
+} from './maker-factory-mode.js';
 import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
 import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
@@ -335,7 +340,9 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 4)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-const MAKER_AGENT_INSPECTION_TURNS = Math.max(1, Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS || 3)));
+function getMakerAgentInspectionTurns() {
+    return resolveMakerAgentInspectionTurns();
+}
 const SKIP_TURN1_PRERUN_EVIDENCE = String(process.env.GAMETOK_MAKER_SKIP_TURN1_PRERUN_EVIDENCE || 'true').toLowerCase() !== 'false';
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
 const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
@@ -4612,6 +4619,7 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             at: new Date().toISOString(),
             ...preflight,
         });
+        const factoryMinimal = isMakerFactoryMinimalMode();
         if (!preflight.success) {
             const preflightRepairs = await applyDeterministicPreflightRepairs(projectRoot, preflight, {
                 generatedAssets,
@@ -4619,6 +4627,7 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                 allowedKeys: packKeys,
                 foundationLane: foundationLane || assetContract?.lane || templateContract?.lane || null,
                 foundationRequiredState: templateContract?.foundation?.requiredState || [],
+                factoryMinimal,
             });
             if (preflightRepairs.length > 0) {
                 console.warn(`[Maker AutoRepair] Applied deterministic preflight fixes: ${preflightRepairs.map((entry) => `${entry.path}:${entry.type}${entry.keys ? `(${entry.keys.join(',')})` : ''}`).join(', ')}`);
@@ -4628,11 +4637,12 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                     turnNumber,
                     at: new Date().toISOString(),
                     repairs: preflightRepairs,
+                    factoryMinimal,
                     ...preflight,
                 });
             }
         }
-        if (!preflight.success) {
+        if (!preflight.success && !factoryMinimal) {
             const diagnostics = {
                 preflight,
                 failedContractChecks: preflight.issues.map((issue) => ({
@@ -4661,6 +4671,14 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                 lastEvidence: evidence,
             });
             return evidence;
+        }
+        if (!preflight.success && factoryMinimal) {
+            const preview = preflight.issues
+                .filter((issue) => issue.severity === 'critical')
+                .slice(0, 3)
+                .map((issue) => issue.id || issue.message)
+                .join(', ');
+            console.warn(`[Maker Factory] minimal mode: ${preflight.issues.length} preflight issue(s) non-blocking${preview ? ` (${preview})` : ''}; proceeding to build + sandbox`);
         }
         await rebuildMakerProjectDistWithAutoRepair(projectRoot);
         const assembledHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
@@ -4697,17 +4715,19 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             phase,
             success: Boolean(sandbox.success),
             crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],
-            diagnostics: sandbox.diagnostics ? {
-                failedContractChecks: Array.isArray(sandbox.diagnostics.failedContractChecks)
+            diagnostics: {
+                ...(sandbox.diagnostics || {}),
+                failedContractChecks: Array.isArray(sandbox.diagnostics?.failedContractChecks)
                     ? sandbox.diagnostics.failedContractChecks.slice(0, 10)
                     : [],
-                templateRuntimeProbe: sandbox.diagnostics.templateRuntimeProbe || null,
-                assetContractInspection: sandbox.diagnostics.assetContractInspection || null,
-                horizontalOverflow: sandbox.diagnostics.horizontalOverflow || 0,
-                canvasIssues: sandbox.diagnostics.canvasIssues || [],
-                visibleOutOfBoundsElements: sandbox.diagnostics.visibleOutOfBoundsElements || [],
+                templateRuntimeProbe: sandbox.diagnostics?.templateRuntimeProbe || null,
+                assetContractInspection: sandbox.diagnostics?.assetContractInspection || null,
+                horizontalOverflow: sandbox.diagnostics?.horizontalOverflow || 0,
+                canvasIssues: sandbox.diagnostics?.canvasIssues || [],
+                visibleOutOfBoundsElements: sandbox.diagnostics?.visibleOutOfBoundsElements || [],
                 preflight,
-            } : null,
+                factoryMinimal,
+            },
             targetedRepairTasks: sandbox.success ? [] : buildTargetedRepairTasks(sandbox.diagnostics || null),
         };
         await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
@@ -4772,7 +4792,7 @@ async function runMakerAgentInspectionTurns({
     designBrief,
     builderMaps = null,
     assetQuality = null,
-    maxTurns = MAKER_AGENT_INSPECTION_TURNS,
+    maxTurns = getMakerAgentInspectionTurns(),
     reportProgress = null,
 }) {
     const objectives = [
@@ -4780,8 +4800,8 @@ async function runMakerAgentInspectionTurns({
         'Implement turn 2: finish remaining gameplay systems, probe methods, visual polish, and cohesive UI styling. Keep resolveBackgroundImage() drawing artist background art.',
         'Repair pass only: fix targetedRepairTasks and failed checks from latest evidence with apply_patch/write_file. Stop reading after one src/main.ts pass.',
     ];
-    const implementTurns = Math.max(1, Math.min(maxTurns - 1, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS || 2)));
-    console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turns 1-${implementTurns}=implement, turns ${implementTurns + 1}-${maxTurns}=repair if needed (maxTurns=${maxTurns}, skipTurn1PreRun=${SKIP_TURN1_PRERUN_EVIDENCE})`);
+    const implementTurns = resolveMakerAgentImplementTurns(maxTurns);
+    console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turns 1-${implementTurns}=implement, turns ${implementTurns + 1}-${maxTurns}=repair if needed (maxTurns=${maxTurns}, factoryMinimal=${isMakerFactoryMinimalMode() ? 'on' : 'off'}, skipTurn1PreRun=${SKIP_TURN1_PRERUN_EVIDENCE})`);
     const phase2AllowedAssetKeys = [...new Set([
         ...await readProjectAssetPackKeys(projectRoot),
         ...collectAllowedAssetPackKeys({ generatedAssets }),
@@ -5368,7 +5388,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const nvidiaFailoverFromDeepseek = isNvidiaFailoverFromDeepSeekEnabled();
         const moonshotConfig = getMoonshotTextConfig();
         const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} phase2ImplementMaxTokens=${MAKER_IMPLEMENT_MAX_TOKENS} phase2RepairMaxTokens=${MAKER_TOOL_MAX_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} nvidiaFailover=${nvidiaFailoverFromDeepseek ? 'on' : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${MAKER_AGENT_INSPECTION_TURNS}(implement+repair)`);
+        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} phase2ImplementMaxTokens=${MAKER_IMPLEMENT_MAX_TOKENS} phase2RepairMaxTokens=${MAKER_TOOL_MAX_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} nvidiaFailover=${nvidiaFailoverFromDeepseek ? 'on' : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} factoryMinimal=${isMakerFactoryMinimalMode() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${getMakerAgentInspectionTurns()}(implement=${resolveMakerAgentImplementTurns(getMakerAgentInspectionTurns())}+repair)`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);

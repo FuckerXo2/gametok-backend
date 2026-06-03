@@ -6,6 +6,7 @@ import {
     detectDuplicateHudRendering,
 } from './maker-hud-authority.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
+import { isMakerFactoryMinimalMode } from './maker-factory-mode.js';
 
 async function readTextIfExists(filePath) {
     try {
@@ -439,6 +440,7 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     let source = await readTextIfExists(mainPath);
     if (!source.trim()) return applied;
 
+    const factoryMinimal = options.factoryMinimal ?? isMakerFactoryMinimalMode();
     const allowedKeys = [...new Set((options.allowedKeys || []).filter(Boolean))];
     const foundationLane = String(options.foundationLane || options.lane || '');
     const isCookingFoundation = /cook|pantry|diner|ingredient|cauldron|order/i.test(foundationLane);
@@ -500,6 +502,9 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     }
 
     for (const issue of preflight.issues || []) {
+        if (factoryMinimal && issue.id === 'preflight_state_property_missing') {
+            continue;
+        }
         if (issue.id !== 'preflight_state_property_missing' || !Array.isArray(issue.missingKeys) || issue.missingKeys.length === 0) {
             continue;
         }
