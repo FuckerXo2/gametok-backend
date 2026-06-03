@@ -288,6 +288,11 @@ const BUILDER_FALLBACK_MODELS = (
     .map((model) => model.trim())
     .filter(Boolean);
 
+// Phase 1 is intent extraction only — a fast/cheap model handles it fine.
+// Default: same as builder so existing deployments are unaffected.
+// Set GAMETOK_PHASE1_MODEL=deepseek-v4-flash on Railway to use the faster tier.
+const PHASE1_MODEL = String(process.env.GAMETOK_PHASE1_MODEL || '').trim() || null;
+
 const DREAM_MODELS = {
     spec: resolveDreamModel('DREAMSTREAM_SPEC_MODEL', DEFAULT_KIMI_BUILDER_MODEL), // Use Kimi for Phase 1 too
     premiumBuilder: BUILDER_FALLBACK_MODELS[0],
@@ -498,11 +503,16 @@ setInterval(() => {
     }
 }, 60 * 1000).unref?.();
 
-async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3) {
+async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3, { overrideModel = null } = {}) {
     let raw = '';
     let extracted = '';
     let parseError = null;
     const maxJsonRewriteAttempts = Math.max(1, BUILDER_JSON_REWRITE_ATTEMPTS);
+    // When a lighter/faster model is requested (e.g. flash for Phase 1), pass it as the sole
+    // fallbackModels entry so it wins for both DeepSeek-primary and NVIDIA paths.
+    const callFallbackModels = overrideModel
+        ? [overrideModel]
+        : BUILDER_FALLBACK_MODELS;
 
     for (let attempt = 0; attempt <= maxJsonRewriteAttempts; attempt += 1) {
         const messages = [
@@ -534,7 +544,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
                 return { choices: [{ message }] };
             }
             return client.chat.completions.create(chatOptions, { signal });
-        }, PHASE1_TIMEOUT_MS, 'Phase 1 Builder'), { label: 'Phase 1 Builder', maxAttempts: PHASE1_ATTEMPTS_PER_MODEL, baseDelayMs: 2000, fallbackModels: BUILDER_FALLBACK_MODELS });
+        }, PHASE1_TIMEOUT_MS, 'Phase 1 Builder'), { label: 'Phase 1 Builder', maxAttempts: PHASE1_ATTEMPTS_PER_MODEL, baseDelayMs: 2000, fallbackModels: callFallbackModels });
         if (!res || !res.choices || !res.choices[0]) {
             throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
         }
@@ -5468,11 +5478,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         // ── PHASE 1: MINIMAL INTENT EXTRACTION ──
         await reportProgress(8, 'spec', 'Reading your idea...');
-        console.log(`📋 Phase 1/3: ${getDreamTextModelLabel()} extracting game intent...`);
+        const phase1ModelLabel = PHASE1_MODEL ? PHASE1_MODEL : getDreamTextModelLabel();
+        console.log(`📋 Phase 1/3: ${phase1ModelLabel} extracting game intent...`);
         const phase1 = buildPhase1_Quantize(prompt, { dynamicFoundation });
         let qualityIntent;
         try {
-            qualityIntent = await callAI(phase1.system, phase1.user, PHASE1_MAX_OUTPUT_TOKENS, 0.35);
+            qualityIntent = await callAI(phase1.system, phase1.user, PHASE1_MAX_OUTPUT_TOKENS, 0.35, { overrideModel: PHASE1_MODEL });
         } catch (phase1Error) {
             if (!ALLOW_PHASE1_HEURISTIC_FALLBACK) {
                 throw new Error(`Phase 1 spec extraction failed after exhausting text keys/models: ${phase1Error?.message || phase1Error}`);
