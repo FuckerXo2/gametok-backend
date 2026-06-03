@@ -906,8 +906,8 @@ export async function artistAgent(request) {
             environment: 'background',
             background: 'background',
             ui: 'ui',
-            prop: 'item',
-            obstacle: 'item',
+            prop: 'prop',
+            obstacle: 'obstacle',
         };
         const spriteType = assetType === 'background' ? 'background' : (typeMap[category] || 'character');
         
@@ -1368,6 +1368,175 @@ export async function generateGameSprites(gameSpec) {
     }
 }
 
+function batchHealDelayMs() {
+    return Math.max(200, Number(process.env.GAMETOK_ARTIST_HEAL_DELAY_MS || 800));
+}
+
+function isRequiredBatchSlot(id, options = {}) {
+    const required = options.requiredSlotIds;
+    if (!required) return false;
+    if (required instanceof Set) return required.has(id);
+    if (Array.isArray(required)) return required.includes(id);
+    return false;
+}
+
+function purgeBatchAssetFrames(batchState, sourceId) {
+    const hadFallback = batchState.assetPack.some((asset) => (
+        (asset?.id === sourceId || asset?.key === sourceId) && asset?.fallback
+    ));
+    if (hadFallback) {
+        batchState.fallbackCount = Math.max(0, batchState.fallbackCount - 1);
+    }
+    const prefix = `${sourceId}_`;
+    for (const key of Object.keys(batchState.results)) {
+        if (key !== sourceId && key.startsWith(prefix)) {
+            delete batchState.results[key];
+        }
+    }
+    batchState.manifestAssets = batchState.manifestAssets.filter((asset) => {
+        const assetId = String(asset?.id || asset?.key || '');
+        return assetId !== sourceId && !assetId.startsWith(prefix) && asset?.sourceKey !== sourceId;
+    });
+    batchState.assetPack = batchState.assetPack.filter((asset) => {
+        const assetId = String(asset?.id || asset?.key || '');
+        return assetId !== sourceId && !assetId.startsWith(prefix) && asset?.sourceKey !== sourceId;
+    });
+    batchState.animations = batchState.animations.filter((animation) => animation?.sourceKey !== sourceId);
+    batchState.errors = batchState.errors.filter((entry) => entry?.id !== sourceId);
+}
+
+function buildBatchAssetMeta(id, request, dataUri, { usedFallback = false, generationSource = 'flux', inspectionReason = null } = {}) {
+    const category = request.category || request.role || 'item';
+    const width = Number(request.width || request.size || 128);
+    const height = Number(request.height || request.size || width);
+    return {
+        id,
+        key: id,
+        type: 'image',
+        kind: request.assetType || 'sprite',
+        role: category,
+        category,
+        width,
+        height,
+        transparent: request.transparent !== false,
+        description: request.description || '',
+        gameplayRole: request.gameplayRole || '',
+        url: dataUri,
+        fallback: usedFallback,
+        generationSource,
+        inspectionReason,
+    };
+}
+
+function recordBatchAssetSuccess(batchState, id, request, dataUri, artistResult) {
+    const usedFallback = typeof artistResult === 'object' ? Boolean(artistResult.usedFallback) : false;
+    const generationSource = typeof artistResult === 'object'
+        ? (artistResult.generationSource || (usedFallback ? 'fallback' : 'flux'))
+        : 'flux';
+    if (usedFallback) {
+        batchState.fallbackCount += 1;
+        batchState.errors.push({
+            id,
+            phase: 'asset_generation',
+            error: artistResult?.inspectionReason || 'fallback_art_used',
+            generationSource,
+        });
+    }
+    batchState.results[id] = dataUri;
+    const assetMeta = buildBatchAssetMeta(id, request, dataUri, {
+        usedFallback,
+        generationSource,
+        inspectionReason: artistResult?.inspectionReason || null,
+    });
+    batchState.manifestAssets.push(assetMeta);
+    batchState.assetPack.push({ ...assetMeta });
+}
+
+async function attachBatchFrameAssets(batchState, id, request, dataUri, width, height) {
+    try {
+        const frameBundle = await buildFrameAssetsForRequest(id, request, dataUri, width, height);
+        for (const frame of frameBundle.frames) {
+            batchState.results[frame.key] = frame.url;
+            batchState.manifestAssets.push(frame);
+            batchState.assetPack.push(frame);
+        }
+        batchState.animations.push(...frameBundle.animations);
+        if (frameBundle.frames.length > 0) {
+            console.log(`[Batch Artist Agent] ✓ Generated ${frameBundle.frames.length} animation frames for ${id}`);
+        }
+    } catch (frameError) {
+        console.warn(`[Batch Artist Agent] Animation frame generation skipped for ${id}:`, frameError.message);
+    }
+}
+
+async function recordBatchAssetFallback(batchState, id, request, width, height, errorMessage = 'generation_failed') {
+    batchState.errors.push({ id, error: errorMessage, generationSource: 'fallback' });
+    batchState.fallbackCount += 1;
+    const dataUri = await generateFallbackAsset(
+        Math.max(width, height),
+        request.category || request.role || 'item',
+        request.assetType || 'sprite',
+        { width, height },
+    );
+    recordBatchAssetSuccess(batchState, id, request, dataUri, {
+        usedFallback: true,
+        generationSource: 'fallback',
+        inspectionReason: errorMessage,
+    });
+    await attachBatchFrameAssets(batchState, id, request, dataUri, width, height);
+}
+
+/**
+ * Generate (or regenerate) one asset into a batch result object.
+ * Required slots retry FLUX before accepting procedural fallback.
+ */
+export async function generateOneBatchAsset(batchState, request, id, options = {}) {
+    const { id: requestId, ...assetRequest } = request;
+    const category = assetRequest.category || request.category || 'item';
+    const width = Number(assetRequest.width || request.width || assetRequest.size || request.size || 128);
+    const height = Number(assetRequest.height || request.height || assetRequest.size || request.size || width);
+    const required = isRequiredBatchSlot(id, options);
+    const maxAttempts = required
+        ? Math.max(1, Math.min(4, Number(options.maxRetriesPerRequired || process.env.GAMETOK_ARTIST_REQUIRED_RETRIES || 2)))
+        : 1;
+
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
+            throw new Error('Generation cancelled by user');
+        }
+        try {
+            const artistResult = await artistAgent(assetRequest);
+            const dataUri = typeof artistResult === 'string' ? artistResult : artistResult.dataUri;
+            const usedFallback = typeof artistResult === 'object' ? Boolean(artistResult.usedFallback) : false;
+            if (required && usedFallback && attempt < maxAttempts) {
+                console.warn(`[Batch Artist Agent] Required ${id} used fallback on attempt ${attempt}/${maxAttempts}; retrying...`);
+                await new Promise((resolve) => setTimeout(resolve, batchHealDelayMs()));
+                continue;
+            }
+            purgeBatchAssetFrames(batchState, id);
+            recordBatchAssetSuccess(batchState, id, request, dataUri, artistResult);
+            await attachBatchFrameAssets(batchState, id, request, dataUri, width, height);
+            return { ok: !usedFallback, usedFallback, attempt };
+        } catch (error) {
+            if (error?.message === 'Generation cancelled by user') {
+                throw error;
+            }
+            lastError = error;
+            if (required && attempt < maxAttempts) {
+                console.warn(`[Batch Artist Agent] Required ${id} failed (${error.message}); retry ${attempt}/${maxAttempts}`);
+                await new Promise((resolve) => setTimeout(resolve, batchHealDelayMs()));
+                continue;
+            }
+            break;
+        }
+    }
+
+    purgeBatchAssetFrames(batchState, id);
+    await recordBatchAssetFallback(batchState, id, request, width, height, lastError?.message || 'generation_failed');
+    return { ok: false, usedFallback: true, error: lastError?.message || 'generation_failed' };
+}
+
 /**
  * BATCH ARTIST AGENT - Generate multiple assets in one call
  * 
@@ -1392,136 +1561,25 @@ export async function batchArtistAgent(requests, options = {}) {
     
     // Generate assets sequentially to avoid rate limits
     // (NVIDIA free tier has rate limits)
+    const batchState = {
+        results,
+        errors,
+        manifestAssets,
+        assetPack,
+        animations,
+        fallbackCount,
+    };
+
     for (const request of requests) {
+        const { id } = request;
+        await generateOneBatchAsset(batchState, request, id, options);
         if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
             throw new Error('Generation cancelled by user');
         }
-        const { id, ...assetRequest } = request;
-        const category = assetRequest.category || request.category || 'item';
-        const width = Number(assetRequest.width || request.width || assetRequest.size || request.size || 128);
-        const height = Number(assetRequest.height || request.height || assetRequest.size || request.size || width);
-        const size = width === height ? width : { width, height };
-        
-        try {
-            const artistResult = await artistAgent(assetRequest);
-            const dataUri = typeof artistResult === 'string' ? artistResult : artistResult.dataUri;
-            const usedFallback = typeof artistResult === 'object' ? Boolean(artistResult.usedFallback) : false;
-            const generationSource = typeof artistResult === 'object'
-                ? (artistResult.generationSource || (usedFallback ? 'fallback' : 'flux'))
-                : 'flux';
-            if (usedFallback) {
-                fallbackCount += 1;
-                errors.push({
-                    id,
-                    phase: 'asset_generation',
-                    error: artistResult?.inspectionReason || 'fallback_art_used',
-                    generationSource,
-                });
-            }
-            results[id] = dataUri;
-            const assetMeta = {
-                id,
-                key: id,
-                type: 'image',
-                kind: assetRequest.assetType || request.assetType || 'sprite',
-                role: category,
-                category,
-                width,
-                height,
-                transparent: assetRequest.transparent !== false,
-                description: assetRequest.description || request.description || '',
-                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
-                url: dataUri,
-                fallback: usedFallback,
-                generationSource,
-            };
-            manifestAssets.push(assetMeta);
-            assetPack.push({
-                id,
-                key: id,
-                type: 'image',
-                kind: assetRequest.assetType || request.assetType || 'sprite',
-                url: dataUri,
-                width,
-                height,
-                role: category,
-                category,
-                transparent: assetRequest.transparent !== false,
-                description: assetRequest.description || request.description || '',
-                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
-                fallback: usedFallback,
-                generationSource,
-            });
-
-            try {
-                const frameBundle = await buildFrameAssetsForRequest(id, assetRequest, dataUri, width, height);
-                for (const frame of frameBundle.frames) {
-                    results[frame.key] = frame.url;
-                    manifestAssets.push(frame);
-                    assetPack.push(frame);
-                }
-                animations.push(...frameBundle.animations);
-                if (frameBundle.frames.length > 0) {
-                    console.log(`[Batch Artist Agent] ✓ Generated ${frameBundle.frames.length} animation frames for ${id}`);
-                }
-            } catch (frameError) {
-                console.warn(`[Batch Artist Agent] Animation frame generation skipped for ${id}:`, frameError.message);
-            }
-            
-            // Small delay between requests to avoid rate limiting
-            if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
-                throw new Error('Generation cancelled by user');
-            }
-            await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (error) {
-            if (error?.message === 'Generation cancelled by user') {
-                throw error;
-            }
-            console.error(`[Batch Artist Agent] Failed to generate ${id}:`, error.message);
-            errors.push({ id, error: error.message, generationSource: 'fallback' });
-            fallbackCount += 1;
-            const dataUri = await generateFallbackAsset(
-                Math.max(width, height),
-                category,
-                assetRequest.assetType || request.assetType || 'sprite',
-                { width, height },
-            );
-            results[id] = dataUri;
-            const assetMeta = {
-                id,
-                key: id,
-                type: 'image',
-                kind: assetRequest.assetType || request.assetType || 'sprite',
-                role: category,
-                category,
-                width,
-                height,
-                transparent: assetRequest.transparent !== false,
-                description: assetRequest.description || request.description || '',
-                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
-                url: dataUri,
-                fallback: true,
-                generationSource: 'fallback',
-            };
-            manifestAssets.push(assetMeta);
-            assetPack.push({
-                id,
-                key: id,
-                type: 'image',
-                kind: assetRequest.assetType || request.assetType || 'sprite',
-                url: dataUri,
-                width,
-                height,
-                role: category,
-                category,
-                transparent: assetRequest.transparent !== false,
-                description: assetRequest.description || request.description || '',
-                gameplayRole: assetRequest.gameplayRole || request.gameplayRole || '',
-                fallback: true,
-                generationSource: 'fallback',
-            });
-        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
     }
+
+    fallbackCount = batchState.fallbackCount;
 
     if (Array.isArray(options.tilesets) && options.tilesets.length > 0) {
         if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {

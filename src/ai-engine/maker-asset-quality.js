@@ -464,12 +464,17 @@ function analyzeRequiredSlotFallbacks(generatedAssets = null, assetContract = nu
     return issues;
 }
 
-/** Fail artist phase when any required visual slot is missing or fell back to procedural art. */
-export function assertRequiredContractArt(generatedAssets = null, assetContract = null) {
-    const issues = [
+/** List required-slot art problems (missing pack entry or procedural fallback). */
+export function collectRequiredContractArtIssues(generatedAssets = null, assetContract = null) {
+    return [
         ...analyzeRequiredBackgroundFallbacks(generatedAssets, assetContract),
         ...analyzeRequiredSlotFallbacks(generatedAssets, assetContract),
     ];
+}
+
+/** Fail artist phase when any required visual slot is missing or fell back to procedural art. */
+export function assertRequiredContractArt(generatedAssets = null, assetContract = null) {
+    const issues = collectRequiredContractArtIssues(generatedAssets, assetContract);
     if (issues.length === 0) return;
     const error = new Error(`Required contract art generation failed: ${issues.map((entry) => entry.message).join(' ')}`);
     error.code = 'REQUIRED_CONTRACT_ART_FAILED';

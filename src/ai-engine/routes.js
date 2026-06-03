@@ -90,6 +90,7 @@ import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buil
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { buildForgeAutoscaleReport, runForgeAutoscaleTick, isForgeAutoscaleEnabled } from './forge-autoscale.js';
 import { analyzeMakerAssetQuality, assertRequiredContractArt, summarizeMakerAssetQuality } from './maker-asset-quality.js';
+import { getRequiredContractSlotIds, healRequiredContractArt } from './maker-artist-heal.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 import {
@@ -5593,13 +5594,36 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 await reportProgress(32, 'assets', 'Generating visual ingredients...');
                 
                 // Generate all assets
-                const generatedImages = await batchArtistAgent(assetRequests, {
+                const requiredSlotIds = getRequiredContractSlotIds(makerAssetContract);
+                const artistCancel = async () => {
+                    await assertJobNotCancelledShared(jobId, { force: true });
+                    return false;
+                };
+                let generatedImages = await batchArtistAgent(assetRequests, {
                     tilesets: assetPlan.tilesets || [],
-                    shouldCancel: async () => {
-                        await assertJobNotCancelledShared(jobId, { force: true });
-                        return false;
-                    },
+                    requiredSlotIds,
+                    shouldCancel: artistCancel,
                 });
+                const healResult = await healRequiredContractArt(
+                    generatedImages,
+                    assetRequests,
+                    makerAssetContract,
+                    { shouldCancel: artistCancel },
+                );
+                generatedImages = healResult.batchResult;
+                if (healResult.passes > 0) {
+                    const healedSlots = healResult.healLog
+                        .filter((entry) => entry.ok)
+                        .map((entry) => entry.slotId)
+                        .filter(Boolean);
+                    if (healResult.healed) {
+                        console.log(`[Artist Heal] Recovered required art after ${healResult.passes} pass(es)${healedSlots.length ? `: ${healedSlots.join(', ')}` : ''}`);
+                    } else {
+                        console.warn(`[Artist Heal] Still missing required art after ${healResult.passes} pass(es): ${
+                            (healResult.remainingIssues || []).map((entry) => entry.key || entry.id).join(', ')
+                        }`);
+                    }
+                }
                 generatedAssets = compileDreamAssetBundle(generatedImages, assetPlan);
                 attachMakerAssetManifest(generatedAssets, {
                     assetContract: makerAssetContract,
@@ -5765,12 +5789,24 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 };
                 await writeMakerJson(makerWorkspace, 'logs/requested-asset-tool-request.json', buildStructuredAssetToolRequest(requestPlan, makerAssetContract));
                 const requestedImages = await batchArtistAgent(projectBuild.assetRequests, {
+                    requiredSlotIds: getRequiredContractSlotIds(makerAssetContract),
                     shouldCancel: async () => {
                         await assertJobNotCancelledShared(jobId, { force: true });
                         return false;
                     },
                 });
-                const requestedBundle = compileDreamAssetBundle(requestedImages, requestPlan);
+                const requestedHeal = await healRequiredContractArt(
+                    requestedImages,
+                    projectBuild.assetRequests,
+                    makerAssetContract,
+                    {
+                        shouldCancel: async () => {
+                            await assertJobNotCancelledShared(jobId, { force: true });
+                            return false;
+                        },
+                    },
+                );
+                const requestedBundle = compileDreamAssetBundle(requestedHeal.batchResult, requestPlan);
                 generatedAssets = mergeDreamAssetBundles(generatedAssets, requestedBundle);
                 attachMakerAssetManifest(generatedAssets, {
                     assetContract: makerAssetContract,
