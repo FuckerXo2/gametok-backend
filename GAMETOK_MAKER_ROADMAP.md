@@ -4,6 +4,12 @@ Living plan for DreamStream / native maker pipeline improvements.
 
 ---
 
+## Reverted (2026-06-03) — maker lane keyword library
+
+`maker-lane-library.js` / `selectMakerLane()` / `golden:lane` were shipped in `ef81f65` and **reverted in `c5c499a`**. Do not rebuild keyword scoring on user prompts for lane pick — it caused bad routing. Production path: Phase 1 → dynamic foundation → `buildKernelScaffold()` (`canvas-kernel`). Asset hardening from `80f0cc6` remains.
+
+---
+
 ## Active sprint — Alien Chef / Toybox lane
 
 **Goal:** Prompts like Alien Chef land in the right bucket, boot with a cooking/toybox UI, and pass verification that tests **that loop** (not arcade movement).
