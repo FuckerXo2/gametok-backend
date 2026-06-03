@@ -1571,12 +1571,57 @@ export async function generateOneBatchAsset(batchState, request, id, options = {
     return { ok: false, usedFallback: true, error: lastError?.message || 'generation_failed' };
 }
 
+/** Concurrency for batch asset generation. Spread across the NVIDIA key pool. */
+function artistBatchConcurrency() {
+    const raw = Number(process.env.GAMETOK_ARTIST_CONCURRENCY);
+    if (Number.isFinite(raw) && raw > 0) return Math.min(8, Math.floor(raw));
+    return 4;
+}
+
+/** Fold an isolated per-request batch state into the shared aggregate, preserving order. */
+function mergeBatchState(target, source) {
+    normalizeBatchState(target);
+    normalizeBatchState(source);
+    Object.assign(target.results, source.results);
+    target.manifestAssets.push(...source.manifestAssets);
+    target.assetPack.push(...source.assetPack);
+    target.animations.push(...source.animations);
+    target.errors.push(...source.errors);
+    target.fallbackCount += source.fallbackCount;
+}
+
+/**
+ * Generate all requests concurrently (bounded), each into its own isolated batch state, then
+ * merge results back in request order. generateOneBatchAsset already retries + falls back per
+ * request, so an isolated state never half-fails the aggregate.
+ */
+async function runBatchRequestsConcurrently(requests, options, aggregate) {
+    const isolatedStates = new Array(requests.length);
+    let cursor = 0;
+    const worker = async () => {
+        for (;;) {
+            const index = cursor;
+            cursor += 1;
+            if (index >= requests.length) return;
+            const request = requests[index];
+            const isolated = normalizeBatchState({});
+            await generateOneBatchAsset(isolated, request, request.id, options);
+            isolatedStates[index] = isolated;
+        }
+    };
+    const workerCount = Math.max(1, Math.min(artistBatchConcurrency(), requests.length));
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    for (const isolated of isolatedStates) {
+        if (isolated) mergeBatchState(aggregate, isolated);
+    }
+}
+
 /**
  * BATCH ARTIST AGENT - Generate multiple assets in one call
- * 
+ *
  * This is optimized for Phase 2 to request all needed assets at once.
- * Generates assets sequentially to avoid rate limits.
- * 
+ * Generates assets concurrently (bounded) across the NVIDIA key pool.
+ *
  * @param {Array<Object>} requests - Array of asset requests
  * @returns {Promise<Object>} Map of asset IDs to data URIs
  */
@@ -1593,8 +1638,8 @@ export async function batchArtistAgent(requests, options = {}) {
     const tilesets = [];
     let fallbackCount = 0;
     
-    // Generate assets sequentially to avoid rate limits
-    // (NVIDIA free tier has rate limits)
+    // Generate assets concurrently (bounded) across the NVIDIA key pool. Each request runs in an
+    // isolated batch state and is merged back in request order, so output stays deterministic.
     const batchState = normalizeBatchState({
         results,
         assets: results,
@@ -1605,14 +1650,12 @@ export async function batchArtistAgent(requests, options = {}) {
         fallbackCount,
     });
 
-    for (const request of requests) {
-        const { id } = request;
-        await generateOneBatchAsset(batchState, request, id, options);
-        if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
-            throw new Error('Generation cancelled by user');
-        }
-        await new Promise((resolve) => setTimeout(resolve, 500));
+    const concurrency = Math.max(1, Math.min(artistBatchConcurrency(), requests.length));
+    console.log(`[Batch Artist Agent] Concurrency=${concurrency} across ${requests.length} requests`);
+    if (typeof options.shouldCancel === 'function' && await options.shouldCancel()) {
+        throw new Error('Generation cancelled by user');
     }
+    await runBatchRequestsConcurrently(requests, options, batchState);
 
     fallbackCount = batchState.fallbackCount;
 
