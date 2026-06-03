@@ -4643,12 +4643,34 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
         await rebuildMakerProjectDistWithAutoRepair(projectRoot);
         const assembledHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
         const probeHtml = postProcessRawHtml(assembledHtml, generatedAssets);
-        const sandbox = await verifyGame(probeHtml, {
+        const sandboxOptions = {
             requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
             sourceHtml: assembledHtml,
             templateContract,
             assetContract,
-        });
+        };
+        let sandbox = await verifyGame(probeHtml, sandboxOptions);
+        const sandboxMissingItemRole = !sandbox.success && (sandbox.diagnostics?.failedContractChecks || []).some(
+            (check) => check.id === 'asset_required_roles_unused'
+                && (check.missingRoles || []).includes('item'),
+        );
+        if (sandboxMissingItemRole) {
+            const itemWiringRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
+                allowedKeys: packKeys,
+                assetContract,
+                generatedAssets,
+            });
+            if (itemWiringRepairs.some((entry) => (entry.repairs || []).includes('injected_collectible_item_rendering'))) {
+                console.warn('[Maker AutoRepair] Injected collectible item rendering after sandbox miss; re-verifying...');
+                await rebuildMakerProjectDistWithAutoRepair(projectRoot);
+                const retryHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
+                const retryProbe = postProcessRawHtml(retryHtml, generatedAssets);
+                sandbox = await verifyGame(retryProbe, {
+                    ...sandboxOptions,
+                    sourceHtml: retryHtml,
+                });
+            }
+        }
         const evidence = {
             phase,
             success: Boolean(sandbox.success),
@@ -5043,6 +5065,33 @@ async function runMakerAgentInspectionTurns({
                         assetContract,
                         turnNumber,
                         phase: 'after_file_agent_turn',
+                    });
+                }
+            }
+            const stalledOnItemRole = runEvidence?.success === false
+                && applied.length === 0
+                && (runEvidence?.diagnostics?.failedContractChecks || []).some(
+                    (check) => check.id === 'asset_required_roles_unused'
+                        && (check.missingRoles || []).includes('item'),
+                );
+            if (stalledOnItemRole) {
+                const rescueRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
+                    allowedKeys: allowedAssetKeys,
+                    assetContract,
+                    generatedAssets,
+                });
+                if (rescueRepairs.some((entry) => (entry.repairs || []).includes('injected_collectible_item_rendering'))) {
+                    console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Agent stalled on item role — applied deterministic collectible wiring`);
+                    runEvidence = await runMakerProjectEvidence({
+                        workspace,
+                        projectRoot,
+                        generatedAssets,
+                        templateContract,
+                        assetContract,
+                        turnNumber,
+                        phase: 'after_item_role_rescue',
+                        allowedKeys: allowedAssetKeys,
+                        foundationLane: templateContract?.lane || assetContract?.lane || null,
                     });
                 }
             }

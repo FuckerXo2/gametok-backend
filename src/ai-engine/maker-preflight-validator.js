@@ -458,6 +458,7 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
         'preflight_required_asset_slots_unreferenced',
         'preflight_asset_key_missing_from_pack',
         'preflight_background_not_wired',
+        'preflight_item_not_wired',
     ].includes(issue.id));
     if (assetIssues.length > 0) {
         const assetRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
@@ -759,6 +760,24 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             severity: 'critical',
             message: 'A generated background asset exists in the pack, but src/main.ts does not draw it (missing resolveBackgroundImage/drawBackground/getAssetImage background wiring).',
             repair: 'In renderAll, call resolveBackgroundImage() or getAssetImage("background1") and ctx.drawImage the result full-bleed before entities. Do not ship flat gradient placeholders when background art exists.',
+        });
+    }
+
+    const requiresItemArt = requiredSlots.some((slot) => slot.required && (
+        slot.role === 'item'
+        || slot.category === 'item'
+        || /^item\d+$/i.test(String(slot.id || ''))
+    ));
+    const packHasItemArt = packFacts.roles.has('item')
+        || [...packFacts.keys].some((key) => /^item\d*$/i.test(String(key)));
+    const wiresItemRenderer = /__gtDrawPickups|__gtItemAssetKeys|drawImage\([^;]{0,200}getAssetImage\(\s*['"`]item/i.test(source)
+        || /(?:pickups|collectibles|fuelCans|gasCans)\.forEach\([\s\S]{0,400}drawImage/is.test(source);
+    if (requiresItemArt && packHasItemArt && hasVisualAssets && !wiresItemRenderer) {
+        issues.push({
+            id: 'preflight_item_not_wired',
+            severity: 'critical',
+            message: 'Generated item/gas pickup art exists in the pack, but src/main.ts never draws item sprites with ctx.drawImage(getAssetImage(...)).',
+            repair: 'Spawn lane pickups/collectibles and draw item1/item2 (or item role assets) each frame in renderAll. Do not use flat placeholder shapes when generated gas/item art exists.',
         });
     }
 

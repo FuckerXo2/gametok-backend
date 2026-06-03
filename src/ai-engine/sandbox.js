@@ -22,7 +22,7 @@ function normalizeRequiredAssetRole(role = '') {
     return normalized;
 }
 
-function getRenderedRoleCount(renderedRoles = {}, role = '') {
+function getRenderedRoleCount(renderedRoles = {}, role = '', renderedKeys = {}) {
     const normalized = normalizeRequiredAssetRole(role);
     if (normalized === 'background') {
         return Math.max(
@@ -30,7 +30,15 @@ function getRenderedRoleCount(renderedRoles = {}, role = '') {
             Number(renderedRoles.environment || 0),
         );
     }
-    return Number(renderedRoles[normalized] || 0);
+    let count = Number(renderedRoles[normalized] || 0);
+    if (normalized === 'item' || normalized === 'prop') {
+        for (const [key, hits] of Object.entries(renderedKeys || {})) {
+            if (new RegExp(`^${normalized}\\d*$`, 'i').test(String(key))) {
+                count = Math.max(count, Number(hits || 0));
+            }
+        }
+    }
+    return count;
 }
 
 function roleUsageCountsForEvidence(renderedRoles = {}, usedRoles = {}, renderedKeys = {}, usedKeys = {}, role = '') {
@@ -1089,7 +1097,7 @@ export async function verifyGame(htmlString, options = {}) {
             
             const missingRequiredRoleUsage = requiredRoles
                 .filter((role) => packRoles.has(role))
-                .filter((role) => getRenderedRoleCount(renderedRoles, role) === 0);
+                .filter((role) => getRenderedRoleCount(renderedRoles, role, renderState.dreamAssetUsage?.renderedKeys || {}) === 0);
                 
             if (missingRequiredRoleUsage.length > 0) {
                 const message = `Required asset slots not rendered: generated assets exist, but these required roles were only preloaded/referenced or not rendered during boot: ${missingRequiredRoleUsage.join(', ')}. Use the generated player/enemy/background assets for visible gameplay entities instead of placeholder shapes or flat gradient fills.`;

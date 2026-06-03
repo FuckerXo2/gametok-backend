@@ -421,6 +421,137 @@ function __gtDrawGeneratedBackground(ctxRef, width, height) {
     return out;
 }
 
+const COLLECTIBLE_WIRING_MARKER = '// @gameTokCollectibleWiring';
+
+function contractRequiresItemRole(assetContract = null, allowedKeys = []) {
+    const slots = Array.isArray(assetContract?.slots) ? assetContract.slots : [];
+    const slotRequiresItem = slots.some((slot) => slot?.required !== false && (
+        String(slot?.role || '').toLowerCase() === 'item'
+        || String(slot?.category || '').toLowerCase() === 'item'
+        || /^item\d+$/i.test(String(slot?.id || ''))
+    ));
+    const packHasItemKeys = allowedKeys.some((key) => /^item\d*$/i.test(String(key)));
+    return slotRequiresItem || packHasItemKeys;
+}
+
+function sourceRendersItemAssets(source = '', allowedKeys = []) {
+    const itemKeys = allowedKeys.filter((key) => /^item\d*$/i.test(String(key)));
+    const drawsItemKey = itemKeys.some((key) => {
+        const escaped = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`getAssetImage\\(\\s*['"\`]${escaped}['"\`]\\s*\\)[^;{]*drawImage`, 's').test(source)
+            || new RegExp(`drawImage\\(\\s*getAssetImage\\(\\s*['"\`]${escaped}['"\`]`, 's').test(source)
+            || new RegExp(`drawImage\\([^;]{0,240}${escaped}`, 's').test(source);
+    });
+    if (drawsItemKey) return true;
+    return /drawImage\(\s*[^,)]*(?:item\d*|['"`]item['"`])/i.test(source)
+        || /firstByRole\(\s*['"`]item['"`]\s*\)[^;{]*drawImage/is.test(source)
+        || /(?:pickups|collectibles|fuelCans|gasCans|items)\.forEach\([\s\S]{0,400}drawImage/is.test(source);
+}
+
+function injectCollectibleAssetRendering(source = '', allowedKeys = [], assetContract = null) {
+    if (!contractRequiresItemRole(assetContract, allowedKeys)) return source;
+    if (source.includes(COLLECTIBLE_WIRING_MARKER)) return source;
+    if (sourceRendersItemAssets(source, allowedKeys)) return source;
+
+    const block = `
+${COLLECTIBLE_WIRING_MARKER}
+function __gtItemAssetKeys() {
+  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
+  const fromPack = pack
+    .filter((asset) => String(asset?.role || asset?.category || '').toLowerCase() === 'item')
+    .map((asset) => String(asset.key || asset.id || asset.runtimeKey || ''))
+    .filter(Boolean);
+  const fallback = ${JSON.stringify(allowedKeys.filter((key) => /^item\d*$/i.test(String(key))))};
+  const seen = new Set();
+  const keys = [];
+  for (const key of [...fromPack, ...fallback, 'item1', 'item2', 'item']) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    if (getAssetImage(key)) keys.push(key);
+  }
+  return keys;
+}
+function __gtEnsurePickups(stateRef) {
+  const keys = __gtItemAssetKeys();
+  if (keys.length === 0) return;
+  if (!Array.isArray(stateRef.pickups)) stateRef.pickups = [];
+  if (!Array.isArray(stateRef.collectibles)) stateRef.collectibles = stateRef.pickups;
+  while (stateRef.pickups.length < Math.min(2, keys.length)) {
+    const key = keys[stateRef.pickups.length % keys.length];
+    stateRef.pickups.push({ key, lane: stateRef.pickups.length % 3, y: -72, w: 48, h: 48 });
+  }
+}
+function __gtUpdatePickups(stateRef, dt) {
+  __gtEnsurePickups(stateRef);
+  if (!stateRef.pickups?.length) return;
+  const speed = Number(stateRef.roadScroll ?? stateRef.scrollSpeed ?? stateRef.speed ?? 140) || 140;
+  for (const pickup of stateRef.pickups) {
+    pickup.y += speed * dt;
+    if (pickup.y > stateRef.height + 96) {
+      pickup.y = -48 - Math.random() * 160;
+      pickup.lane = Math.floor(Math.random() * 3);
+    }
+  }
+}
+function __gtDrawPickups(ctxRef, stateRef) {
+  __gtUpdatePickups(stateRef, 1 / 60);
+  __gtEnsurePickups(stateRef);
+  if (!ctxRef || !stateRef.pickups?.length) return;
+  const lanes = Math.max(3, Number(stateRef.laneCount || stateRef.lanes || 3));
+  const laneWidth = stateRef.width / lanes;
+  for (const pickup of stateRef.pickups) {
+    const img = getAssetImage(pickup.key);
+    if (!img) continue;
+    const w = pickup.w || Math.min(64, img.naturalWidth || 48);
+    const h = pickup.h || Math.min(64, img.naturalHeight || 48);
+    const x = laneWidth * (pickup.lane + 0.5) - w / 2;
+    ctxRef.drawImage(img, x, pickup.y, w, h);
+  }
+}
+`;
+
+    let out = source;
+    const anchor = out.match(/\nfunction getAssetImage\s*\(/);
+    if (anchor && anchor.index !== undefined) {
+        out = `${out.slice(0, anchor.index)}${block}${out.slice(anchor.index)}`;
+    } else {
+        out = `${block}${out}`;
+    }
+
+    if (!/__gtDrawPickups\s*\(/.test(out)) {
+        if (/(?:export )?function renderAll\s*\(\)/.test(out)) {
+            out = out.replace(
+                /((?:export )?function renderAll\s*\(\)\s*\{)/,
+                '$1\n  __gtDrawPickups(ctx, state);',
+            );
+        } else if (/(?:export )?function render\s*\(/.test(out)) {
+            out = out.replace(
+                /((?:export )?function render\s*\([^)]*\)\s*\{)/,
+                '$1\n  __gtDrawPickups(ctx, state);',
+            );
+        }
+    }
+
+    if (!/(?:export )?function (?:tick|update|stepGame|gameLoop)\s*\(/.test(out)) {
+        // Pickup motion is advanced inside __gtDrawPickups when no dedicated update hook exists.
+    } else if (!/^\s*__gtUpdatePickups\(state,/m.test(out)) {
+        const updateHooks = [
+            /((?:export )?function tick\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+            /((?:export )?function update\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+            /((?:export )?function stepGame\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+            /((?:export )?function gameLoop\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+        ];
+        for (const pattern of updateHooks) {
+            if (pattern.test(out)) {
+                out = out.replace(pattern, '$1\n  __gtUpdatePickups(state, dt);');
+                break;
+            }
+        }
+    }
+
+    return out;
+}
+
 export function repairMainTsAssetWiringInSource(source = '', {
     allowedKeys = [],
     assetContract = null,
@@ -464,6 +595,12 @@ ${content}`;
     if (wired !== content) {
         content = wired;
         repairs.push('injected_contract_asset_wiring');
+    }
+
+    const collectibleWired = injectCollectibleAssetRendering(content, allowedKeys, assetContract);
+    if (collectibleWired !== content) {
+        content = collectibleWired;
+        repairs.push('injected_collectible_item_rendering');
     }
 
     return {
