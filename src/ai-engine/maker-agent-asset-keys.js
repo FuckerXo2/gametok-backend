@@ -532,23 +532,6 @@ function __gtDrawPickups(ctxRef, stateRef) {
         }
     }
 
-    if (!/(?:export )?function (?:tick|update|stepGame|gameLoop)\s*\(/.test(out)) {
-        // Pickup motion is advanced inside __gtDrawPickups when no dedicated update hook exists.
-    } else if (!/^\s*__gtUpdatePickups\(state,/m.test(out)) {
-        const updateHooks = [
-            /((?:export )?function tick\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-            /((?:export )?function update\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-            /((?:export )?function stepGame\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-            /((?:export )?function gameLoop\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-        ];
-        for (const pattern of updateHooks) {
-            if (pattern.test(out)) {
-                out = out.replace(pattern, '$1\n  __gtUpdatePickups(state, dt);');
-                break;
-            }
-        }
-    }
-
     return out;
 }
 
@@ -559,6 +542,8 @@ function contractRequiresObstacleRole(assetContract = null, allowedKeys = []) {
     const slotRequiresObstacle = slots.some((slot) => slot?.required !== false && (
         String(slot?.role || '').toLowerCase() === 'obstacle'
         || String(slot?.category || '').toLowerCase() === 'obstacle'
+        || String(slot?.role || '').toLowerCase() === 'prop'
+        || String(slot?.category || '').toLowerCase() === 'prop'
         || /^obstacle\d+$/i.test(String(slot?.id || ''))
         || /^prop\d+$/i.test(String(slot?.id || ''))
     ));
@@ -591,7 +576,7 @@ ${OBSTACLE_WIRING_MARKER}
 function __gtObstacleAssetKeys() {
   const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
   const fromPack = pack
-    .filter((asset) => String(asset?.role || asset?.category || '').toLowerCase() === 'obstacle')
+    .filter((asset) => ['obstacle', 'prop'].includes(String(asset?.role || asset?.category || '').toLowerCase()))
     .map((asset) => String(asset.key || asset.id || asset.runtimeKey || ''))
     .filter(Boolean);
   const fallback = ${JSON.stringify(allowedKeys.filter((key) => /^(obstacle|prop)\d*$/i.test(String(key))))};
@@ -664,23 +649,16 @@ function __gtDrawHazards(ctxRef, stateRef) {
         }
     }
 
-    if (/(?:export )?function (?:tick|update|stepGame|gameLoop)\s*\(/.test(out)
-        && !/^\s*__gtUpdateHazards\(state,/m.test(out)) {
-        const updateHooks = [
-            /((?:export )?function tick\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-            /((?:export )?function update\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-            /((?:export )?function stepGame\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-            /((?:export )?function gameLoop\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
-        ];
-        for (const pattern of updateHooks) {
-            if (pattern.test(out)) {
-                out = out.replace(pattern, '$1\n  __gtUpdateHazards(state, dt);');
-                break;
-            }
-        }
-    }
-
     return out;
+}
+
+/** Remove update-hook lines that reference `dt` before the agent declares it (TS2448). */
+export function stripGtWiringDtUpdateHooks(source = '') {
+    const cleaned = String(source || '').replace(
+        /^\s*__gtUpdate(?:Pickups|Hazards)\(state,\s*dt\);\s*\n/gm,
+        '',
+    );
+    return cleaned === source ? source : cleaned;
 }
 
 export function repairMainTsAssetWiringInSource(source = '', {
@@ -738,6 +716,12 @@ ${content}`;
     if (obstacleWired !== content) {
         content = obstacleWired;
         repairs.push('injected_obstacle_prop_rendering');
+    }
+
+    const dtHookStripped = stripGtWiringDtUpdateHooks(content);
+    if (dtHookStripped !== content) {
+        content = dtHookStripped;
+        repairs.push('stripped_gt_dt_update_hooks');
     }
 
     return {

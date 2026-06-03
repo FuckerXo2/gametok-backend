@@ -39,6 +39,7 @@ import {
     collectAllowedAssetPackKeys,
     normalizeMainTsAssetKeys,
     readProjectAssetPackKeys,
+    stripGtWiringDtUpdateHooks,
     writeMakerAssetKeysTs,
 } from './maker-agent-asset-keys.js';
 import {
@@ -4558,6 +4559,25 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
         }
     }
 
+    const gtDtTs2448 = errors.some((error) =>
+        /^src\/main\.ts\(\d+,\d+\):\s*error\s+TS2448:.*\b'dt'\b/.test(String(error || '')));
+    if (gtDtTs2448) {
+        const mainPath = path.join(projectRoot, 'src', 'main.ts');
+        const before = await fs.promises.readFile(mainPath, 'utf8').catch(() => null);
+        if (before != null && /__gtUpdate(?:Pickups|Hazards)\(state,\s*dt\)/.test(before)) {
+            const after = stripGtWiringDtUpdateHooks(before);
+            if (after !== before) {
+                await fs.promises.writeFile(mainPath, after, 'utf8');
+                applied.push({
+                    path: 'src/main.ts',
+                    type: 'ts2448_gt_dt_update_hook_stripped',
+                    from: '__gtUpdatePickups/Hazards(state, dt) at function entry',
+                    to: 'motion advanced inside __gtDrawPickups/Hazards only',
+                });
+            }
+        }
+    }
+
     return applied;
 }
 
@@ -4692,7 +4712,7 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
         let sandbox = await verifyGame(probeHtml, sandboxOptions);
         const sandboxMissingAssetRole = !sandbox.success && (sandbox.diagnostics?.failedContractChecks || []).some(
             (check) => check.id === 'asset_required_roles_unused'
-                && (check.missingRoles || []).some((role) => role === 'item' || role === 'obstacle'),
+                && (check.missingRoles || []).some((role) => role === 'item' || role === 'obstacle' || role === 'prop'),
         );
         if (sandboxMissingAssetRole) {
             const itemWiringRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
@@ -4948,6 +4968,13 @@ async function runMakerAgentInspectionTurns({
                         console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Repair rescue: deduped duplicate state keys (${rescueDedupe[0].removed.join(', ')})`);
                         applied.push({ path: 'src/main.ts', tool: 'auto_repair', bytes: 0 });
                     }
+                    const mainBefore = await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8').catch(() => '');
+                    const dtHookStripped = stripGtWiringDtUpdateHooks(mainBefore);
+                    if (dtHookStripped !== mainBefore) {
+                        await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), dtHookStripped, 'utf8');
+                        console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Repair rescue: stripped __gtUpdate* dt hooks (TS2448)`);
+                        applied.push({ path: 'src/main.ts', tool: 'auto_repair', bytes: 0 });
+                    }
                 }
                 if (applied.length > 0) {
                     const keyNormalize = await normalizeMainTsAssetKeys(projectRoot, allowedAssetKeys);
@@ -5116,7 +5143,7 @@ async function runMakerAgentInspectionTurns({
                 && applied.length === 0
                 && (runEvidence?.diagnostics?.failedContractChecks || []).some(
                     (check) => check.id === 'asset_required_roles_unused'
-                        && (check.missingRoles || []).some((role) => role === 'item' || role === 'obstacle'),
+                        && (check.missingRoles || []).some((role) => role === 'item' || role === 'obstacle' || role === 'prop'),
                 );
             if (stalledOnAssetRole) {
                 const rescueRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
