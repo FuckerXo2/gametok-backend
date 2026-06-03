@@ -281,6 +281,63 @@ function buildDefaultAssetSlots(qualityIntent = {}, entityBlueprints = []) {
     return slots;
 }
 
+/**
+ * Deterministic foundation seed from a Phase 1 intent spec, used when the foundation architect
+ * model fails to return usable JSON (and heuristic fallback is enabled). Only carries intent-derived
+ * flavor — normalizeFoundationContract() fills every required field and default asset slots.
+ */
+export function buildFallbackFoundationSeed(qualityIntent = {}) {
+    const intent = qualityIntent && typeof qualityIntent === 'object' ? qualityIntent : {};
+    const play = intent.playableExperience && typeof intent.playableExperience === 'object'
+        ? intent.playableExperience
+        : {};
+    const tech = intent.technicalRequirements && typeof intent.technicalRequirements === 'object'
+        ? intent.technicalRequirements
+        : {};
+
+    const entityBlueprints = [];
+    const rawVisuals = intent.visualAssets;
+    const visualList = Array.isArray(rawVisuals)
+        ? rawVisuals
+        : (rawVisuals && typeof rawVisuals === 'object' ? Object.values(rawVisuals) : []);
+    for (const entry of visualList) {
+        if (!entry) continue;
+        if (typeof entry === 'string') {
+            entityBlueprints.push({ id: slugify(entry), role: 'prop', description: entry });
+            continue;
+        }
+        const role = asString(entry.role || entry.category || entry.type, 'prop');
+        const id = asString(entry.id || entry.key || entry.name, role);
+        entityBlueprints.push({
+            id,
+            role,
+            description: asString(entry.description || entry.prompt || entry.name, `${role} for ${intent.title || 'the game'}`),
+        });
+    }
+
+    const coreLoop = asString(play.coreLoop, '');
+    const primaryMechanic = asString(play.primaryMechanic, '');
+
+    return {
+        foundationId: slugify(intent.title || 'fallback_game'),
+        title: asString(intent.title, 'GameTok Game'),
+        lane: primaryMechanic ? slugify(primaryMechanic) : 'arcade',
+        dimension: asString(tech.dimension, '2D'),
+        perspective: asString(tech.perspective, 'top_down'),
+        engine: 'canvas-2d',
+        interactionLoops: [coreLoop || primaryMechanic || 'Touch-first mobile loop with visible feedback.'].filter(Boolean),
+        entityBlueprints,
+        controls: asArray(tech.controls).length ? asArray(tech.controls) : ['tap'],
+        acceptanceChecks: asArray(intent.acceptanceChecks).length
+            ? asArray(intent.acceptanceChecks)
+            : [coreLoop ? `Core loop responds to input: ${coreLoop}` : 'Core loop responds to input within 10 seconds'],
+        implementationNotes: [intent.userIntent, coreLoop, primaryMechanic]
+            .map((note) => asString(note, ''))
+            .filter(Boolean),
+        statusCopy: asString(play.statusCopy, 'Tap to play!'),
+    };
+}
+
 export function assertFoundationSupported(foundation = {}) {
     const dimension = String(foundation.dimension || '2D').toUpperCase();
     const lane = String(foundation.lane || '').toLowerCase();

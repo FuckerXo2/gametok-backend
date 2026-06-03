@@ -101,6 +101,7 @@ import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
 import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 import {
     assertFoundationSupported,
+    buildFallbackFoundationSeed,
     buildFoundationAgentPrompt,
     buildFoundationDebugChecks,
     buildMakerAssetContractFromFoundation,
@@ -5499,7 +5500,21 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             try {
                 rawFoundation = await callAI(foundationPrompt.system, foundationPrompt.user, PHASE1_5_MAX_OUTPUT_TOKENS, 0.25);
             } catch (foundationError) {
-                throw new Error(`Phase 1.5 foundation architect failed after exhausting text keys/models: ${foundationError?.message || foundationError}`);
+                if (!ALLOW_PHASE1_HEURISTIC_FALLBACK) {
+                    throw new Error(`Phase 1.5 foundation architect failed after exhausting text keys/models: ${foundationError?.message || foundationError}`);
+                }
+                // Mirror the Phase 1 heuristic fallback: rather than killing the job at 14%, seed a
+                // deterministic foundation from the intent spec. normalizeFoundationContract() fills
+                // every required field (renderAll, default player+background slots), so the seed only
+                // needs to carry intent-derived flavor.
+                console.warn(`⚠️ Phase 1.5 foundation architect failed; using deterministic foundation seed from Phase 1 intent: ${foundationError?.message || foundationError}`);
+                rawFoundation = buildFallbackFoundationSeed(qualityIntent);
+                await writeMakerJson(makerWorkspace, 'foundation-fallback.json', {
+                    used: true,
+                    reason: foundationError?.message || String(foundationError || 'unknown error'),
+                    generatedAt: new Date().toISOString(),
+                    seed: rawFoundation,
+                });
             }
             makerFoundationContract = normalizeFoundationContract(rawFoundation, qualityIntent);
             assertFoundationSupported(makerFoundationContract);
