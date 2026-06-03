@@ -552,6 +552,137 @@ function __gtDrawPickups(ctxRef, stateRef) {
     return out;
 }
 
+const OBSTACLE_WIRING_MARKER = '// @gameTokObstacleWiring';
+
+function contractRequiresObstacleRole(assetContract = null, allowedKeys = []) {
+    const slots = Array.isArray(assetContract?.slots) ? assetContract.slots : [];
+    const slotRequiresObstacle = slots.some((slot) => slot?.required !== false && (
+        String(slot?.role || '').toLowerCase() === 'obstacle'
+        || String(slot?.category || '').toLowerCase() === 'obstacle'
+        || /^obstacle\d+$/i.test(String(slot?.id || ''))
+        || /^prop\d+$/i.test(String(slot?.id || ''))
+    ));
+    const packHasObstacleKeys = allowedKeys.some((key) => /^(obstacle|prop)\d*$/i.test(String(key)));
+    return slotRequiresObstacle || packHasObstacleKeys;
+}
+
+function sourceRendersObstacleAssets(source = '', allowedKeys = []) {
+    const obstacleKeys = allowedKeys.filter((key) => /^(obstacle|prop)\d*$/i.test(String(key)));
+    const drawsObstacleKey = obstacleKeys.some((key) => {
+        const escaped = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`getAssetImage\\(\\s*['"\`]${escaped}['"\`]\\s*\\)[^;{]*drawImage`, 's').test(source)
+            || new RegExp(`drawImage\\(\\s*getAssetImage\\(\\s*['"\`]${escaped}['"\`]`, 's').test(source)
+            || new RegExp(`drawImage\\([^;]{0,240}${escaped}`, 's').test(source);
+    });
+    if (drawsObstacleKey) return true;
+    return /drawImage\(\s*[^,)]*(?:obstacle\d*|prop\d*|['"`]obstacle['"`])/i.test(source)
+        || /firstByRole\(\s*['"`]obstacle['"`]\s*\)[^;{]*drawImage/is.test(source)
+        || /(?:obstacles|hazards|props|barriers|cones|barrels)\.forEach\([\s\S]{0,400}drawImage/is.test(source)
+        || /__gtDrawHazards\s*\(/.test(source);
+}
+
+function injectObstacleAssetRendering(source = '', allowedKeys = [], assetContract = null) {
+    if (!contractRequiresObstacleRole(assetContract, allowedKeys)) return source;
+    if (source.includes(OBSTACLE_WIRING_MARKER)) return source;
+    if (sourceRendersObstacleAssets(source, allowedKeys)) return source;
+
+    const block = `
+${OBSTACLE_WIRING_MARKER}
+function __gtObstacleAssetKeys() {
+  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
+  const fromPack = pack
+    .filter((asset) => String(asset?.role || asset?.category || '').toLowerCase() === 'obstacle')
+    .map((asset) => String(asset.key || asset.id || asset.runtimeKey || ''))
+    .filter(Boolean);
+  const fallback = ${JSON.stringify(allowedKeys.filter((key) => /^(obstacle|prop)\d*$/i.test(String(key))))};
+  const seen = new Set();
+  const keys = [];
+  for (const key of [...fromPack, ...fallback, 'prop1', 'prop2', 'obstacle1', 'obstacle2']) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    if (getAssetImage(key)) keys.push(key);
+  }
+  return keys;
+}
+function __gtEnsureHazards(stateRef) {
+  const keys = __gtObstacleAssetKeys();
+  if (keys.length === 0) return;
+  if (!Array.isArray(stateRef.__gtHazards)) stateRef.__gtHazards = [];
+  while (stateRef.__gtHazards.length < Math.min(3, keys.length)) {
+    const key = keys[stateRef.__gtHazards.length % keys.length];
+    stateRef.__gtHazards.push({ key, lane: (stateRef.__gtHazards.length + 1) % 3, y: -96 - stateRef.__gtHazards.length * 120, w: 72, h: 72 });
+  }
+}
+function __gtUpdateHazards(stateRef, dt) {
+  __gtEnsureHazards(stateRef);
+  if (!stateRef.__gtHazards?.length) return;
+  const speed = Number(stateRef.roadScroll ?? stateRef.scrollSpeed ?? stateRef.speed ?? 140) || 140;
+  for (const hazard of stateRef.__gtHazards) {
+    hazard.y += speed * dt;
+    if (hazard.y > stateRef.height + 120) {
+      hazard.y = -72 - Math.random() * 200;
+      hazard.lane = Math.floor(Math.random() * 3);
+    }
+  }
+}
+function __gtDrawHazards(ctxRef, stateRef) {
+  __gtUpdateHazards(stateRef, 1 / 60);
+  __gtEnsureHazards(stateRef);
+  if (!ctxRef || !stateRef.__gtHazards?.length) return;
+  const lanes = Math.max(3, Number(stateRef.laneCount || stateRef.lanes || 3));
+  const laneWidth = stateRef.width / lanes;
+  for (const hazard of stateRef.__gtHazards) {
+    const img = getAssetImage(hazard.key);
+    if (!img) continue;
+    const w = hazard.w || Math.min(96, img.naturalWidth || 72);
+    const h = hazard.h || Math.min(96, img.naturalHeight || 72);
+    const x = laneWidth * (hazard.lane + 0.5) - w / 2;
+    ctxRef.drawImage(img, x, hazard.y, w, h);
+  }
+}
+`;
+
+    let out = source;
+    const anchor = out.match(/\nfunction getAssetImage\s*\(/);
+    if (anchor && anchor.index !== undefined) {
+        out = `${out.slice(0, anchor.index)}${block}${out.slice(anchor.index)}`;
+    } else {
+        out = `${block}${out}`;
+    }
+
+    if (!/__gtDrawHazards\s*\(/.test(out)) {
+        if (/(?:export )?function renderAll\s*\(\)/.test(out)) {
+            out = out.replace(
+                /((?:export )?function renderAll\s*\(\)\s*\{)/,
+                '$1\n  __gtDrawHazards(ctx, state);',
+            );
+        } else if (/(?:export )?function render\s*\(/.test(out)) {
+            out = out.replace(
+                /((?:export )?function render\s*\([^)]*\)\s*\{)/,
+                '$1\n  __gtDrawHazards(ctx, state);',
+            );
+        }
+    }
+
+    if (/(?:export )?function (?:tick|update|stepGame|gameLoop)\s*\(/.test(out)
+        && !/^\s*__gtUpdateHazards\(state,/m.test(out)) {
+        const updateHooks = [
+            /((?:export )?function tick\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+            /((?:export )?function update\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+            /((?:export )?function stepGame\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+            /((?:export )?function gameLoop\s*\(\s*[^)]*dt[^)]*\)\s*\{)/,
+        ];
+        for (const pattern of updateHooks) {
+            if (pattern.test(out)) {
+                out = out.replace(pattern, '$1\n  __gtUpdateHazards(state, dt);');
+                break;
+            }
+        }
+    }
+
+    return out;
+}
+
 export function repairMainTsAssetWiringInSource(source = '', {
     allowedKeys = [],
     assetContract = null,
@@ -601,6 +732,12 @@ ${content}`;
     if (collectibleWired !== content) {
         content = collectibleWired;
         repairs.push('injected_collectible_item_rendering');
+    }
+
+    const obstacleWired = injectObstacleAssetRendering(content, allowedKeys, assetContract);
+    if (obstacleWired !== content) {
+        content = obstacleWired;
+        repairs.push('injected_obstacle_prop_rendering');
     }
 
     return {

@@ -38,6 +38,13 @@ function getRenderedRoleCount(renderedRoles = {}, role = '', renderedKeys = {}) 
             }
         }
     }
+    if (normalized === 'obstacle') {
+        for (const [key, hits] of Object.entries(renderedKeys || {})) {
+            if (/^(obstacle|prop)\d*$/i.test(String(key))) {
+                count = Math.max(count, Number(hits || 0));
+            }
+        }
+    }
     return count;
 }
 
