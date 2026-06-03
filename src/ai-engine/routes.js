@@ -4781,12 +4781,16 @@ async function runMakerAgentInspectionTurns({
             let runEvidence;
 
             if (makerAgentUsesTools) {
-                console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] mode=${turnMode} assetKeys=${allowedAssetKeys.length}`);
+                const implementToolBudgetHint = isImplementTurn && allowedAssetKeys.length > 40
+                    ? ` toolBudget=scaled(${allowedAssetKeys.length} keys)`
+                    : '';
+                console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] mode=${turnMode} assetKeys=${allowedAssetKeys.length}${implementToolBudgetHint}`);
                 let stickyImplementModel = null;
                 const toolTurn = await runMakerAgentToolTurn({
                     userPrompt: promptText,
                     projectRoot,
                     mode: turnMode,
+                    assetKeyCount: allowedAssetKeys.length,
                     requestCompletion: (messages) => requestMakerToolCompletion(messages, {
                         label: `Phase 2 File Agent Turn ${turnNumber}`,
                         jobId,

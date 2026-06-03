@@ -32,7 +32,19 @@ const REPAIR_MAX_ROUNDS = Math.max(
 );
 const IMPLEMENT_MAX_TOOL_CALLS = Math.max(
     6,
-    Math.min(32, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 20)),
+    Math.min(48, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 32)),
+);
+const IMPLEMENT_MAX_TOOL_CALLS_CEILING = Math.max(
+    IMPLEMENT_MAX_TOOL_CALLS,
+    Math.min(64, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS_CEILING || 48)),
+);
+const IMPLEMENT_ASSET_KEY_BONUS_THRESHOLD = Math.max(
+    24,
+    Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_ASSET_BONUS_THRESHOLD || 40),
+);
+const IMPLEMENT_ASSET_KEY_BONUS_STEP = Math.max(
+    4,
+    Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_ASSET_BONUS_STEP || 5),
 );
 const IMPLEMENT_EDIT_PATHS = new Set(['src/main.ts', 'src/styles.css']);
 const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
@@ -589,16 +601,24 @@ function summarizeEditFromToolResult(result = {}) {
     };
 }
 
-function resolveTurnLimits(mode = MAKER_AGENT_TURN_MODE_REPAIR) {
+function resolveTurnLimits(mode = MAKER_AGENT_TURN_MODE_REPAIR, { assetKeyCount = 0 } = {}) {
     if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
+        const assetKeys = Math.max(0, Number(assetKeyCount) || 0);
+        let maxToolCalls = IMPLEMENT_MAX_TOOL_CALLS;
+        if (assetKeys > IMPLEMENT_ASSET_KEY_BONUS_THRESHOLD) {
+            const bonus = Math.floor((assetKeys - IMPLEMENT_ASSET_KEY_BONUS_THRESHOLD) / IMPLEMENT_ASSET_KEY_BONUS_STEP);
+            maxToolCalls = Math.min(IMPLEMENT_MAX_TOOL_CALLS_CEILING, maxToolCalls + bonus);
+        }
         return {
             maxRounds: IMPLEMENT_MAX_ROUNDS,
-            maxToolCalls: IMPLEMENT_MAX_TOOL_CALLS,
+            maxToolCalls,
+            assetKeyCount: assetKeys,
         };
     }
     return {
         maxRounds: REPAIR_MAX_ROUNDS,
         maxToolCalls: REPAIR_MAX_TOOL_CALLS,
+        assetKeyCount: 0,
     };
 }
 
@@ -747,6 +767,7 @@ export async function runMakerAgentToolTurn({
     mode = MAKER_AGENT_TURN_MODE_REPAIR,
     maxRounds,
     maxToolCalls,
+    assetKeyCount = 0,
     onEditApplied = null,
 } = {}) {
     if (!projectRoot || !helpers?.safeMakerProjectPath || !helpers?.isProtectedMakerRuntimeFile || !helpers?.sanitizeMakerMainTsContent) {
@@ -756,7 +777,7 @@ export async function runMakerAgentToolTurn({
         throw new Error('runMakerAgentToolTurn requires requestCompletion(messages)');
     }
 
-    const limits = resolveTurnLimits(mode);
+    const limits = resolveTurnLimits(mode, { assetKeyCount });
     const effectiveMaxRounds = maxRounds ?? limits.maxRounds;
     const effectiveMaxToolCalls = maxToolCalls ?? limits.maxToolCalls;
 
@@ -766,6 +787,8 @@ export async function runMakerAgentToolTurn({
         mode,
         rounds: 0,
         toolCalls: 0,
+        maxToolCalls: effectiveMaxToolCalls,
+        assetKeyCount: limits.assetKeyCount,
         events: [],
     };
     const editsApplied = [];
@@ -823,8 +846,14 @@ export async function runMakerAgentToolTurn({
         let roundEdited = false;
         let roundReadFile = false;
         const readPathsThisRound = new Set();
-        for (const toolCall of toolCalls) {
+        toolCallLoop: for (const toolCall of toolCalls) {
             if (log.toolCalls >= effectiveMaxToolCalls) {
+                if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && touchedMainTs) {
+                    finished = true;
+                    notes = [`Implement turn capped at ${effectiveMaxToolCalls} tool calls after src/main.ts edits; proceeding to build/sandbox.`];
+                    log.events.push({ type: 'cap_graceful_finish', toolCalls: log.toolCalls });
+                    break toolCallLoop;
+                }
                 throw new Error(`Maker tool turn exceeded max tool calls (${effectiveMaxToolCalls}) in ${mode} mode`);
             }
             log.toolCalls += 1;
@@ -901,6 +930,10 @@ export async function runMakerAgentToolTurn({
                 noEditsNeeded = Boolean(result.noEditsNeeded) && editsApplied.length === 0;
                 notes = Array.isArray(result.notes) ? result.notes : [];
             }
+        }
+
+        if (finished) {
+            break;
         }
 
         if ((mode === MAKER_AGENT_TURN_MODE_IMPLEMENT || mode === MAKER_AGENT_TURN_MODE_REPAIR) && roundEdited && !finished) {
