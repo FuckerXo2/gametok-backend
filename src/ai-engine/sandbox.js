@@ -214,10 +214,21 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 if (!initial || typeof initial !== 'object') {
                     failures.push('snapshot() did not return a state object.');
                 }
+                // Loop liveness: step the simulation forward and observe whether ANY state advanced.
+                // This is diagnostic only — a game that legitimately waits for input (e.g. a puzzle)
+                // can report loopObserved=false without failing — but it stops a do-nothing stepGame()
+                // stub from masquerading as a finished game. We surface it instead of silently passing.
+                const sig = (value) => { try { return JSON.stringify(value); } catch { return String(value); } };
+                let loopObserved = false;
+                let afterStep = initial;
                 if (typeof probe.step === 'function') {
-                    const stepped = probe.step(16);
-                    if (stepped && typeof stepped.then === 'function') {
-                        await stepped;
+                    const initialSig = sig(initial);
+                    for (let frame = 0; frame < 30 && !loopObserved; frame += 1) {
+                        const stepped = probe.step(16);
+                        if (stepped && typeof stepped.then === 'function') await stepped;
+                        await wait(8);
+                        afterStep = typeof probe.snapshot === 'function' ? probe.snapshot() : afterStep;
+                        if (sig(afterStep) !== initialSig) loopObserved = true;
                     }
                 }
                 return {
@@ -227,6 +238,8 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     details: {
                         lane: kernelProbeContract?.lane || null,
                         initial,
+                        afterStep,
+                        loopObserved,
                         requiredMethods,
                     },
                 };
@@ -764,6 +777,14 @@ export async function verifyGame(htmlString, options = {}) {
         }
 
         const templateRuntimeProbe = await runTemplateRuntimeProbe(page, options?.templateContract || null);
+        if (templateRuntimeProbe) {
+            const probeOk = templateRuntimeProbe.success ? 'pass' : 'FAIL';
+            const loopNote = templateRuntimeProbe.details
+                && Object.prototype.hasOwnProperty.call(templateRuntimeProbe.details, 'loopObserved')
+                ? ` loopObserved=${templateRuntimeProbe.details.loopObserved}`
+                : '';
+            console.log(`🔬 [Sandbox Probe] template=${templateRuntimeProbe.templateId} ${probeOk}${loopNote}${templateRuntimeProbe.failures?.length ? ` failures=[${templateRuntimeProbe.failures.join('; ')}]` : ''}`);
+        }
 
         const renderState = await page.evaluate(() => {
             const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 390;
@@ -1102,12 +1123,20 @@ export async function verifyGame(htmlString, options = {}) {
                     .map((role) => normalizeRequiredAssetRole(role)),
             );
             
+            // Only PERSISTENT roles must be painted on the very first frame. Spawned/conditional
+            // roles (enemy, item, prop, obstacle, projectile, collectible...) legitimately appear
+            // later in the loop — a fish in a fishing game, an enemy in a not-yet-spawned wave, bait
+            // shown only while reeling. Demanding boot-render for those is unfixable by design and
+            // forces the agent to burn every repair turn flailing. Those roles are still protected
+            // from the gray-rectangle failure by asset_pack_ignored + asset_pack_not_rendered above.
+            const BOOT_RENDER_REQUIRED_ROLES = new Set(['player', 'background']);
             const missingRequiredRoleUsage = requiredRoles
+                .filter((role) => BOOT_RENDER_REQUIRED_ROLES.has(role))
                 .filter((role) => packRoles.has(role))
                 .filter((role) => getRenderedRoleCount(renderedRoles, role, renderState.dreamAssetUsage?.renderedKeys || {}) === 0);
-                
+
             if (missingRequiredRoleUsage.length > 0) {
-                const message = `Required asset slots not rendered: generated assets exist, but these required roles were only preloaded/referenced or not rendered during boot: ${missingRequiredRoleUsage.join(', ')}. Use the generated player/enemy/background assets for visible gameplay entities instead of placeholder shapes or flat gradient fills.`;
+                const message = `Required persistent asset slots not rendered: generated assets exist, but these always-on roles were only preloaded/referenced and never drawn on boot: ${missingRequiredRoleUsage.join(', ')}. Draw the generated player/background art on the first frame instead of placeholder shapes or flat gradient fills.`;
                 renderState.failedContractChecks.push({
                     id: 'asset_required_roles_unused',
                     templateId: options?.assetContract?.templateId || null,

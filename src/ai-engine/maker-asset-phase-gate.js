@@ -19,6 +19,7 @@ import {
     readProjectAssetPackKeys,
     writeMakerAssetKeysTs,
 } from './maker-agent-asset-keys.js';
+import { isMakerFactoryMinimalMode } from './maker-factory-mode.js';
 
 export const PHASE2_ASSET_PACK_INCOMPLETE = 'PHASE2_ASSET_PACK_INCOMPLETE';
 
@@ -93,6 +94,7 @@ export async function finalizeMakerArtistPhase({
     templateContract = null,
     qualityIntent = {},
     errors = [],
+    factoryMinimal = isMakerFactoryMinimalMode(),
 } = {}) {
     if (!generatedAssets) {
         return { generatedAssets: null, qualityReport: null, materializeResult: null };
@@ -117,7 +119,20 @@ export async function finalizeMakerArtistPhase({
         await writeWorkspaceJson(workspace, 'asset-quality-summary.json', summarizeMakerAssetQuality(qualityReport));
     }
 
-    assertRequiredContractArt(generatedAssets, assetContract);
+    // Required-art gate. Factory-minimal mode trusts compile + sandbox and blocks only on
+    // wiring (see FACTORY_MINIMAL_BLOCKING_PREFLIGHT_IDS), not on art *generation* quality —
+    // the canvas-kernel stub renders code-drawn fallbacks for any missing/fallback slot, so a
+    // failed FLUX slot should degrade the look, not kill an otherwise-buildable game.
+    try {
+        assertRequiredContractArt(generatedAssets, assetContract);
+    } catch (error) {
+        if (!factoryMinimal || error?.code !== 'REQUIRED_CONTRACT_ART_FAILED') throw error;
+        const degraded = (error.issues || []).map((issue) => issue.key || issue.id).filter(Boolean);
+        generatedAssets.requiredArtDegraded = degraded;
+        errors = [...errors, { phase: 'required_contract_art', message: error.message, degradedSlots: degraded }];
+        attachMakerAssetManifest(generatedAssets, { assetContract, templateContract, qualityIntent, errors });
+        console.warn(`[Asset Gate] ${error.message} — factory-minimal: continuing with code-rendered fallbacks${degraded.length ? ` for ${degraded.join(', ')}` : ''}`);
+    }
 
     const materializeResult = await materializeMakerAssetsBeforePhase2(workspace, generatedAssets);
     await writeWorkspaceAssetArtifacts(workspace, generatedAssets);
@@ -140,28 +155,38 @@ export function assertMakerAssetsReadyForPhase2({
     generatedAssets = null,
     assetContract = null,
     artistWasRequired = false,
+    factoryMinimal = isMakerFactoryMinimalMode(),
 } = {}) {
     const requiredCount = countRequiredVisualContractSlots(assetContract);
     if (!artistWasRequired || requiredCount === 0) {
         return;
     }
 
-    if (!generatedAssets || !generatedAssets.assets || Object.keys(generatedAssets.assets).length === 0) {
-        const error = new Error(
-            'Phase 2 blocked: visual assets were required for this contract but artist output is missing.',
-        );
+    // In factory-minimal mode the canvas-kernel renderer falls back to code-drawn art for any
+    // unmet visual slot, so an incomplete art pack degrades the look rather than killing the job.
+    // Outside factory-minimal we still fail closed.
+    const blockOrDegrade = (message, extra = {}) => {
+        if (factoryMinimal) {
+            console.warn(`[Asset Gate] ${message} — factory-minimal: continuing into Phase 2 with code-rendered fallbacks`);
+            return;
+        }
+        const error = new Error(`Phase 2 blocked: ${message}`);
         error.code = PHASE2_ASSET_PACK_INCOMPLETE;
+        Object.assign(error, extra);
         throw error;
+    };
+
+    if (!generatedAssets || !generatedAssets.assets || Object.keys(generatedAssets.assets).length === 0) {
+        blockOrDegrade('visual assets were required for this contract but artist output is missing.');
+        return;
     }
 
     const contractIssues = collectRequiredContractArtIssues(generatedAssets, assetContract);
     if (contractIssues.length > 0) {
-        const error = new Error(
-            `Phase 2 blocked: required contract art incomplete (${contractIssues.map((entry) => entry.key || entry.id).join(', ')}).`,
+        blockOrDegrade(
+            `required contract art incomplete (${contractIssues.map((entry) => entry.key || entry.id).join(', ')}).`,
+            { issues: contractIssues },
         );
-        error.code = PHASE2_ASSET_PACK_INCOMPLETE;
-        error.issues = contractIssues;
-        throw error;
     }
 
     const missing = asArray(
@@ -169,12 +194,10 @@ export function assertMakerAssetsReadyForPhase2({
         || generatedAssets.makerAssetManifest?.missingRequiredSlots,
     );
     if (missing.length > 0) {
-        const error = new Error(
-            `Phase 2 blocked: materialized asset pack missing required slots: ${missing.join(', ')}.`,
+        blockOrDegrade(
+            `materialized asset pack missing required slots: ${missing.join(', ')}.`,
+            { missingSlots: missing },
         );
-        error.code = PHASE2_ASSET_PACK_INCOMPLETE;
-        error.missingSlots = missing;
-        throw error;
     }
 }
 
