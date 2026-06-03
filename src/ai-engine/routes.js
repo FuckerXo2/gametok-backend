@@ -96,6 +96,7 @@ import {
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
 import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
+import { stripCookingStateLeaksFromSource } from './maker-lane-scaffolds.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -4527,6 +4528,26 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
                 from: 'duplicate',
                 to: 'single-implementation',
             });
+        }
+    }
+
+    const cookingStateTs2339 = errors.some((error) =>
+        /^src\/main\.ts\(\d+,\d+\):\s*error\s+TS2339:\s*Property '(?:cauldronSlots|pantry|cookingSlots|orderQueue|activeOrder|currentCustomer)' does not exist/.test(String(error || '')));
+    if (cookingStateTs2339) {
+        const mainPath = path.join(projectRoot, 'src', 'main.ts');
+        const before = await fs.promises.readFile(mainPath, 'utf8').catch(() => null);
+        if (before != null) {
+            const repair = stripCookingStateLeaksFromSource(before, { lane: '' });
+            if (repair.changed) {
+                await fs.promises.writeFile(mainPath, repair.content, 'utf8');
+                applied.push({
+                    path: 'src/main.ts',
+                    type: 'ts2339_cooking_state_leak_stripped',
+                    keys: repair.removed,
+                    from: repair.removed.join(', '),
+                    to: 'removed cooking-only state references',
+                });
+            }
         }
     }
 

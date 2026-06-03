@@ -7,7 +7,9 @@ import {
 } from './maker-hud-authority.js';
 import {
     inferFoundationStateInitializer,
+    isTimedOrderCookingLane,
     mergeLaneRequiredState,
+    stripCookingStateLeaksFromSource,
 } from './maker-lane-scaffolds.js';
 
 function asArray(value) {
@@ -493,6 +495,7 @@ function jsString(value = '') {
 }
 
 export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
+    const cookingLane = isTimedOrderCookingLane(foundation);
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
     const hudBlocks = asArray(foundation.hudBlocks);
     const useHudScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
@@ -541,7 +544,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
         .map((note) => `// ${note}`)
         .join('\n');
 
-    return `// @ts-nocheck
+    const stubBody = `// @ts-nocheck
 // GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
 // Phase 2 owns full layout (index.html, styles.css, main.ts) — follow layoutComposition in foundation contract.
@@ -685,9 +688,9 @@ export function resetGame() {
   state.gameOver = false;
   state.started = false;
   state.lastTick = performance.now();
-  if (Array.isArray(state.cauldronSlots)) state.cauldronSlots = [null, null, null];
+${cookingLane ? `  if (Array.isArray(state.cauldronSlots)) state.cauldronSlots = [null, null, null];
   if (Array.isArray(state.pantry)) state.pantry.length = 0;
-  renderAll();
+` : ''}  renderAll();
 }
 
 function gameLoop(now) {
@@ -727,6 +730,7 @@ canvas.addEventListener('pointerdown', () => {
 renderAll();
 requestAnimationFrame(gameLoop);
 `;
+    return stripCookingStateLeaksFromSource(stubBody, foundation).content;
 }
 
 export function buildFoundationDebugChecks(foundation = {}) {

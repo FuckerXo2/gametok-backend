@@ -72,6 +72,46 @@ export function mergeLaneRequiredState(foundation = {}) {
     };
 }
 
+export const COOKING_ONLY_STATE_KEYS = [
+    'pantry',
+    'cauldronSlots',
+    'cookingSlots',
+    'orderQueue',
+    'activeOrder',
+    'currentCustomer',
+    'customerPatience',
+    'shiftTimer',
+    'drag',
+    'cookFeedback',
+    'cookFeedbackTimer',
+    'customerType',
+    'customerExpression',
+    'bubbleTimer',
+    'orderCooldown',
+];
+
+export function stripCookingStateLeaksFromSource(source = '', foundation = {}) {
+    if (isTimedOrderCookingLane(foundation)) {
+        return { content: source, changed: false, removed: [] };
+    }
+    const removed = [];
+    const lines = String(source || '').split('\n');
+    const kept = lines.filter((line) => {
+        const hit = COOKING_ONLY_STATE_KEYS.find((key) => new RegExp(`\\bstate\\.${key}\\b`).test(line));
+        if (hit) {
+            removed.push(hit);
+            return false;
+        }
+        return true;
+    });
+    const content = kept.join('\n');
+    return {
+        content,
+        changed: content !== source,
+        removed: [...new Set(removed)],
+    };
+}
+
 export function inferFoundationStateInitializer(key = '', foundation = {}) {
     if (key === 'screenPhase' || key === 'screenState') return "'PLAYING'";
     if (key === 'pantry' || key === 'particles' || key === 'customers' || key === 'ingredients') return '[]';

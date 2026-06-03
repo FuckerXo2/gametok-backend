@@ -5,6 +5,7 @@ import {
     applyDuplicateHudCanvasRepairs,
     detectDuplicateHudRendering,
 } from './maker-hud-authority.js';
+import { stripCookingStateLeaksFromSource } from './maker-lane-scaffolds.js';
 
 async function readTextIfExists(filePath) {
     try {
@@ -429,6 +430,24 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     let source = await readTextIfExists(mainPath);
     if (!source.trim()) return applied;
 
+    const allowedKeys = [...new Set((options.allowedKeys || []).filter(Boolean))];
+    const foundationLane = String(options.foundationLane || options.lane || '');
+    const isCookingFoundation = /cook|pantry|diner|ingredient|cauldron|order/i.test(foundationLane);
+    const cookingOnlyStateKeys = new Set(['pantry', 'cauldronSlots', 'cookingSlots', 'orderQueue']);
+
+    const cookingLeakRepair = stripCookingStateLeaksFromSource(source, { lane: foundationLane });
+    if (cookingLeakRepair.changed) {
+        source = cookingLeakRepair.content;
+        await fs.writeFile(mainPath, source, 'utf8');
+        applied.push({
+            path: 'src/main.ts',
+            type: 'cooking_state_leak_stripped',
+            keys: cookingLeakRepair.removed,
+            from: cookingLeakRepair.removed.join(', '),
+            to: 'removed cooking-only state references',
+        });
+    }
+
     const stubMaxBytes = Math.max(
         4000,
         Number(process.env.GAMETOK_MAKER_STUB_MAX_BYTES || 12000),
@@ -448,11 +467,6 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
             to: initialDedupe.removed.join(', '),
         });
     }
-
-    const allowedKeys = [...new Set((options.allowedKeys || []).filter(Boolean))];
-    const foundationLane = String(options.foundationLane || options.lane || '');
-    const isCookingFoundation = /cook|pantry|diner|ingredient|cauldron|order/i.test(foundationLane);
-    const cookingOnlyStateKeys = new Set(['pantry', 'cauldronSlots', 'cookingSlots', 'orderQueue']);
 
     const assetIssues = (preflight.issues || []).filter((issue) => [
         'preflight_required_asset_slots_unreferenced',
