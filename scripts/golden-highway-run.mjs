@@ -9,9 +9,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
+dotenv.config({ path: path.join(repoRoot, '.env') });
 
 export const GOLDEN_HIGHWAY_PROMPT = 'Make a fun top-down highway driving game where I swipe between lanes to dodge cars and try to go as far as I can. Collect gas so I don\'t run out.';
 
@@ -182,9 +184,15 @@ async function appendResult(outDir, entry) {
 
 async function runOneGeneration(prompt, outDir) {
     const missing = [];
-    if (!process.env.NVIDIA_API_KEY) missing.push('NVIDIA_API_KEY');
-    const hasDeepSeek = process.env.DEEPSEEK_API_KEY || process.env.GAMETOK_DEEPSEEK_API_KEY;
-    if (!hasDeepSeek) missing.push('DEEPSEEK_API_KEY (or GAMETOK_DEEPSEEK_API_KEY)');
+    const nvidiaOk = process.env.NVIDIA_API_KEY
+        || process.env.NIM_API_KEYS
+        || process.env.NVIDIA_NIM_API_KEYS;
+    if (!nvidiaOk) missing.push('NVIDIA_API_KEY (or NIM_API_KEYS) for sprite/background art');
+    const hasDeepSeek = process.env.DEEPSEEK_API_KEY;
+    if (!hasDeepSeek) missing.push('DEEPSEEK_API_KEY');
+    if (hasDeepSeek && String(process.env.GAMETOK_DEEPSEEK_PRIMARY || 'true').toLowerCase() !== 'true') {
+        console.warn('⚠️  Set GAMETOK_DEEPSEEK_PRIMARY=true to match Railway text routing.');
+    }
     if (missing.length > 0) {
         throw new Error(`Cannot run generation locally. Missing: ${missing.join(', ')}. Use Forge on Railway or set keys in .env`);
     }

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import dotenv from 'dotenv';
 import pool, { initDB } from '../src/db.js';
 import { listMakerTemplateContracts, selectMakerTemplateContract } from '../src/ai-engine/maker-templates.js';
 import { buildMakerDebugProtocol } from '../src/ai-engine/maker-debug-protocol.js';
@@ -16,6 +17,7 @@ import { buildMakerDesignBrief, summarizeMakerDesignBrief } from '../src/ai-engi
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
+dotenv.config({ path: path.join(repoRoot, '.env') });
 const defaultPromptPreviewLength = 240;
 
 function defaultOutDir() {
@@ -38,7 +40,9 @@ function validateGenerationEnv({ userId, jobId, dbBacked = false } = {}) {
     const missing = [];
     const needsDb = Boolean(jobId || dbBacked);
     if (needsDb && !hasDatabaseEnv()) missing.push('DATABASE_URL or PGHOST/PGDATABASE/PGUSER');
-    if (!process.env.NVIDIA_API_KEY) missing.push('NVIDIA_API_KEY');
+    if (!process.env.NVIDIA_API_KEY && !process.env.NIM_API_KEYS && !process.env.NVIDIA_NIM_API_KEYS) {
+        missing.push('NVIDIA_API_KEY (or NIM_API_KEYS) for generated art');
+    }
     if (dbBacked && !jobId && !userId && !process.env.GAMETOK_MAKER_USER_ID) missing.push('GAMETOK_MAKER_USER_ID or --user-id');
     return {
         ok: missing.length === 0,
