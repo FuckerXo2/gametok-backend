@@ -67,6 +67,10 @@ const IMPLEMENT_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
     Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_READ_ONLY_ROUNDS || 2)),
 );
+const IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES = Math.max(
+    8000,
+    Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES || 12000),
+);
 const READ_FILE_MAX_CHARS = Math.max(
     2000,
     Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 12000)),
@@ -270,8 +274,9 @@ export function getMakerAgentToolInstructionLines(mode = MAKER_AGENT_TURN_MODE_R
             'write_file is allowed for src/main.ts or src/styles.css when a full rewrite is simpler.',
             'Call finish_inspection when the loop is complete. Do not dump plain text or JSON blobs.',
             'Keep import "./styles.css", #game-canvas boot, foundation requiredFunctions, and probeMethods.',
-            'Use ONLY asset keys from the ALLOWED ASSET PACK KEYS block (exact spelling).',
-            'Protected read-only files: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, package.json, tsconfig.json, vite.config.ts.',
+            'Use ONLY asset keys from ./assetKeys.ts (__GT_CONTRACT_ASSET_KEYS__) or the ALLOWED ASSET PACK KEYS block — exact spelling.',
+            'After src/main.ts is fully implemented and tsc is clean, call finish_inspection immediately — do not keep re-reading files.',
+            'Protected read-only files: src/bootstrap.ts, src/assetLoader.ts, src/assetKeys.ts, src/types/global.d.ts, package.json, tsconfig.json, vite.config.ts.',
         ];
     }
     return [
@@ -796,6 +801,7 @@ export async function runMakerAgentToolTurn({
     let notes = [];
     let finished = false;
     let touchedMainTs = false;
+    let mainTsCleanReady = false;
     let repairReadOnlyRounds = 0;
     let implementReadOnlyRounds = 0;
     const readPathCounts = new Map();
@@ -915,6 +921,20 @@ export async function runMakerAgentToolTurn({
                 roundEdited = true;
                 if (editSummary.path === 'src/main.ts') {
                     touchedMainTs = true;
+                    if (
+                        mode === MAKER_AGENT_TURN_MODE_IMPLEMENT
+                        && result?.tsc?.ok === true
+                    ) {
+                        try {
+                            const mainPath = path.join(projectRoot, 'src', 'main.ts');
+                            const mainBytes = Buffer.byteLength(await fs.promises.readFile(mainPath, 'utf8'), 'utf8');
+                            if (mainBytes >= IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES) {
+                                mainTsCleanReady = true;
+                            }
+                        } catch {
+                            // ignore — agent may retry on next edit
+                        }
+                    }
                 }
                 if (typeof onEditApplied === 'function') {
                     await onEditApplied(editSummary, {
@@ -933,6 +953,13 @@ export async function runMakerAgentToolTurn({
         }
 
         if (finished) {
+            break;
+        }
+
+        if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && mainTsCleanReady && !finished) {
+            finished = true;
+            notes = ['Auto-finished implement turn after clean src/main.ts edit — proceeding to sandbox.'];
+            log.events.push({ type: 'auto_finish_after_clean_main_ts', toolCalls: log.toolCalls });
             break;
         }
 

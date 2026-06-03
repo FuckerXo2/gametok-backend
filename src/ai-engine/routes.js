@@ -34,6 +34,7 @@ import {
     collectAllowedAssetPackKeys,
     normalizeMainTsAssetKeys,
     readProjectAssetPackKeys,
+    writeMakerAssetKeysTs,
 } from './maker-agent-asset-keys.js';
 import {
     getMakerAgentToolDefinitions,
@@ -3701,7 +3702,7 @@ async function readMakerProjectFiles(projectRoot) {
 
 function isProtectedMakerRuntimeFile(cleanPath = '') {
     return [
-        /^src\/(?:bootstrap|assetLoader)\.ts$/,
+        /^src\/(?:bootstrap|assetLoader|assetKeys)\.ts$/,
         /^src\/types\/global\.d\.ts$/,
         /^src\/scenes\/Preloader\.ts$/,
         /^src\/(?:characters|scenes|systems|behaviors)\/Base[A-Za-z0-9_]*\.ts$/,
@@ -4710,6 +4711,18 @@ async function runMakerAgentInspectionTurns({
     ];
     const implementTurns = Math.max(1, Math.min(maxTurns - 1, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS || 2)));
     console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turns 1-${implementTurns}=implement, turns ${implementTurns + 1}-${maxTurns}=repair if needed (maxTurns=${maxTurns}, skipTurn1PreRun=${SKIP_TURN1_PRERUN_EVIDENCE})`);
+    const phase2AllowedAssetKeys = [...new Set([
+        ...await readProjectAssetPackKeys(projectRoot),
+        ...collectAllowedAssetPackKeys({ generatedAssets }),
+    ])].sort();
+    const phase2AssetSlotHints = buildAssetSlotRuntimeHints({ assetContract, generatedAssets });
+    if (phase2AllowedAssetKeys.length > 0) {
+        const assetKeysManifest = await writeMakerAssetKeysTs(projectRoot, {
+            allowedKeys: phase2AllowedAssetKeys,
+            slotHints: phase2AssetSlotHints,
+        });
+        console.log(`📦 [Phase 2 job=${jobId}] Wrote ${assetKeysManifest.path} (${assetKeysManifest.keyCount} runtime keys, ${phase2AssetSlotHints.length} contract slots)`);
+    }
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
