@@ -16,6 +16,15 @@ export function isTimedOrderCookingLane(foundation = {}) {
         || lane.includes('diner');
 }
 
+export function isRunnerOrHighwayLane(foundation = {}) {
+    const lane = asString(foundation.lane, '').toLowerCase();
+    const loops = asArray(foundation.interactionLoops).join(' ').toLowerCase();
+    const text = `${lane} ${loops}`;
+    return /runner|highway|freeway|endless_run|lane_swipe|fuel_rush|road_rush|traffic/i.test(text)
+        || (asString(foundation.perspective, '').toLowerCase() === 'top_down'
+            && /lane|fuel|distance|highway|swipe/i.test(text));
+}
+
 const TIMED_ORDER_COOKING_STATE_DEFAULTS = [
     'pantry',
     'cauldronSlots',
@@ -85,6 +94,16 @@ export function inferFoundationStateInitializer(key = '', foundation = {}) {
 
 /** Guidance-only summary for Phase 2 — no pre-built DOM/layout shell. */
 export function summarizeLaneScaffoldForImplement(foundation = {}) {
+    if (isRunnerOrHighwayLane(foundation)) {
+        return {
+            lane: foundation.lane,
+            hudAuthority: 'agent',
+            agentOwnsLayout: [
+                'Highway HUD example: fuel meter top-left, distance top-right — pixel-framed panels, not three kernel chips',
+                'Implement hudDesign in #hud + styles.css + drawHud(); gameplay on canvas only',
+            ],
+        };
+    }
     if (!isTimedOrderCookingLane(foundation)) return null;
     return {
         lane: foundation.lane,

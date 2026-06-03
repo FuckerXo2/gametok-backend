@@ -1,6 +1,11 @@
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
 import { mergeCompositionGuidance } from './maker-composition-guidance.js';
 import {
+    normalizeHudBlocksForFoundation,
+    normalizeHudDesignForFoundation,
+    usesKernelHudScaffold,
+} from './maker-hud-authority.js';
+import {
     inferFoundationStateInitializer,
     mergeLaneRequiredState,
 } from './maker-lane-scaffolds.js';
@@ -57,7 +62,11 @@ Rules:
 - uiAuthority: pick canvas, dom, or hybrid-zoned — the file agent must NOT duplicate the same HUD/order/end-state on canvas AND DOM.
 - screenStateKey + screenStates: define a screen flow (e.g. PLAYING → SHIFT_END → GAME_OVER). Only one screen state may render at a time.
 - layoutComposition.zones: describe WHERE each UI zone lives (layer + region + maxElements). You design layout; we do NOT ship fixed HTML templates.
-- layoutComposition.layoutRules: concrete composition law for this game (hide pantry on game over, max 3 HUD chips, one end-state headline, etc.).
+- layoutComposition.layoutRules: concrete composition law for this game (hide pantry on game over, minimal HUD, one end-state headline, etc.).
+- hudDesign: one paragraph — what HUD the player needs (which meters/stats, placement, visual style). Phase 2 implements it; only include stats the loop truly needs (competitor bar: Astrocade-style minimal UI).
+- hudScaffold: false (default). Set true ONLY to opt into legacy pre-built .hud-chip boxes; normally leave false and hudBlocks [].
+- hudBlocks: [] unless hudScaffold true. Do NOT default to Score/Time/Fuel triple chips.
+- hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas; match artDirection (pixel borders, corner panels, bars — not generic dev UI).
 - antiPatterns must include overlapping UI and duplicate end-state copy when relevant.
 - Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
         user: `USER PROMPT:
@@ -89,11 +98,14 @@ Return this JSON shape:
   "layoutComposition": {
     "zones": [
       { "id": "world", "purpose": "Background staging", "layer": "canvas", "region": "upper-60%" },
-      { "id": "hud", "purpose": "Score and timer only", "layer": "dom", "region": "top-safe", "maxElements": 3 }
+      { "id": "hud", "purpose": "Agent-designed minimal HUD", "layer": "agent", "region": "top-safe", "maxElements": 4 }
     ],
-    "layoutRules": ["Only one screen state visible at a time", "Hide gameplay chrome on GAME_OVER"]
+    "layoutRules": ["Only one screen state visible at a time", "HUD minimal and game-specific — no three identical stat pills"]
   },
-  "hudBlocks": ["score", "time"],
+  "hudDesign": "Describe minimal HUD for this game (stats, meters, corners, style).",
+  "hudScaffold": false,
+  "hudBlocks": [],
+  "hudAuthority": "agent",
   "firstFrame": ["Draw background image", "Draw player", "Show score HUD"],
   "interactionLoops": ["short description of core input loop"],
   "entityBlueprints": [
@@ -157,7 +169,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
     const assetSlots = asArray(source.assetSlots);
     const entityBlueprints = asArray(source.entityBlueprints);
 
-    return mergeCompositionGuidance(mergeLaneRequiredState({
+    const merged = mergeCompositionGuidance(mergeLaneRequiredState({
         version: 1,
         source: 'gametok-foundation-architect',
         foundationId: slugify(source.foundationId || qualityIntent.title || 'dynamic_game'),
@@ -169,6 +181,9 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         initialState: asString(source.initialState, 'PLAYING'),
         stateFlow: asArray(source.stateFlow).length ? asArray(source.stateFlow) : ['PLAYING', 'RESULT'],
         uiAuthority: asString(source.uiAuthority, ''),
+        hudDesign: asString(source.hudDesign, ''),
+        hudScaffold: source.hudScaffold === true,
+        hudAuthority: asString(source.hudAuthority, 'agent'),
         screenStateKey: asString(source.screenStateKey, 'screenPhase'),
         screenStates: asArray(source.screenStates),
         layoutComposition: source.layoutComposition && typeof source.layoutComposition === 'object'
@@ -177,7 +192,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         requiredState,
         requiredFunctions,
         probeMethods,
-        hudBlocks: asArray(source.hudBlocks).length ? asArray(source.hudBlocks) : ['score'],
+        hudBlocks: asArray(source.hudBlocks),
         firstFrame: asArray(source.firstFrame).length
             ? asArray(source.firstFrame)
             : ['Draw background', 'Draw player or primary subject', 'Show HUD'],
@@ -193,6 +208,13 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         statusCopy: asString(source.statusCopy, 'Tap to play!'),
         userIntent: qualityIntent.userIntent || null,
     }));
+
+    return {
+        ...merged,
+        hudDesign: normalizeHudDesignForFoundation(merged, qualityIntent),
+        hudBlocks: normalizeHudBlocksForFoundation(merged, qualityIntent),
+        hudScaffold: merged.hudScaffold === true,
+    };
 }
 
 function buildDefaultAssetSlots(qualityIntent = {}, entityBlueprints = []) {
@@ -407,13 +429,16 @@ export function buildIndexHtmlFromFoundation(foundation = {}) {
         hudIdsSeen.add(id);
         return true;
     });
-    const hudHtml = hudBlocks.map((block) => {
-        const id = slugify(block);
-        return `      <div class="hud-chip hud-${id}">
+    const useScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
+    const hudInner = useScaffold
+        ? hudBlocks.map((block) => {
+            const id = slugify(block);
+            return `      <div class="hud-chip hud-${id}">
         <span>${block}</span>
         <strong id="${id}-value">0</strong>
       </div>`;
-    }).join('\n');
+        }).join('\n')
+        : '';
 
     return `<!doctype html>
 <html lang="en">
@@ -451,9 +476,9 @@ export function buildIndexHtmlFromFoundation(foundation = {}) {
 <body>
   <main id="game-shell" aria-label="${title}">
     <canvas id="game-canvas"></canvas>
-    <header id="hud" data-hud>
-${hudHtml || '      <div class="hud-chip hud-score"><span>Score</span><strong id="score-value">0</strong></div>'}
-    </header>
+    <div id="hud" data-hud aria-live="polite">
+${hudInner}
+    </div>
     <div id="controls-layer" data-controls></div>
     <div id="status-line" role="status">${asString(foundation.statusCopy, 'Tap to play!')}</div>
   </main>
@@ -470,8 +495,9 @@ function jsString(value = '') {
 export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
     const hudBlocks = asArray(foundation.hudBlocks);
+    const useHudScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
     const hudIdsSeen = new Set(['score']);
-    const hudRefs = hudBlocks
+    const hudRefs = useHudScaffold ? hudBlocks
         .map((block) => slugify(block))
         .filter((id) => {
             if (hudIdsSeen.has(id)) return false;
@@ -479,7 +505,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
             return true;
         })
         .map((id) => `  ${id}: document.getElementById('${id}-value'),`)
-        .join('\n');
+        .join('\n') : '';
     const stateKeys = [...new Set(asArray(foundation.requiredState).filter((key) => !['width', 'height'].includes(key)))];
     const coveredStateKeys = new Set(stateKeys);
     const stateInit = stateKeys.map((key) => {
@@ -491,7 +517,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
         const laneInit = inferFoundationStateInitializer(key, foundation);
         return `  ${key}: ${laneInit},`;
     }).join('\n');
-    const hudStateInit = hudBlocks
+    const hudStateInit = useHudScaffold ? hudBlocks
         .map((block) => slugify(block))
         .filter((id, index, ids) => id !== 'score' && !coveredStateKeys.has(id) && ids.indexOf(id) === index)
         .map((id) => {
@@ -500,7 +526,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
             if (id.includes('combo')) return `  ${id}: 1,`;
             return `  ${id}: 0,`;
         })
-        .join('\n');
+        .join('\n') : '';
     const combinedStateInit = [stateInit, hudStateInit].filter(Boolean).join('\n');
 
     const probeMethods = asArray(foundation.probeMethods);
@@ -533,10 +559,11 @@ if (!ctxOrNull) {
 }
 const ctx = ctxOrNull;
 const statusLine = document.getElementById('status-line');
-const hud = {
+const hudMount = document.getElementById('hud');
+${useHudScaffold ? `const hud = {
   score: document.getElementById('score-value'),
 ${hudRefs}
-};
+};` : '// Phase 2: design minimal game-specific HUD in #hud and/or canvas (see foundation hudDesign).'}
 
 const GAME_THEME = {
   title: ${jsString(title)},
@@ -623,19 +650,25 @@ function drawPlayer() {
   drawPlayerFallback(x, y, size);
 }
 
-function syncHud() {
+${useHudScaffold ? `function syncHud() {
   if (hud.score) hud.score.textContent = String(state.score ?? 0);
-  ${hudBlocks.filter((b) => b !== 'score').map((block) => {
+  ${hudBlocks.filter((b) => slugify(b) !== 'score').map((block) => {
         const id = slugify(block);
         return `if (hud.${id}) hud.${id}.textContent = String(state.${id} ?? 0);`;
     }).join('\n  ')}
 }
 
+function drawHud() {
+  syncHud();
+}` : `function drawHud() {
+  // TODO Phase 2: implement minimal HUD per foundation hudDesign (fuel bar top-left, distance top-right, etc.)
+}`}
+
 export function renderAll() {
   ctx.clearRect(0, 0, state.width, state.height);
   drawBackground();
   drawPlayer();
-  syncHud();
+  drawHud();
   if (statusLine && !state.started) {
     statusLine.textContent = ${jsString(foundation.statusCopy || 'Tap to play!')};
   }

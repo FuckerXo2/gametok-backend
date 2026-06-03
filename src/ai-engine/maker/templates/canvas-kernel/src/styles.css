@@ -33,56 +33,32 @@ body {
   z-index: 0;
 }
 
+/* Empty mount — Phase 2 agent designs game-specific HUD markup + styles here. */
 #hud {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  top: max(14px, calc(env(safe-area-inset-top) + 8px));
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  inset: 0;
   z-index: 4;
   pointer-events: none;
 }
 
-.hud-chip {
-  min-width: 72px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.12);
-  background: rgba(15, 23, 42, 0.82);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
-.hud-chip span {
-  display: block;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(248, 250, 252, 0.65);
-}
-
-.hud-chip strong {
-  display: block;
-  margin-top: 2px;
-  font-size: 20px;
-  line-height: 1;
+#hud > * {
+  pointer-events: auto;
 }
 
 #status-line {
   position: absolute;
-  left: 12px;
-  right: 12px;
+  left: 50%;
   bottom: max(16px, calc(env(safe-area-inset-bottom) + 12px));
+  transform: translateX(-50%);
   z-index: 4;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: min(92vw, 360px);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
+  opacity: 0.9;
 }
 
 #controls-layer {

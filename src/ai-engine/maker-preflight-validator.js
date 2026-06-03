@@ -1,6 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { applyMainTsAssetWiringRepairs } from './maker-agent-asset-keys.js';
+import {
+    applyDuplicateHudCanvasRepairs,
+    detectDuplicateHudRendering,
+} from './maker-hud-authority.js';
 
 async function readTextIfExists(filePath) {
     try {
@@ -504,6 +508,21 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
         });
     }
 
+    const duplicateHudIssue = (preflight.issues || []).find((issue) => issue.id === 'preflight_duplicate_hud_canvas_and_dom');
+    if (duplicateHudIssue) {
+        const hudRepair = applyDuplicateHudCanvasRepairs(source);
+        if (hudRepair.changed) {
+            source = hudRepair.content;
+            applied.push({
+                path: 'src/main.ts',
+                type: 'preflight_duplicate_hud_stripped',
+                from: 'canvas + DOM HUD',
+                to: 'DOM #hud via syncHud',
+                removed: hudRepair.removedCalls.slice(0, 6),
+            });
+        }
+    }
+
     if (applied.length > 0) {
         await fs.writeFile(mainPath, source, 'utf8');
     }
@@ -884,6 +903,17 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             severity: 'critical',
             message: 'Generated images appear to be wired into HUD/buttons/text instead of gameplay art.',
             repair: 'Keep HUD/buttons/text code-rendered and use generated images only for sprites, backgrounds, props, items, effects, or scenery.',
+        });
+    }
+
+    const duplicateHud = detectDuplicateHudRendering(indexHtml, source);
+    if (duplicateHud.duplicate) {
+        issues.push({
+            id: 'preflight_duplicate_hud_canvas_and_dom',
+            severity: 'critical',
+            message: `DOM #hud chips and canvas HUD rendering both present (${duplicateHud.reasons.join(', ')}).`,
+            reasons: duplicateHud.reasons,
+            repair: 'Use DOM #hud chips + syncHud() only, or canvas-only stats — never both. Remove drawHud/fillText SCORE/FUEL/DISTANCE from renderAll when syncHud exists.',
         });
     }
 
