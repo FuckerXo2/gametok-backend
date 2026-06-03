@@ -5173,10 +5173,41 @@ async function runMakerAgentInspectionTurns({
     }
 
     if (lastRunEvidence?.success !== true) {
-        const crashSummary = (lastRunEvidence?.crashes || []).slice(0, 2).join(' | ')
-            || (lastRunEvidence?.diagnostics?.buildFailure?.errors || []).slice(0, 2).join(' | ')
-            || 'build or sandbox checks still failing';
-        throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s) (implement + ${Math.max(0, maxTurns - 1)} repair): ${crashSummary}`);
+        const preThrowErrors = [
+            ...(lastRunEvidence?.diagnostics?.buildFailure?.errors || []),
+            ...(lastRunEvidence?.crashes || []),
+        ].map((entry) => String(entry || ''));
+        const needsStateDedupe = preThrowErrors.some((entry) => /TS1117/.test(entry))
+            || preThrowErrors.some((entry) => /duplicate state|multiple properties with the same name/i.test(entry));
+        const dedupeRepairs = await dedupeMakerMainTsState(projectRoot);
+        if (needsStateDedupe || dedupeRepairs.length > 0) {
+            if (dedupeRepairs.length > 0) {
+                console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: deduped duplicate state keys (${dedupeRepairs[0].removed.join(', ')})`);
+                try {
+                    lastRunEvidence = await runMakerProjectEvidence({
+                        workspace,
+                        projectRoot,
+                        generatedAssets,
+                        templateContract,
+                        assetContract,
+                        turnNumber: `${maxTurns}-final-rescue`,
+                        phase: 'after_final_state_dedupe',
+                        allowedKeys: phase2AllowedAssetKeys,
+                        foundationLane: templateContract?.lane || assetContract?.lane || null,
+                    });
+                } catch (rescueError) {
+                    console.warn(`🔧 [Phase 2 job=${jobId}] Final state dedupe rescue failed: ${rescueError.message}`);
+                }
+            } else if (needsStateDedupe) {
+                console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: TS1117 reported but no duplicate state keys found to remove`);
+            }
+        }
+        if (lastRunEvidence?.success !== true) {
+            const crashSummary = (lastRunEvidence?.crashes || []).slice(0, 2).join(' | ')
+                || (lastRunEvidence?.diagnostics?.buildFailure?.errors || []).slice(0, 2).join(' | ')
+                || 'build or sandbox checks still failing';
+            throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s) (implement + ${Math.max(0, maxTurns - 1)} repair): ${crashSummary}`);
+        }
     }
     return lastRunEvidence;
 }

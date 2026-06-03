@@ -201,7 +201,18 @@ export function analyzeAnimations(generatedAssets = null) {
         if (!key) {
             issues.push(issue({ id: 'animation_missing_key', severity: 'fatal', message: 'Animation entry is missing a key.' }));
         }
-        if (type !== 'procedural_tween' && frames.length < 2) {
+        if (type === 'procedural_tween') {
+            animationResults.push({
+                key: key || null,
+                type,
+                frameCount: 0,
+                missingFrames: [],
+                duplicateFrameCount: 0,
+                frameKeys: [],
+            });
+            continue;
+        }
+        if (frames.length < 2) {
             const isSingleFrameReaction = /_(hit|dash)$/i.test(String(key || '')) && frames.length === 1;
             issues.push(issue({
                 id: 'animation_too_few_frames',

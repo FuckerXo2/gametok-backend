@@ -150,24 +150,27 @@ function unsafeCanvasDrawImageCalls(source) {
     return calls;
 }
 
-function collectAnimationFrameKeys(value, keys = new Set()) {
-    if (!value || typeof value !== 'object') return keys;
-    if (Array.isArray(value)) {
-        for (const item of value) collectAnimationFrameKeys(item, keys);
-        return keys;
-    }
-    for (const [key, item] of Object.entries(value)) {
-        if (['key', 'textureKey', 'assetKey', 'frameKey'].includes(key) && typeof item === 'string') keys.add(item);
-        if (Array.isArray(item) && /frames?/i.test(key)) {
-            for (const frame of item) {
-                if (typeof frame === 'string') keys.add(frame);
-                else collectAnimationFrameKeys(frame, keys);
-            }
-            continue;
+/** Only pack image keys referenced by animation frame lists — not clip keys like player_idle. */
+export function collectAnimationPackFrameKeys(animationsDoc = null) {
+    const keys = new Set();
+    const list = Array.isArray(animationsDoc?.animations)
+        ? animationsDoc.animations
+        : (Array.isArray(animationsDoc) ? animationsDoc : []);
+    for (const anim of list) {
+        if (!anim || typeof anim !== 'object') continue;
+        const frames = Array.isArray(anim.frames) ? anim.frames : [];
+        for (const frame of frames) {
+            if (typeof frame === 'string') keys.add(frame);
+            else if (frame && typeof frame === 'object' && frame.key) keys.add(String(frame.key));
         }
-        collectAnimationFrameKeys(item, keys);
     }
     return keys;
+}
+
+function collectAnimationFrameKeys(value, keys = new Set()) {
+    return collectAnimationPackFrameKeys(
+        Array.isArray(value?.animations) ? value : { animations: Array.isArray(value) ? value : [] },
+    );
 }
 
 function levenshtein(a = '', b = '') {
@@ -266,15 +269,19 @@ function topLevelObjectKeys(objectLiteral = '') {
 function dedupeTopLevelObjectLiteral(objectLiteral = '') {
     const segments = splitTopLevelObjectSegments(objectLiteral);
     const seen = new Set();
+    const seenLower = new Set();
     const kept = [];
     const removed = [];
     for (const segment of segments) {
         const key = segmentObjectKey(segment);
-        if (key && seen.has(key)) {
+        if (key && (seen.has(key) || seenLower.has(key.toLowerCase()))) {
             removed.push(key);
             continue;
         }
-        if (key) seen.add(key);
+        if (key) {
+            seen.add(key);
+            seenLower.add(key.toLowerCase());
+        }
         kept.push(segment);
     }
     if (removed.length === 0) return { objectLiteral, removed };
@@ -365,12 +372,13 @@ function addMissingStateProperties(source = '', missingEntries = []) {
     if (!objectLiteral || literalStart < 0) return { content: source, added: [] };
 
     const existingKeys = topLevelObjectKeys(objectLiteral);
-    const existingLower = new Set(Array.from(existingKeys).map((key) => key.toLowerCase()));
+    const existingLower = new Set(Array.from(existingKeys).map((key) => String(key).toLowerCase()));
     const toAdd = (Array.isArray(missingEntries) ? missingEntries : [])
         .filter((entry) => {
             if (!entry?.key || entry?.suggestion) return false;
             const key = entry.key;
-            return !existingKeys.has(key) && !existingLower.has(key.toLowerCase());
+            const keyLower = String(key).toLowerCase();
+            return !existingKeys.has(key) && !existingLower.has(keyLower);
         });
     if (toAdd.length === 0) return { content: source, added: [] };
 
@@ -405,7 +413,8 @@ function dedupeStateObjectProperties(source = '') {
 }
 
 export function applyDeterministicStatePropertyRepairs(source = '', missingEntries = []) {
-    const rename = renameMisspelledStateProperties(source, missingEntries);
+    const preDedupe = dedupeStateObjectProperties(source);
+    const rename = renameMisspelledStateProperties(preDedupe.content, missingEntries);
     const renamedKeys = new Set(rename.renamed.map((entry) => entry.from));
     const toAddEntries = (Array.isArray(missingEntries) ? missingEntries : [])
         .filter((entry) => entry?.key && !entry?.suggestion && !renamedKeys.has(entry.key));
@@ -415,7 +424,7 @@ export function applyDeterministicStatePropertyRepairs(source = '', missingEntri
         content: dedupe.content,
         renamed: rename.renamed,
         added: add.added,
-        deduped: dedupe.removed,
+        deduped: [...new Set([...preDedupe.removed, ...dedupe.removed])],
     };
 }
 
@@ -832,7 +841,7 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
     }
 
     if (localAnimations) {
-        const animationFrameKeys = Array.from(collectAnimationFrameKeys(localAnimations));
+        const animationFrameKeys = Array.from(collectAnimationPackFrameKeys(localAnimations));
         const missingFrameKeys = animationFrameKeys.filter((key) => !packFacts.keys.has(key));
         if (missingFrameKeys.length > 0) {
             issues.push({

@@ -173,7 +173,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         if (!requiredFunctions.includes(fn)) requiredFunctions.push(fn);
     }
 
-    const requiredState = asArray(source.requiredState).filter(Boolean);
+    const requiredState = [...new Set(asArray(source.requiredState).filter(Boolean))];
     for (const key of ['score', 'gameOver', 'width', 'height']) {
         if (!requiredState.includes(key)) requiredState.push(key);
     }
