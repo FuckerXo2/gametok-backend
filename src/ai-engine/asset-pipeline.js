@@ -936,7 +936,7 @@ export async function resolveDreamAudioForJob({
     return syncAudioIntoBundle(generatedAssets, audio);
 }
 
-function buildTilesetPlan(qualityIntent = {}, specText = '') {
+export function buildTilesetPlan(qualityIntent = {}, specText = '') {
     const needsTiles = includesAny(specText, [
         'tile',
         'tileset',

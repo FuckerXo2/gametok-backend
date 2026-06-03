@@ -1,4 +1,5 @@
 import { getMakerSystemManualBlock } from './maker-system-manual.js';
+import { getLaneFoundationPromptBlock } from './maker-lane-library.js';
 import { mergeCompositionGuidance } from './maker-composition-guidance.js';
 import {
     normalizeHudBlocksForFoundation,
@@ -43,7 +44,8 @@ export function useDynamicFoundation() {
     return String(process.env.GAMETOK_DYNAMIC_FOUNDATION || 'true').toLowerCase() !== 'false';
 }
 
-export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
+export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '', laneSelection = null) {
+    const laneBlock = getLaneFoundationPromptBlock(laneSelection);
     return {
         system: `${getMakerSystemManualBlock('foundation')}
 
@@ -80,9 +82,11 @@ Rules:
 - hudBlocks: [] unless hudScaffold true. Do NOT default to Score/Time/Fuel triple chips.
 - hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas; match artDirection (pixel borders, corner panels, bars — not generic dev UI).
 - antiPatterns must include overlapping UI and duplicate end-state copy when relevant.
-- Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
+- If LIBRARY LANE specifies phaser-tilemap, set engine to "phaser-tilemap" and plan tilemap + world_tileset usage.
+- Otherwise default engine is canvas-2d on #game-canvas.`,
         user: `USER PROMPT:
 ${prompt}
+${laneBlock ? `\n${laneBlock}\n` : ''}
 
 PHASE 1 SPEC:
 ${JSON.stringify(qualityIntent, null, 2)}
@@ -504,7 +508,22 @@ function jsString(value = '') {
     return JSON.stringify(String(value ?? ''));
 }
 
-export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
+function laneStepGameComment(lane = null, foundation = {}) {
+    const laneId = lane?.laneId || foundation?.libraryLaneId;
+    const comments = {
+        endless_lane_dodge: 'Implement lane swipe (0..N-1), scrolling traffic, fuel/distance pressure, spawn gas pickups.',
+        endless_runner: 'Implement side-view run loop: jump, slide, grounded collision, scrolling obstacles.',
+        side_platformer: 'Implement gravity, jump, platform/ground collision, collectible goals.',
+        top_down_action: 'Implement top-down movement, aim/shoot or dodge, enemy waves.',
+        rpg_turn_battle: 'Implement turn menu: player action, enemy response, HP bars.',
+        projectile_action: 'Implement aim/power/wind projectile loop and turn flow.',
+        grid_tile_puzzle: 'Phaser scenes own grid — keep main.ts boot-only if using Phaser scaffold.',
+    };
+    return comments[laneId] || 'Implement core gameplay loop for this lane.';
+}
+
+export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}, options = {}) {
+    const lane = options.lane || null;
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
     const hudBlocks = asArray(foundation.hudBlocks);
     const useHudScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
@@ -555,7 +574,7 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
 
     const stubBody = `// @ts-nocheck
 // GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
-// Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
+// Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'}) libraryLane=${lane?.laneId || foundation.libraryLaneId || 'none'}
 // Phase 2 owns full layout (index.html, styles.css, main.ts) — follow layoutComposition in foundation contract.
 ${implNotes}
 import './styles.css';
@@ -689,7 +708,7 @@ export function renderAll() {
 export function stepGame(dt = 16) {
   if (state.gameOver) return;
   state.started = true;
-  // TODO: Phase 2 agent implements ${foundation.lane || 'core'} loop here.
+  // TODO: Phase 2 — ${laneStepGameComment(lane, foundation)}
 }
 
 export function resetGame() {
