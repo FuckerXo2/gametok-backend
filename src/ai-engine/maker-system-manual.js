@@ -195,6 +195,23 @@ function drawBadge(ctx, label, x, y, opts) {
   return w;
 }
 
+// GAMEPLAY TOKEN — round game pieces (bubble, gem, orb, dot, tile). Code-drawn circles look like
+// washed-out placeholders; this gives the candy look: saturated radial fill + dark outline + a
+// glossy highlight + soft shadow. Use it for every code-rendered game piece, never a flat ctx.arc fill.
+function drawToken(ctx, x, y, r, color, opts) {
+  opts = opts || {};
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.30)'; ctx.shadowBlur = r * 0.4; ctx.shadowOffsetY = r * 0.18;
+  var grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r);
+  grad.addColorStop(0, lighten(color, 0.35)); grad.addColorStop(1, color);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(2, r * 0.12); ctx.strokeStyle = opts.outline || 'rgba(0,0,0,0.55)'; ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x - r * 0.32, y - r * 0.36, r * 0.30, r * 0.18, -0.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill();
+}
+
 // Lighten a #hex toward white by t (0..1) — for the glossy gradient top stop.
 function lighten(hex, t) {
   const c = hex.replace('#',''); const n = parseInt(c.length === 3 ? c.replace(/(.)/g,'$1$1') : c.slice(0,6), 16);
@@ -211,14 +228,27 @@ TYPOGRAPHY (the #1 premium tell — flat system-font numbers look unfinished):
   -webkit-text-stroke (e.g. 1.5px rgba(0,0,0,.55)) on numbers. Panels get a solid/translucent fill +
   box-shadow + an inset top highlight (inset 0 2px 0 rgba(255,255,255,.18)) — not just a 1px border.
 
-COMPOSITION ("white cards on a colorful background" — Royal Match / Frosting Master / Color Bloom):
+MATERIAL (the premium-vs-prototype tell — compare a shipped game to a wireframe):
+- Panels/cards are SOLID and OPAQUE with a soft shadow — they look like raised physical cards. Use a
+  white/light fill for casual/candy themes, a solid (NOT translucent) dark fill for neon/dark themes.
+  NEVER ship see-through outline boxes (e.g. a 1px border over an 80%-alpha fill) — that reads wireframe.
+- Content lives IN cards: every selectable/draggable item (topping, ingredient, color swatch, character,
+  furniture) sits in its OWN solid rounded card with a thin border — like Frosting Master's topping tray.
+  Do not scatter bare icons on the background.
+- Buttons are chunky, SOLID, color-coded by action (e.g. green confirm, red cancel) — drawButton, never
+  an outline-only button.
+- Mode/section switches are pill tabs with a clear selected state (filled + accent border).
+- Game pieces (bubbles, gems, dots) use drawToken — saturated, outlined, glossy — never a flat ctx.arc.
+
+COMPOSITION ("solid cards on a themed background" — Royal Match / Frosting Master / Color Bloom):
 - Draw the generated scene art in the WORLD zone only (e.g. top ~55%). Behind the control/HUD zones,
   fill a solid or soft-gradient band from the uiKit palette so cards read with high contrast.
 - Every interactive element (tray slot, card, button, meter) is a drawPanel() — never a bare sprite
   or text floating directly on the scene.
 - END STATES (game over / win): one centered drawPanel() with a drawValue headline, 1-2 stat lines,
   and a big drawButton('Play Again') — SAME kit tokens as gameplay. Never bare text on a dimmed screen.
-- DOM HUD variant: same look via CSS border-radius + box-shadow + linear-gradient using the same kit tokens.`;
+- DOM HUD variant: solid card backgrounds (opaque, not rgba<1) + box-shadow + inset top highlight +
+  border-radius + the rounded font with text-stroke. Match the same kit tokens.`;
 
 const ROLE_SECTIONS = {
     phase1: ['pipeline', 'agents.spec', 'assetLaw', 'sandboxLaw'],

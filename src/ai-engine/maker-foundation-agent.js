@@ -127,12 +127,12 @@ Return this JSON shape:
   },
   "uiKit": {
     "styleFamily": "theme-matched label for THIS game (casual-candy | retro-pixel | gritty-military | clean-minimal | storybook | invent one)",
-    "palette": { "panel": "#1f2937cc", "panelBorder": "#38bdf8", "accent": "#38bdf8", "textPrimary": "#ffffff", "textMuted": "#94a3b8" },
+    "palette": { "panel": "SOLID opaque card color — white #ffffff for casual/candy, or a solid dark like #1f2937 for neon/dark games (NO alpha/transparency)", "panelBorder": "#38bdf8", "accent": "#38bdf8", "textPrimary": "#ffffff", "textMuted": "#94a3b8" },
     "radius": 16,
-    "panelStyle": "translucent-dark | solid | beveled",
+    "panelStyle": "solid | beveled (default solid — opaque cards with a soft shadow, NOT see-through outline boxes)",
     "buttonStyle": "filled-rounded | pill | beveled | pixel",
     "font": "rounded-bold | pixel | system-bold | serif",
-    "decor": "subtle theme flourish, or none"
+    "decor": "subtle theme flourish (confetti, sparkles, gradient), or none"
   },
   "hudDesign": "Describe the COMPLETE HUD this game's loop needs (every meter/stat/indicator it uses), each grounded on a uiKit panel, styled to the uiKit styleFamily.",
   "hudScaffold": false,
@@ -166,7 +166,9 @@ Output ONLY JSON.`,
     };
 }
 
-const UI_KIT_PANEL_STYLES = ['translucent-dark', 'translucent-light', 'solid', 'beveled'];
+// 'solid' first/default: premium casual UI (Royal Match, Frosting Master) uses SOLID opaque cards
+// with a soft shadow, not see-through outline boxes. Translucent kept only as an explicit opt-in.
+const UI_KIT_PANEL_STYLES = ['solid', 'beveled', 'translucent-dark', 'translucent-light'];
 const UI_KIT_BUTTON_STYLES = ['filled-rounded', 'pill', 'beveled', 'pixel'];
 const UI_KIT_FONTS = ['rounded-bold', 'pixel', 'system-bold', 'serif'];
 
@@ -191,14 +193,14 @@ export function normalizeUiKit(raw = {}, qualityIntent = {}) {
     return {
         styleFamily: slugify(styleHint).replace(/_/g, '-') || 'clean-minimal',
         palette: {
-            panel: sanitizeColor(sourcePalette.panel, '#1f2937cc'),
+            panel: sanitizeColor(sourcePalette.panel, '#1f2937'),
             panelBorder: sanitizeColor(sourcePalette.panelBorder, '#38bdf8'),
             accent: sanitizeColor(sourcePalette.accent, '#38bdf8'),
             textPrimary: sanitizeColor(sourcePalette.textPrimary, '#ffffff'),
             textMuted: sanitizeColor(sourcePalette.textMuted, '#94a3b8'),
         },
         radius: Math.max(0, Math.min(40, Math.round(Number(source.radius) || 16))),
-        panelStyle: pickEnum(source.panelStyle, UI_KIT_PANEL_STYLES, 'translucent-dark'),
+        panelStyle: pickEnum(source.panelStyle, UI_KIT_PANEL_STYLES, 'solid'),
         buttonStyle: pickEnum(source.buttonStyle, UI_KIT_BUTTON_STYLES, 'filled-rounded'),
         font: pickEnum(source.font, UI_KIT_FONTS, 'rounded-bold'),
         decor: asString(source.decor, 'none'),
