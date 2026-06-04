@@ -18,6 +18,7 @@ const GLOBAL_ANTI_PATTERNS = [
     'Leaving pantry/order controls visible when gameOver is true or screenPhase is GAME_OVER',
     'Replacing the generated background image with a flat CSS/canvas gradient when DREAM_IMAGES has a background role',
     'Generic slate/navy placeholder gradients instead of the artist-generated environment art',
+    'Onboarding/how-to-play hint overlapping interactive controls (ingredient bins, buttons) or never dismissing on first input',
 ];
 
 const GLOBAL_ACCEPTANCE_CHECKS = [
@@ -179,6 +180,7 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
         '- Forbidden: three identical generic slate stat pills; Score+Time+Fuel defaults; duplicate same stat on canvas and DOM.',
         '- Hide gameplay chrome and HUD when gameOver or end-state screen is active.',
         '- One end-state headline per screen — no stacked Shift Over + Game Over + status spam.',
+        '- Onboarding/how-to-play hint: place it in a non-interactive area (never over bins/buttons/controls) and auto-dismiss it on the first input.',
         'VISUAL PREMIUM (competitor bar — art must feel shipped, not debug):',
         '- Frame 1 MUST drawImage the generated background (background1/background role) full-bleed — never ship flat slate/navy gradients if DREAM_IMAGES has background art.',
         '- Preserve or reimplement resolveBackgroundImage() + cover-scale drawImage before entities/HUD.',
