@@ -1123,20 +1123,20 @@ export async function verifyGame(htmlString, options = {}) {
                     .map((role) => normalizeRequiredAssetRole(role)),
             );
             
-            // Only PERSISTENT roles must be painted on the very first frame. Spawned/conditional
-            // roles (enemy, item, prop, obstacle, projectile, collectible...) legitimately appear
-            // later in the loop — a fish in a fishing game, an enemy in a not-yet-spawned wave, bait
-            // shown only while reeling. Demanding boot-render for those is unfixable by design and
-            // forces the agent to burn every repair turn flailing. Those roles are still protected
-            // from the gray-rectangle failure by asset_pack_ignored + asset_pack_not_rendered above.
-            const BOOT_RENDER_REQUIRED_ROLES = new Set(['player', 'background']);
+            // Only the BACKGROUND is genuinely on screen at frame 1 for EVERY game. Everything else
+            // is game-dependent: enemies spawn in waves, items appear during the loop, and even the
+            // "player" role is often NOT a persistent avatar — it's a targeting reticle (tower
+            // defense), a cursor (puzzle/builder), or nothing at all. Demanding any of those at boot
+            // is unfixable by design and makes the agent burn every repair turn flailing. The pack is
+            // still protected from being ignored by asset_pack_ignored + asset_pack_not_rendered above.
+            const BOOT_RENDER_REQUIRED_ROLES = new Set(['background']);
             const missingRequiredRoleUsage = requiredRoles
                 .filter((role) => BOOT_RENDER_REQUIRED_ROLES.has(role))
                 .filter((role) => packRoles.has(role))
                 .filter((role) => getRenderedRoleCount(renderedRoles, role, renderState.dreamAssetUsage?.renderedKeys || {}) === 0);
 
             if (missingRequiredRoleUsage.length > 0) {
-                const message = `Required persistent asset slots not rendered: generated assets exist, but these always-on roles were only preloaded/referenced and never drawn on boot: ${missingRequiredRoleUsage.join(', ')}. Draw the generated player/background art on the first frame instead of placeholder shapes or flat gradient fills.`;
+                const message = `Required background art not rendered: a generated background exists but was only preloaded/referenced and never drawn on boot. Draw the generated background full-bleed on the first frame instead of a flat gradient fill.`;
                 renderState.failedContractChecks.push({
                     id: 'asset_required_roles_unused',
                     templateId: options?.assetContract?.templateId || null,
