@@ -35,11 +35,16 @@ export function shouldBlockOnPreflight(preflight = {}, factoryMinimal = isMakerF
 export function resolveMakerAgentInspectionTurns(assetSlotCount = 0) {
     const envTurns = Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS);
     let fallback = isMakerFactoryMinimalMode() ? 2 : 3;
-    if (!Number.isFinite(envTurns) && Number(assetSlotCount) >= 7) {
-        fallback = 3;
+    // Scale repair budget with game complexity (asset-slot count is a good proxy). A 15-slot game
+    // has far more surface area for bugs than a 7-slot one but used to get the same 3 turns and die
+    // at the buzzer. Bigger games get one extra repair turn; simple games stay at 2 and stay fast.
+    const slots = Number(assetSlotCount) || 0;
+    if (!Number.isFinite(envTurns)) {
+        if (slots >= 12) fallback = 4;
+        else if (slots >= 7) fallback = 3;
     }
     const requested = Number.isFinite(envTurns) && envTurns > 0 ? envTurns : fallback;
-    return Math.max(1, Math.min(4, requested));
+    return Math.max(1, Math.min(5, requested));
 }
 
 export function resolveMakerAgentImplementTurns(maxTurns = resolveMakerAgentInspectionTurns()) {
