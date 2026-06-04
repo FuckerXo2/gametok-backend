@@ -67,8 +67,9 @@ const FOUNDATION_CONTRACT = {
         acceptanceChecks: 'Testable gameplay proofs for this specific game.',
         implementationNotes: 'Concrete guidance for the Phase 2 file agent.',
         uiAuthority: 'canvas | dom | hybrid-zoned — file agent must not duplicate UI across layers.',
+        uiKit: 'Per-game design system (styleFamily, palette, radius, panelStyle, buttonStyle, font) — apply to EVERY panel/button/meter so the UI is cohesive. Theme-matched to this game, never another genre\'s template.',
         screenStateKey: 'State key (e.g. screenPhase) — only one screen state renders at a time.',
-        layoutComposition: 'Zones (layer + region + maxElements) and layoutRules — architect designs layout; no fixed HTML templates.',
+        layoutComposition: 'Zones (layer + region) and layoutRules — architect designs layout; no fixed HTML templates.',
     },
     scaffoldAssembly: [
         'Kernel files are copied from canvas-kernel/.',

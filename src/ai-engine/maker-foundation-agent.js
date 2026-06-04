@@ -73,12 +73,13 @@ Rules:
 - acceptanceChecks must be testable in a headless sandbox within 10 seconds.
 - uiAuthority: pick canvas, dom, or hybrid-zoned — the file agent must NOT duplicate the same HUD/order/end-state on canvas AND DOM.
 - screenStateKey + screenStates: define a screen flow (e.g. PLAYING → SHIFT_END → GAME_OVER). Only one screen state may render at a time.
-- layoutComposition.zones: describe WHERE each UI zone lives (layer + region + maxElements). You design layout; we do NOT ship fixed HTML templates.
-- layoutComposition.layoutRules: concrete composition law for this game (hide pantry on game over, minimal HUD, one end-state headline, etc.).
-- hudDesign: one paragraph — what HUD the player needs (which meters/stats, placement, visual style). Phase 2 implements it; only include stats the loop truly needs (competitor bar: Astrocade-style minimal UI).
+- layoutComposition.zones: describe WHERE each UI zone lives (layer + region). You design layout; we do NOT ship fixed HTML templates.
+- layoutComposition.layoutRules: concrete composition law for THIS game (one end-state headline, hide gameplay chrome on game over, etc.). Genre-neutral — never reference another genre's widgets.
+- uiKit: REQUIRED. Define the per-game design system the builder applies to EVERY panel/button/meter/card so the UI feels like one shipped product. styleFamily is derived from THIS game's theme (e.g. casual-candy for a cooking game, retro-pixel for an arcade racer, gritty-military for a shooter, clean-minimal for a puzzle — or invent one that fits). palette/radius/panelStyle/buttonStyle/font are concrete tokens the builder reuses everywhere. This is how we match competitor (Astrocade) polish: one cohesive kit, themed to the game — NOT a generic template, NOT bare text on the background.
+- hudDesign: describe the COMPLETE HUD this game's loop genuinely needs — every meter/stat/indicator it actually uses (a shooter: ammo, health, wave/threat; a builder: resource trays, mode tabs; a runner: distance, fuel). Rich where the game is rich, lean where it is lean. EVERY element sits on a uiKit panel/frame — never bare text floating over the background. Match the uiKit styleFamily, never another genre's UI shape.
 - hudScaffold: false (default). Set true ONLY to opt into legacy pre-built .hud-chip boxes; normally leave false and hudBlocks [].
-- hudBlocks: [] unless hudScaffold true. Do NOT default to Score/Time/Fuel triple chips.
-- hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas; match artDirection (pixel borders, corner panels, bars — not generic dev UI).
+- hudBlocks: [] unless hudScaffold true.
+- hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas; render it with the uiKit (grounded panels, consistent radius, themed buttons — not generic dev UI).
 - antiPatterns must include overlapping UI and duplicate end-state copy when relevant.
 - Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
         user: `USER PROMPT:
@@ -110,11 +111,20 @@ Return this JSON shape:
   "layoutComposition": {
     "zones": [
       { "id": "world", "purpose": "Background staging", "layer": "canvas", "region": "upper-60%" },
-      { "id": "hud", "purpose": "Agent-designed minimal HUD", "layer": "agent", "region": "top-safe", "maxElements": 4 }
+      { "id": "hud", "purpose": "Game-specific HUD on grounded panels", "layer": "agent", "region": "top-safe" }
     ],
-    "layoutRules": ["Only one screen state visible at a time", "HUD minimal and game-specific — no three identical stat pills"]
+    "layoutRules": ["Only one screen state visible at a time", "Every interactive element sits on a uiKit panel — nothing floats bare over the background"]
   },
-  "hudDesign": "Describe minimal HUD for this game (stats, meters, corners, style).",
+  "uiKit": {
+    "styleFamily": "theme-matched label for THIS game (casual-candy | retro-pixel | gritty-military | clean-minimal | storybook | invent one)",
+    "palette": { "panel": "#1f2937cc", "panelBorder": "#38bdf8", "accent": "#38bdf8", "textPrimary": "#ffffff", "textMuted": "#94a3b8" },
+    "radius": 16,
+    "panelStyle": "translucent-dark | solid | beveled",
+    "buttonStyle": "filled-rounded | pill | beveled | pixel",
+    "font": "rounded-bold | pixel | system-bold | serif",
+    "decor": "subtle theme flourish, or none"
+  },
+  "hudDesign": "Describe the COMPLETE HUD this game's loop needs (every meter/stat/indicator it uses), each grounded on a uiKit panel, styled to the uiKit styleFamily.",
   "hudScaffold": false,
   "hudBlocks": [],
   "hudAuthority": "agent",
@@ -143,6 +153,45 @@ Return this JSON shape:
 }
 
 Output ONLY JSON.`,
+    };
+}
+
+const UI_KIT_PANEL_STYLES = ['translucent-dark', 'translucent-light', 'solid', 'beveled'];
+const UI_KIT_BUTTON_STYLES = ['filled-rounded', 'pill', 'beveled', 'pixel'];
+const UI_KIT_FONTS = ['rounded-bold', 'pixel', 'system-bold', 'serif'];
+
+function pickEnum(value, allowed, fallback) {
+    const v = String(value ?? '').trim().toLowerCase();
+    return allowed.includes(v) ? v : fallback;
+}
+
+function sanitizeColor(value, fallback) {
+    const v = String(value ?? '').trim();
+    // Accept #rgb/#rgba/#rrggbb/#rrggbbaa or rgb()/rgba(); otherwise fall back.
+    if (/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v)) return v;
+    if (/^rgba?\([\d\s.,%]+\)$/i.test(v)) return v;
+    return fallback;
+}
+
+/** Always return a complete, well-formed per-game UI kit, even when the model skimps the field. */
+export function normalizeUiKit(raw = {}, qualityIntent = {}) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const sourcePalette = source.palette && typeof source.palette === 'object' ? source.palette : {};
+    const styleHint = asString(source.styleFamily, asString(qualityIntent.artDirection?.styleName, 'clean-minimal'));
+    return {
+        styleFamily: slugify(styleHint).replace(/_/g, '-') || 'clean-minimal',
+        palette: {
+            panel: sanitizeColor(sourcePalette.panel, '#1f2937cc'),
+            panelBorder: sanitizeColor(sourcePalette.panelBorder, '#38bdf8'),
+            accent: sanitizeColor(sourcePalette.accent, '#38bdf8'),
+            textPrimary: sanitizeColor(sourcePalette.textPrimary, '#ffffff'),
+            textMuted: sanitizeColor(sourcePalette.textMuted, '#94a3b8'),
+        },
+        radius: Math.max(0, Math.min(40, Math.round(Number(source.radius) || 16))),
+        panelStyle: pickEnum(source.panelStyle, UI_KIT_PANEL_STYLES, 'translucent-dark'),
+        buttonStyle: pickEnum(source.buttonStyle, UI_KIT_BUTTON_STYLES, 'filled-rounded'),
+        font: pickEnum(source.font, UI_KIT_FONTS, 'rounded-bold'),
+        decor: asString(source.decor, 'none'),
     };
 }
 
@@ -193,6 +242,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         initialState: asString(source.initialState, 'PLAYING'),
         stateFlow: asArray(source.stateFlow).length ? asArray(source.stateFlow) : ['PLAYING', 'RESULT'],
         uiAuthority: asString(source.uiAuthority, ''),
+        uiKit: normalizeUiKit(source.uiKit, qualityIntent),
         hudDesign: asString(source.hudDesign, ''),
         hudScaffold: source.hudScaffold === true,
         hudAuthority: asString(source.hudAuthority, 'agent'),
@@ -563,6 +613,8 @@ function jsString(value = '') {
 
 export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
+    const kit = normalizeUiKit(foundation.uiKit, qualityIntent);
+    const kitPalette = kit.palette;
     const hudBlocks = asArray(foundation.hudBlocks);
     const useHudScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
     const hudIdsSeen = new Set(['score']);
@@ -634,11 +686,19 @@ ${useHudScaffold ? `const hud = {
 ${hudRefs}
 };` : '// Phase 2: design minimal game-specific HUD in #hud and/or canvas (see foundation hudDesign).'}
 
+// Boot-frame theme seeded from the foundation uiKit so even the stub frame reads themed.
+// Phase 2 owns the full UI and reuses these uiKit tokens across every panel/button/meter.
 const GAME_THEME = {
   title: ${jsString(title)},
+  styleFamily: ${jsString(kit.styleFamily)},
   backgroundA: '#0f172a',
   backgroundB: '#1e293b',
-  accent: '#38bdf8',
+  panel: ${jsString(kitPalette.panel)},
+  panelBorder: ${jsString(kitPalette.panelBorder)},
+  accent: ${jsString(kitPalette.accent)},
+  textPrimary: ${jsString(kitPalette.textPrimary)},
+  textMuted: ${jsString(kitPalette.textMuted)},
+  radius: ${Number(kit.radius) || 16},
   danger: '#fb7185',
 };
 
