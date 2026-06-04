@@ -133,7 +133,15 @@ function sourceAssetReferences(source) {
     ];
     for (const pattern of patterns) {
         let match;
-        while ((match = pattern.exec(source)) !== null) refs.add(match[1]);
+        while ((match = pattern.exec(source)) !== null) {
+            const key = match[1];
+            // Skip template-literal / dynamic keys, e.g. getAssetImage(`ingredient_${ing}`).
+            // These are built at runtime (ing -> 'salmon' -> ingredient_salmon, which IS in the
+            // pack) and cannot be validated as static keys. Treating them as literal keys
+            // false-failed real games on a blocking preflight, burning every repair turn.
+            if (key.includes('${')) continue;
+            refs.add(key);
+        }
     }
     return Array.from(refs);
 }
