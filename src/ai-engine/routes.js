@@ -293,6 +293,10 @@ const BUILDER_FALLBACK_MODELS = (
 // Default: same as builder so existing deployments are unaffected.
 // Set GAMETOK_PHASE1_MODEL=deepseek-v4-flash on Railway to use the faster tier.
 const PHASE1_MODEL = String(process.env.GAMETOK_PHASE1_MODEL || '').trim() || null;
+// Optional: route Phase 1.5 (foundation architect) to a different model. This is the design brain,
+// so it defaults to the builder/Pro model — set GAMETOK_FOUNDATION_MODEL=deepseek-v4-flash only if
+// flash holds the game-design quality (A/B it). Speed lever for the ~90s Phase-1.5 queue.
+const FOUNDATION_MODEL = String(process.env.GAMETOK_FOUNDATION_MODEL || '').trim() || null;
 
 const DREAM_MODELS = {
     spec: resolveDreamModel('DREAMSTREAM_SPEC_MODEL', DEFAULT_KIMI_BUILDER_MODEL), // Use Kimi for Phase 1 too
@@ -5504,12 +5508,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         if (dynamicFoundation) {
             await reportProgress(14, 'foundation', 'Designing game foundation...');
-            console.log(`🏗️ Phase 1.5/3: ${getDreamTextModelLabel()} architecting dynamic foundation...`);
+            console.log(`🏗️ Phase 1.5/3: ${FOUNDATION_MODEL || getDreamTextModelLabel()} architecting dynamic foundation...`);
             const foundationPrompt = buildFoundationAgentPrompt(qualityIntent, prompt);
             await writeMakerText(makerWorkspace, 'logs/foundation-agent-prompt.txt', `${foundationPrompt.system}\n\n---\n\n${foundationPrompt.user}`);
             let rawFoundation;
             try {
-                rawFoundation = await callAI(foundationPrompt.system, foundationPrompt.user, PHASE1_5_MAX_OUTPUT_TOKENS, 0.25);
+                rawFoundation = await callAI(foundationPrompt.system, foundationPrompt.user, PHASE1_5_MAX_OUTPUT_TOKENS, 0.25, { overrideModel: FOUNDATION_MODEL });
             } catch (foundationError) {
                 if (!ALLOW_PHASE1_HEURISTIC_FALLBACK) {
                     throw new Error(`Phase 1.5 foundation architect failed after exhausting text keys/models: ${foundationError?.message || foundationError}`);
