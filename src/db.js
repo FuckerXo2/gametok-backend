@@ -389,6 +389,9 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'edit_history') THEN
           ALTER TABLE ai_games ADD COLUMN edit_history JSONB DEFAULT '[]'::jsonb;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'maker_project') THEN
+          ALTER TABLE ai_games ADD COLUMN maker_project JSONB;
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'privacy') THEN
           ALTER TABLE ai_games ADD COLUMN privacy VARCHAR(20) DEFAULT 'public';
         END IF;

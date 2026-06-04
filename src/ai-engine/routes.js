@@ -5430,6 +5430,44 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
     return userResult.rows[0].id;
 }
 
+/**
+ * Snapshot the final (post-agent) maker source into ai_games.maker_project so the game can later be
+ * edited ("add this / change this") without a full regenerate. Reads from disk because the in-memory
+ * makerProject.files is the pre-edit scaffold; the agent's real edits live on the project root.
+ * Additive + best-effort — must never break generation.
+ */
+async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {}) {
+    try {
+        if (!jobId || !makerProject?.projectRoot) return;
+        const root = makerProject.projectRoot;
+        const wanted = ['src/main.ts', 'index.html', 'src/styles.css', 'src/assetKeys.ts'];
+        const files = [];
+        for (const rel of wanted) {
+            try {
+                const content = await fs.promises.readFile(path.join(root, rel), 'utf8');
+                files.push({ path: rel, content });
+            } catch { /* file may not exist for this game; skip */ }
+        }
+        if (files.length === 0) return;
+        let assetPack = null;
+        try {
+            assetPack = JSON.parse(await fs.promises.readFile(path.join(root, 'public', 'assets', 'asset-pack.json'), 'utf8'));
+        } catch { /* no materialized pack; edit can still patch code */ }
+        const projectSource = {
+            version: 1,
+            architecture: 'canvas-kernel',
+            savedAt: new Date().toISOString(),
+            title: qualityIntent?.title || null,
+            files,
+            assetPack,
+        };
+        await pool.query('UPDATE ai_games SET maker_project = $1 WHERE id = $2', [JSON.stringify(projectSource), jobId]);
+        console.log(`💾 [EDIT-PREP job=${jobId}] Saved editable source: ${files.length} files${assetPack ? ' + asset pack' : ''}`);
+    } catch (error) {
+        console.warn(`[EDIT-PREP job=${jobId}] Could not save editable source: ${error?.message || error}`);
+    }
+}
+
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     const persistToDb = jobPayload?.persistToDb !== false;
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
@@ -5964,6 +6002,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         }
 
         console.log(`✅ Phase 2 complete: ${buildMode} builder generated ${rawGameHtml.length} chars of game code`);
+
+        // Persist the editable source so the user can later "add this / change this" without a full
+        // regenerate. The workspace is deleted at job end, so we snapshot the final (post-agent)
+        // source files + asset pack into the DB now. Never blocks generation if it fails.
+        await persistEditableMakerSource(persistToDb ? jobId : null, makerProject, qualityIntent);
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         const useOpenGameMinimalRuntime = buildMode === 'opengame-template-native';
