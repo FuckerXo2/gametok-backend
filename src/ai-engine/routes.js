@@ -5449,10 +5449,27 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
             } catch { /* file may not exist for this game; skip */ }
         }
         if (files.length === 0) return;
+        // Also snapshot the materialized art. The materializer writes each asset as a LOCAL file
+        // under public/assets/ and the game references those local paths — they vanish with the
+        // workspace, so an edit-rebuild would have no art unless we keep them. Store the pack + the
+        // image bytes (base64) so the project can be fully reconstructed. (Heavier rows; a future
+        // pass can move these to R2 and store URLs instead.)
+        const assetDir = path.join(root, 'public', 'assets');
         let assetPack = null;
+        const assetFiles = [];
+        let assetBytes = 0;
         try {
-            assetPack = JSON.parse(await fs.promises.readFile(path.join(root, 'public', 'assets', 'asset-pack.json'), 'utf8'));
-        } catch { /* no materialized pack; edit can still patch code */ }
+            const entries = await fs.promises.readdir(assetDir);
+            for (const name of entries) {
+                if (name === 'asset-pack.json') {
+                    assetPack = JSON.parse(await fs.promises.readFile(path.join(assetDir, name), 'utf8'));
+                    continue;
+                }
+                const buf = await fs.promises.readFile(path.join(assetDir, name));
+                assetBytes += buf.length;
+                assetFiles.push({ file: `assets/${name}`, b64: buf.toString('base64') });
+            }
+        } catch { /* no materialized assets dir; edit can still patch code-only */ }
         const projectSource = {
             version: 1,
             architecture: 'canvas-kernel',
@@ -5460,9 +5477,10 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
             title: qualityIntent?.title || null,
             files,
             assetPack,
+            assetFiles,
         };
         await pool.query('UPDATE ai_games SET maker_project = $1 WHERE id = $2', [JSON.stringify(projectSource), jobId]);
-        console.log(`💾 [EDIT-PREP job=${jobId}] Saved editable source: ${files.length} files${assetPack ? ' + asset pack' : ''}`);
+        console.log(`💾 [EDIT-PREP job=${jobId}] Saved editable source: ${files.length} files + ${assetFiles.length} assets (${Math.round(assetBytes / 1024)}KB)`);
     } catch (error) {
         console.warn(`[EDIT-PREP job=${jobId}] Could not save editable source: ${error?.message || error}`);
     }
