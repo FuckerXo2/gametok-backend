@@ -1112,6 +1112,16 @@ function shouldBuildFrameAssets(assetRequest, category) {
     return ['player', 'enemy', 'vehicle', 'prop', 'item'].includes(category);
 }
 
+/**
+ * Animation frames are squash/stretch/brightness variants of the base sprite — by default we
+ * produce them with the local CPU transform (createFrameVariant): ~50ms vs a ~5-8s FLUX call each,
+ * and pixel-consistent (same sprite deformed) instead of a re-rolled image per frame. Set
+ * GAMETOK_FLUX_ANIMATION_FRAMES=true to restore per-frame FLUX generation.
+ */
+function useFluxAnimationFrames() {
+    return String(process.env.GAMETOK_FLUX_ANIMATION_FRAMES || 'false').toLowerCase() === 'true';
+}
+
 async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, height) {
     const category = assetRequest.category || 'item';
     if (!shouldBuildFrameAssets(assetRequest, category)) {
@@ -1140,7 +1150,7 @@ async function buildFrameAssetsForRequest(id, assetRequest, dataUri, width, heig
         let frameUri = null;
         let generationMethod = 'local-transform';
 
-        if (!frameUri && primaryMotion) {
+        if (!frameUri && primaryMotion && useFluxAnimationFrames()) {
             try {
                 const generatedFrame = await createGeneratedFrameVariant(width, height, assetRequest, category, variant, index, variants.length);
                 if (generatedFrame?.dataUri) {
