@@ -839,9 +839,15 @@ async function buildAudioPlan(qualityIntent = {}) {
         .filter(Boolean);
 
     let music = await buildDefaultFreesoundMusic(qualityIntent, musicNeeds);
+    const freesoundReturned = music.length > 0;
     if (music.length === 0 && resolvedMusic.length > 0) {
         music = mapLibraryMusicTracks(resolvedMusic, musicNeeds);
     }
+
+    // BGM variety diagnostic: if the music pool is ~1, no picker shuffle can vary the track.
+    // This prints the actual pool so we can tell "one song available" (supply problem) from a
+    // real picker problem.
+    console.log(`🎵 [BGM] source=${freesoundReturned ? 'freesound' : 'library'} track="${music[0]?.label || 'none'}" freesoundPoolReturned=${freesoundReturned ? 'yes' : 'no(falling back)'} r2MusicPool=${musicLibrary.length} sfxPool=${sfxLibrary.length}`);
 
     const bgmSource = music[0]?.source === 'freesound_auto'
         ? 'freesound'
