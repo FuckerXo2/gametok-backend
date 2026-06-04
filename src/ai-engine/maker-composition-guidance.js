@@ -192,7 +192,8 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
             `- Panels/cards: fill ${palette.panel || '#1f2937cc'}, border ${palette.panelBorder || '#38bdf8'}, corner radius ${uiKit.radius ?? 16}px, style ${uiKit.panelStyle || 'translucent-dark'}.`,
             `- Buttons: ${uiKit.buttonStyle || 'filled-rounded'} using accent ${palette.accent || '#38bdf8'}; big, obviously tappable, labelled.`,
             `- Text: primary ${palette.textPrimary || '#ffffff'}, muted ${palette.textMuted || '#94a3b8'}; font feel ${uiKit.font || 'rounded-bold'}.`,
-            '- Reuse these exact tokens for HUD, controls, and end-state panels — one radius, one palette, one language. No flat emoji mixed with rendered art.',
+            '- Render panels/buttons/badges with the drawPanel/drawButton/drawBadge recipes from the system manual Visual Recipes (gradient + soft shadow + white highlight) — NOT flat rectangles.',
+            '- Reuse these exact tokens + helpers for HUD, controls, AND the game-over/win panel — one radius, one palette, one language. No flat emoji mixed with rendered art.',
             ...(uiKit.decor && uiKit.decor !== 'none' ? [`- Theme flourish: ${uiKit.decor} (subtle, never blocks gameplay).`] : []),
         );
     }

@@ -82,8 +82,8 @@ const COMPOSITION_LAW = [
     'The foundation architect designs layout zones — we do NOT ship fixed competitor HTML templates.',
     'Each UI zone uses ONE layer: canvas OR DOM, never both for the same affordance (order bubble, HUD stat, end-state headline).',
     'Screen flow via screenStateKey (default screenPhase): only PLAYING, SHIFT_END, or GAME_OVER chrome visible at once.',
-    'HUD cap: at most 3 stat chips (score, time, combo/lives).',
-    'End states: one headline — no stacked Shift Over + Game Over + status line + canvas duplicate.',
+    'HUD: every stat this game\'s loop needs, each on a uiKit panel/badge — complete, not bare text, not another genre\'s template.',
+    'End states: ONE centered uiKit panel (title + 1-2 stat lines + a big Play Again button) — never bare text on a dimmed screen, never stacked headlines.',
     'Cooking lanes: order bubble icons must use the same asset keys as pantry cards.',
     'When gameOver is true, hide pantry, slots, order UI, and gameplay controls.',
 ];
@@ -119,10 +119,68 @@ const KNOWN_FAILURES = [
     'Multi screen-state pattern: PLAYING pantry visible while GAME_OVER overlay and status line also show. Fix: gate renderAll/DOM visibility on screenPhase.',
 ];
 
+// Concrete canvas recipes for premium "casual mobile" UI (Royal Match / Toon Blast / Frosting
+// Master look). The builder knows WHAT style to aim for from the uiKit; these give it the HOW so
+// it stops drawing flat rectangles. Reuse the SAME helpers everywhere → one cohesive design system.
+const VISUAL_RECIPES = `Implement these helpers (adapt colors/sizes to the foundation uiKit) and use them for EVERY
+panel, button, badge, meter, and end-state. Never draw a bare flat rect or float text on the scene.
+
+\`\`\`ts
+// Soft-shadow rounded card — the "white card on a colorful background" base.
+function drawPanel(ctx, x, y, w, h, { fill = '#ffffff', border = 'rgba(0,0,0,0.08)', radius = 16, shadow = true } = {}) {
+  ctx.save();
+  if (shadow) { ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6; }
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = fill; ctx.fill();
+  ctx.restore();
+  ctx.beginPath(); ctx.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, radius);
+  ctx.strokeStyle = border; ctx.lineWidth = 1; ctx.stroke();
+}
+
+// Glossy/beveled button: vertical gradient + white top highlight + drop shadow (juicy, tappable).
+function drawButton(ctx, x, y, w, h, label, { accent = '#ff4d8d', text = '#ffffff', radius = 18, font = '700 20px system-ui' } = {}) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 5;
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, lighten(accent, 0.20)); grad.addColorStop(1, accent);
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = grad; ctx.fill();
+  ctx.restore();
+  ctx.beginPath(); ctx.roundRect(x + 4, y + 3, w - 8, h * 0.42, Math.max(0, radius - 4));
+  ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill();
+  ctx.fillStyle = text; ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+}
+
+// Pill badge for score / level / coins. Returns its width so you can lay several in a row.
+function drawBadge(ctx, label, x, y, { fill = 'rgba(0,0,0,0.55)', text = '#ffffff', font = '700 16px system-ui' } = {}) {
+  ctx.font = font; const padX = 14, h = 30, w = ctx.measureText(label).width + padX * 2;
+  drawPanel(ctx, x, y, w, h, { fill, radius: h / 2, border: 'transparent' });
+  ctx.fillStyle = text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + h / 2 + 1); return w;
+}
+
+// Lighten a #hex toward white by t (0..1) — for the glossy gradient top stop.
+function lighten(hex, t) {
+  const c = hex.replace('#',''); const n = parseInt(c.length === 3 ? c.replace(/(.)/g,'$1$1') : c.slice(0,6), 16);
+  const r=(n>>16)&255,g=(n>>8)&255,b=n&255,mix=(v)=>Math.round(v+(255-v)*t);
+  return \`rgb(\${mix(r)},\${mix(g)},\${mix(b)})\`;
+}
+\`\`\`
+
+COMPOSITION ("white cards on a colorful background" — Royal Match / Frosting Master / Color Bloom):
+- Draw the generated scene art in the WORLD zone only (e.g. top ~55%). Behind the control/HUD zones,
+  fill a solid or soft-gradient band from the uiKit palette so cards read with high contrast.
+- Every interactive element (tray slot, card, button, meter) is a drawPanel() — never a bare sprite
+  or text floating directly on the scene.
+- END STATES (game over / win): one centered drawPanel() with a bold title, 1-2 stat lines, and a big
+  drawButton('Play Again') — SAME kit tokens as gameplay. Never bare text on a dimmed screen.
+- Mascot: if the foundation supplies a mascot asset, pin it beside a UI panel (corner of HUD or control
+  bar) as personality — not as a gameplay collider.
+- DOM HUD variant: same look via CSS border-radius + box-shadow + linear-gradient using the same kit tokens.`;
+
 const ROLE_SECTIONS = {
     phase1: ['pipeline', 'agents.spec', 'assetLaw', 'sandboxLaw'],
-    foundation: ['pipeline', 'agents.foundation', 'kernel', 'foundationContract', 'compositionLaw', 'assetLaw', 'firstFrame', 'knownFailures'],
-    fileAgent: ['pipeline', 'agents.fileAgent', 'kernel', 'foundationContract', 'compositionLaw', 'assetLaw', 'sandboxLaw', 'firstFrame', 'knownFailures'],
+    foundation: ['pipeline', 'agents.foundation', 'kernel', 'foundationContract', 'compositionLaw', 'visualRecipes', 'assetLaw', 'firstFrame', 'knownFailures'],
+    fileAgent: ['pipeline', 'agents.fileAgent', 'kernel', 'foundationContract', 'compositionLaw', 'visualRecipes', 'assetLaw', 'sandboxLaw', 'firstFrame', 'knownFailures'],
     artist: ['pipeline', 'agents.artist', 'assetLaw', 'foundationContract.assetSlots'],
 };
 
@@ -185,11 +243,16 @@ function sectionCompositionLaw() {
     return ['## Mobile Composition Law', ...COMPOSITION_LAW.map((line) => `- ${line}`)].join('\n');
 }
 
+function sectionVisualRecipes() {
+    return ['## Visual Recipes (premium casual-mobile UI — use these, do not draw flat rects)', VISUAL_RECIPES].join('\n');
+}
+
 const SECTION_BUILDERS = {
     pipeline: sectionPipeline,
     kernel: sectionKernel,
     foundationContract: sectionFoundationContract,
     compositionLaw: sectionCompositionLaw,
+    visualRecipes: sectionVisualRecipes,
     assetLaw: sectionAssetLaw,
     sandboxLaw: sectionSandboxLaw,
     firstFrame: sectionFirstFrame,
