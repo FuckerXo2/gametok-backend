@@ -426,11 +426,24 @@ function pickSfxAsset(assets, cue, specText, usedFiles) {
         .filter((entry) => entry.score > 0)
         .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label));
     if (ranked.length) {
-        // Randomize among the top-scoring ties so the same cue (impact, collect, etc.) doesn't
-        // resolve to the identical clip in every game while keeping the best-matching bucket.
-        const topScore = ranked[0].score;
-        const tied = ranked.filter((entry) => entry.score === topScore);
-        return tied[Math.floor(Math.random() * tied.length)].asset;
+        // scoreSfxAsset gives a clear keyword winner per cue, so exact-score ties are rare — the
+        // earlier tie-only randomizer almost never fired and every game got the IDENTICAL clip per
+        // cue. Instead, pick score-weighted from the top candidates: the best match is still
+        // strongly favored, but the same cue varies clip across games. Cap the pool so we never
+        // reach down to a poorly-matched sound.
+        const pool = ranked.slice(0, Math.min(ranked.length, 5));
+        const weights = pool.map((entry) => Math.max(1, entry.score) ** 2);
+        const total = weights.reduce((sum, weight) => sum + weight, 0);
+        let roll = Math.random() * total;
+        let chosen = pool[0];
+        for (let index = 0; index < pool.length; index += 1) {
+            roll -= weights[index];
+            if (roll <= 0) {
+                chosen = pool[index];
+                break;
+            }
+        }
+        return chosen.asset;
     }
     return assets.find((asset) => !usedFiles.has(asset.file)) || null;
 }
