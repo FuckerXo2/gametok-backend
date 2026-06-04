@@ -320,7 +320,23 @@ function pickFreesoundBgm(tracks = [], specText = '') {
             score: scoreAudioAsset({ label: track.label, tags: track.tags || [] }, specText),
         }))
         .sort((a, b) => b.score - a.score || a.track.label.localeCompare(b.track.label));
-    return ranked[0]?.track || tracks[0] || null;
+    // Don't always return the single top track. Generic music queries ("... game music loop")
+    // score most results equally, so the alphabetical tiebreak made every game collapse onto
+    // the identical BGM. Pick from the top candidates, rank-weighted so stronger matches are
+    // favored but variety is preserved across generations.
+    const pool = ranked.slice(0, Math.min(ranked.length, 6));
+    const weights = pool.map((_, index) => pool.length - index);
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    let roll = Math.random() * total;
+    let chosen = pool[0];
+    for (let index = 0; index < pool.length; index += 1) {
+        roll -= weights[index];
+        if (roll <= 0) {
+            chosen = pool[index];
+            break;
+        }
+    }
+    return chosen?.track || ranked[0]?.track || tracks[0] || null;
 }
 
 function mapLibraryMusicTracks(resolvedMusic = [], musicNeeds = []) {
@@ -392,7 +408,13 @@ function pickSfxAsset(assets, cue, specText, usedFiles) {
         .map((asset) => ({ asset, score: scoreSfxAsset(asset, cue, specText) }))
         .filter((entry) => entry.score > 0)
         .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label));
-    if (ranked[0]?.asset) return ranked[0].asset;
+    if (ranked.length) {
+        // Randomize among the top-scoring ties so the same cue (impact, collect, etc.) doesn't
+        // resolve to the identical clip in every game while keeping the best-matching bucket.
+        const topScore = ranked[0].score;
+        const tied = ranked.filter((entry) => entry.score === topScore);
+        return tied[Math.floor(Math.random() * tied.length)].asset;
+    }
     return assets.find((asset) => !usedFiles.has(asset.file)) || null;
 }
 
