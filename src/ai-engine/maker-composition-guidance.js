@@ -23,18 +23,20 @@ const GLOBAL_ANTI_PATTERNS = [
 const GLOBAL_ACCEPTANCE_CHECKS = [
     'Only one screen state from stateFlow is rendered at a time',
     'When gameOver is true, gameplay controls and order UI are hidden',
-    'HUD is minimal and game-specific — only what the loop needs, styled to match artDirection (Astrocade-level polish)',
+    'HUD is game-specific and complete — every stat the loop needs, each grounded on a uiKit panel, styled to the uiKit styleFamily (Astrocade-level polish, not bare text and not another genre\'s template)',
     'HUD stats appear in exactly one layer (designed #hud markup OR canvas — never duplicate the same stat)',
     'First frame shows background, primary subject, and one clear affordance — not a blank canvas',
     'Generated background image is drawn full-bleed via drawImage/resolveBackgroundImage on frame 1 when a background asset exists',
-    'Ingredient/order icons share the same art style and palette as the background scene',
+    'Item/world icons share the same art style and palette as the background scene; no flat emoji mixed with rendered art',
 ];
 
 const PREMIUM_VISUAL_RULES = [
     'Premium mobile game bar: cohesive palette, readable silhouettes, one hero focal point per screen',
     'Background is a vivid generated environment scene — never a flat dev gradient if background art exists',
-    'Pantry cards, customer bubble, and HUD panels use matching border radius, spacing, and contrast',
-    'Touch targets at least 44px; bottom pantry strip feels intentional, not cramped debug UI',
+    'Every interactive element (buttons, slots, trays, meters, cards) sits on a uiKit panel grounded against the background — nothing floats as bare shapes or text over the scene',
+    'Dim or zone the area behind active gameplay/controls so UI reads clearly against the background art',
+    'One visual language: every panel, button, and icon uses the uiKit radius, border, and palette — never mix flat emoji with rendered art',
+    'Touch targets at least 44px; control strips feel intentional, not cramped debug UI',
 ];
 
 export function inferDefaultLayoutComposition(foundation = {}) {
@@ -67,11 +69,11 @@ export function inferDefaultLayoutComposition(foundation = {}) {
         screenStates: flowFromArchitect.length >= 2 ? flowFromArchitect : ['PLAYING', 'GAME_OVER'],
         zones: [
             { id: 'world', purpose: 'Gameplay world', layer: 'canvas', region: 'full-bleed' },
-            { id: 'hud', purpose: 'Minimal custom HUD', layer: 'agent', region: 'top-safe', maxElements: 4 },
+            { id: 'hud', purpose: 'Game-specific HUD on grounded uiKit panels', layer: 'agent', region: 'top-safe' },
         ],
         layoutRules: [
-            'You design HUD in index.html + styles.css + drawHud() — only stats this game needs; match pixel/art style',
-            'Prefer corner panels and meters over three identical top pills',
+            'You design HUD in index.html + styles.css + drawHud() — every stat this game needs, each on a uiKit panel matched to the styleFamily',
+            'Ground all UI on uiKit panels; never float bare text/shapes over the background',
             'Only one screen state visible at a time',
         ],
     };
@@ -156,6 +158,7 @@ export function summarizeCompositionForImplement(foundation = {}) {
         hudDesign: foundation.hudDesign || null,
         hudBlocks: foundation.hudBlocks || [],
         hudScaffold: foundation.hudScaffold === true,
+        uiKit: foundation.uiKit && typeof foundation.uiKit === 'object' ? foundation.uiKit : null,
         layoutComposition: foundation.layoutComposition || null,
         antiPatterns: (foundation.antiPatterns || []).slice(0, 8),
         stateFlow: foundation.stateFlow || [],
@@ -179,8 +182,20 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
         'VISUAL PREMIUM (competitor bar — art must feel shipped, not debug):',
         '- Frame 1 MUST drawImage the generated background (background1/background role) full-bleed — never ship flat slate/navy gradients if DREAM_IMAGES has background art.',
         '- Preserve or reimplement resolveBackgroundImage() + cover-scale drawImage before entities/HUD.',
-        '- HUD and world UI share one palette/radius/spacing system tied to artDirection.',
+        '- Ground every interactive element (button, slot, tray, meter, card) on a panel — never bare text/shapes floating over the background.',
     ];
+    const uiKit = composition.uiKit && typeof composition.uiKit === 'object' ? composition.uiKit : null;
+    if (uiKit) {
+        const palette = uiKit.palette && typeof uiKit.palette === 'object' ? uiKit.palette : {};
+        lines.push(
+            `UI KIT (apply to EVERY panel/button/meter/card so the whole UI is one design system — style: ${uiKit.styleFamily || 'clean-minimal'}):`,
+            `- Panels/cards: fill ${palette.panel || '#1f2937cc'}, border ${palette.panelBorder || '#38bdf8'}, corner radius ${uiKit.radius ?? 16}px, style ${uiKit.panelStyle || 'translucent-dark'}.`,
+            `- Buttons: ${uiKit.buttonStyle || 'filled-rounded'} using accent ${palette.accent || '#38bdf8'}; big, obviously tappable, labelled.`,
+            `- Text: primary ${palette.textPrimary || '#ffffff'}, muted ${palette.textMuted || '#94a3b8'}; font feel ${uiKit.font || 'rounded-bold'}.`,
+            '- Reuse these exact tokens for HUD, controls, and end-state panels — one radius, one palette, one language. No flat emoji mixed with rendered art.',
+            ...(uiKit.decor && uiKit.decor !== 'none' ? [`- Theme flourish: ${uiKit.decor} (subtle, never blocks gameplay).`] : []),
+        );
+    }
     const rules = composition.layoutComposition?.layoutRules || [];
     for (const rule of rules.slice(0, 5)) {
         lines.push(`- ${rule}`);
