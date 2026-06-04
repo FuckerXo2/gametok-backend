@@ -98,13 +98,14 @@ export function finalizeStreamedMessage(state) {
 
 export function getStreamStallConfig() {
     return {
-        // First-byte timeout. A warm provider streams its first token in 1-12s; a value this high
-        // only ever waits out a *cold provider queue* before the retry layer re-fires (which on
-        // observed runs then gets first byte in ~4s). 180s of dead waiting per cold call was the
-        // single biggest avoidable latency sink, so default to 45s — generous headroom for
-        // thinking-mode first tokens, but no more 3-minute stalls. Tune via env if a deployment
-        // legitimately needs longer (or shorter, for more aggressive failover).
-        firstByteMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_FIRST_BYTE_MS || 45000)),
+        // First-byte timeout = how long we tolerate the PROVIDER QUEUE before the first token.
+        // This is NOT dead waste: under load, deepseek-v4-pro's cold-queue first byte is routinely
+        // 40-110s (observed: 42s, 75s, 102s on runs that then succeeded). Setting this below that
+        // floor converts slow-but-working calls into guaranteed failures — and worse, each abort+retry
+        // sends the request to the BACK of the provider queue, so we thrash and never let one mature.
+        // Keep it high (180s). It only ever "waits" when the provider is genuinely backed up.
+        // (Mid-stream idle is the separate, tighter stallMs below.)
+        firstByteMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_FIRST_BYTE_MS || 180000)),
         stallMs: Math.max(15000, Number(process.env.GAMETOK_STREAM_STALL_MS || 45000)),
         pollMs: Math.max(2000, Number(process.env.GAMETOK_STREAM_STALL_POLL_MS || 5000)),
     };
