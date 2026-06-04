@@ -126,36 +126,73 @@ const VISUAL_RECIPES = `Implement these helpers (adapt colors/sizes to the found
 panel, button, badge, meter, and end-state. Never draw a bare flat rect or float text on the scene.
 
 \`\`\`ts
-// Soft-shadow rounded card — the "white card on a colorful background" base.
-function drawPanel(ctx, x, y, w, h, { fill = '#ffffff', border = 'rgba(0,0,0,0.08)', radius = 16, shadow = true } = {}) {
+// One rounded display font for the whole UI — reads like a shipped mobile game, not dev text.
+// ui-rounded maps to SF Pro Rounded on iOS for free; falls back gracefully elsewhere.
+var UI_FONT = "ui-rounded, 'Baloo 2', 'Nunito', system-ui, sans-serif";
+
+// PREMIUM TEXT — use for EVERY score, stat, currency, timer, label, headline. Rounded font + dark
+// outline + drop shadow (+ optional neon glow). Bare ctx.fillText for UI numbers is the #1 thing
+// that makes a game look unfinished — never do that for HUD/score/stat text.
+function drawValue(ctx, text, x, y, opts) {
+  opts = opts || {};
+  var size = opts.size || 26, weight = opts.weight || 800;
   ctx.save();
-  if (shadow) { ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6; }
-  ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = fill; ctx.fill();
+  ctx.font = weight + ' ' + size + 'px ' + UI_FONT;
+  ctx.textAlign = opts.align || 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2;
+  ctx.lineWidth = Math.max(3, size * 0.16); ctx.strokeStyle = opts.stroke || '#0b1020';
+  ctx.strokeText(text, x, y);
+  ctx.shadowColor = opts.glow || 'transparent'; ctx.shadowBlur = opts.glow ? 12 : 0; ctx.shadowOffsetY = 0;
+  ctx.fillStyle = opts.color || '#ffffff'; ctx.fillText(text, x, y);
   ctx.restore();
-  ctx.beginPath(); ctx.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, radius);
-  ctx.strokeStyle = border; ctx.lineWidth = 1; ctx.stroke();
 }
 
-// Glossy/beveled button: vertical gradient + white top highlight + drop shadow (juicy, tappable).
-function drawButton(ctx, x, y, w, h, label, { accent = '#ff4d8d', text = '#ffffff', radius = 18, font = '700 20px system-ui' } = {}) {
+// Raised card with depth — drop shadow + a top highlight so it sits ABOVE the scene, not on it.
+// A plain outlined box reads as wireframe/dev UI; the highlight + shadow make it feel tactile.
+function drawPanel(ctx, x, y, w, h, opts) {
+  opts = opts || {};
+  var fill = opts.fill || '#ffffff', border = opts.border || 'rgba(0,0,0,0.10)';
+  var radius = opts.radius != null ? opts.radius : 16;
+  var shadow = opts.shadow !== false, highlight = opts.highlight !== false;
+  ctx.save();
+  if (shadow) { ctx.shadowColor = 'rgba(0,0,0,0.30)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8; }
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = fill; ctx.fill();
+  ctx.restore();
+  if (highlight) {
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(x + 2, y + 2, w - 4, h * 0.5, Math.max(0, radius - 2));
+    var g = ctx.createLinearGradient(x, y, x, y + h * 0.5);
+    g.addColorStop(0, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fill(); ctx.restore();
+  }
+  ctx.beginPath(); ctx.roundRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5, radius);
+  ctx.strokeStyle = border; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+// Glossy/beveled button: gradient + white top highlight + shadow + stroked label (via drawValue).
+function drawButton(ctx, x, y, w, h, label, opts) {
+  opts = opts || {};
+  var accent = opts.accent || '#ff4d8d', radius = opts.radius != null ? opts.radius : 18, size = opts.size || 20;
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 5;
-  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  var grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, lighten(accent, 0.20)); grad.addColorStop(1, accent);
   ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = grad; ctx.fill();
   ctx.restore();
   ctx.beginPath(); ctx.roundRect(x + 4, y + 3, w - 8, h * 0.42, Math.max(0, radius - 4));
-  ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill();
-  ctx.fillStyle = text; ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.30)'; ctx.fill();
+  drawValue(ctx, label, x + w / 2, y + h / 2, { size: size, color: opts.text || '#ffffff', align: 'center' });
 }
 
-// Pill badge for score / level / coins. Returns its width so you can lay several in a row.
-function drawBadge(ctx, label, x, y, { fill = 'rgba(0,0,0,0.55)', text = '#ffffff', font = '700 16px system-ui' } = {}) {
-  ctx.font = font; const padX = 14, h = 30, w = ctx.measureText(label).width + padX * 2;
-  drawPanel(ctx, x, y, w, h, { fill, radius: h / 2, border: 'transparent' });
-  ctx.fillStyle = text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, y + h / 2 + 1); return w;
+// Pill badge for score / coins / wave. Value drawn with drawValue. Returns width to lay them in a row.
+function drawBadge(ctx, label, x, y, opts) {
+  opts = opts || {};
+  var size = opts.size || 18;
+  ctx.save(); ctx.font = '800 ' + size + 'px ' + UI_FONT;
+  var padX = 16, h = size + 16, w = ctx.measureText(label).width + padX * 2; ctx.restore();
+  drawPanel(ctx, x, y, w, h, { fill: opts.fill || 'rgba(8,12,24,0.72)', radius: h / 2, border: 'rgba(255,255,255,0.12)', highlight: false });
+  drawValue(ctx, label, x + w / 2, y + h / 2, { size: size, color: opts.text || '#ffffff', align: 'center' });
+  return w;
 }
 
 // Lighten a #hex toward white by t (0..1) — for the glossy gradient top stop.
@@ -166,13 +203,21 @@ function lighten(hex, t) {
 }
 \`\`\`
 
+TYPOGRAPHY (the #1 premium tell — flat system-font numbers look unfinished):
+- Every score, stat, currency, timer, label, and headline is drawn with drawValue — NEVER bare
+  ctx.fillText. Numbers must have the rounded font + dark outline + drop shadow.
+- For neon/glow kits, pass glow=<uiKit.accent> so the text blooms instead of sitting flat.
+- DOM HUD text: font-family: ui-rounded,'Baloo 2',system-ui; font-weight 800; add text-shadow AND
+  -webkit-text-stroke (e.g. 1.5px rgba(0,0,0,.55)) on numbers. Panels get a solid/translucent fill +
+  box-shadow + an inset top highlight (inset 0 2px 0 rgba(255,255,255,.18)) — not just a 1px border.
+
 COMPOSITION ("white cards on a colorful background" — Royal Match / Frosting Master / Color Bloom):
 - Draw the generated scene art in the WORLD zone only (e.g. top ~55%). Behind the control/HUD zones,
   fill a solid or soft-gradient band from the uiKit palette so cards read with high contrast.
 - Every interactive element (tray slot, card, button, meter) is a drawPanel() — never a bare sprite
   or text floating directly on the scene.
-- END STATES (game over / win): one centered drawPanel() with a bold title, 1-2 stat lines, and a big
-  drawButton('Play Again') — SAME kit tokens as gameplay. Never bare text on a dimmed screen.
+- END STATES (game over / win): one centered drawPanel() with a drawValue headline, 1-2 stat lines,
+  and a big drawButton('Play Again') — SAME kit tokens as gameplay. Never bare text on a dimmed screen.
 - DOM HUD variant: same look via CSS border-radius + box-shadow + linear-gradient using the same kit tokens.`;
 
 const ROLE_SECTIONS = {
