@@ -173,8 +173,6 @@ COMPOSITION ("white cards on a colorful background" — Royal Match / Frosting M
   or text floating directly on the scene.
 - END STATES (game over / win): one centered drawPanel() with a bold title, 1-2 stat lines, and a big
   drawButton('Play Again') — SAME kit tokens as gameplay. Never bare text on a dimmed screen.
-- Mascot: if the foundation supplies a mascot asset, pin it beside a UI panel (corner of HUD or control
-  bar) as personality — not as a gameplay collider.
 - DOM HUD variant: same look via CSS border-radius + box-shadow + linear-gradient using the same kit tokens.`;
 
 const ROLE_SECTIONS = {
