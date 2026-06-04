@@ -79,6 +79,7 @@ Rules:
 - hudDesign: describe the COMPLETE HUD this game's loop genuinely needs — every meter/stat/indicator it actually uses (a shooter: ammo, health, wave/threat; a builder: resource trays, mode tabs; a runner: distance, fuel). Rich where the game is rich, lean where it is lean. EVERY element sits on a uiKit panel/frame — never bare text floating over the background. Match the uiKit styleFamily, never another genre's UI shape.
 - backgroundZoning: for content-heavy games (cooking, puzzle, builder, card/tray games) the scene art belongs in a WORLD zone (e.g. top ~55%); behind the control/HUD zones the builder fills a solid or soft-gradient band from the uiKit palette so cards/buttons read with high contrast. Describe this split in layoutComposition.zones (world zone = scene image, control zone = solid uiKit band). Action/arcade games may use full-bleed scene — but interactive UI still sits on uiKit panels.
 - endState: every game-over / win screen is ONE centered uiKit panel (bold title + 1-2 stat lines + a big themed Play Again button) — never bare text on a dimmed background. Put this in layoutComposition.layoutRules.
+- onboarding: the boot hint / "how to play" text must NEVER overlap an interactive zone (ingredient bins, buttons, controls) and must auto-dismiss on the player's first input. Place it in a clear non-interactive area (e.g. center of the world zone) and hide it once play starts. Put this in layoutComposition.layoutRules.
 - hudScaffold: false (default). Set true ONLY to opt into legacy pre-built .hud-chip boxes; normally leave false and hudBlocks [].
 - hudBlocks: [] unless hudScaffold true.
 - hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas; render it with the uiKit (grounded panels, consistent radius, themed buttons — not generic dev UI).
@@ -120,7 +121,8 @@ Return this JSON shape:
       "Only one screen state visible at a time",
       "Scene art in the world zone; fill the control zone with a solid/gradient uiKit band so cards read",
       "Every interactive element sits on a uiKit panel — nothing floats bare over the background",
-      "End state: one centered uiKit panel (title + stats + big Play Again button), never bare text on a dim screen"
+      "End state: one centered uiKit panel (title + stats + big Play Again button), never bare text on a dim screen",
+      "Onboarding hint sits in a non-interactive area and auto-dismisses on first input — never covers controls"
     ]
   },
   "uiKit": {
