@@ -79,7 +79,6 @@ Rules:
 - hudDesign: describe the COMPLETE HUD this game's loop genuinely needs — every meter/stat/indicator it actually uses (a shooter: ammo, health, wave/threat; a builder: resource trays, mode tabs; a runner: distance, fuel). Rich where the game is rich, lean where it is lean. EVERY element sits on a uiKit panel/frame — never bare text floating over the background. Match the uiKit styleFamily, never another genre's UI shape.
 - backgroundZoning: for content-heavy games (cooking, puzzle, builder, card/tray games) the scene art belongs in a WORLD zone (e.g. top ~55%); behind the control/HUD zones the builder fills a solid or soft-gradient band from the uiKit palette so cards/buttons read with high contrast. Describe this split in layoutComposition.zones (world zone = scene image, control zone = solid uiKit band). Action/arcade games may use full-bleed scene — but interactive UI still sits on uiKit panels.
 - endState: every game-over / win screen is ONE centered uiKit panel (bold title + 1-2 stat lines + a big themed Play Again button) — never bare text on a dimmed background. Put this in layoutComposition.layoutRules.
-- mascot: when the styleFamily benefits from personality (casual/candy/storybook themes especially), add a 'mascot' assetSlot (a characterful sprite) AND a layoutRule that pins it beside a UI panel (HUD corner or control bar) as decoration — NOT as a gameplay collider/entity. Skip it for gritty/minimal themes where it would not fit.
 - hudScaffold: false (default). Set true ONLY to opt into legacy pre-built .hud-chip boxes; normally leave false and hudBlocks [].
 - hudBlocks: [] unless hudScaffold true.
 - hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas; render it with the uiKit (grounded panels, consistent radius, themed buttons — not generic dev UI).
@@ -156,16 +155,6 @@ Return this JSON shape:
       "size": 128,
       "transparent": true,
       "description": "Art brief for artist agent"
-    },
-    {
-      "id": "mascot",
-      "role": "mascot",
-      "category": "mascot",
-      "assetType": "sprite",
-      "required": false,
-      "size": 128,
-      "transparent": true,
-      "description": "OPTIONAL — only for casual/candy/storybook themes. Characterful mascot pinned beside a UI panel for personality (not a gameplay entity). Omit for gritty/minimal themes."
     }
   ],
   "statusCopy": "Short hint shown to player on boot"

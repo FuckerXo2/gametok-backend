@@ -378,11 +378,28 @@ async function buildDefaultFreesoundMusic(qualityIntent = {}, musicNeeds = []) {
 }
 
 function pickAudioAssets(assets, text, count = 1) {
-    return assets
+    const ranked = assets
         .map((asset) => ({ asset, score: scoreAudioAsset(asset, text) }))
-        .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label))
-        .slice(0, count)
-        .map((entry) => entry.asset);
+        .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label));
+    if (ranked.length <= count) return ranked.map((entry) => entry.asset);
+    // This is the music-library fallback (used when Freesound returns nothing — i.e. most live
+    // jobs). Returning the deterministic top `count` made every game play the same R2 track.
+    // Sample `count` distinct tracks from the top pool, rank-weighted, so music varies per game.
+    const pool = ranked.slice(0, Math.min(ranked.length, Math.max(count * 4, 8)));
+    const picked = [];
+    const available = [...pool];
+    while (picked.length < count && available.length > 0) {
+        const weights = available.map((_, index) => available.length - index);
+        const total = weights.reduce((sum, weight) => sum + weight, 0);
+        let roll = Math.random() * total;
+        let chosenIndex = 0;
+        for (let index = 0; index < available.length; index += 1) {
+            roll -= weights[index];
+            if (roll <= 0) { chosenIndex = index; break; }
+        }
+        picked.push(available.splice(chosenIndex, 1)[0].asset);
+    }
+    return picked;
 }
 
 function scoreSfxAsset(asset, cue, specText) {
