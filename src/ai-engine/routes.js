@@ -6664,16 +6664,142 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 }
 
 
+// Strip a single ```lang ... ``` markdown fence if the builder wrapped its file output.
+function stripCodeFences(text) {
+    let t = String(text || '').trim();
+    const fence = t.match(/^```[a-zA-Z]*\s*\n([\s\S]*?)\n```$/);
+    if (fence) return fence[1].trim();
+    return t;
+}
+
+// Write a list of { path, content } project files under a root, creating parent dirs.
+async function writeProjectFilesToRoot(root, files) {
+    for (const file of files) {
+        if (!file || !file.path) continue;
+        const dest = path.join(root, file.path);
+        await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+        await fs.promises.writeFile(dest, file.content == null ? '' : file.content, 'utf8');
+    }
+}
+
+/**
+ * Edit an existing canvas-kernel game from its saved source (ai_games.maker_project).
+ *
+ * Reconstructs the project on disk (kernel scaffold + saved source + saved art), asks the builder to
+ * apply ONLY the user's change to src/main.ts, rebuilds, and sandbox-verifies. Saves to the row ONLY
+ * on a clean build — a failed edit throws and never touches the original game. On success the new
+ * main.ts is re-snapshotted into maker_project so edits chain.
+ */
+async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerProject, instructions) {
+    console.log(`🛠️ [MAKER EDIT] job ${newJobId} editing canvas-kernel game ${parentDraftId}: "${instructions}"`);
+    const savedFiles = Array.isArray(makerProject.files) ? makerProject.files : [];
+    const currentMain = (savedFiles.find((f) => f.path === 'src/main.ts') || {}).content;
+    if (!currentMain) throw new Error('Saved project has no src/main.ts to edit.');
+
+    // 1. Reconstruct the project: kernel scaffold, overlaid with saved source, plus saved art bytes.
+    const maker = await createGameTokMakerWorkspace(newJobId, instructions);
+    const workspace = maker.workspace;
+    const projectRoot = path.join(workspace, 'project');
+    const kernel = await loadMakerTemplateScaffold('canvas-kernel');
+    const byPath = new Map((kernel && kernel.files ? kernel.files : []).map((f) => [f.path, f.content]));
+    for (const f of savedFiles) byPath.set(f.path, f.content); // saved source wins over the bare scaffold
+    await writeProjectFilesToRoot(projectRoot, [...byPath.entries()].map(([p, c]) => ({ path: p, content: c })));
+
+    const assetDir = path.join(projectRoot, 'public', 'assets');
+    await fs.promises.mkdir(assetDir, { recursive: true });
+    if (makerProject.assetPack) {
+        await fs.promises.writeFile(path.join(assetDir, 'asset-pack.json'), JSON.stringify(makerProject.assetPack), 'utf8');
+    }
+    for (const a of (Array.isArray(makerProject.assetFiles) ? makerProject.assetFiles : [])) {
+        if (!a || !a.file || !a.b64) continue;
+        const dest = path.join(projectRoot, 'public', a.file);
+        await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+        await fs.promises.writeFile(dest, Buffer.from(a.b64, 'base64'));
+    }
+    console.log(`🛠️ [MAKER EDIT] reconstructed project: ${byPath.size} files + ${(makerProject.assetFiles || []).length} assets at ${projectRoot}`);
+
+    // 2. Builder applies the edit to main.ts. System manual carries the kernel rules + premium recipes.
+    const assetKeys = (savedFiles.find((f) => f.path === 'src/assetKeys.ts') || {}).content || '';
+    const editPrompt = [
+        formatMakerSystemManual('fileAgent'),
+        '',
+        'You are editing an existing, working mobile HTML5 game built on the GameTok canvas-kernel.',
+        'Apply ONLY the change below. Preserve everything else: gameplay, layout, the existing UI kit/look, and asset usage.',
+        `EDIT REQUEST: "${instructions}"`,
+        '',
+        'Hard rules:',
+        '- Keep the kernel structure and the probe API (window.__GAMETOK_TEMPLATE_PROBE__) intact.',
+        '- Only reference asset keys that already exist in src/assetKeys.ts (below). Do not invent new art.',
+        '- Keep the premium UI helpers (solid cards via drawPanel, drawValue for numbers, drawToken for pieces).',
+        '- Return ONLY the complete, updated contents of src/main.ts. No markdown fences, no commentary.',
+        '',
+        '--- src/assetKeys.ts (available asset keys) ---',
+        assetKeys.slice(0, 4000),
+        '',
+        '--- CURRENT src/main.ts (edit this) ---',
+        currentMain,
+    ].join('\n');
+
+    const { text } = await requestBuilderMessage(editPrompt, { label: 'Maker Edit main.ts', jobId: newJobId });
+    const newMain = stripCodeFences(text);
+    if (!newMain || newMain.length < 200 || !/__GAMETOK_TEMPLATE_PROBE__/.test(newMain)) {
+        throw new Error('Edit builder returned an invalid main.ts (missing probe API or too short).');
+    }
+    await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), newMain, 'utf8');
+
+    // 3. Rebuild + sandbox-verify. Save ONLY on a clean build.
+    const rawHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
+    let finalHtml = rawHtml;
+    try { finalHtml = postProcessRawHtml(rawHtml); } catch (e) {
+        console.warn(`🛠️ [MAKER EDIT] postProcess skipped (${e?.message || e}); using raw assembled HTML.`);
+    }
+    let sandboxRes;
+    try {
+        sandboxRes = await verifyGame(finalHtml, {});
+    } catch (e) {
+        sandboxRes = { success: false, crashes: [e?.message || String(e)], screenshot: null };
+    }
+    if (!sandboxRes.success && sandboxRes.crashes && sandboxRes.crashes.length) {
+        throw new Error(`Edited game failed sandbox verification: ${sandboxRes.crashes[0]}`);
+    }
+
+    // 4. Persist (success only): new HTML + re-snapshot source (new main.ts) + edit history. Original
+    //    row is left untouched if anything above threw, so a bad edit can never corrupt the game.
+    const updatedFiles = savedFiles.map((f) => (f.path === 'src/main.ts' ? { ...f, content: newMain } : f));
+    const updatedProject = { ...makerProject, files: updatedFiles, savedAt: new Date().toISOString() };
+    let editHistory = parentDraft.edit_history;
+    if (typeof editHistory === 'string') { try { editHistory = JSON.parse(editHistory); } catch { editHistory = []; } }
+    if (!Array.isArray(editHistory)) editHistory = [];
+    const newHistory = [...editHistory, instructions];
+    await pool.query(
+        `UPDATE ai_games
+         SET html_payload = $1, thumbnail = $2, edit_history = $3, maker_project = $4
+         WHERE id = $5`,
+        [finalHtml, sandboxRes.screenshot || null, JSON.stringify(newHistory), JSON.stringify(updatedProject), parentDraftId]
+    );
+    markEphemeralJob(newJobId, { status: 'complete', draftId: parentDraftId });
+    console.log(`✅ [MAKER EDIT] job ${newJobId} applied edit to ${parentDraftId} (main.ts ${currentMain.length}->${newMain.length} chars, history=${newHistory.length})`);
+}
+
 async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttachments = []) {
     try {
         console.log(`🚀 [EDIT JOB] Starting edit job ${newJobId} based on parent ${parentDraftId}`);
         markEphemeralJob(newJobId, { status: 'pending', draftId: parentDraftId });
         
         // 1. Fetch parent draft with all context
-        const parentRes = await pool.query('SELECT prompt, raw_code, html_payload, artist_code, title, edit_history FROM ai_games WHERE id = $1', [parentDraftId]);
+        const parentRes = await pool.query('SELECT prompt, raw_code, html_payload, artist_code, title, edit_history, maker_project FROM ai_games WHERE id = $1', [parentDraftId]);
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
-        
+
         const parentDraft = parentRes.rows[0];
+
+        // New-architecture (canvas-kernel) games: edit the saved source, not the compiled HTML.
+        let savedProject = parentDraft.maker_project;
+        if (typeof savedProject === 'string') {
+            try { savedProject = JSON.parse(savedProject); } catch { savedProject = null; }
+        }
+        if (savedProject && Array.isArray(savedProject.files) && savedProject.files.some((f) => f.path === 'src/main.ts')) {
+            return await executeMakerEditJob(newJobId, parentDraftId, parentDraft, savedProject, instructions);
+        }
         const existingHtml = parentDraft.artist_code
             ? (parentDraft.html_payload || '')
             : (parentDraft.raw_code || parentDraft.html_payload || '');
