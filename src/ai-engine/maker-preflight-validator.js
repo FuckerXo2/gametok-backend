@@ -454,9 +454,12 @@ export async function applyDeterministicPreflightRepairs(projectRoot, preflight 
     const isCookingFoundation = /cook|pantry|diner|ingredient|cauldron|order/i.test(foundationLane);
     const cookingOnlyStateKeys = new Set(['pantry', 'cauldronSlots', 'cookingSlots', 'orderQueue']);
 
-    const cookingLeakRepair = stripCookingStateLeaksFromSource(source, {
-        requiredState: options.foundationRequiredState || [],
-    });
+    // Only strip "cooking-only" state leaks for actual cooking-genre foundations. On non-cooking
+    // games (e.g. drag_decorate) this line-based deletion can cut the middle of a multi-line
+    // statement and break syntax — exactly what corrupted a drag game's main.ts (TS1005 ';' expected).
+    const cookingLeakRepair = isCookingFoundation
+        ? stripCookingStateLeaksFromSource(source, { requiredState: options.foundationRequiredState || [] })
+        : { content: source, changed: false, removed: [] };
     if (cookingLeakRepair.changed) {
         source = cookingLeakRepair.content;
         await fs.writeFile(mainPath, source, 'utf8');
