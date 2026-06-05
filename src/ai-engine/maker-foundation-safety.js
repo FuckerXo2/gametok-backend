@@ -9,7 +9,6 @@ export const COOKING_ONLY_STATE_KEYS = [
     'currentCustomer',
     'customerPatience',
     'shiftTimer',
-    'drag',
     'cookFeedback',
     'cookFeedbackTimer',
     'customerType',
