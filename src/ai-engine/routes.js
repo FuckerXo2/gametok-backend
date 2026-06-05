@@ -3620,12 +3620,13 @@ function stripDuplicateTopLevelFunctions(content = '', cleanPath = '') {
         blocks.push({ name, start, end });
     }
 
-    const seen = new Set();
-    const duplicates = blocks.filter((block) => {
-        if (seen.has(block.name)) return true;
-        seen.add(block.name);
-        return false;
-    });
+    // Keep the LAST definition of each name, not the first. Asset-wiring injections PREPEND helper
+    // functions (drawBackground, getAssetImage, ...) to the top of the file; the builder's real
+    // implementations come further down. Keeping the first copy discards the builder's actual scene
+    // rendering and leaves an injected stub → blank canvas on boot. Prefer the builder's code.
+    const lastIndexByName = new Map();
+    blocks.forEach((block, index) => lastIndexByName.set(block.name, index));
+    const duplicates = blocks.filter((block, index) => lastIndexByName.get(block.name) !== index);
     if (duplicates.length === 0) return source;
 
     let output = source;
@@ -4297,7 +4298,9 @@ function removeDuplicateImplementationsAtLines(content = '', lines = []) {
     const removals = [];
     for (const [name, entries] of byName.entries()) {
         if (entries.length <= 1) continue;
-        for (const entry of entries.slice(1)) {
+        // entries is sorted by position; keep the LAST (the builder's real implementation, which
+        // sits below the prepended injected helpers) and remove the earlier injected stub(s).
+        for (const entry of entries.slice(0, -1)) {
             removals.push({ ...entry, name });
         }
     }
