@@ -222,6 +222,29 @@ function compactFluxDescription(description = '', maxLen = 360) {
     let text = String(description || '')
         .replace(/\s+/g, ' ')
         .trim();
+
+    // Capture the architect's declared art direction BEFORE we strip the verbose blocks below.
+    // Previously the style was deleted as "boilerplate" and never reached FLUX, so the model fell
+    // back to its photoreal prior (a "flat vector cupcake" rendered as a glossy 3D photo). We keep
+    // a compact, deduped style anchor and LEAD the prompt with it — genre-agnostic: whatever style
+    // was declared (cartoon, pixel, realistic) is what FLUX is steered toward.
+    const styleBits = [];
+    for (const pat of [/\bArt style:\s*([^.]+)/i, /\bSprite style:\s*([^.]+)/i, /\bBackground style:\s*([^.]+)/i]) {
+        const match = text.match(pat);
+        if (match && match[1]) styleBits.push(match[1].trim());
+    }
+    let styleAnchor = '';
+    if (styleBits.length) {
+        const seen = new Set();
+        const parts = styleBits.join(', ').split(/[,;]/).map((s) => s.trim()).filter((s) => {
+            const key = s.toLowerCase();
+            if (!s || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        styleAnchor = parts.slice(0, 6).join(', ');
+    }
+
     const boilerplatePatterns = [
         /\.\s*Art style:[^.]*(?=(\.|$))/gi,
         /\.\s*Palette:[^.]*(?=(\.|$))/gi,
@@ -238,10 +261,12 @@ function compactFluxDescription(description = '', maxLen = 360) {
     text = text.replace(/\s+/g, ' ').replace(/\.+/g, '.').trim();
     const sentences = text.split(/\.\s+/).filter(Boolean);
     text = sentences.slice(0, 2).join('. ');
-    if (text.length > maxLen) {
-        text = text.slice(0, maxLen).trim();
+
+    let out = styleAnchor ? `${styleAnchor}. ${text}` : text;
+    if (out.length > maxLen) {
+        out = out.slice(0, maxLen).trim();
     }
-    return text;
+    return out;
 }
 
 async function generateWithFlux(prompt, dimensions = 768, options = {}) {
@@ -482,20 +507,25 @@ async function generateBackgroundWithFluxModel(description, targetDims, model = 
 async function generateBackgroundFluxImage(description, targetSize) {
     const targetDims = normalizeDimensions(targetSize);
 
-    const schnellResult = await generateBackgroundWithFluxModel(description, targetDims, 'schnell');
-    if (schnellResult) {
-        return schnellResult;
-    }
+    // The background is the scene's style anchor and the most prompt-sensitive asset. flux.1-schnell
+    // runs at cfg_scale=0 (no guidance) and routinely ignores the brief — that's how a "cozy bakery"
+    // rendered as red blob scenery. Use flux.1-dev (cfg 3.5, 28 steps) as PRIMARY for this one image
+    // so it follows the prompt; fall back to fast schnell only if dev is unavailable or fails.
+    const devPrimary = process.env.GAMETOK_FLUX_BACKGROUND_DEV_PRIMARY !== 'false'
+        && assetModelRouter.isBackgroundDevFallbackEnabled();
 
-    if (assetModelRouter.isBackgroundDevFallbackEnabled()) {
-        console.log('[sprite-gen] FLUX schnell background exhausted; trying flux.1-dev fallback...');
-        const devResult = await generateBackgroundWithFluxModel(description, targetDims, 'dev');
-        if (devResult) {
-            return devResult;
+    const order = devPrimary ? ['dev', 'schnell'] : ['schnell', 'dev'];
+    for (let i = 0; i < order.length; i += 1) {
+        const model = order[i];
+        if (model === 'dev' && !assetModelRouter.isBackgroundDevFallbackEnabled()) continue;
+        if (i > 0) {
+            console.log(`[sprite-gen] FLUX ${order[i - 1]} background exhausted; trying flux.1-${model} fallback...`);
         }
+        const result = await generateBackgroundWithFluxModel(description, targetDims, model);
+        if (result) return result;
     }
 
-    throw new Error('FLUX background generation failed after schnell and dev attempts');
+    throw new Error(`FLUX background generation failed after ${order.join(' and ')} attempts`);
 }
 
 /**
