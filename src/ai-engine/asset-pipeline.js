@@ -252,16 +252,28 @@ function scoreAudioAsset(asset, text) {
     return score;
 }
 
-function buildFreesoundBgmQuery(qualityIntent = {}, musicNeeds = []) {
-    const specText = collectSpecText(qualityIntent);
-    const hint = [
-        ...musicNeeds,
-        qualityIntent?.title,
-        qualityIntent?.playableExperience?.coreFantasy,
-        qualityIntent?.artDirection?.styleName,
-    ].filter(Boolean).join(' ').trim();
-    const seed = hint || specText.split(/\s+/).slice(0, 10).join(' ');
-    return (seed ? `${seed} game music loop` : 'game music loop').slice(0, 140);
+// Freesound text search is AND-matched: a long query (full title + art style + core fantasy +
+// "game music loop") matches NOTHING (0 results) and silently falls back to the R2 library — which
+// is exactly why Freesound BGM never played. Build a relaxation chain from a SHORT mood hint down
+// to the generic "game music loop" (~1800 results), so at least one query always returns a pool.
+const FREESOUND_QUERY_STOPWORDS = new Set([
+    'music', 'loop', 'background', 'game', 'track', 'sound', 'audio', 'bgm', 'soundtrack',
+    'the', 'and', 'with', 'for', 'your', 'a', 'an', 'of', 'to', 'on', 'theme', 'style',
+]);
+function buildFreesoundBgmQueries(qualityIntent = {}, musicNeeds = []) {
+    const queries = [];
+    const add = (value) => {
+        const normalized = String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        if (normalized && !queries.includes(normalized)) queries.push(normalized);
+    };
+    const moodWords = asArray(musicNeeds).join(' ').toLowerCase()
+        .replace(/[^a-z0-9 ]/g, ' ')
+        .split(/\s+/)
+        .filter((word) => word.length > 3 && !FREESOUND_QUERY_STOPWORDS.has(word));
+    if (moodWords.length) add(`${moodWords.slice(0, 2).join(' ')} music loop`);
+    if (moodWords.length) add(`${moodWords[0]} music`);
+    add('game music loop'); // always-populated generic pool — final attempt before R2 fallback
+    return queries;
 }
 
 function mapFreesoundResult(item = {}) {
@@ -278,10 +290,12 @@ function mapFreesoundResult(item = {}) {
     };
 }
 
-async function searchFreesoundBgm(query = 'game music loop', pageSize = 20) {
+async function searchFreesoundBgm(query = 'game music loop', pageSize = 20, page = 1) {
     const normalizedQuery = String(query || 'game music loop').trim() || 'game music loop';
+    const safePage = Math.max(1, Math.min(50, Math.floor(Number(page) || 1)));
+    const cacheKey = `${normalizedQuery}::p${safePage}`;
     const now = Date.now();
-    const cached = freesoundBgmCache.entries.get(normalizedQuery);
+    const cached = freesoundBgmCache.entries.get(cacheKey);
     if (cached && cached.expiresAt > now) {
         return cached.tracks;
     }
@@ -292,7 +306,7 @@ async function searchFreesoundBgm(query = 'game music loop', pageSize = 20) {
 
     try {
         const filter = '&filter=duration:[10.0 TO 300.0]';
-        const url = `https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(normalizedQuery)}&token=${FREESOUND_API_KEY}${filter}&fields=id,name,previews,duration,tags&page_size=${pageSize}&page=1`;
+        const url = `https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(normalizedQuery)}&token=${FREESOUND_API_KEY}${filter}&fields=id,name,previews,duration,tags&page_size=${pageSize}&page=${safePage}`;
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`Freesound search failed (${response.status})`);
@@ -301,7 +315,7 @@ async function searchFreesoundBgm(query = 'game music loop', pageSize = 20) {
         const tracks = asArray(data.results)
             .map((item) => mapFreesoundResult(item))
             .filter(Boolean);
-        freesoundBgmCache.entries.set(normalizedQuery, {
+        freesoundBgmCache.entries.set(cacheKey, {
             tracks,
             expiresAt: now + FREESOUND_BGM_CACHE_TTL_MS,
         });
@@ -357,8 +371,19 @@ function mapLibraryMusicTracks(resolvedMusic = [], musicNeeds = []) {
 
 async function buildDefaultFreesoundMusic(qualityIntent = {}, musicNeeds = []) {
     const specText = collectSpecText(qualityIntent);
-    const query = buildFreesoundBgmQuery(qualityIntent, musicNeeds);
-    const tracks = await searchFreesoundBgm(query);
+    const queries = buildFreesoundBgmQueries(qualityIntent, musicNeeds);
+    let tracks = [];
+    let usedQuery = '';
+    const MIN_POOL = 8; // prefer a query with enough results to actually vary; very specific
+    for (const query of queries) {        // queries (1-2 hits) give fit but no variety.
+        // Random page so different games pull different slices of the pool (the generic query alone
+        // has ~1800 results) instead of the same top 20 every time. Retry page 1 if the page is empty.
+        const page = 1 + Math.floor(Math.random() * 8);
+        let found = await searchFreesoundBgm(query, 20, page);
+        if (!found.length && page !== 1) found = await searchFreesoundBgm(query, 20, 1);
+        if (found.length && !tracks.length) { tracks = found; usedQuery = query; } // keep first non-empty
+        if (found.length >= MIN_POOL) { tracks = found; usedQuery = query; break; } // but prefer real variety
+    }
     const selected = pickFreesoundBgm(tracks, `${specText} ${musicNeeds.join(' ')}`);
     if (!selected) return [];
 
@@ -368,7 +393,7 @@ async function buildDefaultFreesoundMusic(qualityIntent = {}, musicNeeds = []) {
         assetType: 'music',
         role: 'background_music',
         trigger: 'gameplay loop',
-        description: `Auto-selected Freesound loop for "${query}"`,
+        description: `Auto-selected Freesound loop for "${usedQuery}"`,
         label: selected.label,
         url: selected.url,
         sourceFile: `freesound:${selected.id}`,
