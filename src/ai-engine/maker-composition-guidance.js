@@ -19,6 +19,8 @@ const GLOBAL_ANTI_PATTERNS = [
     'Replacing the generated background image with a flat CSS/canvas gradient when DREAM_IMAGES has a background role',
     'Generic slate/navy placeholder gradients instead of the artist-generated environment art',
     'Onboarding/how-to-play hint overlapping interactive controls (ingredient bins, buttons) or never dismissing on first input',
+    'A persistent instructional banner/write-up that stays on screen over the controls instead of a brief auto-dismissing hint',
+    'Rendering different named items/toppings/choices (e.g. Sprinkles vs Candy vs Fruit) with the SAME icon or shape — each distinct type must use its own generated sprite and look visibly different',
 ];
 
 const GLOBAL_ACCEPTANCE_CHECKS = [
@@ -180,7 +182,8 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
         '- Forbidden: three identical generic slate stat pills; Score+Time+Fuel defaults; duplicate same stat on canvas and DOM.',
         '- Hide gameplay chrome and HUD when gameOver or end-state screen is active.',
         '- One end-state headline per screen — no stacked Shift Over + Game Over + status spam.',
-        '- Onboarding/how-to-play hint: place it in a non-interactive area (never over bins/buttons/controls) and auto-dismiss it on the first input.',
+        '- Onboarding/how-to-play hint: ONE short line max, in dead space (NEVER over buttons/tray/controls), and auto-dismiss it on the first input AND after ~2.5s with a fade. Prefer a self-evident UI over persistent instructional text — a write-up that lingers over the controls reads amateur and players hate it.',
+        '- Distinct items look distinct: each named item/topping/choice/collectible TYPE (e.g. Sprinkles vs Candy vs Fruit) MUST drawImage ITS OWN generated sprite key — never reuse one icon/emoji/shape for several different things. If you must code-draw, give each type a different shape AND colour. Three identical icons for three different toppings is a bug, not a style.',
         'VISUAL PREMIUM (competitor bar — art must feel shipped, not debug):',
         '- Frame 1 MUST drawImage the generated background (background1/background role) full-bleed — never ship flat slate/navy gradients if DREAM_IMAGES has background art.',
         '- Preserve or reimplement resolveBackgroundImage() + cover-scale drawImage before entities/HUD.',
