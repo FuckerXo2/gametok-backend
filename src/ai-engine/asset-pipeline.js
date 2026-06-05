@@ -382,14 +382,24 @@ function pickAudioAssets(assets, text, count = 1) {
         .map((asset) => ({ asset, score: scoreAudioAsset(asset, text) }))
         .sort((a, b) => b.score - a.score || a.asset.label.localeCompare(b.asset.label));
     if (ranked.length <= count) return ranked.map((entry) => entry.asset);
-    // This is the music-library fallback (used when Freesound returns nothing — i.e. most live
-    // jobs). Returning the deterministic top `count` made every game play the same R2 track.
-    // Sample `count` distinct tracks from the top pool, rank-weighted, so music varies per game.
-    const pool = ranked.slice(0, Math.min(ranked.length, Math.max(count * 4, 8)));
+    // Music-library fallback (used when Freesound returns nothing — i.e. most live jobs).
+    // scoreAudioAsset only separates tracks when a GENRE keyword fires (space/jungle/fantasy/retro/
+    // intense/tech, +8). For casual prompts (cupcake, sushi, puzzle...) every track scores ~flat, so
+    // a fixed top-N slice collapses to the SAME ~8 tracks across every game — the BGM "repeats".
+    //   - No genre signal (topScore < genre bonus): draw from the WHOLE library so any of hundreds of
+    //     tracks can play. A deterministic slice can't help here — it's identical every job; only the
+    //     full pool gives real cross-game variety.
+    //   - Genre signal present: keep a tight top pool so the music actually fits the genre.
+    // Weight by (score+1)^2 either way: a genuine genre match dominates; flat scores spread wide.
+    const GENRE_SIGNAL = 8;
+    const hasGenreSignal = ranked[0].score >= GENRE_SIGNAL;
+    const pool = hasGenreSignal
+        ? ranked.slice(0, Math.min(ranked.length, Math.max(count * 8, 24)))
+        : ranked;
     const picked = [];
     const available = [...pool];
     while (picked.length < count && available.length > 0) {
-        const weights = available.map((_, index) => available.length - index);
+        const weights = available.map((entry) => (Math.max(0, entry.score) + 1) ** 2);
         const total = weights.reduce((sum, weight) => sum + weight, 0);
         let roll = Math.random() * total;
         let chosenIndex = 0;
