@@ -4829,6 +4829,23 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
     }
 }
 
+// Detect a "hollow" game: it builds and renders (so it passes the render/asset gate) but the builder
+// left the core loop unimplemented — the stub's "implement the loop here" TODO survived, or main.ts
+// barely grew past the empty stub. Such a game is a screensaver, not a playable game. Returns a short
+// reason string when hollow, else null.
+async function detectHollowMakerGame(projectRoot, stubMainLen = 0) {
+    try {
+        const main = await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8');
+        if (/TODO:?\s*Phase 2 agent implements/i.test(main)) return 'core_loop_todo_present';
+        if (stubMainLen > 0 && main.length < Math.round(stubMainLen * 1.4)) {
+            return `near_stub_size(${main.length}<${Math.round(stubMainLen * 1.4)})`;
+        }
+        return null;
+    } catch {
+        return null; // unreadable -> don't block
+    }
+}
+
 async function runMakerAgentInspectionTurns({
     workspace,
     projectRoot,
@@ -4862,6 +4879,13 @@ async function runMakerAgentInspectionTurns({
         assetContract,
         jobId,
     });
+    // Capture the empty stub size before any agent edits, so we can tell a real implementation from
+    // a barely-touched stub at the acceptance gate below.
+    let stubMainLen = 0;
+    try {
+        stubMainLen = (await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8')).length;
+    } catch { /* stub unreadable; size-based hollow check disabled */ }
+    let hollowForceRetries = 0;
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
@@ -5209,8 +5233,26 @@ async function runMakerAgentInspectionTurns({
                 notes: inspection.notes,
             });
             if (runEvidence?.success) {
-                console.log(`✅ [Phase 2 job=${jobId}] Sandbox/build passed after turn ${turnNumber} — skipping remaining agent turns`);
-                break;
+                const hollowReason = await detectHollowMakerGame(projectRoot, stubMainLen);
+                if (hollowReason && turnNumber < maxTurns && hollowForceRetries < 1) {
+                    // It renders, but there is no game. Don't accept — force another turn with explicit
+                    // feedback so the builder implements the actual interactive loop.
+                    hollowForceRetries += 1;
+                    const hollowTask = {
+                        id: 'gameplay_loop_unimplemented',
+                        directRepairTask: `The game builds and renders but implements NO gameplay — it is still essentially the empty stub (${hollowReason}). Implement the FULL interactive loop the foundation describes in src/main.ts (stepGame + input handlers): the toolbar/tray the player drags FROM, the drag-and-drop placement, every tap/feed/select handler, and any meter the loop needs. Start the board/tank EMPTY (the player fills it). A background plus a few static sprites is NOT a game.`,
+                    };
+                    runEvidence.success = false;
+                    runEvidence.targetedRepairTasks = [hollowTask, ...(runEvidence.targetedRepairTasks || [])];
+                    lastRunEvidence = runEvidence;
+                    console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn to implement the loop`);
+                } else {
+                    if (hollowReason) {
+                        console.warn(`⚠️ [Phase 2 job=${jobId}] Shipping a thin game (${hollowReason}) — no turns left to deepen it`);
+                    }
+                    console.log(`✅ [Phase 2 job=${jobId}] Sandbox/build passed after turn ${turnNumber} — skipping remaining agent turns`);
+                    break;
+                }
             }
             if (isImplementTurn && turnNumber < maxTurns && turnNumber <= implementTurns) {
                 const failurePreview = (runEvidence?.targetedRepairTasks || [])
