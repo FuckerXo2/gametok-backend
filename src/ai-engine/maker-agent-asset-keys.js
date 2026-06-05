@@ -475,15 +475,27 @@ function sourceRendersItemAssets(source = '', allowedKeys = []) {
             || new RegExp(`drawImage\\([^;]{0,240}${escaped}`, 's').test(source);
     });
     if (drawsItemKey) return true;
+    // Generic signal: the builder already iterates a collection and draws each member's asset image
+    // (placed toppings, stickers, tray slots, decorations — whatever a NON-runner game names them).
+    // Without this, drag/decorate/match games look "unrendered" and get a falling-lane spawner
+    // injected on top of their real rendering. Treat "loop + drawImage(getAssetImage(" as rendered.
+    if (/(?:\.forEach\(|\bfor\s*\()[\s\S]{0,320}drawImage\(\s*getAssetImage\(/i.test(source)) return true;
     return /drawImage\(\s*[^,)]*(?:item\d*|['"`]item['"`])/i.test(source)
         || /firstByRole\(\s*['"`]item['"`]\s*\)[^;{]*drawImage/is.test(source)
-        || /(?:pickups|collectibles|fuelCans|gasCans|items)\.forEach\([\s\S]{0,400}drawImage/is.test(source);
+        || /(?:pickups|collectibles|fuelCans|gasCans|items|toppings|decorations|stickers|placed\w*)\.forEach\([\s\S]{0,400}drawImage/is.test(source);
 }
 
 function injectCollectibleAssetRendering(source = '', allowedKeys = [], assetContract = null) {
     if (!contractRequiresItemRole(assetContract, allowedKeys)) return source;
     if (source.includes(COLLECTIBLE_WIRING_MARKER)) return source;
     if (sourceRendersItemAssets(source, allowedKeys)) return source;
+    // __gtDrawPickups is a falling-down-lanes pickup spawner. It only makes sense for scroller/
+    // runner/collector games. Injecting it into a drag/decorate/match/tap/static game spawns
+    // nonsense (a floating box of items falling through the screen). Require scroller semantics
+    // before injecting; otherwise leave the builder's own rendering (or none) untouched.
+    const looksLikeScroller = /\b(scroll|lane|spawn|fall|falling|drop|dropping|conveyor|gravity|runner|descend)\b/i.test(source)
+        || /\.(vy|velocityY|speedY)\b/.test(source);
+    if (!looksLikeScroller) return source;
 
     const block = `
 ${COLLECTIBLE_WIRING_MARKER}
