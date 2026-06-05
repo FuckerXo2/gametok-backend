@@ -305,7 +305,9 @@ async function searchFreesoundBgm(query = 'game music loop', pageSize = 20, page
     }
 
     try {
-        const filter = '&filter=duration:[10.0 TO 300.0]';
+        // tag:music excludes field recordings / voice / sfx — without it, "relaxing" pulled a
+        // forest nature recording ("A Question for Trees ... Netherlands") instead of a song.
+        const filter = '&filter=duration:[15.0 TO 300.0] tag:music';
         const url = `https://freesound.org/apiv2/search/text/?query=${encodeURIComponent(normalizedQuery)}&token=${FREESOUND_API_KEY}${filter}&fields=id,name,previews,duration,tags&page_size=${pageSize}&page=${safePage}`;
         const response = await fetch(url);
         if (!response.ok) {
