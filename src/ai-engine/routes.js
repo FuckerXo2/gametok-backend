@@ -6792,6 +6792,21 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     }
     await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), newMain, 'utf8');
 
+    // 2b. Re-run the asset-wiring pass so an edit can't silently drop the background or other
+    //     required art. When the builder rewrites main.ts to apply a change it sometimes forgets to
+    //     re-draw the generated background (a code grid appears instead). This re-injects the safe
+    //     contract/background wiring if it's missing — edits stay non-destructive to art. Keys are
+    //     read from the reconstructed asset-pack.json, so no contract/generatedAssets needed.
+    try {
+        const wiring = await applyMainTsAssetWiringRepairs(projectRoot, {});
+        const repairs = wiring && wiring[0] && wiring[0].repairs ? wiring[0].repairs : [];
+        if (repairs.length) {
+            console.log(`🛠️ [MAKER EDIT] re-applied asset wiring after edit: ${repairs.join(', ')}`);
+        }
+    } catch (e) {
+        console.warn(`🛠️ [MAKER EDIT] asset-wiring re-pass skipped: ${e?.message || e}`);
+    }
+
     // 3. Rebuild + sandbox-verify. Save ONLY on a clean build.
     const rawHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
     let finalHtml = rawHtml;
@@ -7521,7 +7536,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             }
 
             const targetDraftId = ephemeralJob.draftId;
-            const editResult = await pool.query('SELECT title, html_payload, raw_code, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [targetDraftId]);
+            const editResult = await pool.query('SELECT title, html_payload, raw_code, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [targetDraftId]);
             if (editResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Draft not found' });
             }
@@ -7537,11 +7552,12 @@ router.get('/dream/status/:jobId', async (req, res) => {
                 draftId: targetDraftId,
                 title: row.title,
                 htmlPreview: row.html_payload,
+                thumbnail: row.thumbnail,
                 classification: getStoredDraftClassification(row),
             });
         }
 
-        const result = await pool.query('SELECT title, html_payload, raw_code, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
+        const result = await pool.query('SELECT title, html_payload, raw_code, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
         if (result.rows.length === 0) {
             const pendingBoot = pendingJobBoots.get(jobId);
             if (pendingBoot?.status === 'error') {
@@ -7612,6 +7628,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             draftId: jobId,
             title: row.title,
             htmlPreview: row.html_payload,
+            thumbnail: row.thumbnail,
             classification: getStoredDraftClassification(row),
             ...(await buildQueueProgressPayload(completeQueueJob || { progress: 100, phase: 'complete', status_message: 'Your game is ready.' }, jobId)),
         });
@@ -7680,7 +7697,7 @@ router.get('/drafts/:id', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const draft = await pool.query("SELECT id, title, prompt, html_payload, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
+        const draft = await pool.query("SELECT id, title, prompt, html_payload, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
         if (draft.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         res.json({ draft: draft.rows[0] });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
