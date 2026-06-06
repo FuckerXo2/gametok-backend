@@ -5534,16 +5534,56 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     const persistToDb = jobPayload?.persistToDb !== false;
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
-    const reportProgress = async (progress, phase, statusMessage) => {
-        await assertJobNotCancelledShared(jobId);
+    // Progress that never looks frozen. Real milestones snap the bar forward; between them (the long
+    // cold-queue first-byte waits and the multi-minute builder stream, where nothing else updates) a
+    // background ticker eases the bar toward a ceiling so there is always motion. Monotonic (never
+    // ticks backwards), capped at 92 so it can never overwrite the real save/complete events, and
+    // self-terminating (unref + 12-min guard) so it needs no cleanup hook in this huge function.
+    const PROGRESS_CAP = 92;
+    const PROGRESS_HEADROOM = 9;
+    let progDisplayed = 0;
+    let progCeiling = 0;
+    let progLastPushed = -1;
+    let progPhase = 'starting';
+    let progMessage = '';
+    let progTimer = null;
+    const progStartedAt = Date.now();
+    const stopProgressCreep = () => { if (progTimer) { clearInterval(progTimer); progTimer = null; } };
+    const pushProgress = async () => {
+        const value = Math.round(progDisplayed);
+        if (value === progLastPushed) return;
+        progLastPushed = value;
         if (progressSink) {
-            await progressSink({ jobId, progress, phase, statusMessage }).catch((error) => {
+            await progressSink({ jobId, progress: value, phase: progPhase, statusMessage: progMessage }).catch((error) => {
                 console.warn(`[DREAM JOB] Progress sink failed for ${jobId}:`, error?.message || error);
             });
         }
         if (persistToDb) {
-            await updateGenerationJobProgress(jobId, progress, phase, statusMessage);
+            await updateGenerationJobProgress(jobId, value, progPhase, progMessage).catch(() => {});
         }
+    };
+    const startProgressCreep = () => {
+        if (progTimer) return;
+        progTimer = setInterval(() => {
+            if (progDisplayed >= PROGRESS_CAP || Date.now() - progStartedAt > 12 * 60 * 1000) { stopProgressCreep(); return; }
+            if (progDisplayed < progCeiling) {
+                // ease ~12% of the remaining gap per tick (min 0.25) so it slows as it nears the ceiling
+                progDisplayed = Math.min(progCeiling, progDisplayed + Math.max(0.25, (progCeiling - progDisplayed) * 0.12));
+                pushProgress();
+            }
+        }, 2500);
+        if (typeof progTimer.unref === 'function') progTimer.unref();
+    };
+    const reportProgress = async (progress, phase, statusMessage) => {
+        await assertJobNotCancelledShared(jobId);
+        if (phase) progPhase = phase;
+        if (statusMessage) progMessage = statusMessage;
+        if (typeof progress === 'number') {
+            progDisplayed = Math.max(progDisplayed, progress);          // snap forward, never backward
+            progCeiling = Math.min(PROGRESS_CAP, progress + PROGRESS_HEADROOM);
+        }
+        await pushProgress();
+        if (progDisplayed < PROGRESS_CAP) startProgressCreep();
     };
     let makerWorkspace = null;
     let makerProject = null;
