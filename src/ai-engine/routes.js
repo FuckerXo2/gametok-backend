@@ -6781,6 +6781,13 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     const currentMain = (savedFiles.find((f) => f.path === 'src/main.ts') || {}).content;
     if (!currentMain) throw new Error('Saved project has no src/main.ts to edit.');
 
+    // Progress for the edit (surfaced by the status endpoint's pending response; merges into the
+    // ephemeral job so status/draftId set by executeEditJob are preserved).
+    const setEditProgress = (p, msg) => markEphemeralJob(newJobId, {
+        status: 'pending', draftId: parentDraftId, progress: p, statusMessage: msg,
+    });
+    setEditProgress(10, 'Loading your saved game…');
+
     // 1. Reconstruct the project: kernel scaffold, overlaid with saved source, plus saved art bytes.
     const maker = await createGameTokMakerWorkspace(newJobId, instructions);
     const workspace = maker.workspace;
@@ -6802,6 +6809,7 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
         await fs.promises.writeFile(dest, Buffer.from(a.b64, 'base64'));
     }
     console.log(`🛠️ [MAKER EDIT] reconstructed project: ${byPath.size} files + ${(makerProject.assetFiles || []).length} assets at ${projectRoot}`);
+    setEditProgress(28, 'Rebuilding the project…');
 
     // 2. Builder applies the edit to main.ts. System manual carries the kernel rules + premium recipes.
     const assetKeys = (savedFiles.find((f) => f.path === 'src/assetKeys.ts') || {}).content || '';
@@ -6825,7 +6833,24 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
         currentMain,
     ].join('\n');
 
-    const { text } = await requestBuilderMessage(editPrompt, { label: 'Maker Edit main.ts', jobId: newJobId });
+    // Mini-creeper around the single long builder wait (the one place an edit can stall on the
+    // cold queue) so the bar never freezes. unref()'d + cleared in finally.
+    setEditProgress(34, 'Applying your change…');
+    let editCreep = 34;
+    const editCreepTimer = setInterval(() => {
+        if (editCreep < 62) {
+            editCreep = Math.min(62, editCreep + 2);
+            markEphemeralJob(newJobId, { status: 'pending', draftId: parentDraftId, progress: Math.round(editCreep), statusMessage: 'Applying your change…' });
+        }
+    }, 1500);
+    if (typeof editCreepTimer.unref === 'function') editCreepTimer.unref();
+    let text;
+    try {
+        ({ text } = await requestBuilderMessage(editPrompt, { label: 'Maker Edit main.ts', jobId: newJobId }));
+    } finally {
+        clearInterval(editCreepTimer);
+    }
+    setEditProgress(66, 'Applying your change…');
     const newMain = stripCodeFences(text);
     if (!newMain || newMain.length < 200 || !/__GAMETOK_TEMPLATE_PROBE__/.test(newMain)) {
         throw new Error('Edit builder returned an invalid main.ts (missing probe API or too short).');
@@ -6848,11 +6873,13 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     }
 
     // 3. Rebuild + sandbox-verify. Save ONLY on a clean build.
+    setEditProgress(80, 'Rebuilding…');
     const rawHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
     let finalHtml = rawHtml;
     try { finalHtml = postProcessRawHtml(rawHtml); } catch (e) {
         console.warn(`🛠️ [MAKER EDIT] postProcess skipped (${e?.message || e}); using raw assembled HTML.`);
     }
+    setEditProgress(90, 'Testing it still plays…');
     let sandboxRes;
     try {
         sandboxRes = await verifyGame(finalHtml, {});
@@ -6871,6 +6898,7 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     if (typeof editHistory === 'string') { try { editHistory = JSON.parse(editHistory); } catch { editHistory = []; } }
     if (!Array.isArray(editHistory)) editHistory = [];
     const newHistory = [...editHistory, instructions];
+    setEditProgress(96, 'Saving…');
     await pool.query(
         `UPDATE ai_games
          SET html_payload = $1, thumbnail = $2, edit_history = $3, maker_project = $4
@@ -7572,7 +7600,11 @@ router.get('/dream/status/:jobId', async (req, res) => {
                 return res.json({ status: 'error', error: ephemeralJob.error || 'Job failed' });
             }
             if (ephemeralJob.status !== 'complete') {
-                return res.json({ status: 'pending' });
+                return res.json({
+                    status: 'pending',
+                    progress: typeof ephemeralJob.progress === 'number' ? ephemeralJob.progress : undefined,
+                    statusMessage: ephemeralJob.statusMessage || undefined,
+                });
             }
 
             const targetDraftId = ephemeralJob.draftId;
