@@ -22,6 +22,7 @@ const GLOBAL_ANTI_PATTERNS = [
     'A persistent instructional banner/write-up that stays on screen over the controls instead of a brief auto-dismissing hint',
     'Rendering different named items/toppings/choices (e.g. Sprinkles vs Candy vs Fruit) with the SAME icon or shape — each distinct type must use its own generated sprite and look visibly different',
     'Shipping a DECORATIVE SCENE instead of a game: a pretty background with a couple of pre-placed/static sprites and "Playing!" but NONE of the foundation\'s interactions (no toolbar/tray to drag from, no tap/feed/select handlers, no meters) — that is a screensaver, not a playable game',
+    'Naming a container the player fills in the prompt (tank, jar, bowl, plate, board, room, garden) but rendering items floating in open space with no visible vessel/frame drawn around the play area — the named container must be an explicit drawn element, not just the background',
 ];
 
 const GLOBAL_ACCEPTANCE_CHECKS = [
@@ -186,6 +187,7 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
         '- Onboarding/how-to-play hint: ONE short line max, in dead space (NEVER over buttons/tray/controls), and auto-dismiss it on the first input AND after ~2.5s with a fade. Prefer a self-evident UI over persistent instructional text — a write-up that lingers over the controls reads amateur and players hate it.',
         '- Distinct items look distinct: each named item/topping/choice/collectible TYPE (e.g. Sprinkles vs Candy vs Fruit) MUST drawImage ITS OWN generated sprite key — never reuse one icon/emoji/shape for several different things. If you must code-draw, give each type a different shape AND colour. Three identical icons for three different toppings is a bug, not a style.',
         '- IMPLEMENT THE WHOLE LOOP, not a renderable scene. Build EVERY interaction the foundation loop describes: the toolbar/tray the player drags FROM, the drag-and-drop placement, every tap/feed/select/match handler, and any meter the loop needs. Start the tank/board EMPTY (the player fills it) — do NOT pre-place the items the player is supposed to add and call it done. A background + a couple of static sprites + "Playing!" with nothing to interact with is a FAILED game, even though it renders without crashing.',
+        '- Draw the named CONTAINER. If the prompt/foundation names a vessel the player fills (tank, jar, bowl, plate, board, room, garden bed, shelf, aquarium), render it as a VISIBLE framed play-area — rounded glass walls / a bordered rim / clear edges, grounded on the uiKit — so the items sit INSIDE "the player\'s <container>", not floating in open space. A scenic background alone is NOT the container; draw an explicit frame around where items are placed, and place/clip the items within it.',
         'VISUAL PREMIUM (competitor bar — art must feel shipped, not debug):',
         '- Frame 1 MUST drawImage the generated background (background1/background role) full-bleed — never ship flat slate/navy gradients if DREAM_IMAGES has background art.',
         '- Preserve or reimplement resolveBackgroundImage() + cover-scale drawImage before entities/HUD.',
