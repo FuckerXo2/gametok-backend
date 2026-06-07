@@ -4709,12 +4709,13 @@ app.post('/api/notifications/register-anonymous', async (req, res) => {
   if (!pushToken) return res.status(400).json({ error: 'Push token required' });
 
   try {
-    // Check if this token is already linked to a real user
-    const existingUser = await pool.query('SELECT id FROM push_tokens WHERE token = $1', [pushToken]);
-    if (existingUser.rows.length > 0) {
-      // Already registered as authenticated user, no need to save anonymously
-      return res.json({ success: true, status: 'already_registered' });
-    }
+    // This endpoint is only ever called by a device with NO auth session
+    // (the app awaits getToken() first and only falls through to here when it's
+    // null). So if this token is still attached to a user in push_tokens, that
+    // user has logged out on this device — detach it, otherwise the device keeps
+    // receiving that user's personal notifications (e.g. "someone played your
+    // game") even though nobody is logged in.
+    await pool.query('DELETE FROM push_tokens WHERE token = $1', [pushToken]);
 
     // Save to anonymous tokens table
     await pool.query(
@@ -4782,7 +4783,11 @@ app.post('/api/notifications/unregister', async (req, res) => {
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
 
-    await db.removePushToken(userId);
+    // Detach only this device's token when the client sends it, so logging out
+    // on one device doesn't kill notifications on the user's other devices.
+    // Falls back to clearing all of the user's tokens for older clients.
+    const { pushToken } = req.body || {};
+    await db.removePushToken(userId, pushToken || null);
     res.json({ success: true });
   } catch (e) {
     console.error('Unregister push token error:', e);
