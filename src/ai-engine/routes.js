@@ -7358,6 +7358,120 @@ Rules:
     }
 });
 
+function buildFallbackEditIntent(instructions) {
+    const clean = String(instructions || '').trim();
+    const lower = clean.toLowerCase();
+    const needsBackgroundClarification = lower.includes('background') &&
+        !/(original|same|neon|city|space|forest|sky|night|day|dark|light|animated|pixel|cartoon|ocean|street)/i.test(clean);
+    return {
+        summary: clean || 'Update the game',
+        finalInstruction: clean || 'Apply the requested edit to the existing game.',
+        needsClarification: needsBackgroundClarification,
+        question: needsBackgroundClarification
+            ? 'What kind of background should I add back?'
+            : null,
+        suggestions: needsBackgroundClarification
+            ? ['Original', 'Match the game', 'Neon', 'Space', 'Surprise me']
+            : [],
+        confidence: needsBackgroundClarification ? 'medium' : 'high',
+    };
+}
+
+// === EDIT INTENT INTERPRETATION ===
+router.post('/interpret-edit', async (req, res) => {
+    try {
+        const { instructions, gameTitle, currentSummary } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        await getUserIdFromToken(token, 'Expired session');
+
+        if (!instructions) return res.status(400).json({ error: 'instructions is required' });
+
+        const fallback = buildFallbackEditIntent(instructions);
+        const nvidiaClient = createNvidiaTextClient();
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Edit interpretation timed out')), 18000);
+        });
+
+        const apiCallPromise = nvidiaClient.chat.completions.create({
+            model: DREAM_MODELS.narrativeChat,
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are the edit-intent brain inside GameTok Dream Forge.
+You are helping a user modify an EXISTING generated game. Do not invent a new game concept.
+Interpret the user's edit request like a senior game designer and produce a concise, builder-ready edit plan.
+
+Return ONLY valid JSON in this exact format:
+{
+  "summary": "Plain-language summary of the edit, under 80 characters",
+  "finalInstruction": "Precise instruction for an AI game editor, preserving the existing game unless explicitly changed",
+  "needsClarification": true/false,
+  "question": "One natural follow-up question, or null",
+  "suggestions": ["Short chip", "Short chip"],
+  "confidence": "high" | "medium" | "low"
+}
+
+Rules:
+- If the request is clear, needsClarification=false and question=null.
+- If a detail matters, ask ONE useful question.
+- For vague background requests, ask what style/source of background they want and offer chips like Original, Match the game, Neon, Space, Surprise me.
+- Do not say "modify the existing" in summary.
+- Do not output generic feature bullets.
+- finalInstruction must be direct and specific enough for the edit model.`
+                },
+                {
+                    role: 'user',
+                    content: JSON.stringify({
+                        gameTitle: gameTitle || '',
+                        currentSummary: currentSummary || '',
+                        editRequest: instructions,
+                    }),
+                },
+            ],
+            temperature: 0.35,
+            max_tokens: 450,
+        });
+
+        let response;
+        try {
+            response = await Promise.race([apiCallPromise, timeoutPromise]);
+        } catch (error) {
+            console.warn('[INTERPRET EDIT] Falling back after model failure:', error?.message || error);
+            return res.json({ success: true, intent: fallback, fallback: true });
+        }
+
+        const aiResponse = response.choices[0]?.message?.content || '{}';
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        let intent = fallback;
+        if (jsonMatch) {
+            try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                intent = {
+                    ...fallback,
+                    ...parsed,
+                    summary: String(parsed.summary || fallback.summary).slice(0, 100),
+                    finalInstruction: String(parsed.finalInstruction || fallback.finalInstruction).slice(0, 2000),
+                    needsClarification: Boolean(parsed.needsClarification),
+                    question: parsed.question ? String(parsed.question).slice(0, 180) : null,
+                    suggestions: Array.isArray(parsed.suggestions)
+                        ? parsed.suggestions.map((item) => String(item).slice(0, 32)).filter(Boolean).slice(0, 6)
+                        : fallback.suggestions,
+                    confidence: ['high', 'medium', 'low'].includes(parsed.confidence) ? parsed.confidence : fallback.confidence,
+                };
+            } catch (parseError) {
+                console.warn('[INTERPRET EDIT] Model returned invalid JSON; using fallback:', parseError?.message || parseError);
+            }
+        }
+
+        res.json({ success: true, intent });
+    } catch (error) {
+        console.error('[INTERPRET EDIT] Error:', error);
+        res.status(500).json({ error: error.message || 'Edit interpretation failed' });
+    }
+});
+
 // === CONVERSATIONAL SPEC REFINEMENT ===
 router.post('/refine-spec', async (req, res) => {
     try {
