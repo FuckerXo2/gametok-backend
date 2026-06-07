@@ -739,7 +739,11 @@ BUILDER CONTRACT:
 - Implement every mustExist item in actual playable code, not as text labels.
 - Implement every entityRules behavior and interaction that is relevant to the final game.
 - The first 10 seconds must match playableExperience.firstTenSeconds.
-- Use mobileControls exactly as the player's primary inputs. Do not require keyboard input.
+- Controls MUST work on both phone and desktop, doing the exact same actions:
+  - Phone (touch): implement mobileControls — tap, swipe left/right, drag, and on-screen buttons.
+  - Desktop (keyboard): add window keydown/keyup listeners and map the SAME actions to keys — Arrow Left/Right and A/D for left/right movement or steering, Arrow Up/Down or W/S for up/down, Space or Enter for the primary action, Escape or P for pause.
+  - Both input methods must always be active at the same time. Never require keyboard-only or touch-only.
+  - Hide the on-screen touch buttons on desktop using a CSS @media (pointer: coarse) check, since desktop players use the keyboard.
 - Use assetRoles and the AI asset keys to connect art to gameplay roles.
 - Follow artDirection as the visual source of truth. Code-rendered HUD, terrain, controls, and generated sprites must feel like one art system.
 - Add feelRules as real feedback: animation, particles, hit-stop, screen shake, sound, UI pulses, or camera motion.
@@ -775,7 +779,11 @@ ${engineNote}
 
 REQUIREMENTS:
 - Output ONLY raw HTML starting with <!DOCTYPE html>. No markdown, no explanation.
-- Touch controls only (pointerdown/pointermove/pointerup). No keyboard.
+- Controls must work on BOTH phone and desktop and trigger the same actions:
+  - Phone (touch): pointerdown/pointermove/pointerup — tap, swipe left/right, drag, on-screen buttons.
+  - Desktop (keyboard): add window keydown/keyup listeners — Arrow keys and WASD for movement/left-right, Space or Enter for the primary action, Escape or P for pause.
+  - Both input methods must be active simultaneously. Never require one or the other.
+  - Hide the on-screen touch buttons on desktop with @media (pointer: coarse).
 - Boot immediately — no DOMContentLoaded or window.onload wrappers.
 - First frame must be visible and themed immediately.
 - Use a real mobile viewport contract: derive width/height from window.innerWidth/window.innerHeight or visualViewport, not fixed 800x600/1024x768 dimensions.
