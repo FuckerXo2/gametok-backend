@@ -46,7 +46,11 @@ function dataUrlInfo(source = '') {
         : mimeType.includes('png') ? 'png'
             : mimeType.includes('webp') ? 'webp'
                 : mimeType.includes('gif') ? 'gif'
-                    : 'bin';
+                    : mimeType.includes('mp4') ? 'mp4'
+                        : mimeType.includes('webm') ? 'webm'
+                            : mimeType.includes('quicktime') ? 'mov'
+                                : mimeType.includes('ogg') ? 'ogv'
+                                    : 'bin';
     return {
         mimeType,
         extension,

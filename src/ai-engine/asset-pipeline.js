@@ -1031,6 +1031,90 @@ export async function resolveDreamAudioForJob({
     return syncAudioIntoBundle(generatedAssets, audio);
 }
 
+/**
+ * Merge user-attached visual media (images, memes/gifs, videos) into the generated
+ * asset bundle so the production builder both (a) materializes them into the runtime
+ * asset pack and (b) is told to actually use them. Audio attachments are handled
+ * separately by resolveDreamAudioForJob and are skipped here.
+ */
+export function injectUserMediaAssets(generatedAssets = null, mediaAttachments = []) {
+    const attachments = asArray(mediaAttachments).filter((asset) => asset && asset.url);
+    if (!attachments.length) return generatedAssets;
+
+    const images = [];
+    const videos = [];
+
+    for (const attachment of attachments) {
+        const type = normalizeAttachmentType(attachment.type);
+        if (type === 'bgm' || type === 'sfx') continue; // audio resolved elsewhere
+        const role = normalizeAttachmentRole(attachment.role, attachment.type);
+        const label = attachment.title || attachment.label || (type === 'video' ? 'User video' : 'User image');
+        const instruction = attachment.instruction || '';
+        if (type === 'video') {
+            videos.push({ key: `user_video_${videos.length + 1}`, role, url: attachment.url, label, instruction });
+        } else {
+            images.push({ key: `user_image_${images.length + 1}`, role, url: attachment.url, label, instruction });
+        }
+    }
+
+    if (!images.length && !videos.length) return generatedAssets;
+
+    const base = generatedAssets || {
+        assets: {},
+        assetPack: [],
+        manifest: { version: 2, assets: [], animations: [], audio: { sfx: [], music: [] }, tilesets: [] },
+        animations: [],
+        audio: { sfx: [], music: [] },
+        tilesets: [],
+    };
+
+    const imagePackEntries = images.map((img) => ({
+        key: img.key,
+        id: img.key,
+        runtimeKey: img.key,
+        type: 'image',
+        role: img.role,
+        category: img.role,
+        url: img.url,
+        label: img.label,
+        description: img.instruction || `User-provided ${img.role} image`,
+        transparent: img.role !== 'background',
+        source: 'user_attachment',
+    }));
+
+    // Videos go into the pack too so the materializer writes them to a local file
+    // (assets/<key>.<ext>) and exposes a clean runtime url. The builder looks the
+    // url up by key at runtime — we never put the (huge) data URL in the prompt.
+    const videoPackEntries = videos.map((vid) => ({
+        key: vid.key,
+        id: vid.key,
+        runtimeKey: vid.key,
+        type: 'video',
+        role: vid.role,
+        category: vid.role,
+        url: vid.url,
+        label: vid.label,
+        description: vid.instruction || `User-provided ${vid.role} video`,
+        source: 'user_attachment',
+    }));
+
+    const packEntries = [...imagePackEntries, ...videoPackEntries];
+
+    return {
+        ...base,
+        assetPack: [...asArray(base.assetPack), ...packEntries],
+        manifest: {
+            ...(base.manifest || {}),
+            assets: [...asArray(base.manifest?.assets), ...packEntries],
+        },
+        // Strip urls from the prompt-facing summary — builder resolves them by key at runtime.
+        userMedia: {
+            images: images.map(({ key, role, instruction, label }) => ({ key, role, instruction, label })),
+            videos: videos.map(({ key, role, instruction, label }) => ({ key, role, instruction, label })),
+        },
+    };
+}
+
 function buildTilesetPlan(qualityIntent = {}, specText = '') {
     const needsTiles = includesAny(specText, [
         'tile',

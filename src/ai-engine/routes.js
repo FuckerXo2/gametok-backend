@@ -13,7 +13,7 @@ import { setAssetBaseUrl, buildDreamAssetBundle, buildDreamAssetBundleWithAI, ge
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { artistAgent, batchArtistAgent, generateGameSprites } from './sprite-generator.js';
-import { buildAssetPlanFromMakerContract, buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle, findUserBgmAttachment, resolveDreamAudioForJob } from './asset-pipeline.js';
+import { buildAssetPlanFromMakerContract, buildDreamAssetPlan, buildStructuredAssetToolRequest, compileDreamAssetBundle, findUserBgmAttachment, injectUserMediaAssets, resolveDreamAudioForJob } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
 import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
 import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
@@ -4926,6 +4926,7 @@ async function runMakerAgentInspectionTurns({
                 objective,
                 allowedAssetKeys,
                 assetSlotHints,
+                userMedia: generatedAssets?.userMedia || null,
             })
             : buildMakerAgentInspectionPrompt({
                 prompt,
@@ -4946,6 +4947,7 @@ async function runMakerAgentInspectionTurns({
                 mode: turnMode,
                 allowedAssetKeys,
                 assetSlotHints,
+                userMedia: generatedAssets?.userMedia || null,
             });
         await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
         if (isImplementTurn) {
@@ -5883,6 +5885,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         });
         const userBgmAttachment = findUserBgmAttachment(mediaAttachments);
         console.log(`🎵 Audio manifest: ${generatedAssets?.audio?.sfx?.length || 0} sfx, ${generatedAssets?.audio?.music?.length || 0} music (${userBgmAttachment ? 'user-selected BGM' : 'auto Freesound BGM'})`);
+
+        // Merge user-attached images / memes / videos into the asset bundle so the
+        // builder materializes and actually uses them (audio handled above).
+        generatedAssets = injectUserMediaAssets(generatedAssets, mediaAttachments);
+        const userMediaSummary = generatedAssets?.userMedia || { images: [], videos: [] };
+        if (userMediaSummary.images?.length || userMediaSummary.videos?.length) {
+            console.log(`🖼️ User media wired in: ${userMediaSummary.images?.length || 0} image(s), ${userMediaSummary.videos?.length || 0} video(s)`);
+        }
 
         makerDebugProtocol = buildMakerDebugProtocol(makerTemplateContract, generatedAssets, makerAssetContract);
         await writeMakerJson(makerWorkspace, 'debug-protocol.json', makerDebugProtocol);
