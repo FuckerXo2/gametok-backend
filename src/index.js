@@ -2,6 +2,9 @@
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
+import jwt from 'jsonwebtoken';
+import { JwksClient } from 'jwks-rsa';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -70,6 +73,93 @@ app.get('/', (req, res) => {
 
 const hashPassword = (password) => crypto.createHash('sha256').update(password).digest('hex');
 const generateToken = () => crypto.randomBytes(32).toString('hex');
+
+// ─── Google Sign-In verification ─────────────────────────────
+// Every Google ID token (from the native mobile SDK or web GIS) carries an `aud`
+// equal to the OAuth client id that requested it. We accept any of our own client
+// ids. Override/extend via GOOGLE_CLIENT_IDS (comma-separated) on Railway.
+const GOOGLE_CLIENT_IDS = (
+  process.env.GOOGLE_CLIENT_IDS ||
+  [
+    '690098564284-9j4fj28fiqimjg8c20mn2vtjg6b70qr7.apps.googleusercontent.com', // iOS "web" client + web GIS
+    '516560435127-l6db4akjqei5q57j764kgu3aoaedu45l.apps.googleusercontent.com', // Android "web" client
+    '690098564284-704g6n4d0ur6audbsgqnd2tnkfranatc.apps.googleusercontent.com', // iOS native client
+  ].join(',')
+)
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+const googleClient = new OAuth2Client();
+
+// Verifies a Google ID token and returns { sub, email, emailVerified, name, picture }.
+// Throws if the token is missing, malformed, expired, or not issued for one of our clients.
+async function verifyGoogleIdToken(idToken) {
+  if (!idToken) throw new Error('Missing Google ID token');
+  const ticket = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_IDS });
+  const payload = ticket.getPayload();
+  if (!payload?.sub) throw new Error('Google token has no subject');
+  return {
+    sub: payload.sub,
+    email: payload.email || null,
+    emailVerified: payload.email_verified === true,
+    name: payload.name || null,
+    picture: payload.picture || null,
+  };
+}
+
+// ─── Apple Sign-In verification ──────────────────────────────
+// Apple identity tokens are RS256 JWTs signed with keys published at
+// https://appleid.apple.com/auth/keys, issued by https://appleid.apple.com, with
+// `aud` equal to the app's bundle id (native) or Services ID (web). Accept any of
+// our own ids; override/extend via APPLE_CLIENT_IDS (comma-separated) on Railway.
+const APPLE_CLIENT_IDS = (process.env.APPLE_CLIENT_IDS || 'com.olasubomi.gametok')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+const APPLE_ISSUER = 'https://appleid.apple.com';
+const appleJwks = new JwksClient({
+  jwksUri: `${APPLE_ISSUER}/auth/keys`,
+  cache: true,
+  cacheMaxEntries: 5,
+  cacheMaxAge: 24 * 60 * 60 * 1000, // 24h
+  rateLimit: true,
+});
+
+// Resolves the Apple public signing key for a given token `kid`.
+function getAppleSigningKey(header, callback) {
+  appleJwks.getSigningKey(header.kid, (err, key) => {
+    if (err) return callback(err);
+    callback(null, key.getPublicKey());
+  });
+}
+
+// Verifies an Apple identity token and returns { sub, email, emailVerified }.
+// Throws if the token is missing, malformed, expired, wrong issuer, or not issued
+// for one of our client ids. Apple omits the user's name from the token (it only
+// arrives client-side on first authorization), so name is handled by the caller.
+function verifyAppleIdToken(identityToken) {
+  return new Promise((resolve, reject) => {
+    if (!identityToken) return reject(new Error('Missing Apple identity token'));
+    jwt.verify(
+      identityToken,
+      getAppleSigningKey,
+      { algorithms: ['RS256'], issuer: APPLE_ISSUER, audience: APPLE_CLIENT_IDS },
+      (err, payload) => {
+        if (err) return reject(err);
+        if (!payload?.sub) return reject(new Error('Apple token has no subject'));
+        // Apple sends email_verified as either a boolean or the string "true".
+        const ev = payload.email_verified;
+        resolve({
+          sub: payload.sub,
+          email: payload.email || null,
+          emailVerified: ev === true || ev === 'true',
+        });
+      },
+    );
+  });
+}
 
 // ============================================
 // REMOTE CONFIG - Change app behavior without updates
@@ -372,18 +462,44 @@ app.post('/api/auth/oauth', async (req, res) => {
     let userEmail = email;
     let userName = null;
     let oauthId = null;
+    let emailVerified = false;
 
     if (provider === 'apple') {
-      // Apple Sign-In
-      oauthId = oauthUser; // Apple user ID
+      // Apple Sign-In — verify the identity token server-side and trust ONLY the
+      // verified payload for the user id and email (never the client-supplied
+      // `user`/`email` fields). The Apple `sub` equals the legacy `credential.user`,
+      // so existing Apple accounts keep matching by oauth_id.
+      let verified;
+      try {
+        verified = await verifyAppleIdToken(identityToken);
+      } catch (err) {
+        console.warn('[OAuth] Apple token verification failed:', err.message);
+        return res.status(401).json({ error: 'Apple sign-in could not be verified' });
+      }
+      oauthId = verified.sub;
+      userEmail = verified.email;
+      emailVerified = verified.emailVerified;
+      // Apple never includes the name in the token; it only arrives client-side on the
+      // first authorization. Name is not a security-sensitive identifier, so use it for
+      // display only.
       if (fullName) {
         userName = [fullName.givenName, fullName.familyName].filter(Boolean).join(' ');
       }
     } else if (provider === 'google') {
-      // Google Sign-In
-      oauthId = oauthUser?.id;
-      userEmail = oauthUser?.email;
-      userName = oauthUser?.name;
+      // Google Sign-In — verify the ID token server-side and trust ONLY the verified
+      // payload (never the client-supplied profile fields). Both the native mobile
+      // SDK and web GIS send this as `idToken`.
+      let verified;
+      try {
+        verified = await verifyGoogleIdToken(idToken);
+      } catch (err) {
+        console.warn('[OAuth] Google token verification failed:', err.message);
+        return res.status(401).json({ error: 'Google sign-in could not be verified' });
+      }
+      oauthId = verified.sub;
+      userEmail = verified.email;
+      userName = verified.name;
+      emailVerified = verified.emailVerified;
     }
 
     if (!oauthId) return res.status(400).json({ error: 'Invalid OAuth data' });
@@ -407,8 +523,10 @@ app.post('/api/auth/oauth', async (req, res) => {
         await pool.query('UPDATE users SET token = $1 WHERE id = $2', [token, user.id]);
       }
     } else {
-      // Check if email already exists
-      if (userEmail) {
+      // Check if email already exists. Only auto-link to an existing account when the
+      // provider has VERIFIED the email — otherwise a forged/unverified email could be
+      // used to hijack someone else's account.
+      if (userEmail && emailVerified) {
         result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [userEmail]);
         if (result.rows.length > 0) {
           // Link OAuth to existing account
