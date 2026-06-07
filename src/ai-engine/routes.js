@@ -7366,6 +7366,9 @@ function buildFallbackEditIntent(instructions) {
     return {
         summary: clean || 'Update the game',
         finalInstruction: clean || 'Apply the requested edit to the existing game.',
+        reply: needsBackgroundClarification
+            ? 'Sure — what kind of background do you want? Pick one or describe it.'
+            : (clean ? "Got it — I'll fold that into the edit. Add any details, or hit Apply." : "Tell me what you'd like to change about the game."),
         needsClarification: needsBackgroundClarification,
         question: needsBackgroundClarification
             ? 'What kind of background should I add back?'
@@ -7380,7 +7383,7 @@ function buildFallbackEditIntent(instructions) {
 // === EDIT INTENT INTERPRETATION ===
 router.post('/interpret-edit', async (req, res) => {
     try {
-        const { instructions, gameTitle, currentSummary } = req.body;
+        const { instructions, gameTitle, currentSummary, conversationHistory } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         await getUserIdFromToken(token, 'Expired session');
@@ -7388,6 +7391,16 @@ router.post('/interpret-edit', async (req, res) => {
         if (!instructions) return res.status(400).json({ error: 'instructions is required' });
 
         const fallback = buildFallbackEditIntent(instructions);
+
+        // Prior turns of this refine chat, so the AI actually holds a conversation instead of
+        // re-interpreting each message in isolation. Newest-last, capped.
+        const historyMessages = (Array.isArray(conversationHistory) ? conversationHistory : [])
+            .slice(-10)
+            .map((m) => ({
+                role: m && m.role === 'assistant' ? 'assistant' : 'user',
+                content: String((m && (m.content ?? m.text)) || '').slice(0, 800),
+            }))
+            .filter((m) => m.content);
         const nvidiaClient = createNvidiaTextClient();
 
         const timeoutPromise = new Promise((_, reject) => {
@@ -7399,13 +7412,12 @@ router.post('/interpret-edit', async (req, res) => {
             messages: [
                 {
                     role: 'system',
-                    content: `You are the edit-intent brain inside GameTok Dream Forge.
-You are helping a user modify an EXISTING generated game. Do not invent a new game concept.
-Interpret the user's edit request like a senior game designer and produce a concise, builder-ready edit plan.
+                    content: `You are the in-chat edit assistant inside GameTok's Dream Forge. You are having a short, friendly CONVERSATION with a user who wants to change their EXISTING game. Talk like a sharp, encouraging game-dev buddy: actually react to what they say — answer their questions, riff with them, confirm, or ask ONE clarifying question. Never invent a brand-new game.
 
 Return ONLY valid JSON in this exact format:
 {
-  "summary": "Plain-language summary of the edit, under 80 characters",
+  "reply": "Your natural, conversational message to the user (1-2 sentences). THIS is what they read in the chat. Actually respond to their latest message — never a canned line.",
+  "summary": "Plain-language summary of the edit so far, under 80 characters",
   "finalInstruction": "Precise instruction for an AI game editor, preserving the existing game unless explicitly changed",
   "needsClarification": true/false,
   "question": "One natural follow-up question, or null",
@@ -7414,23 +7426,23 @@ Return ONLY valid JSON in this exact format:
 }
 
 Rules:
+- "reply" MUST genuinely answer/acknowledge their latest message in context. If they ask a question, ANSWER it. If they're vague, ask. NEVER output a generic "Perfect, I'll fold that in" when it doesn't fit what they said.
+- Use the conversation so far for context and build the edit up across turns.
 - If the request is clear, needsClarification=false and question=null.
-- If a detail matters, ask ONE useful question.
-- For vague background requests, ask what style/source of background they want and offer chips like Original, Match the game, Neon, Space, Surprise me.
-- Do not say "modify the existing" in summary.
-- Do not output generic feature bullets.
-- finalInstruction must be direct and specific enough for the edit model.`
+- For vague background requests, ask what style they want and offer chips like Original, Match the game, Neon, Space, Surprise me.
+- No generic feature bullets. finalInstruction must be direct and specific for the edit model.`
                 },
                 {
+                    role: 'system',
+                    content: `GAME CONTEXT — title: "${gameTitle || 'Untitled'}", current state: "${currentSummary || 'a generated mobile game'}". Keep every edit faithful to THIS game.`,
+                },
+                ...historyMessages,
+                {
                     role: 'user',
-                    content: JSON.stringify({
-                        gameTitle: gameTitle || '',
-                        currentSummary: currentSummary || '',
-                        editRequest: instructions,
-                    }),
+                    content: String(instructions),
                 },
             ],
-            temperature: 0.35,
+            temperature: 0.5,
             max_tokens: 450,
         });
 
@@ -7451,6 +7463,7 @@ Rules:
                 intent = {
                     ...fallback,
                     ...parsed,
+                    reply: parsed.reply ? String(parsed.reply).slice(0, 400) : fallback.reply,
                     summary: String(parsed.summary || fallback.summary).slice(0, 100),
                     finalInstruction: String(parsed.finalInstruction || fallback.finalInstruction).slice(0, 2000),
                     needsClarification: Boolean(parsed.needsClarification),
