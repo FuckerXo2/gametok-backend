@@ -4783,7 +4783,11 @@ app.post('/api/notifications/unregister', async (req, res) => {
     if (userResult.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
     const userId = userResult.rows[0].id;
 
-    await db.removePushToken(userId);
+    // Detach only this device's token when the client sends it, so logging out
+    // on one device doesn't kill notifications on the user's other devices.
+    // Falls back to clearing all of the user's tokens for older clients.
+    const { pushToken } = req.body || {};
+    await db.removePushToken(userId, pushToken || null);
     res.json({ success: true });
   } catch (e) {
     console.error('Unregister push token error:', e);
