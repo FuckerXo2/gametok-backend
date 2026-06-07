@@ -228,6 +228,24 @@ function summarizeAssetContractForRepair(assetContract = null) {
     };
 }
 
+export function buildUserMediaInstructionBlock(userMedia = null) {
+    if (!userMedia) return '';
+    const images = Array.isArray(userMedia.images) ? userMedia.images : [];
+    const videos = Array.isArray(userMedia.videos) ? userMedia.videos : [];
+    if (!images.length && !videos.length) return '';
+    const lines = ['USER-PROVIDED MEDIA — the player deliberately attached these. You MUST use every one; never ignore them:'];
+    for (const img of images) {
+        lines.push(`- Image asset key "${img.key}" (role: ${img.role}).${img.instruction ? ` Player intent: ${img.instruction}.` : ''} Load it exactly like other pack assets (getAssetImage("${img.key}") / firstByRole) and use it as the ${img.role}.`);
+    }
+    for (const vid of videos) {
+        const usage = vid.role === 'background'
+            ? 'render it as a full-bleed looping background behind gameplay — draw it each frame with ctx.drawImage(videoEl, ...) or position a <video> element under #game-canvas'
+            : `use it for the ${vid.role}`;
+        lines.push(`- Video asset key "${vid.key}" (role: ${vid.role}).${vid.instruction ? ` Player intent: ${vid.instruction}.` : ''} Resolve its src at runtime from the asset pack: const src = (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${vid.key}")?.url. Create an HTMLVideoElement (muted, loop, playsInline, autoplay) with that src and ${usage}. Never leave it unused.`);
+    }
+    return lines.join('\n');
+}
+
 export function buildMakerAgentImplementPrompt({
     prompt = '',
     qualityIntent = {},
@@ -237,6 +255,7 @@ export function buildMakerAgentImplementPrompt({
     objective = '',
     allowedAssetKeys = [],
     assetSlotHints = [],
+    userMedia = null,
 } = {}) {
     const foundation = templateContract?.foundation || null;
     const mainTs = pickProjectFileContent(projectFiles, 'src/main.ts', MAKER_IMPLEMENT_MAIN_TS_CHARS);
@@ -270,6 +289,8 @@ export function buildMakerAgentImplementPrompt({
         `Objective: ${objective || 'Implement full gameplay loop in src/main.ts.'}`,
         '',
         buildAllowedAssetKeysPromptBlock(allowedAssetKeys, assetSlotHints),
+        '',
+        buildUserMediaInstructionBlock(userMedia),
         '',
         'User prompt:',
         prompt,
@@ -319,6 +340,7 @@ export function buildMakerAgentInspectionPrompt({
     mode = MAKER_AGENT_TURN_MODE_REPAIR,
     allowedAssetKeys = [],
     assetSlotHints = [],
+    userMedia = null,
 } = {}) {
     const useTools = transport === 'tools';
     const implementMode = useTools && mode === MAKER_AGENT_TURN_MODE_IMPLEMENT;
@@ -398,6 +420,8 @@ export function buildMakerAgentInspectionPrompt({
         `Objective: ${objective || 'Audit generated files against maker contracts.'}`,
         '',
         buildAllowedAssetKeysPromptBlock(allowedAssetKeys, assetSlotHints),
+        '',
+        buildUserMediaInstructionBlock(userMedia),
         '',
         'Original user prompt:',
         prompt,
