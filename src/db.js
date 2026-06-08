@@ -324,6 +324,19 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'preview_video_url') THEN
           ALTER TABLE games ADD COLUMN preview_video_url TEXT;
         END IF;
+        -- Remix lineage: which game this was remixed from + denormalized creator name for credit display
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'remixed_from') THEN
+          ALTER TABLE ai_games ADD COLUMN remixed_from UUID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'remixed_from_username') THEN
+          ALTER TABLE ai_games ADD COLUMN remixed_from_username VARCHAR(64);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'remixed_from') THEN
+          ALTER TABLE games ADD COLUMN remixed_from UUID;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'remixed_from_username') THEN
+          ALTER TABLE games ADD COLUMN remixed_from_username VARCHAR(64);
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_events') THEN
           CREATE TABLE search_events (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

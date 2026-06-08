@@ -944,7 +944,7 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
     });
 
     await pool.query(
-        `INSERT INTO games (id, name, description, icon, color, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips, developer, embed_url, thumbnail, preview_video_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        `INSERT INTO games (id, name, description, icon, color, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips, developer, embed_url, thumbnail, preview_video_url, remixed_from, remixed_from_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
          ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
@@ -957,7 +957,9 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
             discovery_chips = EXCLUDED.discovery_chips,
             developer = EXCLUDED.developer,
             thumbnail = EXCLUDED.thumbnail,
-            preview_video_url = EXCLUDED.preview_video_url`,
+            preview_video_url = EXCLUDED.preview_video_url,
+            remixed_from = EXCLUDED.remixed_from,
+            remixed_from_username = EXCLUDED.remixed_from_username`,
         [
             globalId,
             draft.title,
@@ -975,6 +977,8 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
             `/api/ai/play/${draftId}`,
             draft.thumbnail,
             null,
+            draft.remixed_from || null,
+            draft.remixed_from_username || null,
         ]
     );
 
@@ -7986,9 +7990,76 @@ router.post('/publish/:draftId', async (req, res) => {
         });
         console.log('[Publish] Success! Game ID:', globalId);
         res.json({ success: true, gameId: globalId, classification });
-    } catch (e) { 
+    } catch (e) {
         console.error('[Publish] Error:', e);
-        res.status(e.statusCode || 500).json({ error: e.message }); 
+        res.status(e.statusCode || 500).json({ error: e.message });
+    }
+});
+
+// Remix: clone another user's PUBLIC published game into a fresh draft owned by
+// the current user. They then edit + publish it through the normal flow.
+router.post('/remix/:sourceId', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        const userId = await getUserIdFromToken(token, 'Unauthorized');
+
+        // Accept either a full id or the short prefix used in /play urls.
+        const srcRes = await pool.query(
+            "SELECT * FROM ai_games WHERE id::text LIKE $1 LIMIT 1",
+            [String(req.params.sourceId) + '%'],
+        );
+        if (srcRes.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
+        const src = srcRes.rows[0];
+
+        if (src.is_draft) return res.status(400).json({ error: 'You can only remix a published game' });
+        // privacy 'public' = play & remix; anything else (e.g. 'play_only') blocks remixing.
+        if (src.privacy && src.privacy !== 'public') {
+            return res.status(403).json({ error: 'The creator turned off remixing for this game' });
+        }
+        if (!src.html_payload) return res.status(400).json({ error: 'This game has no playable content to remix' });
+
+        // Credit the direct source's creator (denormalized name for easy display).
+        const creatorRes = await pool.query('SELECT username, display_name FROM users WHERE id = $1', [src.user_id]);
+        const creatorName = creatorRes.rows[0]?.username || creatorRes.rows[0]?.display_name || null;
+        const baseTitle = String(src.title || 'Game').replace(/^Remix of /i, '');
+        const newTitle = `Remix of ${baseTitle}`.substring(0, 255);
+
+        const insertRes = await pool.query(
+            `INSERT INTO ai_games (
+                user_id, prompt, title, html_payload, raw_code, artist_code,
+                thumbnail, preview_video_url, category, subcategory, primary_tab,
+                interaction_type, classification_confidence, classification_tags,
+                discovery_chips, privacy, is_draft, remixed_from, remixed_from_username, created_at
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,true,$17,$18,NOW())
+             RETURNING id, title`,
+            [
+                userId,
+                src.prompt || `Remix of ${baseTitle}`,
+                newTitle,
+                src.html_payload,
+                src.raw_code || src.html_payload,
+                src.artist_code || null,
+                src.thumbnail || null,
+                src.preview_video_url || null,
+                src.category || null,
+                src.subcategory || null,
+                src.primary_tab || null,
+                src.interaction_type || null,
+                src.classification_confidence || null,
+                JSON.stringify(src.classification_tags || []),
+                JSON.stringify(src.discovery_chips || []),
+                'public',
+                src.id,
+                creatorName,
+            ],
+        );
+        const draft = insertRes.rows[0];
+        console.log(`[Remix] ${userId} remixed ${src.id} -> draft ${draft.id}`);
+        res.json({ success: true, draftId: draft.id, title: draft.title, remixedFrom: creatorName });
+    } catch (e) {
+        console.error('[Remix] Error:', e);
+        res.status(e.statusCode || 500).json({ error: e.message });
     }
 });
 
