@@ -233,15 +233,20 @@ export function buildUserMediaInstructionBlock(userMedia = null) {
     const images = Array.isArray(userMedia.images) ? userMedia.images : [];
     const videos = Array.isArray(userMedia.videos) ? userMedia.videos : [];
     if (!images.length && !videos.length) return '';
-    const lines = ['USER-PROVIDED MEDIA — the player deliberately attached these. You MUST use every one; never ignore them:'];
+    const lines = ['USER-PROVIDED MEDIA — the player deliberately attached these and told you how to use each one. Their instruction is the AUTHORITY: honor it exactly, even when it differs from the default role. You MUST use every one; never ignore them:'];
     for (const img of images) {
-        lines.push(`- Image asset key "${img.key}" (role: ${img.role}).${img.instruction ? ` Player intent: ${img.instruction}.` : ''} Load it exactly like other pack assets (getAssetImage("${img.key}") / firstByRole) and use it as the ${img.role}.`);
+        const directive = img.instruction
+            ? `The player said use it as: "${img.instruction}". Do exactly that — it overrides any default role.`
+            : `Use it as the ${img.role}.`;
+        lines.push(`- Image asset key "${img.key}". ${directive} Load it like other pack assets (getAssetImage("${img.key}") / firstByRole).`);
     }
     for (const vid of videos) {
-        const usage = vid.role === 'background'
-            ? 'render it as a full-bleed looping background behind gameplay — draw it each frame with ctx.drawImage(videoEl, ...) or position a <video> element under #game-canvas'
-            : `use it for the ${vid.role}`;
-        lines.push(`- Video asset key "${vid.key}" (role: ${vid.role}).${vid.instruction ? ` Player intent: ${vid.instruction}.` : ''} Resolve its src at runtime from the asset pack: const src = (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${vid.key}")?.url. Create an HTMLVideoElement (muted, loop, playsInline, autoplay) with that src and ${usage}. Never leave it unused.`);
+        const directive = vid.instruction
+            ? `The player said use it as: "${vid.instruction}". Do exactly that.`
+            : (vid.role === 'background'
+                ? 'Use it as a full-bleed looping background behind gameplay.'
+                : `Use it for the ${vid.role}.`);
+        lines.push(`- Video asset key "${vid.key}". ${directive} Resolve its src at runtime: const src = (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${vid.key}")?.url. Create an HTMLVideoElement (muted, loop, playsInline, autoplay) with that src, then draw it each frame with ctx.drawImage(videoEl, ...) or position a <video> under #game-canvas. Never leave it unused.`);
     }
     return lines.join('\n');
 }
