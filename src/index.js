@@ -2658,6 +2658,7 @@ function formatGame(row) {
     creatorVerified: Boolean(row.creator_verified),
     creatorAvatar: row.creator_avatar || row.creatorAvatar || null,
     creatorUsername: row.creator_username || row.creatorUsername || null,
+    remixedFrom: row.remixed_from_username || row.remixedFrom || null,
     plays: row.plays,
     likes: row.like_count,
     saves: row.save_count || 0,
