@@ -2855,6 +2855,13 @@ function normalizeMediaAttachmentRole(role = '', type = '') {
     }
 }
 
+function isAnimatedAttachment(rawType = '', url = '') {
+    const t = String(rawType || '').trim().toLowerCase();
+    if (t === 'gif' || t === 'sticker') return true;
+    const u = String(url || '').toLowerCase();
+    return u.startsWith('data:image/gif') || /\.gif(\?|#|$)/.test(u);
+}
+
 function sanitizeMediaAttachments(rawAttachments = []) {
     if (!Array.isArray(rawAttachments)) {
         return [];
@@ -2863,6 +2870,9 @@ function sanitizeMediaAttachments(rawAttachments = []) {
     return rawAttachments
         .map((asset) => ({
             type: normalizeMediaAttachmentType(asset?.type),
+            // gif/sticker collapse to 'image' above; keep the animation hint so the
+            // builder renders them as a live <img> instead of a frozen canvas frame.
+            animated: isAnimatedAttachment(asset?.type, asset?.url),
             role: normalizeMediaAttachmentRole(asset?.role, asset?.type),
             url: typeof asset?.url === 'string' ? asset.url.trim() : '',
             title: typeof asset?.title === 'string' ? asset.title.trim() : '',

@@ -238,7 +238,11 @@ export function buildUserMediaInstructionBlock(userMedia = null) {
         const directive = img.instruction
             ? `The player said use it as: "${img.instruction}". Do exactly that — it overrides any default role.`
             : `Use it as the ${img.role}.`;
-        lines.push(`- Image asset key "${img.key}". ${directive} Load it like other pack assets (getAssetImage("${img.key}") / firstByRole).`);
+        if (img.animated) {
+            lines.push(`- Animated image asset key "${img.key}" (a GIF/sticker — it MUST keep animating). ${directive} Render it as a positioned HTML <img> element layered over #game-canvas, src resolved at runtime: (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${img.key}")?.url. Do NOT draw it with ctx.drawImage — that freezes a GIF to its first frame. Move/scale it with CSS transforms if it needs to travel around the screen.`);
+        } else {
+            lines.push(`- Image asset key "${img.key}". ${directive} Load it like other pack assets (getAssetImage("${img.key}") / firstByRole).`);
+        }
     }
     for (const vid of videos) {
         const directive = vid.instruction

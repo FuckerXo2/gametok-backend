@@ -1053,7 +1053,11 @@ export function injectUserMediaAssets(generatedAssets = null, mediaAttachments =
         if (type === 'video') {
             videos.push({ key: `user_video_${videos.length + 1}`, role, url: attachment.url, label, instruction });
         } else {
-            images.push({ key: `user_image_${images.length + 1}`, role, url: attachment.url, label, instruction });
+            const urlLower = String(attachment.url || '').toLowerCase();
+            const animated = Boolean(attachment.animated)
+                || urlLower.startsWith('data:image/gif')
+                || /\.gif(\?|#|$)/.test(urlLower);
+            images.push({ key: `user_image_${images.length + 1}`, role, url: attachment.url, label, instruction, animated });
         }
     }
 
@@ -1078,7 +1082,7 @@ export function injectUserMediaAssets(generatedAssets = null, mediaAttachments =
         url: img.url,
         label: img.label,
         description: img.instruction || `User-provided ${img.role} image`,
-        transparent: img.role !== 'background',
+        transparent: img.animated ? true : img.role !== 'background',
         source: 'user_attachment',
     }));
 
@@ -1109,7 +1113,7 @@ export function injectUserMediaAssets(generatedAssets = null, mediaAttachments =
         },
         // Strip urls from the prompt-facing summary — builder resolves them by key at runtime.
         userMedia: {
-            images: images.map(({ key, role, instruction, label }) => ({ key, role, instruction, label })),
+            images: images.map(({ key, role, instruction, label, animated }) => ({ key, role, instruction, label, animated })),
             videos: videos.map(({ key, role, instruction, label }) => ({ key, role, instruction, label })),
         },
     };
