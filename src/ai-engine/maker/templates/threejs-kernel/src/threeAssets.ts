@@ -135,6 +135,10 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
     canvas,
     antialias: false,
     powerPreference: 'high-performance',
+    // Keep the drawn frame readable so the headless verifier can confirm the
+    // scene actually rendered (drawImage/getImageData on a WebGL canvas returns
+    // blank otherwise). Minor cost, big reliability win for the 3D verifier.
+    preserveDrawingBuffer: true,
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;

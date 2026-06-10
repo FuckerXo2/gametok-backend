@@ -452,13 +452,19 @@ export function buildMakerTemplateContractFromFoundation(foundation = {}, qualit
         (probe) => `window.__GAMETOK_TEMPLATE_PROBE__.${probe.name}`,
     );
 
+    const is3D = String(foundation.dimension || '').toUpperCase() === '3D'
+        || String(foundation.lane || '').toLowerCase().includes('threejs')
+        || String(foundation.lane || '').toLowerCase().includes('voxel_world')
+        || String(foundation.engine || '').toLowerCase() === 'threejs';
     return {
         version: 1,
         source: 'gametok-dynamic-foundation',
-        templateId: 'canvas-kernel',
-        engine: foundation.engine || 'canvas-2d',
+        templateId: is3D ? 'threejs-kernel' : 'canvas-kernel',
+        engine: is3D ? 'threejs' : (foundation.engine || 'canvas-2d'),
         archetype: foundation.lane || 'dynamic',
-        recommendedLibrary: 'Canvas 2D on shared GameTok kernel (bootstrap + assetLoader).',
+        recommendedLibrary: is3D
+            ? 'Three.js (WebGL) on shared GameTok 3D kernel (bootstrap + threeAssets).'
+            : 'Canvas 2D on shared GameTok kernel (bootstrap + assetLoader).',
         architecture: [
             'Foundation architect designed this job-specific loop and probe contract.',
             'src/bootstrap.ts and src/assetLoader.ts are kernel-owned and read-only.',

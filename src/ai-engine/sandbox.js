@@ -7,7 +7,13 @@ function isLikelyThreeJsBuild(htmlString = '') {
     const source = String(htmlString || '');
     return /THREE\.(WebGLRenderer|PerspectiveCamera|Scene)/i.test(source)
         || /cdnjs\.cloudflare\.com\/ajax\/libs\/three\.js/i.test(source)
-        || /three\.min\.js/i.test(source);
+        || /three\.min\.js/i.test(source)
+        // Bundled npm three (vite single-file, minified): the THREE. namespace prefix
+        // is gone, but the exported class names survive (esbuild keeps property names)
+        // and the GLSL shader chunks (gl_Position) survive minification as string data.
+        || /\bWebGLRenderer\b/.test(source)
+        || /\bPerspectiveCamera\b/.test(source)
+        || /gl_Position/.test(source);
 }
 
 function isHeadlessWebglFailure(crashes = []) {
@@ -179,6 +185,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
         'story-vignette',
         'canvas-arcade',
         'canvas-kernel',
+        'threejs-kernel',
     ].includes(templateId)) return null;
 
     const canvasKernelProbeContract = templateId === 'canvas-kernel'
@@ -249,6 +256,39 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                     success: false,
                     failures: [error?.message || String(error)],
                 };
+            }
+        }
+
+        if (templateId === 'threejs-kernel') {
+            const requiredMethods = ['snapshot', 'step', 'reset'];
+            const missingMethods = requiredMethods.filter((method) => typeof probe[method] !== 'function');
+            const failures = missingMethods.map((method) => `Missing probe method: ${method}`);
+            if (missingMethods.length > 0) {
+                return { templateId, success: false, failures };
+            }
+            try {
+                if (typeof probe.reset === 'function') probe.reset();
+                await wait(60);
+                const initial = typeof probe.snapshot === 'function' ? probe.snapshot() : null;
+                if (!initial || typeof initial !== 'object') {
+                    failures.push('snapshot() did not return a state object.');
+                }
+                // 3D render proof: the kernel probe reports renderer.info draw calls.
+                // Step the loop and confirm the WebGL renderer actually drew something.
+                let rendered = Number(initial?.renderCalls || 0) > 0;
+                let afterStep = initial;
+                for (let frame = 0; frame < 20 && !rendered; frame += 1) {
+                    const stepped = probe.step(16);
+                    afterStep = (stepped && typeof stepped.then === 'function') ? await stepped : (stepped || afterStep);
+                    await wait(16);
+                    if (Number(afterStep?.renderCalls || 0) > 0) rendered = true;
+                }
+                if (!rendered) {
+                    failures.push('Three.js renderer issued zero draw calls — the scene never rendered (check lights, camera, and renderer.render(scene, camera) in the loop).');
+                }
+                return { templateId, success: failures.length === 0, failures, details: { initial, afterStep, rendered } };
+            } catch (error) {
+                return { templateId, success: false, failures: [error?.message || String(error)] };
             }
         }
 
@@ -708,6 +748,9 @@ export async function verifyGame(htmlString, options = {}) {
     const assetContractInspection = inspectAssetContractSource(sourceHtml, options?.assetContract || null);
     const expectsThreeJs = runtimeLane === 'first_person_threejs'
         || runtimeLane === 'third_person_threejs'
+        || /threejs|three_js|voxel|3d/i.test(String(runtimeLane || ''))
+        || String(options?.engine || '').toLowerCase() === 'threejs'
+        || String(options?.dimension || '').toUpperCase() === '3D'
         || isLikelyThreeJsBuild(htmlString);
 
     try {
@@ -1083,7 +1126,11 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push(`Blank canvas detected: canvas#${blankCanvas.index} has almost no visible pixels. The game must render visible gameplay on boot.`);
         }
 
-        if (options.requireDreamAssets && renderState.dreamAssetPackCount > 0) {
+        // The asset-render checks below are 2D-only: they look for DreamAssets.addSprite /
+        // canvas drawImage usage and 2D pixel rendering. A three.js game paints assets as
+        // textures/sprites/billboards on the GPU, so these checks can never pass for 3D —
+        // skip them for three.js builds (the blank-canvas pixel check still guards render).
+        if (!expectsThreeJs && options.requireDreamAssets && renderState.dreamAssetPackCount > 0) {
             const helperCalls = Number(renderState.dreamAssetUsage?.helperCalls || 0);
             const usedKeys = Object.keys(renderState.dreamAssetUsage?.usedKeys || {});
             const renderedKeys = Object.keys(renderState.dreamAssetUsage?.renderedKeys || {});
