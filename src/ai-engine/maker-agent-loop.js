@@ -311,7 +311,7 @@ export function buildMakerAgentImplementPrompt({
         '- Canvas game: guard canvas with instanceof HTMLCanvasElement before width/height/getContext.',
         '- Implement foundation requiredFunctions + probeMethods on window.__GAMETOK_TEMPLATE_PROBE__.',
         '- HUD, buttons, timers, order bubbles: code-rendered only (canvas/DOM). No Phaser for canvas-kernel.',
-        '- Design minimal game-specific HUD per foundation hudDesign (empty #hud mount) — Astrocade-level: only needed stats, match art style, no three generic chips.',
+        '- Design the HUD per foundation hudDesign (empty #hud mount), only the stats the game needs, themed to the uiKit. CRITICAL for action/arcade/runner/racer/shooter/score-chase games: render a CLEAN INTEGRATED overlay — big bold glowing/outlined numbers in the corners, lives as a row of icons/hearts/pips, thin meter bars. Do NOT wrap each stat in a bordered chip/box/panel, and NEVER place three identical bordered stat boxes in a row (that looks like generic dev UI). Bare themed text on the scene reads as premium arcade UI. Only content-heavy casual games (cooking/puzzle/builder) ground stats on uiKit panels for contrast.',
         '- Use ONLY asset keys from ./assetKeys.ts (__GT_CONTRACT_ASSET_KEYS__) or ALLOWED ASSET PACK KEYS below (exact spelling).',
         '- import { __GT_CONTRACT_ASSET_KEYS__ } from "./assetKeys.ts" — do not read_file assetKeys.ts.',
         '- After src/main.ts passes tsc with the full game loop, call finish_inspection — sandbox runs next.',
