@@ -228,6 +228,28 @@ function summarizeAssetContractForRepair(assetContract = null) {
     };
 }
 
+export function buildThreeDRulesBlock(foundation = null) {
+    if (!foundation) return '';
+    const dimension = String(foundation.dimension || '').toUpperCase();
+    const lane = String(foundation.lane || '').toLowerCase();
+    if (dimension !== '3D' && !lane.includes('threejs') && !lane.includes('voxel_world')) return '';
+    const cameraRig = String(foundation.cameraRig || 'third_person_chase');
+    return [
+        '3D RULES (threejs-kernel — these override any 2D canvas guidance):',
+        "- import * as THREE from 'three' and the kernel helpers from './threeAssets.ts' (createThreeStage, applySkybox, getDreamTexture, getTileTexture, makeBillboard, buildVoxelField).",
+        '- The stub already calls createThreeStage(): it owns renderer, camera, lights, fog, and resize. EXTEND the returned scene/camera — never create a second renderer, never remove the hemisphere+directional lights (a lightless scene renders pitch black).',
+        `- Camera rig: ${cameraRig}. Implement smooth follow/look in stepGame — never teleport the camera every frame without damping.`,
+        '- Geometry is CODE-BUILT: BoxGeometry, PlaneGeometry, CylinderGeometry, and buildVoxelField for blocky/Minecraft-style worlds (ONE InstancedMesh = one draw call — never one Mesh per block, never more than ~5000 instanced cells).',
+        "- Paint surfaces with the artist's images: getTileTexture for ground/walls (set repeat), getDreamTexture for single faces, applySkybox(scene, 'skybox') for the sky, makeBillboard for trees/pickups/characters that can be flat sprites.",
+        '- Always branch on null textures to a solid-color MeshLambertMaterial fallback — a missing image must never crash or render invisible geometry.',
+        '- PERF BUDGET (phone webview): MeshLambertMaterial/MeshBasicMaterial only (no Standard/Physical), no shadow maps, no postprocessing, total triangles under 150k, reuse geometries/materials, never allocate new objects inside the render loop.',
+        '- Collisions: simple math — AABB boxes, sphere distance checks, or grid-cell lookups for voxel worlds. No physics engine.',
+        '- Controls (both always active): touch = left-half drag or virtual joystick to move, right-half drag to look/steer, on-screen buttons for actions; keyboard = WASD/arrows to move, Space/Enter primary action. Hide on-screen buttons on desktop via @media (pointer: coarse).',
+        '- Keep window.__GAMETOK_TEMPLATE_PROBE__ working: snapshot must keep reporting renderCalls/triangles from renderer.info plus the game state — the sandbox uses renderCalls > 0 as render proof.',
+        '- DOM HUD (#hud) on top of the canvas for score/meters per the uiKit — never render text with Three.js geometry.',
+    ].join('\n');
+}
+
 export function buildUserMediaInstructionBlock(userMedia = null) {
     if (!userMedia) return '';
     const images = Array.isArray(userMedia.images) ? userMedia.images : [];
@@ -294,6 +316,8 @@ export function buildMakerAgentImplementPrompt({
         '- After src/main.ts passes tsc with the full game loop, call finish_inspection — sandbox runs next.',
         '',
         buildCompositionGuidancePromptBlock(foundation),
+        '',
+        buildThreeDRulesBlock(foundation),
         '',
         `Objective: ${objective || 'Implement full gameplay loop in src/main.ts.'}`,
         '',
@@ -423,6 +447,8 @@ export function buildMakerAgentInspectionPrompt({
         '- You may leave files unchanged only when the current source already satisfies contracts and the latest run evidence is clean or absent.',
         '- HUD, controls, meters, labels, and hitboxes must remain code-rendered.',
         '- Do not add external navigation, forms, remote pages, or new remote dependencies.',
+        '',
+        buildThreeDRulesBlock(templateContract?.foundation || null),
         '',
         `Turn: ${turnNumber}`,
         `Mode: ${mode}`,

@@ -54,6 +54,8 @@ function parseArgs(argv) {
             opts.logsPath = argv[++i];
         } else if (arg === '--out' && argv[i + 1]) {
             opts.outDir = path.resolve(argv[++i]);
+        } else if (arg === '--prompt' && argv[i + 1]) {
+            opts.prompt = argv[++i];
         } else if (arg === '--json') {
             opts.json = true;
         } else if (arg === '--help' || arg === '-h') {
