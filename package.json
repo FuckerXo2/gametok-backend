@@ -23,7 +23,7 @@
     "check:foundation-stub:compile": "node scripts/check-foundation-stub.mjs --compile",
     "benchmark:sekai": "node scripts/gametok-maker-benchmark.js",
     "golden:highway": "node scripts/golden-highway-run.mjs",
-    "golden:highway3d": "GAMETOK_3D_LANE=true node scripts/golden-highway-run.mjs --prompt 'Make a 3D Minecraft-style voxel island game where I walk around a blocky island, mine glowing blocks to collect points, and avoid falling off the edge. Third-person camera behind the player.'",
+    "golden:highway3d": "node scripts/golden-highway-run.mjs --prompt 'Make a 3D Minecraft-style voxel island game where I walk around a blocky island, mine glowing blocks to collect points, and avoid falling off the edge. Third-person camera behind the player.'",
     "audit:reliability": "node scripts/maker-reliability-audit.mjs",
     "maker": "node scripts/gametok-maker.js",
     "maker:env": "node scripts/gametok-maker.js env",

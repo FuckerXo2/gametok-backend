@@ -7,11 +7,6 @@ import {
 } from './maker-hud-authority.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 
-// 3D lane feature flag — when off, 3D prompts keep the existing "not supported" error.
-function is3DLaneEnabled() {
-    return process.env.GAMETOK_3D_LANE === 'true';
-}
-
 function inferFoundationStateInitializer(key = '', foundation = {}) {
     if (key === 'screenPhase' || key === 'screenState') return "'PLAYING'";
     if (key === 'pantry' || key === 'particles' || key === 'customers' || key === 'ingredients') return '[]';
@@ -65,10 +60,10 @@ The kernel already provides (DO NOT redesign these):
 You MUST output ONLY raw JSON.
 
 Rules:
-${is3DLaneEnabled() ? `- dimension: "2D" for flat/canvas games. If the prompt genuinely calls for a 3D world (first-person, third-person/chase camera, voxel/Minecraft-style blocks, driving with depth), set dimension to "3D", engine to "threejs", and lane to a 3D lane: "threejs_world" (general), "voxel_world" (blocky/Minecraft-style), "threejs_runner" (forward-runner/driver), or "threejs_first_person".
+- dimension: "2D" for flat/canvas games. If the prompt genuinely calls for a 3D world (first-person, third-person/chase camera, voxel/Minecraft-style blocks, driving with depth), set dimension to "3D", engine to "threejs", and lane to a 3D lane: "threejs_world" (general), "voxel_world" (blocky/Minecraft-style), "threejs_runner" (forward-runner/driver), or "threejs_first_person". Only choose 3D when depth is genuinely core to the idea — flat/top-down/side-view games stay 2D.
 - For 3D foundations also set cameraRig: "first_person" | "third_person_chase" | "orbit" | "fixed_angle". Geometry is CODE-BUILT (boxes, planes, instanced voxel fields) — never request 3D models as assets.
 - 3D assetSlots use these types: "texture" (square 1024x1024 seamless tileable surface skin — ground, blocks, walls; flat lighting, no shadows, no perspective), "skybox" (wide 1344x768 panoramic sky/horizon strip, no foreground objects), "billboard" (single isolated object/character on plain background, used as a camera-facing sprite). Plus normal "background" art is NOT required for 3D — the skybox replaces it.
-- 3D scope guard: one compact polished world (a small voxel island, one track loop, one arena) — never an open world. Keep entity counts phone-friendly.` : `- dimension must be "2D" unless explicitly unsupported; we do not ship real 3D yet — if the user wants 3D, set dimension to "3D" and lane to "unsupported_3d".`}
+- 3D scope guard: one compact polished world (a small voxel island, one track loop, one arena) — never an open world. Keep entity counts phone-friendly.
 - Design one polished vertical slice, not an impossible MMO.
 - requiredFunctions must be real exported/game-level functions the file agent can implement in src/main.ts.
 - probeMethods must include snapshot, step, reset at minimum; add game-specific probe methods when needed.
@@ -415,8 +410,8 @@ export function buildFallbackFoundationSeed(qualityIntent = {}) {
 export function assertFoundationSupported(foundation = {}) {
     const dimension = String(foundation.dimension || '2D').toUpperCase();
     const lane = String(foundation.lane || '').toLowerCase();
-    if (lane === 'unsupported_3d' || (dimension === '3D' && !is3DLaneEnabled())) {
-        throw new Error('3D game generation is not supported yet. Try a 2D version of your idea for now.');
+    if (lane === 'unsupported_3d') {
+        throw new Error('This idea needs real 3D model generation we do not support yet. Try a version that works with blocky/low-poly art.');
     }
     if (!asArray(foundation.requiredFunctions).includes('renderAll')) {
         throw new Error('Foundation contract missing renderAll() — first frame would be blank.');
