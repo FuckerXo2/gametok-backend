@@ -31,9 +31,31 @@ function enforceGameViewport() {
   canvas.style.display = 'block';
 }
 
+// Onboarding hint (#status-line) auto-dismisses on the player's first input —
+// kernel-guaranteed so it never lingers under gameplay regardless of game code.
+function installOnboardingDismiss() {
+  const statusLine = document.getElementById('status-line');
+  if (!statusLine) return;
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    statusLine.style.transition = 'opacity 0.25s ease';
+    statusLine.style.opacity = '0';
+    window.setTimeout(() => { statusLine.style.display = 'none'; }, 280);
+    window.removeEventListener('pointerdown', dismiss, true);
+    window.removeEventListener('keydown', dismiss, true);
+    window.removeEventListener('touchstart', dismiss, true);
+  };
+  window.addEventListener('pointerdown', dismiss, true);
+  window.addEventListener('keydown', dismiss, true);
+  window.addEventListener('touchstart', dismiss, true);
+}
+
 function bootMain() {
   return import('./main').finally(() => {
     enforceGameViewport();
+    installOnboardingDismiss();
     window.addEventListener('resize', enforceGameViewport);
     requestAnimationFrame(() => enforceGameViewport());
     window.setTimeout(() => enforceGameViewport(), 100);
