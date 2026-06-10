@@ -851,6 +851,18 @@ export function repairMainTsAssetWiringInSource(source = '', {
         repairs.push('normalized_asset_key_casing');
     }
 
+    // 3D (three.js) projects render through Three.js objects, NOT a 2D canvas ctx.
+    // The injections below emit ctx.drawImage / getAssetImage code that does not exist
+    // in a 3D file and fails tsc (TS2304: Cannot find name 'ctx'). Three.js games skin
+    // assets via the threeAssets helpers (getDreamTexture/makeBillboard) instead, so we
+    // stop after the safe key fixups above.
+    const isThreeProject = /from\s+['"]three['"]/.test(content)
+        || /from\s+['"]\.\/threeAssets/.test(content)
+        || /createThreeStage\s*\(/.test(content);
+    if (isThreeProject) {
+        return { content, changed: content !== source, repairs };
+    }
+
     const requiredKeyRefs = collectRequiredAssetKeyRefs(assetContract, slotHints, allowedKeys);
     if (!/\bfunction getAssetImage\s*\(/.test(content) && !/\bconst getAssetImage\s*=/.test(content)) {
         content = `function getAssetImage(key) {

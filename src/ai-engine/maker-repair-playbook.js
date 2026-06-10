@@ -1,5 +1,15 @@
 const REPAIR_RECIPES = [
     {
+        match: /Cannot find name 'ctx'|Cannot find name "ctx"|'ctx' is not defined|getContext\(['"]2d['"]\)/i,
+        title: "3D game leaked 2D canvas code (ctx) — remove it",
+        steps: [
+            "This is a three.js (WebGL) project — there is NO 2D `ctx`. Delete every reference to ctx, ctx.drawImage, ctx.fillRect, ctx.clearRect, and any getContext('2d') call.",
+            'Render the thing that ctx was drawing as a Three.js object instead: a textured Mesh/Sprite added to the scene, or skip it. Visuals only appear via objects in the scene + renderer.render(scene, camera).',
+            "Skin assets with the threeAssets helpers (getDreamTexture, getTileTexture, makeBillboard, buildVoxelField) — never getAssetImage() or canvas drawImage.",
+            'HUD/score text belongs in the #hud DOM element, not drawn on a canvas.',
+        ],
+    },
+    {
         match: /renderCalls.*0|black screen.*three|three.*black screen|scene renders? (pitch )?black|no light/i,
         title: '3D scene renders black — missing lights or unpainted scene',
         steps: [
