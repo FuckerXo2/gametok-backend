@@ -1,5 +1,35 @@
 const REPAIR_RECIPES = [
     {
+        match: /renderCalls.*0|black screen.*three|three.*black screen|scene renders? (pitch )?black|no light/i,
+        title: '3D scene renders black — missing lights or unpainted scene',
+        steps: [
+            'Verify the scene still has the kernel lights: a HemisphereLight AND a DirectionalLight from createThreeStage(). MeshLambertMaterial is invisible without light.',
+            "Verify applySkybox(scene, 'skybox') (or scene.background = a color) runs at boot — a null background renders black.",
+            'Verify renderer.render(scene, camera) is called every frame in renderAll() and that requestAnimationFrame(gameLoop) is running.',
+            'Check the camera is not inside or facing away from the geometry: log camera.position and ensure camera.lookAt targets the play area.',
+            'Check probe snapshot renderCalls — if 0, render is never reached: look for a thrown error before the loop starts.',
+        ],
+    },
+    {
+        match: /NaN.*position|position.*NaN|camera.*NaN|Infinity.*matrix/i,
+        title: '3D entity or camera position became NaN',
+        steps: [
+            'Find divisions by zero or normalize() on zero-length vectors in movement/camera code; guard with epsilon checks.',
+            'Clamp dt (already capped at 32ms in the kernel loop) and never divide by dt.',
+            'Reset NaN positions to a safe spawn point instead of letting them propagate through the scene graph.',
+        ],
+    },
+    {
+        match: /too many (draw calls|triangles)|out of memory.*webgl|CONTEXT_LOST|context lost/i,
+        title: '3D scene exceeds the phone perf budget',
+        steps: [
+            'Voxel/repeated geometry MUST be one InstancedMesh via buildVoxelField — never one Mesh per block.',
+            'Reuse a single geometry + material across repeated entities; dispose() anything removed from the scene.',
+            'Keep total triangles under 150k and instanced cells under ~5000; shrink the world rather than the frame rate.',
+            'No shadow maps, no postprocessing, MeshLambertMaterial/MeshBasicMaterial only.',
+        ],
+    },
+    {
         match: /assets\.find is not a function|\.assets\.find|DREAM_ASSET_MANIFEST\.assets/i,
         title: 'Manifest assets collection is not an array',
         steps: [

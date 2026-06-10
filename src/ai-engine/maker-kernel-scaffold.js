@@ -3,15 +3,22 @@ import {
     buildIndexHtmlFromFoundation,
     buildMainTsStubFromFoundation,
 } from './maker-foundation-agent.js';
+import { buildThreeMainTsStubFromFoundation, isThreeFoundation } from './maker-threejs-stub.js';
 import { validateFoundationStubSources } from './maker-foundation-stub-validator.js';
 
 export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
-    const base = await loadMakerTemplateScaffold('canvas-kernel');
+    // 3D foundations (dimension '3D' / threejs lanes, model-decided in Phase 1.5 —
+    // NOT keyword routing) get the three.js kernel; everything else stays canvas.
+    const use3D = isThreeFoundation(foundation);
+    const templateId = use3D ? 'threejs-kernel' : 'canvas-kernel';
+    const base = await loadMakerTemplateScaffold(templateId);
     if (!base || !Array.isArray(base.files) || base.files.length === 0) {
-        throw new Error('canvas-kernel base scaffold missing — cannot materialize dynamic foundation.');
+        throw new Error(`${templateId} base scaffold missing — cannot materialize dynamic foundation.`);
     }
 
-    const generatedMain = buildMainTsStubFromFoundation(foundation, qualityIntent);
+    const generatedMain = use3D
+        ? buildThreeMainTsStubFromFoundation(foundation, qualityIntent)
+        : buildMainTsStubFromFoundation(foundation, qualityIntent);
     const generatedIndex = buildIndexHtmlFromFoundation(foundation);
     validateFoundationStubSources(generatedMain, generatedIndex);
     const files = base.files.map((file) => {
@@ -36,10 +43,12 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
     }
 
     return {
-        templateId: 'canvas-kernel',
+        templateId,
         source: 'gametok-dynamic-kernel-scaffold',
         foundationId: foundation.foundationId || null,
-        rule: 'Kernel files (bootstrap, assetLoader, types) are read-only. Phase 2 agent owns main.ts, styles.css, and index.html structure.',
+        rule: use3D
+            ? 'Kernel files (bootstrap, assetLoader, threeAssets, types) are read-only. Phase 2 agent owns main.ts, styles.css, and index.html structure. createThreeStage() owns renderer/camera/lights/resize — extend it, never delete it.'
+            : 'Kernel files (bootstrap, assetLoader, types) are read-only. Phase 2 agent owns main.ts, styles.css, and index.html structure.',
         files,
     };
 }

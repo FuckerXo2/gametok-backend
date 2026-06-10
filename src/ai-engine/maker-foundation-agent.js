@@ -7,6 +7,11 @@ import {
 } from './maker-hud-authority.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 
+// 3D lane feature flag — when off, 3D prompts keep the existing "not supported" error.
+function is3DLaneEnabled() {
+    return process.env.GAMETOK_3D_LANE === 'true';
+}
+
 function inferFoundationStateInitializer(key = '', foundation = {}) {
     if (key === 'screenPhase' || key === 'screenState') return "'PLAYING'";
     if (key === 'pantry' || key === 'particles' || key === 'customers' || key === 'ingredients') return '[]';
@@ -60,7 +65,10 @@ The kernel already provides (DO NOT redesign these):
 You MUST output ONLY raw JSON.
 
 Rules:
-- dimension must be "2D" unless explicitly unsupported; we do not ship real 3D yet — if the user wants 3D, set dimension to "3D" and lane to "unsupported_3d".
+${is3DLaneEnabled() ? `- dimension: "2D" for flat/canvas games. If the prompt genuinely calls for a 3D world (first-person, third-person/chase camera, voxel/Minecraft-style blocks, driving with depth), set dimension to "3D", engine to "threejs", and lane to a 3D lane: "threejs_world" (general), "voxel_world" (blocky/Minecraft-style), "threejs_runner" (forward-runner/driver), or "threejs_first_person".
+- For 3D foundations also set cameraRig: "first_person" | "third_person_chase" | "orbit" | "fixed_angle". Geometry is CODE-BUILT (boxes, planes, instanced voxel fields) — never request 3D models as assets.
+- 3D assetSlots use these types: "texture" (square 1024x1024 seamless tileable surface skin — ground, blocks, walls; flat lighting, no shadows, no perspective), "skybox" (wide 1344x768 panoramic sky/horizon strip, no foreground objects), "billboard" (single isolated object/character on plain background, used as a camera-facing sprite). Plus normal "background" art is NOT required for 3D — the skybox replaces it.
+- 3D scope guard: one compact polished world (a small voxel island, one track loop, one arena) — never an open world. Keep entity counts phone-friendly.` : `- dimension must be "2D" unless explicitly unsupported; we do not ship real 3D yet — if the user wants 3D, set dimension to "3D" and lane to "unsupported_3d".`}
 - Design one polished vertical slice, not an impossible MMO.
 - requiredFunctions must be real exported/game-level functions the file agent can implement in src/main.ts.
 - probeMethods must include snapshot, step, reset at minimum; add game-specific probe methods when needed.
@@ -100,7 +108,8 @@ Return this JSON shape:
   "lane": "short_snake_case design lane for this game (e.g. timed_order_cooking, projectile_action, endless_runner — not a legacy template folder name)",
   "dimension": "2D | 3D",
   "perspective": "top_down | side_view | arcade | scene",
-  "engine": "canvas-2d",
+  "engine": "canvas-2d | threejs",
+  "cameraRig": "(3D only) first_person | third_person_chase | orbit | fixed_angle",
   "initialState": "MENU | PLAYING | PREP",
   "stateFlow": ["PLAYING", "RESULT"],
   "requiredState": ["score", "gameOver"],
@@ -253,6 +262,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         dimension: asString(source.dimension, qualityIntent.technicalRequirements?.dimension || '2D').toUpperCase(),
         perspective: asString(source.perspective, qualityIntent.technicalRequirements?.perspective || 'top_down'),
         engine: asString(source.engine, 'canvas-2d'),
+        cameraRig: asString(source.cameraRig, ''),
         initialState: asString(source.initialState, 'PLAYING'),
         stateFlow: asArray(source.stateFlow).length ? asArray(source.stateFlow) : ['PLAYING', 'RESULT'],
         uiAuthority: asString(source.uiAuthority, ''),
@@ -405,7 +415,7 @@ export function buildFallbackFoundationSeed(qualityIntent = {}) {
 export function assertFoundationSupported(foundation = {}) {
     const dimension = String(foundation.dimension || '2D').toUpperCase();
     const lane = String(foundation.lane || '').toLowerCase();
-    if (dimension === '3D' || lane === 'unsupported_3d') {
+    if (lane === 'unsupported_3d' || (dimension === '3D' && !is3DLaneEnabled())) {
         throw new Error('3D game generation is not supported yet. Try a 2D version of your idea for now.');
     }
     if (!asArray(foundation.requiredFunctions).includes('renderAll')) {
@@ -515,7 +525,42 @@ function normalizeSceneryAssetSlot(slot = {}) {
     };
 }
 
+// 3D slot types get fixed FLUX-friendly dimensions and prompt constraints so the
+// images actually work as Three.js materials (tileable textures, panoramic sky).
+const THREE_D_SLOT_RULES = {
+    texture: {
+        width: 1024,
+        height: 1024,
+        transparent: false,
+        promptSuffix: 'Seamless tileable texture, top-down flat view, perfectly even flat lighting, no shadows, no perspective, no vignette — the pattern must repeat edge-to-edge with no visible seams. No text, no objects, surface material only.',
+        fallback: 'solid color material',
+    },
+    skybox: {
+        width: 1344,
+        height: 768,
+        transparent: false,
+        promptSuffix: 'Wide panoramic sky and distant horizon only. No foreground objects, no ground-level detail, no text, no UI. Smooth gradients suitable for wrapping around a 3D scene.',
+        fallback: 'gradient sky',
+    },
+    billboard: {
+        width: 768,
+        height: 768,
+        transparent: true,
+        promptSuffix: 'Single isolated subject, centered, full body in frame, clean silhouette on a plain solid background for easy cutout. No text, no ground shadow.',
+        fallback: 'code-rendered shape',
+    },
+};
+
+function threeDSlotRuleFor(slot) {
+    const type = String(slot.assetType || slot.type || '').toLowerCase();
+    const role = String(slot.role || slot.category || '').toLowerCase();
+    return THREE_D_SLOT_RULES[type] || THREE_D_SLOT_RULES[role] || null;
+}
+
 export function buildMakerAssetContractFromFoundation(foundation = {}, qualityIntent = {}) {
+    const is3D = String(foundation.dimension || '').toUpperCase() === '3D'
+        || String(foundation.lane || '').toLowerCase().includes('threejs')
+        || String(foundation.lane || '').toLowerCase().includes('voxel_world');
     const slots = [];
     let scenerySlotSeen = false;
     for (const rawSlot of asArray(foundation.assetSlots)) {
@@ -524,6 +569,7 @@ export function buildMakerAssetContractFromFoundation(foundation = {}, qualityIn
             if (scenerySlotSeen) continue;
             scenerySlotSeen = true;
         }
+        const threeDRule = is3D ? threeDSlotRuleFor(slot) : null;
         slots.push({
             id: slot.id,
             required: Boolean(slot.required),
@@ -531,18 +577,20 @@ export function buildMakerAssetContractFromFoundation(foundation = {}, qualityIn
             role: slot.role || slot.category || 'prop',
             category: slot.category || slot.role || 'prop',
             size: slot.size || undefined,
-            width: slot.width || undefined,
-            height: slot.height || undefined,
-            transparent: slot.transparent !== false,
-            description: `${slot.description || slot.role}. ${artStyleText(qualityIntent)}`.trim(),
-            consumedBy: slot.consumedBy || `renderer via getAssetImage('${slot.id}') or role ${slot.role}`,
-            fallback: slot.fallback || 'code-rendered shape',
+            width: threeDRule ? threeDRule.width : (slot.width || undefined),
+            height: threeDRule ? threeDRule.height : (slot.height || undefined),
+            transparent: threeDRule ? threeDRule.transparent : slot.transparent !== false,
+            description: `${slot.description || slot.role}. ${threeDRule ? `${threeDRule.promptSuffix} ` : ''}${artStyleText(qualityIntent)}`.trim(),
+            consumedBy: slot.consumedBy || (threeDRule
+                ? `threeAssets helpers via getDreamTexture('${slot.id}') / role ${slot.role}`
+                : `renderer via getAssetImage('${slot.id}') or role ${slot.role}`),
+            fallback: slot.fallback || (threeDRule ? threeDRule.fallback : 'code-rendered shape'),
         });
     }
 
     return {
         version: 1,
-        templateId: 'canvas-kernel',
+        templateId: is3D ? 'threejs-kernel' : 'canvas-kernel',
         sourceOfTruth: 'foundation architect assetSlots + DreamAssets runtime',
         hardRules: [
             'HUD, text, controls, meters, and readable UI are code-rendered only.',
