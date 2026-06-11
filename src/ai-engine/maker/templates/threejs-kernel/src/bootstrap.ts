@@ -69,12 +69,16 @@ function bootMain() {
           return { score: 0, gameOver: false, started: false, renderCalls: ctx3d ? 1 : 0, triangles: 0, cameraY: 0 };
         },
         step(dt: number = 16) {
-          stepFn?.(dt);
-          renderFn?.();
+          // Guarded: if main.ts init aborted (e.g. headless WebGL failure), its
+          // exported step/render close over uninitialized module state. Calling them
+          // unguarded threw a misleading "reading 'obstacles'" that masked the real
+          // WebGL cause. Swallow here so the genuine error (already logged to console)
+          // is what the sandbox sees and bypasses on.
+          try { stepFn?.(dt); renderFn?.(); } catch { /* surfaced via console error */ }
           return (window.__GAMETOK_TEMPLATE_PROBE__ as any).snapshot();
         },
         reset() {
-          resetFn?.();
+          try { resetFn?.(); } catch { /* surfaced via console error */ }
           return (window.__GAMETOK_TEMPLATE_PROBE__ as any).snapshot();
         },
       };

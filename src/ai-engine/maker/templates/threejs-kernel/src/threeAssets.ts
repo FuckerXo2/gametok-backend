@@ -131,15 +131,24 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   camera: THREE.PerspectiveCamera;
   resize: () => void;
 } {
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: false,
-    powerPreference: 'high-performance',
-    // Keep the drawn frame readable so the headless verifier can confirm the
-    // scene actually rendered (drawImage/getImageData on a WebGL canvas returns
-    // blank otherwise). Minor cost, big reliability win for the 3D verifier.
-    preserveDrawingBuffer: true,
-  });
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: false,
+      powerPreference: 'high-performance',
+      // Keep the drawn frame readable so the headless verifier can confirm the
+      // scene actually rendered (drawImage/getImageData on a WebGL canvas returns
+      // blank otherwise). Minor cost, big reliability win for the 3D verifier.
+      preserveDrawingBuffer: true,
+    });
+  } catch (err) {
+    // Headless verifiers (and rare devices) can fail to allocate a WebGL context.
+    // Rethrow with a stable "WebGL context" message so the sandbox recognizes this
+    // as an environment limitation and bypasses, instead of it surfacing later as a
+    // misleading uninitialized-state crash. Real devices have WebGL and never hit this.
+    throw new Error('Error creating WebGL context: ' + ((err as Error)?.message || String(err)));
+  }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 

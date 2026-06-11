@@ -804,7 +804,13 @@ export async function verifyGame(htmlString, options = {}) {
         page.on('console', msg => {
             const type = msg.type();
             const text = msg.text();
-            if (type === 'error' && (text.includes('TypeError') || text.includes('ReferenceError') || text.includes('SyntaxError') || text.includes('Uncaught'))) {
+            // Capture headless WebGL-context failures too. The threejs kernel logs the
+            // real cause (e.g. "Error creating WebGL context") via console.error when
+            // swiftshader can't make a context — without this, that message was dropped
+            // and the 3D build failed as a misleading "blank canvas / reading 'obstacles'"
+            // instead of taking the intended webglLimited bypass below.
+            const isWebglContextError = /webgl context|creating webgl|webgl.*not (?:available|supported)|getcontext.*webgl/i.test(text);
+            if (type === 'error' && (text.includes('TypeError') || text.includes('ReferenceError') || text.includes('SyntaxError') || text.includes('Uncaught') || isWebglContextError)) {
                 console.log("💥 Sandbox Caught Error:", text);
                 crashes.push(text);
             }
