@@ -410,6 +410,52 @@ function collectObstacleConsistencyIssues(source = '', options = {}) {
     return issues;
 }
 
+// ── Runner sacred-region telemetry (experiment, threejs_runner only) ──────────
+// Pure observation: records whether the Phase 2 rewrite preserved the fenced
+// pre-wired runtime. NON-BLOCKING by construction — emitted into preflight
+// evidence, never into issues, so it can neither fail preflight nor generate a
+// repair task. Lets us measure how often the agent destroys the scaffold before
+// deciding whether to enforce (re-stamp / block) later.
+const RUNNER_SACRED_MARKERS = {
+    sacredStart: 'GAMETOK:SACRED START',
+    sacredEnd: 'GAMETOK:SACRED END',
+    editStart: 'GAMETOK:EDIT START',
+    editEnd: 'GAMETOK:EDIT END',
+};
+
+// Tokens the sacred runtime must keep for the runner to remain playable + probeable.
+const RUNNER_SACRED_INVARIANTS = [
+    { token: '__GAMETOK_TEMPLATE_PROBE__', reason: 'probe_hook_missing' },
+    { token: 'requestAnimationFrame', reason: 'render_loop_missing' },
+    { token: 'renderer.render', reason: 'render_call_missing' },
+    { token: 'state.obstacles', reason: 'canonical_obstacle_store_missing' },
+];
+
+export function detectRunnerSacredRegionTelemetry(source = '', options = {}) {
+    const isRunner = Boolean(source.trim())
+        && isThreeKernelSource(source, options)
+        && isThreeRunnerLane(source, options);
+    if (!isRunner) {
+        return { runner: false, markersPresent: false, drift: false, reasons: [] };
+    }
+    const reasons = [];
+    const hasSacred = source.includes(RUNNER_SACRED_MARKERS.sacredStart)
+        && source.includes(RUNNER_SACRED_MARKERS.sacredEnd);
+    const hasEdit = source.includes(RUNNER_SACRED_MARKERS.editStart)
+        && source.includes(RUNNER_SACRED_MARKERS.editEnd);
+    if (!hasSacred) reasons.push('sacred_markers_missing');
+    if (!hasEdit) reasons.push('edit_markers_missing');
+    for (const invariant of RUNNER_SACRED_INVARIANTS) {
+        if (!source.includes(invariant.token)) reasons.push(invariant.reason);
+    }
+    return {
+        runner: true,
+        markersPresent: hasSacred && hasEdit,
+        drift: reasons.length > 0,
+        reasons,
+    };
+}
+
 function collectThreeKernelSurvivalIssues(source = '', options = {}) {
     const issues = [];
     if (!source.trim() || !isThreeKernelSource(source, options)) return issues;
@@ -908,6 +954,25 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         foundationLane,
     }));
 
+    // Non-blocking sacred-region telemetry (threejs_runner only). Stays out of
+    // `issues` so it never blocks preflight or spawns a repair task.
+    const sacredRegion = detectRunnerSacredRegionTelemetry(source, {
+        templateContract,
+        assetContract,
+        foundationLane,
+    });
+    const sacredRegionWarnings = sacredRegion.drift
+        ? [{
+            id: 'telemetry_threejs_runner_sacred_drift',
+            severity: 'warning',
+            message: `threejs_runner sacred region drifted from the scaffold (non-blocking): ${sacredRegion.reasons.join(', ')}.`,
+            reasons: sacredRegion.reasons,
+        }]
+        : [];
+    if (sacredRegion.runner && sacredRegion.drift) {
+        console.warn(`[Maker Preflight] threejs_runner sacred-region drift (non-blocking): ${sacredRegion.reasons.join(', ')}`);
+    }
+
     const hasVisualAssets = generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0;
     if (hasVisualAssets && !localAssetPack) {
         issues.push({
@@ -1230,6 +1295,8 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             assetKeys: Array.from(packFacts.keys).slice(0, 80),
             assetRoles: Array.from(packFacts.roles).slice(0, 40),
             sourceFiles: projectSources.map((file) => file.path),
+            sacredRegion,
+            sacredRegionWarnings,
         },
     };
 }

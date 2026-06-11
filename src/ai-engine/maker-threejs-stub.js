@@ -23,6 +23,15 @@ function jsString(value = '') {
     return JSON.stringify(String(value ?? ''));
 }
 
+// Region markers (runner lane only — experiment scoped to threejs_runner). They
+// fence the pre-wired runtime (state/input/loop/render/reset/probe) the Phase 2
+// agent must reproduce verbatim from the gameplay it may re-theme. Comments only:
+// no behavior change. Drift away from these is telemetry, not yet enforced.
+export const RUNNER_SACRED_START_MARKER = '// ===== GAMETOK:SACRED START — do not edit (pre-wired runtime: state, input, loop, render, reset, probe) =====';
+export const RUNNER_SACRED_END_MARKER = '// ===== GAMETOK:SACRED END =====';
+export const RUNNER_EDIT_START_MARKER = '// ===== GAMETOK:EDIT START — themed gameplay only (setupScene/createObstacle/movePlayer/checkCollisions/updateCamera; keep names + params) =====';
+export const RUNNER_EDIT_END_MARKER = '// ===== GAMETOK:EDIT END =====';
+
 export function isThreeFoundation(foundation = {}) {
     const dimension = String(foundation?.dimension || '').toUpperCase();
     const lane = String(foundation?.lane || '').toLowerCase();
@@ -100,6 +109,7 @@ import './styles.css';
 import * as THREE from 'three';
 import { createThreeStage } from './threeAssets.ts';
 
+${RUNNER_SACRED_START_MARKER}
 // ─── KERNEL SETUP ────────────────────────────────────────────────────────────
 const canvasEl = document.getElementById('game-canvas');
 if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error('Missing #game-canvas');
@@ -154,7 +164,9 @@ window.addEventListener('keyup', (e) => {
   if (['ArrowLeft','ArrowRight','a','d'].includes(e.key)) state.inputDir = 0;
 });
 window.addEventListener('pointerdown', () => { if (state.gameOver) resetGame(); });
+${RUNNER_SACRED_END_MARKER}
 
+${RUNNER_EDIT_START_MARKER}
 // ════════════════════════════════════════════════════════════════════════════
 //  These five functions ALREADY WORK — the game is playable as-is. Phase 2 should
 //  ENHANCE the visuals to match the theme (player shape/colors, obstacle props,
@@ -251,7 +263,9 @@ function updateCamera(camera, state) {
   camera.position.z = state.playerZ + 10;
   camera.lookAt(state.playerX, 1, state.playerZ - 6);
 }
+${RUNNER_EDIT_END_MARKER}
 
+${RUNNER_SACRED_START_MARKER}
 // ─── SCENE INIT ──────────────────────────────────────────────────────────────
 setupScene(scene, camera);
 
@@ -340,6 +354,7 @@ renderAll();
 camera.position.set(0, 5, 10);
 camera.lookAt(0, 1, -6);
 requestAnimationFrame(gameLoop);
+${RUNNER_SACRED_END_MARKER}
 `;
 }
 

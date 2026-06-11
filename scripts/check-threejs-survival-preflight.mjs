@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { shouldBlockOnPreflight } from '../src/ai-engine/maker-factory-mode.js';
 import { runMakerPreflightChecks } from '../src/ai-engine/maker-preflight-validator.js';
+import { buildThreeMainTsStubFromFoundation } from '../src/ai-engine/maker-threejs-stub.js';
 
 async function makeProject(mainTs) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gametok-threejs-preflight-'));
@@ -283,5 +284,37 @@ requestAnimationFrame(() => renderAll());
 const valid = await checkPreflight(validRunner);
 const validThreeIssues = valid.issues.filter((issue) => issue.id.startsWith('preflight_threejs_'));
 assert.deepEqual(validThreeIssues, [], `valid runner should not emit threejs survival issues: ${validThreeIssues.map((issue) => issue.id).join(', ')}`);
+
+// ── Experiment: runner sacred-region markers + non-blocking drift telemetry ──
+
+// The pristine runner stub must carry all four region markers and report NO drift.
+const pristineRunnerStub = buildThreeMainTsStubFromFoundation(
+    { lane: 'snowboard_runner', title: 'Summit Slalom', cameraRig: 'third_person_chase', hudBlocks: ['Score'] },
+    { title: 'Summit Slalom' },
+);
+assert.ok(pristineRunnerStub.includes('// ===== GAMETOK:SACRED START'), 'runner stub must contain the SACRED START marker');
+assert.ok(pristineRunnerStub.includes('// ===== GAMETOK:SACRED END'), 'runner stub must contain the SACRED END marker');
+assert.ok(pristineRunnerStub.includes('// ===== GAMETOK:EDIT START'), 'runner stub must contain the EDIT START marker');
+assert.ok(pristineRunnerStub.includes('// ===== GAMETOK:EDIT END'), 'runner stub must contain the EDIT END marker');
+
+const pristine = await checkPreflight(pristineRunnerStub);
+assert.equal(pristine.evidence.sacredRegion.runner, true, 'pristine stub should be detected as a runner');
+assert.equal(pristine.evidence.sacredRegion.markersPresent, true, 'pristine stub should have all region markers');
+assert.equal(pristine.evidence.sacredRegion.drift, false, 'pristine stub should not report sacred drift');
+assert.deepEqual(pristine.evidence.sacredRegionWarnings, [], 'pristine stub should emit no sacred-drift warning');
+
+// A markerless rewrite (the existing validRunner fixture has no markers) must be
+// flagged as drift — but the warning is telemetry-only: it must NOT block preflight
+// and must NOT appear in issues.
+assert.equal(valid.evidence.sacredRegion.runner, true, 'valid markerless runner should be detected as a runner');
+assert.equal(valid.evidence.sacredRegion.drift, true, 'markerless rewrite should report sacred drift');
+assert.ok(valid.evidence.sacredRegion.reasons.includes('sacred_markers_missing'), 'drift reasons should include missing sacred markers');
+assert.equal(valid.evidence.sacredRegionWarnings[0].id, 'telemetry_threejs_runner_sacred_drift', 'drift warning should carry the telemetry id');
+assert.equal(valid.evidence.sacredRegionWarnings[0].severity, 'warning', 'drift warning severity should be warning');
+assert.equal(valid.success, true, 'sacred drift telemetry must be non-blocking (preflight still succeeds)');
+assert.ok(
+    !valid.issues.some((issue) => issue.id === 'telemetry_threejs_runner_sacred_drift'),
+    'sacred drift must never appear in blocking issues',
+);
 
 console.log('✅ threejs survival preflight checks passed');
