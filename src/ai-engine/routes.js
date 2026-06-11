@@ -5497,7 +5497,7 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
  * makerProject.files is the pre-edit scaffold; the agent's real edits live on the project root.
  * Additive + best-effort — must never break generation.
  */
-async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {}) {
+async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {}, templateId = 'canvas-kernel') {
     try {
         if (!jobId || !makerProject?.projectRoot) return;
         const root = makerProject.projectRoot;
@@ -5533,7 +5533,7 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
         } catch { /* no materialized assets dir; edit can still patch code-only */ }
         const projectSource = {
             version: 1,
-            architecture: 'canvas-kernel',
+            architecture: templateId || 'canvas-kernel',
             savedAt: new Date().toISOString(),
             title: qualityIntent?.title || null,
             files,
@@ -6133,7 +6133,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         // Persist the editable source so the user can later "add this / change this" without a full
         // regenerate. The workspace is deleted at job end, so we snapshot the final (post-agent)
         // source files + asset pack into the DB now. Never blocks generation if it fails.
-        await persistEditableMakerSource(persistToDb ? jobId : null, makerProject, qualityIntent);
+        await persistEditableMakerSource(persistToDb ? jobId : null, makerProject, qualityIntent, makerTemplateContract?.templateId || 'canvas-kernel');
 
         // ── POST-PROCESS: Inject Juice + Audio engines ──
         const useOpenGameMinimalRuntime = buildMode === 'opengame-template-native';
@@ -6800,7 +6800,8 @@ async function writeProjectFilesToRoot(root, files) {
  * main.ts is re-snapshotted into maker_project so edits chain.
  */
 async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerProject, instructions) {
-    console.log(`🛠️ [MAKER EDIT] job ${newJobId} editing canvas-kernel game ${parentDraftId}: "${instructions}"`);
+    const savedTemplateId = makerProject.architecture || 'canvas-kernel';
+    console.log(`🛠️ [MAKER EDIT] job ${newJobId} editing ${savedTemplateId} game ${parentDraftId}: "${instructions}"`);
     const savedFiles = Array.isArray(makerProject.files) ? makerProject.files : [];
     const currentMain = (savedFiles.find((f) => f.path === 'src/main.ts') || {}).content;
     if (!currentMain) throw new Error('Saved project has no src/main.ts to edit.');
@@ -6816,7 +6817,7 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     const maker = await createGameTokMakerWorkspace(newJobId, instructions);
     const workspace = maker.workspace;
     const projectRoot = path.join(workspace, 'project');
-    const kernel = await loadMakerTemplateScaffold('canvas-kernel');
+    const kernel = await loadMakerTemplateScaffold(savedTemplateId);
     const byPath = new Map((kernel && kernel.files ? kernel.files : []).map((f) => [f.path, f.content]));
     for (const f of savedFiles) byPath.set(f.path, f.content); // saved source wins over the bare scaffold
     await writeProjectFilesToRoot(projectRoot, [...byPath.entries()].map(([p, c]) => ({ path: p, content: c })));
@@ -6840,7 +6841,7 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     const editPrompt = [
         formatMakerSystemManual('fileAgent'),
         '',
-        'You are editing an existing, working mobile HTML5 game built on the GameTok canvas-kernel.',
+        `You are editing an existing, working mobile HTML5 game built on the GameTok ${savedTemplateId}.`,
         'Apply ONLY the change below. Preserve everything else: gameplay, layout, the existing UI kit/look, and asset usage.',
         `EDIT REQUEST: "${instructions}"`,
         '',
