@@ -5370,6 +5370,28 @@ async function runMakerAgentInspectionTurns({
             const crashSummary = (lastRunEvidence?.crashes || []).slice(0, 2).join(' | ')
                 || (lastRunEvidence?.diagnostics?.buildFailure?.errors || []).slice(0, 2).join(' | ')
                 || 'build or sandbox checks still failing';
+            // DIAGNOSTIC (split-file 3D): dump generated scene.ts/mechanics.ts on failure so we can
+            // see exactly how the model accessed `state`. Ephemeral storage is gone after this throw.
+            try {
+                const _tplId = templateContract?.templateId || templateContract?.foundation?.foundationId || '';
+                const _lane = String(templateContract?.foundation?.lane || '').toLowerCase();
+                const _isThree = _tplId === 'threejs-kernel' || _lane.includes('threejs') || _lane.includes('runner') || _lane.includes('racer');
+                if (_isThree) {
+                    for (const _f of ['src/scene.ts', 'src/mechanics.ts']) {
+                        try {
+                            const _src = await fs.promises.readFile(path.join(projectRoot, _f), 'utf8');
+                            const _stateLines = _src.split('\n')
+                                .map((l, i) => ({ n: i + 1, l }))
+                                .filter((o) => /\bstate\b|\brefs\b|\bimport\b/.test(o.l))
+                                .map((o) => `  ${o.n}: ${o.l.trim()}`)
+                                .join('\n');
+                            console.error(`🔬 [3D DIAG job=${jobId}] ${_f} (${_src.length} chars) — state/refs/import lines:\n${_stateLines}`);
+                        } catch (_e) {
+                            console.error(`🔬 [3D DIAG job=${jobId}] could not read ${_f}: ${_e.message}`);
+                        }
+                    }
+                }
+            } catch (_diagErr) { /* diagnostic only — never block the real throw */ }
             throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s) (implement + ${Math.max(0, maxTurns - 1)} repair): ${crashSummary}`);
         }
     }
