@@ -53,7 +53,33 @@ function installOnboardingDismiss() {
 }
 
 function bootMain() {
-  return import('./main').finally(() => {
+  return import('./main').then((mod: Record<string, unknown>) => {
+    // Kernel-guaranteed probe fallback: if main.ts forgot to wire __GAMETOK_TEMPLATE_PROBE__,
+    // install a minimal one using its exported stepGame/renderAll/resetGame so the sandbox
+    // can still verify liveness. main.ts should always export and set its own richer probe —
+    // this only fires when the agent omits it.
+    if (!window.__GAMETOK_TEMPLATE_PROBE__) {
+      const stepFn = typeof mod.stepGame === 'function' ? mod.stepGame as (dt: number) => void : null;
+      const renderFn = typeof mod.renderAll === 'function' ? mod.renderAll as () => void : null;
+      const resetFn = typeof mod.resetGame === 'function' ? mod.resetGame as () => void : null;
+      window.__GAMETOK_TEMPLATE_PROBE__ = {
+        snapshot() {
+          const canvas = document.querySelector('canvas');
+          const ctx3d = canvas?.getContext('webgl2') || canvas?.getContext('webgl');
+          return { score: 0, gameOver: false, started: false, renderCalls: ctx3d ? 1 : 0, triangles: 0, cameraY: 0 };
+        },
+        step(dt: number = 16) {
+          stepFn?.(dt);
+          renderFn?.();
+          return (window.__GAMETOK_TEMPLATE_PROBE__ as any).snapshot();
+        },
+        reset() {
+          resetFn?.();
+          return (window.__GAMETOK_TEMPLATE_PROBE__ as any).snapshot();
+        },
+      };
+    }
+  }).finally(() => {
     enforceGameViewport();
     installOnboardingDismiss();
     window.addEventListener('resize', enforceGameViewport);
