@@ -700,6 +700,46 @@ export function restampRunnerSacredRegions(generatedSource = '', canonicalSource
     return { content: out, changed: changed > 0, regions: changed, reason: changed > 0 ? 'restamped' : 'already_canonical' };
 }
 
+/** Char-offset span of the single EDIT region (marker line → marker line, inclusive). */
+function findEditRegionSpan(source = '') {
+    const lines = String(source).split('\n');
+    let offset = 0;
+    let start = -1;
+    let end = -1;
+    for (const line of lines) {
+        if (start < 0 && line.includes('GAMETOK:EDIT START')) start = offset;
+        if (start >= 0 && line.includes('GAMETOK:EDIT END')) { end = offset + line.length; break; }
+        offset += line.length + 1;
+    }
+    return (start >= 0 && end >= 0) ? { start, end } : null;
+}
+
+/**
+ * Assemble the final runner main.ts from the CANONICAL stub with only the model's
+ * EDIT region (the five themed gameplay functions + their local helpers) grafted
+ * in. Everything outside the EDIT markers — state, input, loop, render, reset,
+ * probe, and any stray code the model added in the gaps or at the top/bottom — is
+ * the canonical engine, so the model physically cannot ship a broken loop/reset or
+ * a duplicate probe. Falls back to in-place sacred restore if the EDIT markers are
+ * missing (so we still recover something rather than nothing).
+ */
+export function regraftRunnerEditRegion(generatedSource = '', canonicalSource = '') {
+    const genEdit = findEditRegionSpan(generatedSource);
+    const canonEdit = findEditRegionSpan(canonicalSource);
+    if (!genEdit || !canonEdit) {
+        const fallback = restampRunnerSacredRegions(generatedSource, canonicalSource);
+        return { ...fallback, mode: 'sacred_restore_fallback' };
+    }
+    const modelEditText = generatedSource.slice(genEdit.start, genEdit.end);
+    const content = canonicalSource.slice(0, canonEdit.start) + modelEditText + canonicalSource.slice(canonEdit.end);
+    return {
+        content,
+        changed: content !== generatedSource,
+        mode: 'edit_graft',
+        reason: content !== generatedSource ? 'regrafted_edit_region_into_canonical' : 'already_canonical',
+    };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Single-file 3D: every lane keeps all state + functions inside main.ts, so the
 // model never has to wire an invisible cross-file contract (which it cannot do

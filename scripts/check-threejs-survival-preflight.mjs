@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { shouldBlockOnPreflight } from '../src/ai-engine/maker-factory-mode.js';
 import { runMakerPreflightChecks } from '../src/ai-engine/maker-preflight-validator.js';
-import { buildThreeMainTsStubFromFoundation, restampRunnerSacredRegions } from '../src/ai-engine/maker-threejs-stub.js';
+import { buildThreeMainTsStubFromFoundation, restampRunnerSacredRegions, regraftRunnerEditRegion } from '../src/ai-engine/maker-threejs-stub.js';
 
 async function makeProject(mainTs) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gametok-threejs-preflight-'));
@@ -365,5 +365,35 @@ const missingMarker = canonicalRunner.replace('// ===== GAMETOK:SACRED END =====
 const restampBail = restampRunnerSacredRegions(missingMarker, canonicalRunner);
 assert.equal(restampBail.changed, false, 'restamp must bail when sacred marker counts mismatch');
 assert.equal(restampBail.reason, 'sacred_marker_count_mismatch', 'bail reason should report the marker mismatch');
+
+// ── EDIT-graft: canonical engine + only the model's EDIT region ──────────────
+// Reproduce the real failure: the model keeps the markers but adds a stray HUD
+// IIFE at the top AND a duplicate broken probe at the bottom (outside the markers),
+// while putting its real gameplay inside the EDIT region. The graft must keep the
+// gameplay and discard everything the model wrote outside the EDIT markers.
+const editStartMarker = '// ===== GAMETOK:EDIT START — themed gameplay only (setupScene/createObstacle/movePlayer/checkCollisions/updateCamera; keep names + params) =====';
+const modelOutput = canonicalRunner
+    .replace('function setupScene(scene, camera) {', 'function setupScene(scene, camera) {\n  const MODEL_GAMEPLAY_TOKEN = 1;')
+    .replace('import \'./styles.css\';', '(function buildHudDom(){ /* STRAY_HUD_IIFE */ })();\nimport \'./styles.css\';')
+    + '\n// STRAY duplicate probe outside the markers:\nwindow.__GAMETOK_TEMPLATE_PROBE__ = { reset(){ return world.obstacles; } }; // STRAY_BROKEN_PROBE\n';
+
+const grafted = regraftRunnerEditRegion(modelOutput, canonicalRunner);
+assert.equal(grafted.mode, 'edit_graft', 'graft should use edit_graft mode when EDIT markers are present');
+assert.equal(grafted.changed, true, 'graft should change a tampered model output');
+assert.ok(grafted.content.includes('MODEL_GAMEPLAY_TOKEN'), 'graft must keep the model gameplay from the EDIT region');
+assert.ok(!grafted.content.includes('STRAY_BROKEN_PROBE'), 'graft must discard a duplicate probe written outside the markers');
+assert.ok(!grafted.content.includes('STRAY_HUD_IIFE'), 'graft must discard stray code written above the engine');
+assert.ok(grafted.content.includes('requestAnimationFrame'), 'graft must keep the canonical render loop');
+assert.ok(grafted.content.includes(editStartMarker), 'graft output should still carry the EDIT markers');
+assert.equal((grafted.content.match(/__GAMETOK_TEMPLATE_PROBE__\s*=/g) || []).length, 1, 'graft output must have exactly one probe (the canonical one)');
+
+// Untampered stub regrafts to itself (no-op).
+const graftNoop = regraftRunnerEditRegion(canonicalRunner, canonicalRunner);
+assert.equal(graftNoop.changed, false, 'graft on an untouched stub should be a no-op');
+
+// Missing EDIT markers → fall back to sacred restore rather than producing nothing.
+const noEditMarkers = canonicalRunner.replace(editStartMarker, '// (edit marker removed)');
+const graftFallback = regraftRunnerEditRegion(noEditMarkers, canonicalRunner);
+assert.equal(graftFallback.mode, 'sacred_restore_fallback', 'graft should fall back to sacred restore when EDIT markers are gone');
 
 console.log('✅ threejs survival preflight checks passed');
