@@ -73,8 +73,15 @@ const broken = await checkPreflight(brokenSnowboard);
 const brokenIds = broken.issues.map((issue) => issue.id);
 assert.equal(broken.success, false, 'broken snowboard runner should fail preflight');
 assert.ok(brokenIds.includes('preflight_threejs_phase2_todo_remaining'), 'should catch surviving TODO Phase 2 markers');
-assert.ok(brokenIds.includes('preflight_threejs_refs_obstacles_uninitialized'), 'should catch refs.obstacles read without refs.obstacles initialization');
-assert.ok(brokenIds.includes('preflight_threejs_runner_obstacle_state_missing'), 'should catch missing runner obstacle state');
+assert.ok(
+    brokenIds.includes('preflight_threejs_obstacle_holder_uninitialized'),
+    'should catch refs.obstacles read without refs.obstacles initialization',
+);
+assert.ok(
+    broken.issues.some((issue) => issue.id === 'preflight_threejs_obstacle_holder_uninitialized'
+        && issue.holders.includes('refs')),
+    'uninitialized-holder issue should name the refs holder',
+);
 assert.equal(shouldBlockOnPreflight(broken, true), true, 'threejs survival failures should block in factory-minimal mode');
 
 const missingRunnerFunction = brokenSnowboard.replace(/function updateCamera[\s\S]*?\n}\n\nexport function stepGame/, 'export function stepGame');
@@ -83,6 +90,153 @@ assert.ok(
     missingFn.issues.some((issue) => issue.id === 'preflight_threejs_runner_required_functions_missing'
         && issue.missingKeys.includes('updateCamera')),
     'should catch missing required runner functions',
+);
+
+// A non-refs/non-state holder (world.obstacles) read but never initialized — the
+// exact blind spot that let the first patch pass while the sandbox crashed.
+const worldHolderUninit = `
+// @ts-nocheck
+import './styles.css';
+import * as THREE from 'three';
+import { createThreeStage } from './threeAssets.ts';
+
+const stage = createThreeStage(document.getElementById('game-canvas'));
+const renderer = stage.renderer;
+const scene = stage.scene;
+const camera = stage.camera;
+const refs = { player: null };
+let world;
+const state = { score: 0, gameOver: false, started: true, playerZ: 0 };
+
+function setupScene(scene, camera) { refs.player = new THREE.Group(); scene.add(refs.player); }
+function createObstacle(scene, playerZ) {
+  const obstacle = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#166534' }));
+  scene.add(obstacle);
+  return obstacle;
+}
+function movePlayer(state, dt) { state.playerZ -= dt / 1000; }
+function checkCollisions(state) { world.obstacles.forEach((obs) => obs.position.z += 0); }
+function updateCamera(camera, state) { camera.lookAt(0, 0, state.playerZ); }
+
+setupScene(scene, camera);
+export function stepGame(dt = 16) {
+  world.obstacles.push(createObstacle(scene, state.playerZ));
+  movePlayer(state, dt);
+  checkCollisions(state);
+  updateCamera(camera, state);
+}
+export function renderAll() { renderer.render(scene, camera); }
+export function resetGame() {}
+window.__GAMETOK_TEMPLATE_PROBE__ = { snapshot(){ return { obstacleCount: world.obstacles.length }; }, step: stepGame, reset: resetGame };
+requestAnimationFrame(() => renderAll());
+`;
+
+const worldUninit = await checkPreflight(worldHolderUninit);
+assert.equal(worldUninit.success, false, 'world.obstacles read without init should fail preflight');
+assert.ok(
+    worldUninit.issues.some((issue) => issue.id === 'preflight_threejs_obstacle_holder_uninitialized'
+        && issue.holders.includes('world')),
+    'should catch an uninitialized non-refs/non-state obstacle holder (world.obstacles)',
+);
+
+// Storage split: state.obstacles is initialized AND used by spawn/snapshot, but
+// collision reads a second, uninitialized holder — must flag split + uninit.
+const splitStorage = `
+// @ts-nocheck
+import './styles.css';
+import * as THREE from 'three';
+import { createThreeStage } from './threeAssets.ts';
+
+const stage = createThreeStage(document.getElementById('game-canvas'));
+const renderer = stage.renderer;
+const scene = stage.scene;
+const camera = stage.camera;
+const refs = { player: null };
+const state = { score: 0, gameOver: false, started: true, obstacles: [], playerZ: 0 };
+let world;
+
+function setupScene(scene, camera) { refs.player = new THREE.Group(); scene.add(refs.player); }
+function createObstacle(scene, playerZ) {
+  const obstacle = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#166534' }));
+  scene.add(obstacle);
+  return obstacle;
+}
+function movePlayer(state, dt) { state.playerZ -= dt / 1000; }
+function checkCollisions(state) { world.obstacles.forEach((obs) => obs.position.z += 0); }
+function updateCamera(camera, state) { camera.lookAt(0, 0, state.playerZ); }
+
+setupScene(scene, camera);
+export function stepGame(dt = 16) {
+  state.obstacles.push(createObstacle(scene, state.playerZ));
+  movePlayer(state, dt);
+  checkCollisions(state);
+  updateCamera(camera, state);
+}
+export function renderAll() { renderer.render(scene, camera); }
+export function resetGame() { state.obstacles = []; renderAll(); }
+window.__GAMETOK_TEMPLATE_PROBE__ = { snapshot(){ return { obstacleCount: state.obstacles.length }; }, step: stepGame, reset: resetGame };
+renderAll();
+requestAnimationFrame(() => renderAll());
+`;
+
+const split = await checkPreflight(splitStorage);
+assert.equal(split.success, false, 'split obstacle storage should fail preflight');
+assert.ok(
+    split.issues.some((issue) => issue.id === 'preflight_threejs_obstacle_storage_split'),
+    'should catch obstacle storage split across multiple holders',
+);
+assert.ok(
+    split.issues.some((issue) => issue.id === 'preflight_threejs_obstacle_holder_uninitialized'
+        && issue.holders.includes('world')),
+    'split case should also flag the uninitialized world holder',
+);
+
+// state.obstacles initialized via post-construction assignment (not a literal key),
+// used consistently everywhere — must PASS (guards the assignment false-positive).
+const assignInitRunner = `
+// @ts-nocheck
+import './styles.css';
+import * as THREE from 'three';
+import { createThreeStage } from './threeAssets.ts';
+
+const stage = createThreeStage(document.getElementById('game-canvas'));
+const renderer = stage.renderer;
+const scene = stage.scene;
+const camera = stage.camera;
+const refs = { player: null };
+const state = { score: 0, gameOver: false, started: true, playerZ: 0 };
+state.obstacles = [];
+
+function setupScene(scene, camera) { refs.player = new THREE.Group(); scene.add(refs.player); }
+function createObstacle(scene, playerZ) {
+  const obstacle = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#166534' }));
+  scene.add(obstacle);
+  return obstacle;
+}
+function movePlayer(state, dt) { state.playerZ -= dt / 1000; }
+function checkCollisions(state) { state.obstacles.forEach((obs) => obs.position.z += 0); }
+function updateCamera(camera, state) { camera.lookAt(0, 0, state.playerZ); }
+
+setupScene(scene, camera);
+export function stepGame(dt = 16) {
+  state.obstacles.push(createObstacle(scene, state.playerZ));
+  movePlayer(state, dt);
+  checkCollisions(state);
+  updateCamera(camera, state);
+}
+export function renderAll() { renderer.render(scene, camera); }
+export function resetGame() { state.obstacles = []; renderAll(); }
+window.__GAMETOK_TEMPLATE_PROBE__ = { snapshot(){ return { obstacleCount: state.obstacles.length }; }, step: stepGame, reset: resetGame };
+renderAll();
+requestAnimationFrame(() => renderAll());
+`;
+
+const assignInit = await checkPreflight(assignInitRunner);
+const assignInitThreeIssues = assignInit.issues.filter((issue) => issue.id.startsWith('preflight_threejs_'));
+assert.deepEqual(
+    assignInitThreeIssues,
+    [],
+    `assignment-initialized state.obstacles should not emit threejs survival issues: ${assignInitThreeIssues.map((issue) => issue.id).join(', ')}`,
 );
 
 const validRunner = `

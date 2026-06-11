@@ -5764,7 +5764,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         console.log(`   Tech: ${qualityIntent.technicalRequirements?.dimension || '2D'} ${qualityIntent.technicalRequirements?.perspective || 'top_down'}`);
         if (dynamicFoundation && makerFoundationContract) {
             console.log(`   Foundation: ${makerFoundationContract.foundationId} lane=${makerFoundationContract.lane} engine=${makerFoundationContract.engine}`);
-            console.log(`   Kernel: canvas-kernel (AI-designed contract, shared runtime)`);
+            // Match buildKernelScaffold/isThreeFoundation so the log names the kernel
+            // that actually materializes (3D foundations get threejs-kernel, not canvas-kernel).
+            const kernelTemplateId = (
+                String(makerFoundationContract.dimension || '').toUpperCase() === '3D'
+                || String(makerFoundationContract.engine || '').toLowerCase() === 'threejs'
+                || /threejs|voxel_world/.test(String(makerFoundationContract.lane || '').toLowerCase())
+            ) ? 'threejs-kernel' : 'canvas-kernel';
+            console.log(`   Kernel: ${kernelTemplateId} (AI-designed contract, shared runtime)`);
         } else {
             console.log(`   Template: ${makerTemplateContract.templateId} (${makerTemplateContract.engine})`);
         }

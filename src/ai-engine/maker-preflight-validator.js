@@ -316,6 +316,100 @@ function isThreeRunnerLane(source = '', options = {}) {
         || /GameTok 3D runner|setupScene\s*\(|createObstacle\s*\(|movePlayer\s*\(|checkCollisions\s*\(|updateCamera\s*\(/.test(source);
 }
 
+// Obstacle holders the single-file 3D kernel can legitimately store an array on.
+// Read-driven by design: only holders that the source actually reads `.obstacles`
+// from are validated, so loop-local holders (for (const chunk of chunks)
+// chunk.obstacles) outside this set are never false-flagged.
+const OBSTACLE_HOLDERS = ['state', 'refs', 'world', 'game', 'runtime', 'snapshot'];
+
+// The unified-storage repair string is intentionally identical for both the
+// uninitialized-holder and split-storage failures so the agent gets one
+// consistent instruction regardless of which symptom tripped.
+const OBSTACLE_UNIFY_REPAIR = 'Unify obstacle storage. Do not introduce refs.obstacles unless initialized. createObstacle, checkCollisions, update loop, and snapshot must use the same obstacle array.';
+
+/** Holders (state/refs/world/game/runtime/snapshot/this) that read `.obstacles` in `text`. */
+function obstacleHoldersRead(text = '') {
+    const holders = new Set();
+    const pattern = new RegExp(`\\b(this|${OBSTACLE_HOLDERS.join('|')})\\.obstacles\\b`, 'g');
+    let match;
+    while ((match = pattern.exec(text)) !== null) holders.add(match[1]);
+    return holders;
+}
+
+/**
+ * A holder counts as initialized if it declares an `obstacles` key in its object
+ * literal (const refs = { obstacles: [] }) OR assigns one post-construction
+ * (state.obstacles = [] / new Array / new Map / new Set). `this` is never valid:
+ * the single-file kernel has no class instance, so this.obstacles is always undefined.
+ */
+function obstacleHolderInitialized(holder = '', source = '') {
+    if (holder === 'this') return false;
+    const escaped = holder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (hasTopLevelObjectKey(source, new RegExp(`\\b(?:const|let|var)\\s+${escaped}\\s*=`, 'g'), 'obstacles')) {
+        return true;
+    }
+    return new RegExp(`\\b${escaped}\\.obstacles\\s*=\\s*(?:\\[|new\\s+(?:Array|Map|Set)\\b)`).test(source);
+}
+
+/** Body block ({...}) of a function / probe method by name, or '' if absent. */
+function extractCallableBodyByName(source = '', name = '') {
+    const escaped = String(name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const markers = [
+        new RegExp(`\\bfunction\\s+${escaped}\\s*\\(`, 'g'),
+        new RegExp(`\\b${escaped}\\s*\\([^)]*\\)\\s*\\{`, 'g'),
+        new RegExp(`\\b${escaped}\\s*[:=]\\s*(?:async\\s*)?\\([^)]*\\)\\s*=>\\s*\\{`, 'g'),
+    ];
+    for (const marker of markers) {
+        const body = extractBalancedObjectLiteral(source, marker);
+        if (body) return body;
+    }
+    return '';
+}
+
+/**
+ * Obstacle storage consistency for the single-file 3D kernel. This is the crash
+ * class behind "Cannot read properties of undefined (reading 'obstacles')": the
+ * Phase 2 rewrite reads X.obstacles where X is an uninitialized holder, or splits
+ * the array across two holders so spawn/collision/loop/snapshot disagree. The old
+ * check only knew refs.obstacles + state.obstacles existence; this is read-driven
+ * across every holder and verifies the readers share ONE array.
+ */
+function collectObstacleConsistencyIssues(source = '', options = {}) {
+    const issues = [];
+    const allHolders = obstacleHoldersRead(source);
+    if (allHolders.size === 0) return issues;
+
+    const uninitialized = [...allHolders].filter((holder) => !obstacleHolderInitialized(holder, source));
+    if (uninitialized.length > 0) {
+        issues.push({
+            id: 'preflight_threejs_obstacle_holder_uninitialized',
+            severity: 'critical',
+            message: `src/main.ts reads .obstacles on holder(s) never initialized to an array: ${uninitialized.map((h) => `${h}.obstacles`).join(', ')}. At probe time these are undefined and crash with "Cannot read properties of undefined (reading 'obstacles')".`,
+            holders: uninitialized,
+            repair: OBSTACLE_UNIFY_REPAIR,
+        });
+    }
+
+    // Unification: spawn, collision, loop, reset, and snapshot must read ONE array.
+    const readerHolders = new Set();
+    for (const name of ['createObstacle', 'checkCollisions', 'stepGame', 'resetGame', 'snapshot']) {
+        const body = extractCallableBodyByName(source, name);
+        if (!body) continue;
+        for (const holder of obstacleHoldersRead(body)) readerHolders.add(holder);
+    }
+    if (readerHolders.size > 1) {
+        issues.push({
+            id: 'preflight_threejs_obstacle_storage_split',
+            severity: 'critical',
+            message: `Obstacle storage is split across multiple holders (${[...readerHolders].map((h) => `${h}.obstacles`).join(', ')}); createObstacle/checkCollisions/update loop/snapshot must read one shared array.`,
+            holders: [...readerHolders],
+            repair: OBSTACLE_UNIFY_REPAIR,
+        });
+    }
+
+    return issues;
+}
+
 function collectThreeKernelSurvivalIssues(source = '', options = {}) {
     const issues = [];
     if (!source.trim() || !isThreeKernelSource(source, options)) return issues;
@@ -329,16 +423,10 @@ function collectThreeKernelSurvivalIssues(source = '', options = {}) {
         });
     }
 
-    const refsObstaclesRead = /\brefs\.obstacles\b/.test(source);
-    const refsObstaclesInitialized = hasTopLevelObjectKey(source, /\b(?:const|let|var)\s+refs\s*=/g, 'obstacles');
-    if (refsObstaclesRead && !refsObstaclesInitialized) {
-        issues.push({
-            id: 'preflight_threejs_refs_obstacles_uninitialized',
-            severity: 'critical',
-            message: 'src/main.ts reads refs.obstacles, but the refs object does not initialize an obstacles property.',
-            repair: 'Either initialize refs.obstacles to [] in the refs object or replace refs.obstacles reads with the initialized obstacle array used by the game state, usually state.obstacles.',
-        });
-    }
+    // Read-driven obstacle storage consistency (replaces the old refs-only /
+    // state-only existence checks). Runs for every three-kernel source — if the
+    // game reads no `.obstacles` it produces nothing.
+    issues.push(...collectObstacleConsistencyIssues(source, options));
 
     if (!isThreeRunnerLane(source, options)) return issues;
 
@@ -351,16 +439,6 @@ function collectThreeKernelSurvivalIssues(source = '', options = {}) {
             message: `threejs-kernel runner is missing required gameplay function(s): ${missingFunctions.join(', ')}.`,
             missingKeys: missingFunctions,
             repair: 'Restore the runner single-file contract in src/main.ts: implement setupScene, createObstacle, movePlayer, checkCollisions, and updateCamera with their original names/signatures.',
-        });
-    }
-
-    const stateObstaclesInitialized = hasTopLevelObjectKey(source, /\b(?:const|let|var)\s+state\s*=/g, 'obstacles');
-    if (!stateObstaclesInitialized && !refsObstaclesInitialized) {
-        issues.push({
-            id: 'preflight_threejs_runner_obstacle_state_missing',
-            severity: 'critical',
-            message: 'threejs-kernel runner has no initialized obstacle array on state.obstacles or refs.obstacles.',
-            repair: 'Initialize a runner obstacle array, preferably state.obstacles: [], and make spawning, cleanup, collision checks, reset, and probe snapshot use the same array.',
         });
     }
 
