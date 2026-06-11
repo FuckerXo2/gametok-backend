@@ -86,13 +86,15 @@ function buildRunnerStub({ foundation, lane, cameraRig, statusCopy, implNotes, e
         .join('\n');
 
     return `// @ts-nocheck
-// GameTok 3D runner — SINGLE FILE. Everything lives in main.ts: state, refs, and
-// all five game functions share one scope, so state can never be undefined.
+// GameTok 3D runner — SINGLE FILE. Everything (state, refs, loop, probe, and the
+// five game functions) lives in this one file and ALREADY RUNS as a playable game.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${lane}) — camera: ${cameraRig}
 //
-// Phase 2: fill in the FIVE functions marked "TODO Phase 2" below
-//   (setupScene, createObstacle, movePlayer, checkCollisions, updateCamera).
-//   Keep the pre-wired state, input, loop, and probe exactly as they are.
+// Phase 2: ENHANCE the five functions (setupScene, createObstacle, movePlayer,
+//   checkCollisions, updateCamera) to match the game's theme — better player shape,
+//   themed obstacles, colors, fog. Keep their names + parameters, keep refs.player
+//   set in setupScene, keep createObstacle returning a mesh. Leave the pre-wired
+//   state, input, game loop, and probe exactly as they are.
 ${implNotes}
 import './styles.css';
 import * as THREE from 'three';
@@ -154,61 +156,104 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('pointerdown', () => { if (state.gameOver) resetGame(); });
 
 // ════════════════════════════════════════════════════════════════════════════
-//  Phase 2: implement ONLY these five functions. They share state/refs/scene
-//  above — never import anything, never redeclare state. Flat colors only.
+//  These five functions ALREADY WORK — the game is playable as-is. Phase 2 should
+//  ENHANCE the visuals to match the theme (player shape/colors, obstacle props,
+//  scenery, fog), keeping each function's name, parameters, and core behavior:
+//    • setupScene MUST still set refs.player and add a ground.
+//    • createObstacle MUST still return a mesh added to the scene.
+//    • movePlayer/checkCollisions/updateCamera keep their (param) signatures.
+//  Flat colors only (MeshLambertMaterial hex). Never import anything; never
+//  redeclare state; never rename these functions or change their parameters.
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Build ground/slope, the themed player character, and environment.
- *  MUST set refs.player to the player Group. Sets scene.fog / scene.background. */
-function setupScene() {
-  // TODO Phase 2: build a themed slope + player (Group of flat-color geometry).
-  //   const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 1000),
-  //     new THREE.MeshLambertMaterial({ color: '#e8f4f8' }));
-  //   ground.rotation.x = -Math.PI / 2; ground.position.z = -490; scene.add(ground);
-  //   const player = new THREE.Group(); /* body + head + board */
-  //   player.position.set(0, 0.45, 0); scene.add(player);
-  //   refs.player = player;            // ← REQUIRED
-  //   scene.fog = new THREE.Fog('#c8e6f5', 30, 120);
+/** Build the slope, the player character, and environment. Sets refs.player.
+ *  ENHANCE: give the player a themed shape and color the world to fit the game. */
+function setupScene(scene, camera) {
+  scene.background = new THREE.Color('#bfe3f2');
+  scene.fog = new THREE.Fog('#bfe3f2', 30, 130);
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(26, 1200),
+    new THREE.MeshLambertMaterial({ color: '#eef6fb' }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.z = -560;
+  scene.add(ground);
+  const player = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 0.85, 0.42),
+    new THREE.MeshLambertMaterial({ color: '#2563eb' }),
+  );
+  body.position.y = 0.6;
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.34, 0.34),
+    new THREE.MeshLambertMaterial({ color: '#fcd9b6' }),
+  );
+  head.position.y = 1.18;
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(0.52, 0.12, 1.5),
+    new THREE.MeshLambertMaterial({ color: '#f59e0b' }),
+  );
+  board.position.y = 0.08;
+  player.add(body); player.add(head); player.add(board);
+  player.position.set(0, 0, 0);
+  scene.add(player);
+  refs.player = player;
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 1, -6);
 }
 
-/** Build ONE themed obstacle ahead of the player and return its root Object3D. */
-function createObstacle(playerZ) {
-  // TODO Phase 2: e.g. a pine tree (brown cylinder + green cone).
-  //   const g = new THREE.Group(); /* trunk + cone */
-  //   g.position.set((Math.random() - 0.5) * 7, 0, playerZ - 45 - Math.random() * 20);
-  //   scene.add(g); return g;
-  return null; // replace with a real mesh
+/** Build and return ONE obstacle ahead of the player (added to the scene).
+ *  ENHANCE: make the obstacle a themed prop (tree, rock, sign…). Must return it. */
+function createObstacle(scene, playerZ) {
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.2, 1.0, 6),
+    new THREE.MeshLambertMaterial({ color: '#92400e' }),
+  );
+  trunk.position.y = 0.5;
+  const top = new THREE.Mesh(
+    new THREE.ConeGeometry(0.72, 1.7, 7),
+    new THREE.MeshLambertMaterial({ color: '#166534' }),
+  );
+  top.position.y = 1.55;
+  tree.add(trunk); tree.add(top);
+  tree.position.set((Math.random() - 0.5) * 9, 0, playerZ - 50 - Math.random() * 28);
+  scene.add(tree);
+  return tree;
 }
 
-/** Steer + advance the player via refs.player. Mutates state directly. */
-function movePlayer(dt) {
-  // TODO Phase 2:
-  //   const dtSec = dt / 1000;
-  //   state.targetX = Math.max(-3.5, Math.min(3.5, state.targetX + state.inputDir * 6 * dtSec));
-  //   state.playerX = THREE.MathUtils.lerp(state.playerX, state.targetX, 0.12);
-  //   state.playerZ -= state.speed * dtSec;
-  //   if (refs.player) refs.player.position.set(state.playerX, 0.45, state.playerZ);
+/** Steer + advance the player. ENHANCE: add lean/animation, keep the (state, dt) shape. */
+function movePlayer(state, dt) {
+  const dtSec = dt / 1000;
+  state.targetX = Math.max(-4.2, Math.min(4.2, state.targetX + state.inputDir * 7 * dtSec));
+  state.playerX = THREE.MathUtils.lerp(state.playerX, state.targetX, 0.14);
+  state.playerZ -= state.speed * dtSec;
+  if (refs.player) {
+    refs.player.position.set(state.playerX, refs.player.position.y, state.playerZ);
+    refs.player.rotation.z = THREE.MathUtils.lerp(refs.player.rotation.z, -state.inputDir * 0.3, 0.2);
+  }
 }
 
-/** AABB: player vs every mesh in state.obstacles. Set state.gameOver = true on hit. */
-function checkCollisions() {
-  // TODO Phase 2:
-  //   if (!refs.player) return;
-  //   const pb = new THREE.Box3().setFromObject(refs.player);
-  //   for (const obs of state.obstacles) {
-  //     if (pb.intersectsBox(new THREE.Box3().setFromObject(obs))) { state.gameOver = true; break; }
-  //   }
+/** AABB: player vs every mesh in state.obstacles. Sets state.gameOver on hit. */
+function checkCollisions(state) {
+  if (!refs.player) return;
+  const pb = new THREE.Box3().setFromObject(refs.player);
+  pb.expandByScalar(-0.15);
+  for (const obs of state.obstacles) {
+    if (pb.intersectsBox(new THREE.Box3().setFromObject(obs))) { state.gameOver = true; break; }
+  }
 }
 
 /** Smooth third-person chase cam behind and above the player. */
-function updateCamera() {
-  // TODO Phase 2:
-  //   camera.position.set(state.playerX * 0.6, 5, state.playerZ + 10);
-  //   camera.lookAt(state.playerX, 1, state.playerZ - 6);
+function updateCamera(camera, state) {
+  camera.position.x = THREE.MathUtils.lerp(camera.position.x, state.playerX * 0.6, 0.1);
+  camera.position.y = 5;
+  camera.position.z = state.playerZ + 10;
+  camera.lookAt(state.playerX, 1, state.playerZ - 6);
 }
 
 // ─── SCENE INIT ──────────────────────────────────────────────────────────────
-setupScene();
+setupScene(scene, camera);
 
 // ─── GAME LOOP (pre-wired — do not modify) ────────────────────────────────────
 export function stepGame(dt = 16) {
@@ -218,7 +263,7 @@ export function stepGame(dt = 16) {
   state.speed = Math.min(28, 8 + state.score * 0.025);
   state.spawnTimer -= dtSec;
   if (state.spawnTimer <= 0) {
-    const obs = createObstacle(state.playerZ);
+    const obs = createObstacle(scene, state.playerZ);
     if (obs) state.obstacles.push(obs);
     state.spawnTimer = state.spawnInterval * (0.7 + Math.random() * 0.6);
     state.spawnInterval = Math.max(0.7, state.spawnInterval - 0.015);
@@ -227,9 +272,9 @@ export function stepGame(dt = 16) {
     if (obs.position.z > state.playerZ + 8) { scene.remove(obs); obs.geometry?.dispose(); return false; }
     return true;
   });
-  movePlayer(dt);
-  checkCollisions();
-  updateCamera();
+  movePlayer(state, dt);
+  checkCollisions(state);
+  updateCamera(camera, state);
 }
 
 function syncHud() {
@@ -259,7 +304,7 @@ export function resetGame() {
   state.spawnInterval = 2.2;
   state.inputDir = 0;
   state.lastTick = performance.now();
-  if (refs.player) refs.player.position.set(0, 0.45, 0);
+  if (refs.player) refs.player.position.set(0, refs.player.position.y, 0);
   camera.position.set(0, 5, 10);
   camera.lookAt(0, 1, -6);
   renderAll();
