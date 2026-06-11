@@ -22,6 +22,7 @@ import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMake
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { applyDeterministicPreflightRepairs, applyDeterministicStateObjectDedupeRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
+import { buildThreeMainTsStubFromFoundation, isThreeFoundation, restampRunnerSacredRegions } from './maker-threejs-stub.js';
 import {
     isMakerFactoryMinimalMode,
     resolveMakerAgentImplementTurns,
@@ -4681,6 +4682,30 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             ...await readProjectAssetPackKeys(projectRoot),
             ...collectAllowedAssetPackKeys({ generatedAssets }),
         ])].sort();
+
+        // SACRED re-stamp: for threejs_runner, physically restore the pre-wired
+        // runtime (state/input/loop/render/reset/probe) the model edited inside the
+        // markers — the model keeps its themed gameplay in the EDIT regions. This
+        // runs BEFORE preflight/build so the canonical loop+reset+probe are what
+        // actually ship, killing the blank-canvas + reset() crash class at the source.
+        const _foundation = templateContract?.foundation || null;
+        if (_foundation && isThreeFoundation(_foundation)) {
+            try {
+                const mainTsPath = path.join(projectRoot, 'src', 'main.ts');
+                const generatedMain = await fs.promises.readFile(mainTsPath, 'utf8');
+                const canonicalMain = buildThreeMainTsStubFromFoundation(_foundation, {});
+                const restamp = restampRunnerSacredRegions(generatedMain, canonicalMain);
+                if (restamp.changed) {
+                    await fs.promises.writeFile(mainTsPath, restamp.content, 'utf8');
+                    console.log(`🔧 [Sacred Restamp job=${path.basename(workspace || '')}] restored ${restamp.regions} sacred region(s) in src/main.ts (phase=${phase} turn=${turnNumber})`);
+                } else if (restamp.reason === 'sacred_marker_count_mismatch' || restamp.reason === 'no_sacred_markers') {
+                    console.warn(`🔧 [Sacred Restamp job=${path.basename(workspace || '')}] skipped (${restamp.reason}) — markers altered, leaving telemetry/preflight to handle`);
+                }
+            } catch (restampError) {
+                console.warn(`🔧 [Sacred Restamp] failed (non-fatal): ${restampError?.message || restampError}`);
+            }
+        }
+
         let preflight = await runMakerPreflightChecks({
             projectRoot,
             generatedAssets,
@@ -5417,23 +5442,21 @@ async function runMakerAgentInspectionTurns({
                     try {
                         const _src = await fs.promises.readFile(path.join(projectRoot, 'src/main.ts'), 'utf8');
                         const _todoCount = (_src.match(/TODO Phase 2/g) || []).length;
-                        // Expanded filter: also surface .obstacles reads, state-object opening, and
-                        // sacred/edit markers so the crashing holder is visible in the log.
-                        const _lines = _src.split('\n')
-                            .map((l, i) => ({ n: i + 1, l }))
-                            .filter((o) => /\bfunction (setupScene|createObstacle|movePlayer|checkCollisions|updateCamera|buildTrack|spawnRivals|steerCar|checkLapProgress)\b|refs\.player\s*=|TODO Phase 2|\bimport .* from '\.\/(scene|mechanics)|\.obstacles\b|\b(?:const|let|var)\s+state\s*=|GAMETOK:(?:SACRED|EDIT)/.test(o.l))
-                            .map((o) => `  ${o.n}: ${o.l.trim()}`)
-                            .join('\n');
-                        console.error(`🔬 [3D DIAG job=${jobId}] src/main.ts (${_src.length} chars, ${_todoCount} unimplemented TODO Phase 2 left) — key lines:\n${_lines}`);
+                        const _hasSacred = _src.includes('GAMETOK:SACRED START');
                         // P5: ephemeral storage is wiped after this throw, so retain the FULL
                         // generated source in the durable job log (size-bounded) for 3D failures.
+                        // ONE atomic console.error (no second concurrent emission) so Railway
+                        // does not interleave it into an unreadable jumble.
                         const RETAIN_MAX = 20000;
                         const _retained = _src.length > RETAIN_MAX
                             ? `${_src.slice(0, RETAIN_MAX)}\n/* …truncated ${_src.length - RETAIN_MAX} chars (retained ${RETAIN_MAX}/${_src.length}) */`
                             : _src;
-                        console.error(`🗄️ [3D SOURCE RETAINED job=${jobId}] src/main.ts (${_src.length} chars) BEGIN\n${_retained}\n🗄️ [3D SOURCE RETAINED job=${jobId}] END`);
+                        console.error(
+                            `🗄️ [3D SOURCE job=${jobId}] src/main.ts ${_src.length} chars, ${_todoCount} TODO Phase 2, sacredMarkers=${_hasSacred}\n`
+                            + `──────── BEGIN src/main.ts ────────\n${_retained}\n──────── END src/main.ts ────────`,
+                        );
                     } catch (_e) {
-                        console.error(`🔬 [3D DIAG job=${jobId}] could not read src/main.ts: ${_e.message}`);
+                        console.error(`🗄️ [3D SOURCE job=${jobId}] could not read src/main.ts: ${_e.message}`);
                     }
                 }
             } catch (_diagErr) { /* diagnostic only — never block the real throw */ }

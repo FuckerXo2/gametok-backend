@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { shouldBlockOnPreflight } from '../src/ai-engine/maker-factory-mode.js';
 import { runMakerPreflightChecks } from '../src/ai-engine/maker-preflight-validator.js';
-import { buildThreeMainTsStubFromFoundation } from '../src/ai-engine/maker-threejs-stub.js';
+import { buildThreeMainTsStubFromFoundation, restampRunnerSacredRegions } from '../src/ai-engine/maker-threejs-stub.js';
 
 async function makeProject(mainTs) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gametok-threejs-preflight-'));
@@ -333,5 +333,37 @@ assert.ok(
     !valid.issues.some((issue) => issue.id === 'telemetry_threejs_runner_sacred_drift'),
     'sacred drift must never appear in blocking issues',
 );
+
+// ── SACRED re-stamp: restore the pre-wired runtime, keep the model's EDIT code ──
+const canonicalRunner = buildThreeMainTsStubFromFoundation(
+    { lane: 'snowboard_runner', title: 'Alpine Rush', cameraRig: 'third_person_chase', hudBlocks: ['Score'] },
+    {},
+);
+
+// Simulate exactly what the failing deploy did: keep the markers, but
+//  (a) break the render loop inside a SACRED block (requestAnimationFrame removed),
+//  (b) add the model's own code inside an EDIT region, and
+//  (c) add a state extension in the gap between SACRED and EDIT (outside sacred).
+const tamperedRunner = canonicalRunner
+    .replace(/requestAnimationFrame/g, 'noRaf__BROKEN')
+    .replace('function setupScene(scene, camera) {', 'function setupScene(scene, camera) {\n  const MODEL_EDIT_TOKEN = 42;')
+    .replace('// ===== GAMETOK:EDIT START', 'state.coins = 0; // MODEL_EXTENSION_TOKEN\n// ===== GAMETOK:EDIT START');
+
+const restamped = restampRunnerSacredRegions(tamperedRunner, canonicalRunner);
+assert.equal(restamped.changed, true, 'restamp should restore tampered sacred regions');
+assert.ok(restamped.content.includes('requestAnimationFrame'), 'restamp should bring back the canonical render loop');
+assert.ok(!restamped.content.includes('noRaf__BROKEN'), 'restamp should erase the model edit inside the sacred block');
+assert.ok(restamped.content.includes('MODEL_EDIT_TOKEN'), 'restamp must preserve the model gameplay inside the EDIT region');
+assert.ok(restamped.content.includes('MODEL_EXTENSION_TOKEN'), 'restamp must preserve model code outside the sacred blocks');
+
+// Idempotent: an untouched stub is already canonical.
+const restampNoop = restampRunnerSacredRegions(canonicalRunner, canonicalRunner);
+assert.equal(restampNoop.changed, false, 'restamp on an untouched stub should be a no-op');
+
+// Safety bail: if the model deleted a SACRED marker, do not splice blindly.
+const missingMarker = canonicalRunner.replace('// ===== GAMETOK:SACRED END =====', '// (marker removed by model)');
+const restampBail = restampRunnerSacredRegions(missingMarker, canonicalRunner);
+assert.equal(restampBail.changed, false, 'restamp must bail when sacred marker counts mismatch');
+assert.equal(restampBail.reason, 'sacred_marker_count_mismatch', 'bail reason should report the marker mismatch');
 
 console.log('✅ threejs survival preflight checks passed');

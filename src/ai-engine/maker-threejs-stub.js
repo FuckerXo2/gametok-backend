@@ -641,6 +641,66 @@ requestAnimationFrame(gameLoop);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SACRED re-stamp (runner lane). The Phase 2 model keeps the GAMETOK:SACRED
+// markers but still edits inside them — breaking the loop/reset/probe. Rather than
+// only detecting that, we physically restore the pre-wired runtime: replace each
+// SACRED region in the generated file with the canonical stub's SACRED region,
+// byte-for-byte, while leaving everything between the GAMETOK:EDIT markers (the
+// model's themed gameplay) untouched. This is the enforcement the prose contract
+// could not provide.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Char-offset spans of each full SACRED block (marker line → marker line, inclusive). */
+function findSacredRegionSpans(source = '') {
+    const spans = [];
+    const lines = String(source).split('\n');
+    let offset = 0;
+    let regionStart = -1;
+    for (const line of lines) {
+        if (line.includes('GAMETOK:SACRED START')) regionStart = offset;
+        if (line.includes('GAMETOK:SACRED END') && regionStart >= 0) {
+            spans.push({ start: regionStart, end: offset + line.length });
+            regionStart = -1;
+        }
+        offset += line.length + 1; // + newline
+    }
+    return spans;
+}
+
+/**
+ * Replace the SACRED regions in `generatedSource` with the SACRED regions from
+ * `canonicalSource` (same order). Returns the original source unchanged (changed:
+ * false) when the two files disagree on how many SACRED regions exist — e.g. the
+ * model deleted a marker — so we never splice blindly. The EDIT regions and any
+ * code outside SACRED blocks are preserved exactly.
+ */
+export function restampRunnerSacredRegions(generatedSource = '', canonicalSource = '') {
+    const genSpans = findSacredRegionSpans(generatedSource);
+    const canonSpans = findSacredRegionSpans(canonicalSource);
+    if (genSpans.length === 0 || genSpans.length !== canonSpans.length) {
+        return {
+            content: generatedSource,
+            changed: false,
+            regions: 0,
+            reason: genSpans.length === 0 ? 'no_sacred_markers' : 'sacred_marker_count_mismatch',
+        };
+    }
+    let out = generatedSource;
+    let changed = 0;
+    // Splice from last region to first so earlier offsets stay valid.
+    for (let i = genSpans.length - 1; i >= 0; i -= 1) {
+        const g = genSpans[i];
+        const canonText = canonicalSource.slice(canonSpans[i].start, canonSpans[i].end);
+        const genText = generatedSource.slice(g.start, g.end);
+        if (canonText !== genText) {
+            out = out.slice(0, g.start) + canonText + out.slice(g.end);
+            changed += 1;
+        }
+    }
+    return { content: out, changed: changed > 0, regions: changed, reason: changed > 0 ? 'restamped' : 'already_canonical' };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Single-file 3D: every lane keeps all state + functions inside main.ts, so the
 // model never has to wire an invisible cross-file contract (which it cannot do
 // reliably — it would put movePlayer in scene.ts while main.ts imports it from
