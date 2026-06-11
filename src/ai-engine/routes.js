@@ -4688,6 +4688,21 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             templateContract,
             foundationLane,
         });
+        // P3: make threejs_runner sacred-region + obstacle-consistency telemetry visible
+        // in the job log (preflight-report.json lives on ephemeral disk we can't see).
+        const _sacred = preflight.evidence?.sacredRegion;
+        if (_sacred?.runner) {
+            const _obstacleIssues = (preflight.issues || [])
+                .filter((issue) => String(issue.id || '').startsWith('preflight_threejs_obstacle'))
+                .map((issue) => `${issue.id}${Array.isArray(issue.holders) ? `(${issue.holders.join('/')})` : ''}`);
+            console.log(
+                `🧭 [Maker Preflight job=${path.basename(workspace || '')}] threejs_runner phase=${phase} turn=${turnNumber} `
+                + `markers=${_sacred.markersPresent} drift=${_sacred.drift}`
+                + `${_sacred.reasons.length ? ` reasons=[${_sacred.reasons.join(',')}]` : ''} `
+                + `obstacleChecks=[${_obstacleIssues.join('; ') || 'none'}] `
+                + `willBlock=${shouldBlockOnPreflight(preflight, isMakerFactoryMinimalMode())}`,
+            );
+        }
         await writeMakerJson(workspace, 'preflight-report.json', {
             phase,
             turnNumber,
@@ -5402,12 +5417,21 @@ async function runMakerAgentInspectionTurns({
                     try {
                         const _src = await fs.promises.readFile(path.join(projectRoot, 'src/main.ts'), 'utf8');
                         const _todoCount = (_src.match(/TODO Phase 2/g) || []).length;
+                        // Expanded filter: also surface .obstacles reads, state-object opening, and
+                        // sacred/edit markers so the crashing holder is visible in the log.
                         const _lines = _src.split('\n')
                             .map((l, i) => ({ n: i + 1, l }))
-                            .filter((o) => /\bfunction (setupScene|createObstacle|movePlayer|checkCollisions|updateCamera|buildTrack|spawnRivals|steerCar|checkLapProgress)\b|refs\.player\s*=|TODO Phase 2|\bimport .* from '\.\/(scene|mechanics)/.test(o.l))
+                            .filter((o) => /\bfunction (setupScene|createObstacle|movePlayer|checkCollisions|updateCamera|buildTrack|spawnRivals|steerCar|checkLapProgress)\b|refs\.player\s*=|TODO Phase 2|\bimport .* from '\.\/(scene|mechanics)|\.obstacles\b|\b(?:const|let|var)\s+state\s*=|GAMETOK:(?:SACRED|EDIT)/.test(o.l))
                             .map((o) => `  ${o.n}: ${o.l.trim()}`)
                             .join('\n');
                         console.error(`🔬 [3D DIAG job=${jobId}] src/main.ts (${_src.length} chars, ${_todoCount} unimplemented TODO Phase 2 left) — key lines:\n${_lines}`);
+                        // P5: ephemeral storage is wiped after this throw, so retain the FULL
+                        // generated source in the durable job log (size-bounded) for 3D failures.
+                        const RETAIN_MAX = 20000;
+                        const _retained = _src.length > RETAIN_MAX
+                            ? `${_src.slice(0, RETAIN_MAX)}\n/* …truncated ${_src.length - RETAIN_MAX} chars (retained ${RETAIN_MAX}/${_src.length}) */`
+                            : _src;
+                        console.error(`🗄️ [3D SOURCE RETAINED job=${jobId}] src/main.ts (${_src.length} chars) BEGIN\n${_retained}\n🗄️ [3D SOURCE RETAINED job=${jobId}] END`);
                     } catch (_e) {
                         console.error(`🔬 [3D DIAG job=${jobId}] could not read src/main.ts: ${_e.message}`);
                     }

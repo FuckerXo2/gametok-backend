@@ -9,9 +9,12 @@ export const FACTORY_MINIMAL_BLOCKING_PREFLIGHT_IDS = new Set([
     'preflight_prop_not_wired',
     'preflight_obstacle_not_wired',
     'preflight_threejs_phase2_todo_remaining',
-    'preflight_threejs_refs_obstacles_uninitialized',
     'preflight_threejs_runner_required_functions_missing',
-    'preflight_threejs_runner_obstacle_state_missing',
+    // Obstacle storage consistency (replaces the old refs-only / state-only ids,
+    // which were removed when collectObstacleConsistencyIssues landed). Without
+    // these entries the obstacle crash slipped past preflight into the sandbox.
+    'preflight_threejs_obstacle_holder_uninitialized',
+    'preflight_threejs_obstacle_storage_split',
 ]);
 
 export function isMakerFactoryMinimalMode() {

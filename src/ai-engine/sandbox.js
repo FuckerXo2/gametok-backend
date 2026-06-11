@@ -266,9 +266,21 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
             if (missingMethods.length > 0) {
                 return { templateId, success: false, failures };
             }
+            // Attribute a thrown error to the exact probe call (reset/snapshot/step)
+            // and append the first generated-source stack frame. This only enriches
+            // the failure message — pass/fail conditions are unchanged.
+            const firstSourceFrame = (stack) => {
+                const frame = String(stack || '')
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .find((line) => line.startsWith('at ') && !/\bsetTimeout\b|\bwait\b|<anonymous>:1:1/.test(line));
+                return frame ? ` @ ${frame.replace(/^at\s+/, '')}` : '';
+            };
+            let failedProbeCall = 'reset';
             try {
                 if (typeof probe.reset === 'function') probe.reset();
                 await wait(60);
+                failedProbeCall = 'snapshot';
                 const initial = typeof probe.snapshot === 'function' ? probe.snapshot() : null;
                 if (!initial || typeof initial !== 'object') {
                     failures.push('snapshot() did not return a state object.');
@@ -277,6 +289,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 // Step the loop and confirm the WebGL renderer actually drew something.
                 let rendered = Number(initial?.renderCalls || 0) > 0;
                 let afterStep = initial;
+                failedProbeCall = 'step';
                 for (let frame = 0; frame < 20 && !rendered; frame += 1) {
                     const stepped = probe.step(16);
                     afterStep = (stepped && typeof stepped.then === 'function') ? await stepped : (stepped || afterStep);
@@ -288,7 +301,14 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 }
                 return { templateId, success: failures.length === 0, failures, details: { initial, afterStep, rendered } };
             } catch (error) {
-                return { templateId, success: false, failures: [error?.message || String(error)] };
+                const message = error?.message || String(error);
+                return {
+                    templateId,
+                    success: false,
+                    failedProbeCall,
+                    errorStack: String(error?.stack || '').split('\n').slice(0, 6).join('\n'),
+                    failures: [`probe.${failedProbeCall}() failed: ${message}${firstSourceFrame(error?.stack)}`],
+                };
             }
         }
 

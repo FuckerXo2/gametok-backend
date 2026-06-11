@@ -139,6 +139,18 @@ assert.ok(
         && issue.holders.includes('world')),
     'should catch an uninitialized non-refs/non-state obstacle holder (world.obstacles)',
 );
+// P1 regression: the obstacle id must BLOCK in factory-minimal mode even when it is
+// the only threejs issue (no TODO marker to mask it). This is the exact gap that let
+// the crash slip past preflight into the sandbox in production.
+assert.ok(
+    !worldUninit.issues.some((issue) => issue.id === 'preflight_threejs_phase2_todo_remaining'),
+    'worldUninit fixture must have no TODO issue, so a block proves the obstacle id itself blocks',
+);
+assert.equal(
+    shouldBlockOnPreflight(worldUninit, true),
+    true,
+    'preflight_threejs_obstacle_holder_uninitialized must block in factory-minimal mode',
+);
 
 // Storage split: state.obstacles is initialized AND used by spawn/snapshot, but
 // collision reads a second, uninitialized holder — must flag split + uninit.
@@ -190,6 +202,11 @@ assert.ok(
     split.issues.some((issue) => issue.id === 'preflight_threejs_obstacle_holder_uninitialized'
         && issue.holders.includes('world')),
     'split case should also flag the uninitialized world holder',
+);
+assert.equal(
+    shouldBlockOnPreflight(split, true),
+    true,
+    'preflight_threejs_obstacle_storage_split must block in factory-minimal mode',
 );
 
 // state.obstacles initialized via post-construction assignment (not a literal key),
