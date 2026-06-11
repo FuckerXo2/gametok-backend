@@ -248,6 +248,12 @@ export function buildThreeDRulesBlock(foundation = null) {
         '- Controls (both always active): touch = left-half drag or virtual joystick to move, right-half drag to look/steer, on-screen buttons for actions; keyboard = WASD/arrows to move, Space/Enter primary action. Hide on-screen buttons on desktop via @media (pointer: coarse).',
         '- Keep window.__GAMETOK_TEMPLATE_PROBE__ working: snapshot must keep reporting renderCalls/triangles from renderer.info plus the game state — the sandbox uses renderCalls > 0 as render proof.',
         '- DOM HUD (#hud) on top of the canvas for score/meters per the uiKit — never render text with Three.js geometry.',
+        ...(lane.includes('runner') || lane.includes('surfer') || lane.includes('dash') ? [
+            '- RUNNER STUB: The game loop, input, state, score ramp, obstacle recycling, and probe are ALL pre-wired. You ONLY implement these 4 exported functions: spawnObstacle(), movePlayer(dt), checkCollisions(), updateCamera(). Do NOT rewrite stepGame/renderAll/resetGame/gameLoop — they call your 4 functions automatically. Read src/main.ts first, then write ONLY the bodies of those 4 functions via apply_patch.',
+        ] : []),
+        ...(lane.includes('racer') || lane.includes('racing') || lane.includes('kart') ? [
+            '- RACER STUB: buildTrack(), spawnRivals(), steerCar(dt), checkLapProgress() are the only 4 functions you implement. The loop, camera, and input are pre-wired. Read src/main.ts first, then fill those 4 function bodies via apply_patch.',
+        ] : []),
     ].join('\n');
 }
 
