@@ -5370,25 +5370,25 @@ async function runMakerAgentInspectionTurns({
             const crashSummary = (lastRunEvidence?.crashes || []).slice(0, 2).join(' | ')
                 || (lastRunEvidence?.diagnostics?.buildFailure?.errors || []).slice(0, 2).join(' | ')
                 || 'build or sandbox checks still failing';
-            // DIAGNOSTIC (split-file 3D): dump generated scene.ts/mechanics.ts on failure so we can
-            // see exactly how the model accessed `state`. Ephemeral storage is gone after this throw.
+            // DIAGNOSTIC (single-file 3D): on failure, dump the TODO/function + state lines of
+            // main.ts so we can see whether the model left a TODO unimplemented (e.g. setupScene
+            // never set refs.player). Ephemeral storage is gone after this throw.
             try {
                 const _tplId = templateContract?.templateId || templateContract?.foundation?.foundationId || '';
                 const _lane = String(templateContract?.foundation?.lane || '').toLowerCase();
                 const _isThree = _tplId === 'threejs-kernel' || _lane.includes('threejs') || _lane.includes('runner') || _lane.includes('racer');
                 if (_isThree) {
-                    for (const _f of ['src/scene.ts', 'src/mechanics.ts']) {
-                        try {
-                            const _src = await fs.promises.readFile(path.join(projectRoot, _f), 'utf8');
-                            const _stateLines = _src.split('\n')
-                                .map((l, i) => ({ n: i + 1, l }))
-                                .filter((o) => /\bstate\b|\brefs\b|\bimport\b/.test(o.l))
-                                .map((o) => `  ${o.n}: ${o.l.trim()}`)
-                                .join('\n');
-                            console.error(`🔬 [3D DIAG job=${jobId}] ${_f} (${_src.length} chars) — state/refs/import lines:\n${_stateLines}`);
-                        } catch (_e) {
-                            console.error(`🔬 [3D DIAG job=${jobId}] could not read ${_f}: ${_e.message}`);
-                        }
+                    try {
+                        const _src = await fs.promises.readFile(path.join(projectRoot, 'src/main.ts'), 'utf8');
+                        const _todoCount = (_src.match(/TODO Phase 2/g) || []).length;
+                        const _lines = _src.split('\n')
+                            .map((l, i) => ({ n: i + 1, l }))
+                            .filter((o) => /\bfunction (setupScene|createObstacle|movePlayer|checkCollisions|updateCamera|buildTrack|spawnRivals|steerCar|checkLapProgress)\b|refs\.player\s*=|TODO Phase 2|\bimport .* from '\.\/(scene|mechanics)/.test(o.l))
+                            .map((o) => `  ${o.n}: ${o.l.trim()}`)
+                            .join('\n');
+                        console.error(`🔬 [3D DIAG job=${jobId}] src/main.ts (${_src.length} chars, ${_todoCount} unimplemented TODO Phase 2 left) — key lines:\n${_lines}`);
+                    } catch (_e) {
+                        console.error(`🔬 [3D DIAG job=${jobId}] could not read src/main.ts: ${_e.message}`);
                     }
                 }
             } catch (_diagErr) { /* diagnostic only — never block the real throw */ }
@@ -5525,8 +5525,7 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
         const root = makerProject.projectRoot;
         const wanted = [
             'src/main.ts', 'index.html', 'src/styles.css', 'src/assetKeys.ts',
-            // For threejs-kernel structured lanes (runner/racer) — missing files are silently skipped
-            ...(templateId === 'threejs-kernel' ? ['src/scene.ts', 'src/mechanics.ts'] : []),
+            // 3D is single-file (everything in main.ts) — no scene.ts/mechanics.ts.
         ];
         const files = [];
         for (const rel of wanted) {

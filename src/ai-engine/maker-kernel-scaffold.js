@@ -42,8 +42,9 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         files.push({ path: 'index.html', content: generatedIndex });
     }
 
-    // For structured 3D lanes (runner, racer) inject scene.ts + mechanics.ts stubs.
-    // These are the only files Phase 2 writes — main.ts is pre-wired and read-only for those lanes.
+    // Single-file 3D: buildThreeExtraFiles() returns [] (no scene.ts/mechanics.ts).
+    // The whole game lives in main.ts — kept as a call site in case extra read-only
+    // helpers are ever reintroduced, but never splits gameplay across files.
     if (use3D) {
         const extraFiles = buildThreeExtraFiles(foundation, qualityIntent);
         for (const ef of extraFiles) {
@@ -53,18 +54,12 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         }
     }
 
-    const isRunner = String(foundation?.lane || '').toLowerCase().match(/runner|surfer|dash/);
-    const isRacer  = String(foundation?.lane || '').toLowerCase().match(/racer|racing|kart/);
-    const agentOwnsFiles = use3D && (isRunner || isRacer)
-        ? 'src/scene.ts and src/mechanics.ts'
-        : 'main.ts, styles.css, and index.html structure';
-
     return {
         templateId,
         source: 'gametok-dynamic-kernel-scaffold',
         foundationId: foundation.foundationId || null,
         rule: use3D
-            ? `Kernel files (bootstrap, assetLoader, threeAssets, types) are read-only. Phase 2 agent owns ${agentOwnsFiles}. createThreeStage() owns renderer/camera/lights/resize — extend it, never delete it.`
+            ? 'Kernel files (bootstrap, assetLoader, threeAssets, types) are read-only. Phase 2 agent owns the entire game in src/main.ts (single file — state, refs, loop, probe are pre-wired; fill the TODO functions in place). createThreeStage() owns renderer/camera/lights/resize — extend it, never delete it.'
             : 'Kernel files (bootstrap, assetLoader, types) are read-only. Phase 2 agent owns main.ts, styles.css, and index.html structure.',
         files,
     };

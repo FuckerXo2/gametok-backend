@@ -47,10 +47,12 @@ const IMPLEMENT_ASSET_KEY_BONUS_STEP = Math.max(
     4,
     Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_ASSET_BONUS_STEP || 5),
 );
+// Single-file architecture (2D and 3D): the model only ever edits main.ts + styles.css.
+// Blocking everything else actively steers the model back into one file — it cannot
+// reliably wire an invisible multi-file contract (it puts movePlayer in scene.ts while
+// main.ts imports it from mechanics.ts). One scope = state can never be undefined.
 const IMPLEMENT_EDIT_PATHS = new Set([
     'src/main.ts', 'src/styles.css',
-    // Split-file 3D lanes (runner/racer) write these instead of main.ts
-    'src/scene.ts', 'src/mechanics.ts',
 ]);
 const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
     2000,

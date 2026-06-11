@@ -249,10 +249,10 @@ export function buildThreeDRulesBlock(foundation = null) {
         '- Keep window.__GAMETOK_TEMPLATE_PROBE__ working: snapshot must keep reporting renderCalls/triangles from renderer.info plus the game state — the sandbox uses renderCalls > 0 as render proof.',
         '- DOM HUD (#hud) on top of the canvas for score/meters per the uiKit — never render text with Three.js geometry.',
         ...(lane.includes('runner') || lane.includes('surfer') || lane.includes('dash') ? [
-            '- RUNNER SPLIT FILES: main.ts is FULLY PRE-WIRED — DO NOT READ OR MODIFY IT. Your entire job is two files only: (1) src/scene.ts — implement setupScene(scene, camera) to build the themed player character, ground, obstacles environment, and fog; implement createObstacle(scene, playerZ) to spawn and return one themed obstacle mesh; set refs.player to the player Group. (2) src/mechanics.ts — implement movePlayer(state, dt) to steer+advance the player via refs.player, checkCollisions(state) for AABB hit detection setting state.gameOver=true, and updateCamera(camera, state) for the chase cam. Write BOTH files in full in ONE pass using write_file. Flat colors only — BoxGeometry/CylinderGeometry/ConeGeometry/SphereGeometry with MeshLambertMaterial hex strings. No getDreamTexture.',
+            '- RUNNER (SINGLE FILE): everything lives in src/main.ts — state, refs, loop, and probe are PRE-WIRED. Your ONLY job is to fill in the FIVE functions marked "TODO Phase 2" in place: setupScene() (build themed ground/slope + player Group, set refs.player, set scene.fog), createObstacle(playerZ) (build + return ONE themed obstacle mesh), movePlayer(dt) (steer+advance refs.player via state.targetX/playerX/playerZ), checkCollisions() (AABB Box3 player vs each obstacle in state.obstacles, set state.gameOver=true), updateCamera() (chase cam). These functions share the same scope as state/refs/scene/camera — NEVER add imports, NEVER redeclare state, NEVER split into other files. Keep the pre-wired state/input/loop/probe exactly. Flat colors only — BoxGeometry/CylinderGeometry/ConeGeometry/SphereGeometry with MeshLambertMaterial hex strings. No getDreamTexture.',
         ] : []),
         ...(lane.includes('racer') || lane.includes('racing') || lane.includes('kart') ? [
-            '- RACER SPLIT FILES: main.ts is FULLY PRE-WIRED — DO NOT READ OR MODIFY IT. Your job is two files only: (1) src/scene.ts — implement setupScene(scene, camera) for track, car, barriers, grandstands; set refs.car to the car Group; implement spawnRivals(scene) to create 2-3 rival cars and push into refs.rivals. (2) src/mechanics.ts — implement steerCar(state, dt), checkLapProgress(state), and updateCamera(camera, state). Write BOTH files in full in ONE pass using write_file. Flat colors only.',
+            '- RACER (SINGLE FILE): everything lives in src/main.ts — state, loop, and probe are PRE-WIRED. Fill in the TODO functions in place: buildTrack() (road/barriers), spawnRivals() (2-3 rival car meshes), steerCar(dt) (accelerate/brake + rotate + move the car), checkLapProgress() (checkpoints → state.score). They share scope with state/scene/camera — NEVER add imports, NEVER redeclare state, NEVER split into other files. Keep the pre-wired loop/probe exactly. Flat colors only.',
         ] : []),
     ].join('\n');
 }
@@ -296,106 +296,15 @@ export function buildMakerAgentImplementPrompt({
     userMedia = null,
 } = {}) {
     const foundation = templateContract?.foundation || null;
-    const lane = String(foundation?.lane || '').toLowerCase();
-    const isRunnerLane = lane.includes('runner') || lane.includes('surfer') || lane.includes('dash');
-    const isRacerLane  = lane.includes('racer')  || lane.includes('racing')  || lane.includes('kart');
-    const isSplitFileLane = isRunnerLane || isRacerLane;
 
     const mainTs = pickProjectFileContent(projectFiles, 'src/main.ts', MAKER_IMPLEMENT_MAIN_TS_CHARS);
     const stylesCss = pickProjectFileContent(projectFiles, 'src/styles.css', 4000);
-    const sceneTs = pickProjectFileContent(projectFiles, 'src/scene.ts', 8000);
-    const mechanicsTs = pickProjectFileContent(projectFiles, 'src/mechanics.ts', 6000);
     const gdd = String(designBrief || '');
     const gddBody = gdd.length <= MAKER_IMPLEMENT_GDD_CHARS
         ? gdd
         : `${gdd.slice(0, MAKER_IMPLEMENT_GDD_CHARS)}\n\n/* GDD truncated for implement pass (${gdd.length} chars total). Section 3 entity architecture above is authoritative. */`;
 
-    // ── SPLIT-FILE LANE (runner / racer): completely different prompt shape ──
-    if (isSplitFileLane) {
-        const fileLabel = isRunnerLane ? 'runner' : 'racer';
-        return [
-            `You are the GameTok Phase 2 implement agent for a 3D ${fileLabel} game.`,
-            '',
-            '╔══════════════════════════════════════════════════════════════════╗',
-            '║  YOUR ENTIRE JOB = write TWO FILES, then call finish_inspection  ║',
-            '╚══════════════════════════════════════════════════════════════════╝',
-            '',
-            '  FILE 1: src/scene.ts  — geometry, characters, environment',
-            '  FILE 2: src/mechanics.ts  — movement, collision, camera',
-            '',
-            '  main.ts is FULLY PRE-WIRED. DO NOT READ IT. DO NOT TOUCH IT.',
-            '  NEVER call read_file on src/main.ts. It is protected. Your writes there are ignored.',
-            '',
-            'STEP-BY-STEP PLAN — follow in this exact order:',
-            '  1. Write src/scene.ts in one write_file call (complete implementation, no TODOs).',
-            '  2. Write src/mechanics.ts in one write_file call (complete implementation, no TODOs).',
-            '  3. Call finish_inspection.',
-            '  That is ALL. No other files need editing.',
-            '',
-            'RULES FOR src/scene.ts:',
-            ...getMakerAgentToolInstructionLines(MAKER_AGENT_TURN_MODE_IMPLEMENT),
-            '- Export: const refs = { player: null as THREE.Object3D | null }',
-            '- Export: function setupScene(scene: THREE.Scene, camera: THREE.Camera): void',
-            '  → Build themed ground/slope, player character (Group of flat-color geometry), environment.',
-            '  → At the end: refs.player = playerGroup;  ← REQUIRED',
-            '  → Set scene.fog, scene.background color.',
-            isRunnerLane
-                ? '- Export: function createObstacle(scene: THREE.Scene, playerZ: number): THREE.Object3D | null'
-                : '- Export: function spawnRivals(scene: THREE.Scene): void  → push into refs.rivals array',
-            isRunnerLane
-                ? '  → Build ONE themed obstacle (tree = brown cylinder + green cone, rock = grey sphere, etc.).'
-                : '  → Build 2-3 rival car groups, colored differently, push into refs.rivals.',
-            '  → Flat colors ONLY: MeshLambertMaterial with hex string colors. NO getDreamTexture.',
-            '  → Geometry: BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, PlaneGeometry only.',
-            '',
-            'RULES FOR src/mechanics.ts:',
-            '- Import refs from "./scene.ts".',
-            isRunnerLane
-                ? '- Export: function movePlayer(state: any, dt: number): void  → steer refs.player via state.playerX/Z'
-                : '- Export: function steerCar(state: any, dt: number): void  → move refs.car by state.speed + steer angle',
-            '- Export: function checkCollisions(state: any): void  → AABB Box3 check, set state.gameOver=true on hit.',
-            '- Export: function updateCamera(camera: any, state: any): void  → smooth chase cam behind player.',
-            isRunnerLane
-                ? '- movePlayer: state.targetX += state.inputDir * 6 * dt/1000; lerp playerX to targetX 0.12; move refs.player.'
-                : '- steerCar: move refs.car forward, apply steer delta, clamp speed.',
-            '- checkCollisions: new THREE.Box3().setFromObject(refs.player) vs each obstacle in state.obstacles.',
-            '- updateCamera: camera.position lerp to (playerX * 0.6, 5, playerZ + 10); lookAt (playerX, 1, playerZ - 6).',
-            '',
-            buildThreeDRulesBlock(foundation),
-            '',
-            `Objective: ${objective || `Build the full 3D ${fileLabel} game by implementing src/scene.ts and src/mechanics.ts. main.ts is pre-wired and must not be touched.`}`,
-            '',
-            buildAllowedAssetKeysPromptBlock(allowedAssetKeys, assetSlotHints),
-            '',
-            buildUserMediaInstructionBlock(userMedia),
-            '',
-            'User prompt:',
-            prompt,
-            '',
-            'Playable intent:',
-            JSON.stringify({
-                title: qualityIntent.title || null,
-                playableExperience: qualityIntent.playableExperience || null,
-                primaryMechanic: qualityIntent.primaryMechanic || qualityIntent.playerActions?.[0] || null,
-                mobileControls: qualityIntent.mobileControls || [],
-                mustExist: qualityIntent.mustExist || [],
-            }, null, 2),
-            '',
-            'Foundation contract (theme/style reference):',
-            JSON.stringify(summarizeFoundationForImplement(foundation), null, 2),
-            '',
-            'GDD (design reference):',
-            gddBody,
-            '',
-            '── Current src/scene.ts stub (REPLACE this with full implementation via write_file) ──',
-            JSON.stringify(sceneTs, null, 2),
-            '',
-            '── Current src/mechanics.ts stub (REPLACE this with full implementation via write_file) ──',
-            JSON.stringify(mechanicsTs, null, 2),
-        ].join('\n');
-    }
-
-    // ── Standard canvas-kernel / generic 3D prompt ──
+    // ── Standard canvas-kernel / single-file 3D prompt ──
     return [
         'You are the GameTok Phase 2 implement agent. Build the game incrementally — each tool call writes to the project on disk immediately.',
         '',
@@ -484,39 +393,32 @@ export function buildMakerAgentInspectionPrompt({
             : truncatePromptText(designBrief, MAKER_IMPLEMENT_GDD_CHARS, 'GDD'))
         : truncatePromptText(designBrief, MAKER_REPAIR_GDD_CHARS, 'GDD');
     const _inspLane = String(templateContract?.foundation?.lane || '').toLowerCase();
-    const _isSplitLane = _inspLane.includes('runner') || _inspLane.includes('surfer') || _inspLane.includes('dash') ||
-        _inspLane.includes('racer') || _inspLane.includes('racing') || _inspLane.includes('kart');
+    const _inspTpl = String(templateContract?.templateId || templateContract?.foundation?.foundationId || '').toLowerCase();
+    const _is3DLane = _inspTpl === 'threejs-kernel' || _inspLane.includes('threejs') || _inspLane.includes('voxel')
+        || _inspLane.includes('runner') || _inspLane.includes('surfer') || _inspLane.includes('dash')
+        || _inspLane.includes('racer') || _inspLane.includes('racing') || _inspLane.includes('kart');
 
-    // For split-file repair: include current scene.ts + mechanics.ts inline so the agent
-    // has all context without needing to call read_file (which triggers the read-loop bug).
-    const _splitSceneTs = _isSplitLane && repairMode
-        ? pickProjectFileContent(projectFiles, 'src/scene.ts', 10000)
-        : null;
-    const _splitMechanicsTs = _isSplitLane && repairMode
-        ? pickProjectFileContent(projectFiles, 'src/mechanics.ts', 8000)
-        : null;
-    // Brief state-shape excerpt from main.ts so the agent knows the interface contract.
-    const _splitMainTsExcerpt = _isSplitLane && repairMode
-        ? pickProjectFileContent(projectFiles, 'src/main.ts', 3000)
+    // Single-file 3D repair: inline the whole main.ts so the agent has full context
+    // without calling read_file in a loop. Everything lives in this one file.
+    const _three3DMainTs = _is3DLane && repairMode
+        ? pickProjectFileContent(projectFiles, 'src/main.ts', 16000)
         : null;
 
     return [
         ...(implementMode ? [getMakerSystemManualBlock('fileAgent'), ''] : []),
         'You are the GameTok native maker file agent.',
         '',
-        ...(_isSplitLane ? [
+        ...(_is3DLane ? [
             '╔══════════════════════════════════════════════════════════════════╗',
-            '║  SPLIT-FILE 3D LANE: write ONLY src/scene.ts + src/mechanics.ts ║',
+            '║  SINGLE-FILE 3D: the entire game is one file — src/main.ts      ║',
             '╚══════════════════════════════════════════════════════════════════╝',
-            'main.ts is FULLY PRE-WIRED. DO NOT READ OR MODIFY src/main.ts.',
-            'Your ONLY editable files are src/scene.ts and src/mechanics.ts.',
+            'state, refs, the game loop, and the probe are ALL pre-wired in src/main.ts.',
+            'Fix the game-logic functions IN PLACE. Do NOT create src/scene.ts or src/mechanics.ts.',
+            'NEVER add imports for state/refs — they are in the same file scope. NEVER redeclare state.',
             ...(repairMode ? [
-                'ALL FILE CONTENTS ARE SHOWN BELOW — do NOT call read_file. Skip straight to apply_patch or write_file.',
-                'COMMON BUG: never import { state } or anything from main.ts — state is passed as a PARAMETER.',
-                'COMMON BUG: checkCollisions(state) receives state from main.ts — use the parameter, never import it.',
-            ] : [
-                'Write both files completely (no TODOs), then call finish_inspection.',
-            ]),
+                'The full src/main.ts is shown below — do NOT read_file it again. Go straight to apply_patch.',
+                'If a mesh is undefined, the most likely cause is an unimplemented TODO function (setupScene must set refs.player; createObstacle must return a mesh).',
+            ] : []),
             '',
         ] : []),
         ...(implementMode ? [
@@ -649,17 +551,11 @@ export function buildMakerAgentInspectionPrompt({
             null,
             2,
         ),
-        // Split-file repair: inline current file contents so the agent skips read_file entirely.
-        ...(_isSplitLane && repairMode ? [
+        // Single-file 3D repair: inline the whole main.ts so the agent skips read_file entirely.
+        ...(_is3DLane && repairMode ? [
             '',
-            '── CURRENT src/scene.ts (fix this — apply_patch or write_file) ──',
-            _splitSceneTs ? _splitSceneTs.content : '(not found)',
-            '',
-            '── CURRENT src/mechanics.ts (fix this — apply_patch or write_file) ──',
-            _splitMechanicsTs ? _splitMechanicsTs.content : '(not found)',
-            '',
-            '── src/main.ts state shape + call sites (READ-ONLY reference — do NOT edit) ──',
-            _splitMainTsExcerpt ? _splitMainTsExcerpt.content : '(not found)',
+            '── CURRENT src/main.ts (the entire game — fix the TODO/broken functions in place via apply_patch) ──',
+            _three3DMainTs ? _three3DMainTs.content : '(not found)',
         ] : []),
     ].join('\n');
 }
