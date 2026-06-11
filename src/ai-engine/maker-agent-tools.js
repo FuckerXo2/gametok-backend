@@ -47,7 +47,11 @@ const IMPLEMENT_ASSET_KEY_BONUS_STEP = Math.max(
     4,
     Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_ASSET_BONUS_STEP || 5),
 );
-const IMPLEMENT_EDIT_PATHS = new Set(['src/main.ts', 'src/styles.css']);
+const IMPLEMENT_EDIT_PATHS = new Set([
+    'src/main.ts', 'src/styles.css',
+    // Split-file 3D lanes (runner/racer) write these instead of main.ts
+    'src/scene.ts', 'src/mechanics.ts',
+]);
 const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
     2000,
     Math.min(12000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 6000)),
