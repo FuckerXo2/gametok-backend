@@ -86,17 +86,13 @@ export function buildThreeMainTsStubFromFoundation(foundation = {}, qualityInten
     return `// @ts-nocheck
 // GameTok 3D foundation stub — Phase 2 file agent: implement the full game loop below.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'threejs_world'}) — camera rig: ${cameraRig}
-// Kernel rules: createThreeStage() owns renderer/camera/lights/resize — extend, never delete.
-// Geometry is code-built (boxes, planes, buildVoxelField). FLUX images skin it via threeAssets helpers.
+// Kernel rules: createThreeStage() owns renderer/camera/lights/sky/resize — extend, never delete.
+// Geometry is code-built (boxes, planes, buildVoxelField) and FLAT-COLORED — no image textures.
 ${implNotes}
 import './styles.css';
 import * as THREE from 'three';
 import {
   createThreeStage,
-  applySkybox,
-  getDreamTexture,
-  getTileTexture,
-  makeBillboard,
   buildVoxelField,
 } from './threeAssets.ts';
 
@@ -115,13 +111,10 @@ ${useHud ? `const hud = {
 ${hudRefs}
 };` : '// Phase 2: design minimal game-specific HUD in #hud (see foundation hudDesign).'}
 
-applySkybox(scene, 'skybox');
-
-// Ground plane — tile-textured when the artist made a ground/texture asset.
-const groundTexture = getTileTexture('texture', 16, 16) || getTileTexture('ground', 16, 16);
+// Sky is set by createThreeStage(); the ground is a flat-colored plane.
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(120, 120),
-  new THREE.MeshLambertMaterial(groundTexture ? { map: groundTexture } : { color: '#6fae5c' }),
+  new THREE.MeshLambertMaterial({ color: '#6fae5c' }),
 );
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);

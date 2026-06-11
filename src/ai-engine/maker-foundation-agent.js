@@ -62,7 +62,7 @@ You MUST output ONLY raw JSON.
 Rules:
 - dimension: HONOR the Phase 1 spec's dimension — it already decided 2D vs 3D from the idea's real reference form. If Phase 1 says 3D (or the idea is clearly a behind-the-character runner like Subway Surfers/Temple Run, first-person, voxel/Minecraft-style, or driving/racing with depth), set dimension "3D", engine "threejs", and a 3D lane: "threejs_world" (general), "voxel_world" (blocky/Minecraft-style), "threejs_runner" (behind-character runner / driver), or "threejs_first_person". Do NOT downgrade a 3D idea to 2D. Flat/top-down/side-view ideas stay 2D.
 - For 3D foundations also set cameraRig: "first_person" | "third_person_chase" | "orbit" | "fixed_angle". Geometry is CODE-BUILT (boxes, planes, instanced voxel fields) — never request 3D models as assets.
-- 3D assetSlots use these types: "texture" (square 1024x1024 seamless tileable surface skin — ground, blocks, walls; flat lighting, no shadows, no perspective), "skybox" (wide 1344x768 panoramic sky/horizon strip, no foreground objects), "billboard" (single isolated object/character on plain background, used as a camera-facing sprite). Plus normal "background" art is NOT required for 3D — the skybox replaces it.
+- 3D foundations use FLAT-COLORED code geometry only (Crossy Road style): every surface is a hex color on a box/plane/voxel, distinguished by color + shape. Leave "assetSlots" EMPTY for 3D — no textures, no skyboxes, no billboards, no background art. The artist agent does not run for 3D. Define the look through the "palette" in artDirection instead. (Audio/BGM still applies.)
 - 3D scope guard: one compact polished world (a small voxel island, one track loop, one arena) — never an open world. Keep entity counts phone-friendly.
 - Design one polished vertical slice, not an impossible MMO.
 - requiredFunctions must be real exported/game-level functions the file agent can implement in src/main.ts.
@@ -70,7 +70,7 @@ Rules:
 - firstFrame must guarantee visible background + gameplay subject + HUD/affordance on boot (never a blank canvas).
 - assetSlots are the ONLY list the artist agent will generate. Translate Phase 1 visualAssets (player, enemies, items, backgrounds, props) into concrete assetSlots with matching ids when possible.
 - Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
-- background assetSlot is REQUIRED for every game: vivid portrait environment art (768x1344), scene-specific to the prompt, premium App Store mobile game quality — not abstract color fields.
+- background assetSlot is REQUIRED for every 2D game: vivid portrait environment art (768x1344), scene-specific to the prompt, premium App Store mobile game quality — not abstract color fields. (3D games skip this — their sky/ground are code-colored.)
 - assetSlots for ingredients/items must share palette, line weight, and style with the background artDirection.
 - Do not rely on Phase 1 visualAssets being generated separately — if the game needs an image, it must appear in assetSlots.
 - acceptanceChecks must be testable in a headless sandbox within 10 seconds.
@@ -250,6 +250,10 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
 
     const assetSlots = asArray(source.assetSlots);
     const entityBlueprints = asArray(source.entityBlueprints);
+    // 3D games are built from flat-colored code geometry — no FLUX image assets at all.
+    const is3DFoundation = asString(source.dimension, qualityIntent.technicalRequirements?.dimension || '2D').toUpperCase() === '3D'
+        || asString(source.lane, '').toLowerCase().includes('threejs')
+        || asString(source.lane, '').toLowerCase().includes('voxel_world');
 
     const merged = mergeCompositionGuidance({
         version: 1,
@@ -288,7 +292,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
             : ['Core loop responds to input within 10 seconds'],
         antiPatterns: asArray(source.antiPatterns),
         implementationNotes: asArray(source.implementationNotes),
-        assetSlots: assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints),
+        assetSlots: is3DFoundation ? [] : (assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints)),
         statusCopy: asString(source.statusCopy, 'Tap to play!'),
         userIntent: qualityIntent.userIntent || null,
     });
@@ -565,6 +569,21 @@ export function buildMakerAssetContractFromFoundation(foundation = {}, qualityIn
     const is3D = String(foundation.dimension || '').toUpperCase() === '3D'
         || String(foundation.lane || '').toLowerCase().includes('threejs')
         || String(foundation.lane || '').toLowerCase().includes('voxel_world');
+    // 3D games render flat-colored code geometry — NO FLUX image assets. Returning zero
+    // image slots makes the artist phase skip entirely (it's gated on slots.length > 0).
+    if (is3D) {
+        return {
+            version: 1,
+            templateId: 'threejs-kernel',
+            sourceOfTruth: 'code-built flat-colored geometry (no generated image assets)',
+            hardRules: [
+                '3D worlds are built from code geometry (boxes, planes, voxels) with FLAT hex colors — there are NO generated image textures.',
+                'Distinguish entities by color + shape; HUD, text, controls, and meters are code-rendered DOM only.',
+                'Gameplay geometry, hitboxes, and colors are all code-defined.',
+            ],
+            slots: [],
+        };
+    }
     const slots = [];
     let scenerySlotSeen = false;
     for (const rawSlot of asArray(foundation.assetSlots)) {

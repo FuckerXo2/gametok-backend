@@ -144,7 +144,9 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog('#9bbbd4', 30, 90);
+  // Code-colored sky (no image skybox in GameTok 3D) + matching distance fog.
+  scene.background = new THREE.Color('#aacbe8');
+  scene.fog = new THREE.Fog('#aacbe8', 30, 90);
 
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
   camera.position.set(0, 4, 8);
