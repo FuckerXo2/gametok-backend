@@ -5501,7 +5501,11 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
     try {
         if (!jobId || !makerProject?.projectRoot) return;
         const root = makerProject.projectRoot;
-        const wanted = ['src/main.ts', 'index.html', 'src/styles.css', 'src/assetKeys.ts'];
+        const wanted = [
+            'src/main.ts', 'index.html', 'src/styles.css', 'src/assetKeys.ts',
+            // For threejs-kernel structured lanes (runner/racer) — missing files are silently skipped
+            ...(templateId === 'threejs-kernel' ? ['src/scene.ts', 'src/mechanics.ts'] : []),
+        ];
         const files = [];
         for (const rel of wanted) {
             try {

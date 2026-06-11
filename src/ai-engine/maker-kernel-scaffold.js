@@ -3,7 +3,7 @@ import {
     buildIndexHtmlFromFoundation,
     buildMainTsStubFromFoundation,
 } from './maker-foundation-agent.js';
-import { buildThreeMainTsStubFromFoundation, isThreeFoundation } from './maker-threejs-stub.js';
+import { buildThreeMainTsStubFromFoundation, buildThreeExtraFiles, isThreeFoundation } from './maker-threejs-stub.js';
 import { validateFoundationStubSources } from './maker-foundation-stub-validator.js';
 
 export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
@@ -42,12 +42,29 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         files.push({ path: 'index.html', content: generatedIndex });
     }
 
+    // For structured 3D lanes (runner, racer) inject scene.ts + mechanics.ts stubs.
+    // These are the only files Phase 2 writes — main.ts is pre-wired and read-only for those lanes.
+    if (use3D) {
+        const extraFiles = buildThreeExtraFiles(foundation, qualityIntent);
+        for (const ef of extraFiles) {
+            if (!files.some((f) => f.path === ef.path)) {
+                files.push(ef);
+            }
+        }
+    }
+
+    const isRunner = String(foundation?.lane || '').toLowerCase().match(/runner|surfer|dash/);
+    const isRacer  = String(foundation?.lane || '').toLowerCase().match(/racer|racing|kart/);
+    const agentOwnsFiles = use3D && (isRunner || isRacer)
+        ? 'src/scene.ts and src/mechanics.ts'
+        : 'main.ts, styles.css, and index.html structure';
+
     return {
         templateId,
         source: 'gametok-dynamic-kernel-scaffold',
         foundationId: foundation.foundationId || null,
         rule: use3D
-            ? 'Kernel files (bootstrap, assetLoader, threeAssets, types) are read-only. Phase 2 agent owns main.ts, styles.css, and index.html structure. createThreeStage() owns renderer/camera/lights/resize — extend it, never delete it.'
+            ? `Kernel files (bootstrap, assetLoader, threeAssets, types) are read-only. Phase 2 agent owns ${agentOwnsFiles}. createThreeStage() owns renderer/camera/lights/resize — extend it, never delete it.`
             : 'Kernel files (bootstrap, assetLoader, types) are read-only. Phase 2 agent owns main.ts, styles.css, and index.html structure.',
         files,
     };

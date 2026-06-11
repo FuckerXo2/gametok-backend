@@ -65,7 +65,7 @@ export function buildThreeMainTsStubFromFoundation(foundation = {}, qualityInten
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RUNNER skeleton (subway surfers, snowboard, endless runner, etc.)
-// AI fills in: spawnObstacle(), movePlayer(), checkCollisions(), updateCamera()
+// main.ts is fully pre-wired. AI writes ONLY src/scene.ts + src/mechanics.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 function buildRunnerStub({ foundation, lane, cameraRig, statusCopy, implNotes, extraProbeStr, jsString }) {
     const hudBlocks = [];
@@ -86,14 +86,16 @@ function buildRunnerStub({ foundation, lane, cameraRig, statusCopy, implNotes, e
         .join('\n');
 
     return `// @ts-nocheck
-// GameTok 3D runner stub — Phase 2: implement the 4 game-specific functions below.
+// GameTok 3D runner — main.ts is FULLY PRE-WIRED. DO NOT MODIFY THIS FILE.
 // Foundation: ${foundation.foundationId || 'dynamic'} (${lane}) — camera: ${cameraRig}
-// Kernel rules: createThreeStage() owns renderer/camera/lights/resize — never delete.
-// ALL geometry is code-built with flat colors. No external image loading needed.
+// Phase 2: write src/scene.ts (setupScene, createObstacle, refs) and
+//          src/mechanics.ts (movePlayer, checkCollisions, updateCamera) only.
 ${implNotes}
 import './styles.css';
 import * as THREE from 'three';
-import { createThreeStage, buildVoxelField } from './threeAssets.ts';
+import { createThreeStage } from './threeAssets.ts';
+import { refs, setupScene, createObstacle } from './scene.ts';
+import { movePlayer, checkCollisions, updateCamera } from './mechanics.ts';
 
 // ─── KERNEL SETUP ────────────────────────────────────────────────────────────
 const canvasEl = document.getElementById('game-canvas');
@@ -103,31 +105,14 @@ const renderer = stage.renderer;
 const scene = stage.scene;
 const camera = stage.camera;
 
-// ─── HUD ────────────────────────────────────────────────────────────────────
+// ─── HUD ─────────────────────────────────────────────────────────────────────
 const statusLine = document.getElementById('status-line');
 const hud = {
   score: document.getElementById('score-value'),
 ${extraHudRefs}
 };
 
-// ─── GROUND (Phase 2 may replace color/geometry to fit theme) ───────────────
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(20, 1000),
-  new THREE.MeshLambertMaterial({ color: '#e8f4f8' }),
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.z = -490;
-scene.add(ground);
-
-// ─── PLAYER (Phase 2 resizes/recolors to match game theme) ──────────────────
-const player = new THREE.Mesh(
-  new THREE.BoxGeometry(0.6, 0.9, 1.0),
-  new THREE.MeshLambertMaterial({ color: '#38bdf8' }),
-);
-player.position.set(0, 0.45, 0);
-scene.add(player);
-
-// ─── GAME STATE ──────────────────────────────────────────────────────────────
+// ─── GAME STATE ───────────────────────────────────────────────────────────────
 const state = {
   score: 0,
   gameOver: false,
@@ -147,16 +132,16 @@ const state = {
 let _touchX = 0;
 window.addEventListener('touchstart', (e) => {
   _touchX = e.touches[0].clientX;
-  if (!state.started && !state.gameOver) { state.started = true; }
+  if (!state.started && !state.gameOver) state.started = true;
 }, { passive: true });
 window.addEventListener('touchmove', (e) => {
   const dx = e.touches[0].clientX - _touchX;
   state.inputDir = dx > 18 ? 1 : dx < -18 ? -1 : 0;
 }, { passive: true });
-window.addEventListener('touchend', () => { state.inputDir = 0; touchX = 0; }, { passive: true });
+window.addEventListener('touchend', () => { state.inputDir = 0; _touchX = 0; }, { passive: true });
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft'  || e.key === 'a') { state.inputDir = -1; }
-  if (e.key === 'ArrowRight' || e.key === 'd') { state.inputDir =  1; }
+  if (e.key === 'ArrowLeft'  || e.key === 'a') state.inputDir = -1;
+  if (e.key === 'ArrowRight' || e.key === 'd') state.inputDir =  1;
   if (!state.started && !state.gameOver) state.started = true;
 });
 window.addEventListener('keyup', (e) => {
@@ -164,66 +149,11 @@ window.addEventListener('keyup', (e) => {
 });
 window.addEventListener('pointerdown', () => { if (state.gameOver) resetGame(); });
 
-// ════════════════════════════════════════════════════════════════════════════
-//  ↓↓↓  Phase 2 agent: implement ONLY these 4 functions  ↓↓↓
-// ════════════════════════════════════════════════════════════════════════════
+// ─── SCENE INIT ──────────────────────────────────────────────────────────────
+// scene.ts: setupScene() builds player, ground, environment; sets refs.player.
+setupScene(scene, camera);
 
-/**
- * Spawn one obstacle ahead of the player.
- * Must push the new mesh into state.obstacles[].
- * Position it at playerZ - 45 to -65, random X in track width.
- */
-export function spawnObstacle() {
-  // TODO Phase 2: create obstacle mesh (tree trunk = brown cylinder + green cone,
-  // rock = grey box, barrier = red/white box, etc. — flat colors only).
-  // Position: x in track, z = state.playerZ - (45 + Math.random() * 20)
-  // scene.add(mesh); state.obstacles.push(mesh);
-}
-
-/**
- * Move the player laterally (inputDir) and forward (speed).
- * dt is milliseconds since last frame.
- * Update state.playerX, state.playerZ, and player.position.
- */
-export function movePlayer(dt) {
-  // TODO Phase 2:
-  // const dtSec = dt / 1000;
-  // state.targetX += state.inputDir * 6 * dtSec;
-  // state.targetX = Math.max(-3.5, Math.min(3.5, state.targetX));
-  // state.playerX = THREE.MathUtils.lerp(state.playerX, state.targetX, 0.12);
-  // state.playerZ -= state.speed * dtSec;
-  // player.position.set(state.playerX, 0.45, state.playerZ);
-}
-
-/**
- * AABB collision: player vs each obstacle in state.obstacles[].
- * On hit: set state.gameOver = true.
- */
-export function checkCollisions() {
-  // TODO Phase 2:
-  // const pb = new THREE.Box3().setFromObject(player);
-  // for (const obs of state.obstacles) {
-  //   if (pb.intersectsBox(new THREE.Box3().setFromObject(obs))) {
-  //     state.gameOver = true; break;
-  //   }
-  // }
-}
-
-/**
- * Position the camera behind and above the player.
- * Called every frame after movePlayer().
- */
-export function updateCamera() {
-  // TODO Phase 2:
-  // camera.position.set(state.playerX * 0.6, 5, state.playerZ + 10);
-  // camera.lookAt(state.playerX, 1, state.playerZ - 6);
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  ↑↑↑  End of Phase 2 zone  ↑↑↑
-// ════════════════════════════════════════════════════════════════════════════
-
-// ─── GAME LOOP (pre-wired — do not modify) ───────────────────────────────────
+// ─── GAME LOOP (pre-wired — do not modify) ────────────────────────────────────
 export function stepGame(dt = 16) {
   if (!state.started || state.gameOver) return;
   const dtSec = dt / 1000;
@@ -231,7 +161,8 @@ export function stepGame(dt = 16) {
   state.speed = Math.min(28, 8 + state.score * 0.025);
   state.spawnTimer -= dtSec;
   if (state.spawnTimer <= 0) {
-    spawnObstacle();
+    const obs = createObstacle(scene, state.playerZ);
+    if (obs) state.obstacles.push(obs);
     state.spawnTimer = state.spawnInterval * (0.7 + Math.random() * 0.6);
     state.spawnInterval = Math.max(0.7, state.spawnInterval - 0.015);
   }
@@ -239,9 +170,9 @@ export function stepGame(dt = 16) {
     if (obs.position.z > state.playerZ + 8) { scene.remove(obs); obs.geometry?.dispose(); return false; }
     return true;
   });
-  movePlayer(dt);
-  checkCollisions();
-  updateCamera();
+  movePlayer(state, dt);
+  checkCollisions(state);
+  updateCamera(camera, state);
 }
 
 function syncHud() {
@@ -271,7 +202,7 @@ export function resetGame() {
   state.spawnInterval = 2.2;
   state.inputDir = 0;
   state.lastTick = performance.now();
-  player.position.set(0, 0.45, 0);
+  if (refs.player) refs.player.position.set(0, 0.45, 0);
   camera.position.set(0, 5, 10);
   camera.lookAt(0, 1, -6);
   renderAll();
@@ -590,4 +521,177 @@ ${extraProbeStr}
 renderAll();
 requestAnimationFrame(gameLoop);
 `;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Extra stub files injected alongside main.ts for structured lanes.
+// Returns [{ path, content }, ...] — empty array for generic lane.
+// ─────────────────────────────────────────────────────────────────────────────
+export function buildThreeExtraFiles(foundation = {}, qualityIntent = {}) {
+    const lane = String(foundation?.lane || '').toLowerCase();
+    const statusCopy = String(foundation?.statusCopy || 'Tap to play!');
+    const palette = Array.isArray(foundation?.palette) ? foundation.palette.join(', ') : '#38bdf8, #166534, #ffffff, #92400e';
+
+    const isRunner = lane.includes('runner') || lane.includes('surfer') || lane.includes('dash');
+    const isRacer  = lane.includes('racer')  || lane.includes('racing')  || lane.includes('kart');
+
+    if (!isRunner && !isRacer) return [];
+
+    if (isRunner) {
+        const sceneTs = `// @ts-nocheck
+// GameTok scene file — implement setupScene() and createObstacle() only.
+// Rules: flat-colored Three.js geometry only. No image textures. No getDreamTexture.
+// Palette hint: ${palette}
+import * as THREE from 'three';
+
+// Shared player reference — mechanics.ts reads this via refs.player
+export const refs = { player: null };
+
+/**
+ * Build the full scene: ground, player character, environment, fog.
+ * Called once on boot from main.ts before the game loop starts.
+ * @param {THREE.Scene} scene
+ * @param {THREE.Camera} camera
+ */
+export function setupScene(scene, camera) {
+  // TODO: implement the following —
+
+  // 1. Ground (snowy/grassy/road plane — match game theme)
+  //    const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 1000), new THREE.MeshLambertMaterial({ color: '#e8f4f8' }));
+  //    ground.rotation.x = -Math.PI / 2; ground.position.z = -490; scene.add(ground);
+
+  // 2. Player character — build as a THREE.Group of shaped geometry:
+  //    body, head, limbs, board/vehicle — sized and colored to match the game theme.
+  //    const group = new THREE.Group();
+  //    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), new THREE.MeshLambertMaterial({ color: '#3b82f6' }));
+  //    group.add(body); /* add head, board, etc */
+  //    group.position.set(0, 0.45, 0);
+  //    scene.add(group);
+  //    refs.player = group;  // ← REQUIRED: mechanics.ts needs this
+
+  // 3. Atmosphere — fog, sky hint, background elements
+  //    scene.fog = new THREE.Fog('#c8e6f5', 30, 120);
+  //    /* distant mountains, buildings, or scenery boxes behind the path */
+
+  // 4. Starting camera position (main.ts will update each frame via updateCamera)
+  //    camera.position.set(0, 5, 10); camera.lookAt(0, 1, -6);
+}
+
+/**
+ * Spawn one obstacle and return its root Object3D so main.ts can track/recycle it.
+ * Theme the obstacle to match the game (tree, rock, car, barrier, etc.).
+ * @param {THREE.Scene} scene
+ * @param {number} playerZ - current player Z, spawn ahead at playerZ - 45..65
+ * @returns {THREE.Object3D}
+ */
+export function createObstacle(scene, playerZ) {
+  // TODO: build obstacle geometry (pine tree, rock, barrier — flat colors).
+  // Example pine tree:
+  //   const g = new THREE.Group();
+  //   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.0), new THREE.MeshLambertMaterial({ color: '#92400e' }));
+  //   const top   = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.4, 7), new THREE.MeshLambertMaterial({ color: '#166534' }));
+  //   top.position.y = 1.1; g.add(trunk); g.add(top);
+  //   g.position.set((Math.random() - 0.5) * 7, 0, playerZ - 45 - Math.random() * 20);
+  //   scene.add(g); return g;
+  return null; // replace with actual implementation
+}
+`;
+
+        const mechanicsTs = `// @ts-nocheck
+// GameTok mechanics file — implement movePlayer, checkCollisions, updateCamera only.
+// Imports the shared player reference from scene.ts.
+import * as THREE from 'three';
+import { refs } from './scene.ts';
+
+/**
+ * Steer and advance the player. Mutates state directly.
+ * @param {object} state - shared game state from main.ts
+ * @param {number} dt - milliseconds since last frame
+ */
+export function movePlayer(state, dt) {
+  // TODO:
+  // const dtSec = dt / 1000;
+  // state.targetX += state.inputDir * 6 * dtSec;
+  // state.targetX = Math.max(-3.5, Math.min(3.5, state.targetX));
+  // state.playerX = THREE.MathUtils.lerp(state.playerX, state.targetX, 0.12);
+  // state.playerZ -= state.speed * dtSec;
+  // if (refs.player) refs.player.position.set(state.playerX, 0.45, state.playerZ);
+}
+
+/**
+ * AABB collision: player vs all obstacles in state.obstacles[].
+ * Sets state.gameOver = true on hit.
+ * @param {object} state
+ */
+export function checkCollisions(state) {
+  // TODO:
+  // if (!refs.player) return;
+  // const pb = new THREE.Box3().setFromObject(refs.player);
+  // for (const obs of state.obstacles) {
+  //   if (pb.intersectsBox(new THREE.Box3().setFromObject(obs))) {
+  //     state.gameOver = true; break;
+  //   }
+  // }
+}
+
+/**
+ * Third-person camera follow — smooth chase behind and above player.
+ * @param {THREE.Camera} camera
+ * @param {object} state
+ */
+export function updateCamera(camera, state) {
+  // TODO:
+  // camera.position.set(state.playerX * 0.6, 5, state.playerZ + 10);
+  // camera.lookAt(state.playerX, 1, state.playerZ - 6);
+}
+`;
+        return [
+            { path: 'src/scene.ts', content: sceneTs },
+            { path: 'src/mechanics.ts', content: mechanicsTs },
+        ];
+    }
+
+    if (isRacer) {
+        const sceneTs = `// @ts-nocheck
+// GameTok scene file — implement setupScene() and buildTrack() only.
+// Flat-colored Three.js geometry. No image textures.
+// Palette hint: ${palette}
+import * as THREE from 'three';
+export const refs = { car: null, rivals: [] };
+
+export function setupScene(scene, camera) {
+  // TODO: build ground, track surface, barriers, grandstands, skybox color.
+  // Build player car group, assign to refs.car.
+  // scene.fog = new THREE.Fog('#87ceeb', 60, 200);
+  // camera.position.set(0, 4, 8); camera.lookAt(0, 1, 0);
+}
+
+export function spawnRivals(scene) {
+  // TODO: create 2-3 rival car meshes (different colors), push into refs.rivals and scene.
+}
+`;
+        const mechanicsTs = `// @ts-nocheck
+// GameTok mechanics file — implement steerCar, checkLapProgress, updateCamera.
+import * as THREE from 'three';
+import { refs } from './scene.ts';
+
+export function steerCar(state, dt) {
+  // TODO: accelerate/brake state.speed, rotate car by steer, move forward.
+}
+
+export function checkLapProgress(state) {
+  // TODO: checkpoint detection, increment state.score / laps.
+}
+
+export function updateCamera(camera, state) {
+  // TODO: chase cam behind car — camera.position lerp toward car - facing * 8, height 4.
+}
+`;
+        return [
+            { path: 'src/scene.ts', content: sceneTs },
+            { path: 'src/mechanics.ts', content: mechanicsTs },
+        ];
+    }
+
+    return [];
 }
