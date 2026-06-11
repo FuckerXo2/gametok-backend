@@ -8,6 +8,10 @@ export const FACTORY_MINIMAL_BLOCKING_PREFLIGHT_IDS = new Set([
     'preflight_item_not_wired',
     'preflight_prop_not_wired',
     'preflight_obstacle_not_wired',
+    'preflight_threejs_phase2_todo_remaining',
+    'preflight_threejs_refs_obstacles_uninitialized',
+    'preflight_threejs_runner_required_functions_missing',
+    'preflight_threejs_runner_obstacle_state_missing',
 ]);
 
 export function isMakerFactoryMinimalMode() {

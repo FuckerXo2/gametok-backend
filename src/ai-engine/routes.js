@@ -3938,6 +3938,15 @@ function buildTargetedRepairTasks(sandboxDiagnostics = null) {
                 directRepairTask: `Required generated asset slots are not connected to gameplay renderers${missing ? `: ${missing}` : ''}.`,
                 repair: 'For each missing required slot, find the matching entry in DREAM_ASSET_PACK by role/key and render it through DreamAssets. Use the generated player/enemy/background assets before procedural placeholders.',
             });
+        } else if (String(check.id || '').startsWith('preflight_threejs_')) {
+            tasks.push({
+                priority: 'fatal',
+                source: 'threejs_survival_contract',
+                templateId: check.templateId || 'threejs-kernel',
+                failure: check.message || 'Three.js survival preflight failed.',
+                directRepairTask: check.message || 'Repair the threejs-kernel survival contract in src/main.ts.',
+                repair: check.repair || 'Patch src/main.ts so the Three.js game has no Phase 2 TODOs, initializes every read obstacle array, preserves runner functions, and uses one consistent obstacle state for spawn/collision/reset/probe.',
+            });
         } else if (String(check.id || '').startsWith('preflight_')) {
             tasks.push({
                 priority: check.severity === 'critical' ? 'fatal' : 'major',
@@ -4672,7 +4681,13 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             ...await readProjectAssetPackKeys(projectRoot),
             ...collectAllowedAssetPackKeys({ generatedAssets }),
         ])].sort();
-        let preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
+        let preflight = await runMakerPreflightChecks({
+            projectRoot,
+            generatedAssets,
+            assetContract,
+            templateContract,
+            foundationLane,
+        });
         await writeMakerJson(workspace, 'preflight-report.json', {
             phase,
             turnNumber,
@@ -4691,7 +4706,13 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             });
             if (preflightRepairs.length > 0) {
                 console.warn(`[Maker AutoRepair] Applied deterministic preflight fixes: ${preflightRepairs.map((entry) => `${entry.path}:${entry.type}${entry.keys ? `(${entry.keys.join(',')})` : ''}`).join(', ')}`);
-                preflight = await runMakerPreflightChecks({ projectRoot, generatedAssets, assetContract });
+                preflight = await runMakerPreflightChecks({
+                    projectRoot,
+                    generatedAssets,
+                    assetContract,
+                    templateContract,
+                    foundationLane,
+                });
                 await writeMakerJson(workspace, 'preflight-report-after-repair.json', {
                     phase,
                     turnNumber,

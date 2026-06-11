@@ -275,6 +275,98 @@ function topLevelObjectKeys(objectLiteral = '') {
     return keys;
 }
 
+function hasTopLevelObjectKey(source = '', markerRegex, key = '') {
+    const objectLiteral = extractBalancedObjectLiteral(source, markerRegex);
+    if (!objectLiteral) return false;
+    return topLevelObjectKeys(objectLiteral).has(key);
+}
+
+function hasCallableFunction(source = '', name = '') {
+    const escaped = String(name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\bfunction\\s+${escaped}\\s*\\(`).test(source)
+        || new RegExp(`\\b(?:const|let|var)\\s+${escaped}\\s*=\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>|[^=;\\n]+=>)`).test(source)
+        || new RegExp(`\\bexport\\s+function\\s+${escaped}\\s*\\(`).test(source);
+}
+
+function inferPreflightFoundationLane({ templateContract = null, assetContract = null, foundationLane = null } = {}) {
+    return String(
+        foundationLane
+        || templateContract?.foundation?.lane
+        || templateContract?.archetype
+        || templateContract?.lane
+        || assetContract?.foundation?.lane
+        || assetContract?.lane
+        || '',
+    ).toLowerCase();
+}
+
+function isThreeKernelSource(source = '', { templateContract = null, assetContract = null, foundationLane = null } = {}) {
+    const lane = inferPreflightFoundationLane({ templateContract, assetContract, foundationLane });
+    return templateContract?.templateId === 'threejs-kernel'
+        || assetContract?.templateId === 'threejs-kernel'
+        || String(templateContract?.engine || assetContract?.engine || '').toLowerCase() === 'threejs'
+        || lane.includes('threejs')
+        || lane.includes('voxel')
+        || /\bcreateThreeStage\s*\(|['"]\.\/threeAssets(?:\.ts)?['"]|from\s+['"]\.\/threeAssets/.test(source);
+}
+
+function isThreeRunnerLane(source = '', options = {}) {
+    const lane = inferPreflightFoundationLane(options);
+    return /runner|surfer|dash|snowboard|ski|slope/.test(lane)
+        || /GameTok 3D runner|setupScene\s*\(|createObstacle\s*\(|movePlayer\s*\(|checkCollisions\s*\(|updateCamera\s*\(/.test(source);
+}
+
+function collectThreeKernelSurvivalIssues(source = '', options = {}) {
+    const issues = [];
+    if (!source.trim() || !isThreeKernelSource(source, options)) return issues;
+
+    if (/TODO\s+Phase\s*2/i.test(source)) {
+        issues.push({
+            id: 'preflight_threejs_phase2_todo_remaining',
+            severity: 'critical',
+            message: 'threejs-kernel src/main.ts still contains TODO Phase 2 marker(s) in gameplay code.',
+            repair: 'Implement every remaining TODO Phase 2 section in src/main.ts before build/sandbox. Do not leave placeholder bodies in setup, movement, collision, camera, probe, or render paths.',
+        });
+    }
+
+    const refsObstaclesRead = /\brefs\.obstacles\b/.test(source);
+    const refsObstaclesInitialized = hasTopLevelObjectKey(source, /\b(?:const|let|var)\s+refs\s*=/g, 'obstacles');
+    if (refsObstaclesRead && !refsObstaclesInitialized) {
+        issues.push({
+            id: 'preflight_threejs_refs_obstacles_uninitialized',
+            severity: 'critical',
+            message: 'src/main.ts reads refs.obstacles, but the refs object does not initialize an obstacles property.',
+            repair: 'Either initialize refs.obstacles to [] in the refs object or replace refs.obstacles reads with the initialized obstacle array used by the game state, usually state.obstacles.',
+        });
+    }
+
+    if (!isThreeRunnerLane(source, options)) return issues;
+
+    const requiredRunnerFunctions = ['setupScene', 'createObstacle', 'movePlayer', 'checkCollisions', 'updateCamera'];
+    const missingFunctions = requiredRunnerFunctions.filter((fn) => !hasCallableFunction(source, fn));
+    if (missingFunctions.length > 0) {
+        issues.push({
+            id: 'preflight_threejs_runner_required_functions_missing',
+            severity: 'critical',
+            message: `threejs-kernel runner is missing required gameplay function(s): ${missingFunctions.join(', ')}.`,
+            missingKeys: missingFunctions,
+            repair: 'Restore the runner single-file contract in src/main.ts: implement setupScene, createObstacle, movePlayer, checkCollisions, and updateCamera with their original names/signatures.',
+        });
+    }
+
+    const stateObstaclesInitialized = hasTopLevelObjectKey(source, /\b(?:const|let|var)\s+state\s*=/g, 'obstacles');
+    if (!stateObstaclesInitialized && !refsObstaclesInitialized) {
+        issues.push({
+            id: 'preflight_threejs_runner_obstacle_state_missing',
+            severity: 'critical',
+            message: 'threejs-kernel runner has no initialized obstacle array on state.obstacles or refs.obstacles.',
+            repair: 'Initialize a runner obstacle array, preferably state.obstacles: [], and make spawning, cleanup, collision checks, reset, and probe snapshot use the same array.',
+        });
+    }
+
+    return issues;
+}
+
 function dedupeTopLevelObjectLiteral(objectLiteral = '') {
     const segments = splitTopLevelObjectSegments(objectLiteral);
     const seen = new Set();
@@ -709,7 +801,7 @@ function collectInheritedScenePropertyRedeclarations(projectSources = []) {
     return issues;
 }
 
-export async function runMakerPreflightChecks({ projectRoot, generatedAssets = null, assetContract = null } = {}) {
+export async function runMakerPreflightChecks({ projectRoot, generatedAssets = null, assetContract = null, templateContract = null, foundationLane = null } = {}) {
     const sourcePath = path.join(projectRoot || '', 'src', 'main.ts');
     const source = await readTextIfExists(sourcePath);
     const projectSources = await readProjectSources(projectRoot);
@@ -731,6 +823,12 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
             repair: 'Restore a complete src/main.ts implementation from the selected scaffold before running build or sandbox checks.',
         });
     }
+
+    issues.push(...collectThreeKernelSurvivalIssues(source, {
+        templateContract,
+        assetContract,
+        foundationLane,
+    }));
 
     const hasVisualAssets = generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0;
     if (hasVisualAssets && !localAssetPack) {
