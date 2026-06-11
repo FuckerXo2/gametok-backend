@@ -535,11 +535,8 @@ async function executeWriteFile(projectRoot, helpers, args = {}, { mode = MAKER_
         throw new Error(`write_file content exceeds ${maxChars} chars for ${cleanPath}`);
     }
 
-    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT) {
-        const allowedImplementPaths = new Set(['src/main.ts', 'src/styles.css']);
-        if (!allowedImplementPaths.has(cleanPath)) {
-            throw new Error(`implement mode write_file allowed only for src/main.ts or src/styles.css (got ${cleanPath})`);
-        }
+    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !IMPLEMENT_EDIT_PATHS.has(cleanPath)) {
+        throw new Error(`implement mode write_file allowed only for ${[...IMPLEMENT_EDIT_PATHS].join(', ')} (got ${cleanPath})`);
     }
 
     const { cleanPath: resolvedPath, absolutePath } = helpers.safeMakerProjectPath(projectRoot, filePath);

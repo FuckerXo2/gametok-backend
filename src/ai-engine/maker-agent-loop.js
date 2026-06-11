@@ -487,6 +487,19 @@ export function buildMakerAgentInspectionPrompt({
     const _isSplitLane = _inspLane.includes('runner') || _inspLane.includes('surfer') || _inspLane.includes('dash') ||
         _inspLane.includes('racer') || _inspLane.includes('racing') || _inspLane.includes('kart');
 
+    // For split-file repair: include current scene.ts + mechanics.ts inline so the agent
+    // has all context without needing to call read_file (which triggers the read-loop bug).
+    const _splitSceneTs = _isSplitLane && repairMode
+        ? pickProjectFileContent(projectFiles, 'src/scene.ts', 10000)
+        : null;
+    const _splitMechanicsTs = _isSplitLane && repairMode
+        ? pickProjectFileContent(projectFiles, 'src/mechanics.ts', 8000)
+        : null;
+    // Brief state-shape excerpt from main.ts so the agent knows the interface contract.
+    const _splitMainTsExcerpt = _isSplitLane && repairMode
+        ? pickProjectFileContent(projectFiles, 'src/main.ts', 3000)
+        : null;
+
     return [
         ...(implementMode ? [getMakerSystemManualBlock('fileAgent'), ''] : []),
         'You are the GameTok native maker file agent.',
@@ -497,7 +510,13 @@ export function buildMakerAgentInspectionPrompt({
             '╚══════════════════════════════════════════════════════════════════╝',
             'main.ts is FULLY PRE-WIRED. DO NOT READ OR MODIFY src/main.ts.',
             'Your ONLY editable files are src/scene.ts and src/mechanics.ts.',
-            'Write both files completely (no TODOs), then call finish_inspection.',
+            ...(repairMode ? [
+                'ALL FILE CONTENTS ARE SHOWN BELOW — do NOT call read_file. Skip straight to apply_patch or write_file.',
+                'COMMON BUG: never import { state } or anything from main.ts — state is passed as a PARAMETER.',
+                'COMMON BUG: checkCollisions(state) receives state from main.ts — use the parameter, never import it.',
+            ] : [
+                'Write both files completely (no TODOs), then call finish_inspection.',
+            ]),
             '',
         ] : []),
         ...(implementMode ? [
@@ -630,6 +649,18 @@ export function buildMakerAgentInspectionPrompt({
             null,
             2,
         ),
+        // Split-file repair: inline current file contents so the agent skips read_file entirely.
+        ...(_isSplitLane && repairMode ? [
+            '',
+            '── CURRENT src/scene.ts (fix this — apply_patch or write_file) ──',
+            _splitSceneTs ? _splitSceneTs.content : '(not found)',
+            '',
+            '── CURRENT src/mechanics.ts (fix this — apply_patch or write_file) ──',
+            _splitMechanicsTs ? _splitMechanicsTs.content : '(not found)',
+            '',
+            '── src/main.ts state shape + call sites (READ-ONLY reference — do NOT edit) ──',
+            _splitMainTsExcerpt ? _splitMainTsExcerpt.content : '(not found)',
+        ] : []),
     ].join('\n');
 }
 
