@@ -439,18 +439,62 @@ function __gtDrawGeneratedBackground(ctxRef, width, height) {
         }
     }
 
-    if (!/(__gtEnsureContractAssetsReferenced|__gtDrawGeneratedBackground)\s*\(\s*\)/.test(out)) {
-        out = out.replace(
-            /((?:export )?function renderAll\s*\(\)\s*\{)/,
-            '$1\n  __gtEnsureContractAssetsReferenced();',
-        );
-        out = out.replace(
-            /((?:export )?function renderAll\s*\(\)\s*\{[\s\S]*?ctx\.clearRect\([^)]*\);\s*)/,
-            (match) => `${match}  drawBackground();\n`,
-        );
-    }
+    out = injectBackgroundDrawCall(out);
 
     return out;
+}
+
+// Render-loop function names a generated 2D game commonly uses, most-specific first.
+const RENDER_FN_NAMES = ['renderAll', 'renderFrame', 'renderGame', 'drawFrame', 'drawGame', 'render', 'draw'];
+
+// Returns the char index immediately AFTER the opening `{` of the first render-ish
+// function body found, or -1. Matches `function render(ctx) {`, `render() {`
+// (method), and `const render = () => {` — not just `renderAll()` with empty parens.
+function findRenderFunctionBodyStart(source = '') {
+    for (const name of RENDER_FN_NAMES) {
+        const re = new RegExp(
+            `(?:export\\s+)?(?:function\\s+)?\\b${name}\\s*(?:=\\s*(?:function\\s*)?)?\\([^)]*\\)\\s*(?:=>\\s*)?\\{`,
+        );
+        const m = re.exec(source);
+        if (m && m.index !== undefined) return m.index + m[0].length;
+    }
+    return -1;
+}
+
+// Authoritatively wire the generated background into the model's render path.
+// The old version only matched `renderAll()` with empty parens + clearRect, so for
+// any other render-function shape `drawBackground()` was DEFINED but never CALLED —
+// the background silently never rendered and the failure only surfaced in the
+// sandbox after every repair turn was wasted. This handles real render shapes and
+// inserts the draw AFTER the model's own full-canvas clear/gradient-fill so a flat
+// gradient cannot paint over the generated art.
+function injectBackgroundDrawCall(source = '') {
+    let out = source;
+    // Already CALLING (not merely defining) both helpers? Then leave it alone.
+    const stripDefs = (s) => s
+        .replace(/function\s+__gtEnsureContractAssetsReferenced\s*\([^)]*\)\s*\{/g, '')
+        .replace(/function\s+drawBackground\s*\([^)]*\)\s*\{/g, '')
+        .replace(/function\s+__gtDrawGeneratedBackground\s*\([^)]*\)\s*\{/g, '');
+    const stripped = stripDefs(out);
+    const ensureCalled = /__gtEnsureContractAssetsReferenced\s*\(\s*\)/.test(stripped);
+    const bgCalled = /\bdrawBackground\s*\(\s*\)/.test(stripped) || /\b__gtDrawGeneratedBackground\s*\(/.test(stripped);
+    if (ensureCalled && bgCalled) return out;
+
+    const bodyStart = findRenderFunctionBodyStart(out);
+    if (bodyStart < 0) return out; // No render function we recognize — leave untouched.
+
+    // Insert background draw AFTER the last full-canvas clear/fill in the first
+    // stretch of the render body (the clear + gradient-fill block), so the
+    // generated art paints over a flat gradient instead of being painted over.
+    const window = out.slice(bodyStart, bodyStart + 1200);
+    const fillRe = /\b(?:ctx|context|c)\s*\.\s*(?:clearRect|fillRect)\s*\(\s*0\s*,\s*0\s*,[^;]*\)\s*;/g;
+    let lastFill = null;
+    let fm;
+    while ((fm = fillRe.exec(window)) !== null) lastFill = fm;
+    const insertAt = lastFill ? bodyStart + lastFill.index + lastFill[0].length : bodyStart;
+
+    const calls = `${ensureCalled ? '' : '\n  __gtEnsureContractAssetsReferenced();'}${bgCalled ? '' : '\n  drawBackground();'}`;
+    return `${out.slice(0, insertAt)}${calls}${out.slice(insertAt)}`;
 }
 
 const COLLECTIBLE_WIRING_MARKER = '// @gameTokCollectibleWiring';

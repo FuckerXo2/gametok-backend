@@ -471,10 +471,16 @@ Your job is to deeply understand the requested game BEFORE any code is written.
 RULES:
 - Output ONLY raw JSON, no markdown, no explanation.
 ${archetypeBlock}
-- DIMENSION — decide 2D vs 3D by the idea's REAL reference form, not by whether the user typed the word "3D". Match what the named/implied game actually is:
-  * Choose "3D" (perspective with depth) when the reference is genuinely 3D: behind-the-character endless runners (Subway Surfers, Temple Run), first-person anything (FPS, walking sim, dungeon crawler), voxel/blocky/Minecraft-style worlds, driving/racing seen from behind or cockpit with the road receding into the distance, flight/space-with-depth. If the user names a famously-3D game, match its dimension. For 3D set perspective to first_person or third_person.
-  * Choose "2D" for flat games: top-down or side-view, match/puzzle/grid, platformers, whack-a-mole, flat arcade/swipe games — and ALWAYS 2D when the user explicitly says top-down, side-view, 2D, retro, or pixel-flat.
-  * When genuinely ambiguous, prefer 2D. But do NOT downgrade an obviously-3D idea to 2D just to be safe — "make Subway Surfers" is 3D.
+- DIMENSION — decide 2D vs 3D by the idea's REAL reference form and the genre's modern player expectation, NOT by whether the user typed the word "3D". Most of these games are spatial-motion fantasies that players today picture in 3D even when they don't say so. Match what the named/implied game actually is:
+  * Choose "3D" (perspective with depth) whenever the core fantasy is moving THROUGH a space with depth. This includes — even when the word "3D" is absent:
+    - Driving / racing / DRIFTING / motorcycle / kart games ("neon drift through midnight streets" is 3D third-person, NOT top-down).
+    - Board/ski/skate/surf/sled/sports-motion games (snowboarding, skateboarding, surfing, downhill, BMX).
+    - Behind-the-character endless runners / chasers (Subway Surfers, Temple Run).
+    - First-person anything (FPS, walking sim, dungeon crawler), flight / space-with-depth.
+    - Voxel/blocky/Minecraft-style worlds, or any prompt naming a famously-3D game.
+    For 3D set perspective to first_person or third_person.
+  * Choose "2D" for genuinely flat games: top-down or side-view, match/puzzle/grid, platformers, whack-a-mole, card/board, flat arcade/swipe games — and ALWAYS 2D when the user explicitly says top-down, side-view, 2D, retro, or pixel-flat.
+  * Tie-breaker: if a motion/driving/sports/runner idea is ambiguous, prefer 3D (that is the form players expect). Only fall back to 2D when the idea is genuinely flat OR the user explicitly asked for a flat/retro/top-down look. Do NOT downgrade an obviously-3D idea to 2D just to be safe.
 - Think in concrete playable behavior: player verbs, entity rules, feedback, screen composition, and the first 10 seconds.
 - Keep scope realistic for one self-contained mobile HTML5 game.
 - The builder must be able to implement your spec directly.

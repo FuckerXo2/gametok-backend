@@ -103,6 +103,29 @@ function sourceReferencesAny(source, values) {
     });
 }
 
+// Remove the entire `function NAME(...) { ...balanced... }` body for each named
+// function, so presence checks can distinguish a CALL site from code that only
+// lives inside an (often uncalled) helper definition.
+function stripNamedFunctionBodies(source = '', names = []) {
+    let out = String(source || '');
+    for (const name of names) {
+        const re = new RegExp(`function\\s+${name}\\s*\\([^)]*\\)\\s*\\{`, 'g');
+        let m;
+        while ((m = re.exec(out)) !== null) {
+            const openBrace = m.index + m[0].length - 1;
+            let depth = 0;
+            let i = openBrace;
+            for (; i < out.length; i += 1) {
+                if (out[i] === '{') depth += 1;
+                else if (out[i] === '}') { depth -= 1; if (depth === 0) { i += 1; break; } }
+            }
+            out = out.slice(0, m.index) + out.slice(i);
+            re.lastIndex = m.index;
+        }
+    }
+    return out;
+}
+
 function collectAssetPackFacts(assetPack = null) {
     const runtimeAssets = collectOpenGamePackAssets(assetPack);
     const keys = new Set();
@@ -456,9 +479,61 @@ export function detectRunnerSacredRegionTelemetry(source = '', options = {}) {
     };
 }
 
+// ── Static 3D render-pipeline readiness ───────────────────────────────────────
+// The headless sandbox CANNOT create a WebGL context (swiftshader fails on
+// Railway), so every 3D build takes the `webglLimited` bypass in sandbox.js and
+// passes WITHOUT its rendering ever being observed. That bypass is the only thing
+// between a broken 3D scene and shipping. These checks are the GPU-independent
+// gate: if the model has destroyed any of the render essentials the canonical
+// engine pre-wired (a render call, an animation loop, a camera, and lighting for
+// lit materials), the scene provably cannot render on a real GPU regardless of
+// what the bypassed sandbox reports. createThreeStage() (threejs-kernel) provides
+// renderer + camera + lights together, so its presence satisfies all three.
+const THREE_STAGE_PROVIDES_RE = /\bcreateThreeStage\s*\(|\bstage\s*\.\s*(?:renderer|camera|scene)\b/;
+const THREE_RENDER_CALL_RE = /\brenderer\s*\.\s*render\s*\(|\.\s*setAnimationLoop\s*\(|\bcomposer\s*\.\s*render\s*\(|\.\s*render\s*\(\s*scene\b/;
+const THREE_RENDER_LOOP_RE = /\brequestAnimationFrame\s*\(|\.\s*setAnimationLoop\s*\(/;
+const THREE_CAMERA_RE = /\b(?:Perspective|Orthographic|Array)Camera\b|\bcamera\b/;
+const THREE_ANY_LIGHT_RE = /\b(?:Ambient|Directional|Hemisphere|Point|Spot|RectArea)Light\b|\bapplySkybox\s*\(/;
+const THREE_LIT_MATERIAL_RE = /\bMesh(?:Standard|Phong|Lambert|Physical|Toon)Material\b/;
+
+export function collectThreeRenderReadinessIssues(source = '', options = {}) {
+    if (!source.trim() || !isThreeKernelSource(source, options)) return [];
+
+    const stageProvides = THREE_STAGE_PROVIDES_RE.test(source);
+    const reasons = [];
+
+    if (!THREE_RENDER_CALL_RE.test(source)) reasons.push('render_call_missing');
+    if (!THREE_RENDER_LOOP_RE.test(source)) reasons.push('render_loop_missing');
+    if (!stageProvides && !THREE_CAMERA_RE.test(source)) reasons.push('camera_missing');
+    // Lit materials (Standard/Phong/Lambert/Physical/Toon) render pure black with
+    // no light in the scene. Unlit materials (Basic/Points/Sprite/Shader) don't
+    // need lights, so only flag when a lit material is present and nothing lights it.
+    if (!stageProvides && THREE_LIT_MATERIAL_RE.test(source) && !THREE_ANY_LIGHT_RE.test(source)) {
+        reasons.push('lights_missing');
+    }
+
+    if (reasons.length === 0) return [];
+
+    const repairByReason = {
+        render_call_missing: 'call renderer.render(scene, camera) every frame inside the loop',
+        render_loop_missing: 'drive the frame with requestAnimationFrame (or renderer.setAnimationLoop)',
+        camera_missing: 'keep the PerspectiveCamera from createThreeStage and pass it to renderer.render',
+        lights_missing: 'add a light (HemisphereLight + DirectionalLight) — MeshStandard/Phong/Lambert materials are black without one',
+    };
+    return [{
+        id: 'preflight_threejs_render_pipeline_broken',
+        severity: 'critical',
+        message: `3D render pipeline is broken (${reasons.join(', ')}). The headless sandbox cannot create a WebGL context, so this would otherwise ship unverified.`,
+        reasons,
+        repair: `Restore the render pipeline in src/main.ts: ${reasons.map((r) => repairByReason[r]).filter(Boolean).join('; ')}. Do not remove the pre-wired createThreeStage()/render loop in the SACRED region.`,
+    }];
+}
+
 function collectThreeKernelSurvivalIssues(source = '', options = {}) {
     const issues = [];
     if (!source.trim() || !isThreeKernelSource(source, options)) return issues;
+
+    issues.push(...collectThreeRenderReadinessIssues(source, options));
 
     if (/TODO\s+Phase\s*2/i.test(source)) {
         issues.push({
@@ -1029,7 +1104,7 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         });
     }
 
-    const requiresBackgroundArt = requiredSlots.some((slot) => slot.required && (
+    const requiresBackgroundArt = requiredSlots.some((slot) => (
         slot.role === 'background'
         || slot.assetType === 'background'
         || slot.category === 'environment'
@@ -1037,17 +1112,27 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
     const packHasBackgroundArt = packFacts.roles.has('background')
         || packFacts.roles.has('environment')
         || [...packFacts.keys].some((key) => /^background/i.test(String(key)));
-    const wiresBackgroundRenderer = /resolveBackgroundImage|function drawBackground|getAssetImage\(['"](?:background1|background|environment)['"]\)/.test(source);
+    // Require the background to actually be DRAWN, not merely have a helper defined.
+    // A `function drawBackground(){...}` that is never called still left the
+    // background un-rendered and only surfaced in the sandbox after every repair
+    // turn was wasted. Strip the FULL bodies of the bg helpers (balanced braces) so
+    // a `drawImage(getAssetImage("background"))` that lives only inside an uncalled
+    // helper definition doesn't count — we need a real call / inline draw in render.
+    const sourceWithoutBgDefs = stripNamedFunctionBodies(source, ['drawBackground', '__gtDrawGeneratedBackground', 'resolveBackgroundImage']);
+    const wiresBackgroundRenderer = /\bdrawBackground\s*\(\s*\)/.test(sourceWithoutBgDefs)
+        || /\b__gtDrawGeneratedBackground\s*\(/.test(sourceWithoutBgDefs)
+        || /\baddBackgroundCover\s*\(/.test(sourceWithoutBgDefs)
+        || /drawImage\([^;]{0,200}(?:resolveBackgroundImage\s*\(\s*\)|getAssetImage\s*\(\s*['"](?:background1|background|environment)['"]\s*\))/.test(sourceWithoutBgDefs);
     if (requiresBackgroundArt && packHasBackgroundArt && hasVisualAssets && !wiresBackgroundRenderer) {
         issues.push({
             id: 'preflight_background_not_wired',
             severity: 'critical',
-            message: 'A generated background asset exists in the pack, but src/main.ts does not draw it (missing resolveBackgroundImage/drawBackground/getAssetImage background wiring).',
-            repair: 'In renderAll, call resolveBackgroundImage() or getAssetImage("background1") and ctx.drawImage the result full-bleed before entities. Do not ship flat gradient placeholders when background art exists.',
+            message: 'A generated background asset exists in the pack, but src/main.ts never DRAWS it (a drawBackground/resolveBackgroundImage helper may be defined but is not called in the render loop).',
+            repair: 'In renderAll, CALL drawBackground() (or ctx.drawImage(resolveBackgroundImage(), ...)) full-bleed right after clearing and before entities. Defining the helper is not enough — it must be invoked every frame. Do not ship flat gradient placeholders when background art exists.',
         });
     }
 
-    const requiresItemArt = requiredSlots.some((slot) => slot.required && (
+    const requiresItemArt = requiredSlots.some((slot) => (
         slot.role === 'item'
         || slot.category === 'item'
         || /^item\d+$/i.test(String(slot.id || ''))
@@ -1065,7 +1150,7 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         });
     }
 
-    const requiresPropArt = requiredSlots.some((slot) => slot.required && (
+    const requiresPropArt = requiredSlots.some((slot) => (
         slot.role === 'prop'
         || slot.category === 'prop'
         || /^prop\d+$/i.test(String(slot.id || ''))
@@ -1083,7 +1168,7 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         });
     }
 
-    const requiresObstacleArt = requiredSlots.some((slot) => slot.required && (
+    const requiresObstacleArt = requiredSlots.some((slot) => (
         slot.role === 'obstacle'
         || slot.category === 'obstacle'
         || /^obstacle\d+$/i.test(String(slot.id || ''))

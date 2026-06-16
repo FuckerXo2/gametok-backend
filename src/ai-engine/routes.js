@@ -7529,7 +7529,9 @@ router.post('/interpret-edit', async (req, res) => {
         const nvidiaClient = createNvidiaTextClient();
 
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Edit interpretation timed out')), 18000);
+            // 18s was too tight — the narrativeChat model intermittently timed out on
+            // remixes and dropped to the keyword fallback. 30s before degrading.
+            setTimeout(() => reject(new Error('Edit interpretation timed out')), 30000);
         });
 
         const apiCallPromise = nvidiaClient.chat.completions.create({

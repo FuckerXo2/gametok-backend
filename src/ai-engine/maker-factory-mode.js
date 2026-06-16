@@ -15,6 +15,10 @@ export const FACTORY_MINIMAL_BLOCKING_PREFLIGHT_IDS = new Set([
     // these entries the obstacle crash slipped past preflight into the sandbox.
     'preflight_threejs_obstacle_holder_uninitialized',
     'preflight_threejs_obstacle_storage_split',
+    // 3D render-pipeline gate: the headless sandbox bypasses WebGL, so a broken
+    // render pipeline (missing render call / loop / camera / lights) would
+    // otherwise ship unverified. Static check: collectThreeRenderReadinessIssues.
+    'preflight_threejs_render_pipeline_broken',
 ]);
 
 export function isMakerFactoryMinimalMode() {
