@@ -1550,7 +1550,19 @@ app.get('/api/games', async (req, res) => {
     let result;
     if (sort === 'random') {
       result = await pool.query(
-        'SELECT * FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL ORDER BY RANDOM() LIMIT $1 OFFSET $2',
+        `SELECT
+           g.*,
+           u.id AS creator_id,
+           u.display_name AS creator_display_name,
+           u.verified AS creator_verified,
+           u.avatar AS creator_avatar,
+           u.username AS creator_username
+         FROM games g
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+         LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
+         WHERE g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL
+         ORDER BY RANDOM()
+         LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
     } else {
@@ -1568,6 +1580,7 @@ app.get('/api/games', async (req, res) => {
          )
          SELECT
            g.*,
+           u.id AS creator_id,
            u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -1628,6 +1641,7 @@ app.get('/api/games/discover-lanes', async (req, res) => {
        discover_pool AS (
          SELECT
            g.*,
+           u.id AS creator_id,
            u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -1827,6 +1841,7 @@ app.get('/api/games/discover-debug', async (req, res) => {
        discover_pool AS (
          SELECT
            g.*,
+           u.id AS creator_id,
            u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -2073,6 +2088,7 @@ app.get('/api/games/top', async (req, res) => {
     const result = await pool.query(
       `SELECT
          g.*,
+         u.id AS creator_id,
          u.display_name AS creator_display_name,
          u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -2227,6 +2243,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
          discover_pool AS (
            SELECT
              g.*,
+             u.id AS creator_id,
              u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -2315,6 +2332,7 @@ app.get('/api/games/search', async (req, res) => {
     const result = await pool.query(
       `SELECT
          g.*,
+         u.id AS creator_id,
          u.display_name AS creator_display_name,
          u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -2375,6 +2393,7 @@ app.get('/api/games/:id', async (req, res) => {
     const result = await pool.query(
       `SELECT
          g.*,
+         u.id AS creator_id,
          u.display_name AS creator_display_name,
          u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -2412,6 +2431,14 @@ app.post('/api/games/:id/play', async (req, res) => {
       );
       return Boolean(cooldownResult.rows[0]?.should_count);
     };
+
+    // Static/seed games (e.g. flappy-bird) are served from disk and are NOT rows in
+    // `games`, so inserting a play row violates the anonymous_game_plays /
+    // game_leaderboard FK constraint and 500s. Short-circuit gracefully instead.
+    const gameExists = await pool.query('SELECT 1 FROM games WHERE id = $1', [req.params.id]);
+    if (gameExists.rows.length === 0) {
+      return res.json({ success: true, counted: false, mode: 'unregistered-game' });
+    }
 
     if (!token) {
       if (!clientId) {
@@ -2654,6 +2681,7 @@ function formatGame(row) {
     classificationTags: Array.isArray(row.classification_tags) ? row.classification_tags : (row.classificationTags || []),
     discoveryChips: Array.isArray(row.discovery_chips) ? row.discovery_chips : (row.discoveryChips || []),
     embedUrl: row.embed_url,
+    creatorId: row.creator_id || row.creatorId || row.developer || null,
     creatorDisplayName: row.creator_display_name || row.creatorDisplayName || null,
     creatorVerified: Boolean(row.creator_verified),
     creatorAvatar: row.creator_avatar || row.creatorAvatar || null,
@@ -2860,6 +2888,7 @@ app.get('/api/users/:id/played', async (req, res) => {
       `SELECT g.*,
               gp.play_count,
               gp.last_played_at,
+              u.id AS creator_id,
               u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -2913,6 +2942,7 @@ app.get('/api/users/:id/created', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 60);
     const result = await pool.query(
       `SELECT g.*,
+              u.id AS creator_id,
               u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
@@ -3019,6 +3049,54 @@ app.post('/api/users/:id/follow', async (req, res) => {
   }
 });
 
+app.post('/api/users/:id/accept-request', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const currentUser = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (currentUser.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
+
+    const followerId = req.params.id;
+    const followingId = currentUser.rows[0].id;
+
+    if (followerId === followingId) return res.status(400).json({ error: 'Cannot accept yourself' });
+
+    const incoming = await pool.query(
+      'SELECT 1 FROM followers WHERE follower_id = $1 AND following_id = $2',
+      [followerId, followingId]
+    );
+    if (incoming.rows.length === 0) {
+      return res.status(404).json({ error: 'No pending request from this user' });
+    }
+
+    const inserted = await pool.query(
+      `INSERT INTO followers (follower_id, following_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING
+       RETURNING follower_id`,
+      [followingId, followerId]
+    );
+
+    if (inserted.rows.length > 0) {
+      notifications.notifyFollow(followingId, followerId).catch(e => console.log('[Notifications] Follow notify error:', e));
+
+      await pool.query(`
+        UPDATE user_challenges 
+        SET progress = progress + 1, 
+            completed = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) THEN TRUE ELSE completed END,
+            completed_at = CASE WHEN progress + 1 >= (SELECT target FROM daily_challenges WHERE id = challenge_id) AND completed = FALSE THEN NOW() ELSE completed_at END
+        WHERE user_id = $1 AND assigned_date = CURRENT_DATE AND claimed = FALSE
+          AND challenge_id IN (SELECT id FROM daily_challenges WHERE type = 'follow_users')
+      `, [followingId]);
+    }
+
+    res.json({ following: true, isMutual: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/users/:id/followers', async (req, res) => {
   try {
     // Get the current user from token to check if they follow these users
@@ -3067,6 +3145,10 @@ app.get('/api/users/:id/pending-requests', async (req, res) => {
        FROM users u
        JOIN followers f ON u.id = f.follower_id
        WHERE f.following_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM followers f2
+         WHERE f2.follower_id = $1 AND f2.following_id = u.id
+       )
        AND f.created_at > NOW() - INTERVAL '3 days'
        ORDER BY f.created_at DESC`,
       [req.params.id]
@@ -3092,9 +3174,10 @@ app.get('/api/users/:id/pending-count', async (req, res) => {
       `SELECT COUNT(*) FROM followers f
        WHERE f.following_id = $1
        AND NOT EXISTS (
-         SELECT 1 FROM followers f2 
+         SELECT 1 FROM followers f2
          WHERE f2.follower_id = $1 AND f2.following_id = f.follower_id
-       )`,
+       )
+       AND f.created_at > NOW() - INTERVAL '3 days'`,
       [req.params.id]
     );
     res.json({ count: parseInt(result.rows[0].count) });
@@ -3284,6 +3367,7 @@ app.get('/api/likes/user/:userId', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT g.*,
+              u.id AS creator_id,
               u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
