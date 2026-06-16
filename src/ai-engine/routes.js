@@ -23,6 +23,7 @@ import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMake
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { applyDeterministicPreflightRepairs, applyDeterministicStateObjectDedupeRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
 import { buildThreeMainTsStubFromFoundation, isThreeFoundation, regraftRunnerEditRegion } from './maker-threejs-stub.js';
+import { detectRunnerSacredRegionTelemetry } from './maker-preflight-validator.js';
 import {
     isMakerFactoryMinimalMode,
     resolveMakerAgentImplementTurns,
@@ -332,7 +333,12 @@ const MAKER_IMPLEMENT_MAX_TOKENS = Math.max(
     8192,
     Math.min(DEEPSEEK_MAX_OUTPUT_TOKENS, Number(process.env.GAMETOK_MAKER_IMPLEMENT_MAX_TOKENS || 128000)),
 );
-const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'low').trim() || 'low';
+// Implement-turn reasoning effort. Was 'low' — which throttled a frontier-class
+// reasoning model (DeepSeek V4 Pro, ~91% SWE-Bench) down to barely thinking, the
+// likely real cause of contract drift we'd been blaming on the model. Default to
+// 'high' now; override with GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT=low to revert
+// instantly (no redeploy) if cost/latency is a problem.
+const MAKER_IMPLEMENT_REASONING_EFFORT = String(process.env.GAMETOK_MAKER_IMPLEMENT_REASONING_EFFORT || 'high').trim() || 'high';
 const MAKER_IMPLEMENT_FALLBACK_MODELS = (
     process.env.GAMETOK_MAKER_IMPLEMENT_MODELS
         || 'deepseek-ai/deepseek-v4-pro'
@@ -4730,6 +4736,17 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
             try {
                 const mainTsPath = path.join(projectRoot, 'src', 'main.ts');
                 const generatedMain = await fs.promises.readFile(mainTsPath, 'utf8');
+                // EXPERIMENT READOUT: measure whether the model held the engine contract
+                // ON ITS OWN (raw output, before the graft fixes it). With implement
+                // reasoning bumped low→high, drift=false here means a frontier model at
+                // full power no longer needs the graft — the signal that we can start
+                // loosening the guardrails. The graft below still runs as the safety net.
+                try {
+                    const rawDrift = detectRunnerSacredRegionTelemetry(generatedMain, { templateContract, foundationLane });
+                    if (rawDrift.runner) {
+                        console.log(`🧪 [Raw Model Contract job=${path.basename(workspace || '')}] phase=${phase} turn=${turnNumber} heldEngineOnOwn=${!rawDrift.drift} markers=${rawDrift.markersPresent}${rawDrift.reasons.length ? ` reasons=[${rawDrift.reasons.join(',')}]` : ''}`);
+                    }
+                } catch { /* measurement only */ }
                 const canonicalMain = buildThreeMainTsStubFromFoundation(_foundation, {});
                 const graft = regraftRunnerEditRegion(generatedMain, canonicalMain);
                 if (graft.changed) {
