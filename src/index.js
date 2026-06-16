@@ -185,6 +185,64 @@ app.patch('/api/admin/config', (req, res) => {
   res.json({ success: true, config: APP_CONFIG });
 });
 
+// ── Game-generation logs (persistent, survives Railway redeploys) ──────────────
+// Optional gate: if ADMIN_KEY is set in the environment, require ?key= (or an
+// x-admin-key header). If it's unset, the endpoints are open (matches the other
+// /api/admin/* routes) so the dashboard works out of the box.
+function adminKeyOk(req) {
+  const required = process.env.ADMIN_KEY;
+  if (!required) return true;
+  const provided = req.query.key || req.headers['x-admin-key'];
+  return provided === required;
+}
+
+// JSON feed of recent generations (success AND failure) for the dashboard.
+app.get('/api/admin/generation-logs', async (req, res) => {
+  if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
+    const status = typeof req.query.status === 'string' ? req.query.status : null;
+    const result = await pool.query(
+      `SELECT j.id, j.user_id, j.status, j.prompt, j.error, j.phase, j.attempts,
+              j.dimension, j.lane, j.engine, j.result_title, j.duration_ms,
+              j.created_at, j.completed_at,
+              u.username, u.display_name
+         FROM generation_jobs j
+         LEFT JOIN users u ON u.id = j.user_id
+         WHERE j.kind = 'dream'
+           AND ($2::text IS NULL OR j.status = $2)
+         ORDER BY j.created_at DESC
+         LIMIT $1`,
+      [limit, status],
+    );
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      username: r.display_name || r.username || null,
+      status: r.status,
+      prompt: r.prompt,
+      error: r.error,
+      phase: r.phase,
+      attempts: r.attempts,
+      dimension: r.dimension,
+      lane: r.lane,
+      engine: r.engine,
+      resultTitle: r.result_title,
+      durationMs: r.duration_ms,
+      createdAt: r.created_at,
+      completedAt: r.completed_at,
+    })));
+  } catch (e) {
+    console.error('[generation-logs] query failed:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Human-friendly dashboard page (data comes from the JSON feed above).
+app.get('/admin/generations', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/admin/generations.html'));
+});
+
 // Admin endpoint to assign random 3D avatars to all users
 app.post('/api/admin/assign-avatars', async (req, res) => {
   const AVATAR_IDS = [

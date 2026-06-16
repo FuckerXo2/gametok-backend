@@ -2273,6 +2273,34 @@ async function markJobError(jobId, fallbackMessage, err) {
     }
 }
 
+// Persist per-generation review telemetry onto the generation_jobs row (status,
+// prompt, error and timing already live there). COALESCE so a later call never
+// clears a field an earlier one set, and it must never throw into the job flow.
+async function recordGenerationTelemetry(jobId, fields = {}) {
+    try {
+        await ensureGenerationQueueSchema();
+        await pool.query(
+            `UPDATE generation_jobs
+                SET dimension = COALESCE($2, dimension),
+                    lane = COALESCE($3, lane),
+                    engine = COALESCE($4, engine),
+                    result_title = COALESCE($5, result_title),
+                    duration_ms = COALESCE($6, duration_ms)
+              WHERE id = $1`,
+            [
+                jobId,
+                fields.dimension || null,
+                fields.lane || null,
+                fields.engine || null,
+                fields.resultTitle || null,
+                Number.isFinite(fields.durationMs) ? Math.round(fields.durationMs) : null,
+            ],
+        );
+    } catch (error) {
+        console.warn(`[Generation Telemetry] Failed to record for ${jobId}:`, error?.message || error);
+    }
+}
+
 async function markJobCanceled(jobId) {
     rememberCancelledJob(jobId);
     rememberPendingBoot(jobId, { status: 'canceled', error: 'Generation cancelled by user' });
@@ -2337,6 +2365,13 @@ async function ensureGenerationQueueSchema() {
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS phase VARCHAR(64) DEFAULT 'queued';
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS status_message TEXT;
             ALTER TABLE generation_jobs ALTER COLUMN max_attempts SET DEFAULT 1;
+            -- Review telemetry: persisted per generation so the admin dashboard can
+            -- show how generations perform over time without scraping Railway logs.
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS dimension VARCHAR(8);
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS lane VARCHAR(64);
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS engine VARCHAR(32);
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS result_title TEXT;
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
         `);
     }
     return generationQueueReadyPromise;
@@ -6768,6 +6803,15 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             ]
         );
         console.log(`✅ [DREAM JOB] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
+        if (persistToDb) {
+            await recordGenerationTelemetry(jobId, {
+                dimension: makerFoundationContract?.dimension || qualityIntent?.technicalRequirements?.dimension || null,
+                lane: makerFoundationContract?.lane || null,
+                engine: makerFoundationContract?.engine || null,
+                resultTitle: finalTitle || makerFoundationContract?.title || null,
+                durationMs: Date.now() - progStartedAt,
+            });
+        }
         forgetCancelledJob(jobId);
         pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
             .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
@@ -6865,6 +6909,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             }
         }
         if (persistToDb) {
+            await recordGenerationTelemetry(jobId, {
+                dimension: makerFoundationContract?.dimension || qualityIntent?.technicalRequirements?.dimension || null,
+                lane: makerFoundationContract?.lane || null,
+                engine: makerFoundationContract?.engine || null,
+                durationMs: Date.now() - progStartedAt,
+            });
             await markJobError(jobId, "DreamStream generation failed", err);
         } else {
             throw err;
