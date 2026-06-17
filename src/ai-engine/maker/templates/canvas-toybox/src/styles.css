@@ -282,18 +282,7 @@ body {
   color: rgba(248, 250, 252, 0.92);
 }
 
+/* Instruction strip removed by request — no forced dark banner. Hidden, kept in DOM. */
 #status-line {
-  position: absolute;
-  left: 50%;
-  bottom: calc(max(148px, 22vh) + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  max-width: calc(100vw - 24px);
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(8, 17, 31, 0.72);
-  font-size: 13px;
-  font-weight: 700;
-  text-align: center;
-  z-index: 2;
-  pointer-events: none;
+  display: none !important;
 }

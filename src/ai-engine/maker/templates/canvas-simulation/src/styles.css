@@ -70,20 +70,9 @@ body {
   line-height: 1;
 }
 
+/* Instruction strip removed by request — no forced dark banner. Hidden, kept in DOM. */
 #status-line {
-  position: absolute;
-  left: 50%;
-  top: max(202px, calc(env(safe-area-inset-top) + 108px));
-  max-width: calc(100vw - 36px);
-  transform: translateX(-50%);
-  padding: 8px 14px;
-  border-radius: 999px;
-  color: rgba(248, 250, 252, 0.92);
-  background: rgba(8, 17, 31, 0.72);
-  font-size: 14px;
-  font-weight: 850;
-  text-align: center;
-  pointer-events: none;
+  display: none !important;
 }
 
 #controls {

@@ -45,20 +45,11 @@ body {
   pointer-events: auto;
 }
 
+/* Bottom instruction strip removed by request — no forced dark banner under the
+   game. Element kept in the DOM (hidden) so code referencing #status-line never
+   hits null. */
 #status-line {
-  position: absolute;
-  left: 50%;
-  bottom: max(16px, calc(env(safe-area-inset-bottom) + 12px));
-  transform: translateX(-50%);
-  z-index: 4;
-  max-width: min(92vw, 360px);
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.45);
-  text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  opacity: 0.9;
+  display: none !important;
 }
 
 #controls-layer {
