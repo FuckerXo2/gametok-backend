@@ -369,8 +369,8 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 4)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-function getMakerAgentInspectionTurns(assetSlotCount = 0) {
-    return resolveMakerAgentInspectionTurns(assetSlotCount);
+function getMakerAgentInspectionTurns(assetSlotCount = 0, options = {}) {
+    return resolveMakerAgentInspectionTurns(assetSlotCount, options);
 }
 const SKIP_TURN1_PRERUN_EVIDENCE = String(process.env.GAMETOK_MAKER_SKIP_TURN1_PRERUN_EVIDENCE || 'true').toLowerCase() !== 'false';
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
@@ -5056,7 +5056,10 @@ async function runMakerAgentInspectionTurns({
     designBrief,
     builderMaps = null,
     assetQuality = null,
-    maxTurns = getMakerAgentInspectionTurns((assetContract?.slots || []).length),
+    maxTurns = getMakerAgentInspectionTurns((assetContract?.slots || []).length, {
+        freeBuild3D: isFreeBuildMode()
+            && (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)),
+    }),
     reportProgress = null,
 }) {
     const objectives = [

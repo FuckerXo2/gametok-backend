@@ -60,7 +60,7 @@ export function shouldBlockOnPreflight(preflight = {}, factoryMinimal = isMakerF
     return false;
 }
 
-export function resolveMakerAgentInspectionTurns(assetSlotCount = 0) {
+export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild3D = false } = {}) {
     const envTurns = Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS);
     let fallback = isMakerFactoryMinimalMode() ? 2 : 3;
     // Scale repair budget with game complexity (asset-slot count is a good proxy). A 15-slot game
@@ -70,6 +70,11 @@ export function resolveMakerAgentInspectionTurns(assetSlotCount = 0) {
     if (!Number.isFinite(envTurns)) {
         if (slots >= 12) fallback = 4;
         else if (slots >= 7) fallback = 3;
+        // Free-build 3D games are multi-file TypeScript (8+ files) regardless of asset count —
+        // the asset-slot proxy badly understates their complexity. A 0-slot procedural 3D racer
+        // is harder to converge than a 12-slot 2D game, so it needs MORE repair budget, not the
+        // minimum. Floor free-build 3D at 1 implement + 2 repair so a single bad rewrite isn't fatal.
+        if (freeBuild3D) fallback = Math.max(fallback, 3);
     }
     const requested = Number.isFinite(envTurns) && envTurns > 0 ? envTurns : fallback;
     return Math.max(1, Math.min(5, requested));
