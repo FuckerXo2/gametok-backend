@@ -814,6 +814,7 @@ import { Input } from '../core/Input.ts';
 
 export class Game {
   constructor(stage) {
+    this.stage = stage;
     this.scene = stage.scene;
     this.camera = stage.camera;
     this.renderer = stage.renderer;
@@ -842,7 +843,7 @@ export class Game {
   }
   render() {
     this.hud.update(this.state.score);
-    this.renderer.render(this.scene, this.camera);
+    this.stage.render(); // composer render — applies bloom + tone mapping
   }
   reset() {
     this.state.score = 0; this.state.gameOver = false; this.state.started = false;
@@ -888,14 +889,14 @@ import * as THREE from 'three';
 export function buildWorld(scene) {
   scene.background = new THREE.Color('#cfe8f5');
   scene.fog = new THREE.Fog('#cfe8f5', 32, 84);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(42, 48), new THREE.MeshLambertMaterial({ color: '#6fae5c' }));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(42, 48), new THREE.MeshStandardMaterial({ color: '#6fae5c', roughness: 0.95, metalness: 0 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   for (let i = 0; i < 22; i++) {
     const a = Math.random() * Math.PI * 2; const r = 15 + Math.random() * 22;
     const tree = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.1, 6), new THREE.MeshLambertMaterial({ color: '#7c4a2e' }));
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.1, 6), new THREE.MeshStandardMaterial({ color: '#7c4a2e', roughness: 0.9 }));
     trunk.position.y = 0.55; trunk.castShadow = true; tree.add(trunk);
-    const top = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.9, 7), new THREE.MeshLambertMaterial({ color: '#2f7d40' }));
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.9, 7), new THREE.MeshStandardMaterial({ color: '#2f7d40', roughness: 0.8 }));
     top.position.y = 1.75; top.castShadow = true; tree.add(top);
     tree.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
     scene.add(tree);
@@ -906,9 +907,9 @@ export function buildWorld(scene) {
 import * as THREE from 'three';
 export function createPlayer() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.7, 4, 12), new THREE.MeshLambertMaterial({ color: '#3b82f6' }));
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.7, 4, 12), new THREE.MeshStandardMaterial({ color: '#3b82f6', metalness: 0.55, roughness: 0.4 }));
   body.position.y = 0.75; body.castShadow = true; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), new THREE.MeshLambertMaterial({ color: '#fcd9b6' }));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), new THREE.MeshStandardMaterial({ color: '#dfe7ee', metalness: 0.6, roughness: 0.3, emissive: '#1b3a6a', emissiveIntensity: 0.7 }));
   head.position.y = 1.52; head.castShadow = true; g.add(head);
   return g;
 }
@@ -924,7 +925,7 @@ import * as THREE from 'three';
 class Pickup {
   constructor(scene) {
     this.group = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.1, 10, 20), new THREE.MeshLambertMaterial({ color: '#f5ba49' }));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.1, 10, 20), new THREE.MeshStandardMaterial({ color: '#f5ba49', emissive: '#f5ba49', emissiveIntensity: 1.7, metalness: 0.3, roughness: 0.35 }));
     ring.rotation.x = Math.PI / 2; ring.castShadow = true; this.group.add(ring);
     scene.add(this.group);
     this.active = true; this.radius = 0.8;

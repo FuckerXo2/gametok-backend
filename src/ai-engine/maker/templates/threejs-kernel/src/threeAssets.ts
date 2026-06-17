@@ -2,6 +2,11 @@
 // into Three.js materials. Geometry is code-built; these helpers paint it.
 // Read-only kernel file: Phase 2 agent consumes these, never edits them.
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const textureCache: Record<string, THREE.Texture> = {};
 
@@ -129,7 +134,10 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
+  composer: EffectComposer;
+  bloom: UnrealBloomPass;
   resize: () => void;
+  render: () => void;
 } {
   let renderer: THREE.WebGLRenderer;
   try {
@@ -184,15 +192,38 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   sun.shadow.bias = -0.0004;
   scene.add(hemisphere, sun);
 
+  // PBR reflections (procedural, no asset files): a soft neutral environment so
+  // MeshStandardMaterial / MeshPhysicalMaterial surfaces — metal, glass, car
+  // paint, polished balls — catch real reflections even with few lights.
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  } catch { /* env is a bonus; never block rendering on it */ }
+
+  // Bloom post-processing: emissive / bright parts GLOW (neon, engines, signs,
+  // crystals, lights). The single biggest "AAA" lever — and pure Three.js.
+  // High threshold so only intentionally-bright (emissive) things bloom.
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.4, 0.85);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+
   const resize = () => {
     const width = window.innerWidth || 390;
     const height = window.innerHeight || 844;
     renderer.setSize(width, height, false);
+    composer.setSize(width, height);
+    bloom.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
   };
   resize();
   window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, resize };
+  // Render through the composer so bloom is applied. Games should call
+  // stage.render() (NOT renderer.render) so glow/tone-mapping are included.
+  const render = () => composer.render();
+
+  return { renderer, scene, camera, composer, bloom, resize, render };
 }

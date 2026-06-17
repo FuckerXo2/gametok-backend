@@ -490,7 +490,7 @@ export function detectRunnerSacredRegionTelemetry(source = '', options = {}) {
 // what the bypassed sandbox reports. createThreeStage() (threejs-kernel) provides
 // renderer + camera + lights together, so its presence satisfies all three.
 const THREE_STAGE_PROVIDES_RE = /\bcreateThreeStage\s*\(|\bstage\s*\.\s*(?:renderer|camera|scene)\b/;
-const THREE_RENDER_CALL_RE = /\brenderer\s*\.\s*render\s*\(|\.\s*setAnimationLoop\s*\(|\bcomposer\s*\.\s*render\s*\(|\.\s*render\s*\(\s*scene\b/;
+const THREE_RENDER_CALL_RE = /\brenderer\s*\.\s*render\s*\(|\.\s*setAnimationLoop\s*\(|\bcomposer\s*\.\s*render\s*\(|\bstage\s*\.\s*render\s*\(|\.\s*render\s*\(\s*scene\b/;
 const THREE_RENDER_LOOP_RE = /\brequestAnimationFrame\s*\(|\.\s*setAnimationLoop\s*\(/;
 const THREE_CAMERA_RE = /\b(?:Perspective|Orthographic|Array)Camera\b|\bcamera\b/;
 const THREE_ANY_LIGHT_RE = /\b(?:Ambient|Directional|Hemisphere|Point|Spot|RectArea)Light\b|\bapplySkybox\s*\(/;
