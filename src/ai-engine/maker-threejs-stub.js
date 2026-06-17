@@ -976,10 +976,30 @@ export class FollowCamera {
 }
 ` },
         { path: 'src/systems/Hud.ts', content: `// @ts-nocheck
+// Complete game HUD: score + a built-in game-over overlay. Generated game code
+// commonly calls showGameOver(score)/hideGameOver()/setScore(n) — they all exist
+// here so a game-over flow never crashes with "is not a function".
 export class Hud {
-  constructor() { this.scoreEl = document.getElementById('score-value'); }
-  update(score) { if (this.scoreEl) this.scoreEl.textContent = String(Math.floor(score)); }
+  constructor() {
+    this.scoreEl = document.getElementById('score-value');
+    this.overlay = null;
+  }
+  update(score) { if (this.scoreEl) this.scoreEl.textContent = String(Math.floor(score ?? 0)); }
+  setScore(score) { this.update(score); }
   flash() { if (this.scoreEl && this.scoreEl.animate) this.scoreEl.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 200 }); }
+  showGameOver(score) {
+    if (!this.overlay) {
+      this.overlay = document.createElement('div');
+      this.overlay.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(6,10,20,0.66);color:#fff;font-family:system-ui,-apple-system,sans-serif;z-index:50;text-align:center;';
+      this.overlay.innerHTML = '<div style="font-size:34px;font-weight:800;letter-spacing:1px;">GAME OVER</div><div class="go-score" style="font-size:20px;opacity:0.95;"></div><div style="font-size:14px;opacity:0.7;margin-top:6px;">Tap to play again</div>';
+      (document.getElementById('game-shell') || document.body).appendChild(this.overlay);
+    }
+    const s = this.overlay.querySelector('.go-score');
+    if (s) s.textContent = 'Score ' + Math.floor(score ?? 0);
+    this.overlay.style.display = 'flex';
+  }
+  hideGameOver() { if (this.overlay) this.overlay.style.display = 'none'; }
+  reset() { this.hideGameOver(); }
 }
 ` },
     ];
