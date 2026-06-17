@@ -135,7 +135,8 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   try {
     renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: false,
+      // Premium defaults: smooth edges. (~Their scaffold quality — GameTok now matches it.)
+      antialias: true,
       powerPreference: 'high-performance',
       // Keep the drawn frame readable so the headless verifier can confirm the
       // scene actually rendered (drawImage/getImageData on a WebGL canvas returns
@@ -149,8 +150,15 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
     // misleading uninitialized-state crash. Real devices have WebGL and never hit this.
     throw new Error('Error creating WebGL context: ' + ((err as Error)?.message || String(err)));
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // Filmic tone mapping + exposure: richer, less flat colors (matches a premium renderer).
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  // Soft shadows. Free to leave on — meshes only cast/receive when they opt in
+  // (mesh.castShadow / receiveShadow), so it never costs anything until used.
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   // Code-colored sky (no image skybox in GameTok 3D) + matching distance fog.
@@ -161,10 +169,19 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   camera.position.set(0, 4, 8);
   camera.lookAt(0, 0, 0);
 
-  // Mandatory lighting — hemisphere fills, directional shapes. Never remove both.
+  // Mandatory lighting — hemisphere fills, directional shapes + casts soft shadows.
   const hemisphere = new THREE.HemisphereLight('#ffffff', '#445566', 1.0);
-  const sun = new THREE.DirectionalLight('#ffffff', 1.4);
+  const sun = new THREE.DirectionalLight('#ffffff', 1.5);
   sun.position.set(6, 12, 4);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 60;
+  sun.shadow.camera.left = -20;
+  sun.shadow.camera.right = 20;
+  sun.shadow.camera.top = 20;
+  sun.shadow.camera.bottom = -20;
+  sun.shadow.bias = -0.0004;
   scene.add(hemisphere, sun);
 
   const resize = () => {
