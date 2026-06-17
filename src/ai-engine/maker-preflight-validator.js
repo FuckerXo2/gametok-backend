@@ -544,6 +544,12 @@ function collectThreeKernelSurvivalIssues(source = '', options = {}) {
         });
     }
 
+    // FREE BUILD: the model owns the whole game, so the runner-contract checks
+    // (must use these 5 function names / state.obstacles store) don't apply — the
+    // model may legitimately structure gameplay differently. Keep only the
+    // universal floor above (render pipeline + no leftover TODOs).
+    if (options.freeBuild) return issues;
+
     // Read-driven obstacle storage consistency (replaces the old refs-only /
     // state-only existence checks). Runs for every three-kernel source — if the
     // game reads no `.obstacles` it produces nothing.
@@ -1000,7 +1006,7 @@ function collectInheritedScenePropertyRedeclarations(projectSources = []) {
     return issues;
 }
 
-export async function runMakerPreflightChecks({ projectRoot, generatedAssets = null, assetContract = null, templateContract = null, foundationLane = null } = {}) {
+export async function runMakerPreflightChecks({ projectRoot, generatedAssets = null, assetContract = null, templateContract = null, foundationLane = null, freeBuild = false } = {}) {
     const sourcePath = path.join(projectRoot || '', 'src', 'main.ts');
     const source = await readTextIfExists(sourcePath);
     const projectSources = await readProjectSources(projectRoot);
@@ -1027,6 +1033,7 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         templateContract,
         assetContract,
         foundationLane,
+        freeBuild,
     }));
 
     // Non-blocking sacred-region telemetry (threejs_runner only). Stays out of

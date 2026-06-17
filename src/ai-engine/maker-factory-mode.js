@@ -21,6 +21,23 @@ export const FACTORY_MINIMAL_BLOCKING_PREFLIGHT_IDS = new Set([
     'preflight_threejs_render_pipeline_broken',
 ]);
 
+/**
+ * FREE BUILD experiment: when on (default), the threejs lane stops clamping the
+ * model with the graft + runner-contract checks and lets DeepSeek V4 Pro build the
+ * whole game freely (recipes + high reasoning). The universal "must actually
+ * render" preflight floor still applies. Flip GAMETOK_FREE_BUILD=off to instantly
+ * restore the templated/graft pipeline (no redeploy); archive/templated-pipeline
+ * git tag is the full snapshot.
+ */
+export function isFreeBuildMode() {
+    const raw = process.env.GAMETOK_FREE_BUILD;
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+        return true;
+    }
+    const v = String(raw).trim().toLowerCase();
+    return v !== 'off' && v !== 'false' && v !== '0' && v !== 'no';
+}
+
 export function isMakerFactoryMinimalMode() {
     const raw = process.env.GAMETOK_FACTORY_MINIMAL;
     if (raw === undefined || raw === null || String(raw).trim() === '') {
