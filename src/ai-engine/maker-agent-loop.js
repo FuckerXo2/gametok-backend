@@ -402,11 +402,23 @@ export function buildMakerAgentInspectionPrompt({
         || _inspLane.includes('runner') || _inspLane.includes('surfer') || _inspLane.includes('dash')
         || _inspLane.includes('racer') || _inspLane.includes('racing') || _inspLane.includes('kart');
 
-    // Single-file 3D repair: inline the whole main.ts so the agent has full context
-    // without calling read_file in a loop. Everything lives in this one file.
-    const _three3DMainTs = _is3DLane && repairMode
-        ? pickProjectFileContent(projectFiles, 'src/main.ts', 16000)
-        : null;
+    // 3D repair context. Single-file: inline main.ts. FREE BUILD multi-file: inline
+    // EVERY game source file (main.ts + game/ + entities/ + systems/ + world/ + core/)
+    // so the repair agent can fix cross-file issues — e.g. an import of a module that
+    // was never created (TS2307) — instead of read-looping on one file. Kernel runtime
+    // files (bootstrap/threeAssets/assetLoader/assetKeys/types) are excluded.
+    const _freeBuild3D = _is3DLane && repairMode && isFreeBuildMode();
+    const _three3DSourceText = !(_is3DLane && repairMode)
+        ? null
+        : _freeBuild3D
+            ? (Array.isArray(projectFiles) ? projectFiles : [])
+                .filter((f) => /^src\/.*\.(ts|tsx)$/.test(String(f?.path || ''))
+                    && !/^src\/(bootstrap|assetLoader|threeAssets|assetKeys)\.ts$/.test(String(f?.path || ''))
+                    && !String(f?.path || '').startsWith('src/types/'))
+                .map((f) => `/* ===== ${f.path} ===== */\n${String(f.content || '').slice(0, 7000)}`)
+                .join('\n\n')
+                .slice(0, 40000)
+            : (pickProjectFileContent(projectFiles, 'src/main.ts', 16000)?.content || '(not found)');
 
     return [
         ...(implementMode ? [getMakerSystemManualBlock('fileAgent'), ''] : []),
@@ -555,11 +567,15 @@ export function buildMakerAgentInspectionPrompt({
             null,
             2,
         ),
-        // Single-file 3D repair: inline the whole main.ts so the agent skips read_file entirely.
+        // 3D repair: inline the source so the agent skips read_file. Free-build inlines
+        // ALL modules; single-file inlines main.ts. If a module is imported but missing
+        // (TS2307), CREATE it (write_file) — don't read-loop.
         ...(_is3DLane && repairMode ? [
             '',
-            '── CURRENT src/main.ts (the entire game — fix the TODO/broken functions in place via apply_patch) ──',
-            _three3DMainTs ? _three3DMainTs.content : '(not found)',
+            _freeBuild3D
+                ? '── CURRENT GAME SOURCE (all modules below). Fix the reported build errors directly. If a file imports a module that does not exist here, CREATE that module with write_file. Do not read_file in a loop. ──'
+                : '── CURRENT src/main.ts (the entire game — fix the TODO/broken functions in place via apply_patch) ──',
+            _three3DSourceText || '(not found)',
         ] : []),
     ].join('\n');
 }

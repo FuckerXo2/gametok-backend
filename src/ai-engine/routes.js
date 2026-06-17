@@ -1515,7 +1515,10 @@ async function requestMakerToolCompletion(messages, {
             : isDeepSeekDirectProvider(providerTag)
                 ? getDeepSeekMaxOutputTokens(maxTokens || MAKER_TOOL_MAX_TOKENS)
                 : getMaxTokensForModel(modelToUse, maxTokens);
-        const deepseekToolThinking = isDeepSeekDirectProvider(providerTag) && mode === MAKER_AGENT_TURN_MODE_IMPLEMENT;
+        // Free build repair fixes cross-file issues (e.g. a missing imported module),
+        // which needs reasoning — enable thinking for repair too when free build is on.
+        const deepseekToolThinking = isDeepSeekDirectProvider(providerTag)
+            && (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT || isFreeBuildMode());
         const usesDeepSeekReasoning = (isDeepSeekDirectProvider(providerTag) || isDeepSeekV4Model(modelToUse))
             && !isMoonshotDirectProvider(providerTag);
         let loggedReasoning = 'n/a';
@@ -5116,7 +5119,7 @@ async function runMakerAgentInspectionTurns({
                         maxTokens: isImplementTurn ? MAKER_IMPLEMENT_MAX_TOKENS : MAKER_TOOL_MAX_TOKENS,
                         preferredModel: stickyImplementModel,
                         fallbackModels: isImplementTurn ? MAKER_IMPLEMENT_FALLBACK_MODELS : null,
-                        reasoningEffort: isImplementTurn ? MAKER_IMPLEMENT_REASONING_EFFORT : null,
+                        reasoningEffort: isImplementTurn ? MAKER_IMPLEMENT_REASONING_EFFORT : (isFreeBuildMode() ? 'medium' : null),
                         mode: turnMode,
                         onResolvedModel: (model) => {
                             if (!stickyImplementModel) {
