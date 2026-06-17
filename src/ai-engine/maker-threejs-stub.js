@@ -747,6 +747,244 @@ export function regraftRunnerEditRegion(generatedSource = '', canonicalSource = 
 // mechanics.ts). No extra files are injected. Kept as a stable export so the
 // scaffold builder can call it unconditionally.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// FREE BUILD multi-file scaffold (their architecture, GameTok kernel). A GENERIC,
+// playable 3D base — controllable character, third-person follow cam, collectible
+// pickups, scenery, score HUD — split across entry / game / core / systems /
+// entities / world modules. The model SPECIALIZES this per prompt (runner, racer,
+// collector, explorer…). Every file is @ts-nocheck so the stub tsc preflight (which
+// only writes main.ts) passes; the real vite build compiles all modules.
+// ─────────────────────────────────────────────────────────────────────────────
+export function buildThreeScaffoldFiles(foundation = {}, qualityIntent = {}) {
+    const lane = asString(foundation.lane, 'threejs_world');
+    const title = asString(foundation.title, qualityIntent.title || 'GameTok 3D');
+    return [
+        { path: 'src/main.ts', content: `// @ts-nocheck
+// ${title} — multi-file 3D game. main.ts is the THIN ENTRY: it boots the kernel
+// stage, creates the Game, owns the loop + probe, and re-exports the contract.
+// All gameplay lives in src/game, src/systems, src/entities, src/world. Specialize
+// those modules; keep this entry's contract intact.
+import './styles.css';
+import { createThreeStage } from './threeAssets.ts';
+import { Game } from './game/Game.ts';
+
+const canvasEl = document.getElementById('game-canvas');
+if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error('Missing #game-canvas');
+const stage = createThreeStage(canvasEl);
+const game = new Game(stage);
+
+export function stepGame(dt = 16) { game.update(Math.min(0.05, dt / 1000)); }
+export function renderAll() { game.render(); }
+export function resetGame() { game.reset(); }
+
+window.__GAMETOK_TEMPLATE_PROBE__ = {
+  snapshot() {
+    return JSON.parse(JSON.stringify({
+      score: game.state.score ?? 0,
+      gameOver: game.state.gameOver ?? false,
+      started: game.state.started ?? false,
+      lane: ${jsString(lane)},
+      renderCalls: stage.renderer.info.render.calls,
+      triangles: stage.renderer.info.render.triangles,
+      cameraY: stage.camera.position.y,
+      obstacleCount: game.entities.pickups.length,
+    }));
+  },
+  step(dt = 16) { stepGame(dt); renderAll(); return this.snapshot(); },
+  reset() { resetGame(); return this.snapshot(); },
+};
+
+renderAll();
+let _last = performance.now();
+function _loop(now) {
+  const dt = Math.min(32, now - _last); _last = now;
+  stepGame(dt); renderAll();
+  requestAnimationFrame(_loop);
+}
+requestAnimationFrame(_loop);
+` },
+        { path: 'src/game/Game.ts', content: `// @ts-nocheck
+// Orchestrator: owns state, builds the world + entities, runs systems each frame.
+import { buildWorld } from '../world/World.ts';
+import { createPlayer, movePlayer } from '../entities/Player.ts';
+import { createPickups, updatePickups, collectPickups } from '../entities/Pickups.ts';
+import { FollowCamera } from '../systems/Camera.ts';
+import { Hud } from '../systems/Hud.ts';
+import { Input } from '../core/Input.ts';
+
+export class Game {
+  constructor(stage) {
+    this.scene = stage.scene;
+    this.camera = stage.camera;
+    this.renderer = stage.renderer;
+    this.state = { score: 0, started: false, gameOver: false };
+    this.input = new Input(stage.renderer.domElement, () => {
+      if (!this.state.started) this.state.started = true;
+      if (this.state.gameOver) this.reset();
+    });
+    buildWorld(this.scene);
+    this.player = createPlayer();
+    this.scene.add(this.player);
+    this.entities = { pickups: createPickups(this.scene, 14) };
+    this.cam = new FollowCamera(this.camera);
+    this.cam.snap(this.player.position);
+    this.hud = new Hud();
+  }
+  update(dt) {
+    if (this.state.gameOver) return;
+    const move = this.input.read();
+    if (move.lengthSq() > 0.0001) this.state.started = true;
+    if (this.state.started) movePlayer(this.player, move, dt);
+    updatePickups(this.entities.pickups, dt);
+    const got = collectPickups(this.player, this.entities.pickups);
+    if (got > 0) { this.state.score += got; this.hud.flash(); }
+    this.cam.update(this.player.position, dt);
+  }
+  render() {
+    this.hud.update(this.state.score);
+    this.renderer.render(this.scene, this.camera);
+  }
+  reset() {
+    this.state.score = 0; this.state.gameOver = false; this.state.started = false;
+    this.player.position.set(0, 0, 0);
+    for (const p of this.entities.pickups) p.reset();
+    this.cam.snap(this.player.position);
+    this.render();
+  }
+}
+` },
+        { path: 'src/core/Input.ts', content: `// @ts-nocheck
+import * as THREE from 'three';
+// Keyboard (WASD/arrows) + touch-drag movement on the ground plane. No extra DOM.
+export class Input {
+  constructor(target, onFirst) {
+    this.keys = new Set();
+    this.touch = new THREE.Vector2();
+    this.active = false;
+    this._v = new THREE.Vector3();
+    let sx = 0, sy = 0;
+    window.addEventListener('keydown', (e) => { this.keys.add(e.code); onFirst && onFirst(); });
+    window.addEventListener('keyup', (e) => { this.keys.delete(e.code); });
+    target.addEventListener('pointerdown', (e) => { this.active = true; sx = e.clientX; sy = e.clientY; this.touch.set(0, 0); onFirst && onFirst(); });
+    window.addEventListener('pointermove', (e) => { if (!this.active) return; this.touch.set((e.clientX - sx) / 60, (e.clientY - sy) / 60); if (this.touch.lengthSq() > 1) this.touch.normalize(); });
+    window.addEventListener('pointerup', () => { this.active = false; this.touch.set(0, 0); });
+    window.addEventListener('pointercancel', () => { this.active = false; this.touch.set(0, 0); });
+  }
+  read() {
+    this._v.set(0, 0, 0);
+    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) this._v.x -= 1;
+    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) this._v.x += 1;
+    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) this._v.z -= 1;
+    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) this._v.z += 1;
+    this._v.x += this.touch.x; this._v.z += this.touch.y;
+    if (this._v.lengthSq() > 1) this._v.normalize();
+    return this._v;
+  }
+}
+` },
+        { path: 'src/world/World.ts', content: `// @ts-nocheck
+import * as THREE from 'three';
+// Ground + sky + scattered scenery. Themed flat colors; shadows enabled by kernel.
+export function buildWorld(scene) {
+  scene.background = new THREE.Color('#cfe8f5');
+  scene.fog = new THREE.Fog('#cfe8f5', 32, 84);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(42, 48), new THREE.MeshLambertMaterial({ color: '#6fae5c' }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  for (let i = 0; i < 22; i++) {
+    const a = Math.random() * Math.PI * 2; const r = 15 + Math.random() * 22;
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.1, 6), new THREE.MeshLambertMaterial({ color: '#7c4a2e' }));
+    trunk.position.y = 0.55; trunk.castShadow = true; tree.add(trunk);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.9, 7), new THREE.MeshLambertMaterial({ color: '#2f7d40' }));
+    top.position.y = 1.75; top.castShadow = true; tree.add(top);
+    tree.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    scene.add(tree);
+  }
+}
+` },
+        { path: 'src/entities/Player.ts', content: `// @ts-nocheck
+import * as THREE from 'three';
+export function createPlayer() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.7, 4, 12), new THREE.MeshLambertMaterial({ color: '#3b82f6' }));
+  body.position.y = 0.75; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), new THREE.MeshLambertMaterial({ color: '#fcd9b6' }));
+  head.position.y = 1.52; head.castShadow = true; g.add(head);
+  return g;
+}
+const SPEED = 7;
+export function movePlayer(player, move, dt) {
+  player.position.x = Math.max(-19, Math.min(19, player.position.x + move.x * SPEED * dt));
+  player.position.z = Math.max(-19, Math.min(19, player.position.z + move.z * SPEED * dt));
+  if (move.lengthSq() > 0.0001) player.rotation.y = Math.atan2(move.x, move.z);
+}
+` },
+        { path: 'src/entities/Pickups.ts', content: `// @ts-nocheck
+import * as THREE from 'three';
+class Pickup {
+  constructor(scene) {
+    this.group = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.1, 10, 20), new THREE.MeshLambertMaterial({ color: '#f5ba49' }));
+    ring.rotation.x = Math.PI / 2; ring.castShadow = true; this.group.add(ring);
+    scene.add(this.group);
+    this.active = true; this.radius = 0.8;
+    this.reset();
+  }
+  reset() { this.active = true; this.group.visible = true; this.group.position.set((Math.random() - 0.5) * 32, 0.7, (Math.random() - 0.5) * 32); }
+  collect() { this.active = false; this.group.visible = false; }
+}
+export function createPickups(scene, n) {
+  const arr = [];
+  for (let i = 0; i < n; i++) arr.push(new Pickup(scene));
+  return arr;
+}
+export function updatePickups(pickups, dt) {
+  const bob = performance.now() * 0.003;
+  for (const p of pickups) { if (!p.active) continue; p.group.rotation.y += dt * 1.6; p.group.position.y = 0.7 + Math.sin(bob + p.group.position.x) * 0.12; }
+}
+const _d = new THREE.Vector3();
+export function collectPickups(player, pickups) {
+  let got = 0;
+  for (const p of pickups) {
+    if (!p.active) continue;
+    _d.copy(player.position).sub(p.group.position); _d.y = 0;
+    if (_d.lengthSq() <= p.radius * p.radius) { p.collect(); got += 1; setTimeout(() => p.reset(), 1200); }
+  }
+  return got;
+}
+` },
+        { path: 'src/systems/Camera.ts', content: `// @ts-nocheck
+import * as THREE from 'three';
+export class FollowCamera {
+  constructor(camera) {
+    this.camera = camera;
+    this.offset = new THREE.Vector3(0, 9, 11);
+    this._d = new THREE.Vector3();
+    this._l = new THREE.Vector3();
+  }
+  snap(target) {
+    this._d.copy(target).add(this.offset);
+    this.camera.position.copy(this._d);
+    this.camera.lookAt(target.x, target.y + 0.5, target.z);
+  }
+  update(target, dt) {
+    this._d.copy(target).add(this.offset);
+    this.camera.position.lerp(this._d, 1 - Math.exp(-dt / 0.14));
+    this._l.set(target.x, target.y + 0.5, target.z);
+    this.camera.lookAt(this._l);
+  }
+}
+` },
+        { path: 'src/systems/Hud.ts', content: `// @ts-nocheck
+export class Hud {
+  constructor() { this.scoreEl = document.getElementById('score-value'); }
+  update(score) { if (this.scoreEl) this.scoreEl.textContent = String(Math.floor(score)); }
+  flash() { if (this.scoreEl && this.scoreEl.animate) this.scoreEl.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 200 }); }
+}
+` },
+    ];
+}
+
 export function buildThreeExtraFiles() {
     return [];
 }
