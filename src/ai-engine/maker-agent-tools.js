@@ -867,10 +867,16 @@ export async function runMakerAgentToolTurn({
         const readPathsThisRound = new Set();
         toolCallLoop: for (const toolCall of toolCalls) {
             if (log.toolCalls >= effectiveMaxToolCalls) {
-                if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && touchedMainTs) {
+                // Graceful cap: if the turn already applied real edits, build what we have
+                // instead of discarding the whole turn (and the job). A multi-file 3D repair
+                // legitimately reads+writes 8 files and can brush the cap right AFTER succeeding;
+                // throwing here would toss those passing writes. touchedMainTs keeps the
+                // single-file implement case; editsApplied covers multi-file edits in either mode.
+                // Only a turn that hit the cap with ZERO edits (model spun on reads) is a real fail.
+                if ((mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && touchedMainTs) || editsApplied.length > 0) {
                     finished = true;
-                    notes = [`Implement turn capped at ${effectiveMaxToolCalls} tool calls after src/main.ts edits; proceeding to build/sandbox.`];
-                    log.events.push({ type: 'cap_graceful_finish', toolCalls: log.toolCalls });
+                    notes = [`${mode} turn capped at ${effectiveMaxToolCalls} tool calls after ${editsApplied.length} edit(s); proceeding to build/sandbox.`];
+                    log.events.push({ type: 'cap_graceful_finish', toolCalls: log.toolCalls, edits: editsApplied.length });
                     break toolCallLoop;
                 }
                 throw new Error(`Maker tool turn exceeded max tool calls (${effectiveMaxToolCalls}) in ${mode} mode`);
