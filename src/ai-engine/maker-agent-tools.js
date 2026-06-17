@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { applyPatchReplacements } from './maker-agent-patches.js';
-import { resolveMakerAgentImplementTurns, resolveMakerAgentInspectionTurns } from './maker-factory-mode.js';
+import { isFreeBuildMode, resolveMakerAgentImplementTurns, resolveMakerAgentInspectionTurns } from './maker-factory-mode.js';
 import { parseTscOutput } from './maker-project-compile-gate.js';
 
 export const MAKER_TOOL_APPLY_PATCH = 'apply_patch';
@@ -54,6 +54,18 @@ const IMPLEMENT_ASSET_KEY_BONUS_STEP = Math.max(
 const IMPLEMENT_EDIT_PATHS = new Set([
     'src/main.ts', 'src/styles.css',
 ]);
+
+// FREE BUILD: allow the model to organize the game across multiple source files
+// (multi-file architecture) instead of being locked to main.ts. Protected kernel
+// runtime files are still blocked separately by isProtectedMakerRuntimeFile, and
+// path traversal is still guarded by safeMakerProjectPath. 2D and the default
+// (flag off) stay single-file. main.ts must remain the entry the kernel imports.
+function isImplementEditAllowed(cleanPath = '') {
+    if (IMPLEMENT_EDIT_PATHS.has(cleanPath)) return true;
+    if (!isFreeBuildMode()) return false;
+    if (cleanPath.includes('..')) return false;
+    return /^src\/[A-Za-z0-9_./-]+\.(ts|tsx|js|jsx|css)$/.test(cleanPath);
+}
 const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
     2000,
     Math.min(12000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 6000)),
@@ -493,7 +505,7 @@ async function executeApplyPatch(projectRoot, helpers, args = {}, { mode = MAKER
     }
 
     const cleanPath = normalizeMakerToolPath(filePath);
-    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !IMPLEMENT_EDIT_PATHS.has(cleanPath)) {
+    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !isImplementEditAllowed(cleanPath)) {
         throw new Error(`implement mode apply_patch allowed only for src/main.ts or src/styles.css (got ${cleanPath})`);
     }
 
@@ -537,8 +549,8 @@ async function executeWriteFile(projectRoot, helpers, args = {}, { mode = MAKER_
         throw new Error(`write_file content exceeds ${maxChars} chars for ${cleanPath}`);
     }
 
-    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !IMPLEMENT_EDIT_PATHS.has(cleanPath)) {
-        throw new Error(`implement mode write_file allowed only for ${[...IMPLEMENT_EDIT_PATHS].join(', ')} (got ${cleanPath})`);
+    if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !isImplementEditAllowed(cleanPath)) {
+        throw new Error(`implement mode write_file allowed only for ${[...IMPLEMENT_EDIT_PATHS].join(', ')} or (free build) src/**/*.{ts,js,css} (got ${cleanPath})`);
     }
 
     const { cleanPath: resolvedPath, absolutePath } = helpers.safeMakerProjectPath(projectRoot, filePath);

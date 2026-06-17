@@ -1029,7 +1029,9 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
         });
     }
 
-    issues.push(...collectThreeKernelSurvivalIssues(source, {
+    // In free build the game may be split across modules, so scan the whole project
+    // (the render loop / probe can live in any src file) instead of only main.ts.
+    issues.push(...collectThreeKernelSurvivalIssues(freeBuild ? projectSource : source, {
         templateContract,
         assetContract,
         foundationLane,
