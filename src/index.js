@@ -238,6 +238,37 @@ app.get('/api/admin/generation-logs', async (req, res) => {
   }
 });
 
+// Full captured console log for one generation (fetched on demand when a row is
+// expanded — kept out of the list feed because it can be ~1MB per job).
+app.get('/api/admin/generation-logs/:id', async (req, res) => {
+  if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
+  try {
+    const result = await pool.query(
+      `SELECT j.id, j.status, j.prompt, j.error, j.phase, j.attempts,
+              j.dimension, j.lane, j.engine, j.result_title, j.duration_ms,
+              j.created_at, j.completed_at, j.log,
+              u.username, u.display_name
+         FROM generation_jobs j
+         LEFT JOIN users u ON u.id = j.user_id
+        WHERE j.id = $1`,
+      [req.params.id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'not found' });
+    const r = result.rows[0];
+    res.json({
+      id: r.id, status: r.status, prompt: r.prompt, error: r.error, phase: r.phase,
+      attempts: r.attempts, dimension: r.dimension, lane: r.lane, engine: r.engine,
+      resultTitle: r.result_title, durationMs: r.duration_ms,
+      createdAt: r.created_at, completedAt: r.completed_at,
+      username: r.display_name || r.username || null,
+      log: r.log || null,
+    });
+  } catch (e) {
+    console.error('[generation-logs/:id] query failed:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Human-friendly dashboard page (data comes from the JSON feed above).
 app.get('/admin/generations', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin/generations.html'));

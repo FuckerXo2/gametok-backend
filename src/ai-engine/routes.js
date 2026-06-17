@@ -5,6 +5,8 @@ import vm from 'vm';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { inspect } from 'node:util';
 import pool from '../db.js';
 import { buildLabsSoloPrototype, buildPhase1_Quantize, buildPhase2_EditGame, postProcessRawHtml } from './promptRegistry.js';
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
@@ -2382,6 +2384,7 @@ async function ensureGenerationQueueSchema() {
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS engine VARCHAR(32);
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS result_title TEXT;
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS log TEXT;
         `);
     }
     return generationQueueReadyPromise;
@@ -2718,6 +2721,55 @@ async function getEffectiveGenerationConcurrency() {
     return effective;
 }
 
+// ── Full per-job log capture ──────────────────────────────────────────────────
+// The user needs the complete line-by-line generation stream (Phase 1, artist,
+// Phase 2 turns, sandbox probes) persisted — Railway logs wipe on redeploy. Up to
+// GENERATION_JOB_MAX_CONCURRENCY jobs run at once, so a global console patch can't
+// just dump to one buffer; AsyncLocalStorage attributes every console line to the
+// job whose async context emitted it, even across awaits and interleaved jobs.
+const genLogStore = new AsyncLocalStorage();
+const GEN_LOG_MAX_LINES = 6000;
+const GEN_LOG_MAX_BYTES = 1_200_000; // ~1.2MB cap per job, then it stops appending
+let genLogCaptureInstalled = false;
+function installGenLogCapture() {
+    if (genLogCaptureInstalled) return;
+    genLogCaptureInstalled = true;
+    for (const level of ['log', 'info', 'warn', 'error']) {
+        const original = console[level].bind(console);
+        console[level] = (...args) => {
+            original(...args); // always still write to stdout/Railway
+            const store = genLogStore.getStore();
+            if (!store || store.truncated || store.lines.length >= GEN_LOG_MAX_LINES) {
+                if (store && store.lines.length >= GEN_LOG_MAX_LINES) store.truncated = true;
+                return;
+            }
+            try {
+                const body = args
+                    .map((a) => (typeof a === 'string' ? a : a instanceof Error ? (a.stack || a.message) : inspect(a, { depth: 3, breakLength: 120 })))
+                    .join(' ');
+                const line = `${new Date().toISOString()} ${body}`;
+                store.lines.push(line);
+                store.bytes += line.length;
+                if (store.bytes >= GEN_LOG_MAX_BYTES) {
+                    store.lines.push('… [log truncated: size cap reached] …');
+                    store.truncated = true;
+                }
+            } catch { /* never let logging break the job */ }
+        };
+    }
+}
+installGenLogCapture();
+
+async function persistGenerationLog(jobId, logCtx) {
+    try {
+        if (!logCtx || !Array.isArray(logCtx.lines) || logCtx.lines.length === 0) return;
+        await ensureGenerationQueueSchema();
+        await pool.query('UPDATE generation_jobs SET log = $2 WHERE id = $1', [jobId, logCtx.lines.join('\n')]);
+    } catch (error) {
+        console.error(`[Generation Log] persist failed for ${jobId}:`, error?.message || error);
+    }
+}
+
 async function runGenerationJob(job) {
     const runner = generationJobRunners.get(job.kind);
     if (!runner) {
@@ -2726,6 +2778,8 @@ async function runGenerationJob(job) {
 
     const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
     rememberPendingBoot(job.id, { status: 'running', userId: job.user_id });
+    const __logCtx = { jobId: job.id, lines: [], bytes: 0, truncated: false };
+    return genLogStore.run(__logCtx, async () => {
     console.log(`🏗️ [GEN QUEUE] Running ${job.kind} job ${job.id} attempt ${job.attempts}/${job.max_attempts}`);
     await assertJobNotCancelledShared(job.id, { force: true });
 
@@ -2763,7 +2817,9 @@ async function runGenerationJob(job) {
         forgetPendingBoot(job.id);
     } finally {
         clearInterval(heartbeat);
+        await persistGenerationLog(job.id, __logCtx);
     }
+    });
 }
 
 async function drainGenerationQueue() {
