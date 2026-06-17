@@ -37,6 +37,7 @@
   .pill.ok { background: rgba(56,211,159,.14); color: var(--ok); }
   .pill.bad { background: rgba(255,92,108,.14); color: var(--bad); }
   .pill.run { background: rgba(108,140,255,.16); color: var(--accent); }
+  .pill.cancel { background: rgba(139,145,167,.16); color: var(--dim); }
   .tag { color: var(--dim); font-size: 12px; }
   .title { font-weight: 600; }
   .err { color: var(--bad); font-size: 12px; max-width: 360px; }
@@ -57,9 +58,10 @@
   <div class="cards" id="cards"></div>
   <div class="controls">
     <button data-f="all" class="active">All</button>
-    <button data-f="completed">✅ Success</button>
+    <button data-f="complete">✅ Success</button>
     <button data-f="failed">❌ Failed</button>
     <button data-f="running">⏳ Running</button>
+    <button data-f="canceled">🚫 Canceled</button>
   </div>
   <table>
     <thead><tr>
@@ -95,19 +97,20 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
   function statusPill(s) {
-    if (s === 'completed') return '<span class="pill ok">✅ done</span>';
+    if (s === 'complete') return '<span class="pill ok">✅ done</span>';
     if (s === 'failed') return '<span class="pill bad">❌ failed</span>';
-    if (s === 'running') return '<span class="pill run">⏳ running</span>';
+    if (s === 'running' || s === 'queued') return '<span class="pill run">⏳ ' + esc(s) + '</span>';
+    if (s === 'canceled') return '<span class="pill cancel">🚫 canceled</span>';
     return '<span class="pill run">' + esc(s) + '</span>';
   }
 
   function renderCards() {
     const total = all.length;
-    const done = all.filter(r => r.status === 'completed').length;
+    const done = all.filter(r => r.status === 'complete').length;
     const failed = all.filter(r => r.status === 'failed').length;
     const finished = done + failed;
     const rate = finished ? Math.round((done / finished) * 100) : 0;
-    const durs = all.filter(r => r.status === 'completed' && r.durationMs).map(r => r.durationMs);
+    const durs = all.filter(r => r.status === 'complete' && r.durationMs).map(r => r.durationMs);
     const avg = durs.length ? dur(Math.round(durs.reduce((a, b) => a + b, 0) / durs.length)) : '—';
     document.getElementById('cards').innerHTML =
       card(total, 'Total') + card(rate + '%', 'Success rate') +
