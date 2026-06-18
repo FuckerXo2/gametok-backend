@@ -725,19 +725,7 @@ export function compactMakerAgentMessages(messages = []) {
     }
 
     const compacted = messages.map((message) => ({ ...message }));
-    let latestReadFileIdx = -1;
-    for (let index = compacted.length - 1; index >= 0; index -= 1) {
-        if (isReadFileToolMessage(compacted[index])) {
-            latestReadFileIdx = index;
-            break;
-        }
-    }
-
-    for (let index = 0; index < compacted.length; index += 1) {
-        if (isReadFileToolMessage(compacted[index]) && index !== latestReadFileIdx) {
-            compacted[index] = elideReadFileToolMessage(compacted[index]);
-        }
-    }
+    // We rely on the character limit check below to elide older read_file messages.
 
     let keptLatestSnapshot = false;
     for (let index = compacted.length - 1; index >= 0; index -= 1) {
