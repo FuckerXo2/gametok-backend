@@ -5746,7 +5746,19 @@ async function rebuildMakerProjectDist(projectRoot) {
             `[Vite Build] Vite bundling failed:\n${rawOutput.slice(0, 2000)}`
         );
         buildError.code = 'VITE_BUILD_FAILED';
-        buildError.buildErrors = rawOutput.split('\n').filter(l => /error/i.test(l)).slice(0, 10);
+        // Keep the ACTUAL diagnostic lines, not just lines containing the word "error". Rolldown
+        // binding failures (the common @ts-nocheck blind spot) read like
+        //   "X" is not exported by "src/entities/Asteroids.ts", imported by "src/game/Game.ts"
+        // — which has NO "error" in it, so the old /error/i filter dropped the one line that names
+        // the broken import and kept only the useless stack frame (at aggregateBindingErrors...).
+        // Drop JS stack frames + blank lines; keep the rest so the repair turn sees what's wrong.
+        const diagnosticLines = rawOutput
+            .split('\n')
+            .map((l) => l.replace(/\s+$/, ''))
+            .filter((l) => l.trim() && !/^\s*at\s/.test(l) && !/^\s*node:internal/.test(l));
+        // Prefer the lines that pinpoint the fault (module/export/resolve), then fill with the rest.
+        const pinpoint = diagnosticLines.filter((l) => /not exported|not defined|could not resolve|cannot find|unresolved|no such|is not defined|\(\d+:\d+\)|RollupError|ParseError/i.test(l));
+        buildError.buildErrors = [...new Set([...pinpoint, ...diagnosticLines])].slice(0, 14);
         buildError.rawOutput = rawOutput.slice(0, 4000);
         console.error(`[Vite Build] Vite build failed`);
         throw buildError;
