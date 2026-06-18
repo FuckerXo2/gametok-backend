@@ -5145,6 +5145,7 @@ async function runMakerAgentInspectionTurns({
         stubMainLen = (await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8')).length;
     } catch { /* stub unreadable; size-based hollow check disabled */ }
     let hollowForceRetries = 0;
+    let totalModelEdits = 0;
     let lastRunEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
@@ -5493,6 +5494,7 @@ async function runMakerAgentInspectionTurns({
                 sandbox: runEvidence,
                 notes: inspection.notes,
             });
+            totalModelEdits += Array.isArray(applied) ? applied.length : 0;
             if (runEvidence?.success) {
                 // Multi-file 3D keeps main.ts a THIN entry by design, so its size is meaningless —
                 // the real "hollow" signal is whether the model wired its OWN modules into the import
@@ -5500,11 +5502,20 @@ async function runMakerAgentInspectionTurns({
                 const multiFile3D = isFreeBuildMode() && templateContract?.templateId === 'threejs-kernel';
                 let hollowReason = null;
                 let unwiredModules = null;
+                let bareSeed = false;
                 if (multiFile3D) {
-                    const unwired = await detectUnwiredModelModules(projectRoot);
-                    if (unwired.authoredOrphans.length > 0 && unwired.authoredWired === 0) {
-                        unwiredModules = unwired.authoredOrphans;
-                        hollowReason = `unwired_modules(${unwired.authoredOrphans.slice(0, 6).join(',')})`;
+                    // FIRST: did the model build ANYTHING? If it made zero edits across Phase 2, the
+                    // bare placeholder scaffold is what ships (grid "ground" + marker pickups) — never
+                    // accept that. (The unwired check below only fires when modules WERE written.)
+                    if (totalModelEdits === 0) {
+                        bareSeed = true;
+                        hollowReason = 'bare_seed_no_model_edits';
+                    } else {
+                        const unwired = await detectUnwiredModelModules(projectRoot);
+                        if (unwired.authoredOrphans.length > 0 && unwired.authoredWired === 0) {
+                            unwiredModules = unwired.authoredOrphans;
+                            hollowReason = `unwired_modules(${unwired.authoredOrphans.slice(0, 6).join(',')})`;
+                        }
                     }
                 } else {
                     hollowReason = await detectHollowMakerGame(projectRoot, stubMainLen);
@@ -5513,11 +5524,13 @@ async function runMakerAgentInspectionTurns({
                     // It renders, but there is no game (or the game is dead code). Don't accept —
                     // force another turn with explicit feedback.
                     hollowForceRetries += 1;
-                    const directRepairTask = unwiredModules
+                    const directRepairTask = bareSeed
+                        ? `You have written NO game code — every tool call was a read, zero files edited. What ships right now is the BARE PLACEHOLDER scaffold: a wireframe grid with marker pickups (it looks like "walking on the ground collecting coins"), NOT the game in the prompt. BUILD THE GAME NOW: write src/game/Game.ts and your own modules (player, enemies, obstacles, systems) to implement the actual loop the foundation describes — create the player, spawn entities, handle input, collisions, scoring, win/lose, and add it all to the scene. The seed src/world/World.ts + src/entities/Player.ts/Pickups.ts are PLACEHOLDERS to replace. Stop reading and start writing files.`
+                        : unwiredModules
                         ? `The project builds, but YOUR game modules are DEAD CODE — nothing imports them, so what actually ships is the generic STARTER scene (a blue character standing in an empty green field), NOT the game in the prompt. Orphaned files no one imports: ${unwiredModules.join(', ')}. This is a WIRING bug: rewrite src/game/Game.ts (and src/main.ts if needed) to import and USE your modules — build your real world/arena from them, create the player + entities from YOUR files, add them to the scene, and drive them in the update loop. The starter src/world/World.ts and src/entities/Player.ts are placeholders; stop using them and use yours instead. tsc must stay clean after wiring.`
                         : `The game builds and renders but implements NO gameplay — it is still essentially the empty stub (${hollowReason}). Implement the FULL interactive loop the foundation describes (state object, input handlers, spawning, movement, scoring, win/lose) across the game's modules. A background plus a few static objects is NOT a game.`;
                     const hollowTask = {
-                        id: unwiredModules ? 'modules_not_wired' : 'gameplay_loop_unimplemented',
+                        id: bareSeed ? 'no_game_built' : unwiredModules ? 'modules_not_wired' : 'gameplay_loop_unimplemented',
                         directRepairTask,
                     };
                     runEvidence.success = false;
@@ -5525,6 +5538,11 @@ async function runMakerAgentInspectionTurns({
                     lastRunEvidence = runEvidence;
                     console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn`);
                 } else {
+                    if (bareSeed) {
+                        // The model never wrote a line of game code — the bare placeholder scaffold is all
+                        // that exists. Never ship that as the requested game; fail so it retries clean.
+                        throw new Error(`Phase 2 builder wrote NO game code after ${turnNumber} turn(s) — only the bare placeholder scaffold exists (grid + marker pickups), not the requested game.`);
+                    }
                     if (unwiredModules) {
                         // Static, WebGL-independent proof the WRONG scene ships. Never ship a mislabeled
                         // decoy (the meadow stub masquerading as the requested game) — fail and retry instead.
