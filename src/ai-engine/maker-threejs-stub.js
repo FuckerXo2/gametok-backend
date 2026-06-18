@@ -885,48 +885,52 @@ export class Input {
 ` },
         { path: 'src/world/World.ts', content: `// @ts-nocheck
 import * as THREE from 'three';
-// Ground + sky + scattered scenery. Themed flat colors; shadows enabled by kernel.
+// PLACEHOLDER STARTER WORLD — intentionally a bare "under construction" scene (dark void +
+// wireframe grid + magenta marker blocks) so it is OBVIOUS when a game has not been wired in
+// yet. This is NOT a finished look. Replace it: build your real world here (track, arena,
+// terrain, space field) using lit MeshStandardMaterial so the kernel's shadows/bloom apply.
 export function buildWorld(scene) {
-  scene.background = new THREE.Color('#cfe8f5');
-  scene.fog = new THREE.Fog('#cfe8f5', 32, 84);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(42, 48), new THREE.MeshStandardMaterial({ color: '#6fae5c', roughness: 0.95, metalness: 0 }));
-  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  for (let i = 0; i < 22; i++) {
-    const a = Math.random() * Math.PI * 2; const r = 15 + Math.random() * 22;
-    const tree = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.1, 6), new THREE.MeshStandardMaterial({ color: '#7c4a2e', roughness: 0.9 }));
-    trunk.position.y = 0.55; trunk.castShadow = true; tree.add(trunk);
-    const top = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.9, 7), new THREE.MeshStandardMaterial({ color: '#2f7d40', roughness: 0.8 }));
-    top.position.y = 1.75; top.castShadow = true; tree.add(top);
-    tree.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
-    scene.add(tree);
+  scene.background = new THREE.Color('#15171f'); // dark void, deliberately unfinished
+  scene.fog = new THREE.Fog('#15171f', 36, 96);
+  // Construction grid — reads instantly as a placeholder scene.
+  const grid = new THREE.GridHelper(80, 40, '#4b5163', '#2a2e3a');
+  scene.add(grid);
+  // Magenta WIREFRAME markers: unmistakably "dev placeholder", and they keep the renderer busy.
+  const markerMat = new THREE.MeshBasicMaterial({ color: '#ff3df0', wireframe: true });
+  for (let i = 0; i < 6; i++) {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), markerMat);
+    box.position.set((i - 2.5) * 5, 0.75, -8 - (i % 3) * 4);
+    scene.add(box);
   }
 }
 ` },
         { path: 'src/entities/Player.ts', content: `// @ts-nocheck
 import * as THREE from 'three';
+// PLACEHOLDER avatar — an obvious magenta WIREFRAME marker, NOT a finished character.
+// Replace with your real player, built from your own entity module and added by Game.ts.
 export function createPlayer() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.7, 4, 12), new THREE.MeshStandardMaterial({ color: '#3b82f6', metalness: 0.55, roughness: 0.4 }));
-  body.position.y = 0.75; body.castShadow = true; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), new THREE.MeshStandardMaterial({ color: '#dfe7ee', metalness: 0.6, roughness: 0.3, emissive: '#1b3a6a', emissiveIntensity: 0.7 }));
-  head.position.y = 1.52; head.castShadow = true; g.add(head);
+  const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.6), new THREE.MeshBasicMaterial({ color: '#ff3df0', wireframe: true }));
+  marker.position.y = 0.9; g.add(marker);
   return g;
 }
 const SPEED = 7;
 export function movePlayer(player, move, dt) {
   player.position.x = Math.max(-19, Math.min(19, player.position.x + move.x * SPEED * dt));
   player.position.z = Math.max(-19, Math.min(19, player.position.z + move.z * SPEED * dt));
-  if (move.lengthSq() > 0.0001) player.rotation.y = Math.atan2(move.x, move.z);
+  marker_spin(player, dt);
 }
+function marker_spin(player, dt) { if (player.children[0]) player.children[0].rotation.y += dt * 1.5; }
 ` },
         { path: 'src/entities/Pickups.ts', content: `// @ts-nocheck
 import * as THREE from 'three';
+// PLACEHOLDER pickups — plain wireframe markers, not a finished collectible. Replace with your
+// own collectible/target entity and its collect feedback.
 class Pickup {
   constructor(scene) {
     this.group = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.1, 10, 20), new THREE.MeshStandardMaterial({ color: '#f5ba49', emissive: '#f5ba49', emissiveIntensity: 1.7, metalness: 0.3, roughness: 0.35 }));
-    ring.rotation.x = Math.PI / 2; ring.castShadow = true; this.group.add(ring);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.08, 8, 16), new THREE.MeshBasicMaterial({ color: '#ff3df0', wireframe: true }));
+    ring.rotation.x = Math.PI / 2; this.group.add(ring);
     scene.add(this.group);
     this.active = true; this.radius = 0.8;
     this.reset();
