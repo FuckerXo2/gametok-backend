@@ -161,6 +161,28 @@ export function voxelModel(
 }
 
 /**
+ * Free the GPU memory of an object and everything under it (geometry + materials + their textures),
+ * then you scene.remove() it. CALL THIS whenever you discard an entity — recycled obstacles,
+ * spent projectiles, cleared levels. Without it a runner/shooter that spawns + drops objects every
+ * few seconds leaks geometry/material/texture handles until the phone GPU stalls.
+ */
+export function disposeObject3D(root: THREE.Object3D): void {
+  root.traverse((object: THREE.Object3D) => {
+    const mesh = object as THREE.Mesh;
+    if (mesh.geometry) mesh.geometry.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
+    for (const material of materials) {
+      for (const value of Object.values(material as unknown as Record<string, unknown>)) {
+        if (value && typeof value === 'object' && (value as { isTexture?: boolean }).isTexture) {
+          (value as THREE.Texture).dispose();
+        }
+      }
+      material.dispose();
+    }
+  });
+}
+
+/**
  * Standard mobile-safe renderer/scene/camera/lights boot. Lights are ALWAYS added
  * here so a generated game can never render pitch black.
  */

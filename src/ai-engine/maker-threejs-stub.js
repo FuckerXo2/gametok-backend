@@ -980,22 +980,34 @@ export function collectPickups(player, pickups) {
 ` },
         { path: 'src/systems/Camera.ts', content: `// @ts-nocheck
 import * as THREE from 'three';
+// Smooth chase camera: follows with lag, looks slightly AHEAD of the player so the next threat/
+// decision stays on screen, and supports a brief clamped IMPULSE on hits/near-misses/boosts that
+// eases back fast (game-feel — never nauseating). Tune offset/lookAhead to your camera + genre.
 export class FollowCamera {
   constructor(camera) {
     this.camera = camera;
     this.offset = new THREE.Vector3(0, 9, 11);
+    this.lookAhead = new THREE.Vector3(0, 0.5, -2);
     this._d = new THREE.Vector3();
     this._l = new THREE.Vector3();
+    this._shake = 0;
   }
   snap(target) {
     this._d.copy(target).add(this.offset);
     this.camera.position.copy(this._d);
-    this.camera.lookAt(target.x, target.y + 0.5, target.z);
+    this._l.copy(target).add(this.lookAhead);
+    this.camera.lookAt(this._l);
   }
+  impulse(amount = 0.4) { this._shake = Math.min(1.2, this._shake + amount); }
   update(target, dt) {
     this._d.copy(target).add(this.offset);
+    if (this._shake > 0.001) {
+      this._d.x += (Math.random() - 0.5) * this._shake;
+      this._d.y += (Math.random() - 0.5) * this._shake;
+      this._shake *= Math.exp(-dt / 0.12);
+    }
     this.camera.position.lerp(this._d, 1 - Math.exp(-dt / 0.14));
-    this._l.set(target.x, target.y + 0.5, target.z);
+    this._l.copy(target).add(this.lookAhead);
     this.camera.lookAt(this._l);
   }
 }
