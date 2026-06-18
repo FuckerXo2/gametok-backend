@@ -239,7 +239,9 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   // High threshold so only intentionally-bright (emissive) things bloom.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.4, 0.85);
+  // strength 0.55, radius 0.4, threshold 0.9 — only genuinely bright (emissive accent) pixels
+  // bloom, and gently, so a too-emissive body glows instead of blowing out to a white blob.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.4, 0.9);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
