@@ -21,7 +21,7 @@ export const MAKER_AGENT_TURN_MODE_IMPLEMENT = 'implement';
 export const MAKER_AGENT_TURN_MODE_REPAIR = 'repair';
 
 const MIN_FIND_LENGTH = 12;
-const MAX_WRITE_FILE_CHARS = 12000;
+const MAX_WRITE_FILE_CHARS = 32000;
 const MAX_WRITE_FILE_CHARS_MAIN = Math.max(
     16000,
     Math.min(128000, Number(process.env.GAMETOK_MAKER_AGENT_MAIN_TS_MAX_CHARS || 96000)),
@@ -38,11 +38,11 @@ const REPAIR_MAX_ROUNDS = Math.max(
 );
 const IMPLEMENT_MAX_TOOL_CALLS = Math.max(
     6,
-    Math.min(48, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 32)),
+    Math.min(96, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 64)),
 );
 const IMPLEMENT_MAX_TOOL_CALLS_CEILING = Math.max(
     IMPLEMENT_MAX_TOOL_CALLS,
-    Math.min(64, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS_CEILING || 48)),
+    Math.min(128, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS_CEILING || 96)),
 );
 const IMPLEMENT_ASSET_KEY_BONUS_THRESHOLD = Math.max(
     24,
@@ -77,7 +77,7 @@ const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
 );
 const REPAIR_MAX_TOOL_CALLS = Math.max(
     18,
-    Math.min(40, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 28)),
+    Math.min(64, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_TOOL_CALLS || 48)),
 );
 const REPAIR_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
