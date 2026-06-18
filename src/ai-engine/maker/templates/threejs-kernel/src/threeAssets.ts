@@ -127,6 +127,40 @@ export function buildVoxelField(
 }
 
 /**
+ * Build a small VOXEL MODEL (ship, character, asteroid, gem, prop) from a list of colored grid
+ * cells — the no-asset way to make models that read as PREMIUM instead of smooth-blob primitives.
+ * Returns ONE InstancedMesh (one draw call, phone-safe) lit by MeshStandardMaterial, NOT added to
+ * the scene: parent it to your entity Group and move/rotate that. Keep a model ~12-60 cells with a
+ * recognizable silhouette. For glowing parts (engines, eyes, windows) add a few SEPARATE emissive
+ * MeshStandardMaterial boxes on top — instanced cells can't be per-cell emissive, but the kernel
+ * bloom will light those accent boxes. For big terrain/fields use buildVoxelField instead.
+ */
+export function voxelModel(
+  cells: VoxelCell[],
+  options: { size?: number; metalness?: number; roughness?: number } = {},
+): THREE.InstancedMesh {
+  const size = options.size || 0.25;
+  const geometry = new THREE.BoxGeometry(size, size, size);
+  const material = new THREE.MeshStandardMaterial({
+    metalness: options.metalness ?? 0.3,
+    roughness: options.roughness ?? 0.55,
+  });
+  const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, cells.length));
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const matrix = new THREE.Matrix4();
+  const color = new THREE.Color();
+  cells.forEach((cell, i) => {
+    matrix.setPosition((cell.x || 0) * size, (cell.y || 0) * size, (cell.z || 0) * size);
+    mesh.setMatrixAt(i, matrix);
+    mesh.setColorAt(i, color.set(cell.color || '#ffffff'));
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  return mesh;
+}
+
+/**
  * Standard mobile-safe renderer/scene/camera/lights boot. Lights are ALWAYS added
  * here so a generated game can never render pitch black.
  */

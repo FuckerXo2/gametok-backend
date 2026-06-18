@@ -926,31 +926,41 @@ export function buildWorld(scene) {
 ` },
         { path: 'src/entities/Player.ts', content: `// @ts-nocheck
 import * as THREE from 'three';
-// PLACEHOLDER avatar — an obvious magenta WIREFRAME marker, NOT a finished character.
-// Replace with your real player, built from your own entity module and added by Game.ts.
+import { voxelModel } from '../threeAssets.ts';
+// PLACEHOLDER avatar — a deliberately UNFINISHED magenta voxel marker, NOT a real character.
+// It only exists to demonstrate the voxelModel(cells,{size}) pattern in context. Replace it:
+// design YOUR entity as a recognizable voxel model (ship/character) with a real palette.
 export function createPlayer() {
   const g = new THREE.Group();
-  const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.6), new THREE.MeshBasicMaterial({ color: '#ff3df0', wireframe: true }));
-  marker.position.y = 0.9; g.add(marker);
+  // A tiny magenta "X" of voxel cells — obvious placeholder, shows how to call voxelModel().
+  const cells = [
+    { x: 0, y: 0, z: 0, color: '#ff3df0' },
+    { x: 1, y: 1, z: 0, color: '#ff3df0' }, { x: -1, y: 1, z: 0, color: '#ff3df0' },
+    { x: 1, y: -1, z: 0, color: '#ff3df0' }, { x: -1, y: -1, z: 0, color: '#ff3df0' },
+  ];
+  const model = voxelModel(cells, { size: 0.4 });
+  model.position.y = 0.9; g.add(model);
   return g;
 }
 const SPEED = 7;
 export function movePlayer(player, move, dt) {
   player.position.x = Math.max(-19, Math.min(19, player.position.x + move.x * SPEED * dt));
   player.position.z = Math.max(-19, Math.min(19, player.position.z + move.z * SPEED * dt));
-  marker_spin(player, dt);
+  if (player.children[0]) player.children[0].rotation.y += dt * 1.5;
 }
-function marker_spin(player, dt) { if (player.children[0]) player.children[0].rotation.y += dt * 1.5; }
 ` },
         { path: 'src/entities/Pickups.ts', content: `// @ts-nocheck
 import * as THREE from 'three';
-// PLACEHOLDER pickups — plain wireframe markers, not a finished collectible. Replace with your
-// own collectible/target entity and its collect feedback.
+import { voxelModel } from '../threeAssets.ts';
+// PLACEHOLDER pickups — unfinished magenta voxel markers (built via voxelModel to show the
+// pattern), not a finished collectible. Replace with your own collectible/target + collect feedback.
 class Pickup {
   constructor(scene) {
     this.group = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.08, 8, 16), new THREE.MeshBasicMaterial({ color: '#ff3df0', wireframe: true }));
-    ring.rotation.x = Math.PI / 2; this.group.add(ring);
+    const gem = voxelModel([
+      { x: 0, y: 0, z: 0, color: '#ff3df0' }, { x: 0, y: 1, z: 0, color: '#ff7df5' }, { x: 0, y: -1, z: 0, color: '#ff7df5' },
+    ], { size: 0.22 });
+    this.group.add(gem);
     scene.add(this.group);
     this.active = true; this.radius = 0.8;
     this.reset();
