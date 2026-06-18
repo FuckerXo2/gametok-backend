@@ -97,6 +97,14 @@ const ASSET_LAW = [
     'If an asset fails quality (blank/transparent), use a code fallback shape — do not pretend the broken PNG is fine.',
 ];
 
+const THREEJS_GAMEPLAY_LAW = [
+    '3D GAMEPLAY MUST FEEL 3D: The player must move FORWARD through the world (or world moves toward player) in the Z-axis. Do not restrict the player to a flat 2D plane (strafing only X/Y) while things fly at them unless explicitly requested as a static gallery shooter.',
+    'CAMERA LAG & LOOK-AHEAD: A third-person chase camera must softly follow the player with slight lag using lerp, and look slightly ahead of the player velocity. Do not hard-lock the camera directly to the player position.',
+    'GAME FEEL & JUICE: Implement acceleration, deceleration, and friction. Add camera shake on collisions/hits. Add FOV kick/punch on boost or high speeds.',
+    'COLLISION: Use simple distance checks for arcade triggers, but account for 3D bounds (radii or boxes).',
+    'PROPORTION & SCALE: The world must feel vast. Scale entities appropriately. Spawn obstacles far ahead in the distance (e.g. Z = -100 to -300) so the player can see them coming, and despawn them when they pass behind the camera.',
+];
+
 const SANDBOX_LAW = [
     'Blank canvas = fatal failure.',
     'Canvas must fill the mobile viewport (0,0 to innerWidth/innerHeight). Default body margin or offset canvas = failure.',
@@ -252,8 +260,8 @@ COMPOSITION ("solid cards on a themed background" — Royal Match / Frosting Mas
 
 const ROLE_SECTIONS = {
     phase1: ['pipeline', 'agents.spec', 'assetLaw', 'sandboxLaw'],
-    foundation: ['pipeline', 'agents.foundation', 'kernel', 'foundationContract', 'compositionLaw', 'visualRecipes', 'assetLaw', 'firstFrame', 'knownFailures'],
-    fileAgent: ['pipeline', 'agents.fileAgent', 'kernel', 'foundationContract', 'compositionLaw', 'visualRecipes', 'assetLaw', 'sandboxLaw', 'firstFrame', 'knownFailures'],
+    foundation: ['pipeline', 'agents.foundation', 'kernel', 'foundationContract', 'compositionLaw', 'threejsGameplayLaw', 'visualRecipes', 'assetLaw', 'firstFrame', 'knownFailures'],
+    fileAgent: ['pipeline', 'agents.fileAgent', 'kernel', 'foundationContract', 'compositionLaw', 'threejsGameplayLaw', 'visualRecipes', 'assetLaw', 'sandboxLaw', 'firstFrame', 'knownFailures'],
     artist: ['pipeline', 'agents.artist', 'assetLaw', 'foundationContract.assetSlots'],
 };
 
@@ -304,6 +312,10 @@ function sectionSandboxLaw() {
     return ['## Sandbox Law', ...SANDBOX_LAW.map((line) => `- ${line}`)].join('\n');
 }
 
+function sectionThreeJSGameplayLaw() {
+    return ['## 3D Gameplay & Game Feel Law', ...THREEJS_GAMEPLAY_LAW.map((line) => `- ${line}`)].join('\n');
+}
+
 function sectionFirstFrame() {
     return ['## First Frame Law', ...KERNEL.firstFrameLaw.map((line) => `- ${line}`)].join('\n');
 }
@@ -325,6 +337,7 @@ const SECTION_BUILDERS = {
     kernel: sectionKernel,
     foundationContract: sectionFoundationContract,
     compositionLaw: sectionCompositionLaw,
+    threejsGameplayLaw: sectionThreeJSGameplayLaw,
     visualRecipes: sectionVisualRecipes,
     assetLaw: sectionAssetLaw,
     sandboxLaw: sectionSandboxLaw,
