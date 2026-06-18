@@ -1001,22 +1001,29 @@ export class FollowCamera {
 }
 ` },
         { path: 'src/systems/Hud.ts', content: `// @ts-nocheck
-// Complete game HUD: score + a built-in game-over overlay. Generated game code
-// commonly calls showGameOver(score)/hideGameOver()/setScore(n) — they all exist
-// here so a game-over flow never crashes with "is not a function".
+// Self-contained game HUD. The HTML shell ships #hud EMPTY, so this builds its OWN themed DOM —
+// a score is ALWAYS visible without depending on any pre-existing element. Premium HUD rules:
+// top-right score in a FIXED-WIDTH (tabular-nums) container so the number never shifts layout,
+// themed glow, plus a game-over overlay with a Retry action. EXTEND this for your game — add an
+// objective/timer/combo/meters in the top-left, wire them to game state; never a generic
+// stat-card dashboard. setScore/update/flash/showGameOver/hideGameOver/reset are all here.
 export class Hud {
   constructor() {
-    this.scoreEl = document.getElementById('score-value');
+    this.root = document.getElementById('hud') || document.body;
+    this.scorePill = document.createElement('div');
+    this.scorePill.style.cssText = 'position:fixed;z-index:40;top:calc(env(safe-area-inset-top,0px) + 14px);right:14px;min-width:64px;padding:8px 14px;border-radius:999px;background:rgba(10,14,24,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#fff;font:700 20px/1 system-ui,-apple-system,sans-serif;text-align:right;letter-spacing:1px;font-variant-numeric:tabular-nums;box-shadow:0 0 18px rgba(120,170,255,0.35);pointer-events:none;';
+    this.scorePill.textContent = '0';
+    this.root.appendChild(this.scorePill);
     this.overlay = null;
   }
-  update(score) { if (this.scoreEl) this.scoreEl.textContent = String(Math.floor(score ?? 0)); }
+  update(score) { this.scorePill.textContent = String(Math.floor(score ?? 0)); }
   setScore(score) { this.update(score); }
-  flash() { if (this.scoreEl && this.scoreEl.animate) this.scoreEl.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 200 }); }
+  flash() { if (this.scorePill.animate) this.scorePill.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' }], { duration: 200 }); }
   showGameOver(score) {
     if (!this.overlay) {
       this.overlay = document.createElement('div');
-      this.overlay.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(6,10,20,0.66);color:#fff;font-family:system-ui,-apple-system,sans-serif;z-index:50;text-align:center;';
-      this.overlay.innerHTML = '<div style="font-size:34px;font-weight:800;letter-spacing:1px;">GAME OVER</div><div class="go-score" style="font-size:20px;opacity:0.95;"></div><div style="font-size:14px;opacity:0.7;margin-top:6px;">Tap to play again</div>';
+      this.overlay.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(6,10,20,0.7);color:#fff;font-family:system-ui,-apple-system,sans-serif;z-index:50;text-align:center;';
+      this.overlay.innerHTML = '<div style="font-size:34px;font-weight:800;letter-spacing:1px;">GAME OVER</div><div class="go-score" style="font-size:20px;opacity:0.95;"></div><button class="go-retry" style="margin-top:8px;padding:12px 30px;border:0;border-radius:999px;background:#5b8cff;color:#fff;font:700 16px system-ui;cursor:pointer;box-shadow:0 0 20px rgba(91,140,255,0.6);">Retry</button>';
       (document.getElementById('game-shell') || document.body).appendChild(this.overlay);
     }
     const s = this.overlay.querySelector('.go-score');
