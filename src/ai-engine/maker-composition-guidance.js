@@ -1,5 +1,42 @@
 import { resolveHudAuthority } from './maker-hud-authority.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let cachedThreeJSSkills = null;
+
+function loadAllThreeJSSkills() {
+    if (cachedThreeJSSkills) return cachedThreeJSSkills;
+    try {
+        const skillsDir = path.join(__dirname, 'threejs-skills');
+        if (!fs.existsSync(skillsDir)) return '';
+        
+        let allSkills = [];
+        
+        function readDirRecursive(dir) {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    readDirRecursive(fullPath);
+                } else if (entry.isFile() && entry.name.endsWith('.md')) {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    allSkills.push(`\n=== SKILL FILE: ${entry.name} ===\n${content}`);
+                }
+            }
+        }
+        
+        readDirRecursive(skillsDir);
+        cachedThreeJSSkills = allSkills.join('\n');
+        return cachedThreeJSSkills;
+    } catch (e) {
+        console.error('Failed to load ThreeJS skills:', e);
+        return '';
+    }
+}
 function asArray(value) {
     return Array.isArray(value) ? value : [];
 }
@@ -245,5 +282,16 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
     if (anti.length) {
         lines.push('- Anti-patterns (instant fail): ' + anti.slice(0, 4).join('; '));
     }
+    
+    if (is3D) {
+        const threejsSkills = loadAllThreeJSSkills();
+        if (threejsSkills) {
+            lines.push('\n=== THREE.JS GAMEPLAY & GRAPHICS SKILLS ===');
+            lines.push('READ THE FOLLOWING SKILLS CAREFULLY AND APPLY THEM TO THIS GAME. THIS IS YOUR PRIMARY ARCHITECTURE AND GAME-FEEL GUIDANCE:');
+            lines.push(threejsSkills);
+            lines.push('=== END THREE.JS SKILLS ===\n');
+        }
+    }
+
     return lines.join('\n');
 }
