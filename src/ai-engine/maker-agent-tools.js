@@ -558,6 +558,23 @@ async function executeWriteFile(projectRoot, helpers, args = {}, { mode = MAKER_
         throw new Error(`write_file blocked on protected file: ${resolvedPath}`);
     }
 
+    // Case-only filename collision guard (e.g. HUD.ts vs the seed's Hud.ts). On case-insensitive
+    // filesystems these are the SAME file and break the TypeScript build with TS1261 — but it only
+    // surfaces at the final bundle, turns later, after the model has dug in. Catch it at write time
+    // and point the model at the EXACT existing casing so it stays consistent in the file + imports.
+    try {
+        const base = path.basename(absolutePath);
+        const existing = await fs.promises.readdir(path.dirname(absolutePath));
+        const clash = existing.find((name) => name !== base && name.toLowerCase() === base.toLowerCase());
+        if (clash) {
+            const canonical = path.posix.join(path.posix.dirname(resolvedPath), clash);
+            throw new Error(`write_file BLOCKED — '${resolvedPath}' collides with existing '${canonical}': they differ only in letter case, which breaks the build on case-insensitive filesystems (TS error TS1261). Do NOT create a case-variant. Use the EXACT existing path '${canonical}' for this file AND in every import that references it (edit that file instead of making a new one).`);
+        }
+    } catch (err) {
+        if (err && typeof err.message === 'string' && err.message.includes('BLOCKED')) throw err;
+        // readdir failed only because the directory does not exist yet → no possible collision.
+    }
+
     const sanitized = helpers.sanitizeMakerMainTsContent(content, resolvedPath);
     await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
     await fs.promises.writeFile(absolutePath, sanitized, 'utf8');
