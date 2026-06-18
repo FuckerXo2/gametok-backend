@@ -5042,6 +5042,66 @@ async function detectHollowMakerGame(projectRoot, stubMainLen = 0) {
     }
 }
 
+// Module files the 3D multi-file scaffold ships with. Anything else under the gameplay dirs is
+// model-authored. If NONE of the model's own modules are reachable from main.ts's import graph,
+// the builder wrote its whole game into files that nothing imports (dead code) — so the generic
+// STARTER scene (a character in an empty field) ships instead of the requested game. This is a
+// static fact that holds even though the headless sandbox can't run WebGL to see the wrong scene.
+const SEED_THREE_SCAFFOLD_MODULES = new Set([
+    'src/game/Game.ts', 'src/core/Input.ts', 'src/world/World.ts',
+    'src/entities/Player.ts', 'src/entities/Pickups.ts',
+    'src/systems/Camera.ts', 'src/systems/Hud.ts',
+]);
+
+function resolveRelativeTsImport(fromDir, spec) {
+    const base = path.resolve(fromDir, spec);
+    for (const cand of [base, `${base}.ts`, `${base}.js`, path.join(base, 'index.ts')]) {
+        try { if (fs.existsSync(cand) && fs.statSync(cand).isFile()) return cand; } catch { /* ignore */ }
+    }
+    return null;
+}
+
+// Walk the import graph from src/main.ts and report model-authored gameplay modules that nothing
+// imports. Returns { authoredOrphans: string[], authoredWired: number }. When authoredWired === 0
+// but authoredOrphans is non-empty, the model's game is entirely unwired (the starter scene ships).
+async function detectUnwiredModelModules(projectRoot) {
+    const result = { authoredOrphans: [], authoredWired: 0 };
+    try {
+        const srcDir = path.join(projectRoot, 'src');
+        const entry = path.join(srcDir, 'main.ts');
+        if (!fs.existsSync(entry)) return result;
+        const reachable = new Set();
+        const stack = [entry];
+        const importRe = /(?:import|export)[^'"]*?['"]([^'"]+)['"]/g;
+        while (stack.length) {
+            const file = stack.pop();
+            if (reachable.has(file)) continue;
+            reachable.add(file);
+            let text;
+            try { text = await fs.promises.readFile(file, 'utf8'); } catch { continue; }
+            let m;
+            while ((m = importRe.exec(text)) !== null) {
+                const spec = m[1];
+                if (!spec.startsWith('.')) continue; // skip packages (three, addons) + bare specifiers
+                const resolved = resolveRelativeTsImport(path.dirname(file), spec);
+                if (resolved) stack.push(resolved);
+            }
+        }
+        for (const dir of ['game', 'systems', 'entities', 'world', 'core']) {
+            let names;
+            try { names = await fs.promises.readdir(path.join(srcDir, dir)); } catch { continue; }
+            for (const name of names) {
+                if (!name.endsWith('.ts')) continue;
+                const rel = `src/${dir}/${name}`;
+                if (SEED_THREE_SCAFFOLD_MODULES.has(rel)) continue; // seed placeholder, not model-authored
+                if (reachable.has(path.join(srcDir, dir, name))) result.authoredWired += 1;
+                else result.authoredOrphans.push(rel);
+            }
+        }
+    } catch { /* detection only — never block on error */ }
+    return result;
+}
+
 async function runMakerAgentInspectionTurns({
     workspace,
     projectRoot,
@@ -5434,20 +5494,42 @@ async function runMakerAgentInspectionTurns({
                 notes: inspection.notes,
             });
             if (runEvidence?.success) {
-                const hollowReason = await detectHollowMakerGame(projectRoot, stubMainLen);
+                // Multi-file 3D keeps main.ts a THIN entry by design, so its size is meaningless —
+                // the real "hollow" signal is whether the model wired its OWN modules into the import
+                // graph at all. Everything else keeps the size/TODO heuristic.
+                const multiFile3D = isFreeBuildMode() && templateContract?.templateId === 'threejs-kernel';
+                let hollowReason = null;
+                let unwiredModules = null;
+                if (multiFile3D) {
+                    const unwired = await detectUnwiredModelModules(projectRoot);
+                    if (unwired.authoredOrphans.length > 0 && unwired.authoredWired === 0) {
+                        unwiredModules = unwired.authoredOrphans;
+                        hollowReason = `unwired_modules(${unwired.authoredOrphans.slice(0, 6).join(',')})`;
+                    }
+                } else {
+                    hollowReason = await detectHollowMakerGame(projectRoot, stubMainLen);
+                }
                 if (hollowReason && turnNumber < maxTurns && hollowForceRetries < 1) {
-                    // It renders, but there is no game. Don't accept — force another turn with explicit
-                    // feedback so the builder implements the actual interactive loop.
+                    // It renders, but there is no game (or the game is dead code). Don't accept —
+                    // force another turn with explicit feedback.
                     hollowForceRetries += 1;
+                    const directRepairTask = unwiredModules
+                        ? `The project builds, but YOUR game modules are DEAD CODE — nothing imports them, so what actually ships is the generic STARTER scene (a blue character standing in an empty green field), NOT the game in the prompt. Orphaned files no one imports: ${unwiredModules.join(', ')}. This is a WIRING bug: rewrite src/game/Game.ts (and src/main.ts if needed) to import and USE your modules — build your real world/arena from them, create the player + entities from YOUR files, add them to the scene, and drive them in the update loop. The starter src/world/World.ts and src/entities/Player.ts are placeholders; stop using them and use yours instead. tsc must stay clean after wiring.`
+                        : `The game builds and renders but implements NO gameplay — it is still essentially the empty stub (${hollowReason}). Implement the FULL interactive loop the foundation describes (state object, input handlers, spawning, movement, scoring, win/lose) across the game's modules. A background plus a few static objects is NOT a game.`;
                     const hollowTask = {
-                        id: 'gameplay_loop_unimplemented',
-                        directRepairTask: `The game builds and renders but implements NO gameplay — it is still essentially the empty stub (${hollowReason}). Implement the FULL interactive loop the foundation describes in src/main.ts (stepGame + input handlers): the toolbar/tray the player drags FROM, the drag-and-drop placement, every tap/feed/select handler, and any meter the loop needs. Start the board/tank EMPTY (the player fills it). A background plus a few static sprites is NOT a game.`,
+                        id: unwiredModules ? 'modules_not_wired' : 'gameplay_loop_unimplemented',
+                        directRepairTask,
                     };
                     runEvidence.success = false;
                     runEvidence.targetedRepairTasks = [hollowTask, ...(runEvidence.targetedRepairTasks || [])];
                     lastRunEvidence = runEvidence;
-                    console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn to implement the loop`);
+                    console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn`);
                 } else {
+                    if (unwiredModules) {
+                        // Static, WebGL-independent proof the WRONG scene ships. Never ship a mislabeled
+                        // decoy (the meadow stub masquerading as the requested game) — fail and retry instead.
+                        throw new Error(`Phase 2 builder left its game unwired after ${turnNumber} turn(s): the shipped scene is the generic starter, not the requested game. Orphaned modules: ${unwiredModules.join(', ')}.`);
+                    }
                     if (hollowReason) {
                         console.warn(`⚠️ [Phase 2 job=${jobId}] Shipping a thin game (${hollowReason}) — no turns left to deepen it`);
                     }
