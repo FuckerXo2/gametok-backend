@@ -243,8 +243,8 @@ export function buildThreeDRulesBlock(foundation = null) {
         `- Camera rig: ${cameraRig}. Smooth follow/look in stepGame.`,
         '- Code-built geometry (BoxGeometry, CylinderGeometry, etc).',
         "- PREMIUM PROCEDURAL MATERIALS: MeshStandardMaterial (metalness/roughness). EMISSIVE only for glowing accents (neon, engines, pickups). No image textures.",
-        "- WORLD AXES: Camera sits at +Z looking at -Z. FORWARD = -Z. Players/objects must move toward -Z.",
-        '- Movement plane: match the genre (ground = X/Z, flight/space = X/Y).',
+        "- WORLD AXES: Camera sits at +Z looking down -Z (FORWARD = -Z). THE PLAY SPACE IS THE DEPTH AXIS: the world / obstacles / enemies live deep at -Z and travel toward the camera (+Z), growing as they approach.",
+        '- Movement plane: ground games steer the player on X/Z. FLIGHT / SPACE / SHOOTER games: the player STRAFES on the X/Y screen plane, but the WORLD STILL MOVES IN DEPTH — spawn obstacles far at -Z (e.g. z = -120) and rush them toward the player on +Z. NEVER spawn things from the screen EDGES sliding across X/Y, and never make +Y-up the only direction of play: edge-spawn / screen-plane-only gameplay produces a flat "3D objects on a 2D plane" look and is a HARD FAILURE for a 3D game.',
         "- HUD: DOM in #hud, not canvas text. Use fixed-width fonts.",
         ...((lane.includes('runner') || lane.includes('surfer') || lane.includes('dash')) && isFreeBuildMode() ? [
             '- RUNNER (FREE BUILD): Organize code across multiple files under src/. main.ts is the entry point. Export stepGame(dt), renderAll(), resetGame().',

@@ -102,6 +102,8 @@ Rules:
 - Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
         user: `${mustBe3D ? `MANDATORY — Phase 1 classified this game as 3D (${phase1Perspective}). This is BINDING: you MUST output a 3D foundation — "dimension":"3D", "engine":"threejs", a 3D "lane" (threejs_world | voxel_world | threejs_runner | threejs_first_person), a "cameraRig", and EMPTY "assetSlots". Do NOT output "canvas-2d" or any 2D/flat lane (no *_vertical, top_down, side_view, arcade-flat). "space shooter", "survive waves", "shmup" etc. are still 3D here because Phase 1 said so — downgrading to 2D is a hard failure.
 
+DEPTH MANDATE (equally binding): a 3D play space MUST use the DEPTH axis. interactionLoops must describe obstacles / enemies / targets spawning deep on the -Z axis (e.g. z = -120) and rushing toward the camera, growing as they approach. The player may STRAFE on the X/Y screen plane, but the WORLD travels in depth. Edge-spawning — "asteroids come from the screen edges", "fly up/down and shoot up the screen", any +Y-only screen-plane loop — is the flat 1979-arcade reflex and a HARD FAILURE. If Phase 1 describes such a flat loop, you MUST rewrite interactionLoops into a forward-flight / approach-the-camera depth experience.
+
 ` : ''}USER PROMPT:
 ${prompt}
 

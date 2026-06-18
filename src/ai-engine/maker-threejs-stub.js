@@ -860,8 +860,10 @@ import * as THREE from 'three';
 // GAME picks the movement plane — do not assume ground. Two readers:
 //   read()       -> Vector3 on the GROUND plane (x = sideways, z = forward/back). Use for runners/
 //                   drivers/top-down. Vertical input maps to Z (depth) here.
-//   readScreen() -> Vector2 on the SCREEN plane (x = left/right, y = UP/DOWN). Use for FLYING /
-//                   SPACE / SHOOTER games so up actually moves the player UP, not into depth.
+//   readScreen() -> Vector2 on the SCREEN plane (x = left/right, y = up/down). Use it ONLY to STRAFE
+//                   the player ship in FLYING / SPACE / SHOOTER games. The WORLD still moves in DEPTH:
+//                   spawn obstacles far at -Z and rush them toward the camera (+Z). Do NOT build the
+//                   whole game on X/Y or it reads as a flat 2D plane.
 export class Input {
   constructor(target, onFirst) {
     this.keys = new Set();
@@ -894,7 +896,8 @@ export class Input {
     if (this._v.lengthSq() > 1) this._v.normalize();
     return this._v;
   }
-  // SCREEN plane: x = left/right, y = up/down. For flyers/shooters: ship.position.x/y += axis * speed.
+  // SCREEN plane: x = left/right, y = up/down. Flyers/shooters STRAFE the ship here (ship.position.x/y
+  // += axis * speed) WHILE obstacles approach on +Z — never make the whole game live on this plane.
   readScreen() {
     const [hx, vy] = this._axis();
     this._s.set(hx, vy);

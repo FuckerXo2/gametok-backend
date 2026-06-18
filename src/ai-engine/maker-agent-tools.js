@@ -1109,17 +1109,15 @@ export async function runMakerAgentToolTurn({
     }
 
     if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !touchedMainTs && editsApplied.length === 0) {
-        // On Turn 2+ (visual polish), the AI may legitimately edit only HUD/shader/style files
-        // without touching src/main.ts. Only hard-fail if this is the FIRST implement turn where
-        // the game must actually be built.
-        const totalTurns = resolveMakerAgentInspectionTurns();
-        const implTurns = resolveMakerAgentImplementTurns(totalTurns);
-        const isFirstImplementTurn = implTurns <= 1 || !touchedMainTs;
-        if (implTurns <= 1) {
-            throw new Error('Implement mode requires apply_patch or write_file edits to src/main.ts');
-        }
-        // For multi-implement-turn setups (polish loop), downgrade to a warning instead of crashing
-        console.warn(`⚠️ [Implement Guard] Turn did not edit src/main.ts or any file — polish turn produced no edits (non-fatal)`);
+        // A no-edit implement turn is NOT fatal here. We cannot reliably tell the mandatory first
+        // build turn from a later visual-polish turn inside the tool runner — the locally recomputed
+        // turn counts disagree with the route's actual loop config, which used to make a bonus polish
+        // turn throw and DISCARD an already-passing game from an earlier turn. The route already
+        // protects the genuine "nothing was ever built" case with evidence-based bareSeed/hollow
+        // detection after the turn, and preserves any passing build. So flag no-edits and defer to
+        // the route — never crash a working game because a polish turn wrote nothing.
+        noEditsNeeded = true;
+        console.warn(`⚠️ [Implement Guard] Implement turn produced no edits — deferring to route acceptance gate (non-fatal).`);
     }
 
     const reads = Array.from(readPathCounts.entries()).map(([p, c]) => `${p} (${c}x)`);

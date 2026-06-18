@@ -5147,6 +5147,10 @@ async function runMakerAgentInspectionTurns({
     let hollowForceRetries = 0;
     let totalModelEdits = 0;
     let lastRunEvidence = null;
+    // Snapshot of the most recent turn whose build+sandbox actually PASSED. A later turn (e.g. the
+    // bonus visual-polish turn) must never be able to discard a working game — if it throws, we fall
+    // back to this.
+    let lastGoodEvidence = null;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
         let preRunEvidence = null;
@@ -5483,6 +5487,9 @@ async function runMakerAgentInspectionTurns({
                 }
             }
             lastRunEvidence = runEvidence;
+            // Capture a snapshot of the passing build BEFORE any later branch (e.g. the polish-turn
+            // forcing below) mutates runEvidence.success to false to drive another turn.
+            if (runEvidence?.success === true) lastGoodEvidence = { ...runEvidence };
             await appendMakerAgentTurn(workspace, turns, {
                 phase: 'file_inspection',
                 objective,
@@ -5600,6 +5607,13 @@ async function runMakerAgentInspectionTurns({
             });
             if (error.partialText) {
                 await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}-invalid.txt`, error.partialText);
+            }
+            // Safety net: if an EARLIER turn already produced a passing build+sandbox, never fail the
+            // whole job because a later (bonus/polish) turn threw. Ship the last good build instead.
+            if (lastGoodEvidence?.success === true) {
+                console.warn(`🛟 [Phase 2 job=${jobId}] Turn ${turnNumber} threw (${error.message}) but a prior turn already produced a passing build — shipping that build instead of failing the job.`);
+                lastRunEvidence = lastGoodEvidence;
+                break;
             }
             throw new Error(`Phase 2 file agent turn ${turnNumber} failed: ${error.message}`);
         }
