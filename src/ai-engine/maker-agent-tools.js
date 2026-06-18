@@ -628,6 +628,9 @@ function summarizeEditFromToolResult(result = {}) {
     if (!result?.ok || !result.path) {
         return null;
     }
+    if (result.tool !== MAKER_TOOL_WRITE_FILE && result.tool !== MAKER_TOOL_APPLY_PATCH) {
+        return null;
+    }
     return {
         path: result.path,
         bytes: result.bytes || 0,
