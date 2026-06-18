@@ -16,6 +16,7 @@ function loadAllThreeJSSkills() {
         
         let allSkills = [];
         
+        // Only load pure knowledge from references. Ignore SKILL.md to avoid CLI/Python conflicts.
         function readDirRecursive(dir) {
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (const entry of entries) {
@@ -23,14 +24,22 @@ function loadAllThreeJSSkills() {
                 if (entry.isDirectory()) {
                     readDirRecursive(fullPath);
                 } else if (entry.isFile() && entry.name.endsWith('.md')) {
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    allSkills.push(`\n=== SKILL FILE: ${entry.name} ===\n${content}`);
+                    // Only include files that are inside a "references" folder somewhere in their path
+                    if (fullPath.includes('/references/') && entry.name !== 'SKILL.md') {
+                        const content = fs.readFileSync(fullPath, 'utf8');
+                        allSkills.push(`\n=== KNOWLEDGE REFERENCE: ${entry.name} ===\n${content}`);
+                    }
                 }
             }
         }
         
         readDirRecursive(skillsDir);
-        cachedThreeJSSkills = allSkills.join('\n');
+        cachedThreeJSSkills = [
+            "CRITICAL CONTEXT: The following references are from the ThreeJS AAA Skills repository.",
+            "You are the Maker Agent. You do NOT have a terminal, you cannot run python scripts, and you must implement the game primarily inside src/main.ts.",
+            "ADAPT the architectural wisdom (camera lag, physics, lighting, movement) from these references into your single-file architecture.",
+            allSkills.join('\n')
+        ].join('\n');
         return cachedThreeJSSkills;
     } catch (e) {
         console.error('Failed to load ThreeJS skills:', e);
