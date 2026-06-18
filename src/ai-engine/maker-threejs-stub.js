@@ -856,30 +856,50 @@ export class Game {
 ` },
         { path: 'src/core/Input.ts', content: `// @ts-nocheck
 import * as THREE from 'three';
-// Keyboard (WASD/arrows) + touch-drag movement on the ground plane. No extra DOM.
+// Keyboard (WASD/arrows) + touch-drag. Exposes the raw 2D intent (horizontal, vertical) so the
+// GAME picks the movement plane — do not assume ground. Two readers:
+//   read()       -> Vector3 on the GROUND plane (x = sideways, z = forward/back). Use for runners/
+//                   drivers/top-down. Vertical input maps to Z (depth) here.
+//   readScreen() -> Vector2 on the SCREEN plane (x = left/right, y = UP/DOWN). Use for FLYING /
+//                   SPACE / SHOOTER games so up actually moves the player UP, not into depth.
 export class Input {
   constructor(target, onFirst) {
     this.keys = new Set();
     this.touch = new THREE.Vector2();
     this.active = false;
     this._v = new THREE.Vector3();
+    this._s = new THREE.Vector2();
     let sx = 0, sy = 0;
     window.addEventListener('keydown', (e) => { this.keys.add(e.code); onFirst && onFirst(); });
     window.addEventListener('keyup', (e) => { this.keys.delete(e.code); });
     target.addEventListener('pointerdown', (e) => { this.active = true; sx = e.clientX; sy = e.clientY; this.touch.set(0, 0); onFirst && onFirst(); });
-    window.addEventListener('pointermove', (e) => { if (!this.active) return; this.touch.set((e.clientX - sx) / 60, (e.clientY - sy) / 60); if (this.touch.lengthSq() > 1) this.touch.normalize(); });
+    window.addEventListener('pointermove', (e) => { if (!this.active) return; this.touch.set((e.clientX - sx) / 50, (e.clientY - sy) / 50); if (this.touch.lengthSq() > 1) this.touch.normalize(); });
     window.addEventListener('pointerup', () => { this.active = false; this.touch.set(0, 0); });
     window.addEventListener('pointercancel', () => { this.active = false; this.touch.set(0, 0); });
   }
+  // Raw horizontal/vertical intent in [-1,1]. -y while dragging UP / pressing W (so screen-up is +).
+  _axis() {
+    let hx = 0, vy = 0;
+    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) hx -= 1;
+    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) hx += 1;
+    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) vy += 1;
+    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) vy -= 1;
+    hx += this.touch.x; vy -= this.touch.y; // drag up (touch.y<0) => vy>0 => screen-up
+    return [hx, vy];
+  }
+  // GROUND plane: x = sideways, z = forward/back (vertical intent -> -z forward).
   read() {
-    this._v.set(0, 0, 0);
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) this._v.x -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) this._v.x += 1;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) this._v.z -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) this._v.z += 1;
-    this._v.x += this.touch.x; this._v.z += this.touch.y;
+    const [hx, vy] = this._axis();
+    this._v.set(hx, 0, -vy);
     if (this._v.lengthSq() > 1) this._v.normalize();
     return this._v;
+  }
+  // SCREEN plane: x = left/right, y = up/down. For flyers/shooters: ship.position.x/y += axis * speed.
+  readScreen() {
+    const [hx, vy] = this._axis();
+    this._s.set(hx, vy);
+    if (this._s.lengthSq() > 1) this._s.normalize();
+    return this._s;
   }
 }
 ` },
