@@ -211,8 +211,11 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   camera.position.set(0, 4, 8);
   camera.lookAt(0, 0, 0);
 
-  // Mandatory lighting — hemisphere fills, directional shapes + casts soft shadows.
-  const hemisphere = new THREE.HemisphereLight('#ffffff', '#445566', 1.0);
+  // Mandatory lighting stack (key + fill + rim) — the premium-graphics recipe: a key light
+  // defines form, hemisphere fills so nothing is pure black, and a RIM/back light separates
+  // players and hazards from the background so silhouettes read. All free until meshes opt into
+  // shadows. (key = sun, fill = hemisphere, rim = backLight.)
+  const hemisphere = new THREE.HemisphereLight('#ffffff', '#445566', 0.9);
   const sun = new THREE.DirectionalLight('#ffffff', 1.5);
   sun.position.set(6, 12, 4);
   sun.castShadow = true;
@@ -224,7 +227,11 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   sun.shadow.camera.top = 20;
   sun.shadow.camera.bottom = -20;
   sun.shadow.bias = -0.0004;
-  scene.add(hemisphere, sun);
+  // Rim/back light: cool, low, from behind-opposite the key — edge-lights silhouettes so the
+  // player/obstacles pop off the background. Cheap (no shadow).
+  const backLight = new THREE.DirectionalLight('#bcd4ff', 0.55);
+  backLight.position.set(-7, 6, -9);
+  scene.add(hemisphere, sun, backLight);
 
   // PBR reflections (procedural, no asset files): a soft neutral environment so
   // MeshStandardMaterial / MeshPhysicalMaterial surfaces — metal, glass, car
