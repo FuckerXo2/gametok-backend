@@ -76,11 +76,11 @@ const REPAIR_MAX_TOOL_CALLS = Math.max(
 );
 const REPAIR_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
-    Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_READ_ONLY_ROUNDS || 2)),
+    Math.min(12, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_READ_ONLY_ROUNDS || 8)),
 );
 const IMPLEMENT_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
-    Math.min(4, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_READ_ONLY_ROUNDS || 2)),
+    Math.min(12, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_READ_ONLY_ROUNDS || 8)),
 );
 const IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES = Math.max(
     8000,
@@ -1017,12 +1017,12 @@ export async function runMakerAgentToolTurn({
         } else if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && roundReadFile && !roundEdited) {
             implementReadOnlyRounds += 1;
             if (!touchedMainTs && implementReadOnlyRounds > IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
-                throw new Error('Implement mode stalled on read-only tool calls — write src/main.ts with write_file now');
+                throw new Error('Implement mode stalled on read-only tool calls — start writing code now');
             }
             if (implementReadOnlyRounds >= IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
                 messages.push({
                     role: 'user',
-                    content: 'IMPLEMENT REQUIRED: Stop re-reading files. Call write_file on src/main.ts now with the full highway/runner loop, import keys from ./assetKeys.ts, and drawBackground() for the generated background.',
+                    content: 'IMPLEMENT REQUIRED: Stop re-reading files. Start writing code to implement the game logic using apply_patch or write_file on the appropriate source files.',
                 });
             }
         } else if (mode === MAKER_AGENT_TURN_MODE_REPAIR && roundReadFile && !roundEdited) {
