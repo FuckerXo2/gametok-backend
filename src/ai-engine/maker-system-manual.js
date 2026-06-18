@@ -17,7 +17,7 @@ const PIPELINE = {
         spec: 'Extract playable behavior only. Do not choose template folders when dynamic foundation is enabled.',
         foundation: 'Author the per-job foundation contract. You design the game shape; the kernel is fixed.',
         artist: 'Generate isolated sprites/backgrounds matching assetSlots roles. No HUD text baked into images.',
-        fileAgent: 'Implement foundation requiredFunctions and probeMethods. Replace stub gameplay with the real loop.',
+        fileAgent: 'Implement foundation requiredFunctions and probeMethods. You have CLI access: use run_command for python scripts, npm installs, and scaffolding. Do NOT run blocking commands like npm run dev. Replace stub gameplay with the real loop.',
         sandbox: 'Enforces foundation contract + global laws (visible first frame, no external nav, assets used).',
     },
 };

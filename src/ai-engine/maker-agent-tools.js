@@ -1,5 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { isFreeBuildMode, resolveMakerAgentImplementTurns, resolveMakerAgentInspectionTurns } from './maker-factory-mode.js';
@@ -11,6 +15,7 @@ export const MAKER_TOOL_READ_FILE = 'read_file';
 export const MAKER_TOOL_GREP_PROJECT = 'grep_project';
 export const MAKER_TOOL_RUN_TSC = 'run_tsc_check';
 export const MAKER_TOOL_FINISH_INSPECTION = 'finish_inspection';
+export const MAKER_TOOL_RUN_COMMAND = 'run_command';
 
 export const MAKER_AGENT_TURN_MODE_IMPLEMENT = 'implement';
 export const MAKER_AGENT_TURN_MODE_REPAIR = 'repair';
@@ -25,7 +30,7 @@ const DEFAULT_MAX_ROUNDS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
 const IMPLEMENT_MAX_ROUNDS = Math.max(
     4,
-    Math.min(16, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_ROUNDS || 10)),
+    Math.min(30, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_ROUNDS || 20)),
 );
 const REPAIR_MAX_ROUNDS = Math.max(
     4,
@@ -274,6 +279,28 @@ export function getMakerAgentToolDefinitions() {
                 },
             },
         },
+        {
+            type: 'function',
+            function: {
+                name: MAKER_TOOL_RUN_COMMAND,
+                description: 'Run a CLI command in the game project directory (e.g. "npm install three", "python3 scripts/create_threejs_game.py"). Do NOT run blocking/interactive commands like "npm run dev". Timeouts after 30 seconds.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        command: {
+                            type: 'string',
+                            description: 'The shell command to execute',
+                        },
+                        reason: {
+                            type: 'string',
+                            description: 'Why you are running this command',
+                        },
+                    },
+                    required: ['command'],
+                    additionalProperties: false,
+                },
+            },
+        },
     ];
 }
 
@@ -444,6 +471,46 @@ async function executeGrepProject(projectRoot, helpers, args = {}) {
         truncated: matches.length >= GREP_MAX_MATCHES,
         matches,
     };
+}
+
+async function executeRunCommand(projectRoot, args) {
+    const { command } = args;
+    if (!command || typeof command !== 'string') {
+        throw new Error('Command must be a non-empty string');
+    }
+    
+    // Security: Block dangerous host-level networking and file-system destruction commands
+    const blocklist = ['rm -rf /', 'rm -rf ~', 'curl', 'wget', 'ssh', 'nc', 'telnet'];
+    for (const blocked of blocklist) {
+        if (command.includes(blocked)) {
+            throw new Error(`Command rejected: contains blocked keyword "${blocked}"`);
+        }
+    }
+
+    try {
+        const { stdout, stderr } = await execAsync(command, {
+            cwd: projectRoot,
+            timeout: 30000, // 30 second hard timeout
+            maxBuffer: 1024 * 1024 * 2 // 2MB max output
+        });
+        
+        return {
+            ok: true,
+            tool: MAKER_TOOL_RUN_COMMAND,
+            command,
+            stdout: stdout.substring(0, 4000), // truncate for prompt size limits
+            stderr: stderr.substring(0, 4000),
+        };
+    } catch (err) {
+        return {
+            ok: false,
+            tool: MAKER_TOOL_RUN_COMMAND,
+            command,
+            error: err.message,
+            stdout: err.stdout ? err.stdout.substring(0, 4000) : '',
+            stderr: err.stderr ? err.stderr.substring(0, 4000) : '',
+        };
+    }
 }
 
 async function executeRunTsc(projectRoot, helpers) {
@@ -619,6 +686,8 @@ async function executeMakerToolCall(projectRoot, helpers, toolName, rawArgs, opt
             return executeRunTsc(projectRoot, helpers);
         case MAKER_TOOL_FINISH_INSPECTION:
             return executeFinishInspection(args);
+        case MAKER_TOOL_RUN_COMMAND:
+            return executeRunCommand(projectRoot, args);
         default:
             throw new Error(`Unknown maker tool: ${toolName}`);
     }

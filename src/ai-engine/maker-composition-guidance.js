@@ -16,7 +16,7 @@ function loadAllThreeJSSkills() {
         
         let allSkills = [];
         
-        // Only load pure knowledge from references. Ignore SKILL.md to avoid CLI/Python conflicts.
+        // Load all markdown files including SKILL.md so the Maker CLI Agent can run the python scripts
         function readDirRecursive(dir) {
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (const entry of entries) {
@@ -24,20 +24,19 @@ function loadAllThreeJSSkills() {
                 if (entry.isDirectory()) {
                     readDirRecursive(fullPath);
                 } else if (entry.isFile() && entry.name.endsWith('.md')) {
-                    // Only include files that are inside a "references" folder somewhere in their path
-                    if (fullPath.includes('/references/') && entry.name !== 'SKILL.md') {
-                        const content = fs.readFileSync(fullPath, 'utf8');
-                        allSkills.push(`\n=== KNOWLEDGE REFERENCE: ${entry.name} ===\n${content}`);
-                    }
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    allSkills.push(`\n=== SKILL OR KNOWLEDGE: ${entry.name} ===\n${content}`);
                 }
             }
         }
         
         readDirRecursive(skillsDir);
         cachedThreeJSSkills = [
-            "CRITICAL CONTEXT: The following references are from the ThreeJS AAA Skills repository.",
-            "You are the Maker Agent. You do NOT have a terminal, you cannot run python scripts, and you must implement the game primarily inside src/main.ts.",
-            "ADAPT the architectural wisdom (camera lag, physics, lighting, movement) from these references into your single-file architecture.",
+            "CRITICAL CONTEXT: The following are skills and references from the ThreeJS AAA Skills repository.",
+            "You are a CLI-equipped Maker Agent. You have access to the `run_command` tool.",
+            "You CAN run python scripts (e.g., scaffolding scripts from these skills), install NPM packages, and execute shell commands.",
+            "Do NOT run blocking commands like `npm run dev` or `vite`. Use `npm run build` or discrete commands.",
+            "Use these skills to architect and build a high-quality 3D game.",
             allSkills.join('\n')
         ].join('\n');
         return cachedThreeJSSkills;
