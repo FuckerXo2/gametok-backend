@@ -5554,7 +5554,7 @@ async function runMakerAgentInspectionTurns({
                     if (isImplementTurn && turnNumber < implementTurns) {
                         const polishTask = {
                             id: 'visual_polish_required',
-                            directRepairTask: `Your game loop works and compiles perfectly! However, the graphics and HUD are currently basic placeholders. You must use this remaining implement turn to upgrade the visuals. Add post-processing, complex shaders, dynamic lighting, and completely overhaul the HUD to match the AAA sci-fi requirements (gradient bars, minimaps, glassmorphism). Do NOT break the existing game loop.`
+                            directRepairTask: `Your game loop works and compiles! Now use write_file to upgrade visuals. You MUST edit files this turn — do NOT just read. Specifically: (1) Rewrite src/systems/Hud.ts with a premium CSS HUD — use clip-path for angled sci-fi panels, gradient health bars, glowing neon text with text-shadow, and a circular minimap/radar drawn via Canvas arc(). (2) Add post-processing bloom/glow to src/game/Game.ts or src/main.ts — use UnrealBloomPass or emissive materials with high intensity. (3) Add particle trails and explosion VFX. (4) Improve lighting with colored point lights. Do NOT break the existing game loop — only ENHANCE visuals. Start writing immediately.`
                         };
                         runEvidence.success = false;
                         runEvidence.targetedRepairTasks = [polishTask];
