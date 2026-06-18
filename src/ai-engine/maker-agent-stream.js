@@ -9,6 +9,7 @@ import {
 export function createStreamAccumulator() {
     return {
         content: '',
+        reasoningContent: '',
         toolCallsByIndex: new Map(),
         finishReason: null,
         streamErrors: [],
@@ -36,6 +37,9 @@ export function applyStreamChunk(state, chunk) {
     const delta = choice.delta || {};
     if (delta.content) {
         state.content += delta.content;
+    }
+    if (delta.reasoning_content) {
+        state.reasoningContent += delta.reasoning_content;
     }
 
     if (Array.isArray(delta.tool_calls)) {
@@ -92,6 +96,7 @@ export function finalizeStreamedMessage(state) {
     return {
         role: 'assistant',
         content: state.content || null,
+        reasoning_content: state.reasoningContent || null,
         ...(tool_calls.length > 0 ? { tool_calls } : {}),
     };
 }

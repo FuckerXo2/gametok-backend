@@ -849,6 +849,14 @@ export async function runMakerAgentToolTurn({
             });
         }
         const message = await requestCompletion(compactedMessages);
+
+        if (message?.reasoning_content) {
+            console.log(`\n🧠 [DeepSeek Thinking - Round ${round + 1}]\n${message.reasoning_content}\n`);
+        }
+        if (message?.content) {
+            console.log(`\n💬 [DeepSeek Text - Round ${round + 1}]\n${message.content}\n`);
+        }
+
         const assistantEntry = {
             role: 'assistant',
             content: message?.content || null,
@@ -1043,6 +1051,16 @@ export async function runMakerAgentToolTurn({
     if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !touchedMainTs && editsApplied.length === 0) {
         throw new Error('Implement mode requires apply_patch or write_file edits to src/main.ts');
     }
+
+    const reads = Array.from(readPathCounts.entries()).map(([p, c]) => `${p} (${c}x)`);
+    const writes = editsApplied.filter(e => e.tool === MAKER_TOOL_WRITE_FILE).map(e => e.path);
+    const patches = editsApplied.filter(e => e.tool === MAKER_TOOL_APPLY_PATCH).length;
+    
+    console.log(`\n📊 [DeepSeek Turn Summary - ${mode}]`);
+    console.log(`   Files read: ${reads.length ? reads.join(', ') : 'None'}`);
+    console.log(`   Files written: ${writes.length ? [...new Set(writes)].join(', ') : 'None'}`);
+    console.log(`   Net edits: ${editsApplied.length} (Patches: ${patches})`);
+    console.log(`   Finish reason: ${finished ? notes.join(' | ') || 'Finished' : 'Exited loop'}\n`);
 
     return {
         noEditsNeeded,
