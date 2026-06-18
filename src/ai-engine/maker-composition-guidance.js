@@ -176,41 +176,67 @@ export function buildCompositionGuidancePromptBlock(foundation = {}) {
     if (!composition) return '';
     const hudAuthority = composition.hudAuthority || resolveHudAuthority(foundation);
     const hudDesign = asString(composition.hudDesign || foundation.hudDesign, '');
+    const is3D = String(foundation.dimension || '').toUpperCase() === '3D' || String(foundation.lane || '').toLowerCase().includes('threejs');
+    
+    const lane = String(foundation.lane || '').toLowerCase();
+    const genre = String(foundation.genre || '').toLowerCase();
+    const isAction = /runner|racer|racing|shooter|arcade|action|surfer|dash/.test(lane + genre);
+    const isCasual = !isAction;
+
     const lines = [
         'MOBILE COMPOSITION LAW (follow foundation — you design layout, not a fixed template):',
         `- Screen state key: state.${composition.screenStateKey}. Allowed values: ${(composition.screenStates || []).join(' | ') || 'PLAYING | GAME_OVER'}.`,
         `- UI authority: ${composition.uiAuthority || 'agent-designed'}. Each zone uses ONE layer only — never mirror order/HUD/end-state on canvas and DOM.`,
-        `- HUD authority: ${hudAuthority}. #hud is an empty mount — YOU design markup + CSS + drawHud() (competitor bar: Astrocade — only what is needed, corners/meters, match game art).`,
+        `- HUD authority: ${hudAuthority}. #hud is an empty mount — YOU design markup + CSS + drawHud().`,
         ...(hudDesign ? [`- HUD brief: ${hudDesign}`] : []),
-        '- Forbidden: three identical generic slate stat pills; Score+Time+Fuel defaults; duplicate same stat on canvas and DOM.',
         '- Hide gameplay chrome and HUD when gameOver or end-state screen is active.',
-        '- One end-state headline per screen — no stacked Shift Over + Game Over + status spam.',
-        '- Onboarding/how-to-play hint: ONE short line max, in dead space (NEVER over buttons/tray/controls), and auto-dismiss it on the first input AND after ~2.5s with a fade. Prefer a self-evident UI over persistent instructional text — a write-up that lingers over the controls reads amateur and players hate it.',
-        '- Distinct items look distinct: each named item/topping/choice/collectible TYPE (e.g. Sprinkles vs Candy vs Fruit) MUST drawImage ITS OWN generated sprite key — never reuse one icon/emoji/shape for several different things. If you must code-draw, give each type a different shape AND colour. Three identical icons for three different toppings is a bug, not a style.',
-        '- IMPLEMENT THE WHOLE LOOP, not a renderable scene. Build EVERY interaction the foundation loop describes: the toolbar/tray the player drags FROM, the drag-and-drop placement, every tap/feed/select/match handler, and any meter the loop needs. Start the tank/board EMPTY (the player fills it) — do NOT pre-place the items the player is supposed to add and call it done. A background + a couple of static sprites + "Playing!" with nothing to interact with is a FAILED game, even though it renders without crashing.',
-        '- Draw the named CONTAINER. If the prompt/foundation names a vessel the player fills (tank, jar, bowl, plate, board, room, garden bed, shelf, aquarium), render it as a VISIBLE framed play-area — rounded glass walls / a bordered rim / clear edges, grounded on the uiKit — so the items sit INSIDE "the player\'s <container>", not floating in open space. A scenic background alone is NOT the container; draw an explicit frame around where items are placed, and place/clip the items within it.',
-        '- BUILD TO A PAYOFF (this is what makes it feel finished, not a tech demo). When the player completes the action/round, JUDGE it and show a RESULT: a centered uiKit result card with the outcome — a score, %, star rating, grade, verdict, or a reveal — landed with juice (a quick pop/scale-in, optional confetti/particles) and a success/fanfare sound, then a big Play Again. Every viral micro-game (slice-evenly → "98% even! ★★★★", pull-the-tooth → win sequence, guess-the-song → correct/score) ends on a judged, celebrated result. Even a relaxing/creative game surfaces one (a Tank Rating, a "Cozy score", a "You made X"). Wire the RESULT screen state and trigger it when the round ends — do not leave the player in an endless loop with no verdict.',
-        'VISUAL PREMIUM (competitor bar — art must feel shipped, not debug):',
-        '- Frame 1 MUST drawImage the generated background (background1/background role) full-bleed — never ship flat slate/navy gradients if DREAM_IMAGES has background art.',
-        '- Preserve or reimplement resolveBackgroundImage() + cover-scale drawImage before entities/HUD.',
-        '- Ground every interactive element (button, slot, tray, meter, card) on a panel — never bare text/shapes floating over the background.',
+        '- Onboarding/how-to-play hint: ONE short line max, in dead space (NEVER over buttons/tray/controls), and auto-dismiss it on the first input AND after ~2.5s with a fade.',
+        '- BUILD TO A PAYOFF: When the player completes the action/round, JUDGE it and show a RESULT: a centered uiKit result card with the outcome (score/verdict/reveal), then a big Play Again. Trigger this when the round ends.',
     ];
+
+    if (!is3D) {
+        lines.push(
+            'VISUAL PREMIUM (2D Canvas):',
+            '- Frame 1 MUST drawImage the generated background full-bleed (preserve resolveBackgroundImage() + cover-scale drawImage).',
+            '- Ground every interactive element (button, slot, tray, meter, card) on a panel — never bare text/shapes floating over the background.',
+            '- IMPLEMENT THE WHOLE LOOP, not a renderable scene. Build EVERY interaction the foundation loop describes (toolbar, drag-and-drop, tap/feed).'
+        );
+        if (isCasual) {
+            lines.push(
+                '- Distinct items look distinct: each named item TYPE MUST drawImage ITS OWN generated sprite key — never reuse one icon/emoji for different things.',
+                '- Draw the named CONTAINER: If the prompt names a vessel (tank, jar, plate), render it as a VISIBLE framed play-area grounded on the uiKit. Items sit INSIDE it.'
+            );
+        }
+    }
+
     const uiKit = composition.uiKit && typeof composition.uiKit === 'object' ? composition.uiKit : null;
     if (uiKit) {
         const palette = uiKit.palette && typeof uiKit.palette === 'object' ? uiKit.palette : {};
         lines.push(
-            `UI KIT (apply to EVERY panel/button/meter/card so the whole UI is one design system — style: ${uiKit.styleFamily || 'clean-minimal'}):`,
-            `- Panels/cards: fill ${palette.panel || '#1f2937cc'}, border ${palette.panelBorder || '#38bdf8'}, corner radius ${uiKit.radius ?? 16}px, style ${uiKit.panelStyle || 'translucent-dark'}.`,
-            `- Buttons: ${uiKit.buttonStyle || 'filled-rounded'} using accent ${palette.accent || '#38bdf8'}; big, obviously tappable, labelled.`,
-            `- Text: primary ${palette.textPrimary || '#ffffff'}, muted ${palette.textMuted || '#94a3b8'}; font feel ${uiKit.font || 'rounded-bold'}.`,
-            '- Panels/cards are SOLID and OPAQUE (white for casual, solid dark for neon) with a soft shadow — drawPanel. NEVER see-through outline boxes (border over an alpha<1 fill); that reads wireframe, not premium.',
-            '- Content lives IN cards: every selectable/draggable item (swatch, topping, choice, piece) sits in its own solid rounded card, like Frosting Master. Buttons are chunky solid + color-coded by action (green confirm / red cancel) via drawButton — never outline-only.',
-            '- Draw EVERY score/stat/currency/timer/label with drawValue (rounded font + dark outline + drop shadow; pass glow=accent for neon kits) — never bare ctx.fillText. Flat system-font numbers are the #1 thing that makes a game look unfinished.',
-            '- Code-rendered game pieces (bubbles, gems, dots, tiles) use drawToken (saturated fill + dark outline + glossy highlight + shadow) — never a flat ctx.arc; flat pale circles look like placeholders.',
-            '- Reuse these exact tokens + helpers for HUD, controls, AND the game-over/win panel — one radius, one palette, one language. No flat emoji mixed with rendered art.',
-            ...(uiKit.decor && uiKit.decor !== 'none' ? [`- Theme flourish: ${uiKit.decor} (subtle, never blocks gameplay).`] : []),
+            `UI KIT (style: ${uiKit.styleFamily || 'clean-minimal'}):`,
+            `- Panels/cards: fill ${palette.panel || '#1f2937cc'}, border ${palette.panelBorder || '#38bdf8'}, corner radius ${uiKit.radius ?? 16}px.`,
+            `- Buttons: ${uiKit.buttonStyle || 'filled-rounded'} using accent ${palette.accent || '#38bdf8'}.`,
+            `- Text: primary ${palette.textPrimary || '#ffffff'}, muted ${palette.textMuted || '#94a3b8'}.`
         );
+        
+        if (!is3D) {
+            if (isAction) {
+                lines.push('- ACTION HUD: Render a CLEAN INTEGRATED overlay (bold glowing numbers, icon rows). Do NOT wrap each stat in a bordered box.');
+            } else {
+                lines.push('- Panels/cards are SOLID and OPAQUE with a soft shadow — drawPanel.');
+                lines.push('- Content lives IN cards. Buttons are chunky solid + color-coded by action via drawButton.');
+            }
+            lines.push('- Draw EVERY score/stat with drawValue (rounded font + dark outline + drop shadow) — never bare ctx.fillText.');
+            lines.push('- Code-rendered game pieces use drawToken (saturated fill + dark outline + glossy highlight) — never a flat ctx.arc.');
+        } else {
+             if (isAction) {
+                 lines.push('- ACTION HUD: Clean integrated DOM overlay. Big bold numbers, discrete meters. No giant boxed panels filling the screen.');
+             } else {
+                 lines.push('- Use DOM elements for panels, cards, and buttons matched to the palette.');
+             }
+        }
     }
+    
     const rules = composition.layoutComposition?.layoutRules || [];
     for (const rule of rules.slice(0, 5)) {
         lines.push(`- ${rule}`);
