@@ -44,6 +44,12 @@ export function useDynamicFoundation() {
 }
 
 export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
+    // If Phase 1 already determined this is 3D, that decision is binding — the foundation may
+    // UPGRADE 2D→3D but must never DOWNGRADE 3D→2D (line-63 rule). Enforce it as a hard mandate
+    // so a "space shooter / survive waves" prior can't flip a third-person 3D game to a 2D shmup.
+    const phase1Dimension = String(qualityIntent?.technicalRequirements?.dimension || '').toUpperCase();
+    const phase1Perspective = String(qualityIntent?.technicalRequirements?.perspective || 'third_person').toLowerCase().replace(/\s+/g, '_');
+    const mustBe3D = phase1Dimension === '3D';
     return {
         system: `${getMakerSystemManualBlock('foundation')}
 
@@ -93,7 +99,9 @@ Rules:
 - hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas, styled with the uiKit palette/font/glow. For action/arcade/runner/score-chase games this is a CLEAN INTEGRATED overlay (corner glowing numbers, icon lives) — NOT boxed chips. For content-heavy casual games it may be grounded uiKit panels. Either way: themed, never generic dev UI, and never three identical bordered stat boxes.
 - antiPatterns must include overlapping UI and duplicate end-state copy when relevant.
 - Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
-        user: `USER PROMPT:
+        user: `${mustBe3D ? `MANDATORY — Phase 1 classified this game as 3D (${phase1Perspective}). This is BINDING: you MUST output a 3D foundation — "dimension":"3D", "engine":"threejs", a 3D "lane" (threejs_world | voxel_world | threejs_runner | threejs_first_person), a "cameraRig", and EMPTY "assetSlots". Do NOT output "canvas-2d" or any 2D/flat lane (no *_vertical, top_down, side_view, arcade-flat). "space shooter", "survive waves", "shmup" etc. are still 3D here because Phase 1 said so — downgrading to 2D is a hard failure.
+
+` : ''}USER PROMPT:
 ${prompt}
 
 PHASE 1 SPEC:
@@ -456,10 +464,18 @@ export function buildMakerTemplateContractFromFoundation(foundation = {}, qualit
         (probe) => `window.__GAMETOK_TEMPLATE_PROBE__.${probe.name}`,
     );
 
-    const is3D = String(foundation.dimension || '').toUpperCase() === '3D'
+    // Backstop: Phase 1's 3D call is binding (see buildFoundationAgentPrompt mandate). If the
+    // foundation model still downgraded a Phase-1-3D game to 2D, force 3D here rather than ship a
+    // 2D game for a 3D request. Uses the structured Phase 1 dimension field, NOT prompt keywords.
+    const phase1Is3D = String(qualityIntent?.technicalRequirements?.dimension || '').toUpperCase() === '3D';
+    const is3D = phase1Is3D
+        || String(foundation.dimension || '').toUpperCase() === '3D'
         || String(foundation.lane || '').toLowerCase().includes('threejs')
         || String(foundation.lane || '').toLowerCase().includes('voxel_world')
         || String(foundation.engine || '').toLowerCase() === 'threejs';
+    if (phase1Is3D && String(foundation.dimension || '').toUpperCase() !== '3D') {
+        console.warn(`[Foundation] Phase 1 said 3D but foundation returned dimension=${foundation.dimension || '2D'} engine=${foundation.engine || 'canvas-2d'} lane=${foundation.lane || '?'} — forcing 3D (threejs-kernel) to honor Phase 1.`);
+    }
     return {
         version: 1,
         source: 'gametok-dynamic-foundation',
