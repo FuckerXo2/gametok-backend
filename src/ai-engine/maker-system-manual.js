@@ -99,7 +99,7 @@ const ASSET_LAW = [
 ];
 
 const THREEJS_GAMEPLAY_LAW = [
-    '3D GAMEPLAY MUST FEEL 3D: The player must move FORWARD through the world (or world moves toward player) in the Z-axis. Do not restrict the player to a flat 2D plane (strafing only X/Y) while things fly at them unless explicitly requested as a static gallery shooter.',
+    '3D GAMEPLAY MUST FEEL 3D: The player must move FORWARD through the world (or world moves toward player) in the Z-axis. ABSOLUTELY DO NOT restrict the player to a flat 2D plane (strafing only X/Y) while things fly at them. NEVER BUILD A FLAT 2D "GALLERY SHOOTER" (like Space Invaders or classic Asteroids) in a 3D engine unless explicitly asked. The camera must follow the player flying *into* the screen.',
     'CAMERA LAG & LOOK-AHEAD: A third-person chase camera must softly follow the player with slight lag using lerp, and look slightly ahead of the player velocity. Do not hard-lock the camera directly to the player position.',
     'GAME FEEL & JUICE: Implement acceleration, deceleration, and friction. Add camera shake on collisions/hits. Add FOV kick/punch on boost or high speeds.',
     'COLLISION: Use simple distance checks for arcade triggers, but account for 3D bounds (radii or boxes).',

@@ -82,7 +82,7 @@ export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild
 
 export function resolveMakerAgentImplementTurns(maxTurns = resolveMakerAgentInspectionTurns()) {
     const envTurns = Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS);
-    const fallback = isMakerFactoryMinimalMode() ? 1 : 2;
+    const fallback = isMakerFactoryMinimalMode() ? 2 : 2;
     const requested = Number.isFinite(envTurns) && envTurns > 0 ? envTurns : fallback;
     return Math.max(1, Math.min(Math.max(1, maxTurns - 1), requested));
 }

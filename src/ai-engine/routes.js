@@ -5551,8 +5551,19 @@ async function runMakerAgentInspectionTurns({
                     if (hollowReason) {
                         console.warn(`⚠️ [Phase 2 job=${jobId}] Shipping a thin game (${hollowReason}) — no turns left to deepen it`);
                     }
-                    console.log(`✅ [Phase 2 job=${jobId}] Sandbox/build passed after turn ${turnNumber} — skipping remaining agent turns`);
-                    break;
+                    if (isImplementTurn && turnNumber < implementTurns) {
+                        const polishTask = {
+                            id: 'visual_polish_required',
+                            directRepairTask: `Your game loop works and compiles perfectly! However, the graphics and HUD are currently basic placeholders. You must use this remaining implement turn to upgrade the visuals. Add post-processing, complex shaders, dynamic lighting, and completely overhaul the HUD to match the AAA sci-fi requirements (gradient bars, minimaps, glassmorphism). Do NOT break the existing game loop.`
+                        };
+                        runEvidence.success = false;
+                        runEvidence.targetedRepairTasks = [polishTask];
+                        lastRunEvidence = runEvidence;
+                        console.log(`🌟 [Phase 2 job=${jobId}] Sandbox/build passed on turn ${turnNumber}, but continuing to Turn ${turnNumber+1} for AAA Visual Polish`);
+                    } else {
+                        console.log(`✅ [Phase 2 job=${jobId}] Sandbox/build passed after turn ${turnNumber} — skipping remaining agent turns`);
+                        break;
+                    }
                 }
             }
             if (isImplementTurn && turnNumber < maxTurns && turnNumber <= implementTurns) {
