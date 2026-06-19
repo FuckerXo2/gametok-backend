@@ -38,7 +38,7 @@ import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
 import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
-import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
+import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, buildThreeDRulesBlock, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -5852,17 +5852,10 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
     try {
         if (!jobId || !makerProject?.projectRoot) return;
         const root = makerProject.projectRoot;
-        const wanted = [
-            'src/main.ts', 'index.html', 'src/styles.css', 'src/assetKeys.ts',
-            // 3D is single-file (everything in main.ts) — no scene.ts/mechanics.ts.
-        ];
-        const files = [];
-        for (const rel of wanted) {
-            try {
-                const content = await fs.promises.readFile(path.join(root, rel), 'utf8');
-                files.push({ path: rel, content });
-            } catch { /* file may not exist for this game; skip */ }
-        }
+        // Save the FULL authored source — entry files PLUS the entire src/ tree. Multi-file 3D games
+        // keep their game across src/game, src/systems, src/entities, src/world, src/core; saving only
+        // main.ts would lose the real game and leave the editor reconstructing the placeholder scaffold.
+        const files = await snapshotMakerSourceFiles(root, []);
         if (files.length === 0) return;
         // Also snapshot the materialized art. The materializer writes each asset as a LOCAL file
         // under public/assets/ and the game references those local paths — they vanish with the
@@ -7167,6 +7160,37 @@ async function writeProjectFilesToRoot(root, files) {
     }
 }
 
+// Snapshot a maker project's authored source from disk: the standard entry files PLUS the full src/
+// tree. Multi-file 3D games keep their real game across src/game, src/systems, src/entities,
+// src/world and src/core — saving only main.ts would lose the game and leave the editor reconstructing
+// the bare placeholder scaffold. priorFiles re-reads any path that existed before, even outside src/.
+async function snapshotMakerSourceFiles(projectRoot, priorFiles = []) {
+    const files = [];
+    const seen = new Set();
+    const pushFile = async (rel) => {
+        if (!rel || seen.has(rel)) return;
+        try {
+            const content = await fs.promises.readFile(path.join(projectRoot, rel), 'utf8');
+            files.push({ path: rel, content });
+            seen.add(rel);
+        } catch { /* file may not exist for this game; skip */ }
+    };
+    for (const rel of ['index.html', 'src/main.ts', 'src/styles.css', 'src/assetKeys.ts']) await pushFile(rel);
+    for (const f of (Array.isArray(priorFiles) ? priorFiles : [])) await pushFile(f?.path);
+    const walkSrc = async (relDir) => {
+        let entries = [];
+        try { entries = await fs.promises.readdir(path.join(projectRoot, relDir), { withFileTypes: true }); }
+        catch { return; }
+        for (const ent of entries) {
+            const rel = `${relDir}/${ent.name}`;
+            if (ent.isDirectory()) { await walkSrc(rel); continue; }
+            if (/\.(ts|tsx|css|json|glsl|vert|frag)$/i.test(ent.name)) await pushFile(rel);
+        }
+    };
+    await walkSrc('src');
+    return files;
+}
+
 /**
  * Edit an existing canvas-kernel game from its saved source (ai_games.maker_project).
  *
@@ -7181,6 +7205,17 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     const savedFiles = Array.isArray(makerProject.files) ? makerProject.files : [];
     const currentMain = (savedFiles.find((f) => f.path === 'src/main.ts') || {}).content;
     if (!currentMain) throw new Error('Saved project has no src/main.ts to edit.');
+
+    // Guard: a multi-file 3D game saved before full-source snapshotting kept only main.ts — its real
+    // modules (game/, systems/, entities/, world/, core/) were never saved. main.ts still imports them,
+    // so reconstructing would fall back to the placeholder scaffold and an edit would OVERWRITE the game
+    // with a stub. Refuse rather than destroy it. (True single-file 3D games import no local modules and
+    // pass this guard fine.)
+    if (savedTemplateId === 'threejs-kernel'
+        && /from\s+['"]\.{1,2}\/(game|systems|entities|world|core)\//.test(currentMain)
+        && !savedFiles.some((f) => /^src\/(game|systems|entities|world|core)\//.test(f.path || ''))) {
+        throw new Error('This 3D game was created before multi-file edit support and its full source was not saved. Please regenerate it to enable editing.');
+    }
 
     // Progress for the edit (surfaced by the status endpoint's pending response; merges into the
     // ephemeral job so status/draftId set by executeEditJob are preserved).
@@ -7212,30 +7247,13 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     console.log(`🛠️ [MAKER EDIT] reconstructed project: ${byPath.size} files + ${(makerProject.assetFiles || []).length} assets at ${projectRoot}`);
     setEditProgress(28, 'Rebuilding the project…');
 
-    // 2. Builder applies the edit to main.ts. System manual carries the kernel rules + premium recipes.
+    // 2. Apply the edit. 3D games are MULTI-FILE — the real game lives across src/game, src/systems,
+    //    src/entities, src/world and src/core — so edit them with the multi-file tool agent (it carries
+    //    the 3D gameplay laws). 2D canvas games keep the single-shot main.ts rewrite.
     const assetKeys = (savedFiles.find((f) => f.path === 'src/assetKeys.ts') || {}).content || '';
-    const editPrompt = [
-        formatMakerSystemManual('fileAgent'),
-        '',
-        `You are editing an existing, working mobile HTML5 game built on the GameTok ${savedTemplateId}.`,
-        'Apply ONLY the change below. Preserve everything else: gameplay, layout, the existing UI kit/look, and asset usage.',
-        `EDIT REQUEST: "${instructions}"`,
-        '',
-        'Hard rules:',
-        '- Keep the kernel structure and the probe API (window.__GAMETOK_TEMPLATE_PROBE__) intact.',
-        '- Only reference asset keys that already exist in src/assetKeys.ts (below). Do not invent new art.',
-        '- Keep the premium UI helpers (solid cards via drawPanel, drawValue for numbers, drawToken for pieces).',
-        '- Return ONLY the complete, updated contents of src/main.ts. No markdown fences, no commentary.',
-        '',
-        '--- src/assetKeys.ts (available asset keys) ---',
-        assetKeys.slice(0, 4000),
-        '',
-        '--- CURRENT src/main.ts (edit this) ---',
-        currentMain,
-    ].join('\n');
+    const is3D = savedTemplateId === 'threejs-kernel';
 
-    // Mini-creeper around the single long builder wait (the one place an edit can stall on the
-    // cold queue) so the bar never freezes. unref()'d + cleared in finally.
+    // Mini-creeper around the long builder wait so the progress bar never freezes. unref()'d + cleared.
     setEditProgress(34, 'Applying your change…');
     let editCreep = 34;
     const editCreepTimer = setInterval(() => {
@@ -7245,32 +7263,107 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
         }
     }, 1500);
     if (typeof editCreepTimer.unref === 'function') editCreepTimer.unref();
-    let text;
     try {
-        ({ text } = await requestBuilderMessage(editPrompt, { label: 'Maker Edit main.ts', jobId: newJobId }));
+        if (is3D) {
+            const editPrompt = [
+                formatMakerSystemManual('fileAgent'),
+                '',
+                'You are editing an existing, working mobile 3D game built on the GameTok threejs-kernel.',
+                'Apply ONLY the change requested. Preserve everything else: gameplay, world, entities, camera, layout, look and asset usage.',
+                `EDIT REQUEST: "${instructions}"`,
+                '',
+                buildThreeDRulesBlock(null),
+                '',
+                'Hard rules:',
+                '- This game is MULTI-FILE: the real game lives across src/game/Game.ts, src/systems/*, src/entities/*, src/world/* and src/core/* — NOT just src/main.ts. Read the relevant files and edit wherever the change belongs. main.ts is a thin entry; never cram gameplay into it.',
+                '- Use the tools (read_file, write_file, apply_patch) to make the change across whatever files are needed. Keep tsc clean after each edit.',
+                '- Keep createThreeStage() and the kernel structure intact, and keep the probe API (window.__GAMETOK_TEMPLATE_PROBE__) working. Do NOT edit the read-only kernel files (src/threeAssets.ts, src/bootstrap.ts, src/assetLoader.ts).',
+                '- Only reference asset keys that already exist in src/assetKeys.ts. Do not invent new art.',
+                '- When the change is complete and tsc is clean, call finish_inspection.',
+                '',
+                '--- src/assetKeys.ts (available asset keys) ---',
+                assetKeys.slice(0, 4000),
+            ].join('\n');
+            const assetKeyCount = (assetKeys.match(/['"][A-Za-z0-9_]+['"]\s*:/g) || []).length;
+            const toolTurn = await runMakerAgentToolTurn({
+                userPrompt: editPrompt,
+                projectRoot,
+                mode: MAKER_AGENT_TURN_MODE_IMPLEMENT,
+                assetKeyCount,
+                requestCompletion: (messages) => requestMakerToolCompletion(messages, {
+                    label: 'Maker Edit 3D (multi-file)',
+                    jobId: newJobId,
+                    timeoutMs: MAKER_IMPLEMENT_TIMEOUT_MS,
+                    maxAttempts: 2,
+                    maxTokens: MAKER_IMPLEMENT_MAX_TOKENS,
+                    fallbackModels: MAKER_IMPLEMENT_FALLBACK_MODELS,
+                    reasoningEffort: MAKER_IMPLEMENT_REASONING_EFFORT,
+                    mode: MAKER_AGENT_TURN_MODE_IMPLEMENT,
+                }),
+                helpers: {
+                    safeMakerProjectPath,
+                    isProtectedMakerRuntimeFile,
+                    sanitizeMakerMainTsContent,
+                    runTscCheck: (root) => runMakerProjectTscCheck(root, { timeoutMs: 45_000 }),
+                },
+                onEditApplied: (edit) => console.log(`✏️ [MAKER EDIT 3D] ${edit.tool} ${edit.path}`),
+            });
+            console.log(`🛠️ [MAKER EDIT] 3D multi-file turn applied ${toolTurn.editsApplied?.length || 0} edit(s)`);
+            if (!toolTurn.editsApplied || toolTurn.editsApplied.length === 0) {
+                throw new Error('3D edit made no changes — the model did not edit any file.');
+            }
+        } else {
+            const editPrompt = [
+                formatMakerSystemManual('fileAgent'),
+                '',
+                `You are editing an existing, working mobile HTML5 game built on the GameTok ${savedTemplateId}.`,
+                'Apply ONLY the change below. Preserve everything else: gameplay, layout, the existing UI kit/look, and asset usage.',
+                `EDIT REQUEST: "${instructions}"`,
+                '',
+                'Hard rules:',
+                '- Keep the kernel structure and the probe API (window.__GAMETOK_TEMPLATE_PROBE__) intact.',
+                '- Only reference asset keys that already exist in src/assetKeys.ts (below). Do not invent new art.',
+                '- Keep the premium UI helpers (solid cards via drawPanel, drawValue for numbers, drawToken for pieces).',
+                '- Return ONLY the complete, updated contents of src/main.ts. No markdown fences, no commentary.',
+                '',
+                '--- src/assetKeys.ts (available asset keys) ---',
+                assetKeys.slice(0, 4000),
+                '',
+                '--- CURRENT src/main.ts (edit this) ---',
+                currentMain,
+            ].join('\n');
+            const { text } = await requestBuilderMessage(editPrompt, { label: 'Maker Edit main.ts', jobId: newJobId });
+            const newMain2D = stripCodeFences(text);
+            if (!newMain2D || newMain2D.length < 200 || !/__GAMETOK_TEMPLATE_PROBE__/.test(newMain2D)) {
+                throw new Error('Edit builder returned an invalid main.ts (missing probe API or too short).');
+            }
+            await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), newMain2D, 'utf8');
+        }
     } finally {
         clearInterval(editCreepTimer);
     }
     setEditProgress(66, 'Applying your change…');
-    const newMain = stripCodeFences(text);
-    if (!newMain || newMain.length < 200 || !/__GAMETOK_TEMPLATE_PROBE__/.test(newMain)) {
-        throw new Error('Edit builder returned an invalid main.ts (missing probe API or too short).');
+    // After either path, src/main.ts must still exist and expose the probe API.
+    const newMain = await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8').catch(() => '');
+    if (!newMain || newMain.length < 120 || !/__GAMETOK_TEMPLATE_PROBE__/.test(newMain)) {
+        throw new Error('Edited project is missing a valid src/main.ts probe API.');
     }
-    await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), newMain, 'utf8');
 
     // 2b. Re-run the asset-wiring pass so an edit can't silently drop the background or other
     //     required art. When the builder rewrites main.ts to apply a change it sometimes forgets to
     //     re-draw the generated background (a code grid appears instead). This re-injects the safe
     //     contract/background wiring if it's missing — edits stay non-destructive to art. Keys are
     //     read from the reconstructed asset-pack.json, so no contract/generatedAssets needed.
-    try {
-        const wiring = await applyMainTsAssetWiringRepairs(projectRoot, {});
-        const repairs = wiring && wiring[0] && wiring[0].repairs ? wiring[0].repairs : [];
-        if (repairs.length) {
-            console.log(`🛠️ [MAKER EDIT] re-applied asset wiring after edit: ${repairs.join(', ')}`);
+    if (!is3D) {
+        try {
+            const wiring = await applyMainTsAssetWiringRepairs(projectRoot, {});
+            const repairs = wiring && wiring[0] && wiring[0].repairs ? wiring[0].repairs : [];
+            if (repairs.length) {
+                console.log(`🛠️ [MAKER EDIT] re-applied asset wiring after edit: ${repairs.join(', ')}`);
+            }
+        } catch (e) {
+            console.warn(`🛠️ [MAKER EDIT] asset-wiring re-pass skipped: ${e?.message || e}`);
         }
-    } catch (e) {
-        console.warn(`🛠️ [MAKER EDIT] asset-wiring re-pass skipped: ${e?.message || e}`);
     }
 
     // 3. Rebuild + sandbox-verify. Save ONLY on a clean build.
@@ -7293,7 +7386,9 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
 
     // 4. Persist (success only): new HTML + re-snapshot source (new main.ts) + edit history. Original
     //    row is left untouched if anything above threw, so a bad edit can never corrupt the game.
-    const updatedFiles = savedFiles.map((f) => (f.path === 'src/main.ts' ? { ...f, content: newMain } : f));
+    const updatedFiles = is3D
+        ? await snapshotMakerSourceFiles(projectRoot, savedFiles)
+        : savedFiles.map((f) => (f.path === 'src/main.ts' ? { ...f, content: newMain } : f));
     const updatedProject = { ...makerProject, files: updatedFiles, savedAt: new Date().toISOString() };
     let editHistory = parentDraft.edit_history;
     if (typeof editHistory === 'string') { try { editHistory = JSON.parse(editHistory); } catch { editHistory = []; } }
