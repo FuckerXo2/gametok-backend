@@ -660,6 +660,82 @@ export function createWater(
 }
 
 /**
+ * Procedural rolling terrain (multi-octave noise heightfield) — a flat plane is the #1 "cheap" tell;
+ * this gives hills/dunes instead. Returns { mesh, heightAt(x,z) } so you can sit the player and props
+ * ON the ground. Set flatShading:true for the faceted low-poly look. NO assets.
+ */
+export function createTerrain(
+  scene: THREE.Scene,
+  options: { size?: number; segments?: number; amplitude?: number; frequency?: number; color?: string; flatShading?: boolean } = {},
+): { mesh: THREE.Mesh; heightAt: (x: number, z: number) => number } {
+  const size = options.size ?? 200;
+  const segments = options.segments ?? 100;
+  const amplitude = options.amplitude ?? 6;
+  const frequency = options.frequency ?? 0.04;
+  const noise = (x: number, z: number) => {
+    let n = Math.sin(x * frequency) * Math.cos(z * frequency);
+    n += 0.5 * Math.sin(x * frequency * 2.3 + 1.7) * Math.cos(z * frequency * 1.9 + 0.5);
+    n += 0.25 * Math.sin(x * frequency * 4.1 + 4.2) * Math.cos(z * frequency * 3.7 + 2.1);
+    return (n / 1.75) * amplitude;
+  };
+  const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+  geometry.rotateX(-Math.PI / 2);
+  const pos = geometry.getAttribute('position') as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i += 1) pos.setY(i, noise(pos.getX(i), pos.getZ(i)));
+  pos.needsUpdate = true;
+  geometry.computeVertexNormals();
+  const material = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(options.color || '#5a8f4a'),
+    roughness: 0.95,
+    metalness: 0,
+    flatShading: !!options.flatShading,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return { mesh, heightAt: (x: number, z: number) => noise(x, z) };
+}
+
+/**
+ * Scatter an InstancedMesh of one geometry/material across an area (grass, rocks, trees, debris,
+ * crowd) — one draw call for thousands, the cheap way to make a world feel DENSE instead of empty.
+ * Pass options.heightAt (e.g. from createTerrain) to plant them on the ground. Random yaw + scale.
+ */
+export function scatter(
+  scene: THREE.Scene,
+  geometry: THREE.BufferGeometry,
+  material: THREE.Material,
+  options: { count?: number; area?: number; minScale?: number; maxScale?: number; heightAt?: (x: number, z: number) => number } = {},
+): THREE.InstancedMesh {
+  const count = options.count ?? 200;
+  const area = options.area ?? 200;
+  const minScale = options.minScale ?? 0.7;
+  const maxScale = options.maxScale ?? 1.4;
+  const mesh = new THREE.InstancedMesh(geometry, material, count);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const matrix = new THREE.Matrix4();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  const pos = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < count; i += 1) {
+    const x = (Math.random() - 0.5) * area;
+    const z = (Math.random() - 0.5) * area;
+    const y = options.heightAt ? options.heightAt(x, z) : 0;
+    const sc = minScale + Math.random() * (maxScale - minScale);
+    quat.setFromAxisAngle(up, Math.random() * Math.PI * 2);
+    scale.set(sc, sc, sc);
+    pos.set(x, y, z);
+    matrix.compose(pos, quat, scale);
+    mesh.setMatrixAt(i, matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+/**
  * Standard mobile-safe renderer/scene/camera/lights boot. Lights are ALWAYS added
  * here so a generated game can never render pitch black.
  */
