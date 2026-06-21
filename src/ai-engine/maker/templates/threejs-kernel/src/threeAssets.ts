@@ -339,6 +339,262 @@ export function bobSway(
 }
 
 /**
+ * GUARANTEED one-thumb mobile controls. Builds a visible left joystick + (optional) right action
+ * button inside #controls-layer so controls ALWAYS render, and reads WASD/arrows/space as a desktop
+ * fallback. This is THE control scheme — call it instead of hand-rolling input, and never require
+ * tapping the player/entity. move() = normalized intent (x = right, y = screen-up). One-handed.
+ */
+export function touchControls(
+  options: { actionLabel?: string; joystick?: boolean; actionButton?: boolean; lookDrag?: boolean } = {},
+): {
+  move: () => THREE.Vector2;
+  look: () => THREE.Vector2;
+  actionHeld: () => boolean;
+  consumeAction: () => boolean;
+  dispose: () => void;
+} {
+  const layer = (document.getElementById('controls-layer') as HTMLElement) || document.body;
+  const keys = new Set<string>();
+  const moveOut = new THREE.Vector2();
+  const lookOut = new THREE.Vector2();
+  const stick = new THREE.Vector2();
+  const lookAccum = new THREE.Vector2();
+  const stickCenter = new THREE.Vector2();
+  const radius = 55;
+  let stickId = -1;
+  let lookId = -1;
+  let lookLastX = 0;
+  let lookLastY = 0;
+  let actionDown = false;
+  let actionLatched = false;
+  let base: HTMLElement | null = null;
+  let knob: HTMLElement | null = null;
+  let button: HTMLElement | null = null;
+
+  if (options.joystick !== false) {
+    base = document.createElement('div');
+    base.setAttribute('data-control', 'joystick');
+    base.style.cssText = 'position:absolute;left:24px;bottom:28px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.12);border:2px solid rgba(255,255,255,0.35);touch-action:none;';
+    knob = document.createElement('div');
+    knob.style.cssText = 'position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.55);';
+    base.appendChild(knob);
+    layer.appendChild(base);
+  }
+  if (options.actionButton) {
+    button = document.createElement('button');
+    button.setAttribute('data-control', 'action');
+    button.textContent = options.actionLabel || '●';
+    button.style.cssText = 'position:absolute;right:28px;bottom:40px;width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,0.18);border:2px solid rgba(255,255,255,0.5);color:#fff;font-size:26px;touch-action:none;';
+    layer.appendChild(button);
+    button.addEventListener('pointerdown', (e: PointerEvent) => { e.preventDefault(); if (!actionDown) actionLatched = true; actionDown = true; });
+    button.addEventListener('pointerup', (e: PointerEvent) => { e.preventDefault(); actionDown = false; });
+    button.addEventListener('pointercancel', () => { actionDown = false; });
+  }
+
+  const onDown = (e: PointerEvent) => {
+    const half = window.innerWidth / 2;
+    if (options.joystick !== false && e.clientX < half && stickId === -1) {
+      stickId = e.pointerId;
+      if (base) {
+        const r = base.getBoundingClientRect();
+        stickCenter.set(r.left + r.width / 2, r.top + r.height / 2);
+      } else {
+        stickCenter.set(e.clientX, e.clientY);
+      }
+    } else if (options.lookDrag && lookId === -1) {
+      lookId = e.pointerId;
+      lookLastX = e.clientX;
+      lookLastY = e.clientY;
+    }
+  };
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerId === stickId) {
+      let dx = e.clientX - stickCenter.x;
+      let dy = e.clientY - stickCenter.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const clamped = Math.min(len, radius);
+      dx = (dx / len) * clamped;
+      dy = (dy / len) * clamped;
+      stick.set(dx / radius, -dy / radius);
+      if (knob) knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    } else if (e.pointerId === lookId) {
+      lookAccum.x += e.clientX - lookLastX;
+      lookAccum.y += e.clientY - lookLastY;
+      lookLastX = e.clientX;
+      lookLastY = e.clientY;
+    }
+  };
+  const onUp = (e: PointerEvent) => {
+    if (e.pointerId === stickId) {
+      stickId = -1;
+      stick.set(0, 0);
+      if (knob) knob.style.transform = 'translate(0px, 0px)';
+    } else if (e.pointerId === lookId) {
+      lookId = -1;
+    }
+  };
+  const kd = (e: KeyboardEvent) => { keys.add(e.code); if (e.code === 'Space') { if (!actionDown) actionLatched = true; actionDown = true; } };
+  const ku = (e: KeyboardEvent) => { keys.delete(e.code); if (e.code === 'Space') actionDown = false; };
+  window.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+  window.addEventListener('keydown', kd);
+  window.addEventListener('keyup', ku);
+
+  return {
+    move() {
+      let x = stick.x;
+      let y = stick.y;
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
+      if (keys.has('KeyW') || keys.has('ArrowUp')) y += 1;
+      if (keys.has('KeyS') || keys.has('ArrowDown')) y -= 1;
+      moveOut.set(Math.max(-1, Math.min(1, x)), Math.max(-1, Math.min(1, y)));
+      return moveOut;
+    },
+    look() { lookOut.copy(lookAccum); lookAccum.set(0, 0); return lookOut; },
+    actionHeld() { return actionDown; },
+    consumeAction() { const v = actionLatched; actionLatched = false; return v; },
+    dispose() {
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('keydown', kd);
+      window.removeEventListener('keyup', ku);
+      if (base) base.remove();
+      if (button) button.remove();
+    },
+  };
+}
+
+/**
+ * Chase / orbit follow camera that ALWAYS keeps the target framed — a clamped, frame-rate-independent
+ * lerp that physically CANNOT lose the player off-screen (the recurring 3D camera bug). Call
+ * update(targetPosition, dt) every frame. addYaw(input.look().x * 0.005) to aim/orbit. shake(amount)
+ * on impacts for built-in screen shake.
+ */
+export function followCamera(
+  camera: THREE.PerspectiveCamera,
+  options: { distance?: number; height?: number; stiffness?: number; lookHeight?: number } = {},
+): {
+  update: (target: THREE.Vector3, dt: number) => void;
+  addYaw: (delta: number) => void;
+  setYaw: (yaw: number) => void;
+  shake: (amount: number) => void;
+  dispose: () => void;
+} {
+  const distance = options.distance ?? 8;
+  const height = options.height ?? 4;
+  const stiffness = options.stiffness ?? 6;
+  const lookHeight = options.lookHeight ?? 1;
+  const desired = new THREE.Vector3();
+  const lookAt = new THREE.Vector3();
+  const off = new THREE.Vector3();
+  let yaw = 0;
+  let trauma = 0;
+  return {
+    update(target: THREE.Vector3, dt: number) {
+      desired.set(
+        target.x + Math.sin(yaw) * distance,
+        target.y + height,
+        target.z + Math.cos(yaw) * distance,
+      );
+      const t = 1 - Math.exp(-stiffness * Math.max(dt, 0.0001));
+      camera.position.lerp(desired, t);
+      // Hard clamp: never drift further than ~1.8x the rig distance — the player can't be lost.
+      const maxDist = distance * 1.8 + height;
+      off.copy(camera.position).sub(target);
+      if (off.length() > maxDist) {
+        off.setLength(maxDist);
+        camera.position.copy(target).add(off);
+      }
+      trauma = Math.max(0, trauma - dt * 1.5);
+      if (trauma > 0) {
+        const s = trauma * trauma;
+        camera.position.x += (Math.random() * 2 - 1) * s;
+        camera.position.y += (Math.random() * 2 - 1) * s;
+        camera.position.z += (Math.random() * 2 - 1) * s;
+      }
+      lookAt.set(target.x, target.y + lookHeight, target.z);
+      camera.lookAt(lookAt);
+    },
+    addYaw(delta: number) { yaw += delta; },
+    setYaw(y: number) { yaw = y; },
+    shake(amount: number) { trauma = Math.min(1, trauma + amount); },
+    dispose() { /* no listeners to clean */ },
+  };
+}
+
+/**
+ * Tiny solid-collision world. Register boxes/spheres/meshes as solids, then resolve(playerPos, radius)
+ * every frame so the player CANNOT pass through them (the recurring walk-through-walls bug), and
+ * hits(pos) to test projectile/pickup impacts. Pure AABB/sphere math — phone-cheap, no physics engine.
+ */
+export function collisionWorld(): {
+  addBox: (center: THREE.Vector3, size: THREE.Vector3) => void;
+  addSphere: (center: THREE.Vector3, radius: number) => void;
+  addMesh: (mesh: THREE.Object3D, padding?: number) => void;
+  resolve: (position: THREE.Vector3, radius: number) => boolean;
+  hits: (position: THREE.Vector3, radius?: number) => boolean;
+  clear: () => void;
+} {
+  const boxes: { c: THREE.Vector3; h: THREE.Vector3 }[] = [];
+  const spheres: { c: THREE.Vector3; r: number }[] = [];
+  const box3 = new THREE.Box3();
+  const v = new THREE.Vector3();
+  return {
+    addBox(center: THREE.Vector3, size: THREE.Vector3) { boxes.push({ c: center.clone(), h: size.clone().multiplyScalar(0.5) }); },
+    addSphere(center: THREE.Vector3, radius: number) { spheres.push({ c: center.clone(), r: radius }); },
+    addMesh(mesh: THREE.Object3D, padding = 0) {
+      box3.setFromObject(mesh);
+      const c = box3.getCenter(new THREE.Vector3());
+      const s = box3.getSize(new THREE.Vector3()).addScalar(padding * 2);
+      boxes.push({ c, h: s.multiplyScalar(0.5) });
+    },
+    resolve(position: THREE.Vector3, radius: number) {
+      let hit = false;
+      for (const b of boxes) {
+        const cx = Math.max(b.c.x - b.h.x, Math.min(position.x, b.c.x + b.h.x));
+        const cy = Math.max(b.c.y - b.h.y, Math.min(position.y, b.c.y + b.h.y));
+        const cz = Math.max(b.c.z - b.h.z, Math.min(position.z, b.c.z + b.h.z));
+        v.set(position.x - cx, position.y - cy, position.z - cz);
+        const d = v.length();
+        if (d < radius) {
+          hit = true;
+          if (d > 1e-4) { v.setLength(radius - d); position.add(v); }
+          else { position.x += radius; }
+        }
+      }
+      for (const s of spheres) {
+        v.copy(position).sub(s.c);
+        const d = v.length();
+        const min = radius + s.r;
+        if (d < min && d > 1e-4) { hit = true; v.setLength(min - d); position.add(v); }
+      }
+      return hit;
+    },
+    hits(position: THREE.Vector3, radius = 0.15) {
+      for (const b of boxes) {
+        const cx = Math.max(b.c.x - b.h.x, Math.min(position.x, b.c.x + b.h.x));
+        const cy = Math.max(b.c.y - b.h.y, Math.min(position.y, b.c.y + b.h.y));
+        const cz = Math.max(b.c.z - b.h.z, Math.min(position.z, b.c.z + b.h.z));
+        const dx = position.x - cx;
+        const dy = position.y - cy;
+        const dz = position.z - cz;
+        if (dx * dx + dy * dy + dz * dz <= radius * radius) return true;
+      }
+      for (const s of spheres) {
+        if (position.distanceTo(s.c) <= radius + s.r) return true;
+      }
+      return false;
+    },
+    clear() { boxes.length = 0; spheres.length = 0; },
+  };
+}
+
+/**
  * Standard mobile-safe renderer/scene/camera/lights boot. Lights are ALWAYS added
  * here so a generated game can never render pitch black.
  */
