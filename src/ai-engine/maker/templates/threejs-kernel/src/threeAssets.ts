@@ -736,6 +736,222 @@ export function scatter(
 }
 
 /**
+ * Tiny tween — eased value 0->1 over duration. Keep the returned handle in an array and call
+ * update(dt) each frame; drop it when it returns true. Use for squash-stretch on spawn/collect, UI
+ * pops, door slides. ease: 'linear' | 'in' | 'out' | 'outBack' (springy).
+ */
+export function tween(options: { duration?: number; ease?: 'linear' | 'in' | 'out' | 'outBack'; onUpdate: (v: number) => void; onComplete?: () => void }): { update: (dt: number) => boolean } {
+  const duration = options.duration ?? 0.3;
+  let t = 0;
+  let done = false;
+  const ease = (x: number) => {
+    if (options.ease === 'in') return x * x;
+    if (options.ease === 'out') return 1 - (1 - x) * (1 - x);
+    if (options.ease === 'outBack') { const c1 = 1.70158; const c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
+    return x;
+  };
+  return {
+    update(dt: number) {
+      if (done) return true;
+      t = Math.min(1, t + dt / duration);
+      options.onUpdate(ease(t));
+      if (t >= 1) { done = true; if (options.onComplete) options.onComplete(); }
+      return done;
+    },
+  };
+}
+
+/**
+ * Damage/impact flash — briefly pulses a mesh's emissive then restores it. Returns a handle; call
+ * update(dt) each frame until it returns true. Pure material tween (no assets), reads great with bloom.
+ */
+export function hitFlash(object: THREE.Object3D, options: { color?: string; duration?: number; intensity?: number } = {}): { update: (dt: number) => boolean } {
+  const color = new THREE.Color(options.color || '#ffffff');
+  const duration = options.duration ?? 0.15;
+  const intensity = options.intensity ?? 1;
+  const targets: { mat: THREE.MeshStandardMaterial; baseEmissive: THREE.Color; baseIntensity: number }[] = [];
+  object.traverse((o: THREE.Object3D) => {
+    const mesh = o as THREE.Mesh;
+    const mats = Array.isArray(mesh.material) ? mesh.material : (mesh.material ? [mesh.material] : []);
+    for (const m of mats) {
+      const sm = m as THREE.MeshStandardMaterial;
+      if (sm && sm.emissive) targets.push({ mat: sm, baseEmissive: sm.emissive.clone(), baseIntensity: sm.emissiveIntensity ?? 1 });
+    }
+  });
+  for (const tg of targets) { tg.mat.emissive.copy(color); tg.mat.emissiveIntensity = intensity * 2; }
+  let elapsed = 0;
+  let done = false;
+  return {
+    update(dt: number) {
+      if (done) return true;
+      elapsed += dt;
+      const k = Math.max(0, 1 - elapsed / duration);
+      for (const tg of targets) {
+        tg.mat.emissive.copy(tg.baseEmissive).lerp(color, k);
+        tg.mat.emissiveIntensity = tg.baseIntensity + (intensity * 2 - tg.baseIntensity) * k;
+      }
+      if (elapsed >= duration) {
+        done = true;
+        for (const tg of targets) { tg.mat.emissive.copy(tg.baseEmissive); tg.mat.emissiveIntensity = tg.baseIntensity; }
+      }
+      return done;
+    },
+  };
+}
+
+/**
+ * Ribbon trail behind a moving object (projectiles, swimmers, thrusters). Add once, call push(worldPos)
+ * every frame with the object's position. One Line, no assets.
+ */
+export function trail(scene: THREE.Scene, options: { length?: number; color?: string } = {}): { line: THREE.Line; push: (point: THREE.Vector3) => void; dispose: () => void } {
+  const length = options.length ?? 30;
+  const positions = new Float32Array(length * 3);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.LineBasicMaterial({ color: new THREE.Color(options.color || '#66ccff'), transparent: true, opacity: 0.8 });
+  const line = new THREE.Line(geometry, material);
+  line.frustumCulled = false;
+  scene.add(line);
+  const posAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
+  let inited = false;
+  return {
+    line,
+    push(point: THREE.Vector3) {
+      if (!inited) { for (let i = 0; i < length; i += 1) { positions[i * 3] = point.x; positions[i * 3 + 1] = point.y; positions[i * 3 + 2] = point.z; } inited = true; }
+      for (let i = length - 1; i > 0; i -= 1) { positions[i * 3] = positions[(i - 1) * 3]; positions[i * 3 + 1] = positions[(i - 1) * 3 + 1]; positions[i * 3 + 2] = positions[(i - 1) * 3 + 2]; }
+      positions[0] = point.x; positions[1] = point.y; positions[2] = point.z;
+      posAttr.needsUpdate = true;
+    },
+    dispose() { scene.remove(line); geometry.dispose(); material.dispose(); },
+  };
+}
+
+/**
+ * Floating world-anchored popup text (score +10, "NICE!", combo) that rises and fades. Projects a 3D
+ * point to screen and drops a DOM node into #hud. Returns a handle; call update(dt) until it returns
+ * true (then it removes itself).
+ */
+export function floatingText(text: string, worldPos: THREE.Vector3, camera: THREE.Camera, options: { color?: string; duration?: number } = {}): { update: (dt: number) => boolean } {
+  const layer = (document.getElementById('hud') as HTMLElement) || document.body;
+  const el = document.createElement('div');
+  el.textContent = text;
+  el.style.cssText = `position:absolute;pointer-events:none;font-weight:800;font-family:inherit;color:${options.color || '#ffffff'};text-shadow:0 2px 6px rgba(0,0,0,0.6);transform:translate(-50%,-50%);`;
+  layer.appendChild(el);
+  const duration = options.duration ?? 1;
+  const start = worldPos.clone();
+  const v = new THREE.Vector3();
+  let elapsed = 0;
+  let done = false;
+  return {
+    update(dt: number) {
+      if (done) return true;
+      elapsed += dt;
+      const k = elapsed / duration;
+      v.copy(start);
+      v.y += k * 1.2;
+      v.project(camera);
+      el.style.left = `${(v.x * 0.5 + 0.5) * window.innerWidth}px`;
+      el.style.top = `${(-v.y * 0.5 + 0.5) * window.innerHeight}px`;
+      el.style.opacity = String(Math.max(0, 1 - k));
+      if (elapsed >= duration) { done = true; el.remove(); }
+      return done;
+    },
+  };
+}
+
+/**
+ * Stylized low-poly creature from a blueprint — the code-only "rough dragon / beast" path. Composes
+ * primitives (body, head+snout+horns, legs, optional wings/tail/back-spikes, belly) into ONE Group you
+ * move/rotate. flatShading defaults on for the faceted look. Recolor via body/belly/accent. Pair with
+ * bobSway()/walk motion for life. Not a sculpted hero mesh — a readable stylized silhouette, no assets.
+ */
+export function composedCreature(options: {
+  bodyColor?: string; bellyColor?: string; accentColor?: string;
+  bodyLength?: number; bodyRadius?: number;
+  head?: boolean; legs?: number; wings?: boolean; tail?: boolean; spikes?: boolean; flatShading?: boolean;
+} = {}): THREE.Group {
+  const group = new THREE.Group();
+  const flat = options.flatShading !== false;
+  const len = options.bodyLength ?? 2;
+  const rad = options.bodyRadius ?? 0.5;
+  const bodyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(options.bodyColor || '#4a7c4a'), roughness: 0.7, metalness: 0.05, flatShading: flat });
+  const bellyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(options.bellyColor || '#d8c89a'), roughness: 0.8, flatShading: flat });
+  const accentMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(options.accentColor || '#caa05a'), roughness: 0.6, flatShading: flat });
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 4, 8), bodyMat);
+  body.rotation.x = Math.PI / 2;
+  body.castShadow = true;
+  group.add(body);
+
+  if (options.head !== false) {
+    const head = new THREE.Mesh(new THREE.SphereGeometry(rad * 0.8, 8, 6), bodyMat);
+    head.position.set(0, rad * 0.4, len / 2 + rad * 0.5);
+    head.castShadow = true;
+    group.add(head);
+    const snout = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.45, rad * 0.9, 6), bodyMat);
+    snout.rotation.x = Math.PI / 2;
+    snout.position.set(0, rad * 0.3, len / 2 + rad * 1.1);
+    group.add(snout);
+    for (const sx of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.12, rad * 0.6, 5), accentMat);
+      horn.position.set(sx * rad * 0.35, rad * 1.0, len / 2 + rad * 0.3);
+      horn.rotation.x = -0.3;
+      group.add(horn);
+    }
+  }
+
+  const legCount = options.legs ?? 4;
+  const legLen = rad * 1.4;
+  const legGeo = new THREE.CylinderGeometry(rad * 0.18, rad * 0.14, legLen, 6);
+  for (let i = 0; i < legCount; i += 1) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const front = i < 2 ? 1 : -1;
+    const leg = new THREE.Mesh(legGeo, bodyMat);
+    leg.position.set(side * rad * 0.7, -rad - legLen * 0.5 + rad * 0.5, front * len * 0.28);
+    leg.castShadow = true;
+    group.add(leg);
+  }
+
+  if (options.wings) {
+    for (const sx of [-1, 1]) {
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0);
+      shape.lineTo(len * 0.9, len * 0.5);
+      shape.lineTo(len * 0.9, -len * 0.1);
+      shape.lineTo(len * 0.4, -len * 0.2);
+      shape.lineTo(0, 0);
+      const wing = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: false }), accentMat);
+      wing.position.set(sx * rad * 0.6, rad * 0.6, -len * 0.05);
+      wing.rotation.y = sx > 0 ? -0.4 : Math.PI + 0.4;
+      group.add(wing);
+    }
+  }
+
+  if (options.tail !== false) {
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.4, len * 0.9, 6), bodyMat);
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.set(0, rad * 0.1, -len / 2 - len * 0.35);
+    group.add(tail);
+  }
+
+  if (options.spikes) {
+    for (let i = 0; i < 5; i += 1) {
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.14, rad * 0.5, 5), accentMat);
+      sp.position.set(0, rad + rad * 0.2, len * 0.4 - i * (len * 0.8 / 4));
+      group.add(sp);
+    }
+  }
+
+  const belly = new THREE.Mesh(new THREE.CapsuleGeometry(rad * 0.7, len * 0.9, 3, 6), bellyMat);
+  belly.rotation.x = Math.PI / 2;
+  belly.position.set(0, -rad * 0.35, 0);
+  belly.scale.set(1, 0.6, 1);
+  group.add(belly);
+
+  return group;
+}
+
+/**
  * Standard mobile-safe renderer/scene/camera/lights boot. Lights are ALWAYS added
  * here so a generated game can never render pitch black.
  */
