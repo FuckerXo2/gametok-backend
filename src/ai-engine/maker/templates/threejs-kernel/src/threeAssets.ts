@@ -183,6 +183,162 @@ export function disposeObject3D(root: THREE.Object3D): void {
 }
 
 /**
+ * Procedural CanvasTexture — code-only surface detail (sand, water, panels, grids, polka) with NO
+ * image files. kind: 'noise' | 'gradient' | 'checker' | 'stripes' | 'dots'. Returns a repeating sRGB
+ * texture; assign to material.map (and reuse the same texture across many meshes). Tune colors/scale
+ * per surface. This is the no-asset way to kill the flat-plastic single-color look.
+ */
+export function proceduralTexture(
+  kind: 'noise' | 'gradient' | 'checker' | 'stripes' | 'dots' = 'noise',
+  options: { size?: number; colorA?: string; colorB?: string; repeat?: number; scale?: number } = {},
+): THREE.CanvasTexture {
+  const size = options.size || 256;
+  const colorA = options.colorA || '#7a7a7a';
+  const colorB = options.colorB || '#b8b8b8';
+  const scale = options.scale || 8;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = colorA;
+  ctx.fillRect(0, 0, size, size);
+  if (kind === 'noise') {
+    const img = ctx.getImageData(0, 0, size, size);
+    const a = new THREE.Color(colorA);
+    const b = new THREE.Color(colorB);
+    const tmp = new THREE.Color();
+    for (let i = 0; i < size * size; i += 1) {
+      tmp.copy(a).lerp(b, Math.random());
+      img.data[i * 4] = tmp.r * 255;
+      img.data[i * 4 + 1] = tmp.g * 255;
+      img.data[i * 4 + 2] = tmp.b * 255;
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  } else if (kind === 'gradient') {
+    const g = ctx.createLinearGradient(0, 0, 0, size);
+    g.addColorStop(0, colorA);
+    g.addColorStop(1, colorB);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+  } else {
+    const cell = size / scale;
+    ctx.fillStyle = colorB;
+    for (let y = 0; y < scale; y += 1) {
+      for (let x = 0; x < scale; x += 1) {
+        if (kind === 'checker' && (x + y) % 2 === 0) ctx.fillRect(x * cell, y * cell, cell, cell);
+        else if (kind === 'stripes' && x % 2 === 0) ctx.fillRect(x * cell, 0, cell, size);
+        else if (kind === 'dots') {
+          ctx.beginPath();
+          ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, cell * 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(options.repeat || 1, options.repeat || 1);
+  return texture;
+}
+
+/**
+ * Lightweight pooled particle field for code-only VFX (impacts, pickups, thruster trails, bubbles,
+ * sparks). Create ONE per effect-color, call update(dt) every frame, and burst(position) on events.
+ * It's a single THREE.Points draw call (phone-safe). Emissive + the kernel bloom make sparks glow.
+ */
+export function createParticleField(
+  scene: THREE.Scene,
+  options: { max?: number; size?: number; color?: string; gravity?: number; additive?: boolean } = {},
+): {
+  points: THREE.Points;
+  burst: (origin: THREE.Vector3, opts?: { count?: number; speed?: number; spread?: number; life?: number }) => void;
+  update: (dt: number) => void;
+  dispose: () => void;
+} {
+  const max = options.max || 240;
+  const gravity = options.gravity ?? 6;
+  const positions = new Float32Array(max * 3);
+  const velocities = new Float32Array(max * 3);
+  const life = new Float32Array(max);
+  for (let i = 0; i < max; i += 1) positions[i * 3 + 1] = -9999;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const posAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const material = new THREE.PointsMaterial({
+    size: options.size || 0.18,
+    color: new THREE.Color(options.color || '#ffffff'),
+    transparent: true,
+    depthWrite: false,
+    blending: options.additive === false ? THREE.NormalBlending : THREE.AdditiveBlending,
+  });
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  scene.add(points);
+  let cursor = 0;
+  return {
+    points,
+    burst(origin: THREE.Vector3, opts: { count?: number; speed?: number; spread?: number; life?: number } = {}) {
+      const count = opts.count || 16;
+      const speed = opts.speed || 3;
+      const spread = opts.spread ?? 1;
+      const ttl = opts.life || 0.6;
+      for (let i = 0; i < count; i += 1) {
+        const idx = cursor;
+        cursor = (cursor + 1) % max;
+        positions[idx * 3] = origin.x;
+        positions[idx * 3 + 1] = origin.y;
+        positions[idx * 3 + 2] = origin.z;
+        velocities[idx * 3] = (Math.random() * 2 - 1) * spread * speed;
+        velocities[idx * 3 + 1] = Math.random() * speed + speed * 0.3;
+        velocities[idx * 3 + 2] = (Math.random() * 2 - 1) * spread * speed;
+        life[idx] = ttl;
+      }
+    },
+    update(dt: number) {
+      for (let i = 0; i < max; i += 1) {
+        if (life[i] <= 0) continue;
+        life[i] -= dt;
+        if (life[i] <= 0) { positions[i * 3 + 1] = -9999; continue; }
+        positions[i * 3] += velocities[i * 3] * dt;
+        positions[i * 3 + 1] += velocities[i * 3 + 1] * dt;
+        positions[i * 3 + 2] += velocities[i * 3 + 2] * dt;
+        velocities[i * 3 + 1] -= gravity * dt;
+      }
+      posAttr.needsUpdate = true;
+    },
+    dispose() {
+      scene.remove(points);
+      geometry.dispose();
+      material.dispose();
+    },
+  };
+}
+
+/**
+ * Procedural idle motion — gentle bob + sway so props/creatures/pickups feel alive without rigs or
+ * assets. Call every frame with an increasing time t (seconds); pass a per-object phase so a field of
+ * them doesn't move in lockstep. Remembers each object's base Y the first time it sees it.
+ */
+export function bobSway(
+  object: THREE.Object3D,
+  t: number,
+  options: { bob?: number; bobSpeed?: number; sway?: number; swaySpeed?: number; phase?: number } = {},
+): void {
+  const bob = options.bob ?? 0.1;
+  const bobSpeed = options.bobSpeed ?? 2;
+  const sway = options.sway ?? 0.05;
+  const swaySpeed = options.swaySpeed ?? 1.5;
+  const phase = options.phase ?? 0;
+  const ud = object.userData as { __bobBaseY?: number };
+  if (ud.__bobBaseY === undefined) ud.__bobBaseY = object.position.y;
+  object.position.y = ud.__bobBaseY + Math.sin(t * bobSpeed + phase) * bob;
+  object.rotation.z = Math.sin(t * swaySpeed + phase) * sway;
+}
+
+/**
  * Standard mobile-safe renderer/scene/camera/lights boot. Lights are ALWAYS added
  * here so a generated game can never render pitch black.
  */
