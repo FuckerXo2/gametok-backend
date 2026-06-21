@@ -7,6 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 
 const textureCache: Record<string, THREE.Texture> = {};
 
@@ -595,6 +596,70 @@ export function collisionWorld(): {
 }
 
 /**
+ * Photoreal procedural sky (atmospheric scattering) — the cinematic "movie sky", pure shader, NO
+ * image/HDR. Adds the sky dome to the scene and returns { sky, sun, setSun }. sun is a direction
+ * Vector3 — point stage.sunLight at it (e.g. stage.sunLight.position.copy(sky.sun).multiplyScalar(80))
+ * so your shadows match the sky. Low elevation (~3-8) = golden sunset; high (~40) = midday.
+ */
+export function createSky(
+  scene: THREE.Scene,
+  options: { elevation?: number; azimuth?: number; turbidity?: number; rayleigh?: number } = {},
+): { sky: Sky; sun: THREE.Vector3; setSun: (elevationDeg: number, azimuthDeg: number) => THREE.Vector3 } {
+  const sky = new Sky();
+  sky.scale.setScalar(450000);
+  scene.add(sky);
+  const uniforms = (sky.material as THREE.ShaderMaterial).uniforms;
+  uniforms['turbidity'].value = options.turbidity ?? 8;
+  uniforms['rayleigh'].value = options.rayleigh ?? 2;
+  uniforms['mieCoefficient'].value = 0.005;
+  uniforms['mieDirectionalG'].value = 0.8;
+  const sun = new THREE.Vector3();
+  const setSun = (elevationDeg: number, azimuthDeg: number) => {
+    const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
+    const theta = THREE.MathUtils.degToRad(azimuthDeg);
+    sun.setFromSphericalCoords(1, phi, theta);
+    uniforms['sunPosition'].value.copy(sun);
+    return sun.clone();
+  };
+  setSun(options.elevation ?? 25, options.azimuth ?? 180);
+  return { sky, sun, setSun };
+}
+
+/**
+ * Reflective, rippling water plane — code-only (procedural normal map, NO image files). Reflects the
+ * sky/scene via the kernel's PBR environment. Add once, call update(t) each frame for moving ripples.
+ * Great for oceans, lakes, pools, underwater surface. Tune color/opacity/size per game.
+ */
+export function createWater(
+  scene: THREE.Scene,
+  options: { size?: number; color?: string; opacity?: number; roughness?: number; metalness?: number; height?: number; normalRepeat?: number } = {},
+): { mesh: THREE.Mesh; update: (t: number) => void; dispose: () => void } {
+  const size = options.size ?? 400;
+  const geometry = new THREE.PlaneGeometry(size, size, 1, 1);
+  geometry.rotateX(-Math.PI / 2);
+  const normalMap = proceduralTexture('noise', { size: 128, colorA: '#7f7fff', colorB: '#8f8fff', repeat: options.normalRepeat ?? 24 });
+  normalMap.colorSpace = THREE.NoColorSpace;
+  const material = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(options.color || '#2f6fb0'),
+    metalness: options.metalness ?? 0.2,
+    roughness: options.roughness ?? 0.15,
+    transparent: true,
+    opacity: options.opacity ?? 0.85,
+    normalMap,
+    envMapIntensity: 1.2,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.y = options.height ?? 0;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return {
+    mesh,
+    update(t: number) { normalMap.offset.set((t * 0.02) % 1, (t * 0.015) % 1); },
+    dispose() { scene.remove(mesh); geometry.dispose(); material.dispose(); normalMap.dispose(); },
+  };
+}
+
+/**
  * Standard mobile-safe renderer/scene/camera/lights boot. Lights are ALWAYS added
  * here so a generated game can never render pitch black.
  */
@@ -604,6 +669,8 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   camera: THREE.PerspectiveCamera;
   composer: EffectComposer;
   bloom: UnrealBloomPass;
+  sunLight: THREE.DirectionalLight;
+  hemisphereLight: THREE.HemisphereLight;
   resize: () => void;
   render: () => void;
 } {
@@ -702,5 +769,5 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   // stage.render() (NOT renderer.render) so glow/tone-mapping are included.
   const render = () => composer.render();
 
-  return { renderer, scene, camera, composer, bloom, resize, render };
+  return { renderer, scene, camera, composer, bloom, sunLight: sun, hemisphereLight: hemisphere, resize, render };
 }
