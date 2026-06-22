@@ -8,6 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const textureCache: Record<string, THREE.Texture> = {};
 
@@ -949,6 +950,37 @@ export function composedCreature(options: {
   group.add(belly);
 
   return group;
+}
+
+const _modelLoader = new GLTFLoader();
+const _modelCache: Record<string, THREE.Group> = {};
+
+/**
+ * Load a GLB/GLTF model (a Kenney CC0 kit piece, etc.) from a URL or inline data-URI. Returns a fresh
+ * cloned Group you can position/scale/add — the loaded source is cached so cloning more is cheap. The
+ * model opts into shadows automatically. Pass options.scale to normalize size. await it during init
+ * (use preloadModels first so the await resolves instantly). Real kit models beat code-built boxes for
+ * vehicles/props/buildings/nature; register them as solids with collisionWorld().addMesh(model).
+ */
+export async function loadModel(source: string, options: { scale?: number } = {}): Promise<THREE.Group> {
+  let template = _modelCache[source];
+  if (!template) {
+    const gltf = await _modelLoader.loadAsync(source);
+    template = gltf.scene;
+    _modelCache[source] = template;
+  }
+  const model = template.clone(true);
+  if (options.scale) model.scale.setScalar(options.scale);
+  model.traverse((o: THREE.Object3D) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh) { mesh.castShadow = true; mesh.receiveShadow = true; }
+  });
+  return model;
+}
+
+/** Pre-load several models up front (await once in init) so later loadModel() calls clone instantly. */
+export async function preloadModels(sources: string[]): Promise<void> {
+  await Promise.all(sources.map((s) => loadModel(s).catch(() => null)));
 }
 
 /**
