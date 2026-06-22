@@ -337,6 +337,7 @@ export function buildMakerAgentImplementPrompt({
         '- Follow foundation layoutComposition and composition law below — no fixed template shell is provided.',
         '- Use read_file / grep_project / apply_patch to build incrementally on disk.',
         '- After each edit, tsc runs automatically — read tsc errors in tool results and fix before continuing.',
+        "- TYPE IMPORTS: when importing something from another file that is used ONLY as a type (an interface or type alias — e.g. Hazard, Enemy, GameState), import it type-only: `import { spawnFoo, type Hazard } from './x.ts'`. A plain value import of a type passes tsc but BREAKS the vite build (\"X is not exported by ...\"). Values (functions, classes, consts) stay normal imports.",
         '- Kernel boot is already wired: loadDreamAssets → import main.ts. Replace stub logic only.',
         '- Keep import "./styles.css", #game-canvas at viewport 0,0, getAssetImage/firstByRole for sprites.',
         ...(!is3D ? [

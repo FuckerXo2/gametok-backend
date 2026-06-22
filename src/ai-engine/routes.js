@@ -4533,6 +4533,7 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
     const definiteAssignmentErrorsByFile = new Map();
     const invalidScaleConfigErrorsByFile = new Map();
     const inheritedPropertyErrorsByFile = new Map();
+    const missingExportsByImporter = new Map();
     let duplicateStateObjectLiteral = false;
 
     for (const error of errors) {
@@ -4548,6 +4549,21 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
             const lines = duplicateFunctionErrorsByFile.get(relativePath) || [];
             lines.push(Number(line));
             duplicateFunctionErrorsByFile.set(relativePath, lines);
+            continue;
+        }
+
+        // Vite/Rollup MISSING_EXPORT, e.g.:
+        //   "Hazard" is not exported by "src/entities/Pickups.ts", imported by "src/game/Game.ts"
+        // Root cause: a TYPE/interface imported as a VALUE — types are erased at bundle time, so rollup
+        // can't find a runtime export. tsc can PASS while vite FAILS, which strands the model. Collect
+        // by importer so we can mark the offending names as type-only imports below.
+        const missingExport = /["']([^"']+)["']\s+is not exported by\s+["']([^"']+)["'](?:,\s*imported by\s+["']([^"']+)["'])?/i.exec(String(error || ''));
+        if (missingExport) {
+            const [, missingName, exportingPathRaw, importerPathRaw] = missingExport;
+            const importerKey = (importerPathRaw || '').replace(/^\.?\//, '');
+            const info = missingExportsByImporter.get(importerKey) || { exportingPath: (exportingPathRaw || '').replace(/^\.?\//, ''), names: new Set() };
+            info.names.add(missingName);
+            missingExportsByImporter.set(importerKey, info);
             continue;
         }
 
@@ -4598,6 +4614,44 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
                     to: right,
                 });
             }
+        }
+    }
+
+    // MISSING_EXPORT → mark the type-only names with inline `type` specifiers in the importer.
+    for (const [importerPath, info] of missingExportsByImporter.entries()) {
+        if (!importerPath) continue;
+        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, importerPath);
+        if (isProtectedMakerRuntimeFile(cleanPath)) continue;
+        let content = await fs.promises.readFile(absolutePath, 'utf8').catch(() => null);
+        if (content == null) continue;
+        // Only touch names that are genuinely type-only in the exporting module (interface/type), so we
+        // never mistype a real value. If the exporting source is unreadable, trust vite (a missing
+        // runtime export is, by definition, type-only).
+        const exportSrc = info.exportingPath
+            ? await fs.promises.readFile(path.join(projectRoot, info.exportingPath), 'utf8').catch(() => '')
+            : '';
+        const typeNames = [...info.names].filter((name) => {
+            const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (new RegExp(`export\\s+(?:interface|type)\\s+${esc}\\b`).test(exportSrc)) return true;
+            return exportSrc === '';
+        });
+        if (!typeNames.length) continue;
+        const before = content;
+        content = content.replace(/import\s*\{([^}]*)\}\s*from\s*(['"][^'"]+['"])/g, (match, inner, from) => {
+            const rebuilt = inner.split(',').map((specRaw) => {
+                const spec = specRaw.trim();
+                if (!spec) return specRaw;
+                const bare = spec.replace(/^type\s+/, '');
+                if (typeNames.includes(bare) && !/^type\s+/.test(spec)) {
+                    return specRaw.replace(bare, `type ${bare}`);
+                }
+                return specRaw;
+            }).join(',');
+            return `import {${rebuilt}} from ${from}`;
+        });
+        if (content !== before) {
+            await fs.promises.writeFile(absolutePath, content, 'utf8');
+            applied.push({ path: cleanPath, type: 'missing_export_type_import', names: typeNames, from: typeNames.join(', '), to: 'import type' });
         }
     }
 
@@ -5669,6 +5723,29 @@ async function runMakerAgentInspectionTurns({
                     } catch (rescueError) {
                         console.warn(`🔧 [Phase 2 job=${jobId}] Final dt-hook rescue failed: ${rescueError.message}`);
                     }
+                }
+            }
+        }
+        // Vite MISSING_EXPORT (a type imported as a value) — tsc passed so the model never saw it and
+        // gets stranded. Deterministically convert the offending imports to type-only, then rebuild.
+        if (lastRunEvidence?.success !== true && preThrowErrors.some((entry) => /is not exported by/i.test(entry))) {
+            const typeImportRepairs = await applyDeterministicMakerBuildRepairs(projectRoot, preThrowErrors);
+            if (typeImportRepairs.length > 0) {
+                console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: type-only import fix (${typeImportRepairs.map((r) => `${r.path}: ${r.from}`).join('; ')})`);
+                try {
+                    lastRunEvidence = await runMakerProjectEvidence({
+                        workspace,
+                        projectRoot,
+                        generatedAssets,
+                        templateContract,
+                        assetContract,
+                        turnNumber: `${maxTurns}-final-type-import-rescue`,
+                        phase: 'after_final_type_import_fix',
+                        allowedKeys: phase2AllowedAssetKeys,
+                        foundationLane: templateContract?.lane || assetContract?.lane || null,
+                    });
+                } catch (rescueError) {
+                    console.warn(`🔧 [Phase 2 job=${jobId}] Final type-import rescue failed: ${rescueError.message}`);
                 }
             }
         }
