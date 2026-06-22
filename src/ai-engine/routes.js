@@ -5198,17 +5198,20 @@ async function runMakerAgentInspectionTurns({
     // them (window.DREAM_MODELS in index.html) so the builder can loadModel() real kit pieces. Fully
     // guarded — yields '' (-> code-geometry fallback) on no genre match or any fetch failure.
     let kenney3dBlock = '';
+    let kenney3dModelKeys = [];
     if (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)) {
         try {
             const picked = await materializeKenney3dModels(projectRoot, prompt, { limit: 18 });
             if (picked.length) {
                 kenney3dBlock = kenney3dModelPromptBlock(picked);
+                kenney3dModelKeys = picked.map((m) => m.key);
                 console.log(`🧩 [Phase 2 job=${jobId}] Kenney 3D models: ${picked.length} inlined (${[...new Set(picked.map((m) => m.kit))].join(', ')})`);
             }
         } catch (e) {
             console.warn(`🧩 [Phase 2 job=${jobId}] Kenney 3D materialize skipped: ${e?.message || e}`);
         }
     }
+    let modelUsageForceRetries = 0;
 
     // Capture the empty stub size before any agent edits, so we can tell a real implementation from
     // a barely-touched stub at the acceptance gate below.
@@ -5600,6 +5603,15 @@ async function runMakerAgentInspectionTurns({
                 } else {
                     hollowReason = await detectHollowMakerGame(projectRoot, stubMainLen);
                 }
+                // Kenney models were inlined but the builder ignored them (hand-built boxes instead)?
+                // Detect "models present, loadModel() never called" and force ONE turn to use them.
+                let modelsUnused = false;
+                if (kenney3dModelKeys.length > 0 && modelUsageForceRetries < 1 && turnNumber < maxTurns && !hollowReason) {
+                    try {
+                        const freshFiles = await readMakerProjectFiles(projectRoot);
+                        modelsUnused = !freshFiles.some((f) => /loadModel\s*\(/.test(f.content || ''));
+                    } catch { /* unreadable — don't force */ }
+                }
                 if (hollowReason && turnNumber < maxTurns && hollowForceRetries < 1) {
                     // It renders, but there is no game (or the game is dead code). Don't accept —
                     // force another turn with explicit feedback.
@@ -5617,6 +5629,16 @@ async function runMakerAgentInspectionTurns({
                     runEvidence.targetedRepairTasks = [hollowTask, ...(runEvidence.targetedRepairTasks || [])];
                     lastRunEvidence = runEvidence;
                     console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn`);
+                } else if (modelsUnused) {
+                    modelUsageForceRetries += 1;
+                    const modelTask = {
+                        id: 'kenney_models_unused',
+                        directRepairTask: `Real 3D models were INLINED for this game (window.DREAM_MODELS) but your code NEVER calls loadModel() — you hand-built the vehicles/characters from box geometry instead. REPLACE the player vehicle AND the obstacle/traffic vehicles with the provided Kenney models: import { loadModel, preloadModels } from './threeAssets.ts', await preloadModels([...keys]) in init, then e.g. const car = await loadModel(${JSON.stringify(kenney3dModelKeys[0])}); position/scale it, add it to the scene, and register solids with collisionWorld().addMesh(car). Available keys: ${kenney3dModelKeys.join(', ')}. Keep code geometry for the road/world ONLY — the cars/characters MUST be these models.`,
+                    };
+                    runEvidence.success = false;
+                    runEvidence.targetedRepairTasks = [modelTask, ...(runEvidence.targetedRepairTasks || [])];
+                    lastRunEvidence = runEvidence;
+                    console.warn(`🧩 [Phase 2 job=${jobId}] Turn ${turnNumber} ignored ${kenney3dModelKeys.length} inlined models (no loadModel call) — forcing a turn to use them`);
                 } else {
                     if (bareSeed) {
                         // The model never wrote a line of game code — the bare placeholder scaffold is all

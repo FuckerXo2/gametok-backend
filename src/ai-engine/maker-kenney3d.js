@@ -131,10 +131,10 @@ export function kenney3dModelPromptBlock(models) {
     if (!Array.isArray(models) || !models.length) return '';
     const list = models.map((m) => `"${m.key}" (${m.name}, ${m.category})`).join(', ');
     return [
-        '3D MODELS AVAILABLE (real Kenney CC0 GLB kit pieces — USE THESE for matching entities instead of code boxes):',
-        `  import { loadModel } from './threeAssets.ts'; then e.g. const car = await loadModel(${JSON.stringify(models[0].key)});`,
-        '  await the loads in init (await preloadModels([...keys]) first for instant clones), position/scale the returned Group, add to the scene, and register solids with collisionWorld().addMesh(model).',
+        'REAL 3D MODELS PROVIDED — USING THEM IS MANDATORY (do NOT hand-build these from Box/Cylinder geometry):',
+        '  Real Kenney CC0 GLB models are already inlined in this game. The player vehicle/character AND any matching entities (traffic cars, enemies, props) MUST be loaded with loadModel(). Building them from BoxGeometry instead is a HARD FAILURE and will force a repair turn.',
+        `  import { loadModel, preloadModels } from './threeAssets.ts'; await preloadModels([...keys]) in init; then const car = await loadModel(${JSON.stringify(models[0].key)}); position/scale the returned Group, add it to the scene, register solids via collisionWorld().addMesh(car).`,
         `  Available keys: ${list}.`,
-        '  Only use keys from this list. For anything not covered, fall back to voxelModel()/composed geometry.',
+        '  Code-build ONLY what these keys do NOT cover (road, terrain, lane markings, sky, UI). Anything matching a key above MUST use loadModel().',
     ].join('\n');
 }
