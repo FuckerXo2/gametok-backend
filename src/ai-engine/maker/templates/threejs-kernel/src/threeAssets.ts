@@ -965,7 +965,11 @@ const _modelCache: Record<string, THREE.Group> = {};
 export async function loadModel(source: string, options: { scale?: number } = {}): Promise<THREE.Group> {
   let template = _modelCache[source];
   if (!template) {
-    const gltf = await _modelLoader.loadAsync(source);
+    // Materialized models are inlined as base64 data-URIs in window.DREAM_MODELS (keyed by the same
+    // key, e.g. 'kenney3d/car_kit/van.glb'); fall back to treating source as a plain URL/path.
+    const inlined = (window as any).DREAM_MODELS || {};
+    const resolved: string = typeof inlined[source] === 'string' ? inlined[source] : source;
+    const gltf = await _modelLoader.loadAsync(resolved);
     template = gltf.scene;
     _modelCache[source] = template;
   }
