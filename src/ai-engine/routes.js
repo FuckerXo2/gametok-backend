@@ -39,6 +39,7 @@ import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-as
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, buildThreeDRulesBlock, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
+import { materializeKenney3dModels, kenney3dModelPromptBlock } from './maker-kenney3d.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -5138,6 +5139,23 @@ async function runMakerAgentInspectionTurns({
         assetContract,
         jobId,
     });
+
+    // 3D Kenney models: for threejs-kernel games, pick + fetch a relevant shortlist from R2 and inline
+    // them (window.DREAM_MODELS in index.html) so the builder can loadModel() real kit pieces. Fully
+    // guarded — yields '' (-> code-geometry fallback) on no genre match or any fetch failure.
+    let kenney3dBlock = '';
+    if (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)) {
+        try {
+            const picked = await materializeKenney3dModels(projectRoot, prompt, { limit: 18 });
+            if (picked.length) {
+                kenney3dBlock = kenney3dModelPromptBlock(picked);
+                console.log(`🧩 [Phase 2 job=${jobId}] Kenney 3D models: ${picked.length} inlined (${[...new Set(picked.map((m) => m.kit))].join(', ')})`);
+            }
+        } catch (e) {
+            console.warn(`🧩 [Phase 2 job=${jobId}] Kenney 3D materialize skipped: ${e?.message || e}`);
+        }
+    }
+
     // Capture the empty stub size before any agent edits, so we can tell a real implementation from
     // a barely-touched stub at the acceptance gate below.
     let stubMainLen = 0;
@@ -5191,6 +5209,7 @@ async function runMakerAgentInspectionTurns({
                 allowedAssetKeys,
                 assetSlotHints,
                 userMedia: generatedAssets?.userMedia || null,
+                kenney3dBlock,
             })
             : buildMakerAgentInspectionPrompt({
                 prompt,

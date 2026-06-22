@@ -53,7 +53,8 @@ function tokenize(s) {
 export function selectKenney3dModels(prompt, { limit = 24, perKitCap = 10 } = {}) {
     const catalog = loadCatalog();
     if (!catalog.models || !catalog.models.length) return [];
-    const tokens = tokenize(prompt);
+    const stem = (w) => (w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w);
+    const tokens = new Set([...tokenize(prompt)].map(stem)); // plural-insensitive (cars -> car)
     const preferredKits = new Set();
     for (const [re, kits] of GENRE_KITS) if (re.test(prompt || '')) kits.forEach((k) => preferredKits.add(k));
 
@@ -61,8 +62,8 @@ export function selectKenney3dModels(prompt, { limit = 24, perKitCap = 10 } = {}
     for (const m of catalog.models) {
         let score = 0;
         if (preferredKits.has(m.kit)) score += 10;
-        for (const t of m.tags) if (tokens.has(t)) score += 3;
-        if (tokens.has(m.category)) score += 2;
+        for (const t of m.tags) if (tokens.has(stem(t))) score += 3;
+        if (tokens.has(stem(m.category))) score += 2;
         if (score > 0) scored.push({ m, score });
     }
     scored.sort((a, b) => b.score - a.score || a.m.id.localeCompare(b.m.id));
@@ -82,4 +83,58 @@ export function selectKenney3dModels(prompt, { limit = 24, perKitCap = 10 } = {}
 export function kenney3dCatalogStats() {
     const c = loadCatalog();
     return { total: c.total || (c.models ? c.models.length : 0), kits: c.kits || 0, byCategory: c.byCategory || {} };
+}
+
+function r2PublicBase() {
+    return (process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`).replace(/\/+$/, '');
+}
+
+/**
+ * Materialize Kenney models for a 3D game: pick a shortlist, fetch each GLB from R2 server-side,
+ * inline them as base64 in window.DREAM_MODELS (injected into the game's index.html so loadModel()
+ * resolves keys to data-URIs — no CORS, no runtime fetch). Fully guarded: ANY failure returns [] so
+ * the builder simply falls back to code geometry. Returns the models that actually materialized.
+ * @returns {Promise<Array<{id,name,kit,category,key}>>}
+ */
+export async function materializeKenney3dModels(projectRoot, prompt, { limit = 18 } = {}) {
+    try {
+        const picks = selectKenney3dModels(prompt, { limit });
+        if (!picks.length) return [];
+        if (typeof fetch !== 'function') return [];
+        const base = r2PublicBase();
+        const inlined = {};
+        const ok = [];
+        for (const m of picks) {
+            try {
+                const res = await fetch(`${base}/${m.key}`);
+                if (!res.ok) continue;
+                const buf = Buffer.from(await res.arrayBuffer());
+                if (!buf.length) continue;
+                inlined[m.key] = `data:model/gltf-binary;base64,${buf.toString('base64')}`;
+                ok.push(m);
+            } catch { /* skip this model (e.g. kit not uploaded yet) */ }
+        }
+        if (!ok.length) return [];
+        const indexPath = path.join(projectRoot, 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf8');
+        const script = `<script>window.DREAM_MODELS=${JSON.stringify(inlined)};</script>`;
+        html = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `${script}\n</head>`) : `${script}\n${html}`;
+        fs.writeFileSync(indexPath, html);
+        return ok;
+    } catch {
+        return [];
+    }
+}
+
+/** One-line builder-prompt block listing the model keys available via loadModel() this game. */
+export function kenney3dModelPromptBlock(models) {
+    if (!Array.isArray(models) || !models.length) return '';
+    const list = models.map((m) => `"${m.key}" (${m.name}, ${m.category})`).join(', ');
+    return [
+        '3D MODELS AVAILABLE (real Kenney CC0 GLB kit pieces — USE THESE for matching entities instead of code boxes):',
+        `  import { loadModel } from './threeAssets.ts'; then e.g. const car = await loadModel(${JSON.stringify(models[0].key)});`,
+        '  await the loads in init (await preloadModels([...keys]) first for instant clones), position/scale the returned Group, add to the scene, and register solids with collisionWorld().addMesh(model).',
+        `  Available keys: ${list}.`,
+        '  Only use keys from this list. For anything not covered, fall back to voxelModel()/composed geometry.',
+    ].join('\n');
 }
