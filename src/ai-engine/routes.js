@@ -8518,6 +8518,43 @@ router.get('/drafts/:id', async (req, res) => {
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
+// Inspect the EXACT generated source for one game (already saved in maker_project), plus instant
+// diagnostics so we can tell what the builder actually shipped without reading every line:
+//   GET /drafts/:id/source            -> JSON { diagnostics, files: [{path, content}] }
+//   GET /drafts/:id/source?format=text -> plain-text dump of every file (easy to read/paste)
+router.get('/drafts/:id/source', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Auth failed' });
+        const userId = await getUserIdFromToken(token, 'Invalid token');
+        const row = await pool.query('SELECT id, title, prompt, maker_project FROM ai_games WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
+        if (row.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
+        let project = row.rows[0].maker_project;
+        if (typeof project === 'string') { try { project = JSON.parse(project); } catch { project = null; } }
+        const files = Array.isArray(project?.files) ? project.files : [];
+        if (!files.length) return res.status(404).json({ error: 'No saved source for this game (older or non-maker build).' });
+        const allCode = files.map((f) => f.content || '').join('\n');
+        const diagnostics = {
+            architecture: project.architecture || null,
+            fileCount: files.length,
+            files: files.map((f) => f.path),
+            usesLoadModel: /\bloadModel\s*\(/.test(allCode),
+            modelKeysReferenced: [...new Set(allCode.match(/kenney3d\/[a-z0-9_]+\/[a-z0-9_.-]+\.glb/gi) || [])],
+            usesCreateSky: /\bcreateSky\s*\(/.test(allCode),
+            usesBoxGeometry: /\bBoxGeometry\b/.test(allCode),
+            usesFog: /scene\.fog|new THREE\.Fog/.test(allCode),
+            usesBloom: /bloom|UnrealBloom/i.test(allCode),
+            emissiveCount: (allCode.match(/emissive/gi) || []).length,
+        };
+        if (String(req.query.format || 'json') === 'text') {
+            res.set('Content-Type', 'text/plain; charset=utf-8');
+            const dump = files.map((f) => `\n\n===== ${f.path} =====\n${f.content || ''}`).join('');
+            return res.send(`/* ${row.rows[0].title}\n   prompt: ${row.rows[0].prompt}\n   diagnostics: ${JSON.stringify(diagnostics)} */${dump}`);
+        }
+        res.json({ id: row.rows[0].id, title: row.rows[0].title, prompt: row.rows[0].prompt, diagnostics, files });
+    } catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
+});
+
 router.delete('/drafts/:id', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
