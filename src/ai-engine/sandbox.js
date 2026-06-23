@@ -780,10 +780,17 @@ export async function verifyGame(htmlString, options = {}) {
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--use-gl=swiftshader',
-                '--use-angle=swiftshader-webgl',
+                // Software WebGL via ANGLE → SwiftShader. The version of Chrome puppeteer 24 bundles
+                // REFUSES to create a WebGL context on the software renderer unless
+                // --enable-unsafe-swiftshader is set (Chrome removed the silent SwiftShader fallback
+                // ~M112). That single missing flag is why every 3D build logged "Could not create a
+                // WebGL context (VENDOR=0xffff DEVICE=0xffff)" and fell through to the verifier-bypass,
+                // so 3D was never actually rendered/checked. The legacy '--use-gl=swiftshader' spelling
+                // is deprecated; the supported combo is --use-gl=angle + --use-angle=swiftshader.
+                '--use-gl=angle',
+                '--use-angle=swiftshader',
+                '--enable-unsafe-swiftshader',
                 '--enable-webgl',
-                '--enable-gpu-rasterization',
                 '--ignore-gpu-blocklist',
                 '--ignore-certificate-errors',
             ]

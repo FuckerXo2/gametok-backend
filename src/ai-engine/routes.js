@@ -5629,17 +5629,17 @@ async function runMakerAgentInspectionTurns({
                     runEvidence.targetedRepairTasks = [hollowTask, ...(runEvidence.targetedRepairTasks || [])];
                     lastRunEvidence = runEvidence;
                     console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn`);
-                } else if (modelsUnused) {
-                    modelUsageForceRetries += 1;
-                    const modelTask = {
-                        id: 'kenney_models_unused',
-                        directRepairTask: `Real 3D models were INLINED for this game (window.DREAM_MODELS) but your code NEVER calls loadModel() — you hand-built the vehicles/characters from box geometry instead. REPLACE the player vehicle AND the obstacle/traffic vehicles with the provided Kenney models: import { loadModel, preloadModels } from './threeAssets.ts', await preloadModels([...keys]) in init, then e.g. const car = await loadModel(${JSON.stringify(kenney3dModelKeys[0])}); position/scale it, add it to the scene, and register solids with collisionWorld().addMesh(car). Available keys: ${kenney3dModelKeys.join(', ')}. Keep code geometry for the road/world ONLY — the cars/characters MUST be these models.`,
-                    };
-                    runEvidence.success = false;
-                    runEvidence.targetedRepairTasks = [modelTask, ...(runEvidence.targetedRepairTasks || [])];
-                    lastRunEvidence = runEvidence;
-                    console.warn(`🧩 [Phase 2 job=${jobId}] Turn ${turnNumber} ignored ${kenney3dModelKeys.length} inlined models (no loadModel call) — forcing a turn to use them`);
                 } else {
+                    if (modelsUnused) {
+                        // Best-effort, NOT forced. Kenney models are upside-only: a hand-built
+                        // procedural box-car always renders and looks fine, whereas FORCING loadModel
+                        // traded that guaranteed-good car for one that silently breaks on a bad/invented
+                        // key (e.g. loadModel('raceCarRed') when the real key is 'kenney3d/<id>.glb') —
+                        // shipping a debug placeholder no blind verifier can catch. So we never burn a
+                        // repair turn or fail the build over unused models; loadModel itself degrades
+                        // gracefully (see threeAssets) when the builder DOES try a model with a bad key.
+                        console.log(`🧩 [Phase 2 job=${jobId}] ${kenney3dModelKeys.length} Kenney models available but builder used procedural geometry — shipping as-is (best-effort; models are optional).`);
+                    }
                     if (bareSeed) {
                         // The model never wrote a line of game code — the bare placeholder scaffold is all
                         // that exists. Never ship that as the requested game; fail so it retries clean.
@@ -5656,7 +5656,7 @@ async function runMakerAgentInspectionTurns({
                     if (isImplementTurn && turnNumber < implementTurns) {
                         const polishTask = {
                             id: 'visual_polish_required',
-                            directRepairTask: `Your game loop works and compiles! Now use write_file to upgrade visuals. You MUST edit files this turn — do NOT just read. Specifically: (1) Rewrite src/systems/Hud.ts with a premium CSS HUD — use clip-path for angled sci-fi panels, gradient health bars, glowing neon text with text-shadow, and a circular minimap/radar drawn via Canvas arc(). (2) Add post-processing bloom/glow to src/game/Game.ts or src/main.ts — use UnrealBloomPass or emissive materials with high intensity. (3) Add particle trails and explosion VFX. (4) Improve lighting with colored point lights. Do NOT break the existing game loop — only ENHANCE visuals. Start writing immediately.`
+                            directRepairTask: `Your game loop works and compiles! Now use write_file to upgrade visuals — toward CINEMATIC DEPTH, not brightness. You MUST edit files this turn — do NOT just read. Specifically: (1) Rewrite src/systems/Hud.ts with a premium CSS HUD that fits the game's art direction — clean panels, readable type, subtle gradients/shadows. Match the game's palette; do NOT bolt on generic sci-fi neon unless the concept is sci-fi. (2) Strengthen MOOD and CONTRAST: set the scene's time-of-day/lighting to whatever flatters the subject (a city racer wants dusk/night with lit windows + wet reflective asphalt, not flat daylight), deepen shadows, add atmosphere (fog matched to sky, gentle vignette). (3) Make emissive ACCENTS glow via the existing bloom — headlights, tail-lights, signs, pickups, edge trims ONLY. CRITICAL: never set whole bodies, the road, the ground, or large surfaces emissive, never use bright/white fog, never stack max-emissive + dense glow. A washed-out over-bright frame is WORSE than a plain one — if unsure, err DARKER and more saturated. (4) Add tasteful particle/VFX touches (sparks, dust, speed lines) and a few colored point/rim lights to separate silhouettes from the background. Do NOT break the existing game loop — only ENHANCE visuals. Start writing immediately.`
                         };
                         runEvidence.success = false;
                         runEvidence.targetedRepairTasks = [polishTask];

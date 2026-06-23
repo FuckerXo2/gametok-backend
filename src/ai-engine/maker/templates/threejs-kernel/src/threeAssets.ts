@@ -956,6 +956,22 @@ const _modelLoader = new GLTFLoader();
 const _modelCache: Record<string, THREE.Group> = {};
 
 /**
+ * Solid, neutrally-shaded stand-in returned when a model fails to load (bad/invented key, missing
+ * URL, or no WebGL). A plain lit box reads as a placeholder prop — never a broken magenta wireframe —
+ * and lets the rest of the scene finish initializing instead of the await throwing. ~1 unit; the
+ * caller scales/positions it like any real model.
+ */
+function _fallbackModel(): THREE.Group {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: '#9aa3ad', roughness: 0.7, metalness: 0.1 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 1.6), mat);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 0.8), mat);
+  cabin.position.set(0, 0.4, -0.1);
+  group.add(body, cabin);
+  return group;
+}
+
+/**
  * Load a GLB/GLTF model (a Kenney CC0 kit piece, etc.) from a URL or inline data-URI. Returns a fresh
  * cloned Group you can position/scale/add — the loaded source is cached so cloning more is cheap. The
  * model opts into shadows automatically. Pass options.scale to normalize size. await it during init
@@ -969,8 +985,20 @@ export async function loadModel(source: string, options: { scale?: number } = {}
     // key, e.g. 'kenney3d/car_kit/van.glb'); fall back to treating source as a plain URL/path.
     const inlined = (window as any).DREAM_MODELS || {};
     const resolved: string = typeof inlined[source] === 'string' ? inlined[source] : source;
-    const gltf = await _modelLoader.loadAsync(resolved);
-    template = gltf.scene;
+    try {
+      const gltf = await _modelLoader.loadAsync(resolved);
+      template = gltf.scene;
+    } catch (err) {
+      // Never let a bad key take down init. Warn loudly (with the real keys so the cause is
+      // obvious in logs), substitute a solid placeholder, and cache it under this key so repeated
+      // loadModel(badKey) calls clone the stand-in instead of re-fetching + re-warning.
+      const keys = Object.keys(inlined);
+      console.warn(
+        `[loadModel] could not load "${source}" — using a procedural placeholder. ` +
+          (keys.length ? `Available model keys: ${keys.join(', ')}` : 'window.DREAM_MODELS is empty (no models inlined).'),
+      );
+      template = _fallbackModel();
+    }
     _modelCache[source] = template;
   }
   const model = template.clone(true);
@@ -1025,8 +1053,10 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // Filmic tone mapping + exposure: richer, less flat colors (matches a premium renderer).
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  // 1.0, not 1.1 — keeps colors rich without pushing highlights toward white wash-out.
-  renderer.toneMappingExposure = 1.0;
+  // 1.1 — richer highlights so lit windows/engines/signs pop against a moody scene. The
+  // white-out problem was never this number; it was bright daytime themes + bodies set
+  // fully emissive (see the NO-WHITE-OUT rule). Fix those and 1.1 reads cinematic, not washed.
+  renderer.toneMappingExposure = 1.1;
   // Soft shadows. Free to leave on — meshes only cast/receive when they opt in
   // (mesh.castShadow / receiveShadow), so it never costs anything until used.
   renderer.shadowMap.enabled = true;
@@ -1076,10 +1106,11 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   // High threshold so only intentionally-bright (emissive) things bloom.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  // strength 0.35, radius 0.4, threshold 0.95 — only the genuinely brightest (emissive accent)
-  // pixels bloom, and gently, so a too-emissive body glows a touch instead of blowing the whole
-  // scene out to a white blob. Conservative on purpose: the verifier is blind, so we under-glow.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.4, 0.95);
+  // strength 0.55, radius 0.4, threshold 0.9 — emissive accents (lights, engines, signs, neon
+  // trims) glow with real presence against a dark/moody scene, the look that read as "premium"
+  // pre-regression. The threshold still gates out non-emissive surfaces, so this only blows out
+  // if the builder makes whole bodies/ground emissive — which the NO-WHITE-OUT rule forbids.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.4, 0.9);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
