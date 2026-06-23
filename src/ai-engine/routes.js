@@ -6574,6 +6574,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             });
             rawGameHtml = await assembleMakerProjectHtmlWithAutoRepair(makerProject.projectRoot);
             console.log(`✅ Phase 2 project build complete: ${makerProject.files.length} files assembled into ${rawGameHtml.length} chars`);
+            // Print static source diagnostics straight into this generation's log (the sandbox is blind,
+            // so this is the only visibility into what shipped — Kenney usage + white-out suspects).
+            try {
+                const diagFiles = await snapshotMakerSourceFiles(makerProject.projectRoot, []);
+                console.log(`🔍 [SOURCE DIAG job=${jobId}] ${JSON.stringify(computeMakerSourceDiagnostics(diagFiles))}`);
+            } catch (diagErr) {
+                console.warn(`🔍 [SOURCE DIAG job=${jobId}] skipped: ${diagErr.message}`);
+            }
         } catch (projectBuildError) {
             await writeMakerText(makerWorkspace, 'logs/project-build-error.txt', projectBuildError.stack || projectBuildError.message);
             if (!ALLOW_LEGACY_HTML_FALLBACK) {
@@ -7280,6 +7288,30 @@ async function writeProjectFilesToRoot(root, files) {
 
 // Snapshot a maker project's authored source from disk: the standard entry files PLUS the full src/
 // tree. Multi-file 3D games keep their real game across src/game, src/systems, src/entities,
+// Static diagnostics over the final generated source. The verifier is BLIND (headless WebGL can't
+// boot), so this is how we see what the builder actually shipped without rendering: did it use the
+// Kenney models, is it still boxes, and the white-out suspects (createSky elevation, fog color,
+// toneMappingExposure from the kernel, bloom, emissive count). Printed into the per-generation log
+// and returned by GET /drafts/:id/source so both reads share one source of truth.
+function computeMakerSourceDiagnostics(files = []) {
+    const list = Array.isArray(files) ? files : [];
+    const allCode = list.map((f) => f.content || '').join('\n');
+    const first = (re) => { const m = allCode.match(re); return m ? m[1] : null; };
+    return {
+        fileCount: list.length,
+        usesLoadModel: /\bloadModel\s*\(/.test(allCode),
+        modelKeysReferenced: [...new Set(allCode.match(/kenney3d\/[a-z0-9_]+\/[a-z0-9_.-]+\.glb/gi) || [])],
+        usesBoxGeometry: /\bBoxGeometry\b/.test(allCode),
+        usesCreateSky: /\bcreateSky\s*\(/.test(allCode),
+        skyElevation: first(/createSky\([^)]*elevation\s*:\s*([0-9.]+)/i),
+        usesFog: /scene\.fog|new THREE\.Fog|FogExp2/.test(allCode),
+        fogColor: first(/Fog(?:Exp2)?\(\s*(0x[0-9a-fA-F]+|['"]#?[0-9a-fA-F]+['"])/),
+        usesBloom: /bloom|UnrealBloom/i.test(allCode),
+        toneMappingExposure: first(/toneMappingExposure\s*=\s*([0-9.]+)/),
+        emissiveCount: (allCode.match(/emissive/gi) || []).length,
+    };
+}
+
 // src/world and src/core — saving only main.ts would lose the game and leave the editor reconstructing
 // the bare placeholder scaffold. priorFiles re-reads any path that existed before, even outside src/.
 async function snapshotMakerSourceFiles(projectRoot, priorFiles = []) {
@@ -8533,18 +8565,10 @@ router.get('/drafts/:id/source', async (req, res) => {
         if (typeof project === 'string') { try { project = JSON.parse(project); } catch { project = null; } }
         const files = Array.isArray(project?.files) ? project.files : [];
         if (!files.length) return res.status(404).json({ error: 'No saved source for this game (older or non-maker build).' });
-        const allCode = files.map((f) => f.content || '').join('\n');
         const diagnostics = {
             architecture: project.architecture || null,
-            fileCount: files.length,
             files: files.map((f) => f.path),
-            usesLoadModel: /\bloadModel\s*\(/.test(allCode),
-            modelKeysReferenced: [...new Set(allCode.match(/kenney3d\/[a-z0-9_]+\/[a-z0-9_.-]+\.glb/gi) || [])],
-            usesCreateSky: /\bcreateSky\s*\(/.test(allCode),
-            usesBoxGeometry: /\bBoxGeometry\b/.test(allCode),
-            usesFog: /scene\.fog|new THREE\.Fog/.test(allCode),
-            usesBloom: /bloom|UnrealBloom/i.test(allCode),
-            emissiveCount: (allCode.match(/emissive/gi) || []).length,
+            ...computeMakerSourceDiagnostics(files),
         };
         if (String(req.query.format || 'json') === 'text') {
             res.set('Content-Type', 'text/plain; charset=utf-8');
