@@ -4618,12 +4618,26 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
     }
 
     // MISSING_EXPORT → mark the type-only names with inline `type` specifiers in the importer.
-    for (const [importerPath, info] of missingExportsByImporter.entries()) {
-        if (!importerPath) continue;
-        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, importerPath);
-        if (isProtectedMakerRuntimeFile(cleanPath)) continue;
-        let content = await fs.promises.readFile(absolutePath, 'utf8').catch(() => null);
-        if (content == null) continue;
+    for (const [importerKey, info] of missingExportsByImporter.entries()) {
+        // vite v8 / rolldown dropped the ", imported by X" clause from MISSING_EXPORT errors, so the
+        // importer is frequently unknown (importerKey === ''). The old code did `if (!importerPath) continue`
+        // and silently threw the repair away — which is why a one-line interface-imported-as-value killed
+        // whole 3D jobs. When the importer is unknown, scan every src/*.ts and fix whichever files import
+        // the name: the rewrite below only rewrites the matching import line for genuinely type-only names,
+        // so applying it project-wide is safe.
+        let importerCandidates;
+        if (importerKey) {
+            importerCandidates = [importerKey];
+        } else {
+            try {
+                const entries = await fs.promises.readdir(path.join(projectRoot, 'src'), { recursive: true });
+                importerCandidates = entries
+                    .filter((entry) => typeof entry === 'string' && entry.endsWith('.ts'))
+                    .map((entry) => `src/${String(entry).replace(/\\/g, '/')}`);
+            } catch {
+                importerCandidates = [];
+            }
+        }
         // Only touch names that are genuinely type-only in the exporting module (interface/type), so we
         // never mistype a real value. If the exporting source is unreadable, trust vite (a missing
         // runtime export is, by definition, type-only).
@@ -4636,22 +4650,28 @@ async function applyDeterministicMakerBuildRepairs(projectRoot, buildErrors = []
             return exportSrc === '';
         });
         if (!typeNames.length) continue;
-        const before = content;
-        content = content.replace(/import\s*\{([^}]*)\}\s*from\s*(['"][^'"]+['"])/g, (match, inner, from) => {
-            const rebuilt = inner.split(',').map((specRaw) => {
-                const spec = specRaw.trim();
-                if (!spec) return specRaw;
-                const bare = spec.replace(/^type\s+/, '');
-                if (typeNames.includes(bare) && !/^type\s+/.test(spec)) {
-                    return specRaw.replace(bare, `type ${bare}`);
-                }
-                return specRaw;
-            }).join(',');
-            return `import {${rebuilt}} from ${from}`;
-        });
-        if (content !== before) {
-            await fs.promises.writeFile(absolutePath, content, 'utf8');
-            applied.push({ path: cleanPath, type: 'missing_export_type_import', names: typeNames, from: typeNames.join(', '), to: 'import type' });
+        for (const importerPath of importerCandidates) {
+            const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, importerPath);
+            if (isProtectedMakerRuntimeFile(cleanPath)) continue;
+            let content = await fs.promises.readFile(absolutePath, 'utf8').catch(() => null);
+            if (content == null) continue;
+            const before = content;
+            content = content.replace(/import\s*\{([^}]*)\}\s*from\s*(['"][^'"]+['"])/g, (match, inner, from) => {
+                const rebuilt = inner.split(',').map((specRaw) => {
+                    const spec = specRaw.trim();
+                    if (!spec) return specRaw;
+                    const bare = spec.replace(/^type\s+/, '');
+                    if (typeNames.includes(bare) && !/^type\s+/.test(spec)) {
+                        return specRaw.replace(bare, `type ${bare}`);
+                    }
+                    return specRaw;
+                }).join(',');
+                return `import {${rebuilt}} from ${from}`;
+            });
+            if (content !== before) {
+                await fs.promises.writeFile(absolutePath, content, 'utf8');
+                applied.push({ path: cleanPath, type: 'missing_export_type_import', names: typeNames, from: typeNames.join(', '), to: 'import type' });
+            }
         }
     }
 

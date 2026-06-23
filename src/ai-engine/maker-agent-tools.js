@@ -97,7 +97,7 @@ const IMPLEMENT_STUB_MAX_BYTES = Math.max(
 );
 const READ_FILE_MAX_CHARS = Math.max(
     2000,
-    Math.min(24000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 12000)),
+    Math.min(48000, Number(process.env.GAMETOK_MAKER_AGENT_READ_FILE_MAX_CHARS || 24000)),
 );
 const MAKER_AGENT_MAX_PROMPT_CHARS = Math.max(
     16000,
@@ -195,7 +195,7 @@ export function getMakerAgentToolDefinitions() {
             type: 'function',
             function: {
                 name: MAKER_TOOL_READ_FILE,
-                description: 'Read a project file from disk. Use before apply_patch to copy exact find anchors.',
+                description: 'Read a project file from disk. Use before apply_patch to copy exact find anchors. Large files are paged: if the result says more content remains, call again with the returned nextOffset to read the rest.',
                 parameters: {
                     type: 'object',
                     properties: {
@@ -203,9 +203,13 @@ export function getMakerAgentToolDefinitions() {
                             type: 'string',
                             description: 'Project-relative path under src/ or public/, e.g. src/main.ts',
                         },
+                        offset: {
+                            type: 'number',
+                            description: 'Optional 0-based character offset to start reading from. Pass the nextOffset from a previous truncated read to page through the rest of a large file.',
+                        },
                         max_chars: {
                             type: 'number',
-                            description: 'Optional max chars to return (default 32000)',
+                            description: 'Optional max chars to return per call (default 24000).',
                         },
                     },
                     required: ['path'],
@@ -398,16 +402,25 @@ async function executeReadFile(projectRoot, helpers, args = {}) {
         READ_FILE_MAX_CHARS,
         Math.max(1000, Number(args.max_chars || READ_FILE_MAX_CHARS)),
     );
-    const truncated = content.length > maxChars;
+    // Honor a starting offset so the agent can page through a file larger than one read. Previously
+    // there was no offset and the cap was tiny, so a >cap file could ONLY ever return its head — the
+    // agent could never see (or fix) the tail, and burned whole turns fighting the tool.
+    const offset = Math.min(Math.max(0, Math.floor(Number(args.offset) || 0)), content.length);
+    const slice = content.slice(offset, offset + maxChars);
+    const end = offset + slice.length;
+    const hasMore = end < content.length;
     return {
         ok: true,
         tool: MAKER_TOOL_READ_FILE,
         path: resolvedPath,
         bytes: Buffer.byteLength(content, 'utf8'),
-        truncated,
-        content: truncated
-            ? `${content.slice(0, maxChars)}\n/* ... truncated (${content.length} chars total) */`
-            : content,
+        totalChars: content.length,
+        offset,
+        nextOffset: hasMore ? end : null,
+        truncated: hasMore || offset > 0,
+        content: hasMore
+            ? `${slice}\n/* ... ${content.length - end} more chars remain. Call read_file again with offset=${end} to continue. */`
+            : slice,
     };
 }
 
