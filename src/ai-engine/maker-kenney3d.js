@@ -135,6 +135,7 @@ export function kenney3dModelPromptBlock(models) {
         '  Real Kenney CC0 GLB models are already inlined in this game. The player vehicle/character AND any matching entities (traffic cars, enemies, props) MUST be loaded with loadModel(). Building them from BoxGeometry instead is a HARD FAILURE and will force a repair turn.',
         `  import { loadModel, preloadModels } from './threeAssets.ts'; await preloadModels([...keys]) in init; then const car = await loadModel(${JSON.stringify(models[0].key)}); position/scale the returned Group, add it to the scene, register solids via collisionWorld().addMesh(car).`,
         `  Available keys: ${list}.`,
+        '  NO PLACEHOLDER GEOMETRY: await preloadModels([...]) FIRST in init, then build every entity directly from loadModel(). Do NOT spawn a temporary Box/Cylinder stand-in and swap the model in later — that leaves a stray glowing box around the real model (a visible bug). If a model ever fails to load, loadModel returns a fallback; do not add your own box around it.',
         '  Code-build ONLY what these keys do NOT cover (road, terrain, lane markings, sky, UI). Anything matching a key above MUST use loadModel().',
     ].join('\n');
 }

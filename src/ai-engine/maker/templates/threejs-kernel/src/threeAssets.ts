@@ -1025,7 +1025,8 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // Filmic tone mapping + exposure: richer, less flat colors (matches a premium renderer).
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  // 1.0, not 1.1 — keeps colors rich without pushing highlights toward white wash-out.
+  renderer.toneMappingExposure = 1.0;
   // Soft shadows. Free to leave on — meshes only cast/receive when they opt in
   // (mesh.castShadow / receiveShadow), so it never costs anything until used.
   renderer.shadowMap.enabled = true;
@@ -1075,9 +1076,10 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
   // High threshold so only intentionally-bright (emissive) things bloom.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  // strength 0.55, radius 0.4, threshold 0.9 — only genuinely bright (emissive accent) pixels
-  // bloom, and gently, so a too-emissive body glows instead of blowing out to a white blob.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.4, 0.9);
+  // strength 0.35, radius 0.4, threshold 0.95 — only the genuinely brightest (emissive accent)
+  // pixels bloom, and gently, so a too-emissive body glows a touch instead of blowing the whole
+  // scene out to a white blob. Conservative on purpose: the verifier is blind, so we under-glow.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.4, 0.95);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 

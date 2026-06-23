@@ -513,7 +513,7 @@ Extract this JSON:
     ${technicalRequirementsShape}
   },
   "artDirection": {
-    "styleName": "short name for the visual style, e.g. clean vector artillery, chunky pixel dungeon, neon arcade",
+    "styleName": "short name for the visual style, GROUNDED IN THE USER'S PROMPT — e.g. for 'racing game' use sunlit daytime racetrack with real asphalt + colored cars, for 'forest adventure' use lush natural woodland. Do NOT default to neon/synthwave/cyberpunk/glow unless the user explicitly asked for it",
     "palette": ["4-6 concrete color names or hex values"],
     "spriteStyle": "how characters/vehicles/objects should look: perspective, outline, detail level, lighting, scale language",
     "spriteCameraAngle": "side view | top-down | three-quarter | front-facing | first-person diegetic",
@@ -616,6 +616,7 @@ Extract this JSON:
 
 IMPORTANT:
 - This is not a mood board. It is the game's operational understanding.
+- STAY GROUNDED IN THE USER'S PROMPT. Do NOT invent an aesthetic, theme, or setting the user did not ask for. If the user said "racing game," give them a real racing game (daylight track, real car colors, asphalt) — NOT a neon/synthwave/cyberpunk reskin. Only use neon, glow, holographic, or heavy-emissive looks when the user's words explicitly call for them. When the user gave no style, choose the most natural, real-world-plausible look for the subject.
 - playableExperience, mobileControls, entityRules, mustExist, feelRules, failureModesToAvoid, and assetRoles must be specific to the user's prompt.
 - artDirection must be specific enough that a second artist could draw the same game world consistently.
 - artDirection must explain what is AI-generated art versus what is code-rendered runtime UI/geometry.
