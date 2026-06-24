@@ -973,12 +973,25 @@ function _fallbackModel(): THREE.Group {
 
 /**
  * Load a GLB/GLTF model (a Kenney CC0 kit piece, etc.) from a URL or inline data-URI. Returns a fresh
- * cloned Group you can position/scale/add — the loaded source is cached so cloning more is cheap. The
- * model opts into shadows automatically. Pass options.scale to normalize size. await it during init
- * (use preloadModels first so the await resolves instantly). Real kit models beat code-built boxes for
- * vehicles/props/buildings/nature; register them as solids with collisionWorld().addMesh(model).
+ * cloned Group you can position/add — the loaded source is cached so cloning more is cheap. The model
+ * opts into shadows automatically. await it during init (use preloadModels first so the await resolves
+ * instantly). Register solids with collisionWorld().addMesh(model).
+ *
+ * SIZING (important — Kenney kits do NOT share a scale, so a raw model can import 10x too big/small):
+ *   - options.fitSize: normalize so the model's LARGEST dimension == fitSize world units. This is the
+ *     reliable way to size a piece to your scene — prefer it over guessing options.scale. e.g. a player
+ *     car ~2 units long -> { fitSize: 2 }.
+ *   - options.scale: raw uniform multiplier (only used if fitSize is not given).
+ *   - options.recenter: center the piece on X/Z and rest it on the ground (y=0) so it never floats/sinks.
+ * THEMING:
+ *   - options.tint: multiply every material toward this color (preserves the model's shading + multi-part
+ *     variety while shifting its palette). Works best on neutral/white kit pieces. Materials are cloned,
+ *     so tinting one instance never affects others.
  */
-export async function loadModel(source: string, options: { scale?: number } = {}): Promise<THREE.Group> {
+export async function loadModel(
+  source: string,
+  options: { scale?: number; fitSize?: number; recenter?: boolean; tint?: string } = {},
+): Promise<THREE.Group> {
   let template = _modelCache[source];
   if (!template) {
     // Materialized models are inlined as base64 data-URIs in window.DREAM_MODELS (keyed by the same
@@ -1002,7 +1015,42 @@ export async function loadModel(source: string, options: { scale?: number } = {}
     _modelCache[source] = template;
   }
   const model = template.clone(true);
-  if (options.scale) model.scale.setScalar(options.scale);
+
+  // Tint: clone each material first (clone(true) shares materials with the cached template, so mutating
+  // in place would recolor every instance), then multiply its color toward the requested tint.
+  if (options.tint) {
+    const tint = new THREE.Color(options.tint);
+    model.traverse((o: THREE.Object3D) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const cloned = mats.map((m) => {
+        const c = (m as THREE.Material).clone() as THREE.Material & { color?: THREE.Color };
+        if (c.color) c.color.multiply(tint);
+        return c;
+      });
+      mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
+    });
+  }
+
+  // Auto-fit beats guessing: normalize so the largest dimension == fitSize. Falls back to raw scale.
+  if (options.fitSize && options.fitSize > 0) {
+    const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    model.scale.setScalar(options.fitSize / maxDim);
+  } else if (options.scale) {
+    model.scale.setScalar(options.scale);
+  }
+
+  // Recenter on X/Z and drop onto the ground plane (uses the post-scale bounding box).
+  if (options.recenter) {
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.x -= center.x;
+    model.position.z -= center.z;
+    model.position.y -= box.min.y;
+  }
+
   model.traverse((o: THREE.Object3D) => {
     const mesh = o as THREE.Mesh;
     if (mesh.isMesh) { mesh.castShadow = true; mesh.receiveShadow = true; }

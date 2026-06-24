@@ -762,8 +762,14 @@ export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {
     return null;
   },`)
         .join('\n');
+    // Embed notes as SINGLE-LINE comments. Model free-text (especially non-ASCII / RTL like Arabic) can
+    // carry raw newlines or line-separator chars (U+2028 / U+2029 / U+0085) that survive JSON repair —
+    // without flattening them, `// ${note}` breaks and the continuation lands as uncommented code, so the
+    // stub fails tsc (TS1434 "Unexpected identifier"/TS1005) and the whole job dies on attempt 1. Collapse
+    // every line break / control char to a space.
+    const oneLine = (value) => String(value == null ? '' : value).replace(/[\r\n\u0085\u2028\u2029\u0000-\u001F]+/g, ' ').trim();
     const implNotes = asArray(foundation.implementationNotes).slice(0, 8)
-        .map((note) => `// ${note}`)
+        .map((note) => `// ${oneLine(note)}`)
         .join('\n');
 
     const stubBody = `// @ts-nocheck
