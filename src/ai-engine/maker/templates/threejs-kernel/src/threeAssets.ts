@@ -1132,3 +1132,148 @@ export function createThreeStage(canvas: HTMLCanvasElement): {
 
   return { renderer, scene, camera, composer, bloom, sunLight: sun, hemisphereLight: hemisphere, resize, render };
 }
+
+/**
+ * Attach ANY fullscreen fragment shader as an animated background behind the gameplay. This is the
+ * primitive that makes "draw the whole backdrop from math" cheap and SAFE — it owns all the kernel
+ * plumbing so you can't get the integration wrong: a fullscreen quad, depthTest/depthWrite off +
+ * renderOrder -1000 (always behind your scene), and `u_time` (seconds) + `u_res` (pixels) uniforms
+ * updated every frame on its own rAF (never touches your render loop).
+ *
+ * YOU write the creative part — the fragment shader — matched to whatever the game's setting calls for:
+ * a neon city skyline, an ocean horizon, a canyon, a warp tunnel, a starfield, raymarched hills,
+ * anything. Your shader gets `varying vec2 vUv` (0..1) plus any uniforms you pass in. See
+ * createSDFBackground below for a complete worked example of the pattern. Returns { mesh, material, dispose }.
+ */
+export function createShaderBackground(
+  stage: { scene: THREE.Scene; renderer: THREE.WebGLRenderer },
+  config: { fragmentShader: string; uniforms?: Record<string, { value: any }> },
+): { mesh: THREE.Mesh; material: THREE.ShaderMaterial; dispose: () => void } {
+  const uniforms: Record<string, { value: any }> = {
+    u_time: { value: 0 },
+    u_res: { value: new THREE.Vector2(1, 1) },
+    ...(config.uniforms || {}),
+  };
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.9999, 1.0); }',
+    fragmentShader: config.fragmentShader,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = -1000;
+  stage.scene.add(mesh);
+  const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  let raf = 0;
+  let alive = true;
+  const size = new THREE.Vector2();
+  const tick = () => {
+    if (!alive) return;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    uniforms.u_time.value = (now - start) / 1000;
+    stage.renderer.getSize(size);
+    uniforms.u_res.value.set(size.x || 1, size.y || 1);
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  const dispose = () => {
+    alive = false;
+    cancelAnimationFrame(raf);
+    stage.scene.remove(mesh);
+    mesh.geometry.dispose();
+    material.dispose();
+  };
+  return { mesh, material, dispose };
+}
+
+/**
+ * WORKED EXAMPLE on top of createShaderBackground: a raymarched SDF dusk-hills vista. This is a
+ * REFERENCE for the pattern, not a one-size-fits-all backdrop — don't ship hills for an ocean game.
+ * Copy the structure (write a fragment shader, hand it to createShaderBackground) and author the scene
+ * the prompt actually wants. Colors here are tunable via options (all 0..1 RGB): skyTop, skyHorizon,
+ * sun, ground.
+ */
+export function createSDFBackground(
+  stage: { scene: THREE.Scene; renderer: THREE.WebGLRenderer },
+  options: {
+    skyTop?: [number, number, number];
+    skyHorizon?: [number, number, number];
+    sun?: [number, number, number];
+    ground?: [number, number, number];
+    speed?: number;
+  } = {},
+): { mesh: THREE.Mesh; material: THREE.ShaderMaterial; dispose: () => void } {
+  const uniforms = {
+    u_time: { value: 0 },
+    u_res: { value: new THREE.Vector2(1, 1) },
+    u_speed: { value: options.speed ?? 1.0 },
+    u_skyTop: { value: new THREE.Color().fromArray(options.skyTop ?? [0.04, 0.06, 0.16]) },
+    u_skyHorizon: { value: new THREE.Color().fromArray(options.skyHorizon ?? [0.95, 0.45, 0.28]) },
+    u_sun: { value: new THREE.Color().fromArray(options.sun ?? [1.0, 0.8, 0.5]) },
+    u_ground: { value: new THREE.Color().fromArray(options.ground ?? [0.16, 0.10, 0.22]) },
+  };
+
+  const fragmentShader = `
+    varying vec2 vUv;
+    uniform float u_time, u_speed;
+    uniform vec2 u_res;
+    uniform vec3 u_skyTop, u_skyHorizon, u_sun, u_ground;
+
+    float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+    float noise(vec2 p){
+      vec2 i=floor(p), f=fract(p);
+      float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));
+      vec2 u=f*f*(3.-2.*f);
+      return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+    }
+    float fbm(vec2 p){ float v=0.,a=0.55; mat2 m=mat2(1.6,1.2,-1.2,1.6); for(int i=0;i<4;i++){ v+=a*noise(p); p=m*p; a*=0.5; } return v; }
+    float terrain(vec2 p){ return fbm(p*0.22)*3.2 - 1.4; }
+
+    void main(){
+      vec2 p = vUv*2.0 - 1.0;
+      p.x *= u_res.x / max(u_res.y, 1.0);
+      vec3 ro = vec3(0.0, 1.7, 0.0);
+      vec3 rd = normalize(vec3(p.x, p.y - 0.08, 1.6));
+      float fwd = u_time * u_speed * 1.4;
+
+      float sky_t = clamp(rd.y*1.3 + 0.25, 0.0, 1.0);
+      vec3 col = mix(u_skyHorizon, u_skyTop, sky_t);
+      vec3 sunDir = normalize(vec3(0.0, 0.05, 1.0));
+      float sd = max(dot(rd, sunDir), 0.0);
+      col += u_sun * pow(sd, 5.0) * 0.6;
+      col += u_sun * pow(sd, 200.0) * 2.0;
+      float st = step(0.86, sky_t) * step(0.997, noise(rd.xy*140.0));
+      col += vec3(st) * sky_t;
+
+      float t = 0.0, hit = -1.0;
+      for(int i=0;i<90;i++){
+        vec3 pos = ro + rd*t;
+        float h = pos.y - terrain(vec2(pos.x, pos.z + fwd));
+        if(h < 0.0018*t){ hit = t; break; }
+        t += h*0.42;
+        if(t > 48.0) break;
+      }
+      if(hit > 0.0){
+        vec3 pos = ro + rd*hit;
+        float e = 0.04;
+        float h0 = terrain(vec2(pos.x, pos.z+fwd));
+        float hx = terrain(vec2(pos.x+e, pos.z+fwd));
+        float hz = terrain(vec2(pos.x, pos.z+fwd+e));
+        vec3 n = normalize(vec3(h0-hx, e, h0-hz));
+        float diff = clamp(dot(n, sunDir)*0.5+0.5, 0.0, 1.0);
+        vec3 land = mix(u_ground*0.6, u_ground, diff);
+        land += u_sun * pow(diff, 4.0) * 0.5;
+        float fog = 1.0 - exp(-hit*hit*0.0042);
+        col = mix(land, col, fog);
+      }
+
+      col = pow(max(col, 0.0), vec3(0.86));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  return createShaderBackground(stage, { fragmentShader, uniforms });
+}
