@@ -481,6 +481,7 @@ ${archetypeBlock}
     For 3D set perspective to first_person or third_person.
   * Choose "2D" for genuinely flat games: top-down or side-view, match/puzzle/grid, platformers, whack-a-mole, card/board, flat arcade/swipe games — and ALWAYS 2D when the user explicitly says top-down, side-view, 2D, retro, or pixel-flat.
   * Tie-breaker: if a motion/driving/sports/runner idea is ambiguous, prefer 3D (that is the form players expect). Only fall back to 2D when the idea is genuinely flat OR the user explicitly asked for a flat/retro/top-down look. Do NOT downgrade an obviously-3D idea to 2D just to be safe.
+  * ISOMETRIC for strategy: strategy / RTS / base-building / tower-defense / tactics / city-builder games are 2D, but they MUST use the ANGLED ISOMETRIC view — set perspective:"isometric" and spriteCameraAngle:"three-quarter". This is the Clash of Clans / Age of Empires / StarCraft look (a tilted, looking-down-and-across battlefield). Do NOT use flat straight-down top_down for these genres — straight-down reads cheap and loses all depth. The canvas kernel ships isometric projection (createIsoGrid) so the angle is fully supported; commit to it. Sprites/units for these games should be drawn at a 3/4 (three-quarter) angle, not flat overhead.
 - Think in concrete playable behavior: player verbs, entity rules, feedback, screen composition, and the first 10 seconds.
 - Keep scope realistic for one self-contained mobile HTML5 game.
 - The builder must be able to implement your spec directly.
