@@ -391,13 +391,25 @@ async function executeReadFile(projectRoot, helpers, args = {}) {
     }
     const cleanPath = normalizeMakerToolPath(filePath);
     if (!isAgentReadablePath(cleanPath)) {
-        throw new Error(`read_file allowed only under src/ or public/ (got ${cleanPath})`);
+        // The agent kept burning rounds trying to read root files (index.html, package.json, vite/ts
+        // configs) and treating the denial as "file missing / something is wrong." Say plainly what it is.
+        throw new Error(`"${cleanPath}" is OUTSIDE your editable area and you don't need it. index.html, package.json, vite/tsconfig and other root files are KERNEL-MANAGED — they're already wired to your code automatically; you never read or edit them. You can only read/write files under src/ and public/. Stop looking for root files and write your game in src/ (start with src/main.ts and your own modules).`);
     }
     const { cleanPath: resolvedPath, absolutePath } = helpers.safeMakerProjectPath(projectRoot, filePath);
     if (helpers.isProtectedMakerRuntimeFile(resolvedPath)) {
-        throw new Error(`read_file blocked on protected file: ${resolvedPath}`);
+        throw new Error(`"${resolvedPath}" is a READ-ONLY kernel runtime file — you CONSUME it (import it and call its exports), never read or edit it. Its API is already described in your prompt. Skip it and write your game in src/main.ts.`);
     }
-    const content = await fs.promises.readFile(absolutePath, 'utf8');
+    let content;
+    try {
+        content = await fs.promises.readFile(absolutePath, 'utf8');
+    } catch (err) {
+        if (err && err.code === 'ENOENT') {
+            // Reading a file that doesn't exist yet (e.g. a multi-file module the agent plans to create)
+            // returned a raw ENOENT that read as "empty/broken". Tell it to just create the file.
+            throw new Error(`"${resolvedPath}" does not exist yet — nothing to read. In this scaffold you CREATE new files with write_file; don't read a module before writing it. If you planned this file (e.g. src/game/Game.ts), just write_file it now.`);
+        }
+        throw err;
+    }
     const maxChars = Math.min(
         READ_FILE_MAX_CHARS,
         Math.max(1000, Number(args.max_chars || READ_FILE_MAX_CHARS)),
