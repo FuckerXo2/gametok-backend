@@ -3788,6 +3788,44 @@ async function normalizeMakerProjectRuntimeDeclarations(projectRoot) {
     await visit(srcRoot);
 }
 
+// Faithful, UNtruncated snapshot of the editable project files, so a known-good build can be restored
+// if a later turn breaks it. Distinct from readMakerProjectFiles below, which truncates for prompt budgets
+// (and so must never be used to restore — it would write back corrupted, half-a-file content).
+async function snapshotMakerProjectFiles(projectRoot) {
+    const files = [];
+    const collect = async (directory, prefix) => {
+        let entries = [];
+        try { entries = await fs.promises.readdir(directory, { withFileTypes: true }); } catch { return; }
+        for (const entry of entries) {
+            const absolute = path.join(directory, entry.name);
+            const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+                await collect(absolute, relative);
+            } else if (entry.isFile() && /\.(css|js|json|ts|tsx)$/i.test(entry.name)) {
+                try { files.push({ path: relative, content: await fs.promises.readFile(absolute, 'utf8') }); } catch { /* skip */ }
+            }
+        }
+    };
+    await collect(path.join(projectRoot, 'src'), 'src');
+    try { files.push({ path: 'index.html', content: await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf8') }); } catch { /* none */ }
+    return files;
+}
+
+async function restoreMakerProjectFiles(projectRoot, snapshot) {
+    if (!Array.isArray(snapshot)) return 0;
+    let restored = 0;
+    for (const file of snapshot) {
+        if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') continue;
+        try {
+            const { absolutePath } = safeMakerProjectPath(projectRoot, file.path);
+            await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
+            await fs.promises.writeFile(absolutePath, file.content, 'utf8');
+            restored += 1;
+        } catch { /* skip unwritable */ }
+    }
+    return restored;
+}
+
 async function readMakerProjectFiles(projectRoot) {
     let manifest = null;
     try {
@@ -5246,6 +5284,8 @@ async function runMakerAgentInspectionTurns({
     // bonus visual-polish turn) must never be able to discard a working game — if it throws, we fall
     // back to this.
     let lastGoodEvidence = null;
+    let lastGoodFiles = null;
+    let lastGoodTurn = 0;
     for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
         assertJobNotCancelled(jobId);
         let preRunEvidence = null;
@@ -5585,7 +5625,12 @@ async function runMakerAgentInspectionTurns({
             lastRunEvidence = runEvidence;
             // Capture a snapshot of the passing build BEFORE any later branch (e.g. the polish-turn
             // forcing below) mutates runEvidence.success to false to drive another turn.
-            if (runEvidence?.success === true) lastGoodEvidence = { ...runEvidence };
+            if (runEvidence?.success === true) {
+                lastGoodEvidence = { ...runEvidence };
+                // Snapshot the actual passing files too — if a later (polish/repair) turn breaks the build
+                // and can't recover, we restore THIS instead of failing the whole job.
+                try { lastGoodFiles = await snapshotMakerProjectFiles(projectRoot); lastGoodTurn = turnNumber; } catch { /* snapshot is best-effort */ }
+            }
             await appendMakerAgentTurn(workspace, turns, {
                 phase: 'file_inspection',
                 objective,
@@ -5847,6 +5892,18 @@ async function runMakerAgentInspectionTurns({
                     }
                 }
             } catch (_diagErr) { /* diagnostic only — never block the real throw */ }
+            // NEVER throw away a working game: if an earlier turn produced a passing build+sandbox, the
+            // on-disk files are now a LATER turn's broken state (e.g. a forced polish turn that broke the
+            // CSS build and the repair turn couldn't read the file to fix it). Restore that earlier passing
+            // snapshot and ship it instead of failing the whole job.
+            if (lastGoodEvidence?.success === true && Array.isArray(lastGoodFiles) && lastGoodFiles.length > 0) {
+                const restored = await restoreMakerProjectFiles(projectRoot, lastGoodFiles).catch(() => 0);
+                if (restored > 0) {
+                    console.warn(`🛟 [Phase 2 job=${jobId}] Final build failed after polish/repair, but turn ${lastGoodTurn} had a PASSING build — restored ${restored} file(s) and shipping that working version instead of failing.`);
+                    lastRunEvidence = lastGoodEvidence;
+                    return lastRunEvidence;
+                }
+            }
             throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s) (implement + ${Math.max(0, maxTurns - 1)} repair): ${crashSummary}`);
         }
     }
