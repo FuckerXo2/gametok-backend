@@ -5,8 +5,11 @@ export const FACTORY_MINIMAL_BLOCKING_PREFLIGHT_IDS = new Set([
     'preflight_required_asset_slots_unreferenced',
     'preflight_asset_key_missing_from_pack',
     'preflight_background_not_wired',
-    'preflight_item_not_wired',
-    'preflight_prop_not_wired',
+    // NOTE: item + prop render gates are deliberately NOT fatal. The foundation over-generates item/prop
+    // slots for genres that don't use them (an RTS "war game" got health-potion + decorative-rock slots,
+    // a quiz got props), then these gates demanded they be drawn-or-die — killing genuinely-working games
+    // over decoration. They stay as non-blocking warnings (still surfaced as repair hints). Background and
+    // obstacle remain fatal: a missing background or the thing you're dodging is core, not decoration.
     'preflight_obstacle_not_wired',
     'preflight_threejs_phase2_todo_remaining',
     'preflight_threejs_runner_required_functions_missing',
