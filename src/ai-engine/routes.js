@@ -3891,7 +3891,7 @@ async function readMakerProjectFiles(projectRoot) {
 
 function isProtectedMakerRuntimeFile(cleanPath = '') {
     return [
-        /^src\/(?:bootstrap|assetLoader|assetKeys)\.ts$/,
+        /^src\/(?:bootstrap|assetLoader|assetKeys|dreamModels)\.ts$/,
         /^src\/types\/global\.d\.ts$/,
         /^src\/scenes\/Preloader\.ts$/,
         /^src\/(?:characters|scenes|systems|behaviors)\/Base[A-Za-z0-9_]*\.ts$/,

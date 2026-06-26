@@ -1,3 +1,4 @@
+import './dreamModels'; // sets window.DREAM_MODELS (Kenney GLB data-URIs) before anything calls loadModel()
 import { loadDreamAssets } from './assetLoader';
 
 function enforceGameViewport() {

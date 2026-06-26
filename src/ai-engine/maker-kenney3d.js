@@ -182,9 +182,12 @@ export function extractGlbMetadata(buf) {
 
 /**
  * Materialize Kenney models for a 3D game: pick a shortlist, fetch each GLB from R2 server-side,
- * inline them as base64 in window.DREAM_MODELS (injected into the game's index.html so loadModel()
- * resolves keys to data-URIs — no CORS, no runtime fetch). Fully guarded: ANY failure returns [] so
- * the builder simply falls back to code geometry. Returns the models that actually materialized.
+ * inline them as base64 in window.DREAM_MODELS by overwriting the bundled src/dreamModels.ts module
+ * (bootstrap imports it first, so loadModel() resolves keys to data-URIs — no CORS, no runtime fetch;
+ * viteSingleFile inlines the bundle into the shipped HTML). Writing the blob into a bundled module
+ * instead of index.html keeps index.html small enough for the Phase 2 repair agent to read/edit.
+ * Fully guarded: ANY failure returns [] so the builder simply falls back to code geometry. Returns
+ * the models that actually materialized.
  * @returns {Promise<Array<{id,name,kit,category,key}>>}
  */
 export async function materializeKenney3dModels(projectRoot, prompt, { limit = 18 } = {}) {
@@ -207,11 +210,21 @@ export async function materializeKenney3dModels(projectRoot, prompt, { limit = 1
             } catch { /* skip this model (e.g. kit not uploaded yet) */ }
         }
         if (!ok.length) return [];
-        const indexPath = path.join(projectRoot, 'index.html');
-        let html = fs.readFileSync(indexPath, 'utf8');
-        const script = `<script>window.DREAM_MODELS=${JSON.stringify(inlined)};</script>`;
-        html = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `${script}\n</head>`) : `${script}\n${html}`;
-        fs.writeFileSync(indexPath, html);
+        // Write the base64 model blob into the bundled src/dreamModels.ts module (overwriting the stub),
+        // NOT inlined into index.html. bootstrap.ts imports it first, so window.DREAM_MODELS is set before
+        // loadModel() runs; viteSingleFile inlines the bundle into the final dist/index.html, so the
+        // shipped game stays self-contained (no CORS, no runtime fetch). Crucially this keeps the working
+        // index.html SMALL — the old inline-base64-in-HTML approach bloated it past 1MB and made it
+        // unreadable/uneditable by the Phase 2 repair agent (stranding it on read-thrash).
+        const dreamModelsPath = path.join(projectRoot, 'src', 'dreamModels.ts');
+        const moduleSource = [
+            '// Generated runtime data — DO NOT EDIT. Kenney 3D models for this game (base64 GLB data-URIs).',
+            '// Imported first by src/bootstrap.ts; loadModel() resolves keys against window.DREAM_MODELS.',
+            `;(window as unknown as { DREAM_MODELS?: Record<string, string> }).DREAM_MODELS = ${JSON.stringify(inlined)};`,
+            'export {};',
+            '',
+        ].join('\n');
+        fs.writeFileSync(dreamModelsPath, moduleSource);
         return ok;
     } catch {
         return [];
