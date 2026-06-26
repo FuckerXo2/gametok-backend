@@ -87,6 +87,13 @@ const IMPLEMENT_MAX_READ_ONLY_ROUNDS = Math.max(
     1,
     Math.min(12, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_READ_ONLY_ROUNDS || 8)),
 );
+// After this many read-only rounds with no edit, proactively HAND the model its full source instead of
+// letting it keep paging read_file (and eventually getting killed by the stall guard above). Fires once
+// per stuck streak; resets when the model actually edits.
+const STUCK_READ_FILE_INJECT_AFTER = Math.max(
+    1,
+    Math.min(IMPLEMENT_MAX_READ_ONLY_ROUNDS, Number(process.env.GAMETOK_MAKER_AGENT_STUCK_SNAPSHOT_AFTER || 3)),
+);
 const IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES = Math.max(
     8000,
     Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAIN_TS_AUTO_FINISH_MIN_BYTES || 12000),
@@ -359,6 +366,18 @@ function isMainTsPath(filePath = '') {
     return normalizeMakerToolPath(filePath) === 'src/main.ts';
 }
 
+// Invariant: a file the agent is ALLOWED TO WRITE must be fully READABLE in a single read_file call.
+// Otherwise it can create a main.ts up to MAX_WRITE_FILE_CHARS_MAIN (96K) yet only ever page it back
+// READ_FILE_MAX_CHARS (24K) at a time — a 4x gap. In the repair/implement turn it then botches the
+// offset paging and burns the whole turn re-reading instead of editing, which the stall guard kills
+// (the "El Observador" failure). Read ceiling therefore tracks the write cap for editable source
+// files; reference-only kernel files (sdf2d.ts, iso.ts, threeAssets.ts) keep the small paged cap.
+function maxReadCharsForPath(cleanPath = '') {
+    if (isMainTsPath(cleanPath)) return MAX_WRITE_FILE_CHARS_MAIN;
+    if (isImplementEditAllowed(cleanPath)) return Math.max(READ_FILE_MAX_CHARS, MAX_WRITE_FILE_CHARS);
+    return READ_FILE_MAX_CHARS;
+}
+
 function isAgentReadablePath(cleanPath = '') {
     const normalized = normalizeMakerToolPath(cleanPath);
     return AGENT_READABLE_ROOTS.some((prefix) => normalized.startsWith(prefix));
@@ -410,9 +429,10 @@ async function executeReadFile(projectRoot, helpers, args = {}) {
         }
         throw err;
     }
+    const fileReadCap = maxReadCharsForPath(cleanPath);
     const maxChars = Math.min(
-        READ_FILE_MAX_CHARS,
-        Math.max(1000, Number(args.max_chars || READ_FILE_MAX_CHARS)),
+        fileReadCap,
+        Math.max(1000, Number(args.max_chars || fileReadCap)),
     );
     // Honor a starting offset so the agent can page through a file larger than one read. Previously
     // there was no offset and the cap was tiny, so a >cap file could ONLY ever return its head — the
@@ -848,17 +868,20 @@ export function compactMakerAgentMessages(messages = []) {
     return compacted;
 }
 
-async function appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound = false } = {}) {
+async function appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound = false, full = false } = {}) {
     if (skipIfReadFileThisRound) {
         return;
     }
+    // `full` hands the model the COMPLETE file un-truncated. Used when it's stuck paging read_file on a
+    // large main.ts instead of editing — give it the whole thing so it can stop reading and patch.
+    const snapshotCap = full ? MAX_WRITE_FILE_CHARS_MAIN : IMPLEMENT_FILE_SNAPSHOT_CHARS;
     const blocks = [];
     for (const relPath of IMPLEMENT_EDIT_PATHS) {
         try {
             const absolutePath = path.join(projectRoot, relPath);
             const content = await fs.promises.readFile(absolutePath, 'utf8');
-            const excerpt = content.length > IMPLEMENT_FILE_SNAPSHOT_CHARS
-                ? `${content.slice(0, IMPLEMENT_FILE_SNAPSHOT_CHARS)}\n/* ... truncated (${content.length} chars total). Copy find anchors from this excerpt. */`
+            const excerpt = content.length > snapshotCap
+                ? `${content.slice(0, snapshotCap)}\n/* ... truncated (${content.length} chars total). Copy find anchors from this excerpt. */`
                 : content;
             blocks.push(`${relPath}:\n${excerpt}`);
         } catch {
@@ -866,12 +889,12 @@ async function appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFi
         }
     }
     if (blocks.length === 0) return;
+    const header = full
+        ? 'STOP RE-READING — here is the COMPLETE current source on disk. Do NOT call read_file again; copy find anchors from below and apply_patch/write_file the fix NOW:'
+        : 'Live project files on disk after your last edits — copy find text exactly from here:';
     messages.push({
         role: 'user',
-        content: [
-            'Live project files on disk after your last edits — copy find text exactly from here:',
-            ...blocks,
-        ].join('\n\n'),
+        content: [header, ...blocks].join('\n\n'),
     });
 }
 
@@ -919,6 +942,7 @@ export async function runMakerAgentToolTurn({
     let mainTsCleanReady = false;
     let repairReadOnlyRounds = 0;
     let implementReadOnlyRounds = 0;
+    let injectedStuckFileSnapshot = false;
     const readPathCounts = new Map();
 
     for (let round = 0; round < effectiveMaxRounds && !finished; round += 1) {
@@ -1096,8 +1120,15 @@ export async function runMakerAgentToolTurn({
             await appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound: roundReadFile });
             repairReadOnlyRounds = 0;
             implementReadOnlyRounds = 0;
+            injectedStuckFileSnapshot = false;
         } else if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && roundReadFile && !roundEdited) {
             implementReadOnlyRounds += 1;
+            // Before nagging or killing: hand the model its full source so it stops paging read_file.
+            if (!injectedStuckFileSnapshot && implementReadOnlyRounds >= STUCK_READ_FILE_INJECT_AFTER) {
+                await appendImplementFileSnapshot(projectRoot, messages, { full: true });
+                injectedStuckFileSnapshot = true;
+                log.events.push({ type: 'stuck_read_file_full_snapshot_injected', mode, round: round + 1 });
+            }
             if (!touchedMainTs && implementReadOnlyRounds > IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
                 throw new Error('Implement mode stalled on read-only tool calls — start writing code now');
             }
@@ -1109,6 +1140,11 @@ export async function runMakerAgentToolTurn({
             }
         } else if (mode === MAKER_AGENT_TURN_MODE_REPAIR && roundReadFile && !roundEdited) {
             repairReadOnlyRounds += 1;
+            if (!injectedStuckFileSnapshot && repairReadOnlyRounds >= STUCK_READ_FILE_INJECT_AFTER) {
+                await appendImplementFileSnapshot(projectRoot, messages, { full: true });
+                injectedStuckFileSnapshot = true;
+                log.events.push({ type: 'stuck_read_file_full_snapshot_injected', mode, round: round + 1 });
+            }
             if (repairReadOnlyRounds > REPAIR_MAX_READ_ONLY_ROUNDS) {
                 throw new Error('Repair mode stalled on read-only tool calls — apply_patch or write_file on src/main.ts now');
             }

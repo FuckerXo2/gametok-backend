@@ -6667,7 +6667,15 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             // so this is the only visibility into what shipped — Kenney usage + white-out suspects).
             try {
                 const diagFiles = await snapshotMakerSourceFiles(makerProject.projectRoot, []);
-                console.log(`🔍 [SOURCE DIAG job=${jobId}] ${JSON.stringify(computeMakerSourceDiagnostics(diagFiles))}`);
+                const sourceDiag = computeMakerSourceDiagnostics(diagFiles);
+                console.log(`🔍 [SOURCE DIAG job=${jobId}] ${JSON.stringify(sourceDiag)}`);
+                // Glanceable 3D-model usage: how many referenced Kenney keys are actually wired into a
+                // loadModel() call vs. just sitting in the source. 3D has no runtime render gate, so this
+                // is the only per-generation signal of whether the builder used the models it was given.
+                if (sourceDiag.modelKeysReferencedCount > 0) {
+                    const notLoaded = sourceDiag.modelKeysReferencedNotLoaded || [];
+                    console.log(`🧩 [KENNEY USAGE job=${jobId}] referenced=${sourceDiag.modelKeysReferencedCount} wired_into_loadModel=${sourceDiag.modelKeysWiredCount} referenced_but_not_loaded=${notLoaded.length}${notLoaded.length ? ` :: ${notLoaded.join(', ')}` : ''}`);
+                }
             } catch (diagErr) {
                 console.warn(`🔍 [SOURCE DIAG job=${jobId}] skipped: ${diagErr.message}`);
             }
@@ -7386,10 +7394,25 @@ function computeMakerSourceDiagnostics(files = []) {
     const list = Array.isArray(files) ? files : [];
     const allCode = list.map((f) => f.content || '').join('\n');
     const first = (re) => { const m = allCode.match(re); return m ? m[1] : null; };
+    const KENNEY_KEY_RE = /kenney3d\/[a-z0-9_]+\/[a-z0-9_.-]+\.glb/gi;
+    const norm = (s) => String(s).toLowerCase();
+    // "Referenced" = the key string appears ANYWHERE in source (arrays, comments, fallback maps, etc.).
+    // "Wired" = the key is a literal INSIDE a loadModel(...) call — the real "this model is actually
+    // loaded" signal. A key can be referenced but never loaded (sits in a pool the game never pulls
+    // from). 3D has NO runtime render gate (sandbox skips it for three.js), so this static wired-count
+    // is the best model-usage signal available — caveat: it can't see keys passed via a variable.
+    const modelKeysReferenced = [...new Set((allCode.match(KENNEY_KEY_RE) || []).map(norm))];
+    const loadModelArgs = (allCode.match(/loadModel\s*\([^)]*\)/gi) || []).join('\n');
+    const modelKeysInLoadModel = [...new Set((loadModelArgs.match(KENNEY_KEY_RE) || []).map(norm))];
+    const modelKeysReferencedNotLoaded = modelKeysReferenced.filter((k) => !modelKeysInLoadModel.includes(k));
     return {
         fileCount: list.length,
         usesLoadModel: /\bloadModel\s*\(/.test(allCode),
-        modelKeysReferenced: [...new Set(allCode.match(/kenney3d\/[a-z0-9_]+\/[a-z0-9_.-]+\.glb/gi) || [])],
+        modelKeysReferenced,
+        modelKeysReferencedCount: modelKeysReferenced.length,
+        modelKeysInLoadModel,
+        modelKeysWiredCount: modelKeysInLoadModel.length,
+        modelKeysReferencedNotLoaded,
         usesBoxGeometry: /\bBoxGeometry\b/.test(allCode),
         usesCreateSky: /\bcreateSky\s*\(/.test(allCode),
         skyElevation: first(/createSky\([^)]*elevation\s*:\s*([0-9.]+)/i),
