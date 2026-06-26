@@ -247,8 +247,23 @@ function extractBalancedObjectLiteral(source, markerRegex) {
     return '';
 }
 
+// Strip leading line/block comments so a `// note` on the line before a property doesn't hide the
+// real key. Without this, every property declared right after a comment (narrativeRevealed, etc.)
+// reads as "missing from the state object" — a false positive that wastes repair turns AND can feed
+// applyDeterministicStatePropertyRepairs into RE-ADDING an already-present key (duplicate-key crash).
+function stripLeadingComments(text = '') {
+    let out = String(text);
+    let prev;
+    do {
+        prev = out;
+        out = out.replace(/^\s*\/\/[^\n]*\n?/, '');
+        out = out.replace(/^\s*\/\*[\s\S]*?\*\//, '');
+    } while (out !== prev);
+    return out;
+}
+
 function segmentObjectKey(segment = '') {
-    const trimmed = String(segment || '').trim();
+    const trimmed = stripLeadingComments(String(segment || '')).trim();
     if (!trimmed || trimmed.startsWith('...')) return null;
     if (/^(?:get|set|async)\s+/i.test(trimmed)) return null;
     const explicit = /^(?:['"`]([^'"`]+)['"`]|([A-Za-z_$][\w$]*))\s*:/.exec(trimmed);
@@ -276,6 +291,17 @@ function splitTopLevelObjectSegments(objectLiteral = '') {
         }
         if (ch === '"' || ch === "'" || ch === '`') {
             quote = ch;
+            continue;
+        }
+        // Skip comments entirely — a `{`/`}`/quote inside `// ...` or `/* ... */` must not move depth.
+        if (ch === '/' && objectLiteral[i + 1] === '/') {
+            const nl = objectLiteral.indexOf('\n', i);
+            i = nl === -1 ? objectLiteral.length : nl;
+            continue;
+        }
+        if (ch === '/' && objectLiteral[i + 1] === '*') {
+            const end = objectLiteral.indexOf('*/', i + 2);
+            i = end === -1 ? objectLiteral.length : end + 1;
             continue;
         }
         if (ch === '{' || ch === '[' || ch === '(') depth += 1;
@@ -599,7 +625,7 @@ function extractMainStateObjectLiteral(source = '') {
     return extractBalancedObjectLiteral(source, /\b(?:const|let|var)\s+state\s*=/g);
 }
 
-function statePropertyIssues(mainSource = '') {
+export function statePropertyIssues(mainSource = '') {
     const objectLiteral = extractMainStateObjectLiteral(mainSource);
     if (!objectLiteral) return [];
     const keys = topLevelObjectKeys(objectLiteral);
