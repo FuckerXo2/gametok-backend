@@ -71,6 +71,21 @@ function isImplementEditAllowed(cleanPath = '') {
     if (cleanPath.includes('..')) return false;
     return /^src\/[A-Za-z0-9_./-]+\.(ts|tsx|js|jsx|css)$/.test(cleanPath);
 }
+
+// Kernel reference modules the model READS to learn the API but must never edit. Excluded from the
+// stuck snapshot — they're large and off-limits; the snapshot targets the model's OWN game modules.
+const KERNEL_REFERENCE_FILE = /^src\/(?:threeAssets|iso|sdf2d|bootstrap|assetLoader|assetKeys|dreamModels|vite-env)\.(?:ts|d\.ts)$|^src\/types\//;
+
+// When the model is stuck re-reading instead of editing, pick the files it's actually been paging — its
+// own editable game modules, most-read first — so a multi-file 3D build (Game.ts, World.ts, Hud.ts …)
+// gets handed back, not just main.ts. Empty result -> caller falls back to main.ts/styles.css.
+function pickStuckSnapshotPaths(readPathCounts) {
+    return [...readPathCounts.entries()]
+        .filter(([p]) => isImplementEditAllowed(p) && !KERNEL_REFERENCE_FILE.test(p))
+        .sort((a, b) => b[1] - a[1])
+        .map(([p]) => p)
+        .slice(0, 6);
+}
 const IMPLEMENT_FILE_SNAPSHOT_CHARS = Math.max(
     2000,
     Math.min(12000, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_SNAPSHOT_CHARS || 6000)),
@@ -868,15 +883,21 @@ export function compactMakerAgentMessages(messages = []) {
     return compacted;
 }
 
-async function appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound = false, full = false } = {}) {
+async function appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFileThisRound = false, full = false, paths = null } = {}) {
     if (skipIfReadFileThisRound) {
         return;
     }
     // `full` hands the model the COMPLETE file un-truncated. Used when it's stuck paging read_file on a
-    // large main.ts instead of editing — give it the whole thing so it can stop reading and patch.
+    // large file instead of editing — give it the whole thing so it can stop reading and patch. `paths`
+    // overrides the default main.ts/styles.css set: for multi-file 3D builds the model thrashes reading
+    // its OWN game modules (src/game/Game.ts, src/world/World.ts, …), so we hand back exactly the files
+    // it has been re-reading, not just main.ts.
+    const relPaths = Array.isArray(paths) && paths.length > 0
+        ? [...new Set(paths)]
+        : [...IMPLEMENT_EDIT_PATHS];
     const snapshotCap = full ? MAX_WRITE_FILE_CHARS_MAIN : IMPLEMENT_FILE_SNAPSHOT_CHARS;
     const blocks = [];
-    for (const relPath of IMPLEMENT_EDIT_PATHS) {
+    for (const relPath of relPaths) {
         try {
             const absolutePath = path.join(projectRoot, relPath);
             const content = await fs.promises.readFile(absolutePath, 'utf8');
@@ -1125,9 +1146,10 @@ export async function runMakerAgentToolTurn({
             implementReadOnlyRounds += 1;
             // Before nagging or killing: hand the model its full source so it stops paging read_file.
             if (!injectedStuckFileSnapshot && implementReadOnlyRounds >= STUCK_READ_FILE_INJECT_AFTER) {
-                await appendImplementFileSnapshot(projectRoot, messages, { full: true });
+                const stuckPaths = pickStuckSnapshotPaths(readPathCounts);
+                await appendImplementFileSnapshot(projectRoot, messages, { full: true, paths: stuckPaths.length ? stuckPaths : null });
                 injectedStuckFileSnapshot = true;
-                log.events.push({ type: 'stuck_read_file_full_snapshot_injected', mode, round: round + 1 });
+                log.events.push({ type: 'stuck_read_file_full_snapshot_injected', mode, round: round + 1, files: stuckPaths });
             }
             if (!touchedMainTs && implementReadOnlyRounds > IMPLEMENT_MAX_READ_ONLY_ROUNDS) {
                 throw new Error('Implement mode stalled on read-only tool calls — start writing code now');
@@ -1141,9 +1163,10 @@ export async function runMakerAgentToolTurn({
         } else if (mode === MAKER_AGENT_TURN_MODE_REPAIR && roundReadFile && !roundEdited) {
             repairReadOnlyRounds += 1;
             if (!injectedStuckFileSnapshot && repairReadOnlyRounds >= STUCK_READ_FILE_INJECT_AFTER) {
-                await appendImplementFileSnapshot(projectRoot, messages, { full: true });
+                const stuckPaths = pickStuckSnapshotPaths(readPathCounts);
+                await appendImplementFileSnapshot(projectRoot, messages, { full: true, paths: stuckPaths.length ? stuckPaths : null });
                 injectedStuckFileSnapshot = true;
-                log.events.push({ type: 'stuck_read_file_full_snapshot_injected', mode, round: round + 1 });
+                log.events.push({ type: 'stuck_read_file_full_snapshot_injected', mode, round: round + 1, files: stuckPaths });
             }
             if (repairReadOnlyRounds > REPAIR_MAX_READ_ONLY_ROUNDS) {
                 throw new Error('Repair mode stalled on read-only tool calls — apply_patch or write_file on src/main.ts now');

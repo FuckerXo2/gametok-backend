@@ -45,6 +45,37 @@ function tokenize(s) {
     return new Set(String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter((w) => w.length > 2));
 }
 
+// Retrieval text for Kenney matching. CRITICAL: the raw user prompt is often NON-ENGLISH (e.g. Spanish
+// "habitación" = room), and GENRE_KITS + tag scoring are English-only — so a foreign prompt matches
+// NOTHING, retrieval returns garbage or empty, and a furnished room gets built from bare boxes instead
+// of the Furniture Kit that's sitting right there. Phase 1 / 1.5 OUTPUT is always generated in English
+// (intent, lane, scene descriptions, entity roles), so fold that in: "room/desk/mirror/first-person"
+// from the English foundation hits the right kits regardless of the prompt's language.
+export function buildKenneyRetrievalText(prompt = '', qualityIntent = {}, foundation = {}) {
+    const parts = [];
+    const pushStr = (v) => { if (typeof v === 'string' && v.trim()) parts.push(v); };
+    const pushArr = (a) => {
+        if (!Array.isArray(a)) return;
+        for (const x of a) pushStr(typeof x === 'string' ? x : (x?.description || x?.role || x?.name || x?.id || ''));
+    };
+    pushStr(prompt); // keep raw prompt — English prompts still carry good signal
+    const qi = qualityIntent || {};
+    pushStr(qi.title);
+    pushStr(qi.userIntent);
+    const pe = qi.playableExperience || {};
+    pushStr(pe.coreFantasy); pushStr(pe.coreLoop); pushStr(pe.primaryMechanic);
+    pushStr(qi.primaryMechanic);
+    pushArr(qi.mustExist);
+    const f = foundation || {};
+    pushStr(f.title); pushStr(f.lane);
+    pushArr(f.firstFrame);
+    pushArr(f.interactionLoops);
+    pushArr(f.implementationNotes);
+    pushArr(f.entityBlueprints);
+    pushArr(f.assetSlots);
+    return parts.filter(Boolean).join(' . ');
+}
+
 /**
  * Pick a relevant shortlist of Kenney GLB models for a game.
  * @param {string} prompt - the game idea / foundation summary

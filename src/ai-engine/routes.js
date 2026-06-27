@@ -39,7 +39,7 @@ import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-as
 import { materializeMakerAssetsForProject } from './maker-asset-materializer.js';
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, buildThreeDRulesBlock, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
-import { materializeKenney3dModels, kenney3dModelPromptBlock } from './maker-kenney3d.js';
+import { materializeKenney3dModels, kenney3dModelPromptBlock, buildKenneyRetrievalText } from './maker-kenney3d.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -5264,7 +5264,10 @@ async function runMakerAgentInspectionTurns({
     let kenney3dModelKeys = [];
     if (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)) {
         try {
-            const picked = await materializeKenney3dModels(projectRoot, prompt, { limit: 18 });
+            // Match on the ENGLISH foundation/intent text, not just the raw (often non-English) prompt —
+            // otherwise a Spanish "habitación" never hits the Furniture Kit and the room ships as bare boxes.
+            const kenneyRetrievalText = buildKenneyRetrievalText(prompt, qualityIntent, templateContract?.foundation);
+            const picked = await materializeKenney3dModels(projectRoot, kenneyRetrievalText, { limit: 18 });
             if (picked.length) {
                 kenney3dBlock = kenney3dModelPromptBlock(picked);
                 kenney3dModelKeys = picked.map((m) => m.key);
