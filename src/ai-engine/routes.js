@@ -113,6 +113,7 @@ import {
     buildMakerAssetContractFromFoundation,
     buildMakerTemplateContractFromFoundation,
     normalizeFoundationContract,
+    clampFoundationScope,
     useDynamicFoundation,
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
@@ -6246,6 +6247,10 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                 });
             }
             makerFoundationContract = normalizeFoundationContract(rawFoundation, qualityIntent);
+            // Cap the contract surface so a pathologically overscoped ask ("all the mechanics Madden
+            // has") can't hand Phase 2 a contract too big to build clean. Generous ceilings — only the
+            // impossible asks get trimmed; normal/rich games pass through untouched.
+            makerFoundationContract = clampFoundationScope(makerFoundationContract, jobId);
             assertFoundationSupported(makerFoundationContract);
             await writeMakerJson(makerWorkspace, 'foundation-contract.json', makerFoundationContract);
             makerTemplateContract = buildMakerTemplateContractFromFoundation(makerFoundationContract, qualityIntent);

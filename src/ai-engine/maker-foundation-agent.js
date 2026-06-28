@@ -316,6 +316,70 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
     };
 }
 
+// Identity for a contract list entry that may be a string OR an object ({name}/{id}).
+function scopeEntryKey(entry) {
+    if (typeof entry === 'string') return entry;
+    return entry?.name || entry?.id || '';
+}
+
+// Keep every mustKeep entry (non-negotiable: the mandatory functions/probes/state), then fill up to
+// `cap` from the rest IN ORDER (the architect lists most-important first), dropping the tail.
+function capScopeList(list, cap, mustKeep = []) {
+    const arr = Array.isArray(list) ? list.filter(Boolean) : [];
+    if (arr.length <= cap) return { kept: arr, dropped: [] };
+    const keepSet = new Set(mustKeep);
+    const mandatory = arr.filter((e) => keepSet.has(scopeEntryKey(e)));
+    const rest = arr.filter((e) => !keepSet.has(scopeEntryKey(e)));
+    const room = Math.max(0, cap - mandatory.length);
+    const kept = [...mandatory, ...rest.slice(0, room)];
+    const dropped = rest.slice(room).map(scopeEntryKey).filter(Boolean);
+    return { kept, dropped };
+}
+
+/**
+ * Cap the contract SURFACE so a pathologically overscoped ask ("an American football game with ALL
+ * the mechanics Madden has" -> 15+ required functions/systems) can't hand Phase 2 a contract too big
+ * to implement clean in its turn budget (the TS2339-class build-death). Ceilings are GENEROUS — a
+ * normal game (3-6 functions, 6-10 state) is far under them, so legitimately-rich games are untouched;
+ * only the impossible asks get trimmed to a buildable vertical slice. Mandatory entries are always
+ * preserved. This is a genre-agnostic SIZE cap — NOT lane/keyword routing (see CLAUDE.md: the lane
+ * keyword library was reverted; this is deliberately not that).
+ */
+export function clampFoundationScope(foundation = {}, jobId = null) {
+    const f = foundation && typeof foundation === 'object' ? foundation : {};
+    const CAPS = {
+        requiredFunctions: Math.max(4, Number(process.env.GAMETOK_SCOPE_MAX_FUNCTIONS || 10)),
+        probeMethods: Math.max(3, Number(process.env.GAMETOK_SCOPE_MAX_PROBES || 8)),
+        requiredState: Math.max(4, Number(process.env.GAMETOK_SCOPE_MAX_STATE || 16)),
+        interactionLoops: Math.max(2, Number(process.env.GAMETOK_SCOPE_MAX_LOOPS || 6)),
+        entityBlueprints: Math.max(2, Number(process.env.GAMETOK_SCOPE_MAX_ENTITIES || 8)),
+    };
+    const fn = capScopeList(f.requiredFunctions, CAPS.requiredFunctions, ['stepGame', 'resetGame', 'renderAll']);
+    const probe = capScopeList(f.probeMethods, CAPS.probeMethods, ['snapshot', 'step', 'reset']);
+    const state = capScopeList(f.requiredState, CAPS.requiredState, ['score', 'gameOver', 'width', 'height']);
+    const loops = capScopeList(f.interactionLoops, CAPS.interactionLoops, []);
+    const ents = capScopeList(f.entityBlueprints, CAPS.entityBlueprints, []);
+
+    const report = [];
+    if (fn.dropped.length) report.push(`functions:-${fn.dropped.length}(${fn.dropped.slice(0, 6).join(',')})`);
+    if (probe.dropped.length) report.push(`probes:-${probe.dropped.length}`);
+    if (state.dropped.length) report.push(`state:-${state.dropped.length}(${state.dropped.slice(0, 6).join(',')})`);
+    if (loops.dropped.length) report.push(`loops:-${loops.dropped.length}`);
+    if (ents.dropped.length) report.push(`entities:-${ents.dropped.length}`);
+    if (report.length) {
+        console.warn(`✂️ [SCOPE CLAMP${jobId ? ` job=${jobId}` : ''}] Overscoped foundation trimmed to a buildable slice :: ${report.join(' ')}`);
+    }
+
+    return {
+        ...f,
+        requiredFunctions: fn.kept,
+        probeMethods: probe.kept,
+        requiredState: state.kept,
+        interactionLoops: loops.kept,
+        entityBlueprints: ents.kept,
+    };
+}
+
 function buildDefaultAssetSlots(qualityIntent = {}, entityBlueprints = []) {
     const artStyle = [
         qualityIntent.artDirection?.styleName,
