@@ -79,7 +79,9 @@
   // Forward an optional ?key= (matches ADMIN_KEY on the server, if set) to the API.
   const KEY = new URLSearchParams(location.search).get('key');
   const apiUrl = '/api/admin/generation-logs?limit=200' + (KEY ? '&key=' + encodeURIComponent(KEY) : '');
+  const statsUrl = '/api/admin/generation-stats' + (KEY ? '?key=' + encodeURIComponent(KEY) : '');
   let all = [];
+  let stats = null;
   let filter = 'all';
 
   function ago(ts) {
@@ -109,13 +111,25 @@
   }
 
   function renderCards() {
-    const total = all.length;
-    const done = all.filter(r => r.status === 'complete').length;
-    const failed = all.filter(r => r.status === 'failed').length;
-    const finished = done + failed;
-    const rate = finished ? Math.round((done / finished) * 100) : 0;
-    const durs = all.filter(r => r.status === 'complete' && r.durationMs).map(r => r.durationMs);
-    const avg = durs.length ? dur(Math.round(durs.reduce((a, b) => a + b, 0) / durs.length)) : '—';
+    // Prefer true lifetime aggregates from the stats endpoint. Fall back to the
+    // (capped) feed rows if stats haven't loaded — keeps the page working if the
+    // backend predates the stats endpoint.
+    let total, done, failed, rate, avg;
+    if (stats) {
+      total = stats.total;
+      done = stats.succeeded;
+      failed = stats.failed;
+      rate = stats.successRate;
+      avg = stats.avgBuildMs != null ? dur(stats.avgBuildMs) : '—';
+    } else {
+      total = all.length;
+      done = all.filter(r => r.status === 'complete').length;
+      failed = all.filter(r => r.status === 'failed').length;
+      const finished = done + failed;
+      rate = finished ? Math.round((done / finished) * 100) : 0;
+      const durs = all.filter(r => r.status === 'complete' && r.durationMs).map(r => r.durationMs);
+      avg = durs.length ? dur(Math.round(durs.reduce((a, b) => a + b, 0) / durs.length)) : '—';
+    }
     document.getElementById('cards').innerHTML =
       card(total, 'Total') + card(rate + '%', 'Success rate') +
       card(done, 'Succeeded') + card(failed, 'Failed') + card(avg, 'Avg build (success)');
@@ -179,9 +193,13 @@
   async function load() {
     document.getElementById('updated').textContent = 'loading…';
     try {
-      const res = await fetch(apiUrl);
+      const [res, statsRes] = await Promise.all([
+        fetch(apiUrl),
+        fetch(statsUrl).catch(() => null),
+      ]);
       if (!res.ok) throw new Error('HTTP ' + res.status + (res.status === 401 ? ' — add ?key=YOUR_ADMIN_KEY to the URL' : ''));
       all = await res.json();
+      stats = statsRes && statsRes.ok ? await statsRes.json() : null;
       renderCards();
       renderRows();
       document.getElementById('updated').textContent = 'updated ' + new Date().toLocaleTimeString();

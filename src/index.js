@@ -238,6 +238,43 @@ app.get('/api/admin/generation-logs', async (req, res) => {
   }
 });
 
+// True lifetime aggregates for the dashboard cards. The list feed above is
+// capped (recent N rows), so counting rows client-side pegs "Total" at the
+// fetch limit forever — these stats come straight from the full table.
+app.get('/api/admin/generation-stats', async (req, res) => {
+  if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
+  try {
+    const result = await pool.query(
+      `SELECT
+         count(*)::int                                                          AS total,
+         count(*) FILTER (WHERE status = 'complete')::int                       AS succeeded,
+         count(*) FILTER (WHERE status = 'failed')::int                         AS failed,
+         count(*) FILTER (WHERE status IN ('running', 'queued'))::int           AS running,
+         count(*) FILTER (WHERE status = 'canceled')::int                       AS canceled,
+         avg(duration_ms) FILTER (WHERE status = 'complete'
+                                  AND duration_ms IS NOT NULL)                  AS avg_build_ms
+       FROM generation_jobs
+       WHERE kind = 'dream'`,
+    );
+    const r = result.rows[0] || {};
+    const succeeded = r.succeeded || 0;
+    const failed = r.failed || 0;
+    const finished = succeeded + failed;
+    res.json({
+      total: r.total || 0,
+      succeeded,
+      failed,
+      running: r.running || 0,
+      canceled: r.canceled || 0,
+      successRate: finished ? Math.round((succeeded / finished) * 100) : 0,
+      avgBuildMs: r.avg_build_ms != null ? Math.round(Number(r.avg_build_ms)) : null,
+    });
+  } catch (e) {
+    console.error('[generation-stats] query failed:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Full captured console log for one generation (fetched on demand when a row is
 // expanded — kept out of the list feed because it can be ~1MB per job).
 app.get('/api/admin/generation-logs/:id', async (req, res) => {
