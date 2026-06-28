@@ -398,6 +398,21 @@ function buildBackgroundFluxPrompt(description = '', variant = 0) {
     ].join(', ');
 }
 
+// Background generation can grind for ~40min when NVIDIA's FLUX endpoint is down: 2 models × (3 sizes
+// × 3 retries + sprite fallback) × key-rotation, each failed attempt eating minutes, with NO overall
+// budget. Worse, it wastes all of it on the dead `dev` model BEFORE trying `schnell` (which then works
+// instantly). These two guards stop that: bail a model fast once it's clearly down, and a hard wall-
+// clock deadline as backstop. When everything's down past the deadline we ship a code-drawn gradient
+// (generateFallbackBackgroundAsset) so the job degrades gracefully instead of hanging/failing.
+const FLUX_BG_TOTAL_BUDGET_MS = Math.max(30000, Number(process.env.GAMETOK_FLUX_BG_BUDGET_MS || 120000));
+const FLUX_BG_MODEL_HARD_FAIL_LIMIT = Math.max(1, Number(process.env.GAMETOK_FLUX_BG_HARD_FAIL_LIMIT || 2));
+// Per-attempt ceiling so a single hung connection (key-rotation × slow timeouts) can't eat minutes
+// before the between-attempts deadline check runs. Generous enough for a real dev generation (~20-40s).
+const FLUX_BG_ATTEMPT_TIMEOUT_MS = Math.max(15000, Number(process.env.GAMETOK_FLUX_BG_ATTEMPT_TIMEOUT_MS || 75000));
+// "Hard" = the upstream/network is down (worth abandoning the model). Content-filter / quality rejects
+// are NOT hard — the endpoint works, so keep trying other prompts/sizes.
+const FLUX_HARD_FAIL_RE = /\b5\d\d\b|Internal Server Error|fetch failed|timed out|timeout|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|network|aborted/i;
+
 function buildBackgroundFluxSizes(targetDims) {
     const sizes = [];
     const nativeLabel = `${targetDims.width}x${targetDims.height} native portrait`;
@@ -446,20 +461,24 @@ async function attemptBackgroundSpritePathFallback(description, targetDims, mode
     );
 }
 
-async function generateBackgroundWithFluxModel(description, targetDims, model = 'schnell') {
+async function generateBackgroundWithFluxModel(description, targetDims, model = 'schnell', deadline = Infinity) {
     const modelLabel = model === 'dev' ? 'flux.1-dev' : 'flux.1-schnell';
     const fluxSizes = buildBackgroundFluxSizes(targetDims);
+    let consecutiveHardFails = 0;
 
     for (const size of fluxSizes) {
         for (let retry = 0; retry < 3; retry += 1) {
+            if (Date.now() >= deadline) {
+                console.warn(`[sprite-gen] FLUX background ${modelLabel}: time budget exhausted — stopping this model.`);
+                return null;
+            }
             try {
-                const { inspected } = await attemptBackgroundFluxAtSize({
-                    description,
-                    targetDims,
-                    size,
-                    model,
-                    retry,
-                });
+                const { inspected } = await withTimeout(
+                    attemptBackgroundFluxAtSize({ description, targetDims, size, model, retry }),
+                    FLUX_BG_ATTEMPT_TIMEOUT_MS,
+                    `FLUX background ${modelLabel} ${size.label} retry=${retry + 1}`,
+                );
+                consecutiveHardFails = 0; // got a response — endpoint is alive
                 if (!inspected.ok) {
                     console.warn(
                         `[sprite-gen] FLUX background ${modelLabel} ${size.label}`
@@ -478,10 +497,25 @@ async function generateBackgroundWithFluxModel(description, targetDims, model = 
                     `[sprite-gen] FLUX background ${modelLabel} ${size.label}`
                     + ` retry=${retry + 1} failed: ${error.message}`,
                 );
+                // Bail fast when the endpoint is systemically down (5xx/network) instead of grinding all
+                // 9 tiers + key-rotation — get to the fallback model/gradient in seconds, not 40 minutes.
+                if (FLUX_HARD_FAIL_RE.test(String(error.message || ''))) {
+                    consecutiveHardFails += 1;
+                    if (consecutiveHardFails >= FLUX_BG_MODEL_HARD_FAIL_LIMIT) {
+                        console.warn(
+                            `[sprite-gen] FLUX background ${modelLabel}: ${consecutiveHardFails} consecutive upstream`
+                            + ` failures — endpoint appears down, abandoning this model immediately.`,
+                        );
+                        return null;
+                    }
+                } else {
+                    consecutiveHardFails = 0;
+                }
             }
         }
     }
 
+    if (Date.now() >= deadline) return null;
     try {
         const inspected = await attemptBackgroundSpritePathFallback(description, targetDims, model);
         if (inspected.ok) {
@@ -515,17 +549,26 @@ async function generateBackgroundFluxImage(description, targetSize) {
         && assetModelRouter.isBackgroundDevFallbackEnabled();
 
     const order = devPrimary ? ['dev', 'schnell'] : ['schnell', 'dev'];
+    const deadline = Date.now() + FLUX_BG_TOTAL_BUDGET_MS;
     for (let i = 0; i < order.length; i += 1) {
+        if (Date.now() >= deadline) break;
         const model = order[i];
         if (model === 'dev' && !assetModelRouter.isBackgroundDevFallbackEnabled()) continue;
         if (i > 0) {
             console.log(`[sprite-gen] FLUX ${order[i - 1]} background exhausted; trying flux.1-${model} fallback...`);
         }
-        const result = await generateBackgroundWithFluxModel(description, targetDims, model);
+        const result = await generateBackgroundWithFluxModel(description, targetDims, model, deadline);
         if (result) return result;
     }
 
-    throw new Error(`FLUX background generation failed after ${order.join(' and ')} attempts`);
+    // Graceful degradation (option A): never hang or hard-fail the job because FLUX was down. Ship a
+    // code-drawn gradient background so the game still builds and the generation slot frees immediately.
+    console.warn(
+        `[sprite-gen] FLUX background unavailable (${order.join('+')} exhausted within ${Math.round(FLUX_BG_TOTAL_BUDGET_MS / 1000)}s budget)`
+        + ' — shipping code-drawn gradient background so the job degrades gracefully.',
+    );
+    const fallback = await generateFallbackBackgroundAsset(targetDims.width, targetDims.height);
+    return String(fallback).replace(/^data:image\/[a-z0-9.+-]+;base64,/i, '');
 }
 
 /**
