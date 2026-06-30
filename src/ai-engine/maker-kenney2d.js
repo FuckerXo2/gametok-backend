@@ -77,22 +77,83 @@ export function deriveRequiredRoles(foundation = {}, retrievalText = '') {
     return need;
 }
 
-function scorePack(pack, requiredRoles, queryTokens) {
+// Genre families: each maps query cues (what the game is about) to pack-name cues (which packs
+// look like it). This is the THEME signal — without it, scoring collapses to "which pack fills the
+// most role slots", and a generic catch-all pack (e.g. Voxel Pack, all capabilities=true) wins every
+// game regardless of style. q is tested against the full retrieval text; p against the pack name.
+const GENRE_FAMILIES = [
+    { q: /wizard|mage|magic|sorcer|spell|arcane|enchant|fantasy|\brpg\b|rogue|dungeon|slime|goblin|orc|ogre|troll|knight|elf|dwarf|dragon|medieval|\bsword\b|castle|monster|undead|skeleton|necromanc/i,
+      p: /fantasy|\brpg\b|rogue|dungeon|monster|medieval|magic|knight|tiny|scribble|micro/i },
+    { q: /zombie|shoot|shooter|\bgun\b|pistol|rifle|bullet|\bammo\b|blast|military|soldier|\barmy\b|\bwar\b|\btank\b|shmup|invader|turret/i,
+      p: /shoot|shmup|blaster|\bgun\b|tank|military|gallery|desert/i },
+    { q: /space|galaxy|cosmic|alien|\bufo\b|asteroid|spaceship|starship|nebula|planet|sci.?fi|\blaser\b/i,
+      p: /space|galaxy|cosmic|alien|\bufo\b|planet/i },
+    { q: /match.?3|match.?three|puzzle|\bgem\b|jewel|crystal|board.?game|connect|bubble|candy|block.?puzzle|\bswap\b/i,
+      p: /puzzle|\bgem\b|jewel|\bblock\b|board|bubble|candy/i },
+    { q: /platform|\bjump\b|side.?scroll|goomba|\bcoin\b|\bspike\b|\bledge\b/i,
+      p: /platform|jumper|\bjump\b/i },
+    { q: /\brace\b|racing|\bcar\b|\bkart\b|driv|\blap\b|\btrack\b|traffic|highway|\broad\b|vehicle/i,
+      p: /racing|\bcar\b|kart|vehicle|\broad\b/i },
+];
+
+function scorePack(pack, requiredRoles, queryTokens, queryText = '') {
     const caps = pack.capabilities || {};
+    const name = (pack.pack || '').toLowerCase();
+
+    // CORE roles = the ones a game needs visually DISTINCT art for (player, enemies). These carry
+    // more weight than generic breadth: a combat game wants real characters, not "has a sprite for
+    // every slot".
+    let coreCovered = 0;
+    for (const role of ['player', 'enemies']) if (requiredRoles.has(role) && caps[role]) coreCovered += 1;
+
+    // Secondary breadth across all required roles — a minor signal now, not the dominant one.
     let covered = 0;
     for (const role of requiredRoles) if (caps[role]) covered += 1;
     const coverage = requiredRoles.size ? covered / requiredRoles.size : 0;
 
-    // Capability coverage dominates; genre/keyword overlap breaks ties.
-    let score = coverage * 100;
-    let kw = 0;
-    for (const tag of pack.genreTags || []) if (queryTokens.has(tag)) kw += 1;
-    score += Math.min(kw, 6) * 4;
-    // Small nudge: animated packs feel more alive when the game needs a moving player.
+    // THEME = direct name-token overlap + genre-family match. This is the PRIMARY ranker: a pack that
+    // looks like the game should beat a generic pack that merely fills every role slot.
+    let theme = 0;
+    for (const tag of pack.genreTags || []) if (queryTokens.has(tag)) theme += 1;
+    for (const fam of GENRE_FAMILIES) if (fam.q.test(queryText) && fam.p.test(name)) theme += 2;
+
+    let score = coreCovered * 18 + coverage * 12 + theme * 22;
     if (requiredRoles.has('player') && (caps.animations || []).length) score += 5;
-    // A pack that covers EVERY required role beats a partial one of equal keyword score.
-    if (covered === requiredRoles.size && requiredRoles.size > 0) score += 8;
-    return { score, coverage, covered };
+
+    // Catch-all penalty: a pack claiming (nearly) every capability is a generic grab-bag, not a
+    // styled set. Without a theme match it should never be the default winner.
+    const capCount = ['player', 'enemies', 'tiles', 'items', 'projectiles', 'vehicles', 'ui', 'background', 'effects']
+        .filter((k) => caps[k] === true || (Array.isArray(caps[k]) && caps[k].length)).length;
+    if (capCount >= 8 && theme === 0) score -= 35;
+
+    return { score, coverage, covered, theme };
+}
+
+function groupCats(sprites = []) {
+    const m = {};
+    for (const s of sprites) (m[s.category] = m[s.category] || []).push(s);
+    return m;
+}
+
+// Look INSIDE a pack's actual sprite roster — the pack-name match and the coarse capability flags
+// can't tell a usable creature pack from a parts/construction kit. (Monster Builder Pack is flagged
+// enemies:true but is 175 prop "arm" sprites + 4 eyeball "characters"; the resolver would hand the
+// builder an eyeball as the wizard.) Rewards a real WHOLE player + enemy; penalizes parts kits.
+function packUsability(manifest, requiredRoles) {
+    if (!manifest || !Array.isArray(manifest.sprites)) return 0;
+    const cats = groupCats(manifest.sprites);
+    const nChar = (cats.character || []).length;
+    const nEnemy = (cats.enemy || []).length;
+    const nProp = (cats.prop || []).length;
+    const total = manifest.sprites.length || 1;
+
+    let u = 0;
+    if (requiredRoles.has('player')) u += nChar > 0 ? 10 : -12;   // a real character, not a prop/part
+    if (requiredRoles.has('enemies')) u += nEnemy > 0 ? 10 : -12; // a real enemy sprite, not just "has characters"
+    u += Math.min(nChar + nEnemy, 8);                             // variety of usable actors
+    // Parts kit: props swamp the pack and real actors are scarce (arms/eyes, not finished creatures).
+    if (nProp / total > 0.6 && nChar + nEnemy <= 4) u -= 15;
+    return u;
 }
 
 /**
@@ -111,11 +172,20 @@ export function selectKenney2dPacks(prompt = '', qualityIntent = {}, foundation 
 
     const ranked = index.packs
         .filter((p) => !p.ui) // UI packs are scored separately for the UI slot
-        .map((p) => ({ p, ...scorePack(p, mainRoles, queryTokens) }))
+        .map((p) => ({ p, ...scorePack(p, mainRoles, queryTokens, retrievalText) }))
         .sort((a, b) => b.score - a.score || b.covered - a.covered || a.p.spriteCount - b.p.spriteCount);
 
-    const mainPick = ranked[0];
-    const main = mainPick ? loadPackManifest(mainPick.p.packId) : null;
+    // Refine the top shortlist by INSPECTING each candidate's real sprite roster (only the top few —
+    // cheap, manifests are cached). This is where a parts kit gets demoted below a usable pack of
+    // equal theme/coverage.
+    const shortlist = ranked.slice(0, 8).map((r) => {
+        const manifest = loadPackManifest(r.p.packId);
+        const usability = packUsability(manifest, mainRoles);
+        return { ...r, manifest, usability, finalScore: r.score + usability };
+    }).sort((a, b) => b.finalScore - a.finalScore || b.score - a.score || a.p.spriteCount - b.p.spriteCount);
+
+    const mainPick = shortlist[0] || ranked[0];
+    const main = mainPick ? (mainPick.manifest || loadPackManifest(mainPick.p.packId)) : null;
 
     // UI slot: best-covering UI pack (prefer style match with main).
     const uiRanked = index.packs.filter((p) => p.capabilities?.ui)
@@ -140,7 +210,7 @@ export function selectKenney2dPacks(prompt = '', qualityIntent = {}, foundation 
         requiredRoles: [...requiredRoles],
         debug: {
             retrievalText: retrievalText.slice(0, 160),
-            top: ranked.slice(0, 4).map((r) => `${r.p.pack}(${r.score.toFixed(0)},cov ${(r.coverage * 100).toFixed(0)}%)`),
+            top: shortlist.slice(0, 4).map((r) => `${r.p.pack}(${r.finalScore.toFixed(0)}=name${r.score.toFixed(0)}+use${r.usability},theme ${r.theme})`),
         },
     };
 }
