@@ -66,13 +66,15 @@ async function exists(Key) {
   try { await client.send(new HeadObjectCommand({ Bucket, Key })); return true; } catch { return false; }
 }
 
-console.log(`[kenney2d-r2] uploading ${targets.length} sprites (${packFilter ? packFilter.join(', ') : 'ALL packs'}) to ${Bucket}/kenney2d/`);
-let up = 0; let skipped = 0; let missing = 0;
-for (const s of targets) {
+const concurrency = Math.max(1, parseInt(valOf('--concurrency') || '32', 10));
+console.log(`[kenney2d-r2] uploading ${targets.length} sprites (${packFilter ? packFilter.join(', ') : 'ALL packs'}) to ${Bucket}/kenney2d/ — concurrency ${concurrency}`);
+let up = 0; let skipped = 0; let missing = 0; let cursor = 0;
+
+async function uploadOne(s) {
   const Key = `kenney2d/${s.id}.${s.ext}`;
   const src = path.join(bundleDir, s.rel);
-  if (!fs.existsSync(src)) { missing += 1; if (missing <= 10) console.warn(`  ! missing in bundle: ${s.rel}`); continue; }
-  if (!force && await exists(Key)) { skipped += 1; continue; }
+  if (!fs.existsSync(src)) { missing += 1; if (missing <= 10) console.warn(`  ! missing in bundle: ${s.rel}`); return; }
+  if (!force && await exists(Key)) { skipped += 1; return; }
   await client.send(new PutObjectCommand({
     Bucket, Key,
     Body: fs.readFileSync(src),
@@ -80,7 +82,17 @@ for (const s of targets) {
     CacheControl: 'public, max-age=31536000, immutable',
   }));
   up += 1;
-  if (up % 100 === 0) console.log(`  …${up} uploaded`);
+  if (up % 100 === 0) console.log(`  …${up} uploaded (${skipped} skipped)`);
 }
+
+async function worker() {
+  while (cursor < targets.length) {
+    const s = targets[cursor++];
+    try { await uploadOne(s); }
+    catch (err) { console.warn(`  ! failed ${s.id}.${s.ext}: ${err?.message || err}`); }
+  }
+}
+
+await Promise.all(Array.from({ length: concurrency }, () => worker()));
 console.log(`[kenney2d-r2] done: ${up} uploaded, ${skipped} already present, ${missing} missing.`);
 console.log(`[kenney2d-r2] sample URL: ${publicBase}/kenney2d/${targets[0].id}.${targets[0].ext}`);
