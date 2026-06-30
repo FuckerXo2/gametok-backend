@@ -1227,7 +1227,13 @@ export async function verifyGame(htmlString, options = {}) {
             }
         }
 
-        if (/error|exception|failed/i.test(renderState.bodyText)) {
+        // Bare "error"/"exception"/"failed" also occur in legitimate game copy — a horror
+        // premise's "Engine failed...", a "Mission failed" screen, a "no errors!" puzzle hint —
+        // so matching those words flagged working games as crashed. Genuine JS exceptions are
+        // already caught by the console + pageerror listeners above; this only needs to catch an
+        // on-screen error OVERLAY, which has an unambiguous signature (typed errors, Vite overlay).
+        const errorOverlaySignature = /Uncaught|(?:Type|Reference|Syntax|Range|Eval)Error|is not (?:defined|a function)|Cannot read (?:properties|property)|Failed to (?:resolve|fetch|load|compile|parse|execute)|Unhandled(?: promise)? rejection|\[plugin:vite|Internal server error/i;
+        if (errorOverlaySignature.test(renderState.bodyText)) {
             crashes.push(`Visible error text detected: ${renderState.bodyText}`);
         }
 
