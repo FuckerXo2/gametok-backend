@@ -43,6 +43,14 @@ export function useDynamicFoundation() {
     return String(process.env.GAMETOK_DYNAMIC_FOUNDATION || 'true').toLowerCase() !== 'false';
 }
 
+// 2D FLUX gate: when ON (default), 2D foundations get EMPTY assetSlots — exactly like 3D — so the AI
+// image artist never runs. The game uses real Kenney sprites (materialized via the kenney2dBlock path)
+// and code-drawn primitives as fallback, never FLUX. Flip GAMETOK_2D_KENNEY_ONLY=false to restore
+// FLUX sprite-gen for 2D (e.g. if Kenney coverage is insufficient for a genre).
+export function use2dKenneyOnly() {
+    return String(process.env.GAMETOK_2D_KENNEY_ONLY || 'true').toLowerCase() !== 'false';
+}
+
 export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
     // If Phase 1 already determined this is 3D, that decision is binding — the foundation may
     // UPGRADE 2D→3D but must never DOWNGRADE 3D→2D (line-63 rule). Enforce it as a hard mandate
@@ -303,7 +311,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
             : ['Core loop responds to input within 10 seconds'],
         antiPatterns: asArray(source.antiPatterns),
         implementationNotes: asArray(source.implementationNotes),
-        assetSlots: is3DFoundation ? [] : (assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints)),
+        assetSlots: (is3DFoundation || use2dKenneyOnly()) ? [] : (assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints)),
         statusCopy: asString(source.statusCopy, 'Tap to play!'),
         userIntent: qualityIntent.userIntent || null,
     });
