@@ -1,3 +1,4 @@
+import './dreamSprites'; // sets window.DREAM_ASSETS (Kenney sprite data-URIs) + DREAM_SPRITE_ROLES before assetLoader runs
 import { loadDreamAssets } from './assetLoader';
 
 function enforceGameViewport() {

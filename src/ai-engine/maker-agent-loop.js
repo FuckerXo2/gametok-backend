@@ -326,6 +326,7 @@ export function buildMakerAgentImplementPrompt({
     assetSlotHints = [],
     userMedia = null,
     kenney3dBlock = '',
+    kenney2dBlock = '',
 } = {}) {
     const foundation = templateContract?.foundation || null;
 
@@ -368,6 +369,7 @@ export function buildMakerAgentImplementPrompt({
         buildThreeDRulesBlock(foundation),
         '',
         ...(kenney3dBlock ? [kenney3dBlock, ''] : []),
+        ...(kenney2dBlock ? [kenney2dBlock, ''] : []),
         `Objective: ${objective || 'Implement full gameplay loop in src/main.ts.'}`,
         '',
         buildAllowedAssetKeysPromptBlock(allowedAssetKeys, assetSlotHints),

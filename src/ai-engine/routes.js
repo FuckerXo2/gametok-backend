@@ -40,6 +40,8 @@ import { materializeMakerAssetsForProject } from './maker-asset-materializer.js'
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, buildThreeDRulesBlock, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { materializeKenney3dModels, kenney3dModelPromptBlock, buildKenneyRetrievalText } from './maker-kenney3d.js';
+import { selectKenney2dPacks, materializeKenney2dSprites, kenney2dSpritePromptBlock } from './maker-kenney2d.js';
+import { resolveKenney2dAssets } from './asset-resolver.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -5278,6 +5280,27 @@ async function runMakerAgentInspectionTurns({
             console.warn(`🧩 [Phase 2 job=${jobId}] Kenney 3D materialize skipped: ${e?.message || e}`);
         }
     }
+
+    // 2D Kenney sprites: for canvas-kernel games, pick ONE coherent pack (capability-scored), resolve
+    // logical roles, fetch from R2 and inline them (window.DREAM_ASSETS + DREAM_SPRITE_ROLES via
+    // src/dreamSprites.ts) so the builder draws REAL sprites via sprite()/animatedSprite(). Guarded —
+    // yields '' (-> code-drawn primitive fallback, never FLUX) on no pack match or any fetch failure.
+    let kenney2dBlock = '';
+    if (templateContract?.templateId === 'canvas-kernel') {
+        try {
+            const k2dPacks = selectKenney2dPacks(prompt, qualityIntent, templateContract?.foundation || null);
+            if (k2dPacks.main) {
+                const k2dResolution = resolveKenney2dAssets(k2dPacks, k2dPacks.requiredRoles);
+                const k2dMat = await materializeKenney2dSprites(projectRoot, k2dResolution);
+                if (k2dMat) {
+                    kenney2dBlock = kenney2dSpritePromptBlock(k2dResolution);
+                    console.log(`🎨 [Phase 2 job=${jobId}] Kenney 2D: ${k2dMat.count} sprites from "${k2dPacks.main.pack}" (roles: ${k2dMat.roles.join(', ')})`);
+                }
+            }
+        } catch (e) {
+            console.warn(`🎨 [Phase 2 job=${jobId}] Kenney 2D materialize skipped: ${e?.message || e}`);
+        }
+    }
     let modelUsageForceRetries = 0;
 
     // Capture the empty stub size before any agent edits, so we can tell a real implementation from
@@ -5336,6 +5359,7 @@ async function runMakerAgentInspectionTurns({
                 assetSlotHints,
                 userMedia: generatedAssets?.userMedia || null,
                 kenney3dBlock,
+                kenney2dBlock,
             })
             : buildMakerAgentInspectionPrompt({
                 prompt,
