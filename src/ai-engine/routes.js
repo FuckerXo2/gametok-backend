@@ -43,6 +43,7 @@ import { materializeKenney3dModels, kenney3dModelPromptBlock, buildKenneyRetriev
 import { selectKenney2dPacks, materializeKenney2dSprites, kenney2dSpritePromptBlock, loadPackManifest } from './maker-kenney2d.js';
 import { resolveKenney2dAssets } from './asset-resolver.js';
 import { selectCharacter, resolveCharacterAnimations } from './character-collection.js';
+import { selectItems } from './props-collection.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -5305,6 +5306,12 @@ async function runMakerAgentInspectionTurns({
                             const r = resolveCharacterAnimations(pick, loadPackManifest);
                             k2dResolution[role] = { role, key: r.key, w: r.w, h: r.h, animations: r.animations };
                             console.log(`🧬 [Phase 2 job=${jobId}] Collection: ${role} -> "${pick.name}" (${pick.archetype}) from "${pick.pack}"`);
+                        }
+                        // Items role: fill pickups that match the game (cooking->food, dungeon->keys/chests).
+                        if (k2dResolution.items && Array.isArray(k2dResolution.items.keys)) {
+                            const itemBp = bps.find((b) => (b?.role || '').toLowerCase().includes('item'));
+                            const picks = selectItems(`${qualityIntent?.title || ''} ${itemBp?.description || ''} ${prompt || ''}`, 12);
+                            if (picks.length) { k2dResolution.items.keys = picks; console.log(`🧬 [Phase 2 job=${jobId}] Collection: items -> ${picks.length} matched pickups`); }
                         }
                     } catch (e) { console.warn(`🧬 [Phase 2 job=${jobId}] collection override skipped: ${e?.message || e}`); }
                 }
