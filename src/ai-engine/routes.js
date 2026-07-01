@@ -40,8 +40,9 @@ import { materializeMakerAssetsForProject } from './maker-asset-materializer.js'
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, buildThreeDRulesBlock, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { materializeKenney3dModels, kenney3dModelPromptBlock, buildKenneyRetrievalText } from './maker-kenney3d.js';
-import { selectKenney2dPacks, materializeKenney2dSprites, kenney2dSpritePromptBlock } from './maker-kenney2d.js';
+import { selectKenney2dPacks, materializeKenney2dSprites, kenney2dSpritePromptBlock, loadPackManifest } from './maker-kenney2d.js';
 import { resolveKenney2dAssets } from './asset-resolver.js';
+import { selectCharacter, resolveCharacterAnimations } from './character-collection.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -5291,6 +5292,22 @@ async function runMakerAgentInspectionTurns({
             const k2dPacks = selectKenney2dPacks(prompt, qualityIntent, templateContract?.foundation || null);
             if (k2dPacks.main) {
                 const k2dResolution = resolveKenney2dAssets(k2dPacks, k2dPacks.requiredRoles);
+                // Cross-pack character override (flag-gated, default off): pick player/enemy by MEANING
+                // from the collection ("wizard"/"orc"/"slime") instead of the single pack's base sprite.
+                if (process.env.GAMETOK_2D_COLLECTION === 'true') {
+                    try {
+                        const bps = Array.isArray(templateContract?.foundation?.entityBlueprints) ? templateContract.foundation.entityBlueprints : [];
+                        for (const role of ['player', 'enemy']) {
+                            const bp = bps.find((b) => (b?.role || '').toLowerCase().includes(role));
+                            if (!bp) continue;
+                            const pick = selectCharacter(`${bp.name || ''} ${bp.description || ''}`, role);
+                            if (!pick) continue;
+                            const r = resolveCharacterAnimations(pick, loadPackManifest);
+                            k2dResolution[role] = { role, key: r.key, w: r.w, h: r.h, animations: r.animations };
+                            console.log(`🧬 [Phase 2 job=${jobId}] Collection: ${role} -> "${pick.name}" (${pick.archetype}) from "${pick.pack}"`);
+                        }
+                    } catch (e) { console.warn(`🧬 [Phase 2 job=${jobId}] collection override skipped: ${e?.message || e}`); }
+                }
                 const k2dMat = await materializeKenney2dSprites(projectRoot, k2dResolution);
                 if (k2dMat) {
                     kenney2dBlock = kenney2dSpritePromptBlock(k2dResolution);
