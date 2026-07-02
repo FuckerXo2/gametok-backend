@@ -10,8 +10,16 @@ const DEFAULT_DAILY_LIMIT = Number(process.env.NOTIFICATION_DAILY_LIMIT || 8);
 const DEFAULT_MIN_GAP_MINUTES = Number(process.env.NOTIFICATION_MIN_GAP_MINUTES || 10);
 
 const RULES = {
-  message: { dailyLimit: 30, minGapMinutes: 1, cooldownMinutes: 1 },
-  follow: { dailyLimit: 12, minGapMinutes: 4, cooldownMinutes: 60 },
+  // Direct messages are transactional, not marketing. They must never be
+  // suppressed by the min-gap / daily-limit governor — otherwise a recipient
+  // silently stops getting texts once any other push fired in the last minute
+  // or they cross the daily cap. priority:'high' skips the min-gap check and
+  // dailyLimit:0 disables the daily cap; a 1-minute dedupe still collapses
+  // duplicate fires (e.g. optimistic + server echo) for the same sender.
+  message: { dailyLimit: 0, minGapMinutes: 0, cooldownMinutes: 1, priority: 'high' },
+  // Follows are near-transactional too — people expect to hear about a new
+  // follower. Skip min-gap, keep a generous daily cap + per-follower dedupe.
+  follow: { dailyLimit: 40, minGapMinutes: 0, cooldownMinutes: 60, priority: 'high' },
   game_liked: { dailyLimit: 12, minGapMinutes: 6, cooldownMinutes: 20 },
   game_played: { dailyLimit: 10, minGapMinutes: 10, cooldownMinutes: 240 },
   game_ready: { dailyLimit: 20, minGapMinutes: 0, cooldownMinutes: 0, priority: 'high' },
