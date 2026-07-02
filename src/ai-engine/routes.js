@@ -44,6 +44,7 @@ import { selectKenney2dPacks, materializeKenney2dSprites, kenney2dSpritePromptBl
 import { resolveKenney2dAssets } from './asset-resolver.js';
 import { selectCharacter, resolveCharacterAnimations } from './character-collection.js';
 import { selectItems } from './props-collection.js';
+import { selectBackground } from './background-collection.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -5312,6 +5313,15 @@ async function runMakerAgentInspectionTurns({
                             const itemBp = bps.find((b) => (b?.role || '').toLowerCase().includes('item'));
                             const picks = selectItems(`${qualityIntent?.title || ''} ${itemBp?.description || ''} ${prompt || ''}`, 12);
                             if (picks.length) { k2dResolution.items.keys = picks; console.log(`🧬 [Phase 2 job=${jobId}] Collection: items -> ${picks.length} matched pickups`); }
+                        }
+                        // Background role: Kenney backdrops are SIDE-SCROLLER parallax scenes — only apply
+                        // to platformer/side-scroller games (a horizon backdrop behind a top-down view is wrong).
+                        if (k2dResolution.background && Array.isArray(k2dResolution.background.keys)) {
+                            const genreText = `${templateContract?.foundation?.lane || ''} ${qualityIntent?.tech || ''} ${prompt || ''}`;
+                            if (/platform|side.?scroll|runner|\bjump|endless/i.test(genreText)) {
+                                const bgs = selectBackground(`${qualityIntent?.title || ''} ${prompt || ''}`, 3);
+                                if (bgs.length) { k2dResolution.background.keys = bgs; console.log(`🧬 [Phase 2 job=${jobId}] Collection: background -> ${bgs.length} scene backdrops`); }
+                            }
                         }
                     } catch (e) { console.warn(`🧬 [Phase 2 job=${jobId}] collection override skipped: ${e?.message || e}`); }
                 }
