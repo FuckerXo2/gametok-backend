@@ -101,6 +101,7 @@ Rules:
 - backgroundZoning: for content-heavy games (cooking, puzzle, builder, card/tray games) the scene art belongs in a WORLD zone (e.g. top ~55%); behind the control/HUD zones the builder fills a solid or soft-gradient band from the uiKit palette so cards/buttons read with high contrast. Describe this split in layoutComposition.zones (world zone = scene image, control zone = solid uiKit band). Action/arcade games may use full-bleed scene — but interactive UI still sits on uiKit panels.
 - endState: every game-over / win screen is ONE centered uiKit panel (bold title + 1-2 stat lines + a big themed Play Again button) — never bare text on a dimmed background. Put this in layoutComposition.layoutRules.
 - payoff (CRITICAL — this is what separates a finished game from a toy): design ONE satisfying judged RESULT the player works toward — a scored / graded / %-rated / star-rated outcome, a verdict, or a reveal — NOT an open-ended loop with no end. The top viral mobile micro-games all build to a celebrated payoff: the action is judged, a RESULT card shows a number/grade, and it lands with juice + a success sound. Put a RESULT state in stateFlow and describe it in layoutComposition.layoutRules (centered uiKit result card showing the judged outcome + Play Again, celebrated with a pop/scale/confetti + success sound). Even relaxing/creative games MUST surface a result (a star rating, a "you made X", a happiness/coziness score) — give the player a payoff moment, never an endless loop with no verdict.
+- mechanicalFeel (CRITICAL — a game can be visually polished and still feel DEAD): specify how the core interaction should FEEL, not just what it does. Your other directives cover VISUAL polish (uiKit, HUD, payoff); this covers GAME feel — the thing that separates a toy from a game people replay. Controls must be responsive and weighted to the genre: arcade/action/racer games feel INSTANT, snappy, drift-friendly, forgiving on recovery — NEVER a slow floaty sim; a puzzle can be deliberate. Describe movement (acceleration/friction/turning), impact feedback (knockback, hit-stop/freeze-frame, screen shake, particle burst on hit/score/death), and the numeric params the builder must TUNE (gravity, friction, restitution, damping, speed caps, impulse) until it plays FUN not realistic. Set a one-line feel quality bar. Physics-driven games (racer, ball sports, pinball, ragdoll, launch/fling) MUST use the kernel physics engine (cannon-es) — hand-rolled motion feels wrong for them.
 - hook: the title/premise is the product — the on-screen framing/copy must be a HOOK that makes someone want to tap (e.g. "The Cursed Dentist", "World's Hardest Button", "Slice the pizza EVENLY"), not a flat literal description. Carry the hook into statusCopy and the result card wording.
 - onboarding: the boot hint / "how to play" text must NEVER overlap an interactive zone (ingredient bins, buttons, controls) and must auto-dismiss on the player's first input. Place it in a clear non-interactive area (e.g. center of the world zone) and hide it once play starts. Put this in layoutComposition.layoutRules.
 - hudScaffold: false (default). Set true ONLY to opt into legacy pre-built .hud-chip boxes; normally leave false and hudBlocks [].
@@ -172,6 +173,13 @@ Return this JSON shape:
     { "id": "player", "role": "player", "description": "who the player is" }
   ],
   "controls": ["tap", "drag", "button"],
+  "mechanicalFeel": {
+    "responsiveness": "how snappy/weighted the core control feels for THIS genre (arcade-instant | deliberate | floaty)",
+    "movement": "acceleration / friction / turn feel — e.g. 'strong acceleration, drift-friendly turning, stable recovery, no uncontrolled spin'",
+    "impact": "feedback on key moments — knockback, hit-stop/freeze frames, screen shake, particle burst on hit/score/death",
+    "tuning": "the numeric params the builder must TUNE until it plays FUN not realistic (gravity, friction, restitution, damping, speed caps, impulse)",
+    "qualityBar": "one line: what 'feels good' means for THIS game — a technically-complete but boring demo is NOT acceptable"
+  },
   "acceptanceChecks": ["testable check"],
   "antiPatterns": ["things to avoid"],
   "implementationNotes": ["concrete guidance for file agent"],
