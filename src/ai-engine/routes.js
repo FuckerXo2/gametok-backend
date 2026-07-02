@@ -5318,7 +5318,8 @@ async function runMakerAgentInspectionTurns({
                         // to platformer/side-scroller games (a horizon backdrop behind a top-down view is wrong).
                         if (k2dResolution.background && Array.isArray(k2dResolution.background.keys)) {
                             const genreText = `${templateContract?.foundation?.lane || ''} ${qualityIntent?.tech || ''} ${prompt || ''}`;
-                            if (/platform|side.?scroll|runner|\bjump|endless/i.test(genreText)) {
+                            const isTopDown = /top.?down|top_down|overhead|bird.?s?.?eye/i.test(genreText);
+                            if (!isTopDown && /platform(er)?|side.?scroll|endless.?runner|\brunner\b/i.test(genreText)) {
                                 const bgs = selectBackground(`${qualityIntent?.title || ''} ${prompt || ''}`, 3);
                                 if (bgs.length) { k2dResolution.background.keys = bgs; console.log(`🧬 [Phase 2 job=${jobId}] Collection: background -> ${bgs.length} scene backdrops`); }
                             }
