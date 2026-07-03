@@ -205,6 +205,55 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
 
         const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+        // Interaction acceptance: if the game uses the kernel input helpers (data-gt-* markers), DRIVE
+        // them and verify they work — catches dead/unwired joysticks and dead Play Again buttons the
+        // function-level probe misses. Conservative: only fails on DEFINITIVELY dead controls (helper
+        // present + zero response, with an observable signal); skips anything ambiguous so it never
+        // false-fails, and never throws.
+        async function checkControls() {
+            const out = [];
+            try {
+                const snapNum = (snap) => {
+                    let s = 0, has = false;
+                    for (const k in snap) {
+                        if (!/player|hero|^x$|^y$|^z$|\bpos|cam/i.test(k)) continue;
+                        const v = snap[k];
+                        if (typeof v === 'number') { s += v; has = true; }
+                        else if (Array.isArray(v)) { for (const n of v) if (typeof n === 'number') { s += n; has = true; } }
+                    }
+                    return has ? s : null;
+                };
+                const stick = document.querySelector('[data-gt-joystick]');
+                if (stick && typeof probe.snapshot === 'function' && typeof probe.step === 'function') {
+                    const base0 = snapNum(probe.snapshot());
+                    if (base0 !== null) { // only assert when there's a position-ish signal to observe
+                        const r = stick.getBoundingClientRect();
+                        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                        const pev = (type, x, y) => stick.dispatchEvent(new PointerEvent(type, { pointerId: 91, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+                        pev('pointerdown', cx, cy); pev('pointermove', cx, cy - r.height);
+                        for (let i = 0; i < 14; i++) { const s = probe.step(16); if (s && s.then) await s; }
+                        const up = snapNum(probe.snapshot());
+                        pev('pointerup', cx, cy - r.height);
+                        pev('pointerdown', cx, cy); pev('pointermove', cx, cy + r.height);
+                        for (let i = 0; i < 14; i++) { const s = probe.step(16); if (s && s.then) await s; }
+                        const down = snapNum(probe.snapshot());
+                        pev('pointerup', cx, cy + r.height);
+                        const moved = Math.abs((up ?? base0) - base0) > 1e-3 || Math.abs((down ?? up ?? base0) - (up ?? base0)) > 1e-3;
+                        if (!moved) out.push('Joystick is present but driving it does not move the player — dead/unwired joystick. Use createJoystick from input.ts and apply stick.x/stick.y to the player each frame.');
+                    }
+                }
+                const restart = document.querySelector('[data-gt-restart]');
+                if (restart && restart.offsetParent !== null && typeof probe.snapshot === 'function') {
+                    const before = JSON.stringify(probe.snapshot());
+                    restart.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 92, bubbles: true, cancelable: true }));
+                    if (typeof restart.click === 'function') restart.click();
+                    await wait(40);
+                    if (JSON.stringify(probe.snapshot()) === before) out.push('Play Again button is present but tapping it changes nothing — dead restart. Wire the button onTap to resetGame().');
+                }
+            } catch { /* best-effort; never crash acceptance */ }
+            return out;
+        }
+
         if (templateId === 'canvas-kernel') {
             const requiredMethods = Array.isArray(kernelProbeContract?.requiredMethods)
                 ? kernelProbeContract.requiredMethods
@@ -238,6 +287,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                         if (sig(afterStep) !== initialSig) loopObserved = true;
                     }
                 }
+                failures.push(...(await checkControls()));
                 return {
                     templateId,
                     success: failures.length === 0,
@@ -299,6 +349,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
                 if (!rendered) {
                     failures.push('Three.js renderer issued zero draw calls — the scene never rendered (check lights, camera, and renderer.render(scene, camera) in the loop).');
                 }
+                failures.push(...(await checkControls()));
                 return { templateId, success: failures.length === 0, failures, details: { initial, afterStep, rendered } };
             } catch (error) {
                 const message = error?.message || String(error);

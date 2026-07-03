@@ -22,6 +22,7 @@ export function createJoystick(opts: any = {}) {
   Object.assign(base.style, { position: 'fixed', bottom: '28px', [side]: '28px', width: size + 'px', height: size + 'px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.25)', touchAction: 'none', zIndex: '50', userSelect: 'none' });
   Object.assign(knob.style, { position: 'absolute', left: '50%', top: '50%', width: (size * 0.45) + 'px', height: (size * 0.45) + 'px', marginLeft: -(size * 0.225) + 'px', marginTop: -(size * 0.225) + 'px', borderRadius: '50%', background: color, opacity: '0.55', pointerEvents: 'none' });
   base.appendChild(knob); document.body.appendChild(base);
+  base.dataset.gtJoystick = '1'; // sandbox marker: lets acceptance drive + verify the stick
 
   let pid: any = null;
   const set = (px: number, py: number) => {
@@ -52,6 +53,8 @@ export function createButton(label: string, opts: any = {}) {
   if (wide) Object.assign(base, { left: '50%', transform: 'translateX(-50%)', width: '200px', height: '54px', borderRadius: '14px' });
   else Object.assign(base, { [side]: '32px', width: '68px', height: '68px', borderRadius: '50%' });
   Object.assign(el.style, base); document.body.appendChild(el);
+  el.dataset.gtButton = String(label || '');
+  if (/again|restart|retry|replay/i.test(String(label || ''))) el.dataset.gtRestart = '1'; // sandbox marker
   const down = (e: any) => { if (!held) edge = true; held = true; el.style.background = 'rgba(255,255,255,0.3)'; if (onTap) onTap(); e.preventDefault(); };
   const up = (e: any) => { held = false; el.style.background = 'rgba(255,255,255,0.12)'; e && e.preventDefault && e.preventDefault(); };
   el.addEventListener('pointerdown', down); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
