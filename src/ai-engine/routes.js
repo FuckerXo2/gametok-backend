@@ -5289,6 +5289,7 @@ async function runMakerAgentInspectionTurns({
     // src/dreamSprites.ts) so the builder draws REAL sprites via sprite()/animatedSprite(). Guarded —
     // yields '' (-> code-drawn primitive fallback, never FLUX) on no pack match or any fetch failure.
     let kenney2dBlock = '';
+    let kenney2dHasGround = false; // real ground tiles/backdrop were provided — the world MUST be tiled, not a flat void
     if (templateContract?.templateId === 'canvas-kernel') {
         try {
             const k2dPacks = selectKenney2dPacks(prompt, qualityIntent, templateContract?.foundation || null);
@@ -5326,9 +5327,10 @@ async function runMakerAgentInspectionTurns({
                         }
                     } catch (e) { console.warn(`🧬 [Phase 2 job=${jobId}] collection override skipped: ${e?.message || e}`); }
                 }
-                const k2dMat = await materializeKenney2dSprites(projectRoot, k2dResolution);
+                const k2dMat = await materializeKenney2dSprites(projectRoot, k2dResolution, { pixelArt: k2dPacks.main?.style === 'pixel' });
                 if (k2dMat) {
                     kenney2dBlock = kenney2dSpritePromptBlock(k2dResolution);
+                    kenney2dHasGround = k2dMat.roles.includes('tiles') || k2dMat.roles.includes('background');
                     console.log(`🎨 [Phase 2 job=${jobId}] Kenney 2D: ${k2dMat.count} sprites from "${k2dPacks.main.pack}" (roles: ${k2dMat.roles.join(', ')})`);
                 }
             }
@@ -5345,6 +5347,7 @@ async function runMakerAgentInspectionTurns({
         stubMainLen = (await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8')).length;
     } catch { /* stub unreadable; size-based hollow check disabled */ }
     let hollowForceRetries = 0;
+    let groundFillForceRetries = 0; // 2D: ground provided but tileGround() never called — force ONE fill turn
     let totalModelEdits = 0;
     let lastRunEvidence = null;
     // Snapshot of the most recent turn whose build+sandbox actually PASSED. A later turn (e.g. the
@@ -5745,6 +5748,19 @@ async function runMakerAgentInspectionTurns({
                         modelsUnused = !freshFiles.some((f) => /loadModel\s*\(/.test(f.content || ''));
                     } catch { /* unreadable — don't force */ }
                 }
+                // 2D analog of modelsUnused: real ground tiles/backdrop were provided but the builder
+                // never tiled the floor (tileGround / tile(ctx,'tiles',…)). Unlike 3D models (best-effort,
+                // a procedural box still looks fine), an untiled 2D world ships a flat-color VOID — the #1
+                // "looks unfinished next to competitors" failure. So this one is ENFORCED: force ONE turn.
+                let groundUnfilled = false;
+                if (kenney2dHasGround && groundFillForceRetries < 1 && turnNumber < maxTurns && !hollowReason) {
+                    try {
+                        const freshFiles = await readMakerProjectFiles(projectRoot);
+                        const code = freshFiles.map((f) => f.content || '').join('\n');
+                        groundUnfilled = !/\btileGround\s*\(/.test(code)
+                            && !/\btile\s*\(\s*[^,]+,\s*['"](?:tiles|background)['"]/.test(code);
+                    } catch { /* unreadable — don't force */ }
+                }
                 if (hollowReason && turnNumber < maxTurns && hollowForceRetries < 1) {
                     // It renders, but there is no game (or the game is dead code). Don't accept —
                     // force another turn with explicit feedback.
@@ -5764,6 +5780,17 @@ async function runMakerAgentInspectionTurns({
                     runEvidence.targetedRepairTasks = [hollowTask, ...(runEvidence.targetedRepairTasks || [])];
                     lastRunEvidence = runEvidence;
                     console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn`);
+                } else if (groundUnfilled && turnNumber < maxTurns && groundFillForceRetries < 1) {
+                    // Game works, but the world is a flat void — real ground art went unused. Force a fill turn.
+                    groundFillForceRetries += 1;
+                    const groundTask = {
+                        id: 'world_ground_unfilled',
+                        directRepairTask: `Your game loop works, but the WORLD IS EMPTY — you never tiled the floor, so it ships as a flat color/gradient void (the #1 thing that makes a game look unfinished next to competitors). Real ground art is provided. You MUST edit src/main.ts this turn: (1) import { tileGround, scatterProps } from './sprite.ts'; (2) as the FIRST draw call every frame, before any entities, call tileGround(ctx, canvas.width, canvas.height) to fill the entire floor with real ground tiles (pass originX/originY if your world scrolls); (3) if item/prop sprites exist, pick ~6-12 fixed scatter positions ONCE at init (away from the player spawn) and draw them each frame with scatterProps(ctx, propList) so the arena reads as a real place. Only fall back to a solid fill if tileGround returns false. Do NOT break the existing game loop — only add the world layer underneath it.`,
+                    };
+                    runEvidence.success = false;
+                    runEvidence.targetedRepairTasks = [groundTask, ...(runEvidence.targetedRepairTasks || [])];
+                    lastRunEvidence = runEvidence;
+                    console.warn(`🌍 [Phase 2 job=${jobId}] Turn ${turnNumber} ships an UNFILLED world (ground provided but tileGround/tile never called) — forcing a fill turn`);
                 } else {
                     if (modelsUnused) {
                         // Best-effort, NOT forced. Kenney models are upside-only: a hand-built

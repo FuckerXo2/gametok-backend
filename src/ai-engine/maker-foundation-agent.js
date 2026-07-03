@@ -58,6 +58,23 @@ export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
     const phase1Dimension = String(qualityIntent?.technicalRequirements?.dimension || '').toUpperCase();
     const phase1Perspective = String(qualityIntent?.technicalRequirements?.perspective || 'third_person').toLowerCase().replace(/\s+/g, '_');
     const mustBe3D = phase1Dimension === '3D';
+    // Kenney-only 2D: the foundation gets EMPTY assetSlots (line ~322) because real Kenney sprites are
+    // selected AFTER the foundation, in Phase 2. So the FLUX-era "design a painted background image"
+    // guidance is a dangling pointer — there is no background image, and top-down has no Kenney backdrop.
+    // Swap in tile-the-ground / scatter-props guidance so the foundation stops instructing the blind
+    // builder to draw an asset that will never exist.
+    const kenney2d = !mustBe3D && use2dKenneyOnly();
+    const asset2dBlock = kenney2d
+        ? `- ASSETS: this 2D game is built from REAL Kenney sprite art (player, enemies, items, ground tiles, props) auto-selected from a themed pack AFTER this foundation. You do NOT design assetSlots — leave "assetSlots": [] (the artist agent does not run). Do NOT invent art briefs or reference a painted background image.
+- THERE IS NO PAINTED BACKGROUND IMAGE. The world surface MUST be built by TILING the pack's ground tiles across the entire play area (the builder gets a \`tiles\` role + a \`tile()\` helper). A bare gradient / solid color / empty void is a HARD FAILURE — it is what makes a game look unfinished next to competitors.
+- The arena MUST be dressed: scatter static environment props (crates, barrels, debris, vehicles) from the \`items\`/props role across the play space so it reads as a real place, not empty space. Specify roughly how many props and where in firstFrame/layoutComposition.
+- firstFrame MUST be, in order: TILED GROUND filling the screen → scattered props → player → enemies/subjects → HUD. Never "draw a background image" (there is none) and never a flat color field.
+- Describe the world in TILE terms in layoutComposition/firstFrame (e.g. "tile ground across the arena, scatter 6-10 props"), NOT as a single portrait background image.`
+        : `- assetSlots are the ONLY list the artist agent will generate. Translate Phase 1 visualAssets (player, enemies, items, backgrounds, props) into concrete assetSlots with matching ids when possible.
+- Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
+- background assetSlot is REQUIRED for every 2D game: vivid portrait environment art (768x1344), scene-specific to the prompt, premium App Store mobile game quality — not abstract color fields. (3D games skip this — their sky/ground are code-colored.)
+- assetSlots for ingredients/items must share palette, line weight, and style with the background artDirection.
+- Do not rely on Phase 1 visualAssets being generated separately — if the game needs an image, it must appear in assetSlots.`;
     return {
         system: `${getMakerSystemManualBlock('foundation')}
 
@@ -83,11 +100,7 @@ Rules:
 - requiredFunctions must be real exported/game-level functions the file agent can implement in src/main.ts.
 - probeMethods must include snapshot, step, reset at minimum; add game-specific probe methods when needed.
 - firstFrame must guarantee visible background + gameplay subject + HUD/affordance on boot (never a blank canvas).
-- assetSlots are the ONLY list the artist agent will generate. Translate Phase 1 visualAssets (player, enemies, items, backgrounds, props) into concrete assetSlots with matching ids when possible.
-- Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
-- background assetSlot is REQUIRED for every 2D game: vivid portrait environment art (768x1344), scene-specific to the prompt, premium App Store mobile game quality — not abstract color fields. (3D games skip this — their sky/ground are code-colored.)
-- assetSlots for ingredients/items must share palette, line weight, and style with the background artDirection.
-- Do not rely on Phase 1 visualAssets being generated separately — if the game needs an image, it must appear in assetSlots.
+${asset2dBlock}
 - acceptanceChecks must be testable in a headless sandbox within 10 seconds.
 - uiAuthority: pick canvas, dom, or hybrid-zoned — the file agent must NOT duplicate the same HUD/order/end-state on canvas AND DOM.
 - screenStateKey + screenStates: define a screen flow (e.g. PLAYING → SHIFT_END → GAME_OVER). Only one screen state may render at a time.
@@ -167,7 +180,7 @@ Return this JSON shape:
   "hudScaffold": false,
   "hudBlocks": [],
   "hudAuthority": "agent",
-  "firstFrame": ["Draw background image", "Draw player", "Show score HUD"],
+  "firstFrame": [${kenney2d ? '"Tile ground across arena", "Scatter props", "Draw player", "Show score HUD"' : '"Draw background image", "Draw player", "Show score HUD"'}],
   "interactionLoops": ["short description of core input loop"],
   "entityBlueprints": [
     { "id": "player", "role": "player", "description": "who the player is" }
@@ -310,7 +323,9 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         hudBlocks: asArray(source.hudBlocks),
         firstFrame: asArray(source.firstFrame).length
             ? asArray(source.firstFrame)
-            : ['Draw background', 'Draw player or primary subject', 'Show HUD'],
+            : (!is3DFoundation && use2dKenneyOnly()
+                ? ['Tile ground across arena', 'Scatter props', 'Draw player or primary subject', 'Show HUD']
+                : ['Draw background', 'Draw player or primary subject', 'Show HUD']),
         interactionLoops: asArray(source.interactionLoops),
         entityBlueprints,
         controls: asArray(source.controls).length ? asArray(source.controls) : ['tap'],

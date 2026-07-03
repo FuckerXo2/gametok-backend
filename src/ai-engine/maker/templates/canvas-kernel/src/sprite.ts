@@ -27,6 +27,13 @@ function imageFor(key?: string): HTMLImageElement | null {
   return (im instanceof HTMLImageElement && im.complete && im.naturalWidth > 0) ? im : null;
 }
 
+// Set server-side from the chosen pack's style: pixel packs must render nearest-neighbour (smoothing
+// blurs them); flat-cartoon/vector packs must keep smoothing ON (nearest makes them jagged). Kernel
+// picks the right mode automatically so the builder never has to think about it.
+function pixelArt(): boolean {
+  return Boolean((window as unknown as { DREAM_PIXEL_ART?: boolean }).DREAM_PIXEL_ART);
+}
+
 /** Is a real sprite available for this logical role? (e.g. decide sprite vs code-drawn fallback). */
 export function hasSprite(role: string): boolean {
   return Boolean((roles() as Record<string, unknown>)[role]);
@@ -40,6 +47,7 @@ function drawImageCentered(ctx: CanvasRenderingContext2D, im: HTMLImageElement |
   if (o.scale) { w *= o.scale; h *= o.scale; }
   const offY = o.anchor === 'top' ? 0 : o.anchor === 'bottom' ? h : h / 2;
   ctx.save();
+  ctx.imageSmoothingEnabled = !pixelArt();
   ctx.translate(x, y);
   if (o.flipX) ctx.scale(-1, 1);
   ctx.drawImage(im, -w / 2, -offY, w, h);
@@ -82,4 +90,63 @@ export function tile(ctx: CanvasRenderingContext2D, role: string, i: number, x: 
 export function count(role: string): number {
   const list = (roles() as Record<string, string[]>)[role];
   return Array.isArray(list) ? list.length : 0;
+}
+
+/**
+ * Fill a rectangle by TILING the ground — the ONE-LINE way to give the game a real floor instead of a
+ * flat color void (the #1 thing that separates a finished-looking game from an unfinished one). Call
+ * this FIRST every frame, before entities: tileGround(ctx, canvas.width, canvas.height). Uses the
+ * `tiles` role (falls back to `background`), forces seamless nearest-neighbour, and returns false only
+ * if no ground art exists (then draw your own solid/gradient fallback). Pass originX/originY (e.g. a
+ * scrolling camera offset) to make the floor scroll. `vary:true` cycles through all ground tiles for a
+ * patterned floor; default tiles a single base tile for a clean, seam-free surface.
+ */
+export function tileGround(
+  ctx: CanvasRenderingContext2D, viewW: number, viewH: number,
+  o: { size?: number; originX?: number; originY?: number; tileIndex?: number; vary?: boolean } = {},
+): boolean {
+  const r = roles() as Record<string, string[]>;
+  const list = (r.tiles && r.tiles.length ? r.tiles : r.background) || [];
+  if (!list.length) return false;
+  const baseIdx = ((o.tileIndex ?? 0) % list.length + list.length) % list.length;
+  const first = imageFor(list[baseIdx]);
+  if (!first) return false;
+  const cell = o.size || Math.max(first.naturalWidth, first.naturalHeight) || 64;
+  const ox = ((o.originX || 0) % cell + cell) % cell;
+  const oy = ((o.originY || 0) % cell + cell) % cell;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false; // tiles must be seamless — nearest avoids edge bleed
+  let col = 0;
+  for (let x = -ox; x < viewW; x += cell, col++) {
+    let row = 0;
+    for (let y = -oy; y < viewH; y += cell, row++) {
+      const idx = o.vary ? (baseIdx + col + row) % list.length : baseIdx;
+      const im = imageFor(list[idx]);
+      if (im) ctx.drawImage(im, x, y, cell, cell);
+    }
+  }
+  ctx.restore();
+  return true;
+}
+
+/**
+ * Draw environment props from the `items` role at fixed world positions — quick arena dressing (crates,
+ * barrels, debris) so the play space reads as a real place, not empty ground. Scatter the positions
+ * ONCE at init and keep them fixed; call this each frame after tileGround, before entities. Each prop's
+ * `i` picks which item sprite (defaults to spreading across the pack); `size` sets its on-screen size.
+ * Returns how many were drawn (0 if no item sprites are available).
+ */
+export function scatterProps(
+  ctx: CanvasRenderingContext2D,
+  props: Array<{ x: number; y: number; i?: number; size?: number }>,
+): number {
+  const list = (roles() as Record<string, string[]>).items || [];
+  if (!list.length || !props.length) return 0;
+  let n = 0;
+  for (let k = 0; k < props.length; k++) {
+    const p = props[k];
+    const idx = ((p.i ?? k) % list.length + list.length) % list.length;
+    if (drawImageCentered(ctx, imageFor(list[idx]), p.x, p.y, { size: p.size, anchor: 'bottom' })) n++;
+  }
+  return n;
 }

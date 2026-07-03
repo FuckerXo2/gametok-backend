@@ -232,11 +232,12 @@ export function kenney2dSpritePromptBlock(resolution = {}) {
     if (resolution.enemy) actor('enemy', resolution.enemy);
     if (resolution.projectile) lines.push(`  - "projectile" (${resolution.projectile.w || '?'}x${resolution.projectile.h || '?'})`);
     if (resolution.vehicle) lines.push(`  - "vehicle" (${resolution.vehicle.w || '?'}x${resolution.vehicle.h || '?'})`);
-    if (resolution.tiles) lines.push(`  - "tiles" — ${resolution.tiles.keys.length} ground/wall tiles (use tile('tiles', i) to vary)`);
-    if (resolution.items) lines.push(`  - "items" — ${resolution.items.keys.length} pickups/props`);
+    if (resolution.tiles) lines.push(`  - "tiles" — ${resolution.tiles.keys.length} ground/wall tiles (fill the whole floor with tileGround(...) — see WORLD below)`);
+    if (resolution.items) lines.push(`  - "items" — ${resolution.items.keys.length} pickups/props (dress the arena with scatterProps(...) — see WORLD below)`);
     if (resolution.ui) lines.push(`  - "ui.button"${resolution.ui.panel ? ', "ui.panel"' : ''}${resolution.ui.joystick ? ', "ui.joystick"' : ''} (HUD + on-screen controls)`);
     if (resolution.background) lines.push(`  - "background" — ${resolution.background.keys.length} backdrop/parallax pieces`);
-    lines.push("  HOW: import { sprite, animatedSprite, tile, count } from './sprite.ts'. sprite(ctx, 'player', x, y) draws the base pose centered at (x,y); animatedSprite(ctx, 'player', 'walk', t, x, y) cycles its frames (t = elapsed seconds); tile(ctx, 'tiles', i, x, y) draws the i-th tile (count('tiles') for the total). Options: { size, scale, flipX, anchor:'bottom' } — use anchor:'bottom' so feet rest on the ground. Each returns false if unavailable, so you may draw a fallback. NEVER draw a colored rectangle for anything listed above — a real sprite always looks better. Code-draw ONLY what has no sprite (HUD numbers via sdf2d, simple particles).");
+    lines.push("  HOW: import { sprite, animatedSprite, tile, count, tileGround, scatterProps } from './sprite.ts'. sprite(ctx, 'player', x, y) draws the base pose centered at (x,y); animatedSprite(ctx, 'player', 'walk', t, x, y) cycles its frames (t = elapsed seconds); tile(ctx, 'tiles', i, x, y) draws one specific tile. Options: { size, scale, flipX, anchor:'bottom' } — use anchor:'bottom' so feet rest on the ground, and pass `size` to fit sprites to the world (native art is small — e.g. `size: 40` for a character). Each returns false if unavailable, so you may draw a fallback. NEVER draw a colored rectangle for anything listed above — a real sprite always looks better. Code-draw ONLY what has no sprite (HUD numbers via sdf2d, simple particles). Image smoothing is auto-set by the kernel per art style — do not touch it.");
+    lines.push("  WORLD (MANDATORY — this is what makes the game look FINISHED, not empty): every frame, BEFORE drawing entities, (1) call `tileGround(ctx, canvas.width, canvas.height)` to fill the entire floor with real ground tiles — a flat color / gradient / black void is a HARD FAILURE; (2) if items exist, scatter static props ONCE at init (pick ~6-12 fixed positions away from the player spawn) and draw them each frame with `scatterProps(ctx, propList)` so the arena reads as a real place. Only if tileGround returns false (no ground art) may you fall back to a solid themed fill.");
     return lines.join('\n');
 }
 
@@ -261,7 +262,7 @@ function keysInResolution(res = {}) {
  * returns null and the builder falls back to code-drawn primitives. Drops keys that fail to fetch.
  * @returns {Promise<null | { count:number, roles:string[] }>}
  */
-export async function materializeKenney2dSprites(projectRoot, resolution = {}, { ext = 'png' } = {}) {
+export async function materializeKenney2dSprites(projectRoot, resolution = {}, { ext = 'png', pixelArt = false } = {}) {
     try {
         const keys = keysInResolution(resolution);
         if (!keys.length || typeof fetch !== 'function') return null;
@@ -303,6 +304,7 @@ export async function materializeKenney2dSprites(projectRoot, resolution = {}, {
             '// + the logical role map. Imported first by bootstrap; sprite.ts resolves logical names here.',
             `;(window as unknown as { DREAM_ASSETS?: Record<string,string> }).DREAM_ASSETS = Object.assign((window as unknown as { DREAM_ASSETS?: Record<string,string> }).DREAM_ASSETS || {}, ${JSON.stringify(assets)});`,
             `;(window as unknown as { DREAM_SPRITE_ROLES?: unknown }).DREAM_SPRITE_ROLES = ${JSON.stringify(roleMap)};`,
+            `;(window as unknown as { DREAM_PIXEL_ART?: boolean }).DREAM_PIXEL_ART = ${pixelArt ? 'true' : 'false'};`,
             'export {};',
             '',
         ].join('\n');
