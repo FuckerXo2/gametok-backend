@@ -111,6 +111,8 @@ const SANDBOX_LAW = [
     'Canvas must fill the mobile viewport (0,0 to innerWidth/innerHeight). Default body margin or offset canvas = failure.',
     'Keep import "./styles.css" in src/main.ts OR rely on index.html critical layout CSS — never leave the page on browser default margins.',
     'Missing required probe methods = failure.',
+    'CONTROLS: for any on-screen joystick / d-pad / action button, use the kernel helpers `import { createJoystick, createButton } from "./input.ts"`. createJoystick returns UP = +y (it un-inverts screen-Y for you) — read stick.x (right+) / stick.y (up+/forward) directly. A joystick where dragging UP/forward moves the player DOWN/backward (raw un-flipped screen dy) is a HARD FAILURE — never hand-roll the pointer math. Do NOT draw a joystick on the canvas with manual hit-detection (it silently breaks); use the helper.',
+    'RESTART: the RESULT-screen "Play Again" MUST be a real tappable element (createButton with onTap, or a DOM <button>), wired to resetGame(). A canvas-drawn Play Again with hand-rolled hit-detection is the #1 dead-restart-button bug — it renders but never fires. Verify the button actually calls reset, not just that resetGame() exists.',
     'External navigation / window.open = fatal.',
     'Generated assets exist but never drawn = failure.',
     '3D requests on 2D kernel = blocked before build (when unsupported).',
