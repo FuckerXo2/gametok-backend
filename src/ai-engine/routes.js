@@ -8953,6 +8953,68 @@ router.get('/play/:targetId', async (req, res) => {
     } catch(e) { res.status(500).send("Database extraction failed"); }
 });
 
+// Admin gallery: browse + PLAY every game the system has made (posted or draft), across all users.
+// Data already lives in ai_games (html_payload); this just renders a grid + a play modal that embeds
+// the existing /play/:id route. Query: ?q=search &filter=all|posted|draft &page=N
+router.get('/admin/games', async (req, res) => {
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    try {
+        const page = Math.max(0, parseInt(req.query.page, 10) || 0);
+        const perPage = 48;
+        const q = (req.query.q || '').toString().trim().slice(0, 100);
+        const filter = ['draft', 'posted'].includes(req.query.filter) ? req.query.filter : 'all';
+        const whereParams = [];
+        const where = ["html_payload != ''"];
+        if (q) { whereParams.push('%' + q + '%'); where.push(`(prompt ILIKE $${whereParams.length} OR title ILIKE $${whereParams.length})`); }
+        if (filter === 'draft') where.push('is_draft = true');
+        if (filter === 'posted') where.push('is_draft = false');
+        const whereSql = where.join(' AND ');
+        const rows = (await pool.query(
+            `SELECT id, title, prompt, thumbnail, created_at, is_draft, category FROM ai_games WHERE ${whereSql} ORDER BY created_at DESC LIMIT $${whereParams.length + 1} OFFSET $${whereParams.length + 2}`,
+            [...whereParams, perPage, page * perPage],
+        )).rows;
+        const total = (await pool.query(`SELECT count(*)::int AS c FROM ai_games WHERE ${whereSql}`, whereParams)).rows[0].c;
+        const pages = Math.ceil(total / perPage);
+        const qp = (over) => { const o = { q, filter: filter === 'all' ? '' : filter, page, ...over }; const s = Object.entries(o).filter(([, v]) => v !== '' && v != null).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&'); return '?' + s; };
+        const cards = rows.map((g) => {
+            const id = esc(g.id);
+            const thumb = g.thumbnail ? `<img loading="lazy" src="${esc(g.thumbnail)}" alt="">` : `<div class="noimg">🎮</div>`;
+            const badge = g.is_draft ? `<span class="b draft">draft</span>` : `<span class="b posted">posted</span>`;
+            const when = g.created_at ? new Date(g.created_at).toISOString().slice(0, 16).replace('T', ' ') : '';
+            return `<div class="card" onclick="play('${id}')"><div class="thumb">${thumb}${badge}</div><div class="meta"><div class="title">${esc(g.title || 'Untitled')}</div><div class="prompt">${esc((g.prompt || '').slice(0, 120))}</div><div class="when">${esc(when)}${g.category ? ' · ' + esc(g.category) : ''}</div></div></div>`;
+        }).join('');
+        res.setHeader('Content-Type', 'text/html');
+        res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameTok — all games</title><style>
+:root{color-scheme:dark}body{margin:0;background:#0e0e14;color:#e6e6ee;font:14px/1.4 system-ui,-apple-system,sans-serif}
+header{position:sticky;top:0;background:#15151f;border-bottom:1px solid #262636;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;z-index:5}
+header h1{font-size:16px;margin:0;font-weight:700}.count{color:#8b8ba7;font-size:13px;font-weight:400}
+form{display:flex;gap:8px;flex:1;min-width:200px}input[type=search]{flex:1;background:#0e0e14;border:1px solid #2c2c40;color:#e6e6ee;border-radius:8px;padding:8px 10px}
+.tabs a{color:#9a9ab8;text-decoration:none;padding:6px 10px;border-radius:8px}.tabs a.on{background:#2a2a44;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:16px}
+.card{background:#181824;border:1px solid #262636;border-radius:12px;overflow:hidden;cursor:pointer;transition:.12s}
+.card:hover{border-color:#5b5bff;transform:translateY(-2px)}
+.thumb{position:relative;aspect-ratio:9/16;background:#0a0a12;display:flex;align-items:center;justify-content:center}
+.thumb img{width:100%;height:100%;object-fit:cover}.noimg{font-size:32px;opacity:.4}
+.b{position:absolute;top:6px;left:6px;font-size:10px;padding:2px 6px;border-radius:6px;font-weight:700}
+.b.draft{background:#7c3f00;color:#ffd8a8}.b.posted{background:#0d5f3a;color:#a8ffcf}
+.meta{padding:8px}.title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prompt{color:#9a9ab8;font-size:11px;margin-top:3px;height:28px;overflow:hidden}.when{color:#61617a;font-size:10px;margin-top:4px}
+.pager{display:flex;gap:8px;justify-content:center;align-items:center;padding:20px}.pager a{color:#e6e6ee;background:#20203099;border:1px solid #2c2c40;padding:8px 14px;border-radius:8px;text-decoration:none}
+.modal{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;z-index:10}.modal.on{display:flex}
+.frame{position:relative;width:min(420px,96vw);height:min(90vh,860px);background:#000;border-radius:16px;overflow:hidden}
+.frame iframe{width:100%;height:100%;border:0}.close{position:absolute;top:8px;right:8px;z-index:2;background:#000a;color:#fff;border:0;width:34px;height:34px;border-radius:50%;font-size:20px;cursor:pointer}
+</style></head><body>
+<header><h1>🎮 All games <span class="count">${total.toLocaleString()} total</span></h1>
+<form method="get"><input type="search" name="q" placeholder="search prompt / title…" value="${esc(q)}">${filter !== 'all' ? `<input type="hidden" name="filter" value="${esc(filter)}">` : ''}</form>
+<div class="tabs"><a href="${qp({ filter: '', page: 0 })}" class="${filter === 'all' ? 'on' : ''}">All</a><a href="${qp({ filter: 'posted', page: 0 })}" class="${filter === 'posted' ? 'on' : ''}">Posted</a><a href="${qp({ filter: 'draft', page: 0 })}" class="${filter === 'draft' ? 'on' : ''}">Drafts</a></div></header>
+<div class="grid">${cards || '<p style="padding:24px;color:#8b8ba7">No games found.</p>'}</div>
+<div class="pager">${page > 0 ? `<a href="${qp({ page: page - 1 })}">← Prev</a>` : ''}<span style="color:#61617a">Page ${page + 1} / ${Math.max(1, pages)}</span>${page + 1 < pages ? `<a href="${qp({ page: page + 1 })}">Next →</a>` : ''}</div>
+<div class="modal" id="m" onclick="if(event.target.id==='m')closeM()"><div class="frame"><button class="close" onclick="closeM()">×</button><iframe id="f"></iframe></div></div>
+<script>function play(id){document.getElementById('f').src='/api/ai/play/'+id;document.getElementById('m').classList.add('on')}function closeM(){document.getElementById('m').classList.remove('on');document.getElementById('f').src='about:blank'}document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()})</script>
+</body></html>`);
+    } catch (e) { res.status(500).send('gallery error: ' + esc(e && e.message || e)); }
+});
+
 router.post('/admin/rebuild-assets', async (req, res) => {
     res.json({ status: "bg-process-started", msg: "Scraping Omni-Engine assets into Postgres Vector DB..." });
     // ...
