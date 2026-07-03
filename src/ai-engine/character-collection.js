@@ -43,14 +43,21 @@ export function selectCharacter(query, role = 'either') {
     if (c.role === 'part') continue;
     if (role === 'player' && c.role === 'enemy') continue;
     if (role === 'enemy' && c.role === 'player') continue;
-    const ct = toks(`${c.name} ${c.archetype} ${c.theme}`);
+    const nameT = toks(c.name), archT = toks(c.archetype), themeT = toks(c.theme);
     let score = 0;
-    for (const w of qt) if (ct.has(w)) score += 4;               // direct name/archetype/theme word hit
+    for (const w of qt) {                        // a NAME hit ("bunny") must beat a THEME hit ("cute")
+      if (nameT.has(w)) score += 6;
+      else if (archT.has(w)) score += 4;
+      else if (themeT.has(w)) score += 2;
+    }
     for (const w of qt) { const s = SYN[w]; if (s) { if (s.a.includes(c.archetype)) score += 3; if (s.t.includes(c.theme)) score += 1; } }
-    if (c.role === 'either') score += 0.5;
+    if (score > 0 && c.role === 'either') score += 0.5; // tiebreak ONLY among real matches, not a floor
     if (score > bestScore) { bestScore = score; best = c; }
   }
-  return best;
+  // Require a REAL match (a direct name/archetype/theme hit, or an archetype+theme synonym). Below that
+  // there's no confident match — return null so the caller keeps the coherent pack-based pick instead of
+  // a random cross-pack character (the "cute bunny -> blue racing creature" bug).
+  return bestScore >= 4 ? best : null;
 }
 
 const stripFrame = (n) => n.toLowerCase().replace(/[_-]?(walk|jump|run|climb|hurt|fall|idle|stand|duck|front|back|hang|dead|hit|attack|ready|swim|talk|cheer|kick|slide|roll)\d*$/i, '').replace(/[_-]?\d+$/, '');
