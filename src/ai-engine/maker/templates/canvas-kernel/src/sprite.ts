@@ -293,3 +293,103 @@ export function playAnim(
   const idx = o.loop === false ? Math.min(i, frames.length - 1) : i % frames.length;
   return drawFrame(ctx, atlas, frames[idx], x, y, o);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUDIO — play sound effects and background music from provided DREAM_AUDIO
+// data-URIs. The materializer writes base64 audio into window.DREAM_AUDIO
+// keyed by logical name (e.g. 'bgm', 'sfx_0', 'sfx_1'). These helpers let
+// the builder play sounds without manually creating Audio elements.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _audioCache: Record<string, HTMLAudioElement> = {};
+let _bgmElement: HTMLAudioElement | null = null;
+
+function audioMap(): Record<string, string> {
+  return ((window as unknown as { DREAM_AUDIO?: Record<string, string> }).DREAM_AUDIO) || {};
+}
+
+/** Is audio available for this key? (e.g. hasAudio('bgm'), hasAudio('sfx_0')). */
+export function hasAudio(key: string): boolean {
+  return Boolean(audioMap()[key]);
+}
+
+/**
+ * Play a one-shot sound effect: playSFX('sfx_0')
+ * Optionally set volume (0–1). Each call creates a fresh playback so overlapping is fine.
+ */
+export function playSFX(key: string, volume = 0.5): boolean {
+  const src = audioMap()[key];
+  if (!src) return false;
+  try {
+    const a = new Audio(src);
+    a.volume = Math.max(0, Math.min(1, volume));
+    a.play().catch(() => {});
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Start looping background music: playBGM('bgm', 0.3)
+ * Calling again with the same key is a no-op (won't restart). Call stopBGM() first to switch tracks.
+ */
+export function playBGM(key = 'bgm', volume = 0.3): boolean {
+  if (_bgmElement && !_bgmElement.paused) return true; // already playing
+  const src = audioMap()[key];
+  if (!src) return false;
+  try {
+    _bgmElement = new Audio(src);
+    _bgmElement.loop = true;
+    _bgmElement.volume = Math.max(0, Math.min(1, volume));
+    _bgmElement.play().catch(() => {});
+    return true;
+  } catch { return false; }
+}
+
+/** Stop background music. */
+export function stopBGM(): void {
+  if (_bgmElement) { _bgmElement.pause(); _bgmElement = null; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BACKGROUND — draw a full-screen background image from DREAM_BACKGROUNDS.
+// The materializer writes base64 image data-URIs keyed by logical name.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _bgImageCache: Record<string, HTMLImageElement> = {};
+
+function bgMap(): Record<string, string> {
+  return ((window as unknown as { DREAM_BACKGROUNDS?: Record<string, string> }).DREAM_BACKGROUNDS) || {};
+}
+
+/** Is a background image available? */
+export function hasBackground(key = 'background'): boolean {
+  return Boolean(bgMap()[key]);
+}
+
+/**
+ * Draw a background image filling the entire canvas (or a target rect).
+ * drawBackground(ctx, 'background') — fills the whole canvas.
+ * drawBackground(ctx, 'background', { x, y, w, h }) — fills a specific rect.
+ */
+export function drawBackground(
+  ctx: CanvasRenderingContext2D, key = 'background',
+  rect?: { x: number; y: number; w: number; h: number },
+): boolean {
+  const src = bgMap()[key];
+  if (!src) return false;
+
+  let img = _bgImageCache[key];
+  if (!img) {
+    img = new Image();
+    img.src = src;
+    _bgImageCache[key] = img;
+  }
+  if (!img.complete || img.naturalWidth === 0) return false;
+
+  const x = rect?.x ?? 0;
+  const y = rect?.y ?? 0;
+  const w = rect?.w ?? ctx.canvas.width;
+  const h = rect?.h ?? ctx.canvas.height;
+  ctx.drawImage(img, x, y, w, h);
+  return true;
+}

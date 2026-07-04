@@ -1,2882 +1,5103 @@
 {
- "generatedAt": "2026-07-04T14:11:34.630Z",
- "source": "phaser3-examples public/assets",
- "note": "rel paths double as R2 key suffixes under phaser2d/. Heavy art is gitignored; upload separately.",
- "atlases": [
-  {
-   "key": "banners",
-   "role": "ui_item",
-   "type": "atlas",
-   "texture": "atlas/banners.png",
-   "data": "atlas/banners.json",
-   "frames": 37,
-   "animations": {
-    "Badges": 24,
-    "Banner": 10
-   },
-   "size": [
-    1562,
-    983
-   ]
-  },
-  {
-   "key": "big-forest",
-   "role": "prop",
-   "type": "atlas",
-   "texture": "atlas/big-forest.png",
-   "data": "atlas/big-forest.json",
-   "frames": 1,
-   "animations": {
-    "big-forest.aseprite": 1
-   },
-   "size": null
-  },
-  {
-   "key": "bitmap-fonts",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "atlas/bitmap-fonts.png",
-   "data": "atlas/bitmap-fonts.json",
-   "frames": 4,
-   "animations": {
-    "atari-sunset": 1,
-    "azo-fire": 1,
-    "hyperdrive": 1,
-    "topaz-fill": 1
-   },
-   "size": null
-  },
-  {
-   "key": "cards",
-   "role": "ui_item",
-   "type": "atlas",
-   "texture": "atlas/cards.png",
-   "data": "atlas/cards.json",
-   "frames": 54,
-   "animations": {
-    "clubs": 9,
-    "diamonds": 9,
-    "hearts": 9,
-    "spades": 9
-   },
-   "size": null
-  },
-  {
-   "key": "chiller",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "atlas/chiller.png",
-   "data": "atlas/chiller.json",
-   "frames": 1,
-   "animations": {
-    "chiller": 1
-   },
-   "size": null
-  },
-  {
-   "key": "clouds",
-   "role": "prop",
-   "type": "atlas",
-   "texture": "atlas/clouds.png",
-   "data": "atlas/clouds.json",
-   "frames": 6,
-   "animations": {
-    "shadow": 3,
-    "cloud": 3
-   },
-   "size": [
-    450,
-    651
-   ]
-  },
-  {
-   "key": "girl",
-   "role": "character",
-   "type": "atlas",
-   "texture": "atlas/girl.png",
-   "data": "atlas/girl.json",
-   "frames": 12,
-   "animations": {
-    "Head": 1,
-    "EyesClosed": 1,
-    "ArmLeft": 1,
-    "EyesOpen": 1,
-    "ArmRight": 1,
-    "HairTop": 1,
-    "Body": 1,
-    "MouthOpen": 1,
-    "HandRight": 1,
-    "BraidRight": 1,
-    "BraidLeft": 1,
-    "MouthClosed": 1
-   },
-   "size": [
-    480,
-    487
-   ]
-  },
-  {
-   "key": "glade",
-   "role": "prop",
-   "type": "atlas",
-   "texture": "atlas/glade.png",
-   "data": "atlas/glade.json",
-   "frames": 26,
-   "animations": {
-    "Spruce": 6,
-    "Stonee": 4,
-    "Flower": 4,
-    "Tree": 3,
-    "Wood": 3,
-    "Bush": 3,
-    "Grass": 2
-   },
-   "size": [
-    939,
-    595
-   ]
-  },
-  {
-   "key": "isoblocks",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/isoblocks.png",
-   "data": "atlas/isoblocks.json",
-   "frames": 231,
-   "animations": {
-    "block": 231
-   },
-   "size": null
-  },
-  {
-   "key": "jellies",
-   "role": "enemy",
-   "type": "atlas",
-   "texture": "atlas/jellies.png",
-   "data": "atlas/jellies.json",
-   "frames": 31,
-   "animations": {
-    "WithShadow": 6,
-    "Blank": 6,
-    "NoShadow": 6,
-    "WithEyeShades": 6,
-    "Face": 6
-   },
-   "size": [
-    1976,
-    1262
-   ]
-  },
-  {
-   "key": "match3",
-   "role": "ui_item",
-   "type": "atlas",
-   "texture": "atlas/match3.png",
-   "data": "atlas/match3.json",
-   "frames": 37,
-   "animations": {
-    "Match3_Icon": 32,
-    "Match3_BG": 5
-   },
-   "size": [
-    1015,
-    2027
-   ]
-  },
-  {
-   "key": "megaset-0",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/megaset-0.png",
-   "data": "atlas/megaset-0.json",
-   "frames": 91,
-   "animations": {
-    "spinObj": 5,
-    "shmup-baddie": 3,
-    "bsquadron": 2,
-    "flectrum": 2,
-    "phaser": 2,
-    "shmup-ship": 2
-   },
-   "size": null
-  },
-  {
-   "key": "megaset-1",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/megaset-1.png",
-   "data": "atlas/megaset-1.json",
-   "frames": 49,
-   "animations": {
-    "spinObj": 3,
-    "car": 2
-   },
-   "size": null
-  },
-  {
-   "key": "megaset-2",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/megaset-2.png",
-   "data": "atlas/megaset-2.json",
-   "frames": 24,
-   "animations": {
-    "tetrisblock": 2
-   },
-   "size": null
-  },
-  {
-   "key": "megaset-3",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/megaset-3.png",
-   "data": "atlas/megaset-3.json",
-   "frames": 22,
-   "animations": {
-    "contra": 2
-   },
-   "size": null
-  },
-  {
-   "key": "monsters",
-   "role": "enemy",
-   "type": "atlas",
-   "texture": "atlas/monsters.png",
-   "data": "atlas/monsters.json",
-   "frames": 28,
-   "animations": {
-    "icegolem": 1,
-    "magmagolem": 1,
-    "stonegolem": 1,
-    "troll": 1,
-    "ogre": 1,
-    "giantspider": 1,
-    "slime": 1,
-    "zombie": 1,
-    "frogman": 1,
-    "imp": 1,
-    "ghost": 1,
-    "hobgoblin": 1,
-    "hero-mage": 1,
-    "skeletalwarrior": 1,
-    "hero-warrior": 1,
-    "swashbuckler": 1,
-    "gnoll": 1,
-    "scout": 1,
-    "wererat": 1,
-    "assassin": 1,
-    "hero-ranger": 1,
-    "darkreaper": 1,
-    "goblin": 1,
-    "lizardman": 1,
-    "guard": 1,
-    "cultist": 1,
-    "drow": 1,
-    "ruffian": 1
-   },
-   "size": [
-    1375,
-    494
-   ]
-  },
-  {
-   "key": "nine-slice",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "atlas/nine-slice.png",
-   "data": "atlas/nine-slice.json",
-   "frames": 6,
-   "animations": {
-    "copy-that-floppy": 1,
-    "button-bg": 1,
-    "blue-box": 1,
-    "flectrum": 1,
-    "1bitblock": 1,
-    "healthbar": 1
-   },
-   "size": [
-    454,
-    220
-   ]
-  },
-  {
-   "key": "rotated-atlas",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/rotated-atlas.png",
-   "data": "atlas/rotated-atlas.json",
-   "frames": 162,
-   "animations": {
-    "spinObj": 8,
-    "bsquadron": 3,
-    "phaser": 3,
-    "shmup-baddie": 3,
-    "tetrisblock": 3,
-    "atari": 2,
-    "car": 2,
-    "flectrum": 2,
-    "longarrow": 2,
-    "mushroom": 2,
-    "shmup-ship": 2,
-    "thrust_ship": 2
-   },
-   "size": null
-  },
-  {
-   "key": "timeline",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "atlas/timeline.png",
-   "data": "atlas/timeline.json",
-   "frames": 10,
-   "animations": {
-    "ice": 3
-   },
-   "size": [
-    452,
-    494
-   ]
-  },
-  {
-   "key": "tp3test",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/tp3test.png",
-   "data": "atlas/tp3test.json",
-   "frames": 11,
-   "animations": {
-    "bunny": 1,
-    "atari130xe": 1,
-    "elephant": 1,
-    "exocet_spaceman": 1,
-    "copy-that-floppy": 1,
-    "fuji": 1,
-    "kirito_by_vali233": 1,
-    "asuna_by_vali233": 1,
-    "cokecan": 1,
-    "ilkke": 1,
-    "gem": 1
-   },
-   "size": [
-    501,
-    450
-   ]
-  },
-  {
-   "key": "tweenparts",
-   "role": "grabbag",
-   "type": "atlas",
-   "texture": "atlas/tweenparts.png",
-   "data": "atlas/tweenparts.json",
-   "frames": 62,
-   "animations": {
-    "_": 21,
-    "GoldCoinPNGSequence": 6,
-    "Head01": 3,
-    "Body02": 2,
-    "Wing02": 2,
-    "Arm01": 2,
-    "Leg01": 2
-   },
-   "size": [
-    2027,
-    1181
-   ]
-  },
-  {
-   "key": "alien",
-   "role": "character",
-   "type": "atlas",
-   "texture": "animations/alien.png",
-   "data": "animations/alien.json",
-   "frames": 35,
-   "animations": {
-    "01_Idle": 18,
-    "03_Walk": 13,
-    "02_Turn_to_walk": 4
-   },
-   "size": [
-    1506,
-    891
-   ]
-  },
-  {
-   "key": "bird",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/bird.png",
-   "data": "animations/bird.json",
-   "frames": 10,
-   "animations": {
-    "frame": 10
-   },
-   "size": [
-    86,
-    980
-   ]
-  },
-  {
-   "key": "california-raisins",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/california-raisins.png",
-   "data": "animations/california-raisins.json",
-   "frames": 12,
-   "animations": {
-    "frame": 12
-   },
-   "size": [
-    1932,
-    404
-   ]
-  },
-  {
-   "key": "cube",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/cube.png",
-   "data": "animations/cube.json",
-   "frames": 23,
-   "animations": {
-    "frame": 23
-   },
-   "size": null
-  },
-  {
-   "key": "diamond",
-   "role": "ui_item",
-   "type": "atlas",
-   "texture": "animations/diamond.png",
-   "data": "animations/diamond.json",
-   "frames": 16,
-   "animations": {
-    "diamond": 16
-   },
-   "size": [
-    783,
-    64
-   ]
-  },
-  {
-   "key": "elves-craft-pixel",
-   "role": "character",
-   "type": "atlas",
-   "texture": "animations/elves-craft-pixel.png",
-   "data": "animations/elves-craft-pixel.json",
-   "frames": 33,
-   "animations": {
-    "green_attack": 6,
-    "blue_attack": 5,
-    "green_idle": 5,
-    "green_die": 5,
-    "blue_die": 5,
-    "blue_idle": 5
-   },
-   "size": [
-    494,
-    1014
-   ]
-  },
-  {
-   "key": "knight",
-   "role": "character",
-   "type": "atlas",
-   "texture": "animations/knight.png",
-   "data": "animations/knight.json",
-   "frames": 92,
-   "animations": {
-    "attack_A": 14,
-    "attack_C": 14,
-    "attack_B": 13,
-    "die": 10,
-    "run": 8,
-    "guard": 6,
-    "idle": 6,
-    "get_hit": 5,
-    "jump_start": 4,
-    "guard_end": 4,
-    "guard_start": 4,
-    "fall_loop": 2,
-    "jump_loop": 2
-   },
-   "size": [
-    927,
-    254
-   ]
-  },
-  {
-   "key": "robo",
-   "role": "character",
-   "type": "atlas",
-   "texture": "animations/robo.png",
-   "data": "animations/robo.json",
-   "frames": 15,
-   "animations": {
-    "Running": 15
-   },
-   "size": [
-    1962,
-    219
-   ]
-  },
-  {
-   "key": "rocket",
-   "role": "prop",
-   "type": "atlas",
-   "texture": "animations/rocket.png",
-   "data": "animations/rocket.json",
-   "frames": 14,
-   "animations": {
-    "trail": 13
-   },
-   "size": [
-    969,
-    286
-   ]
-  },
-  {
-   "key": "sao0",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/sao0.png",
-   "data": "animations/sao0.json",
-   "frames": 27,
-   "animations": {
-    "_": 27
-   },
-   "size": null
-  },
-  {
-   "key": "sao1",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/sao1.png",
-   "data": "animations/sao1.json",
-   "frames": 24,
-   "animations": {
-    "_": 24
-   },
-   "size": null
-  },
-  {
-   "key": "sf2",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/sf2.png",
-   "data": "animations/sf2.json",
-   "frames": 23,
-   "animations": {
-    "frame": 23
-   },
-   "size": [
-    1013,
-    1969
-   ]
-  },
-  {
-   "key": "sf2ryu",
-   "role": "character",
-   "type": "atlas",
-   "texture": "animations/sf2ryu.png",
-   "data": "animations/sf2ryu.json",
-   "frames": 17,
-   "animations": {
-    "frame": 17
-   },
-   "size": [
-    1023,
-    256
-   ]
-  },
-  {
-   "key": "soldier",
-   "role": "character",
-   "type": "atlas",
-   "texture": "animations/soldier.png",
-   "data": "animations/soldier.json",
-   "frames": 54,
-   "animations": {
-    "Soldier_2_shot_up": 11,
-    "soldier_3_shoot_front": 11,
-    "Soldier_2_shot_front": 8,
-    "soldier_3_walk": 8,
-    "Soldier_2_walk": 8,
-    "soldier_3_shoot_up": 5,
-    "soldier_3_default": 2
-   },
-   "size": [
-    957,
-    465
-   ]
-  },
-  {
-   "key": "teapot",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/teapot.png",
-   "data": "animations/teapot.json",
-   "frames": 11,
-   "animations": {
-    "frame": 11
-   },
-   "size": [
-    1932,
-    404
-   ]
-  },
-  {
-   "key": "walker",
-   "role": "misc",
-   "type": "atlas",
-   "texture": "animations/walker.png",
-   "data": "animations/walker.json",
-   "frames": 16,
-   "animations": {
-    "frame": 16
-   },
-   "size": null
-  },
-  {
-   "key": "zombie",
-   "role": "enemy",
-   "type": "atlas",
-   "texture": "animations/zombie.png",
-   "data": "animations/zombie.json",
-   "frames": 15,
-   "animations": {
-    "walk": 9,
-    "Death": 6
-   },
-   "size": [
-    949,
-    978
-   ]
-  }
- ],
- "tilemaps": [
-  {
-   "key": "collision_test",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/collision_test.json",
-   "widthTiles": 50,
-   "heightTiles": 18,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
+  "generatedAt": "2026-07-04T22:45:53.579Z",
+  "source": "gametok-backend/public/assets",
+  "note": "rel paths double as R2 key suffixes under phaser2d/. Heavy art is gitignored; upload separately.",
+  "atlases": [
     {
-     "name": "ground_1x1",
-     "image": "tilemaps/tiles/ground_1x1.png"
+      "key": "alien",
+      "role": "character",
+      "type": "atlas",
+      "texture": "animations/alien.png",
+      "data": "animations/alien.json",
+      "frames": 35
     },
     {
-     "name": "walls_1x2",
-     "image": "tilemaps/tiles/walls_1x2.png"
+      "key": "paladin-array",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/aseprite/paladin-array.png",
+      "data": "animations/aseprite/paladin-array.json",
+      "frames": 270
     },
     {
-     "name": "coin",
-     "image": "sprites/coin.png"
+      "key": "paladin",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/aseprite/paladin.png",
+      "data": "animations/aseprite/paladin.json",
+      "frames": 270
     },
     {
-     "name": "tiles2",
-     "image": "tilemaps/tiles/tiles2.png"
-    }
-   ],
-   "objectLayers": [
-    "collision"
-   ]
-  },
-  {
-   "key": "copy-test",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/copy-test.json",
-   "widthTiles": 12,
-   "heightTiles": 12,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "ground",
-     "image": "tilemaps/tiles/kenny_ground_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "create from tiles",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/create from tiles.json",
-   "widthTiles": 13,
-   "heightTiles": 10,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "fantasy-tiles",
-     "image": "tilemaps/tiles/fantasy-tiles.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "cybernoid",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/cybernoid.json",
-   "widthTiles": 160,
-   "heightTiles": 44,
-   "tileSize": [
-    16,
-    16
-   ],
-   "tilesets": [
-    {
-     "name": "cybernoid",
-     "image": "tilemaps/tiles/cybernoid.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "dual_view",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/dual_view.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenny_ground_64x64",
-     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+      "key": "tank",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/aseprite/tank.png",
+      "data": "animations/aseprite/tank.json",
+      "frames": 9
     },
     {
-     "name": "kenny_items_64x64",
-     "image": "tilemaps/tiles/kenny_items_64x64.png"
+      "key": "bird",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/bird.png",
+      "data": "animations/bird.json",
+      "frames": 10
     },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "features_test",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/features_test.json",
-   "widthTiles": 50,
-   "heightTiles": 18,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "ground_1x1",
-     "image": "tilemaps/tiles/ground_1x1.png"
+      "key": "california-raisins",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/california-raisins.png",
+      "data": "animations/california-raisins.json",
+      "frames": 12
     },
     {
-     "name": "walls_1x2",
-     "image": "tilemaps/tiles/walls_1x2.png"
+      "key": "cube",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/cube.png",
+      "data": "animations/cube.json",
+      "frames": 23
     },
     {
-     "name": "coin",
-     "image": "sprites/coin.png"
+      "key": "cybercity0",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/cybercity/cybercity0.png",
+      "data": "animations/cybercity/cybercity0.json",
+      "frames": 48
     },
     {
-     "name": "tiles2",
-     "image": "tilemaps/tiles/tiles2.png"
-    }
-   ],
-   "objectLayers": [
-    "Object Layer 1"
-   ]
-  },
-  {
-   "key": "features_test_rotated",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/features_test_rotated.json",
-   "widthTiles": 50,
-   "heightTiles": 18,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "ground_1x1",
-     "image": "tilemaps/tiles/ground_1x1.png"
+      "key": "cybercity1",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/cybercity/cybercity1.png",
+      "data": "animations/cybercity/cybercity1.json",
+      "frames": 48
     },
     {
-     "name": "walls_1x2",
-     "image": "tilemaps/tiles/walls_1x2.png"
+      "key": "cybercity2",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/cybercity/cybercity2.png",
+      "data": "animations/cybercity/cybercity2.json",
+      "frames": 3
     },
     {
-     "name": "coin",
-     "image": "sprites/coin.png"
+      "key": "diamond",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/diamond.png",
+      "data": "animations/diamond.json",
+      "frames": 16
     },
     {
-     "name": "tiles2",
-     "image": "tilemaps/tiles/tiles2.png"
-    }
-   ],
-   "objectLayers": [
-    "Object Layer 1"
-   ]
-  },
-  {
-   "key": "flipped-tiles",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/flipped-tiles.json",
-   "widthTiles": 16,
-   "heightTiles": 16,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenney_redux_64x64",
-     "image": "tilemaps/tiles/kenney_redux_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "impact-tilemap",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/impact-tilemap.json",
-   "widthTiles": 25,
-   "heightTiles": 11,
-   "tileSize": [
-    70,
-    70
-   ],
-   "tilesets": [
-    {
-     "name": "kenney",
-     "image": "tilemaps/tiles/kenney.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "level-with-coin-objects",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/level-with-coin-objects.json",
-   "widthTiles": 50,
-   "heightTiles": 18,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "ground_1x1",
-     "image": "tilemaps/tiles/ground_1x1.png"
+      "key": "elves-craft-pixel",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/elves-craft-pixel.png",
+      "data": "animations/elves-craft-pixel.json",
+      "frames": 33
     },
     {
-     "name": "coin",
-     "image": "sprites/coin.png"
-    }
-   ],
-   "objectLayers": [
-    "Coin Object Layer"
-   ]
-  },
-  {
-   "key": "matter-destroy-tile-bodies",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/matter-destroy-tile-bodies.json",
-   "widthTiles": 26,
-   "heightTiles": 20,
-   "tileSize": [
-    16,
-    16
-   ],
-   "tilesets": [
-    {
-     "name": "platformer_tiles",
-     "image": "tilemaps/tiles/platformer_tiles.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "matter-ghost-vertices",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/matter-ghost-vertices.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenney_redux_64x64",
-     "image": "tilemaps/tiles/kenney_redux_64x64.png"
-    }
-   ],
-   "objectLayers": [
-    "Collision"
-   ]
-  },
-  {
-   "key": "matter-platformer-dynamic-example",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/matter-platformer-dynamic-example.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenney_redux_64x64",
-     "image": "tilemaps/tiles/kenney_redux_64x64.png"
-    }
-   ],
-   "objectLayers": [
-    "Sensors"
-   ]
-  },
-  {
-   "key": "matter-platformer",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/matter-platformer.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenney_redux_64x64",
-     "image": "tilemaps/tiles/kenney_redux_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "multi-layer-multi-tileset",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/multi-layer-multi-tileset.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenny_ground_64x64",
-     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+      "key": "knight",
+      "role": "character",
+      "type": "atlas",
+      "texture": "animations/knight.png",
+      "data": "animations/knight.json",
+      "frames": 92
     },
     {
-     "name": "kenny_items_64x64",
-     "image": "tilemaps/tiles/kenny_items_64x64.png"
+      "key": "lazer",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/lazer/lazer.png",
+      "data": "animations/lazer/lazer.json",
+      "frames": 23
     },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "multi-tileset-v12",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/multi-tileset-v12.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenny_ground_64x64",
-     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+      "key": "robo",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/robo.png",
+      "data": "animations/robo.json",
+      "frames": 15
     },
     {
-     "name": "kenny_items_64x64",
-     "image": "tilemaps/tiles/kenny_items_64x64.png"
+      "key": "rocket",
+      "role": "projectile",
+      "type": "atlas",
+      "texture": "animations/rocket.png",
+      "data": "animations/rocket.json",
+      "frames": 14
     },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "multi-tileset",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/multi-tileset.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenny_ground_64x64",
-     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+      "key": "sao0",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/sao0.png",
+      "data": "animations/sao0.json",
+      "frames": 27
     },
     {
-     "name": "kenny_items_64x64",
-     "image": "tilemaps/tiles/kenny_items_64x64.png"
+      "key": "sao1",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/sao1.png",
+      "data": "animations/sao1.json",
+      "frames": 24
     },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "multilayered-map",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/multilayered-map.json",
-   "widthTiles": 50,
-   "heightTiles": 37,
-   "tileSize": [
-    16,
-    16
-   ],
-   "tilesets": [
-    {
-     "name": "platformer_tiles",
-     "image": "tilemaps/tiles/platformer_tiles.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "multiple-layers",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/multiple-layers.json",
-   "widthTiles": 32,
-   "heightTiles": 32,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
-    {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "multiple-tile-sizes-collision",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/multiple-tile-sizes-collision.json",
-   "widthTiles": 60,
-   "heightTiles": 18,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "ground_1x1",
-     "image": "tilemaps/tiles/ground_1x1.png"
+      "key": "sf2",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/sf2.png",
+      "data": "animations/sf2.json",
+      "frames": 23
     },
     {
-     "name": "coin",
-     "image": "sprites/coin.png"
+      "key": "sf2ryu",
+      "role": "character",
+      "type": "atlas",
+      "texture": "animations/sf2ryu.png",
+      "data": "animations/sf2ryu.json",
+      "frames": 17
     },
     {
-     "name": "kenny_items_64x64",
-     "image": "tilemaps/tiles/kenny_items_64x64.png"
+      "key": "soldier",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/soldier.png",
+      "data": "animations/soldier.json",
+      "frames": 54
     },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+      "key": "teapot",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/teapot.png",
+      "data": "animations/teapot.json",
+      "frames": 11
     },
     {
-     "name": "walls_1x2",
-     "image": "tilemaps/tiles/walls_1x2.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "ninja-tilemap",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/ninja-tilemap.json",
-   "widthTiles": 25,
-   "heightTiles": 11,
-   "tileSize": [
-    70,
-    70
-   ],
-   "tilesets": [
-    {
-     "name": "kenney",
-     "image": "tilemaps/tiles/kenney.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "platform",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/platform.json",
-   "widthTiles": 50,
-   "heightTiles": 40,
-   "tileSize": [
-    16,
-    16
-   ],
-   "tilesets": [
-    {
-     "name": "platformer_tiles",
-     "image": "tilemaps/tiles/platformer_tiles.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "simple map",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/simple map.json",
-   "widthTiles": 20,
-   "heightTiles": 20,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "drawtiles",
-     "image": "tilemaps/tiles/drawtiles.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "simple-map",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/simple-map.json",
-   "widthTiles": 25,
-   "heightTiles": 19,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "tiles",
-     "image": "tilemaps/tiles/gridtiles.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "slopes",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/slopes.json",
-   "widthTiles": 60,
-   "heightTiles": 19,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "slopes32mud",
-     "image": "tilemaps/tiles/slopes32mud.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "tile-collision-test",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/tile-collision-test.json",
-   "widthTiles": 50,
-   "heightTiles": 18,
-   "tileSize": [
-    32,
-    32
-   ],
-   "tilesets": [
-    {
-     "name": "ground_1x1",
-     "image": "tilemaps/tiles/ground_1x1.png"
+      "key": "walker",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "animations/walker.png",
+      "data": "animations/walker.json",
+      "frames": 16
     },
     {
-     "name": "coin",
-     "image": "sprites/coin.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "tileset-collision-property-v12",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/tileset-collision-property-v12.json",
-   "widthTiles": 15,
-   "heightTiles": 15,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
+      "key": "zombie",
+      "role": "enemy",
+      "type": "atlas",
+      "texture": "animations/zombie.png",
+      "data": "animations/zombie.json",
+      "frames": 15
+    },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "tileset-collision-property",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/tileset-collision-property.json",
-   "widthTiles": 15,
-   "heightTiles": 15,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
+      "key": "banners",
+      "role": "ui_item",
+      "type": "atlas",
+      "texture": "atlas/banners.png",
+      "data": "atlas/banners.json",
+      "frames": 37
+    },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "tileset-collision-shapes-automated-test",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/tileset-collision-shapes-automated-test.json",
-   "widthTiles": 5,
-   "heightTiles": 6,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
+      "key": "big-forest",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/big-forest.png",
+      "data": "atlas/big-forest.json",
+      "frames": 1
+    },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "tileset-collision-shapes-v12",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/tileset-collision-shapes-v12.json",
-   "widthTiles": 15,
-   "heightTiles": 15,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
+      "key": "bitmap-fonts",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/bitmap-fonts.png",
+      "data": "atlas/bitmap-fonts.json",
+      "frames": 4
+    },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
-    }
-   ],
-   "objectLayers": []
-  },
-  {
-   "key": "tileset-collision-shapes",
-   "type": "tilemapTiledJSON",
-   "data": "tilemaps/maps/tileset-collision-shapes.json",
-   "widthTiles": 15,
-   "heightTiles": 15,
-   "tileSize": [
-    64,
-    64
-   ],
-   "tilesets": [
+      "key": "cards",
+      "role": "vehicle",
+      "type": "atlas",
+      "texture": "atlas/cards.png",
+      "data": "atlas/cards.json",
+      "frames": 54
+    },
     {
-     "name": "kenny_platformer_64x64",
-     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+      "key": "chiller",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/chiller.png",
+      "data": "atlas/chiller.json",
+      "frames": 1
+    },
+    {
+      "key": "clouds",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/clouds.png",
+      "data": "atlas/clouds.json",
+      "frames": 6
+    },
+    {
+      "key": "girl",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/girl.png",
+      "data": "atlas/girl.json",
+      "frames": 12
+    },
+    {
+      "key": "glade",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/glade.png",
+      "data": "atlas/glade.json",
+      "frames": 26
+    },
+    {
+      "key": "isoblocks",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/isoblocks.png",
+      "data": "atlas/isoblocks.json",
+      "frames": 231
+    },
+    {
+      "key": "jellies",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/jellies.png",
+      "data": "atlas/jellies.json",
+      "frames": 31
+    },
+    {
+      "key": "match3",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/match3.png",
+      "data": "atlas/match3.json",
+      "frames": 37
+    },
+    {
+      "key": "megaset-0",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/megaset-0.png",
+      "data": "atlas/megaset-0.json",
+      "frames": 91
+    },
+    {
+      "key": "megaset-1",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/megaset-1.png",
+      "data": "atlas/megaset-1.json",
+      "frames": 49
+    },
+    {
+      "key": "megaset-2",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/megaset-2.png",
+      "data": "atlas/megaset-2.json",
+      "frames": 24
+    },
+    {
+      "key": "megaset-3",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/megaset-3.png",
+      "data": "atlas/megaset-3.json",
+      "frames": 22
+    },
+    {
+      "key": "monsters",
+      "role": "enemy",
+      "type": "atlas",
+      "texture": "atlas/monsters.png",
+      "data": "atlas/monsters.json",
+      "frames": 28
+    },
+    {
+      "key": "nine-slice",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/nine-slice.png",
+      "data": "atlas/nine-slice.json",
+      "frames": 6
+    },
+    {
+      "key": "rotated-atlas",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/rotated-atlas.png",
+      "data": "atlas/rotated-atlas.json",
+      "frames": 162
+    },
+    {
+      "key": "timeline",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/timeline.png",
+      "data": "atlas/timeline.json",
+      "frames": 10
+    },
+    {
+      "key": "tp3test",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/tp3test.png",
+      "data": "atlas/tp3test.json",
+      "frames": 11
+    },
+    {
+      "key": "trimsheet",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/trimsheet/trimsheet.png",
+      "data": "atlas/trimsheet/trimsheet.json",
+      "frames": 6
+    },
+    {
+      "key": "tweenparts",
+      "role": "grabbag",
+      "type": "atlas",
+      "texture": "atlas/tweenparts.png",
+      "data": "atlas/tweenparts.json",
+      "frames": 62
     }
-   ],
-   "objectLayers": []
-  }
- ],
- "images": [
-  {
-   "key": "128x128-v2",
-   "type": "image",
-   "texture": "sprites/128x128-v2.png"
-  },
-  {
-   "key": "128x128",
-   "type": "image",
-   "texture": "sprites/128x128.png"
-  },
-  {
-   "key": "16x16",
-   "type": "image",
-   "texture": "sprites/16x16.png"
-  },
-  {
-   "key": "1bitblock0",
-   "type": "image",
-   "texture": "sprites/1bitblock0.png"
-  },
-  {
-   "key": "1bitblock1",
-   "type": "image",
-   "texture": "sprites/1bitblock1.png"
-  },
-  {
-   "key": "1bitblock2",
-   "type": "image",
-   "texture": "sprites/1bitblock2.png"
-  },
-  {
-   "key": "1bitblock3",
-   "type": "image",
-   "texture": "sprites/1bitblock3.png"
-  },
-  {
-   "key": "32x32-white",
-   "type": "image",
-   "texture": "sprites/32x32-white.png"
-  },
-  {
-   "key": "32x32",
-   "type": "image",
-   "texture": "sprites/32x32.png"
-  },
-  {
-   "key": "50x50-black",
-   "type": "image",
-   "texture": "sprites/50x50-black.png"
-  },
-  {
-   "key": "50x50-white",
-   "type": "image",
-   "texture": "sprites/50x50-white.png"
-  },
-  {
-   "key": "50x50",
-   "type": "image",
-   "texture": "sprites/50x50.png"
-  },
-  {
-   "key": "a",
-   "type": "image",
-   "texture": "sprites/a.png"
-  },
-  {
-   "key": "advanced_wars_land",
-   "type": "image",
-   "texture": "sprites/advanced_wars_land.png"
-  },
-  {
-   "key": "advanced_wars_tank",
-   "type": "image",
-   "texture": "sprites/advanced_wars_tank.png"
-  },
-  {
-   "key": "aero-blaster-ships",
-   "type": "image",
-   "texture": "sprites/aero-blaster-ships.png"
-  },
-  {
-   "key": "alienbusters",
-   "type": "image",
-   "texture": "sprites/alienbusters.png"
-  },
-  {
-   "key": "amiga-cursor",
-   "type": "image",
-   "texture": "sprites/amiga-cursor.png"
-  },
-  {
-   "key": "apple",
-   "type": "image",
-   "texture": "sprites/apple.png"
-  },
-  {
-   "key": "aqua_ball",
-   "type": "image",
-   "texture": "sprites/aqua_ball.png"
-  },
-  {
-   "key": "arrow",
-   "type": "image",
-   "texture": "sprites/arrow.png"
-  },
-  {
-   "key": "arrows",
-   "type": "image",
-   "texture": "sprites/arrows.png"
-  },
-  {
-   "key": "asteroids_ship",
-   "type": "image",
-   "texture": "sprites/asteroids_ship.png"
-  },
-  {
-   "key": "asteroids_ship_white",
-   "type": "image",
-   "texture": "sprites/asteroids_ship_white.png"
-  },
-  {
-   "key": "astorm-truck",
-   "type": "image",
-   "texture": "sprites/astorm-truck.png"
-  },
-  {
-   "key": "asuna_by_vali233",
-   "type": "image",
-   "texture": "sprites/asuna_by_vali233.png"
-  },
-  {
-   "key": "atari1200xl",
-   "type": "image",
-   "texture": "sprites/atari1200xl.png"
-  },
-  {
-   "key": "atari130xe-input",
-   "type": "image",
-   "texture": "sprites/atari130xe-input.png"
-  },
-  {
-   "key": "atari130xe",
-   "type": "image",
-   "texture": "sprites/atari130xe.png"
-  },
-  {
-   "key": "atari400",
-   "type": "image",
-   "texture": "sprites/atari400.png"
-  },
-  {
-   "key": "atari800",
-   "type": "image",
-   "texture": "sprites/atari800.png"
-  },
-  {
-   "key": "atari800xl",
-   "type": "image",
-   "texture": "sprites/atari800xl.png"
-  },
-  {
-   "key": "b",
-   "type": "image",
-   "texture": "sprites/b.png"
-  },
-  {
-   "key": "baddie_cat_1",
-   "type": "image",
-   "texture": "sprites/baddie_cat_1.png"
-  },
-  {
-   "key": "ball-pink",
-   "type": "image",
-   "texture": "sprites/ball-pink.png"
-  },
-  {
-   "key": "balls",
-   "type": "image",
-   "texture": "sprites/balls.png"
-  },
-  {
-   "key": "beball1",
-   "type": "image",
-   "texture": "sprites/beball1.png"
-  },
-  {
-   "key": "beer",
-   "type": "image",
-   "texture": "sprites/beer.png"
-  },
-  {
-   "key": "bikkuriman",
-   "type": "image",
-   "texture": "sprites/bikkuriman.png"
-  },
-  {
-   "key": "blade",
-   "type": "image",
-   "texture": "sprites/blade.png"
-  },
-  {
-   "key": "block-ice",
-   "type": "image",
-   "texture": "sprites/block-ice.png"
-  },
-  {
-   "key": "block-slime",
-   "type": "image",
-   "texture": "sprites/block-slime.png"
-  },
-  {
-   "key": "block",
-   "type": "image",
-   "texture": "sprites/block.png"
-  },
-  {
-   "key": "blockANM",
-   "type": "image",
-   "texture": "sprites/blockANM.png"
-  },
-  {
-   "key": "blockANP",
-   "type": "image",
-   "texture": "sprites/blockANP.png"
-  },
-  {
-   "key": "blockAP",
-   "type": "image",
-   "texture": "sprites/blockAP.png"
-  },
-  {
-   "key": "blockBNM",
-   "type": "image",
-   "texture": "sprites/blockBNM.png"
-  },
-  {
-   "key": "blockBNP",
-   "type": "image",
-   "texture": "sprites/blockBNP.png"
-  },
-  {
-   "key": "blockBP",
-   "type": "image",
-   "texture": "sprites/blockBP.png"
-  },
-  {
-   "key": "blockCNP",
-   "type": "image",
-   "texture": "sprites/blockCNP.png"
-  },
-  {
-   "key": "blockCP",
-   "type": "image",
-   "texture": "sprites/blockCP.png"
-  },
-  {
-   "key": "blockDNP",
-   "type": "image",
-   "texture": "sprites/blockDNP.png"
-  },
-  {
-   "key": "blockDP",
-   "type": "image",
-   "texture": "sprites/blockDP.png"
-  },
-  {
-   "key": "blocka",
-   "type": "image",
-   "texture": "sprites/blocka.png"
-  },
-  {
-   "key": "blockb",
-   "type": "image",
-   "texture": "sprites/blockb.png"
-  },
-  {
-   "key": "blockc",
-   "type": "image",
-   "texture": "sprites/blockc.png"
-  },
-  {
-   "key": "blockd",
-   "type": "image",
-   "texture": "sprites/blockd.png"
-  },
-  {
-   "key": "blocks",
-   "type": "image",
-   "texture": "sprites/blocks.png"
-  },
-  {
-   "key": "blue_ball",
-   "type": "image",
-   "texture": "sprites/blue_ball.png"
-  },
-  {
-   "key": "bluebar",
-   "type": "image",
-   "texture": "sprites/bluebar.png"
-  },
-  {
-   "key": "bluemetal_32x32x4",
-   "type": "image",
-   "texture": "sprites/bluemetal_32x32x4.png"
-  },
-  {
-   "key": "blur-bg",
-   "type": "image",
-   "texture": "sprites/blur-bg.png"
-  },
-  {
-   "key": "bobs-by-cleathley",
-   "type": "image",
-   "texture": "sprites/bobs-by-cleathley.png"
-  },
-  {
-   "key": "bombcolor",
-   "type": "image",
-   "texture": "sprites/bombcolor.png"
-  },
-  {
-   "key": "bombfan",
-   "type": "image",
-   "texture": "sprites/bombfan.png"
-  },
-  {
-   "key": "bombmine",
-   "type": "image",
-   "texture": "sprites/bombmine.png"
-  },
-  {
-   "key": "bombstar",
-   "type": "image",
-   "texture": "sprites/bombstar.png"
-  },
-  {
-   "key": "boom32wh12",
-   "type": "image",
-   "texture": "sprites/boom32wh12.png"
-  },
-  {
-   "key": "bottomleft",
-   "type": "image",
-   "texture": "sprites/bottomleft.png"
-  },
-  {
-   "key": "bottomright",
-   "type": "image",
-   "texture": "sprites/bottomright.png"
-  },
-  {
-   "key": "box-item-boxed",
-   "type": "image",
-   "texture": "sprites/box-item-boxed.png"
-  },
-  {
-   "key": "brain",
-   "type": "image",
-   "texture": "sprites/brain.png"
-  },
-  {
-   "key": "brush1",
-   "type": "image",
-   "texture": "sprites/brush1.png"
-  },
-  {
-   "key": "brush2",
-   "type": "image",
-   "texture": "sprites/brush2.png"
-  },
-  {
-   "key": "brush3",
-   "type": "image",
-   "texture": "sprites/brush3.png"
-  },
-  {
-   "key": "bsquadron-enemies",
-   "type": "image",
-   "texture": "sprites/bsquadron-enemies.png"
-  },
-  {
-   "key": "bsquadron1",
-   "type": "image",
-   "texture": "sprites/bsquadron1.png"
-  },
-  {
-   "key": "bsquadron2",
-   "type": "image",
-   "texture": "sprites/bsquadron2.png"
-  },
-  {
-   "key": "bsquadron3",
-   "type": "image",
-   "texture": "sprites/bsquadron3.png"
-  },
-  {
-   "key": "budbrain_chick",
-   "type": "image",
-   "texture": "sprites/budbrain_chick.png"
-  },
-  {
-   "key": "bullet",
-   "type": "image",
-   "texture": "sprites/bullet.png"
-  },
-  {
-   "key": "bunny",
-   "type": "image",
-   "texture": "sprites/bunny.png"
-  },
-  {
-   "key": "button-bg",
-   "type": "image",
-   "texture": "sprites/button-bg.png"
-  },
-  {
-   "key": "button-text",
-   "type": "image",
-   "texture": "sprites/button-text.png"
-  },
-  {
-   "key": "cake",
-   "type": "image",
-   "texture": "sprites/cake.png"
-  },
-  {
-   "key": "cakewalk",
-   "type": "image",
-   "texture": "sprites/cakewalk.png"
-  },
-  {
-   "key": "car-police",
-   "type": "image",
-   "texture": "sprites/car-police.png"
-  },
-  {
-   "key": "car-red",
-   "type": "image",
-   "texture": "sprites/car-red.png"
-  },
-  {
-   "key": "car-yellow",
-   "type": "image",
-   "texture": "sprites/car-yellow.png"
-  },
-  {
-   "key": "car",
-   "type": "image",
-   "texture": "sprites/car.png"
-  },
-  {
-   "key": "car90",
-   "type": "image",
-   "texture": "sprites/car90.png"
-  },
-  {
-   "key": "cards80x112",
-   "type": "image",
-   "texture": "sprites/cards80x112.png"
-  },
-  {
-   "key": "carrot",
-   "type": "image",
-   "texture": "sprites/carrot.png"
-  },
-  {
-   "key": "catstick",
-   "type": "image",
-   "texture": "sprites/catstick.png"
-  },
-  {
-   "key": "cave",
-   "type": "image",
-   "texture": "sprites/cave.png"
-  },
-  {
-   "key": "centroid",
-   "type": "image",
-   "texture": "sprites/centroid.png"
-  },
-  {
-   "key": "chain",
-   "type": "image",
-   "texture": "sprites/chain.png"
-  },
-  {
-   "key": "checkerboard",
-   "type": "image",
-   "texture": "sprites/checkerboard.png"
-  },
-  {
-   "key": "chick",
-   "type": "image",
-   "texture": "sprites/chick.png"
-  },
-  {
-   "key": "chunk",
-   "type": "image",
-   "texture": "sprites/chunk.png"
-  },
-  {
-   "key": "clown",
-   "type": "image",
-   "texture": "sprites/clown.png"
-  },
-  {
-   "key": "cocktail",
-   "type": "image",
-   "texture": "sprites/cocktail.png"
-  },
-  {
-   "key": "coffee",
-   "type": "image",
-   "texture": "sprites/coffee.png"
-  },
-  {
-   "key": "coin-16x16x4",
-   "type": "image",
-   "texture": "sprites/coin-16x16x4.png"
-  },
-  {
-   "key": "coin",
-   "type": "image",
-   "texture": "sprites/coin.png"
-  },
-  {
-   "key": "cokecan",
-   "type": "image",
-   "texture": "sprites/cokecan.png"
-  },
-  {
-   "key": "columns-blue",
-   "type": "image",
-   "texture": "sprites/columns-blue.png"
-  },
-  {
-   "key": "columns-orange",
-   "type": "image",
-   "texture": "sprites/columns-orange.png"
-  },
-  {
-   "key": "columns-red",
-   "type": "image",
-   "texture": "sprites/columns-red.png"
-  },
-  {
-   "key": "copy-that-floppy",
-   "type": "image",
-   "texture": "sprites/copy-that-floppy.png"
-  },
-  {
-   "key": "crate",
-   "type": "image",
-   "texture": "sprites/crate.png"
-  },
-  {
-   "key": "crate32",
-   "type": "image",
-   "texture": "sprites/crate32.png"
-  },
-  {
-   "key": "cursor-rotate",
-   "type": "image",
-   "texture": "sprites/cursor-rotate.png"
-  },
-  {
-   "key": "cyberpunk-street",
-   "type": "image",
-   "texture": "sprites/cyberpunk-street.png"
-  },
-  {
-   "key": "darkwing_crazy",
-   "type": "image",
-   "texture": "sprites/darkwing_crazy.png"
-  },
-  {
-   "key": "default",
-   "type": "image",
-   "texture": "sprites/default.png"
-  },
-  {
-   "key": "diamond",
-   "type": "image",
-   "texture": "sprites/diamond.png"
-  },
-  {
-   "key": "diamonds32x24x5",
-   "type": "image",
-   "texture": "sprites/diamonds32x24x5.png"
-  },
-  {
-   "key": "diamonds32x5",
-   "type": "image",
-   "texture": "sprites/diamonds32x5.png"
-  },
-  {
-   "key": "donut",
-   "type": "image",
-   "texture": "sprites/donut.png"
-  },
-  {
-   "key": "dragcircle",
-   "type": "image",
-   "texture": "sprites/dragcircle.png"
-  },
-  {
-   "key": "dragonegg",
-   "type": "image",
-   "texture": "sprites/dragonegg.png"
-  },
-  {
-   "key": "drawcursor",
-   "type": "image",
-   "texture": "sprites/drawcursor.png"
-  },
-  {
-   "key": "dude-cropped",
-   "type": "image",
-   "texture": "sprites/dude-cropped.png"
-  },
-  {
-   "key": "dude",
-   "type": "image",
-   "texture": "sprites/dude.png"
-  },
-  {
-   "key": "eggplant",
-   "type": "image",
-   "texture": "sprites/eggplant.png"
-  },
-  {
-   "key": "elephant",
-   "type": "image",
-   "texture": "sprites/elephant.png"
-  },
-  {
-   "key": "enemy-bullet",
-   "type": "image",
-   "texture": "sprites/enemy-bullet.png"
-  },
-  {
-   "key": "exocet-carrot",
-   "type": "image",
-   "texture": "sprites/exocet-carrot.png"
-  },
-  {
-   "key": "exocet_spaceman",
-   "type": "image",
-   "texture": "sprites/exocet_spaceman.png"
-  },
-  {
-   "key": "explosion",
-   "type": "image",
-   "texture": "sprites/explosion.png"
-  },
-  {
-   "key": "eyes",
-   "type": "image",
-   "texture": "sprites/eyes.png"
-  },
-  {
-   "key": "firstaid",
-   "type": "image",
-   "texture": "sprites/firstaid.png"
-  },
-  {
-   "key": "fish-136x80",
-   "type": "image",
-   "texture": "sprites/fish-136x80.png"
-  },
-  {
-   "key": "fish-136x80_n",
-   "type": "image",
-   "texture": "sprites/fish-136x80_n.png"
-  },
-  {
-   "key": "flectrum",
-   "type": "image",
-   "texture": "sprites/flectrum.png"
-  },
-  {
-   "key": "flectrum2",
-   "type": "image",
-   "texture": "sprites/flectrum2.png"
-  },
-  {
-   "key": "flower-exo",
-   "type": "image",
-   "texture": "sprites/flower-exo.png"
-  },
-  {
-   "key": "fmship",
-   "type": "image",
-   "texture": "sprites/fmship.png"
-  },
-  {
-   "key": "fork",
-   "type": "image",
-   "texture": "sprites/fork.png"
-  },
-  {
-   "key": "fruitnveg32wh37",
-   "type": "image",
-   "texture": "sprites/fruitnveg32wh37.png"
-  },
-  {
-   "key": "fruitnveg64wh37",
-   "type": "image",
-   "texture": "sprites/fruitnveg64wh37.png"
-  },
-  {
-   "key": "fuji",
-   "type": "image",
-   "texture": "sprites/fuji.png"
-  },
-  {
-   "key": "gameboy_seize_color_40x60",
-   "type": "image",
-   "texture": "sprites/gameboy_seize_color_40x60.png"
-  },
-  {
-   "key": "gem-blue-16x16x4",
-   "type": "image",
-   "texture": "sprites/gem-blue-16x16x4.png"
-  },
-  {
-   "key": "gem-green-16x16x4",
-   "type": "image",
-   "texture": "sprites/gem-green-16x16x4.png"
-  },
-  {
-   "key": "gem-red-16x16x4",
-   "type": "image",
-   "texture": "sprites/gem-red-16x16x4.png"
-  },
-  {
-   "key": "gem",
-   "type": "image",
-   "texture": "sprites/gem.png"
-  },
-  {
-   "key": "ghost",
-   "type": "image",
-   "texture": "sprites/ghost.png"
-  },
-  {
-   "key": "ghost1",
-   "type": "image",
-   "texture": "sprites/ghost1.png"
-  },
-  {
-   "key": "gingerbread",
-   "type": "image",
-   "texture": "sprites/gingerbread.png"
-  },
-  {
-   "key": "green_ball",
-   "type": "image",
-   "texture": "sprites/green_ball.png"
-  },
-  {
-   "key": "healthbar",
-   "type": "image",
-   "texture": "sprites/healthbar.png"
-  },
-  {
-   "key": "heart",
-   "type": "image",
-   "texture": "sprites/heart.png"
-  },
-  {
-   "key": "heartstar",
-   "type": "image",
-   "texture": "sprites/heartstar.png"
-  },
-  {
-   "key": "heartstar32",
-   "type": "image",
-   "texture": "sprites/heartstar32.png"
-  },
-  {
-   "key": "helix",
-   "type": "image",
-   "texture": "sprites/helix.png"
-  },
-  {
-   "key": "hello",
-   "type": "image",
-   "texture": "sprites/hello.png"
-  },
-  {
-   "key": "hotdog",
-   "type": "image",
-   "texture": "sprites/hotdog.png"
-  },
-  {
-   "key": "humstar",
-   "type": "image",
-   "texture": "sprites/humstar.png"
-  },
-  {
-   "key": "ilkke",
-   "type": "image",
-   "texture": "sprites/ilkke.png"
-  },
-  {
-   "key": "interference_ball_48x48",
-   "type": "image",
-   "texture": "sprites/interference_ball_48x48.png"
-  },
-  {
-   "key": "interference_tunnel",
-   "type": "image",
-   "texture": "sprites/interference_tunnel.png"
-  },
-  {
-   "key": "jets",
-   "type": "image",
-   "texture": "sprites/jets.png"
-  },
-  {
-   "key": "kirito_by_vali233",
-   "type": "image",
-   "texture": "sprites/kirito_by_vali233.png"
-  },
-  {
-   "key": "lemming",
-   "type": "image",
-   "texture": "sprites/lemming.png"
-  },
-  {
-   "key": "lollipop",
-   "type": "image",
-   "texture": "sprites/lollipop.png"
-  },
-  {
-   "key": "longarrow-down",
-   "type": "image",
-   "texture": "sprites/longarrow-down.png"
-  },
-  {
-   "key": "longarrow-white",
-   "type": "image",
-   "texture": "sprites/longarrow-white.png"
-  },
-  {
-   "key": "longarrow",
-   "type": "image",
-   "texture": "sprites/longarrow.png"
-  },
-  {
-   "key": "longarrow2",
-   "type": "image",
-   "texture": "sprites/longarrow2.png"
-  },
-  {
-   "key": "loop",
-   "type": "image",
-   "texture": "sprites/loop.png"
-  },
-  {
-   "key": "maggot",
-   "type": "image",
-   "texture": "sprites/maggot.png"
-  },
-  {
-   "key": "magnify-glass-inside",
-   "type": "image",
-   "texture": "sprites/magnify-glass-inside.png"
-  },
-  {
-   "key": "magnify-glass-outside",
-   "type": "image",
-   "texture": "sprites/magnify-glass-outside.png"
-  },
-  {
-   "key": "mana_card",
-   "type": "image",
-   "texture": "sprites/mana_card.png"
-  },
-  {
-   "key": "mask1",
-   "type": "image",
-   "texture": "sprites/mask1.png"
-  },
-  {
-   "key": "mask2",
-   "type": "image",
-   "texture": "sprites/mask2.png"
-  },
-  {
-   "key": "master",
-   "type": "image",
-   "texture": "sprites/master.png"
-  },
-  {
-   "key": "melon",
-   "type": "image",
-   "texture": "sprites/melon.png"
-  },
-  {
-   "key": "metalface78x92-n",
-   "type": "image",
-   "texture": "sprites/metalface78x92-n.png"
-  },
-  {
-   "key": "metalface78x92",
-   "type": "image",
-   "texture": "sprites/metalface78x92.png"
-  },
-  {
-   "key": "metalslug_monster39x40",
-   "type": "image",
-   "texture": "sprites/metalslug_monster39x40.png"
-  },
-  {
-   "key": "metalslug_mummy37x45",
-   "type": "image",
-   "texture": "sprites/metalslug_mummy37x45.png"
-  },
-  {
-   "key": "mine",
-   "type": "image",
-   "texture": "sprites/mine.png"
-  },
-  {
-   "key": "mouse_jim_sachs",
-   "type": "image",
-   "texture": "sprites/mouse_jim_sachs.png"
-  },
-  {
-   "key": "mushroom-32x32",
-   "type": "image",
-   "texture": "sprites/mushroom-32x32.png"
-  },
-  {
-   "key": "mushroom",
-   "type": "image",
-   "texture": "sprites/mushroom.png"
-  },
-  {
-   "key": "mushroom16x16",
-   "type": "image",
-   "texture": "sprites/mushroom16x16.png"
-  },
-  {
-   "key": "mushroom2",
-   "type": "image",
-   "texture": "sprites/mushroom2.png"
-  },
-  {
-   "key": "onion",
-   "type": "image",
-   "texture": "sprites/onion.png"
-  },
-  {
-   "key": "orange-cat1",
-   "type": "image",
-   "texture": "sprites/orange-cat1.png"
-  },
-  {
-   "key": "orange-cat2",
-   "type": "image",
-   "texture": "sprites/orange-cat2.png"
-  },
-  {
-   "key": "orb-blue",
-   "type": "image",
-   "texture": "sprites/orb-blue.png"
-  },
-  {
-   "key": "orb-green",
-   "type": "image",
-   "texture": "sprites/orb-green.png"
-  },
-  {
-   "key": "orb-red",
-   "type": "image",
-   "texture": "sprites/orb-red.png"
-  },
-  {
-   "key": "oz_pov_melting_disk",
-   "type": "image",
-   "texture": "sprites/oz_pov_melting_disk.png"
-  },
-  {
-   "key": "pacman_by_oz_28x28",
-   "type": "image",
-   "texture": "sprites/pacman_by_oz_28x28.png"
-  },
-  {
-   "key": "palm-tree-left",
-   "type": "image",
-   "texture": "sprites/palm-tree-left.png"
-  },
-  {
-   "key": "palm-tree-right",
-   "type": "image",
-   "texture": "sprites/palm-tree-right.png"
-  },
-  {
-   "key": "pangball",
-   "type": "image",
-   "texture": "sprites/pangball.png"
-  },
-  {
-   "key": "parsec",
-   "type": "image",
-   "texture": "sprites/parsec.png"
-  },
-  {
-   "key": "particle1",
-   "type": "image",
-   "texture": "sprites/particle1.png"
-  },
-  {
-   "key": "pepper",
-   "type": "image",
-   "texture": "sprites/pepper.png"
-  },
-  {
-   "key": "phaser-dude",
-   "type": "image",
-   "texture": "sprites/phaser-dude.png"
-  },
-  {
-   "key": "phaser-large",
-   "type": "image",
-   "texture": "sprites/phaser-large.png"
-  },
-  {
-   "key": "phaser-ship",
-   "type": "image",
-   "texture": "sprites/phaser-ship.png"
-  },
-  {
-   "key": "phaser-wire-300",
-   "type": "image",
-   "texture": "sprites/phaser-wire-300.png"
-  },
-  {
-   "key": "phaser",
-   "type": "image",
-   "texture": "sprites/phaser.png"
-  },
-  {
-   "key": "phaser1",
-   "type": "image",
-   "texture": "sprites/phaser1.png"
-  },
-  {
-   "key": "phaser2",
-   "type": "image",
-   "texture": "sprites/phaser2.png"
-  },
-  {
-   "key": "phaser3-logo-alpha",
-   "type": "image",
-   "texture": "sprites/phaser3-logo-alpha.png"
-  },
-  {
-   "key": "phaser3-logo-small",
-   "type": "image",
-   "texture": "sprites/phaser3-logo-small.png"
-  },
-  {
-   "key": "phaser3-logo-x2",
-   "type": "image",
-   "texture": "sprites/phaser3-logo-x2.png"
-  },
-  {
-   "key": "phaser3-logo",
-   "type": "image",
-   "texture": "sprites/phaser3-logo.png"
-  },
-  {
-   "key": "phaser_tiny",
-   "type": "image",
-   "texture": "sprites/phaser_tiny.png"
-  },
-  {
-   "key": "pineapple",
-   "type": "image",
-   "texture": "sprites/pineapple.png"
-  },
-  {
-   "key": "plane",
-   "type": "image",
-   "texture": "sprites/plane.png"
-  },
-  {
-   "key": "planet1",
-   "type": "image",
-   "texture": "sprites/planet1.png"
-  },
-  {
-   "key": "planet2",
-   "type": "image",
-   "texture": "sprites/planet2.png"
-  },
-  {
-   "key": "planet3",
-   "type": "image",
-   "texture": "sprites/planet3.png"
-  },
-  {
-   "key": "platform",
-   "type": "image",
-   "texture": "sprites/platform.png"
-  },
-  {
-   "key": "player",
-   "type": "image",
-   "texture": "sprites/player.png"
-  },
-  {
-   "key": "player_handgun",
-   "type": "image",
-   "texture": "sprites/player_handgun.png"
-  },
-  {
-   "key": "poo",
-   "type": "image",
-   "texture": "sprites/poo.png"
-  },
-  {
-   "key": "purple_ball",
-   "type": "image",
-   "texture": "sprites/purple_ball.png"
-  },
-  {
-   "key": "pyramid",
-   "type": "image",
-   "texture": "sprites/pyramid.png"
-  },
-  {
-   "key": "ra_dont_crack_under_pressure",
-   "type": "image",
-   "texture": "sprites/ra_dont_crack_under_pressure.png"
-  },
-  {
-   "key": "rain",
-   "type": "image",
-   "texture": "sprites/rain.png"
-  },
-  {
-   "key": "red_ball",
-   "type": "image",
-   "texture": "sprites/red_ball.png"
-  },
-  {
-   "key": "rgblaser",
-   "type": "image",
-   "texture": "sprites/rgblaser.png"
-  },
-  {
-   "key": "rick",
-   "type": "image",
-   "texture": "sprites/rick.png"
-  },
-  {
-   "key": "rocks",
-   "type": "image",
-   "texture": "sprites/rocks.png"
-  },
-  {
-   "key": "saw",
-   "type": "image",
-   "texture": "sprites/saw.png"
-  },
-  {
-   "key": "shinyball",
-   "type": "image",
-   "texture": "sprites/shinyball.png"
-  },
-  {
-   "key": "ship",
-   "type": "image",
-   "texture": "sprites/ship.png"
-  },
-  {
-   "key": "shmup-baddie-bullet",
-   "type": "image",
-   "texture": "sprites/shmup-baddie-bullet.png"
-  },
-  {
-   "key": "shmup-baddie",
-   "type": "image",
-   "texture": "sprites/shmup-baddie.png"
-  },
-  {
-   "key": "shmup-baddie2",
-   "type": "image",
-   "texture": "sprites/shmup-baddie2.png"
-  },
-  {
-   "key": "shmup-baddie3",
-   "type": "image",
-   "texture": "sprites/shmup-baddie3.png"
-  },
-  {
-   "key": "shmup-boom",
-   "type": "image",
-   "texture": "sprites/shmup-boom.png"
-  },
-  {
-   "key": "shmup-bullet",
-   "type": "image",
-   "texture": "sprites/shmup-bullet.png"
-  },
-  {
-   "key": "shmup-ship",
-   "type": "image",
-   "texture": "sprites/shmup-ship.png"
-  },
-  {
-   "key": "shmup-ship2",
-   "type": "image",
-   "texture": "sprites/shmup-ship2.png"
-  },
-  {
-   "key": "skull",
-   "type": "image",
-   "texture": "sprites/skull.png"
-  },
-  {
-   "key": "skullcandle",
-   "type": "image",
-   "texture": "sprites/skullcandle.png"
-  },
-  {
-   "key": "slime",
-   "type": "image",
-   "texture": "sprites/slime.png"
-  },
-  {
-   "key": "slimeeyes",
-   "type": "image",
-   "texture": "sprites/slimeeyes.png"
-  },
-  {
-   "key": "snake",
-   "type": "image",
-   "texture": "sprites/snake.png"
-  },
-  {
-   "key": "snowflake-pixel",
-   "type": "image",
-   "texture": "sprites/snowflake-pixel.png"
-  },
-  {
-   "key": "snowflakes",
-   "type": "image",
-   "texture": "sprites/snowflakes.png"
-  },
-  {
-   "key": "snowflakes_large",
-   "type": "image",
-   "texture": "sprites/snowflakes_large.png"
-  },
-  {
-   "key": "sonic",
-   "type": "image",
-   "texture": "sprites/sonic.png"
-  },
-  {
-   "key": "sonic_havok_sanity",
-   "type": "image",
-   "texture": "sprites/sonic_havok_sanity.png"
-  },
-  {
-   "key": "soundtracker",
-   "type": "image",
-   "texture": "sprites/soundtracker.png"
-  },
-  {
-   "key": "space-baddie-purple",
-   "type": "image",
-   "texture": "sprites/space-baddie-purple.png"
-  },
-  {
-   "key": "space-baddie",
-   "type": "image",
-   "texture": "sprites/space-baddie.png"
-  },
-  {
-   "key": "spaceman",
-   "type": "image",
-   "texture": "sprites/spaceman.png"
-  },
-  {
-   "key": "speakers",
-   "type": "image",
-   "texture": "sprites/speakers.png"
-  },
-  {
-   "key": "spikedball",
-   "type": "image",
-   "texture": "sprites/spikedball.png"
-  },
-  {
-   "key": "spinObj_01",
-   "type": "image",
-   "texture": "sprites/spinObj_01.png"
-  },
-  {
-   "key": "spinObj_02",
-   "type": "image",
-   "texture": "sprites/spinObj_02.png"
-  },
-  {
-   "key": "spinObj_03",
-   "type": "image",
-   "texture": "sprites/spinObj_03.png"
-  },
-  {
-   "key": "spinObj_04",
-   "type": "image",
-   "texture": "sprites/spinObj_04.png"
-  },
-  {
-   "key": "spinObj_05",
-   "type": "image",
-   "texture": "sprites/spinObj_05.png"
-  },
-  {
-   "key": "spinObj_06",
-   "type": "image",
-   "texture": "sprites/spinObj_06.png"
-  },
-  {
-   "key": "spinObj_07",
-   "type": "image",
-   "texture": "sprites/spinObj_07.png"
-  },
-  {
-   "key": "spinObj_08",
-   "type": "image",
-   "texture": "sprites/spinObj_08.png"
-  },
-  {
-   "key": "splat",
-   "type": "image",
-   "texture": "sprites/splat.png"
-  },
-  {
-   "key": "star",
-   "type": "image",
-   "texture": "sprites/star.png"
-  },
-  {
-   "key": "steelbox",
-   "type": "image",
-   "texture": "sprites/steelbox.png"
-  },
-  {
-   "key": "stormlord-dragon96x64",
-   "type": "image",
-   "texture": "sprites/stormlord-dragon96x64.png"
-  },
-  {
-   "key": "strawberry-cake",
-   "type": "image",
-   "texture": "sprites/strawberry-cake.png"
-  },
-  {
-   "key": "strip1",
-   "type": "image",
-   "texture": "sprites/strip1.png"
-  },
-  {
-   "key": "strip2",
-   "type": "image",
-   "texture": "sprites/strip2.png"
-  },
-  {
-   "key": "stripes400x32-v2",
-   "type": "image",
-   "texture": "sprites/stripes400x32-v2.png"
-  },
-  {
-   "key": "stripes800x32-bg",
-   "type": "image",
-   "texture": "sprites/stripes800x32-bg.png"
-  },
-  {
-   "key": "stripes800x32-layer",
-   "type": "image",
-   "texture": "sprites/stripes800x32-layer.png"
-  },
-  {
-   "key": "stripes800x32-v2",
-   "type": "image",
-   "texture": "sprites/stripes800x32-v2.png"
-  },
-  {
-   "key": "stripes800x32",
-   "type": "image",
-   "texture": "sprites/stripes800x32.png"
-  },
-  {
-   "key": "tetrisblock1",
-   "type": "image",
-   "texture": "sprites/tetrisblock1.png"
-  },
-  {
-   "key": "tetrisblock2",
-   "type": "image",
-   "texture": "sprites/tetrisblock2.png"
-  },
-  {
-   "key": "tetrisblock3",
-   "type": "image",
-   "texture": "sprites/tetrisblock3.png"
-  },
-  {
-   "key": "thrust_ship",
-   "type": "image",
-   "texture": "sprites/thrust_ship.png"
-  },
-  {
-   "key": "thrust_ship2",
-   "type": "image",
-   "texture": "sprites/thrust_ship2.png"
-  },
-  {
-   "key": "tinycar",
-   "type": "image",
-   "texture": "sprites/tinycar.png"
-  },
-  {
-   "key": "tomato",
-   "type": "image",
-   "texture": "sprites/tomato.png"
-  },
-  {
-   "key": "topleft",
-   "type": "image",
-   "texture": "sprites/topleft.png"
-  },
-  {
-   "key": "topright",
-   "type": "image",
-   "texture": "sprites/topright.png"
-  },
-  {
-   "key": "treasure_trap",
-   "type": "image",
-   "texture": "sprites/treasure_trap.png"
-  },
-  {
-   "key": "tree-european",
-   "type": "image",
-   "texture": "sprites/tree-european.png"
-  },
-  {
-   "key": "tree",
-   "type": "image",
-   "texture": "sprites/tree.png"
-  },
-  {
-   "key": "triangle",
-   "type": "image",
-   "texture": "sprites/triangle.png"
-  },
-  {
-   "key": "triangle2",
-   "type": "image",
-   "texture": "sprites/triangle2.png"
-  },
-  {
-   "key": "ufo",
-   "type": "image",
-   "texture": "sprites/ufo.png"
-  },
-  {
-   "key": "ukko-fujilogy-texture-64x64",
-   "type": "image",
-   "texture": "sprites/ukko-fujilogy-texture-64x64.png"
-  },
-  {
-   "key": "vu",
-   "type": "image",
-   "texture": "sprites/vu.png"
-  },
-  {
-   "key": "wabbit",
-   "type": "image",
-   "texture": "sprites/wabbit.png"
-  },
-  {
-   "key": "wand",
-   "type": "image",
-   "texture": "sprites/wand.png"
-  },
-  {
-   "key": "wasp",
-   "type": "image",
-   "texture": "sprites/wasp.png"
-  },
-  {
-   "key": "watermelon",
-   "type": "image",
-   "texture": "sprites/watermelon.png"
-  },
-  {
-   "key": "wizball",
-   "type": "image",
-   "texture": "sprites/wizball.png"
-  },
-  {
-   "key": "wrap",
-   "type": "image",
-   "texture": "sprites/wrap.png"
-  },
-  {
-   "key": "ww2plane",
-   "type": "image",
-   "texture": "sprites/ww2plane.png"
-  },
-  {
-   "key": "ww2plane90",
-   "type": "image",
-   "texture": "sprites/ww2plane90.png"
-  },
-  {
-   "key": "x2kship",
-   "type": "image",
-   "texture": "sprites/x2kship.png"
-  },
-  {
-   "key": "xenon2_bomb",
-   "type": "image",
-   "texture": "sprites/xenon2_bomb.png"
-  },
-  {
-   "key": "xenon2_ship",
-   "type": "image",
-   "texture": "sprites/xenon2_ship.png"
-  },
-  {
-   "key": "yellow_ball",
-   "type": "image",
-   "texture": "sprites/yellow_ball.png"
-  },
-  {
-   "key": "yune",
-   "type": "image",
-   "texture": "sprites/yune.png"
-  },
-  {
-   "key": "zelda-hearts",
-   "type": "image",
-   "texture": "sprites/zelda-hearts.png"
-  },
-  {
-   "key": "zelda-life",
-   "type": "image",
-   "texture": "sprites/zelda-life.png"
-  }
- ]
+  ],
+  "tilemaps": [
+    {
+      "key": "sample",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/MedievalRTS/sample.json",
+      "tilesets": [
+        {
+          "name": "medieval_tilesheet",
+          "image": "tilemaps/MedievalRTS/medieval_tilesheet.png",
+          "margin": 32,
+          "spacing": 32,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "10x10-test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/hex/10x10-test.json",
+      "tilesets": [
+        {
+          "name": "hex-tiles",
+          "image": "tilemaps/iso/tilesets/hex-tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 68
+        }
+      ]
+    },
+    {
+      "key": "hex-test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/hex-test.json",
+      "tilesets": [
+        {
+          "name": "tileset",
+          "image": "tilemaps/iso/tilesets/tileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 68
+        }
+      ]
+    },
+    {
+      "key": "hexagonal-mini-6x",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/hexagonal-mini-6x.json",
+      "tilesets": [
+        {
+          "name": "hexmini-6x",
+          "image": null,
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 106,
+          "tileheight": 106
+        }
+      ]
+    },
+    {
+      "key": "hexagonal",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/hexagonal.json",
+      "tilesets": [
+        {
+          "name": "tileset",
+          "image": "tilemaps/iso/tilesets/tileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 34
+        }
+      ]
+    },
+    {
+      "key": "iso6790",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/iso6790.json",
+      "tilesets": [
+        {
+          "name": "tile_grass",
+          "image": "tilemaps/iso/iso-64x64-outside.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "isorpg",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/isorpg.json",
+      "tilesets": [
+        {
+          "name": "iso-64x64-outside",
+          "image": "tilemaps/iso/iso-64x64-outside.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "iso-64x64-building",
+          "image": "tilemaps/iso/iso-64x64-building.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "isotest",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/isotest.json",
+      "tilesets": [
+        {
+          "name": "iso-64x64-outside",
+          "image": "tilemaps/iso/iso-64x64-outside.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "iso-64x64-building",
+          "image": "tilemaps/iso/iso-64x64-building.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "sandbox",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/tilemaps/sandbox.json",
+      "tilesets": [
+        {
+          "name": "isometric-sandbox-sheet",
+          "image": "tilemaps/iso/tilesets/isometric-sandbox-sheet.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "testHexa",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/tilemaps/testHexa.json",
+      "tilesets": []
+    },
+    {
+      "key": "testfinal",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/tilemaps/testfinal.json",
+      "tilesets": [
+        {
+          "name": "newtileset",
+          "image": "tilemaps/iso/tilesets/newtileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "testhexa2",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/tilemaps/testhexa2.json",
+      "tilesets": [
+        {
+          "name": "tileset",
+          "image": "tilemaps/iso/tilesets/tileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 34
+        },
+        {
+          "name": "tileset",
+          "image": "tilemaps/iso/tilesets/tileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 34
+        }
+      ]
+    },
+    {
+      "key": "testhexa3",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/tilemaps/testhexa3.json",
+      "tilesets": []
+    },
+    {
+      "key": "testhexa4",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/tilemaps/testhexa4.json",
+      "tilesets": [
+        {
+          "name": "tileset",
+          "image": "tilemaps/iso/tilesets/tileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 34
+        }
+      ]
+    },
+    {
+      "key": "teststaggered",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/iso/tilemaps/teststaggered.json",
+      "tilesets": [
+        {
+          "name": "newtileset",
+          "image": "tilemaps/iso/tilesets/newtileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "cave",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/cave.json",
+      "tilesets": [
+        {
+          "name": "dirt",
+          "image": "tilemaps/tiles/dirt.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 30,
+          "tileheight": 30
+        }
+      ]
+    },
+    {
+      "key": "collision_test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/collision_test.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "walls_1x2",
+          "image": "tilemaps/tiles/walls_1x2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 64
+        },
+        {
+          "name": "coin",
+          "image": "animations/spine/webgl/coin.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "tiles2",
+          "image": "tilemaps/tiles/tiles2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 70,
+          "tileheight": 70
+        }
+      ]
+    },
+    {
+      "key": "commando",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/commando.json",
+      "tilesets": [
+        {
+          "name": "CommandoMap1-1BG_bank.png",
+          "image": null,
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "copy-test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/copy-test.json",
+      "tilesets": [
+        {
+          "name": "ground",
+          "image": "tilemaps/tiles/kenny_ground_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "create from tiles",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/create from tiles.json",
+      "tilesets": [
+        {
+          "name": "fantasy-tiles",
+          "image": "tilemaps/tiles/fantasy-tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "cybernoid",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/cybernoid.json",
+      "tilesets": [
+        {
+          "name": "cybernoid",
+          "image": "tests/c64/cybernoid.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 16,
+          "tileheight": 16
+        }
+      ]
+    },
+    {
+      "key": "dangerous-kiss",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/dangerous-kiss.json",
+      "tilesets": [
+        {
+          "name": "DangerousKiss_bank.png",
+          "image": null,
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 8,
+          "tileheight": 8
+        }
+      ]
+    },
+    {
+      "key": "depthsort",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/depthsort.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "walls_1x2",
+          "image": "tilemaps/tiles/walls_1x2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "desert",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/desert.json",
+      "tilesets": [
+        {
+          "name": "Desert",
+          "image": "tilemaps/tiles/tmw_desert_spacing.png",
+          "margin": 1,
+          "spacing": 1,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "dual_view",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/dual_view.json",
+      "tilesets": [
+        {
+          "name": "kenny_ground_64x64",
+          "image": "tilemaps/tiles/kenny_ground_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_items_64x64",
+          "image": "tilemaps/tiles/kenny_items_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "features-test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/features-test.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "walls_1x2",
+          "image": "tilemaps/tiles/walls_1x2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 64
+        },
+        {
+          "name": "coin",
+          "image": "animations/spine/webgl/coin.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "tiles2",
+          "image": "tilemaps/tiles/tiles2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 70,
+          "tileheight": 70
+        },
+        {
+          "name": "dangerous-kiss",
+          "image": "tilemaps/tiles/dangerous-kiss.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 8,
+          "tileheight": 8
+        }
+      ]
+    },
+    {
+      "key": "features_test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/features_test.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "walls_1x2",
+          "image": "tilemaps/tiles/walls_1x2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 64
+        },
+        {
+          "name": "coin",
+          "image": "animations/spine/webgl/coin.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "tiles2",
+          "image": "tilemaps/tiles/tiles2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 70,
+          "tileheight": 70
+        }
+      ]
+    },
+    {
+      "key": "features_test_rotated",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/features_test_rotated.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "walls_1x2",
+          "image": "tilemaps/tiles/walls_1x2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 64
+        },
+        {
+          "name": "coin",
+          "image": "animations/spine/webgl/coin.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "tiles2",
+          "image": "tilemaps/tiles/tiles2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 70,
+          "tileheight": 70
+        }
+      ]
+    },
+    {
+      "key": "flipped-tiles",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/flipped-tiles.json",
+      "tilesets": [
+        {
+          "name": "kenney_redux_64x64",
+          "image": "tilemaps/tiles/kenney_redux_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "image-collection",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/image-collection.json",
+      "tilesets": []
+    },
+    {
+      "key": "impact-tilemap",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/impact-tilemap.json",
+      "tilesets": [
+        {
+          "name": "kenney",
+          "image": "tilemaps/tiles/kenney.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 70,
+          "tileheight": 70
+        }
+      ]
+    },
+    {
+      "key": "level-with-coin-objects",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/level-with-coin-objects.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "coin",
+          "image": "animations/spine/webgl/coin.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "matter-destroy-tile-bodies",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/matter-destroy-tile-bodies.json",
+      "tilesets": [
+        {
+          "name": "platformer_tiles",
+          "image": "tilemaps/tiles/platformer_tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 16,
+          "tileheight": 16
+        }
+      ]
+    },
+    {
+      "key": "matter-ghost-vertices",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/matter-ghost-vertices.json",
+      "tilesets": [
+        {
+          "name": "kenney_redux_64x64",
+          "image": "tilemaps/tiles/kenney_redux_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "matter-platformer-dynamic-example",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/matter-platformer-dynamic-example.json",
+      "tilesets": [
+        {
+          "name": "kenney_redux_64x64",
+          "image": "tilemaps/tiles/kenney_redux_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "matter-platformer",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/matter-platformer.json",
+      "tilesets": [
+        {
+          "name": "kenney_redux_64x64",
+          "image": "tilemaps/tiles/kenney_redux_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "multi-layer-multi-tileset",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/multi-layer-multi-tileset.json",
+      "tilesets": [
+        {
+          "name": "kenny_ground_64x64",
+          "image": "tilemaps/tiles/kenny_ground_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_items_64x64",
+          "image": "tilemaps/tiles/kenny_items_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "multi-tileset-v12",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/multi-tileset-v12.json",
+      "tilesets": [
+        {
+          "name": "kenny_ground_64x64",
+          "image": "tilemaps/tiles/kenny_ground_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_items_64x64",
+          "image": "tilemaps/tiles/kenny_items_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "multi-tileset",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/multi-tileset.json",
+      "tilesets": [
+        {
+          "name": "kenny_ground_64x64",
+          "image": "tilemaps/tiles/kenny_ground_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_items_64x64",
+          "image": "tilemaps/tiles/kenny_items_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "multilayered-map",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/multilayered-map.json",
+      "tilesets": [
+        {
+          "name": "platformer_tiles",
+          "image": "tilemaps/tiles/platformer_tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 16,
+          "tileheight": 16
+        }
+      ]
+    },
+    {
+      "key": "multiple-layers",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/multiple-layers.json",
+      "tilesets": [
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "multiple-tile-sizes-collision",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/multiple-tile-sizes-collision.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "coin",
+          "image": "animations/spine/webgl/coin.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "kenny_items_64x64",
+          "image": "tilemaps/tiles/kenny_items_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        },
+        {
+          "name": "walls_1x2",
+          "image": "tilemaps/tiles/walls_1x2.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "ninja-tilemap",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/ninja-tilemap.json",
+      "tilesets": [
+        {
+          "name": "kenney",
+          "image": "tilemaps/tiles/kenney.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 70,
+          "tileheight": 70
+        }
+      ]
+    },
+    {
+      "key": "phaser_tiles",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/phaser_tiles.json",
+      "tilesets": [
+        {
+          "name": "Desert",
+          "image": "tilemaps/tiles/tmw_desert_spacing.png",
+          "margin": 1,
+          "spacing": 1,
+          "tilewidth": 100,
+          "tileheight": 100
+        }
+      ]
+    },
+    {
+      "key": "platform",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/platform.json",
+      "tilesets": [
+        {
+          "name": "platformer_tiles",
+          "image": "tilemaps/tiles/platformer_tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 16,
+          "tileheight": 16
+        }
+      ]
+    },
+    {
+      "key": "simple map",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/simple map.json",
+      "tilesets": [
+        {
+          "name": "drawtiles",
+          "image": "tilemaps/tiles/drawtiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "simple-map",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/simple-map.json",
+      "tilesets": [
+        {
+          "name": "tiles",
+          "image": "tilemaps/tiles/gridtiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "slopes",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/slopes.json",
+      "tilesets": [
+        {
+          "name": "slopes32mud",
+          "image": "tilemaps/tiles/slopes32mud.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "super-mario-3",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/super-mario-3.json",
+      "tilesets": [
+        {
+          "name": "SuperMarioBrosMap1-3_bank.png",
+          "image": null,
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 8,
+          "tileheight": 8
+        }
+      ]
+    },
+    {
+      "key": "super-mario",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/super-mario.json",
+      "tilesets": [
+        {
+          "name": "SuperMarioBros-World1-1",
+          "image": null,
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 16,
+          "tileheight": 16
+        }
+      ]
+    },
+    {
+      "key": "tile properties v14",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tile properties v14.json",
+      "tilesets": [
+        {
+          "name": "tiles",
+          "image": "games/minesweeper/tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "tile-collision-test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tile-collision-test.json",
+      "tilesets": [
+        {
+          "name": "ground_1x1",
+          "image": "tilemaps/tiles/ground_1x1.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "coin",
+          "image": "animations/spine/webgl/coin.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "tile_properties-v12",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tile_properties-v12.json",
+      "tilesets": [
+        {
+          "name": "tiles",
+          "image": "games/minesweeper/tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "tile_properties",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tile_properties.json",
+      "tilesets": [
+        {
+          "name": "tiles",
+          "image": "games/minesweeper/tiles.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 32,
+          "tileheight": 32
+        }
+      ]
+    },
+    {
+      "key": "tileorder",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tileorder.json",
+      "tilesets": [
+        {
+          "name": "tileset",
+          "image": "tilemaps/iso/tilesets/tileset.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 48,
+          "tileheight": 48
+        }
+      ]
+    },
+    {
+      "key": "tileset-collision-property-v12",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tileset-collision-property-v12.json",
+      "tilesets": [
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "tileset-collision-property",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tileset-collision-property.json",
+      "tilesets": [
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "tileset-collision-shapes-automated-test",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tileset-collision-shapes-automated-test.json",
+      "tilesets": [
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "tileset-collision-shapes-v12",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tileset-collision-shapes-v12.json",
+      "tilesets": [
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "tileset-collision-shapes",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/maps/tileset-collision-shapes.json",
+      "tilesets": [
+        {
+          "name": "kenny_platformer_64x64",
+          "image": "tilemaps/tiles/kenny_platformer_64x64.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 64,
+          "tileheight": 64
+        }
+      ]
+    },
+    {
+      "key": "desert2",
+      "type": "tilemap_tiled_json",
+      "data": "tilemaps/tmx/unsorted/desert2.json",
+      "tilesets": [
+        {
+          "name": "Desert",
+          "image": "tilemaps/tiles/tmw_desert_spacing.png",
+          "margin": 1,
+          "spacing": 1,
+          "tilewidth": 32,
+          "tileheight": 32
+        },
+        {
+          "name": "catastrophi_tiles_16",
+          "image": "tilemaps/tiles/catastrophi_tiles_16.png",
+          "margin": 0,
+          "spacing": 0,
+          "tilewidth": 16,
+          "tileheight": 16
+        }
+      ]
+    }
+  ],
+  "audio": [
+    {
+      "key": "Andrea_Milana_-_Harlequin_-_The_Clockworks_-_Electribe_MX_REMIX",
+      "kind": "music",
+      "files": [
+        "audio/Andrea_Milana_-_Harlequin_-_The_Clockworks_-_Electribe_MX_REMIX.m4a",
+        "audio/Andrea_Milana_-_Harlequin_-_The_Clockworks_-_Electribe_MX_REMIX.mp3",
+        "audio/Andrea_Milana_-_Harlequin_-_The_Clockworks_-_Electribe_MX_REMIX.ogg"
+      ]
+    },
+    {
+      "key": "CatAstroPhi_shmup_normal",
+      "kind": "sfx",
+      "files": [
+        "audio/CatAstroPhi_shmup_normal.mp3",
+        "audio/CatAstroPhi_shmup_normal.ogg",
+        "audio/CatAstroPhi_shmup_normal.wav"
+      ]
+    },
+    {
+      "key": "DOG",
+      "kind": "sfx",
+      "files": [
+        "audio/DOG.mp3",
+        "audio/DOG.ogg"
+      ]
+    },
+    {
+      "key": "Dafunk - Hardcore Power (We Believe In Goa - Remix)",
+      "kind": "music",
+      "files": [
+        "audio/Dafunk - Hardcore Power (We Believe In Goa - Remix).m4a",
+        "audio/Dafunk - Hardcore Power (We Believe In Goa - Remix).mp3",
+        "audio/Dafunk - Hardcore Power (We Believe In Goa - Remix).ogg"
+      ]
+    },
+    {
+      "key": "Overture",
+      "kind": "sfx",
+      "files": [
+        "audio/Ludwig van Beethoven - The Creatures of Prometheus, Op. 43/Overture.mp3",
+        "audio/Ludwig van Beethoven - The Creatures of Prometheus, Op. 43/Overture.ogg"
+      ]
+    },
+    {
+      "key": "sprites",
+      "kind": "sfx",
+      "files": [
+        "audio/Ludwig van Beethoven - The Creatures of Prometheus, Op. 43/sprites.mp3",
+        "audio/Ludwig van Beethoven - The Creatures of Prometheus, Op. 43/sprites.ogg"
+      ]
+    },
+    {
+      "key": "PTY_-_Hero_Quest_-_Piano",
+      "kind": "music",
+      "files": [
+        "audio/PTY_-_Hero_Quest_-_Piano.m4a",
+        "audio/PTY_-_Hero_Quest_-_Piano.mp3",
+        "audio/PTY_-_Hero_Quest_-_Piano.ogg"
+      ]
+    },
+    {
+      "key": "left",
+      "kind": "music",
+      "files": [
+        "audio/Rossini - William Tell Overture (8 Bits Version)/left.mp3",
+        "audio/Rossini - William Tell Overture (8 Bits Version)/left.ogg"
+      ]
+    },
+    {
+      "key": "right",
+      "kind": "music",
+      "files": [
+        "audio/Rossini - William Tell Overture (8 Bits Version)/right.mp3",
+        "audio/Rossini - William Tell Overture (8 Bits Version)/right.ogg"
+      ]
+    },
+    {
+      "key": "Scyphe-Goldrunner_(Maccie_Pimp_Me Up_Remix)",
+      "kind": "music",
+      "files": [
+        "audio/Scyphe-Goldrunner_(Maccie_Pimp_Me Up_Remix).mp3"
+      ]
+    },
+    {
+      "key": "alien_death1",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/alien_death1.wav"
+      ]
+    },
+    {
+      "key": "battery",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/battery.wav"
+      ]
+    },
+    {
+      "key": "blaster",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/blaster.mp3"
+      ]
+    },
+    {
+      "key": "boss_hit",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/boss_hit.wav"
+      ]
+    },
+    {
+      "key": "door_open",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/door_open.wav"
+      ]
+    },
+    {
+      "key": "escape",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/escape.wav"
+      ]
+    },
+    {
+      "key": "explode1",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/explode1.wav"
+      ]
+    },
+    {
+      "key": "explosion",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/explosion.mp3"
+      ]
+    },
+    {
+      "key": "fx_mixdown",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/fx_mixdown.mp3",
+        "audio/SoundEffects/fx_mixdown.ogg"
+      ]
+    },
+    {
+      "key": "key",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/key.wav"
+      ]
+    },
+    {
+      "key": "lazer",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/lazer.wav"
+      ]
+    },
+    {
+      "key": "lazer_wall_off",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/lazer_wall_off.mp3"
+      ]
+    },
+    {
+      "key": "magical_horror_audiosprite",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/magical_horror_audiosprite.mp3",
+        "audio/SoundEffects/magical_horror_audiosprite.ogg"
+      ]
+    },
+    {
+      "key": "menu_select",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/menu_select.mp3"
+      ]
+    },
+    {
+      "key": "menu_switch",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/menu_switch.mp3"
+      ]
+    },
+    {
+      "key": "meow1",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/meow1.mp3"
+      ]
+    },
+    {
+      "key": "meow2",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/meow2.mp3"
+      ]
+    },
+    {
+      "key": "need_cells",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/need_cells.wav"
+      ]
+    },
+    {
+      "key": "numkey",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/numkey.wav"
+      ]
+    },
+    {
+      "key": "numkey_wrong",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/numkey_wrong.wav"
+      ]
+    },
+    {
+      "key": "p-ping",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/p-ping.mp3"
+      ]
+    },
+    {
+      "key": "pickup",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/pickup.wav"
+      ]
+    },
+    {
+      "key": "pistol",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/pistol.wav"
+      ]
+    },
+    {
+      "key": "player_death",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/player_death.wav"
+      ]
+    },
+    {
+      "key": "pusher",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/pusher.wav"
+      ]
+    },
+    {
+      "key": "sentry_explode",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/sentry_explode.wav"
+      ]
+    },
+    {
+      "key": "shot1",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/shot1.wav"
+      ]
+    },
+    {
+      "key": "shot2",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/shot2.wav"
+      ]
+    },
+    {
+      "key": "shotgun",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/shotgun.wav"
+      ]
+    },
+    {
+      "key": "spaceman",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/spaceman.wav"
+      ]
+    },
+    {
+      "key": "squit",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/squit.mp3",
+        "audio/SoundEffects/squit.ogg",
+        "audio/SoundEffects/squit.wav"
+      ]
+    },
+    {
+      "key": "steps1",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/steps1.mp3"
+      ]
+    },
+    {
+      "key": "steps2",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/steps2.mp3"
+      ]
+    },
+    {
+      "key": "sword",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/sword.mp3"
+      ]
+    },
+    {
+      "key": "wall",
+      "kind": "sfx",
+      "files": [
+        "audio/SoundEffects/wall.wav"
+      ]
+    },
+    {
+      "key": "Totta-HeroQuest-Pophousedub-remix",
+      "kind": "music",
+      "files": [
+        "audio/Totta-HeroQuest-Pophousedub-remix.mp3"
+      ]
+    },
+    {
+      "key": "aquakitty-kittyrock",
+      "kind": "music",
+      "files": [
+        "audio/aquakitty-kittyrock.m4a"
+      ]
+    },
+    {
+      "key": "bodenstaendig_2000_in_rock_4bit",
+      "kind": "music",
+      "files": [
+        "audio/bodenstaendig_2000_in_rock_4bit.mp3",
+        "audio/bodenstaendig_2000_in_rock_4bit.ogg"
+      ]
+    },
+    {
+      "key": "gemattack-maintheme",
+      "kind": "music",
+      "files": [
+        "audio/gemattack-maintheme.m4a"
+      ]
+    },
+    {
+      "key": "goaman_intro",
+      "kind": "sfx",
+      "files": [
+        "audio/goaman_intro.mp3"
+      ]
+    },
+    {
+      "key": "heartbeat",
+      "kind": "sfx",
+      "files": [
+        "audio/heartbeat.mp3"
+      ]
+    },
+    {
+      "key": "jungle",
+      "kind": "sfx",
+      "files": [
+        "audio/jungle.mp3",
+        "audio/jungle.ogg"
+      ]
+    },
+    {
+      "key": "kyobi",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/kyobi.m4a",
+        "audio/kyobi/kyobi.mp3",
+        "audio/kyobi/kyobi.ogg"
+      ]
+    },
+    {
+      "key": "10xChain",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/10xChain.wav"
+      ]
+    },
+    {
+      "key": "5xChain",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/5xChain.wav"
+      ]
+    },
+    {
+      "key": "gameOver",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/gameOver.wav"
+      ]
+    },
+    {
+      "key": "hitWall",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/hitWall.wav"
+      ]
+    },
+    {
+      "key": "impactHeavy",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/impactHeavy.wav"
+      ]
+    },
+    {
+      "key": "impactLight1",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/impactLight1.wav"
+      ]
+    },
+    {
+      "key": "impactLight2",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/impactLight2.wav"
+      ]
+    },
+    {
+      "key": "impactLight3",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/impactLight3.wav"
+      ]
+    },
+    {
+      "key": "impactMedium",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/impactMedium.wav"
+      ]
+    },
+    {
+      "key": "match3",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/match3.wav"
+      ]
+    },
+    {
+      "key": "match4",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/match4.wav"
+      ]
+    },
+    {
+      "key": "match5",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/match5.wav"
+      ]
+    },
+    {
+      "key": "menuClick",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/menuClick.wav"
+      ]
+    },
+    {
+      "key": "nextLevel",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/nextLevel.wav"
+      ]
+    },
+    {
+      "key": "title",
+      "kind": "music",
+      "files": [
+        "audio/kyobi/wavs/title.wav"
+      ]
+    },
+    {
+      "key": "warning",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/warning.wav"
+      ]
+    },
+    {
+      "key": "whoosh",
+      "kind": "sfx",
+      "files": [
+        "audio/kyobi/wavs/whoosh.wav"
+      ]
+    },
+    {
+      "key": "mag-overkill",
+      "kind": "music",
+      "files": [
+        "audio/mag-overkill.m4a"
+      ]
+    },
+    {
+      "key": "crow",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/crow.mp3",
+        "audio/monsters/crow.ogg"
+      ]
+    },
+    {
+      "key": "growl1",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl1.mp3",
+        "audio/monsters/growl1.ogg"
+      ]
+    },
+    {
+      "key": "growl10",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl10.mp3",
+        "audio/monsters/growl10.ogg"
+      ]
+    },
+    {
+      "key": "growl11",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl11.mp3",
+        "audio/monsters/growl11.ogg"
+      ]
+    },
+    {
+      "key": "growl12",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl12.mp3",
+        "audio/monsters/growl12.ogg"
+      ]
+    },
+    {
+      "key": "growl13",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl13.mp3",
+        "audio/monsters/growl13.ogg"
+      ]
+    },
+    {
+      "key": "growl14",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl14.mp3",
+        "audio/monsters/growl14.ogg"
+      ]
+    },
+    {
+      "key": "growl15",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl15.mp3",
+        "audio/monsters/growl15.ogg"
+      ]
+    },
+    {
+      "key": "growl16",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl16.mp3",
+        "audio/monsters/growl16.ogg"
+      ]
+    },
+    {
+      "key": "growl17",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl17.mp3",
+        "audio/monsters/growl17.ogg"
+      ]
+    },
+    {
+      "key": "growl2",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl2.mp3",
+        "audio/monsters/growl2.ogg"
+      ]
+    },
+    {
+      "key": "growl3",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl3.mp3",
+        "audio/monsters/growl3.ogg"
+      ]
+    },
+    {
+      "key": "growl4",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl4.mp3",
+        "audio/monsters/growl4.ogg"
+      ]
+    },
+    {
+      "key": "growl5",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl5.mp3",
+        "audio/monsters/growl5.ogg"
+      ]
+    },
+    {
+      "key": "growl6",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl6.mp3",
+        "audio/monsters/growl6.ogg"
+      ]
+    },
+    {
+      "key": "growl7",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl7.mp3",
+        "audio/monsters/growl7.ogg"
+      ]
+    },
+    {
+      "key": "growl8",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl8.mp3",
+        "audio/monsters/growl8.ogg"
+      ]
+    },
+    {
+      "key": "growl9",
+      "kind": "sfx",
+      "files": [
+        "audio/monsters/growl9.mp3",
+        "audio/monsters/growl9.ogg"
+      ]
+    },
+    {
+      "key": "neriakX_-_Enigma_Gun_Extended_Mix",
+      "kind": "music",
+      "files": [
+        "audio/neriakX_-_Enigma_Gun_Extended_Mix.mp3"
+      ]
+    },
+    {
+      "key": "oedipus_ark_pandora",
+      "kind": "music",
+      "files": [
+        "audio/oedipus_ark_pandora.mp3"
+      ]
+    },
+    {
+      "key": "oedipus_wizball_highscore",
+      "kind": "sfx",
+      "files": [
+        "audio/oedipus_wizball_highscore.mp3",
+        "audio/oedipus_wizball_highscore.ogg"
+      ]
+    },
+    {
+      "key": "raisins",
+      "kind": "sfx",
+      "files": [
+        "audio/raisins.m4a"
+      ]
+    },
+    {
+      "key": "sd-ingame1",
+      "kind": "music",
+      "files": [
+        "audio/sd-ingame1.wav"
+      ]
+    },
+    {
+      "key": "gamelost",
+      "kind": "sfx",
+      "files": [
+        "audio/stacker/gamelost.m4a",
+        "audio/stacker/gamelost.ogg"
+      ]
+    },
+    {
+      "key": "gamewon",
+      "kind": "sfx",
+      "files": [
+        "audio/stacker/gamewon.m4a",
+        "audio/stacker/gamewon.ogg"
+      ]
+    },
+    {
+      "key": "miss",
+      "kind": "sfx",
+      "files": [
+        "audio/stacker/miss.m4a",
+        "audio/stacker/miss.ogg"
+      ]
+    },
+    {
+      "key": "place",
+      "kind": "sfx",
+      "files": [
+        "audio/stacker/place.m4a",
+        "audio/stacker/place.ogg"
+      ]
+    },
+    {
+      "key": "bass",
+      "kind": "sfx",
+      "files": [
+        "audio/tech/bass.mp3",
+        "audio/tech/bass.ogg"
+      ]
+    },
+    {
+      "key": "drums",
+      "kind": "sfx",
+      "files": [
+        "audio/tech/drums.mp3",
+        "audio/tech/drums.ogg"
+      ]
+    },
+    {
+      "key": "percussion",
+      "kind": "sfx",
+      "files": [
+        "audio/tech/percussion.mp3",
+        "audio/tech/percussion.ogg"
+      ]
+    },
+    {
+      "key": "synth1",
+      "kind": "sfx",
+      "files": [
+        "audio/tech/synth1.mp3",
+        "audio/tech/synth1.ogg"
+      ]
+    },
+    {
+      "key": "synth2",
+      "kind": "sfx",
+      "files": [
+        "audio/tech/synth2.mp3",
+        "audio/tech/synth2.ogg"
+      ]
+    },
+    {
+      "key": "top1",
+      "kind": "sfx",
+      "files": [
+        "audio/tech/top1.mp3",
+        "audio/tech/top1.ogg"
+      ]
+    },
+    {
+      "key": "top2",
+      "kind": "sfx",
+      "files": [
+        "audio/tech/top2.mp3",
+        "audio/tech/top2.ogg"
+      ]
+    },
+    {
+      "key": "time",
+      "kind": "sfx",
+      "files": [
+        "audio/time.mp3"
+      ]
+    },
+    {
+      "key": "tommy_in_goa",
+      "kind": "music",
+      "files": [
+        "audio/tommy_in_goa.mp3"
+      ]
+    }
+  ],
+  "sprites": [
+    {
+      "key": "128x128-v2",
+      "file": "sprites/128x128-v2.png",
+      "framesize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    {
+      "key": "128x128",
+      "file": "sprites/128x128.png",
+      "framesize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    {
+      "key": "16x16",
+      "file": "sprites/16x16.png",
+      "framesize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    {
+      "key": "1bitblock0",
+      "file": "sprites/1bitblock0.png",
+      "framesize": null
+    },
+    {
+      "key": "1bitblock1",
+      "file": "sprites/1bitblock1.png",
+      "framesize": null
+    },
+    {
+      "key": "1bitblock2",
+      "file": "sprites/1bitblock2.png",
+      "framesize": null
+    },
+    {
+      "key": "1bitblock3",
+      "file": "sprites/1bitblock3.png",
+      "framesize": null
+    },
+    {
+      "key": "32x32-white",
+      "file": "sprites/32x32-white.png",
+      "framesize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    {
+      "key": "32x32",
+      "file": "sprites/32x32.png",
+      "framesize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    {
+      "key": "50x50-black",
+      "file": "sprites/50x50-black.png",
+      "framesize": {
+        "w": 50,
+        "h": 50
+      }
+    },
+    {
+      "key": "50x50-white",
+      "file": "sprites/50x50-white.png",
+      "framesize": {
+        "w": 50,
+        "h": 50
+      }
+    },
+    {
+      "key": "50x50",
+      "file": "sprites/50x50.png",
+      "framesize": {
+        "w": 50,
+        "h": 50
+      }
+    },
+    {
+      "key": "a",
+      "file": "sprites/a.png",
+      "framesize": null
+    },
+    {
+      "key": "advanced_wars_land",
+      "file": "sprites/advanced_wars_land.png",
+      "framesize": null
+    },
+    {
+      "key": "advanced_wars_tank",
+      "file": "sprites/advanced_wars_tank.png",
+      "framesize": null
+    },
+    {
+      "key": "aero-blaster-ships",
+      "file": "sprites/aero-blaster-ships.png",
+      "framesize": null
+    },
+    {
+      "key": "alienbusters",
+      "file": "sprites/alienbusters.png",
+      "framesize": null
+    },
+    {
+      "key": "amiga-cursor",
+      "file": "sprites/amiga-cursor.png",
+      "framesize": null
+    },
+    {
+      "key": "apple",
+      "file": "sprites/apple.png",
+      "framesize": null
+    },
+    {
+      "key": "aqua_ball",
+      "file": "sprites/aqua_ball.png",
+      "framesize": null
+    },
+    {
+      "key": "arrow",
+      "file": "sprites/arrow.png",
+      "framesize": null
+    },
+    {
+      "key": "arrows",
+      "file": "sprites/arrows.png",
+      "framesize": null
+    },
+    {
+      "key": "asteroids_ship",
+      "file": "sprites/asteroids_ship.png",
+      "framesize": null
+    },
+    {
+      "key": "asteroids_ship_white",
+      "file": "sprites/asteroids_ship_white.png",
+      "framesize": null
+    },
+    {
+      "key": "astorm-truck",
+      "file": "sprites/astorm-truck.png",
+      "framesize": null
+    },
+    {
+      "key": "asuna_by_vali233",
+      "file": "sprites/asuna_by_vali233.png",
+      "framesize": null
+    },
+    {
+      "key": "atari1200xl",
+      "file": "sprites/atari1200xl.png",
+      "framesize": null
+    },
+    {
+      "key": "atari130xe-input",
+      "file": "sprites/atari130xe-input.png",
+      "framesize": null
+    },
+    {
+      "key": "atari130xe",
+      "file": "sprites/atari130xe.png",
+      "framesize": null
+    },
+    {
+      "key": "atari400",
+      "file": "sprites/atari400.png",
+      "framesize": null
+    },
+    {
+      "key": "atari800",
+      "file": "sprites/atari800.png",
+      "framesize": null
+    },
+    {
+      "key": "atari800xl",
+      "file": "sprites/atari800xl.png",
+      "framesize": null
+    },
+    {
+      "key": "b",
+      "file": "sprites/b.png",
+      "framesize": null
+    },
+    {
+      "key": "baddie_cat_1",
+      "file": "sprites/baddie_cat_1.png",
+      "framesize": null
+    },
+    {
+      "key": "ball-pink",
+      "file": "sprites/ball-pink.png",
+      "framesize": null
+    },
+    {
+      "key": "balls",
+      "file": "sprites/balls.png",
+      "framesize": null
+    },
+    {
+      "key": "beball1",
+      "file": "sprites/beball1.png",
+      "framesize": null
+    },
+    {
+      "key": "beer",
+      "file": "sprites/beer.png",
+      "framesize": null
+    },
+    {
+      "key": "bikkuriman",
+      "file": "sprites/bikkuriman.png",
+      "framesize": null
+    },
+    {
+      "key": "blade",
+      "file": "sprites/blade.png",
+      "framesize": null
+    },
+    {
+      "key": "block-ice",
+      "file": "sprites/block-ice.png",
+      "framesize": null
+    },
+    {
+      "key": "block-slime",
+      "file": "sprites/block-slime.png",
+      "framesize": null
+    },
+    {
+      "key": "block",
+      "file": "sprites/block.png",
+      "framesize": null
+    },
+    {
+      "key": "blockANM",
+      "file": "sprites/blockANM.png",
+      "framesize": null
+    },
+    {
+      "key": "blockANP",
+      "file": "sprites/blockANP.png",
+      "framesize": null
+    },
+    {
+      "key": "blockAP",
+      "file": "sprites/blockAP.png",
+      "framesize": null
+    },
+    {
+      "key": "blockBNM",
+      "file": "sprites/blockBNM.png",
+      "framesize": null
+    },
+    {
+      "key": "blockBNP",
+      "file": "sprites/blockBNP.png",
+      "framesize": null
+    },
+    {
+      "key": "blockBP",
+      "file": "sprites/blockBP.png",
+      "framesize": null
+    },
+    {
+      "key": "blockCNP",
+      "file": "sprites/blockCNP.png",
+      "framesize": null
+    },
+    {
+      "key": "blockCP",
+      "file": "sprites/blockCP.png",
+      "framesize": null
+    },
+    {
+      "key": "blockDNP",
+      "file": "sprites/blockDNP.png",
+      "framesize": null
+    },
+    {
+      "key": "blockDP",
+      "file": "sprites/blockDP.png",
+      "framesize": null
+    },
+    {
+      "key": "blocka",
+      "file": "sprites/blocka.png",
+      "framesize": null
+    },
+    {
+      "key": "blockb",
+      "file": "sprites/blockb.png",
+      "framesize": null
+    },
+    {
+      "key": "blockc",
+      "file": "sprites/blockc.png",
+      "framesize": null
+    },
+    {
+      "key": "blockd",
+      "file": "sprites/blockd.png",
+      "framesize": null
+    },
+    {
+      "key": "blocks",
+      "file": "sprites/blocks.png",
+      "framesize": null
+    },
+    {
+      "key": "blue_ball",
+      "file": "sprites/blue_ball.png",
+      "framesize": null
+    },
+    {
+      "key": "bluebar",
+      "file": "sprites/bluebar.png",
+      "framesize": null
+    },
+    {
+      "key": "bluemetal_32x32x4",
+      "file": "sprites/bluemetal_32x32x4.png",
+      "framesize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    {
+      "key": "blur-bg",
+      "file": "sprites/blur-bg.png",
+      "framesize": null
+    },
+    {
+      "key": "bobs-by-cleathley",
+      "file": "sprites/bobs-by-cleathley.png",
+      "framesize": null
+    },
+    {
+      "key": "bombcolor",
+      "file": "sprites/bombcolor.png",
+      "framesize": null
+    },
+    {
+      "key": "bombfan",
+      "file": "sprites/bombfan.png",
+      "framesize": null
+    },
+    {
+      "key": "bombmine",
+      "file": "sprites/bombmine.png",
+      "framesize": null
+    },
+    {
+      "key": "bombstar",
+      "file": "sprites/bombstar.png",
+      "framesize": null
+    },
+    {
+      "key": "boom32wh12",
+      "file": "sprites/boom32wh12.png",
+      "framesize": null
+    },
+    {
+      "key": "bottomleft",
+      "file": "sprites/bottomleft.png",
+      "framesize": null
+    },
+    {
+      "key": "bottomright",
+      "file": "sprites/bottomright.png",
+      "framesize": null
+    },
+    {
+      "key": "box-item-boxed",
+      "file": "sprites/box-item-boxed.png",
+      "framesize": null
+    },
+    {
+      "key": "brain",
+      "file": "sprites/brain.png",
+      "framesize": null
+    },
+    {
+      "key": "brush1",
+      "file": "sprites/brush1.png",
+      "framesize": null
+    },
+    {
+      "key": "brush2",
+      "file": "sprites/brush2.png",
+      "framesize": null
+    },
+    {
+      "key": "brush3",
+      "file": "sprites/brush3.png",
+      "framesize": null
+    },
+    {
+      "key": "bsquadron-enemies",
+      "file": "sprites/bsquadron-enemies.png",
+      "framesize": null
+    },
+    {
+      "key": "bsquadron1",
+      "file": "sprites/bsquadron1.png",
+      "framesize": null
+    },
+    {
+      "key": "bsquadron2",
+      "file": "sprites/bsquadron2.png",
+      "framesize": null
+    },
+    {
+      "key": "bsquadron3",
+      "file": "sprites/bsquadron3.png",
+      "framesize": null
+    },
+    {
+      "key": "budbrain_chick",
+      "file": "sprites/budbrain_chick.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet",
+      "file": "sprites/bullet.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet1",
+      "file": "sprites/bullets/bullet1.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet10",
+      "file": "sprites/bullets/bullet10.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet11",
+      "file": "sprites/bullets/bullet11.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet2",
+      "file": "sprites/bullets/bullet2.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet3",
+      "file": "sprites/bullets/bullet3.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet4",
+      "file": "sprites/bullets/bullet4.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet5",
+      "file": "sprites/bullets/bullet5.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet6",
+      "file": "sprites/bullets/bullet6.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet7",
+      "file": "sprites/bullets/bullet7.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet8",
+      "file": "sprites/bullets/bullet8.png",
+      "framesize": null
+    },
+    {
+      "key": "bullet9",
+      "file": "sprites/bullets/bullet9.png",
+      "framesize": null
+    },
+    {
+      "key": "bunny",
+      "file": "sprites/bunny.png",
+      "framesize": null
+    },
+    {
+      "key": "button-bg",
+      "file": "sprites/button-bg.png",
+      "framesize": null
+    },
+    {
+      "key": "button-text",
+      "file": "sprites/button-text.png",
+      "framesize": null
+    },
+    {
+      "key": "cake",
+      "file": "sprites/cake.png",
+      "framesize": null
+    },
+    {
+      "key": "cakewalk",
+      "file": "sprites/cakewalk.png",
+      "framesize": null
+    },
+    {
+      "key": "car-police",
+      "file": "sprites/car-police.png",
+      "framesize": null
+    },
+    {
+      "key": "car-red",
+      "file": "sprites/car-red.png",
+      "framesize": null
+    },
+    {
+      "key": "car-yellow",
+      "file": "sprites/car-yellow.png",
+      "framesize": null
+    },
+    {
+      "key": "car",
+      "file": "sprites/car.png",
+      "framesize": null
+    },
+    {
+      "key": "car90",
+      "file": "sprites/car90.png",
+      "framesize": null
+    },
+    {
+      "key": "cards80x112",
+      "file": "sprites/cards80x112.png",
+      "framesize": {
+        "w": 80,
+        "h": 112
+      }
+    },
+    {
+      "key": "carrot",
+      "file": "sprites/carrot.png",
+      "framesize": null
+    },
+    {
+      "key": "catstick",
+      "file": "sprites/catstick.png",
+      "framesize": null
+    },
+    {
+      "key": "cave",
+      "file": "sprites/cave.png",
+      "framesize": null
+    },
+    {
+      "key": "centroid",
+      "file": "sprites/centroid.png",
+      "framesize": null
+    },
+    {
+      "key": "chain",
+      "file": "sprites/chain.png",
+      "framesize": null
+    },
+    {
+      "key": "checkerboard",
+      "file": "sprites/checkerboard.png",
+      "framesize": null
+    },
+    {
+      "key": "chick",
+      "file": "sprites/chick.png",
+      "framesize": null
+    },
+    {
+      "key": "chunk",
+      "file": "sprites/chunk.png",
+      "framesize": null
+    },
+    {
+      "key": "clown",
+      "file": "sprites/clown.png",
+      "framesize": null
+    },
+    {
+      "key": "cocktail",
+      "file": "sprites/cocktail.png",
+      "framesize": null
+    },
+    {
+      "key": "coffee",
+      "file": "sprites/coffee.png",
+      "framesize": null
+    },
+    {
+      "key": "coin-16x16x4",
+      "file": "sprites/coin-16x16x4.png",
+      "framesize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    {
+      "key": "coin",
+      "file": "sprites/coin.png",
+      "framesize": null
+    },
+    {
+      "key": "cokecan",
+      "file": "sprites/cokecan.png",
+      "framesize": null
+    },
+    {
+      "key": "columns-blue",
+      "file": "sprites/columns-blue.png",
+      "framesize": null
+    },
+    {
+      "key": "columns-orange",
+      "file": "sprites/columns-orange.png",
+      "framesize": null
+    },
+    {
+      "key": "columns-red",
+      "file": "sprites/columns-red.png",
+      "framesize": null
+    },
+    {
+      "key": "copy-that-floppy",
+      "file": "sprites/copy-that-floppy.png",
+      "framesize": null
+    },
+    {
+      "key": "crate",
+      "file": "sprites/crate.png",
+      "framesize": null
+    },
+    {
+      "key": "crate32",
+      "file": "sprites/crate32.png",
+      "framesize": null
+    },
+    {
+      "key": "cursor-rotate",
+      "file": "sprites/cursor-rotate.png",
+      "framesize": null
+    },
+    {
+      "key": "cyberpunk-street",
+      "file": "sprites/cyberpunk-street.png",
+      "framesize": null
+    },
+    {
+      "key": "darkwing_crazy",
+      "file": "sprites/darkwing_crazy.png",
+      "framesize": null
+    },
+    {
+      "key": "default",
+      "file": "sprites/default.png",
+      "framesize": null
+    },
+    {
+      "key": "diamond",
+      "file": "sprites/diamond.png",
+      "framesize": null
+    },
+    {
+      "key": "diamonds32x24x5",
+      "file": "sprites/diamonds32x24x5.png",
+      "framesize": {
+        "w": 32,
+        "h": 24
+      }
+    },
+    {
+      "key": "diamonds32x5",
+      "file": "sprites/diamonds32x5.png",
+      "framesize": {
+        "w": 32,
+        "h": 5
+      }
+    },
+    {
+      "key": "donut",
+      "file": "sprites/donut.png",
+      "framesize": null
+    },
+    {
+      "key": "dragcircle",
+      "file": "sprites/dragcircle.png",
+      "framesize": null
+    },
+    {
+      "key": "dragonegg",
+      "file": "sprites/dragonegg.png",
+      "framesize": null
+    },
+    {
+      "key": "drawcursor",
+      "file": "sprites/drawcursor.png",
+      "framesize": null
+    },
+    {
+      "key": "dude-cropped",
+      "file": "sprites/dude-cropped.png",
+      "framesize": null
+    },
+    {
+      "key": "dude",
+      "file": "sprites/dude.png",
+      "framesize": null
+    },
+    {
+      "key": "eggplant",
+      "file": "sprites/eggplant.png",
+      "framesize": null
+    },
+    {
+      "key": "elephant",
+      "file": "sprites/elephant.png",
+      "framesize": null
+    },
+    {
+      "key": "enemy-bullet",
+      "file": "sprites/enemy-bullet.png",
+      "framesize": null
+    },
+    {
+      "key": "exocet-carrot",
+      "file": "sprites/exocet-carrot.png",
+      "framesize": null
+    },
+    {
+      "key": "exocet_spaceman",
+      "file": "sprites/exocet_spaceman.png",
+      "framesize": null
+    },
+    {
+      "key": "explosion",
+      "file": "sprites/explosion.png",
+      "framesize": null
+    },
+    {
+      "key": "eyes",
+      "file": "sprites/eyes.png",
+      "framesize": null
+    },
+    {
+      "key": "firstaid",
+      "file": "sprites/firstaid.png",
+      "framesize": null
+    },
+    {
+      "key": "fish-136x80",
+      "file": "sprites/fish-136x80.png",
+      "framesize": {
+        "w": 136,
+        "h": 80
+      }
+    },
+    {
+      "key": "fish-136x80_n",
+      "file": "sprites/fish-136x80_n.png",
+      "framesize": {
+        "w": 136,
+        "h": 80
+      }
+    },
+    {
+      "key": "flectrum",
+      "file": "sprites/flectrum.png",
+      "framesize": null
+    },
+    {
+      "key": "flectrum2",
+      "file": "sprites/flectrum2.png",
+      "framesize": null
+    },
+    {
+      "key": "flower-exo",
+      "file": "sprites/flower-exo.png",
+      "framesize": null
+    },
+    {
+      "key": "fmship",
+      "file": "sprites/fmship.png",
+      "framesize": null
+    },
+    {
+      "key": "fork",
+      "file": "sprites/fork.png",
+      "framesize": null
+    },
+    {
+      "key": "fruitnveg32wh37",
+      "file": "sprites/fruitnveg32wh37.png",
+      "framesize": null
+    },
+    {
+      "key": "fruitnveg64wh37",
+      "file": "sprites/fruitnveg64wh37.png",
+      "framesize": null
+    },
+    {
+      "key": "fuji",
+      "file": "sprites/fuji.png",
+      "framesize": null
+    },
+    {
+      "key": "gameboy_seize_color_40x60",
+      "file": "sprites/gameboy_seize_color_40x60.png",
+      "framesize": {
+        "w": 40,
+        "h": 60
+      }
+    },
+    {
+      "key": "gem-blue-16x16x4",
+      "file": "sprites/gem-blue-16x16x4.png",
+      "framesize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    {
+      "key": "gem-green-16x16x4",
+      "file": "sprites/gem-green-16x16x4.png",
+      "framesize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    {
+      "key": "gem-red-16x16x4",
+      "file": "sprites/gem-red-16x16x4.png",
+      "framesize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    {
+      "key": "gem",
+      "file": "sprites/gem.png",
+      "framesize": null
+    },
+    {
+      "key": "ghost",
+      "file": "sprites/ghost.png",
+      "framesize": null
+    },
+    {
+      "key": "ghost1",
+      "file": "sprites/ghost1.png",
+      "framesize": null
+    },
+    {
+      "key": "gingerbread",
+      "file": "sprites/gingerbread.png",
+      "framesize": null
+    },
+    {
+      "key": "green_ball",
+      "file": "sprites/green_ball.png",
+      "framesize": null
+    },
+    {
+      "key": "healthbar",
+      "file": "sprites/healthbar.png",
+      "framesize": null
+    },
+    {
+      "key": "heart",
+      "file": "sprites/heart.png",
+      "framesize": null
+    },
+    {
+      "key": "heartstar",
+      "file": "sprites/heartstar.png",
+      "framesize": null
+    },
+    {
+      "key": "heartstar32",
+      "file": "sprites/heartstar32.png",
+      "framesize": null
+    },
+    {
+      "key": "helix",
+      "file": "sprites/helix.png",
+      "framesize": null
+    },
+    {
+      "key": "hello",
+      "file": "sprites/hello.png",
+      "framesize": null
+    },
+    {
+      "key": "hotdog",
+      "file": "sprites/hotdog.png",
+      "framesize": null
+    },
+    {
+      "key": "humstar",
+      "file": "sprites/humstar.png",
+      "framesize": null
+    },
+    {
+      "key": "ilkke",
+      "file": "sprites/ilkke.png",
+      "framesize": null
+    },
+    {
+      "key": "interference_ball_48x48",
+      "file": "sprites/interference_ball_48x48.png",
+      "framesize": {
+        "w": 48,
+        "h": 48
+      }
+    },
+    {
+      "key": "interference_tunnel",
+      "file": "sprites/interference_tunnel.png",
+      "framesize": null
+    },
+    {
+      "key": "jets",
+      "file": "sprites/jets.png",
+      "framesize": null
+    },
+    {
+      "key": "kirito_by_vali233",
+      "file": "sprites/kirito_by_vali233.png",
+      "framesize": null
+    },
+    {
+      "key": "lemming",
+      "file": "sprites/lemming.png",
+      "framesize": null
+    },
+    {
+      "key": "lollipop",
+      "file": "sprites/lollipop.png",
+      "framesize": null
+    },
+    {
+      "key": "longarrow-down",
+      "file": "sprites/longarrow-down.png",
+      "framesize": null
+    },
+    {
+      "key": "longarrow-white",
+      "file": "sprites/longarrow-white.png",
+      "framesize": null
+    },
+    {
+      "key": "longarrow",
+      "file": "sprites/longarrow.png",
+      "framesize": null
+    },
+    {
+      "key": "longarrow2",
+      "file": "sprites/longarrow2.png",
+      "framesize": null
+    },
+    {
+      "key": "loop",
+      "file": "sprites/loop.png",
+      "framesize": null
+    },
+    {
+      "key": "maggot",
+      "file": "sprites/maggot.png",
+      "framesize": null
+    },
+    {
+      "key": "magnify-glass-inside",
+      "file": "sprites/magnify-glass-inside.png",
+      "framesize": null
+    },
+    {
+      "key": "magnify-glass-outside",
+      "file": "sprites/magnify-glass-outside.png",
+      "framesize": null
+    },
+    {
+      "key": "mana_card",
+      "file": "sprites/mana_card.png",
+      "framesize": null
+    },
+    {
+      "key": "mask1",
+      "file": "sprites/mask1.png",
+      "framesize": null
+    },
+    {
+      "key": "mask2",
+      "file": "sprites/mask2.png",
+      "framesize": null
+    },
+    {
+      "key": "master",
+      "file": "sprites/master.png",
+      "framesize": null
+    },
+    {
+      "key": "melon",
+      "file": "sprites/melon.png",
+      "framesize": null
+    },
+    {
+      "key": "metalface78x92-n",
+      "file": "sprites/metalface78x92-n.png",
+      "framesize": {
+        "w": 78,
+        "h": 92
+      }
+    },
+    {
+      "key": "metalface78x92",
+      "file": "sprites/metalface78x92.png",
+      "framesize": {
+        "w": 78,
+        "h": 92
+      }
+    },
+    {
+      "key": "metalslug_monster39x40",
+      "file": "sprites/metalslug_monster39x40.png",
+      "framesize": {
+        "w": 39,
+        "h": 40
+      }
+    },
+    {
+      "key": "metalslug_mummy37x45",
+      "file": "sprites/metalslug_mummy37x45.png",
+      "framesize": {
+        "w": 37,
+        "h": 45
+      }
+    },
+    {
+      "key": "mine",
+      "file": "sprites/mine.png",
+      "framesize": null
+    },
+    {
+      "key": "mouse_jim_sachs",
+      "file": "sprites/mouse_jim_sachs.png",
+      "framesize": null
+    },
+    {
+      "key": "mushroom-32x32",
+      "file": "sprites/mushroom-32x32.png",
+      "framesize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    {
+      "key": "mushroom",
+      "file": "sprites/mushroom.png",
+      "framesize": null
+    },
+    {
+      "key": "mushroom16x16",
+      "file": "sprites/mushroom16x16.png",
+      "framesize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    {
+      "key": "mushroom2",
+      "file": "sprites/mushroom2.png",
+      "framesize": null
+    },
+    {
+      "key": "onion",
+      "file": "sprites/onion.png",
+      "framesize": null
+    },
+    {
+      "key": "orange-cat1",
+      "file": "sprites/orange-cat1.png",
+      "framesize": null
+    },
+    {
+      "key": "orange-cat2",
+      "file": "sprites/orange-cat2.png",
+      "framesize": null
+    },
+    {
+      "key": "orb-blue",
+      "file": "sprites/orb-blue.png",
+      "framesize": null
+    },
+    {
+      "key": "orb-green",
+      "file": "sprites/orb-green.png",
+      "framesize": null
+    },
+    {
+      "key": "orb-red",
+      "file": "sprites/orb-red.png",
+      "framesize": null
+    },
+    {
+      "key": "oz_pov_melting_disk",
+      "file": "sprites/oz_pov_melting_disk.png",
+      "framesize": null
+    },
+    {
+      "key": "pacman_by_oz_28x28",
+      "file": "sprites/pacman_by_oz_28x28.png",
+      "framesize": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "key": "palm-tree-left",
+      "file": "sprites/palm-tree-left.png",
+      "framesize": null
+    },
+    {
+      "key": "palm-tree-right",
+      "file": "sprites/palm-tree-right.png",
+      "framesize": null
+    },
+    {
+      "key": "pangball",
+      "file": "sprites/pangball.png",
+      "framesize": null
+    },
+    {
+      "key": "parsec",
+      "file": "sprites/parsec.png",
+      "framesize": null
+    },
+    {
+      "key": "particle1",
+      "file": "sprites/particle1.png",
+      "framesize": null
+    },
+    {
+      "key": "pepper",
+      "file": "sprites/pepper.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser-dude",
+      "file": "sprites/phaser-dude.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser-large",
+      "file": "sprites/phaser-large.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser-ship",
+      "file": "sprites/phaser-ship.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser-wire-300",
+      "file": "sprites/phaser-wire-300.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser",
+      "file": "sprites/phaser.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser1",
+      "file": "sprites/phaser1.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser2",
+      "file": "sprites/phaser2.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser3-logo-alpha",
+      "file": "sprites/phaser3-logo-alpha.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser3-logo-small",
+      "file": "sprites/phaser3-logo-small.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser3-logo-x2",
+      "file": "sprites/phaser3-logo-x2.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser3-logo",
+      "file": "sprites/phaser3-logo.png",
+      "framesize": null
+    },
+    {
+      "key": "phaser_tiny",
+      "file": "sprites/phaser_tiny.png",
+      "framesize": null
+    },
+    {
+      "key": "pineapple",
+      "file": "sprites/pineapple.png",
+      "framesize": null
+    },
+    {
+      "key": "dark_rider-character",
+      "file": "sprites/plane-pop-up-effect/dark_rider-character.png",
+      "framesize": null
+    },
+    {
+      "key": "dark_rider-cover",
+      "file": "sprites/plane-pop-up-effect/dark_rider-cover.png",
+      "framesize": null
+    },
+    {
+      "key": "dark_rider-title",
+      "file": "sprites/plane-pop-up-effect/dark_rider-title.png",
+      "framesize": null
+    },
+    {
+      "key": "force_mage-character",
+      "file": "sprites/plane-pop-up-effect/force_mage-character.png",
+      "framesize": null
+    },
+    {
+      "key": "force_mage-cover",
+      "file": "sprites/plane-pop-up-effect/force_mage-cover.png",
+      "framesize": null
+    },
+    {
+      "key": "force_mage-title",
+      "file": "sprites/plane-pop-up-effect/force_mage-title.png",
+      "framesize": null
+    },
+    {
+      "key": "plane",
+      "file": "sprites/plane.png",
+      "framesize": null
+    },
+    {
+      "key": "planet1",
+      "file": "sprites/planet1.png",
+      "framesize": null
+    },
+    {
+      "key": "planet2",
+      "file": "sprites/planet2.png",
+      "framesize": null
+    },
+    {
+      "key": "planet3",
+      "file": "sprites/planet3.png",
+      "framesize": null
+    },
+    {
+      "key": "platform",
+      "file": "sprites/platform.png",
+      "framesize": null
+    },
+    {
+      "key": "player",
+      "file": "sprites/player.png",
+      "framesize": null
+    },
+    {
+      "key": "player_handgun",
+      "file": "sprites/player_handgun.png",
+      "framesize": null
+    },
+    {
+      "key": "poo",
+      "file": "sprites/poo.png",
+      "framesize": null
+    },
+    {
+      "key": "purple_ball",
+      "file": "sprites/purple_ball.png",
+      "framesize": null
+    },
+    {
+      "key": "pyramid",
+      "file": "sprites/pyramid.png",
+      "framesize": null
+    },
+    {
+      "key": "ra_dont_crack_under_pressure",
+      "file": "sprites/ra_dont_crack_under_pressure.png",
+      "framesize": null
+    },
+    {
+      "key": "rain",
+      "file": "sprites/rain.png",
+      "framesize": null
+    },
+    {
+      "key": "red_ball",
+      "file": "sprites/red_ball.png",
+      "framesize": null
+    },
+    {
+      "key": "rgblaser",
+      "file": "sprites/rgblaser.png",
+      "framesize": null
+    },
+    {
+      "key": "rick",
+      "file": "sprites/rick.png",
+      "framesize": null
+    },
+    {
+      "key": "rocks",
+      "file": "sprites/rocks.png",
+      "framesize": null
+    },
+    {
+      "key": "saw",
+      "file": "sprites/saw.png",
+      "framesize": null
+    },
+    {
+      "key": "shinyball",
+      "file": "sprites/shinyball.png",
+      "framesize": null
+    },
+    {
+      "key": "ship",
+      "file": "sprites/ship.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-baddie-bullet",
+      "file": "sprites/shmup-baddie-bullet.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-baddie",
+      "file": "sprites/shmup-baddie.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-baddie2",
+      "file": "sprites/shmup-baddie2.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-baddie3",
+      "file": "sprites/shmup-baddie3.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-boom",
+      "file": "sprites/shmup-boom.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-bullet",
+      "file": "sprites/shmup-bullet.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-ship",
+      "file": "sprites/shmup-ship.png",
+      "framesize": null
+    },
+    {
+      "key": "shmup-ship2",
+      "file": "sprites/shmup-ship2.png",
+      "framesize": null
+    },
+    {
+      "key": "skull",
+      "file": "sprites/skull.png",
+      "framesize": null
+    },
+    {
+      "key": "skullcandle",
+      "file": "sprites/skullcandle.png",
+      "framesize": null
+    },
+    {
+      "key": "slime",
+      "file": "sprites/slime.png",
+      "framesize": null
+    },
+    {
+      "key": "slimeeyes",
+      "file": "sprites/slimeeyes.png",
+      "framesize": null
+    },
+    {
+      "key": "snake",
+      "file": "sprites/snake.png",
+      "framesize": null
+    },
+    {
+      "key": "snowflake-pixel",
+      "file": "sprites/snowflake-pixel.png",
+      "framesize": null
+    },
+    {
+      "key": "snowflakes",
+      "file": "sprites/snowflakes.png",
+      "framesize": null
+    },
+    {
+      "key": "snowflakes_large",
+      "file": "sprites/snowflakes_large.png",
+      "framesize": null
+    },
+    {
+      "key": "sonic",
+      "file": "sprites/sonic.png",
+      "framesize": null
+    },
+    {
+      "key": "sonic_havok_sanity",
+      "file": "sprites/sonic_havok_sanity.png",
+      "framesize": null
+    },
+    {
+      "key": "soundtracker",
+      "file": "sprites/soundtracker.png",
+      "framesize": null
+    },
+    {
+      "key": "space-baddie-purple",
+      "file": "sprites/space-baddie-purple.png",
+      "framesize": null
+    },
+    {
+      "key": "space-baddie",
+      "file": "sprites/space-baddie.png",
+      "framesize": null
+    },
+    {
+      "key": "spaceman",
+      "file": "sprites/spaceman.png",
+      "framesize": null
+    },
+    {
+      "key": "bottom",
+      "file": "sprites/speakers/bottom.png",
+      "framesize": null
+    },
+    {
+      "key": "middle",
+      "file": "sprites/speakers/middle.png",
+      "framesize": null
+    },
+    {
+      "key": "speakers",
+      "file": "sprites/speakers/speakers.png",
+      "framesize": null
+    },
+    {
+      "key": "top-left",
+      "file": "sprites/speakers/top-left.png",
+      "framesize": null
+    },
+    {
+      "key": "top-right",
+      "file": "sprites/speakers/top-right.png",
+      "framesize": null
+    },
+    {
+      "key": "speakers",
+      "file": "sprites/speakers.png",
+      "framesize": null
+    },
+    {
+      "key": "spikedball",
+      "file": "sprites/spikedball.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_01",
+      "file": "sprites/spinObj_01.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_02",
+      "file": "sprites/spinObj_02.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_03",
+      "file": "sprites/spinObj_03.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_04",
+      "file": "sprites/spinObj_04.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_05",
+      "file": "sprites/spinObj_05.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_06",
+      "file": "sprites/spinObj_06.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_07",
+      "file": "sprites/spinObj_07.png",
+      "framesize": null
+    },
+    {
+      "key": "spinObj_08",
+      "file": "sprites/spinObj_08.png",
+      "framesize": null
+    },
+    {
+      "key": "splat",
+      "file": "sprites/splat.png",
+      "framesize": null
+    },
+    {
+      "key": "star",
+      "file": "sprites/star.png",
+      "framesize": null
+    },
+    {
+      "key": "steelbox",
+      "file": "sprites/steelbox.png",
+      "framesize": null
+    },
+    {
+      "key": "stormlord-dragon96x64",
+      "file": "sprites/stormlord-dragon96x64.png",
+      "framesize": {
+        "w": 96,
+        "h": 64
+      }
+    },
+    {
+      "key": "strawberry-cake",
+      "file": "sprites/strawberry-cake.png",
+      "framesize": null
+    },
+    {
+      "key": "strip1",
+      "file": "sprites/strip1.png",
+      "framesize": null
+    },
+    {
+      "key": "strip2",
+      "file": "sprites/strip2.png",
+      "framesize": null
+    },
+    {
+      "key": "stripes400x32-v2",
+      "file": "sprites/stripes400x32-v2.png",
+      "framesize": {
+        "w": 400,
+        "h": 32
+      }
+    },
+    {
+      "key": "stripes800x32-bg",
+      "file": "sprites/stripes800x32-bg.png",
+      "framesize": {
+        "w": 800,
+        "h": 32
+      }
+    },
+    {
+      "key": "stripes800x32-layer",
+      "file": "sprites/stripes800x32-layer.png",
+      "framesize": {
+        "w": 800,
+        "h": 32
+      }
+    },
+    {
+      "key": "stripes800x32-v2",
+      "file": "sprites/stripes800x32-v2.png",
+      "framesize": {
+        "w": 800,
+        "h": 32
+      }
+    },
+    {
+      "key": "stripes800x32",
+      "file": "sprites/stripes800x32.png",
+      "framesize": {
+        "w": 800,
+        "h": 32
+      }
+    },
+    {
+      "key": "tetrisblock1",
+      "file": "sprites/tetrisblock1.png",
+      "framesize": null
+    },
+    {
+      "key": "tetrisblock2",
+      "file": "sprites/tetrisblock2.png",
+      "framesize": null
+    },
+    {
+      "key": "tetrisblock3",
+      "file": "sprites/tetrisblock3.png",
+      "framesize": null
+    },
+    {
+      "key": "thrust_ship",
+      "file": "sprites/thrust_ship.png",
+      "framesize": null
+    },
+    {
+      "key": "thrust_ship2",
+      "file": "sprites/thrust_ship2.png",
+      "framesize": null
+    },
+    {
+      "key": "tinycar",
+      "file": "sprites/tinycar.png",
+      "framesize": null
+    },
+    {
+      "key": "tomato",
+      "file": "sprites/tomato.png",
+      "framesize": null
+    },
+    {
+      "key": "topleft",
+      "file": "sprites/topleft.png",
+      "framesize": null
+    },
+    {
+      "key": "topright",
+      "file": "sprites/topright.png",
+      "framesize": null
+    },
+    {
+      "key": "treasure_trap",
+      "file": "sprites/treasure_trap.png",
+      "framesize": null
+    },
+    {
+      "key": "tree-european",
+      "file": "sprites/tree-european.png",
+      "framesize": null
+    },
+    {
+      "key": "tree",
+      "file": "sprites/tree.png",
+      "framesize": null
+    },
+    {
+      "key": "triangle",
+      "file": "sprites/triangle.png",
+      "framesize": null
+    },
+    {
+      "key": "triangle2",
+      "file": "sprites/triangle2.png",
+      "framesize": null
+    },
+    {
+      "key": "ufo",
+      "file": "sprites/ufo.png",
+      "framesize": null
+    },
+    {
+      "key": "ukko-fujilogy-texture-64x64",
+      "file": "sprites/ukko-fujilogy-texture-64x64.png",
+      "framesize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "key": "vu",
+      "file": "sprites/vu.png",
+      "framesize": null
+    },
+    {
+      "key": "wabbit",
+      "file": "sprites/wabbit.png",
+      "framesize": null
+    },
+    {
+      "key": "wand",
+      "file": "sprites/wand.png",
+      "framesize": null
+    },
+    {
+      "key": "wasp",
+      "file": "sprites/wasp.png",
+      "framesize": null
+    },
+    {
+      "key": "watermelon",
+      "file": "sprites/watermelon.png",
+      "framesize": null
+    },
+    {
+      "key": "wizball",
+      "file": "sprites/wizball.png",
+      "framesize": null
+    },
+    {
+      "key": "wrap",
+      "file": "sprites/wrap.png",
+      "framesize": null
+    },
+    {
+      "key": "ww2plane",
+      "file": "sprites/ww2plane.png",
+      "framesize": null
+    },
+    {
+      "key": "ww2plane90",
+      "file": "sprites/ww2plane90.png",
+      "framesize": null
+    },
+    {
+      "key": "x2kship",
+      "file": "sprites/x2kship.png",
+      "framesize": null
+    },
+    {
+      "key": "xenon2_bomb",
+      "file": "sprites/xenon2_bomb.png",
+      "framesize": null
+    },
+    {
+      "key": "xenon2_ship",
+      "file": "sprites/xenon2_ship.png",
+      "framesize": null
+    },
+    {
+      "key": "yellow_ball",
+      "file": "sprites/yellow_ball.png",
+      "framesize": null
+    },
+    {
+      "key": "yune",
+      "file": "sprites/yune.png",
+      "framesize": null
+    },
+    {
+      "key": "zelda-hearts",
+      "file": "sprites/zelda-hearts.png",
+      "framesize": null
+    },
+    {
+      "key": "zelda-life",
+      "file": "sprites/zelda-life.png",
+      "framesize": null
+    }
+  ],
+  "backgrounds": [
+    {
+      "key": "1984-nocooper-space",
+      "file": "pics/1984-nocooper-space.png"
+    },
+    {
+      "key": "DOG",
+      "file": "pics/DOG.png"
+    },
+    {
+      "key": "Prometheus Brings Fire To Mankind",
+      "file": "pics/Prometheus Brings Fire To Mankind.jpg"
+    },
+    {
+      "key": "a-new-link-to-the-past-by-ptimm",
+      "file": "pics/a-new-link-to-the-past-by-ptimm.jpg"
+    },
+    {
+      "key": "acryl-bladerunner",
+      "file": "pics/acryl-bladerunner.png"
+    },
+    {
+      "key": "acryl-bobablast",
+      "file": "pics/acryl-bobablast.png"
+    },
+    {
+      "key": "agent-t-buggin-acf-logo",
+      "file": "pics/agent-t-buggin-acf-logo.png"
+    },
+    {
+      "key": "akira",
+      "file": "pics/akira.jpg"
+    },
+    {
+      "key": "alex-bear",
+      "file": "pics/alex-bear.png"
+    },
+    {
+      "key": "alex-bisleys-horsy-5",
+      "file": "pics/alex-bisleys-horsy-5.png"
+    },
+    {
+      "key": "alex-bisleys-horsy-512x512",
+      "file": "pics/alex-bisleys-horsy-512x512.png"
+    },
+    {
+      "key": "alpha-test",
+      "file": "pics/alpha-test.png"
+    },
+    {
+      "key": "anarchy-road-by-max-blazer",
+      "file": "pics/anarchy-road-by-max-blazer.png"
+    },
+    {
+      "key": "anime-ai",
+      "file": "pics/anime-ai.jpg"
+    },
+    {
+      "key": "anime-arcade-ai",
+      "file": "pics/anime-arcade-ai.jpg"
+    },
+    {
+      "key": "anime-market",
+      "file": "pics/anime-market.png"
+    },
+    {
+      "key": "anime2-ai",
+      "file": "pics/anime2-ai.jpg"
+    },
+    {
+      "key": "archmage-in-your-face",
+      "file": "pics/archmage-in-your-face.png"
+    },
+    {
+      "key": "atari-fujilogo",
+      "file": "pics/atari-fujilogo.png"
+    },
+    {
+      "key": "auto-scroll-landscape",
+      "file": "pics/auto-scroll-landscape.png"
+    },
+    {
+      "key": "aya-touhou-teng-soldier",
+      "file": "pics/aya-touhou-teng-soldier.png"
+    },
+    {
+      "key": "ayu",
+      "file": "pics/ayu.png"
+    },
+    {
+      "key": "ayu2",
+      "file": "pics/ayu2.png"
+    },
+    {
+      "key": "baal-ai",
+      "file": "pics/baal-ai.jpg"
+    },
+    {
+      "key": "baal-loader",
+      "file": "pics/baal-loader.png"
+    },
+    {
+      "key": "babar-phaleon-coco",
+      "file": "pics/babar-phaleon-coco.png"
+    },
+    {
+      "key": "babar-pym-wait",
+      "file": "pics/babar-pym-wait.png"
+    },
+    {
+      "key": "backscroll",
+      "file": "pics/backscroll.png"
+    },
+    {
+      "key": "barbarian-loading",
+      "file": "pics/barbarian-loading.png"
+    },
+    {
+      "key": "birdy",
+      "file": "pics/birdy.png"
+    },
+    {
+      "key": "bounty-hunter-by-anathematixs-desire",
+      "file": "pics/bounty-hunter-by-anathematixs-desire.png"
+    },
+    {
+      "key": "brilliance-jim-sachs",
+      "file": "pics/brilliance-jim-sachs.png"
+    },
+    {
+      "key": "bubble-off",
+      "file": "pics/bubble-off.png"
+    },
+    {
+      "key": "bubble-on",
+      "file": "pics/bubble-on.png"
+    },
+    {
+      "key": "bw-face",
+      "file": "pics/bw-face.png"
+    },
+    {
+      "key": "cactuar",
+      "file": "pics/cactuar.png"
+    },
+    {
+      "key": "calvin-hobbes",
+      "file": "pics/calvin-hobbes.png"
+    },
+    {
+      "key": "card1",
+      "file": "pics/card1.png"
+    },
+    {
+      "key": "card2",
+      "file": "pics/card2.png"
+    },
+    {
+      "key": "card3",
+      "file": "pics/card3.png"
+    },
+    {
+      "key": "cardframe",
+      "file": "pics/cardframe.png"
+    },
+    {
+      "key": "case",
+      "file": "pics/case.jpg"
+    },
+    {
+      "key": "casper-faith-hand",
+      "file": "pics/casper-faith-hand.png"
+    },
+    {
+      "key": "catastrophi",
+      "file": "pics/catastrophi.png"
+    },
+    {
+      "key": "checker",
+      "file": "pics/checker.png"
+    },
+    {
+      "key": "cockpit",
+      "file": "pics/cockpit.png"
+    },
+    {
+      "key": "cod",
+      "file": "pics/cod.jpg"
+    },
+    {
+      "key": "color-wheel-swirl",
+      "file": "pics/color-wheel-swirl.png"
+    },
+    {
+      "key": "color-wheel",
+      "file": "pics/color-wheel.png"
+    },
+    {
+      "key": "coma-zero-gravity",
+      "file": "pics/coma-zero-gravity.png"
+    },
+    {
+      "key": "commodore1084",
+      "file": "pics/commodore1084.png"
+    },
+    {
+      "key": "contra1",
+      "file": "pics/contra1.png"
+    },
+    {
+      "key": "contra2",
+      "file": "pics/contra2.png"
+    },
+    {
+      "key": "contra3",
+      "file": "pics/contra3.png"
+    },
+    {
+      "key": "cougar-dragonsun",
+      "file": "pics/cougar-dragonsun.png"
+    },
+    {
+      "key": "cougar-face-of-nature",
+      "file": "pics/cougar-face-of-nature.png"
+    },
+    {
+      "key": "cougar-ihsf",
+      "file": "pics/cougar-ihsf.png"
+    },
+    {
+      "key": "cougar-sanity-train",
+      "file": "pics/cougar-sanity-train.png"
+    },
+    {
+      "key": "debug-grid-1920x1920",
+      "file": "pics/debug-grid-1920x1920.png"
+    },
+    {
+      "key": "destop-rewarding",
+      "file": "pics/destop-rewarding.png"
+    },
+    {
+      "key": "devilstar-demo-download-disk",
+      "file": "pics/devilstar-demo-download-disk.png"
+    },
+    {
+      "key": "disconnect-by-joe-hoaxers",
+      "file": "pics/disconnect-by-joe-hoaxers.png"
+    },
+    {
+      "key": "donuts",
+      "file": "pics/donuts.jpg"
+    },
+    {
+      "key": "dr-death-e605-endpart",
+      "file": "pics/dr-death-e605-endpart.png"
+    },
+    {
+      "key": "dr-ick",
+      "file": "pics/dr-ick.png"
+    },
+    {
+      "key": "dragonslayer-by-mermaid-genesis-project",
+      "file": "pics/dragonslayer-by-mermaid-genesis-project.png"
+    },
+    {
+      "key": "dragonwiz",
+      "file": "pics/dragonwiz.png"
+    },
+    {
+      "key": "equality-by-ragnarok",
+      "file": "pics/equality-by-ragnarok.png"
+    },
+    {
+      "key": "evangelion-by-dave-rapoza",
+      "file": "pics/evangelion-by-dave-rapoza.jpg"
+    },
+    {
+      "key": "evangelion2-by-dave-rapoza",
+      "file": "pics/evangelion2-by-dave-rapoza.jpg"
+    },
+    {
+      "key": "fairy-background-craft-pixel",
+      "file": "pics/fairy-background-craft-pixel.png"
+    },
+    {
+      "key": "fof-background",
+      "file": "pics/fof-background.png"
+    },
+    {
+      "key": "forgotten-worlds",
+      "file": "pics/forgotten-worlds.png"
+    },
+    {
+      "key": "game14-angel-dawn",
+      "file": "pics/game14-angel-dawn.png"
+    },
+    {
+      "key": "giant",
+      "file": "pics/giant.png"
+    },
+    {
+      "key": "goblin",
+      "file": "pics/goblin.png"
+    },
+    {
+      "key": "gridmask",
+      "file": "pics/gridmask.png"
+    },
+    {
+      "key": "guard-rick",
+      "file": "pics/guard-rick.png"
+    },
+    {
+      "key": "hotshot-chaos-in-tokyo",
+      "file": "pics/hotshot-chaos-in-tokyo.png"
+    },
+    {
+      "key": "jim-sachs-time-crystal",
+      "file": "pics/jim-sachs-time-crystal.png"
+    },
+    {
+      "key": "kris-jovo",
+      "file": "pics/kris-jovo.jpg"
+    },
+    {
+      "key": "ladycop",
+      "file": "pics/ladycop.png"
+    },
+    {
+      "key": "lance-overdose-loader-eye",
+      "file": "pics/lance-overdose-loader-eye.png"
+    },
+    {
+      "key": "large-color-wheel",
+      "file": "pics/large-color-wheel.png"
+    },
+    {
+      "key": "lazur-skkaay3",
+      "file": "pics/lazur-skkaay3.png"
+    },
+    {
+      "key": "makoto",
+      "file": "pics/makoto.png"
+    },
+    {
+      "key": "manga-girl",
+      "file": "pics/manga-girl.png"
+    },
+    {
+      "key": "mask-test",
+      "file": "pics/mask-test.png"
+    },
+    {
+      "key": "mask-test2",
+      "file": "pics/mask-test2.png"
+    },
+    {
+      "key": "mask",
+      "file": "pics/mask.png"
+    },
+    {
+      "key": "mighty-no-09-cover-art-by-robduenas",
+      "file": "pics/mighty-no-09-cover-art-by-robduenas.jpg"
+    },
+    {
+      "key": "monika-krawinkel-amberstar-title",
+      "file": "pics/monika-krawinkel-amberstar-title.png"
+    },
+    {
+      "key": "monitor",
+      "file": "pics/monitor.png"
+    },
+    {
+      "key": "morty",
+      "file": "pics/morty.png"
+    },
+    {
+      "key": "nanoha-taiken-blue",
+      "file": "pics/nanoha-taiken-blue.png"
+    },
+    {
+      "key": "nanoha-taiken-pink",
+      "file": "pics/nanoha-taiken-pink.png"
+    },
+    {
+      "key": "nayuki",
+      "file": "pics/nayuki.png"
+    },
+    {
+      "key": "neoncircle",
+      "file": "pics/neoncircle.png"
+    },
+    {
+      "key": "neotokyo-ai",
+      "file": "pics/neotokyo-ai.jpg"
+    },
+    {
+      "key": "neuromancer",
+      "file": "pics/neuromancer.jpg"
+    },
+    {
+      "key": "ninja-masters2",
+      "file": "pics/ninja-masters2.png"
+    },
+    {
+      "key": "nova-20years-exile",
+      "file": "pics/nova-20years-exile.png"
+    },
+    {
+      "key": "nslide-snot",
+      "file": "pics/nslide-snot.png"
+    },
+    {
+      "key": "piano",
+      "file": "pics/piano.png"
+    },
+    {
+      "key": "pigchampagne",
+      "file": "pics/pigchampagne.png"
+    },
+    {
+      "key": "platformer-backdrop",
+      "file": "pics/platformer-backdrop.png"
+    },
+    {
+      "key": "profil-sad-plush",
+      "file": "pics/profil-sad-plush.png"
+    },
+    {
+      "key": "purple-bars",
+      "file": "pics/purple-bars.jpg"
+    },
+    {
+      "key": "purple-dots",
+      "file": "pics/purple-dots.png"
+    },
+    {
+      "key": "questar",
+      "file": "pics/questar.png"
+    },
+    {
+      "key": "ra-einstein",
+      "file": "pics/ra-einstein.png"
+    },
+    {
+      "key": "remember-me",
+      "file": "pics/remember-me.jpg"
+    },
+    {
+      "key": "rezero-cast",
+      "file": "pics/rezero-cast.png"
+    },
+    {
+      "key": "rezero-rem",
+      "file": "pics/rezero-rem.png"
+    },
+    {
+      "key": "rick-and-morty-by-sawuinhaff-da64e7y",
+      "file": "pics/rick-and-morty-by-sawuinhaff-da64e7y.png"
+    },
+    {
+      "key": "rick-and-morty-logo",
+      "file": "pics/rick-and-morty-logo.png"
+    },
+    {
+      "key": "robot-ai",
+      "file": "pics/robot-ai.jpg"
+    },
+    {
+      "key": "robota-uxo-by-made-of-bomb",
+      "file": "pics/robota-uxo-by-made-of-bomb.jpg"
+    },
+    {
+      "key": "sao-sinon",
+      "file": "pics/sao-sinon.png"
+    },
+    {
+      "key": "scrollframe",
+      "file": "pics/scrollframe.png"
+    },
+    {
+      "key": "seabed",
+      "file": "pics/seabed.png"
+    },
+    {
+      "key": "seven-seas-andromeda-fairfax",
+      "file": "pics/seven-seas-andromeda-fairfax.png"
+    },
+    {
+      "key": "shadow-of-the-beast2-karamoon",
+      "file": "pics/shadow-of-the-beast2-karamoon.png"
+    },
+    {
+      "key": "shadow-of-the-beast2-other-world",
+      "file": "pics/shadow-of-the-beast2-other-world.png"
+    },
+    {
+      "key": "shmup-hud",
+      "file": "pics/shmup-hud.png"
+    },
+    {
+      "key": "shocktroopers-angel",
+      "file": "pics/shocktroopers-angel.png"
+    },
+    {
+      "key": "shocktroopers-leon",
+      "file": "pics/shocktroopers-leon.png"
+    },
+    {
+      "key": "shocktroopers-leon2",
+      "file": "pics/shocktroopers-leon2.png"
+    },
+    {
+      "key": "shocktroopers-lulu",
+      "file": "pics/shocktroopers-lulu.png"
+    },
+    {
+      "key": "shocktroopers-lulu2",
+      "file": "pics/shocktroopers-lulu2.png"
+    },
+    {
+      "key": "shocktroopers-toy",
+      "file": "pics/shocktroopers-toy.png"
+    },
+    {
+      "key": "shocktroopers-toy2",
+      "file": "pics/shocktroopers-toy2.png"
+    },
+    {
+      "key": "skull-and-bones",
+      "file": "pics/skull-and-bones.jpg"
+    },
+    {
+      "key": "skull",
+      "file": "pics/skull.png"
+    },
+    {
+      "key": "slayer-sorry-im-the-beast",
+      "file": "pics/slayer-sorry-im-the-beast.png"
+    },
+    {
+      "key": "slug",
+      "file": "pics/slug.png"
+    },
+    {
+      "key": "space-wreck",
+      "file": "pics/space-wreck.jpg"
+    },
+    {
+      "key": "spaceship",
+      "file": "pics/spaceship.png"
+    },
+    {
+      "key": "spacey",
+      "file": "pics/spacey.jpg"
+    },
+    {
+      "key": "spaz-bitch-beatnick",
+      "file": "pics/spaz-bitch-beatnick.png"
+    },
+    {
+      "key": "spaz-oh-crikey-komische-sackratten-von-der-hohle",
+      "file": "pics/spaz-oh-crikey-komische-sackratten-von-der-hohle.png"
+    },
+    {
+      "key": "spider",
+      "file": "pics/spider.png"
+    },
+    {
+      "key": "splat1",
+      "file": "pics/splat1.png"
+    },
+    {
+      "key": "splat2",
+      "file": "pics/splat2.png"
+    },
+    {
+      "key": "splat3",
+      "file": "pics/splat3.png"
+    },
+    {
+      "key": "spyro",
+      "file": "pics/spyro.png"
+    },
+    {
+      "key": "sukasuka-chtholly",
+      "file": "pics/sukasuka-chtholly.png"
+    },
+    {
+      "key": "supercars-parsec",
+      "file": "pics/supercars-parsec.png"
+    },
+    {
+      "key": "sure-shot-by-made",
+      "file": "pics/sure-shot-by-made.png"
+    },
+    {
+      "key": "swirl1",
+      "file": "pics/swirl1.jpg"
+    },
+    {
+      "key": "sword-art-online",
+      "file": "pics/sword-art-online.jpg"
+    },
+    {
+      "key": "taikodrummaster",
+      "file": "pics/taikodrummaster.jpg"
+    },
+    {
+      "key": "templeton-sea_of_colour-multicolor_fish",
+      "file": "pics/templeton-sea_of_colour-multicolor_fish.png"
+    },
+    {
+      "key": "thalion-rain",
+      "file": "pics/thalion-rain.png"
+    },
+    {
+      "key": "the-brightest-light-comes-from-the-darkest-place-by-slayer-ghostown",
+      "file": "pics/the-brightest-light-comes-from-the-darkest-place-by-slayer-ghostown.png"
+    },
+    {
+      "key": "the-end-by-iloe-and-made",
+      "file": "pics/the-end-by-iloe-and-made.jpg"
+    },
+    {
+      "key": "thorn-lazur",
+      "file": "pics/thorn-lazur.png"
+    },
+    {
+      "key": "titan-mech",
+      "file": "pics/titan-mech.png"
+    },
+    {
+      "key": "touhou1",
+      "file": "pics/touhou1.png"
+    },
+    {
+      "key": "touhou2",
+      "file": "pics/touhou2.png"
+    },
+    {
+      "key": "town-wreck",
+      "file": "pics/town-wreck.jpg"
+    },
+    {
+      "key": "trsipic1-lazur",
+      "file": "pics/trsipic1-lazur.jpg"
+    },
+    {
+      "key": "turkey-1985086",
+      "file": "pics/turkey-1985086.jpg"
+    },
+    {
+      "key": "tvzor-lazur",
+      "file": "pics/tvzor-lazur.png"
+    },
+    {
+      "key": "undersea",
+      "file": "pics/undersea.jpg"
+    },
+    {
+      "key": "unknown-the-starwars-pic",
+      "file": "pics/unknown-the-starwars-pic.png"
+    },
+    {
+      "key": "uv-grid-4096-ian-maclachlan",
+      "file": "pics/uv-grid-4096-ian-maclachlan.png"
+    },
+    {
+      "key": "uv-grid-diag",
+      "file": "pics/uv-grid-diag.png"
+    },
+    {
+      "key": "uv-grid",
+      "file": "pics/uv-grid.jpg"
+    },
+    {
+      "key": "village",
+      "file": "pics/village.jpg"
+    },
+    {
+      "key": "vulkaiser-red",
+      "file": "pics/vulkaiser-red.png"
+    },
+    {
+      "key": "warzone",
+      "file": "pics/warzone.png"
+    },
+    {
+      "key": "world",
+      "file": "pics/world.png"
+    },
+    {
+      "key": "zero-two",
+      "file": "pics/zero-two.png"
+    },
+    {
+      "key": "zod4",
+      "file": "pics/zod4.png"
+    },
+    {
+      "key": "background1",
+      "file": "skies/background1.png"
+    },
+    {
+      "key": "bigsky",
+      "file": "skies/bigsky.png"
+    },
+    {
+      "key": "casinotable",
+      "file": "skies/casinotable.png"
+    },
+    {
+      "key": "cavern1",
+      "file": "skies/cavern1.png"
+    },
+    {
+      "key": "cavern2",
+      "file": "skies/cavern2.png"
+    },
+    {
+      "key": "chrome",
+      "file": "skies/chrome.png"
+    },
+    {
+      "key": "clouds",
+      "file": "skies/clouds.png"
+    },
+    {
+      "key": "darkstone",
+      "file": "skies/darkstone.png"
+    },
+    {
+      "key": "deep-space",
+      "file": "skies/deep-space.jpg"
+    },
+    {
+      "key": "deepblue",
+      "file": "skies/deepblue.png"
+    },
+    {
+      "key": "fire",
+      "file": "skies/fire.png"
+    },
+    {
+      "key": "fog",
+      "file": "skies/fog.png"
+    },
+    {
+      "key": "gradient1",
+      "file": "skies/gradient1.png"
+    },
+    {
+      "key": "gradient10",
+      "file": "skies/gradient10.png"
+    },
+    {
+      "key": "gradient11",
+      "file": "skies/gradient11.png"
+    },
+    {
+      "key": "gradient12",
+      "file": "skies/gradient12.png"
+    },
+    {
+      "key": "gradient13",
+      "file": "skies/gradient13.png"
+    },
+    {
+      "key": "gradient14",
+      "file": "skies/gradient14.png"
+    },
+    {
+      "key": "gradient15",
+      "file": "skies/gradient15.png"
+    },
+    {
+      "key": "gradient16",
+      "file": "skies/gradient16.png"
+    },
+    {
+      "key": "gradient17",
+      "file": "skies/gradient17.png"
+    },
+    {
+      "key": "gradient18",
+      "file": "skies/gradient18.png"
+    },
+    {
+      "key": "gradient19",
+      "file": "skies/gradient19.png"
+    },
+    {
+      "key": "gradient2",
+      "file": "skies/gradient2.png"
+    },
+    {
+      "key": "gradient20",
+      "file": "skies/gradient20.png"
+    },
+    {
+      "key": "gradient21",
+      "file": "skies/gradient21.png"
+    },
+    {
+      "key": "gradient22",
+      "file": "skies/gradient22.png"
+    },
+    {
+      "key": "gradient23",
+      "file": "skies/gradient23.png"
+    },
+    {
+      "key": "gradient24",
+      "file": "skies/gradient24.png"
+    },
+    {
+      "key": "gradient25",
+      "file": "skies/gradient25.png"
+    },
+    {
+      "key": "gradient26",
+      "file": "skies/gradient26.png"
+    },
+    {
+      "key": "gradient27",
+      "file": "skies/gradient27.png"
+    },
+    {
+      "key": "gradient28",
+      "file": "skies/gradient28.png"
+    },
+    {
+      "key": "gradient29",
+      "file": "skies/gradient29.png"
+    },
+    {
+      "key": "gradient3",
+      "file": "skies/gradient3.png"
+    },
+    {
+      "key": "gradient30",
+      "file": "skies/gradient30.png"
+    },
+    {
+      "key": "gradient4",
+      "file": "skies/gradient4.png"
+    },
+    {
+      "key": "gradient5",
+      "file": "skies/gradient5.png"
+    },
+    {
+      "key": "gradient6",
+      "file": "skies/gradient6.png"
+    },
+    {
+      "key": "gradient7",
+      "file": "skies/gradient7.png"
+    },
+    {
+      "key": "gradient8",
+      "file": "skies/gradient8.png"
+    },
+    {
+      "key": "gradient9",
+      "file": "skies/gradient9.png"
+    },
+    {
+      "key": "grass",
+      "file": "skies/grass.jpg"
+    },
+    {
+      "key": "grid",
+      "file": "skies/grid.png"
+    },
+    {
+      "key": "lightblue",
+      "file": "skies/lightblue.png"
+    },
+    {
+      "key": "mountains-tile",
+      "file": "skies/mountains-tile.png"
+    },
+    {
+      "key": "ms3-sky",
+      "file": "skies/ms3-sky.png"
+    },
+    {
+      "key": "ms3-trees",
+      "file": "skies/ms3-trees.png"
+    },
+    {
+      "key": "nebula",
+      "file": "skies/nebula.jpg"
+    },
+    {
+      "key": "pixelback1",
+      "file": "skies/pixelback1.jpg"
+    },
+    {
+      "key": "pixelsky",
+      "file": "skies/pixelsky.png"
+    },
+    {
+      "key": "seablue",
+      "file": "skies/seablue.png"
+    },
+    {
+      "key": "seaclouds",
+      "file": "skies/seaclouds.png"
+    },
+    {
+      "key": "sf2boat",
+      "file": "skies/sf2boat.png"
+    },
+    {
+      "key": "sf2floor",
+      "file": "skies/sf2floor.png"
+    },
+    {
+      "key": "sky1",
+      "file": "skies/sky1.png"
+    },
+    {
+      "key": "sky2",
+      "file": "skies/sky2.png"
+    },
+    {
+      "key": "sky3",
+      "file": "skies/sky3.png"
+    },
+    {
+      "key": "sky4",
+      "file": "skies/sky4.png"
+    },
+    {
+      "key": "sky5",
+      "file": "skies/sky5.png"
+    },
+    {
+      "key": "space",
+      "file": "skies/space.jpg"
+    },
+    {
+      "key": "space1",
+      "file": "skies/space1.png"
+    },
+    {
+      "key": "space2",
+      "file": "skies/space2.png"
+    },
+    {
+      "key": "space3",
+      "file": "skies/space3.png"
+    },
+    {
+      "key": "space4",
+      "file": "skies/space4.png"
+    },
+    {
+      "key": "spooky",
+      "file": "skies/spooky.png"
+    },
+    {
+      "key": "spookysky",
+      "file": "skies/spookysky.jpg"
+    },
+    {
+      "key": "starfield",
+      "file": "skies/starfield.png"
+    },
+    {
+      "key": "sunorbit",
+      "file": "skies/sunorbit.png"
+    },
+    {
+      "key": "sunset",
+      "file": "skies/sunset.png"
+    },
+    {
+      "key": "toxic",
+      "file": "skies/toxic.png"
+    },
+    {
+      "key": "underwater1",
+      "file": "skies/underwater1.png"
+    },
+    {
+      "key": "underwater2",
+      "file": "skies/underwater2.png"
+    },
+    {
+      "key": "underwater3",
+      "file": "skies/underwater3.png"
+    },
+    {
+      "key": "waves",
+      "file": "skies/waves.png"
+    },
+    {
+      "key": "wtf",
+      "file": "skies/wtf.png"
+    }
+  ]
 }
