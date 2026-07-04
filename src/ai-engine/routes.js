@@ -5238,6 +5238,9 @@ async function runMakerAgentInspectionTurns({
     maxTurns = getMakerAgentInspectionTurns((assetContract?.slots || []).length, {
         freeBuild3D: isFreeBuildMode()
             && (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)),
+        // Kenney-only 2D always has 0 asset slots, so the slot proxy would give even a complex
+        // platformer only 2 turns; canvas-kernel IS the 2D lane, so floor its repair budget.
+        kenney2d: templateContract?.templateId === 'canvas-kernel',
     }),
     reportProgress = null,
 }) {

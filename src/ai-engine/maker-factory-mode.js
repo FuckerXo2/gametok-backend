@@ -63,7 +63,7 @@ export function shouldBlockOnPreflight(preflight = {}, factoryMinimal = isMakerF
     return false;
 }
 
-export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild3D = false } = {}) {
+export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild3D = false, kenney2d = false } = {}) {
     const envTurns = Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS);
     let fallback = isMakerFactoryMinimalMode() ? 2 : 3;
     // Scale repair budget with game complexity (asset-slot count is a good proxy). A 15-slot game
@@ -78,6 +78,12 @@ export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild
         // is harder to converge than a 12-slot 2D game, so it needs MORE repair budget, not the
         // minimum. Floor free-build 3D at 1 implement + 2 repair so a single bad rewrite isn't fatal.
         if (freeBuild3D) fallback = Math.max(fallback, 3);
+        // Kenney-only 2D games ALWAYS have 0 asset slots (real sprites are selected in Phase 2, not
+        // requested as slots), so the slot proxy scores every one as "trivial" and hands a complex
+        // side-scrolling platformer the same 2-turn budget as a tap-toy — how the "Cute Pixel
+        // Platformer" job died at the buzzer on a one-line tsc fix. Floor at 1 implement + 2 repair,
+        // same rationale as free-build 3D: the proxy understates their real complexity.
+        if (kenney2d) fallback = Math.max(fallback, 3);
     }
     const requested = Number.isFinite(envTurns) && envTurns > 0 ? envTurns : fallback;
     return Math.max(1, Math.min(5, requested));
