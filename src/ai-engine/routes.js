@@ -40,7 +40,7 @@ import { materializeMakerAssetsForProject } from './maker-asset-materializer.js'
 import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, buildThreeDRulesBlock, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
 import { materializeKenney3dModels, kenney3dModelPromptBlock, buildKenneyRetrievalText } from './maker-kenney3d.js';
-import { selectKenney2dPacks, materializeKenney2dSprites, kenney2dSpritePromptBlock, loadPackManifest } from './maker-kenney2d.js';
+
 import { selectPhaser2dAssets, materializePhaser2dSprites, phaser2dSpritePromptBlock } from './maker-phaser2d.js';
 import { resolveKenney2dAssets } from './asset-resolver.js';
 import { selectCharacter, resolveCharacterAnimations } from './character-collection.js';
@@ -5241,7 +5241,7 @@ async function runMakerAgentInspectionTurns({
             && (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)),
         // Kenney-only 2D always has 0 asset slots, so the slot proxy would give even a complex
         // platformer only 2 turns; canvas-kernel IS the 2D lane, so floor its repair budget.
-        kenney2d: templateContract?.templateId === 'canvas-kernel',
+        phaser2d: templateContract?.templateId === 'canvas-kernel',
     }),
     reportProgress = null,
 }) {
@@ -5288,70 +5288,20 @@ async function runMakerAgentInspectionTurns({
         }
     }
 
-    // 2D Kenney sprites: for canvas-kernel games, pick ONE coherent pack (capability-scored), resolve
-    // logical roles, fetch from R2 and inline them (window.DREAM_ASSETS + DREAM_SPRITE_ROLES via
-    // src/dreamSprites.ts) so the builder draws REAL sprites via sprite()/animatedSprite(). Guarded —
-    // yields '' (-> code-drawn primitive fallback, never FLUX) on no pack match or any fetch failure.
-    let kenney2dBlock = '';
-    let kenney2dHasGround = false; // real ground tiles/backdrop were provided — the world MUST be tiled, not a flat void
+    // 2D Phaser assets: for canvas-kernel games, pick atlases, audio, and backgrounds by prompt
+    // relevance, fetch from R2 and inline them (window.DREAM_ATLASES, DREAM_AUDIO, DREAM_BACKGROUNDS
+    // via src/dreamSprites.ts).
+    let phaser2dBlock = '';
+    let phaser2dHasGround = false; // flag to enforce ground rendering if tiles are provided
     if (templateContract?.templateId === 'canvas-kernel') {
         try {
-            const usePhaser = templateContract?.assetSource === 'phaser' || /phaser/i.test(prompt);
-
-            if (usePhaser) {
-                const p2dPacks = selectPhaser2dAssets(prompt, qualityIntent, templateContract?.foundation || null);
-                if (p2dPacks && p2dPacks.picks && Object.keys(p2dPacks.picks).length > 0) {
-                    const p2dMat = await materializePhaser2dSprites(projectRoot, p2dPacks.picks, { pixelArt: false });
-                    if (p2dMat) {
-                        kenney2dBlock = phaser2dSpritePromptBlock(p2dPacks.picks);
-                        console.log(`🎨 [Phase 2 job=${jobId}] Phaser 2D: ${p2dMat.count} atlases materialized (roles: ${p2dMat.roles.join(', ')})`);
-                    }
-                }
-            } else {
-                const k2dPacks = selectKenney2dPacks(prompt, qualityIntent, templateContract?.foundation || null);
-                if (k2dPacks.main) {
-                    const k2dResolution = resolveKenney2dAssets(k2dPacks, k2dPacks.requiredRoles);
-                    // Cross-pack character override (flag-gated, default off): pick player/enemy by MEANING
-                    // from the collection ("wizard"/"orc"/"slime") instead of the single pack's base sprite.
-                    if (process.env.GAMETOK_2D_COLLECTION === 'true') {
-                        try {
-                            const bps = Array.isArray(templateContract?.foundation?.entityBlueprints) ? templateContract.foundation.entityBlueprints : [];
-                            for (const role of ['player', 'enemy']) {
-                                const bp = bps.find((b) => (b?.role || '').toLowerCase().includes(role));
-                                if (!bp) continue;
-                                const pick = selectCharacter(`${bp.name || ''} ${bp.description || ''}`, role);
-                                if (!pick) continue;
-                                const r = resolveCharacterAnimations(pick, loadPackManifest);
-                                k2dResolution[role] = { role, key: r.key, w: r.w, h: r.h, animations: r.animations };
-                                console.log(`🧬 [Phase 2 job=${jobId}] Collection: ${role} -> "${pick.name}" (${pick.archetype}) from "${pick.pack}"`);
-                            }
-                            // Items role: fill pickups that match the game (cooking->food, dungeon->keys/chests).
-                            if (k2dResolution.items && Array.isArray(k2dResolution.items.keys)) {
-                                const itemBp = bps.find((b) => (b?.role || '').toLowerCase().includes('item'));
-                                const picks = selectItems(`${qualityIntent?.title || ''} ${itemBp?.description || ''} ${prompt || ''}`, 12);
-                                if (picks.length) { k2dResolution.items.keys = picks; console.log(`🧬 [Phase 2 job=${jobId}] Collection: items -> ${picks.length} matched pickups`); }
-                            }
-                            // Background role: Kenney backdrops are SIDE-SCROLLER parallax scenes — only apply
-                            // to platformer/side-scroller games (a horizon backdrop behind a top-down view is wrong).
-                            if (k2dResolution.background && Array.isArray(k2dResolution.background.keys)) {
-                                const genreText = `${templateContract?.foundation?.lane || ''} ${qualityIntent?.tech || ''} ${prompt || ''}`;
-                                const isTopDown = /top.?down|top_down|overhead|bird.?s?.?eye/i.test(genreText);
-                                if (!isTopDown && /platform(er)?|side.?scroll|endless.?runner|\brunner\b/i.test(genreText)) {
-                                    const bgs = selectBackground(`${qualityIntent?.title || ''} ${prompt || ''}`, 3);
-                                    if (bgs.length) { k2dResolution.background.keys = bgs; console.log(`🧬 [Phase 2 job=${jobId}] Collection: background -> ${bgs.length} scene backdrops`); }
-                                }
-                            }
-                        } catch (e) { console.warn(`🧬 [Phase 2 job=${jobId}] collection override skipped: ${e?.message || e}`); }
-                    }
-                    const k2dMat = await materializeKenney2dSprites(projectRoot, k2dResolution, { pixelArt: k2dPacks.main?.style === 'pixel' });
-                    if (k2dMat) {
-                        kenney2dBlock = kenney2dSpritePromptBlock(k2dResolution);
-                        // ONLY a real `tiles` role is a tileable floor. The `background` role is decorative
-                        // parallax (clouds/hills) — tiling it edge-to-edge looks broken, so it must NOT count
-                        // as ground or the fill gate would force that exact regression.
-                        kenney2dHasGround = k2dMat.roles.includes('tiles');
-                        console.log(`🎨 [Phase 2 job=${jobId}] Kenney 2D: ${k2dMat.count} sprites from "${k2dPacks.main.pack}" (roles: ${k2dMat.roles.join(', ')})`);
-                    }
+            const p2dPacks = selectPhaser2dAssets(prompt, qualityIntent, templateContract?.foundation || null);
+            if (p2dPacks && p2dPacks.picks && Object.keys(p2dPacks.picks).length > 0) {
+                const p2dMat = await materializePhaser2dSprites(projectRoot, p2dPacks.picks, { pixelArt: false });
+                if (p2dMat) {
+                    phaser2dBlock = phaser2dSpritePromptBlock(p2dPacks.picks);
+                    phaser2dHasGround = p2dMat.roles.includes('tiles');
+                    console.log(`🎨 [Phase 2 job=${jobId}] Phaser 2D: ${p2dMat.count} atlases materialized (roles: ${p2dMat.roles.join(', ')})`);
                 }
             }
         } catch (e) {
@@ -5417,7 +5367,7 @@ async function runMakerAgentInspectionTurns({
                 assetSlotHints,
                 userMedia: generatedAssets?.userMedia || null,
                 kenney3dBlock,
-                kenney2dBlock,
+                phaser2dBlock,
             })
             : buildMakerAgentInspectionPrompt({
                 prompt,
@@ -5773,7 +5723,7 @@ async function runMakerAgentInspectionTurns({
                 // a procedural box still looks fine), an untiled 2D world ships a flat-color VOID — the #1
                 // "looks unfinished next to competitors" failure. So this one is ENFORCED: force ONE turn.
                 let groundUnfilled = false;
-                if (kenney2dHasGround && groundFillForceRetries < 1 && turnNumber < maxTurns && !hollowReason) {
+                if (phaser2dHasGround && groundFillForceRetries < 1 && turnNumber < maxTurns && !hollowReason) {
                     try {
                         const freshFiles = await readMakerProjectFiles(projectRoot);
                         const code = freshFiles.map((f) => f.content || '').join('\n');

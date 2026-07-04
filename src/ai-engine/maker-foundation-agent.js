@@ -44,11 +44,11 @@ export function useDynamicFoundation() {
 }
 
 // 2D FLUX gate: when ON (default), 2D foundations get EMPTY assetSlots — exactly like 3D — so the AI
-// image artist never runs. The game uses real Kenney sprites (materialized via the kenney2dBlock path)
+// image artist never runs. The game uses real Phaser sprites (materialized via the phaser2dBlock path)
 // and code-drawn primitives as fallback, never FLUX. Flip GAMETOK_2D_KENNEY_ONLY=false to restore
-// FLUX sprite-gen for 2D (e.g. if Kenney coverage is insufficient for a genre).
-export function use2dKenneyOnly() {
-    return String(process.env.GAMETOK_2D_KENNEY_ONLY || 'true').toLowerCase() !== 'false';
+// FLUX sprite-gen for 2D (e.g. if Phaser coverage is insufficient for a genre).
+export function use2dAssetsOnly() {
+    return String(process.env.GAMETOK_2D_ASSETS_ONLY || 'true').toLowerCase() !== 'false';
 }
 
 export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
@@ -60,12 +60,12 @@ export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
     const mustBe3D = phase1Dimension === '3D';
     // Kenney-only 2D: the foundation gets EMPTY assetSlots (line ~322) because real Kenney sprites are
     // selected AFTER the foundation, in Phase 2. So the FLUX-era "design a painted background image"
-    // guidance is a dangling pointer — there is no background image, and top-down has no Kenney backdrop.
+    // guidance is a dangling pointer — there is no background image, and top-down has no Phaser backdrop.
     // Swap in tile-the-ground / scatter-props guidance so the foundation stops instructing the blind
     // builder to draw an asset that will never exist.
-    const kenney2d = !mustBe3D && use2dKenneyOnly();
-    const asset2dBlock = kenney2d
-        ? `- ASSETS: this 2D game is built from REAL Kenney sprite art (player, enemies, items, ground tiles, props, decorative background pieces) auto-selected from a themed pack AFTER this foundation. You do NOT design assetSlots — leave "assetSlots": [] (the artist agent does not run). Do NOT invent art briefs or reference a single painted portrait background image (there is none).
+    const phaser2d = !mustBe3D && use2dAssetsOnly();
+    const asset2dBlock = phaser2d
+        ? `- ASSETS: this 2D game is built from REAL Phaser sprite art (player, enemies, items, ground tiles, props, decorative background pieces) auto-selected from a themed pack AFTER this foundation. You do NOT design assetSlots — leave "assetSlots": [] (the artist agent does not run). Do NOT invent art briefs or reference a single painted portrait background image (there is none).
 - THE WORLD MUST NOT BE A FLAT EMPTY VOID (that is what makes a game look unfinished next to competitors) — but HOW you fill it depends on the camera, so pick the right one:
   * TOP-DOWN / OVERHEAD (arena shooters, dungeons, .io games): TILE THE FLOOR. The builder calls tileGround(ctx, w, h) to fill the whole play area with the pack's seamless \`tiles\`, then scatterProps(ctx, ...) to dress it with ~6-12 static props (crates/barrels/debris). firstFrame: tiled floor → props → player → enemies → HUD.
   * SIDE-SCROLLER / PLATFORMER: do NOT tile a full-screen floor. Draw a SKY (a code gradient sky is CORRECT and good here, not a failure), then a sparse FAR PARALLAX layer from the \`background\` pieces (clouds/hills — via drawParallax(), a few big pieces, NEVER tiled edge-to-edge), then build platforms/ground from platform/tile sprites, then entities, then HUD.
@@ -182,7 +182,7 @@ Return this JSON shape:
   "hudScaffold": false,
   "hudBlocks": [],
   "hudAuthority": "agent",
-  "firstFrame": [${kenney2d ? '"Fill the world (top-down: tile floor + props; side-scroller: sky + parallax + platforms)", "Draw player", "Show score HUD"' : '"Draw background image", "Draw player", "Show score HUD"'}],
+  "firstFrame": [${phaser2d ? '"Fill the world (top-down: tile floor + props; side-scroller: sky + parallax + platforms)", "Draw player", "Show score HUD"' : '"Draw background image", "Draw player", "Show score HUD"'}],
   "interactionLoops": ["short description of core input loop"],
   "entityBlueprints": [
     { "id": "player", "role": "player", "description": "who the player is" }

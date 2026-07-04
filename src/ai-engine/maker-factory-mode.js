@@ -63,7 +63,7 @@ export function shouldBlockOnPreflight(preflight = {}, factoryMinimal = isMakerF
     return false;
 }
 
-export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild3D = false, kenney2d = false } = {}) {
+export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild3D = false, phaser2d = false } = {}) {
     const envTurns = Number(process.env.GAMETOK_MAKER_AGENT_INSPECTION_TURNS);
     let fallback = isMakerFactoryMinimalMode() ? 2 : 3;
     // Scale repair budget with game complexity (asset-slot count is a good proxy). A 15-slot game
@@ -83,7 +83,7 @@ export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild
         // side-scrolling platformer the same 2-turn budget as a tap-toy — how the "Cute Pixel
         // Platformer" job died at the buzzer on a one-line tsc fix. Floor at 1 implement + 2 repair,
         // same rationale as free-build 3D: the proxy understates their real complexity.
-        if (kenney2d) fallback = Math.max(fallback, 3);
+        if (phaser2d) fallback = Math.max(fallback, 3);
     }
     const requested = Number.isFinite(envTurns) && envTurns > 0 ? envTurns : fallback;
     return Math.max(1, Math.min(5, requested));

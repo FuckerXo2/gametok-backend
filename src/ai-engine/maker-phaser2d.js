@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { buildKenneyRetrievalText } from './maker-kenney3d.js';
-import { deriveRequiredRoles } from './maker-kenney2d.js';
 
 function r2PublicBase() {
     return (process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`).replace(/\/+$/, '');
@@ -10,6 +9,26 @@ function r2PublicBase() {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CATALOG_DIR = path.join(__dirname, 'phaser2d');
+
+export function deriveRequiredRoles(foundation = {}, retrievalText = '') {
+    const need = new Set(['player', 'tiles']);
+    const t = retrievalText.toLowerCase();
+    const blob = [
+        ...(Array.isArray(foundation.entityBlueprints) ? foundation.entityBlueprints : [])
+            .map((b) => (typeof b === 'string' ? b : `${b?.name || ''} ${b?.role || ''} ${b?.description || ''}`)),
+        t,
+    ].join(' ').toLowerCase();
+
+    if (/enemy|enemies|zombie|monster|foe|boss|alien|invader|horde|wave/.test(blob)) need.add('enemies');
+    if (/bullet|projectile|shoot|laser|missile|arrow|gun|blast|fire\b/.test(blob)) need.add('projectiles');
+    if (/coin|gem|pickup|collect|item|loot|powerup|star|food|fruit|key|treasure/.test(blob)) need.add('items');
+    if (/car|vehicle|tank|ship|racer|drive|kart|plane/.test(blob)) need.add('vehicles');
+    if (/sky|outdoor|space|forest|scroll|parallax|backdrop|background|world/.test(blob)) need.add('background');
+    if (/dress|outfit|wardrobe|makeover|makeup|customi|avatar|character creator|fashion|style/.test(blob)) {
+        need.add('items'); need.delete('tiles');
+    }
+    return need;
+}
 
 let _catalog = null;
 function loadPhaserCatalog() {
