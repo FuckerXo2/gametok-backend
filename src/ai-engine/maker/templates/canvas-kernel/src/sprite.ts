@@ -93,20 +93,21 @@ export function count(role: string): number {
 }
 
 /**
- * Fill a rectangle by TILING the ground — the ONE-LINE way to give the game a real floor instead of a
- * flat color void (the #1 thing that separates a finished-looking game from an unfinished one). Call
- * this FIRST every frame, before entities: tileGround(ctx, canvas.width, canvas.height). Uses the
- * `tiles` role (falls back to `background`), forces seamless nearest-neighbour, and returns false only
- * if no ground art exists (then draw your own solid/gradient fallback). Pass originX/originY (e.g. a
- * scrolling camera offset) to make the floor scroll. `vary:true` cycles through all ground tiles for a
- * patterned floor; default tiles a single base tile for a clean, seam-free surface.
+ * Fill a rectangle by TILING the ground — the ONE-LINE way to give a TOP-DOWN game a real floor instead
+ * of a flat color void. Call this FIRST every frame, before entities: tileGround(ctx, canvas.width,
+ * canvas.height). Uses ONLY the seamless `tiles` role (NEVER the `background` role — those are
+ * decorative parallax pieces like clouds/hills that look broken when tiled edge-to-edge; use
+ * drawParallax() for those). Forces seamless nearest-neighbour; returns false if no ground tiles exist
+ * (then draw your own solid/gradient fallback). Pass originX/originY (e.g. a scrolling camera offset) to
+ * scroll the floor. `vary:true` cycles all ground tiles for a patterned floor; default tiles one base
+ * tile for a clean, seam-free surface.
  */
 export function tileGround(
   ctx: CanvasRenderingContext2D, viewW: number, viewH: number,
   o: { size?: number; originX?: number; originY?: number; tileIndex?: number; vary?: boolean } = {},
 ): boolean {
   const r = roles() as Record<string, string[]>;
-  const list = (r.tiles && r.tiles.length ? r.tiles : r.background) || [];
+  const list = r.tiles || []; // ground/floor tiles ONLY — background pieces are NOT seamless, never tile them
   if (!list.length) return false;
   const baseIdx = ((o.tileIndex ?? 0) % list.length + list.length) % list.length;
   const first = imageFor(list[baseIdx]);
@@ -149,4 +150,39 @@ export function scatterProps(
     if (drawImageCentered(ctx, imageFor(list[idx]), p.x, p.y, { size: p.size, anchor: 'bottom' })) n++;
   }
   return n;
+}
+
+/**
+ * Draw the `background` role as a FAR PARALLAX layer — the correct use of decorative scene pieces
+ * (clouds, hills, mountains, bushes). This is for SIDE-SCROLLERS: a sky (draw your own gradient first),
+ * then a sparse row of big background pieces. NEVER tile these edge-to-edge (they are not seamless —
+ * that looks broken); tileGround() is for the floor, this is for the horizon. Give explicit positions,
+ * or pass a count to auto-space them across the width. Returns how many were drawn.
+ */
+export function drawParallax(
+  ctx: CanvasRenderingContext2D,
+  opts: { viewW: number; baselineY: number; count?: number; size?: number; originX?: number; scroll?: number }
+    | Array<{ x: number; y: number; i?: number; size?: number }>,
+): number {
+  const list = (roles() as Record<string, string[]>).background || [];
+  if (!list.length) return 0;
+  let pieces: Array<{ x: number; y: number; i?: number; size?: number }>;
+  if (Array.isArray(opts)) {
+    pieces = opts;
+  } else {
+    const n = Math.max(1, opts.count ?? 4);
+    const scroll = (opts.scroll ?? 0) * (opts.originX ?? 0);
+    const step = opts.viewW / n;
+    pieces = [];
+    for (let k = 0; k < n; k++) {
+      pieces.push({ x: ((k + 0.5) * step - scroll) % (opts.viewW + step), y: opts.baselineY, i: k, size: opts.size });
+    }
+  }
+  let drawn = 0;
+  for (let k = 0; k < pieces.length; k++) {
+    const p = pieces[k];
+    const idx = ((p.i ?? k) % list.length + list.length) % list.length;
+    if (drawImageCentered(ctx, imageFor(list[idx]), p.x, p.y, { size: p.size, anchor: 'bottom' })) drawn++;
+  }
+  return drawn;
 }

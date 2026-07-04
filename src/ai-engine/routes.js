@@ -5330,7 +5330,10 @@ async function runMakerAgentInspectionTurns({
                 const k2dMat = await materializeKenney2dSprites(projectRoot, k2dResolution, { pixelArt: k2dPacks.main?.style === 'pixel' });
                 if (k2dMat) {
                     kenney2dBlock = kenney2dSpritePromptBlock(k2dResolution);
-                    kenney2dHasGround = k2dMat.roles.includes('tiles') || k2dMat.roles.includes('background');
+                    // ONLY a real `tiles` role is a tileable floor. The `background` role is decorative
+                    // parallax (clouds/hills) — tiling it edge-to-edge looks broken, so it must NOT count
+                    // as ground or the fill gate would force that exact regression.
+                    kenney2dHasGround = k2dMat.roles.includes('tiles');
                     console.log(`🎨 [Phase 2 job=${jobId}] Kenney 2D: ${k2dMat.count} sprites from "${k2dPacks.main.pack}" (roles: ${k2dMat.roles.join(', ')})`);
                 }
             }
@@ -5758,7 +5761,7 @@ async function runMakerAgentInspectionTurns({
                         const freshFiles = await readMakerProjectFiles(projectRoot);
                         const code = freshFiles.map((f) => f.content || '').join('\n');
                         groundUnfilled = !/\btileGround\s*\(/.test(code)
-                            && !/\btile\s*\(\s*[^,]+,\s*['"](?:tiles|background)['"]/.test(code);
+                            && !/\btile\s*\(\s*[^,]+,\s*['"]tiles['"]/.test(code);
                     } catch { /* unreadable — don't force */ }
                 }
                 if (hollowReason && turnNumber < maxTurns && hollowForceRetries < 1) {

@@ -65,11 +65,13 @@ export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
     // builder to draw an asset that will never exist.
     const kenney2d = !mustBe3D && use2dKenneyOnly();
     const asset2dBlock = kenney2d
-        ? `- ASSETS: this 2D game is built from REAL Kenney sprite art (player, enemies, items, ground tiles, props) auto-selected from a themed pack AFTER this foundation. You do NOT design assetSlots — leave "assetSlots": [] (the artist agent does not run). Do NOT invent art briefs or reference a painted background image.
-- THERE IS NO PAINTED BACKGROUND IMAGE. The world surface MUST be built by TILING the pack's ground tiles across the entire play area (the builder gets a \`tiles\` role + a \`tile()\` helper). A bare gradient / solid color / empty void is a HARD FAILURE — it is what makes a game look unfinished next to competitors.
-- The arena MUST be dressed: scatter static environment props (crates, barrels, debris, vehicles) from the \`items\`/props role across the play space so it reads as a real place, not empty space. Specify roughly how many props and where in firstFrame/layoutComposition.
-- firstFrame MUST be, in order: TILED GROUND filling the screen → scattered props → player → enemies/subjects → HUD. Never "draw a background image" (there is none) and never a flat color field.
-- Describe the world in TILE terms in layoutComposition/firstFrame (e.g. "tile ground across the arena, scatter 6-10 props"), NOT as a single portrait background image.`
+        ? `- ASSETS: this 2D game is built from REAL Kenney sprite art (player, enemies, items, ground tiles, props, decorative background pieces) auto-selected from a themed pack AFTER this foundation. You do NOT design assetSlots — leave "assetSlots": [] (the artist agent does not run). Do NOT invent art briefs or reference a single painted portrait background image (there is none).
+- THE WORLD MUST NOT BE A FLAT EMPTY VOID (that is what makes a game look unfinished next to competitors) — but HOW you fill it depends on the camera, so pick the right one:
+  * TOP-DOWN / OVERHEAD (arena shooters, dungeons, .io games): TILE THE FLOOR. The builder calls tileGround(ctx, w, h) to fill the whole play area with the pack's seamless \`tiles\`, then scatterProps(ctx, ...) to dress it with ~6-12 static props (crates/barrels/debris). firstFrame: tiled floor → props → player → enemies → HUD.
+  * SIDE-SCROLLER / PLATFORMER: do NOT tile a full-screen floor. Draw a SKY (a code gradient sky is CORRECT and good here, not a failure), then a sparse FAR PARALLAX layer from the \`background\` pieces (clouds/hills — via drawParallax(), a few big pieces, NEVER tiled edge-to-edge), then build platforms/ground from platform/tile sprites, then entities, then HUD.
+  * BOARD / PUZZLE / CARD / MENU-STYLE (match-3, solitaire, trays): neither — a clean themed uiKit background band + the board/tray art is correct; do not force ground tiles.
+- NEVER tile the decorative \`background\` pieces across the screen — they are horizon scenery, not a seamless surface (tiling them looks broken). Ground tiling is ONLY for the \`tiles\` floor role.
+- Describe the chosen approach concretely in firstFrame/layoutComposition (e.g. top-down: "tile floor, scatter 8 props"; platformer: "gradient dusk sky, 3 parallax hills, tiled grass platforms").`
         : `- assetSlots are the ONLY list the artist agent will generate. Translate Phase 1 visualAssets (player, enemies, items, backgrounds, props) into concrete assetSlots with matching ids when possible.
 - Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
 - background assetSlot is REQUIRED for every 2D game: vivid portrait environment art (768x1344), scene-specific to the prompt, premium App Store mobile game quality — not abstract color fields. (3D games skip this — their sky/ground are code-colored.)
@@ -180,7 +182,7 @@ Return this JSON shape:
   "hudScaffold": false,
   "hudBlocks": [],
   "hudAuthority": "agent",
-  "firstFrame": [${kenney2d ? '"Tile ground across arena", "Scatter props", "Draw player", "Show score HUD"' : '"Draw background image", "Draw player", "Show score HUD"'}],
+  "firstFrame": [${kenney2d ? '"Fill the world (top-down: tile floor + props; side-scroller: sky + parallax + platforms)", "Draw player", "Show score HUD"' : '"Draw background image", "Draw player", "Show score HUD"'}],
   "interactionLoops": ["short description of core input loop"],
   "entityBlueprints": [
     { "id": "player", "role": "player", "description": "who the player is" }
@@ -324,7 +326,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         firstFrame: asArray(source.firstFrame).length
             ? asArray(source.firstFrame)
             : (!is3DFoundation && use2dKenneyOnly()
-                ? ['Tile ground across arena', 'Scatter props', 'Draw player or primary subject', 'Show HUD']
+                ? ['Fill the world (tile floor for top-down, or sky + parallax for side-scroller)', 'Draw player or primary subject', 'Show HUD']
                 : ['Draw background', 'Draw player or primary subject', 'Show HUD']),
         interactionLoops: asArray(source.interactionLoops),
         entityBlueprints,
