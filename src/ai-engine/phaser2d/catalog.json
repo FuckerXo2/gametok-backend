@@ -1,0 +1,2882 @@
+{
+ "generatedAt": "2026-07-04T14:11:34.630Z",
+ "source": "phaser3-examples public/assets",
+ "note": "rel paths double as R2 key suffixes under phaser2d/. Heavy art is gitignored; upload separately.",
+ "atlases": [
+  {
+   "key": "banners",
+   "role": "ui_item",
+   "type": "atlas",
+   "texture": "atlas/banners.png",
+   "data": "atlas/banners.json",
+   "frames": 37,
+   "animations": {
+    "Badges": 24,
+    "Banner": 10
+   },
+   "size": [
+    1562,
+    983
+   ]
+  },
+  {
+   "key": "big-forest",
+   "role": "prop",
+   "type": "atlas",
+   "texture": "atlas/big-forest.png",
+   "data": "atlas/big-forest.json",
+   "frames": 1,
+   "animations": {
+    "big-forest.aseprite": 1
+   },
+   "size": null
+  },
+  {
+   "key": "bitmap-fonts",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "atlas/bitmap-fonts.png",
+   "data": "atlas/bitmap-fonts.json",
+   "frames": 4,
+   "animations": {
+    "atari-sunset": 1,
+    "azo-fire": 1,
+    "hyperdrive": 1,
+    "topaz-fill": 1
+   },
+   "size": null
+  },
+  {
+   "key": "cards",
+   "role": "ui_item",
+   "type": "atlas",
+   "texture": "atlas/cards.png",
+   "data": "atlas/cards.json",
+   "frames": 54,
+   "animations": {
+    "clubs": 9,
+    "diamonds": 9,
+    "hearts": 9,
+    "spades": 9
+   },
+   "size": null
+  },
+  {
+   "key": "chiller",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "atlas/chiller.png",
+   "data": "atlas/chiller.json",
+   "frames": 1,
+   "animations": {
+    "chiller": 1
+   },
+   "size": null
+  },
+  {
+   "key": "clouds",
+   "role": "prop",
+   "type": "atlas",
+   "texture": "atlas/clouds.png",
+   "data": "atlas/clouds.json",
+   "frames": 6,
+   "animations": {
+    "shadow": 3,
+    "cloud": 3
+   },
+   "size": [
+    450,
+    651
+   ]
+  },
+  {
+   "key": "girl",
+   "role": "character",
+   "type": "atlas",
+   "texture": "atlas/girl.png",
+   "data": "atlas/girl.json",
+   "frames": 12,
+   "animations": {
+    "Head": 1,
+    "EyesClosed": 1,
+    "ArmLeft": 1,
+    "EyesOpen": 1,
+    "ArmRight": 1,
+    "HairTop": 1,
+    "Body": 1,
+    "MouthOpen": 1,
+    "HandRight": 1,
+    "BraidRight": 1,
+    "BraidLeft": 1,
+    "MouthClosed": 1
+   },
+   "size": [
+    480,
+    487
+   ]
+  },
+  {
+   "key": "glade",
+   "role": "prop",
+   "type": "atlas",
+   "texture": "atlas/glade.png",
+   "data": "atlas/glade.json",
+   "frames": 26,
+   "animations": {
+    "Spruce": 6,
+    "Stonee": 4,
+    "Flower": 4,
+    "Tree": 3,
+    "Wood": 3,
+    "Bush": 3,
+    "Grass": 2
+   },
+   "size": [
+    939,
+    595
+   ]
+  },
+  {
+   "key": "isoblocks",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/isoblocks.png",
+   "data": "atlas/isoblocks.json",
+   "frames": 231,
+   "animations": {
+    "block": 231
+   },
+   "size": null
+  },
+  {
+   "key": "jellies",
+   "role": "enemy",
+   "type": "atlas",
+   "texture": "atlas/jellies.png",
+   "data": "atlas/jellies.json",
+   "frames": 31,
+   "animations": {
+    "WithShadow": 6,
+    "Blank": 6,
+    "NoShadow": 6,
+    "WithEyeShades": 6,
+    "Face": 6
+   },
+   "size": [
+    1976,
+    1262
+   ]
+  },
+  {
+   "key": "match3",
+   "role": "ui_item",
+   "type": "atlas",
+   "texture": "atlas/match3.png",
+   "data": "atlas/match3.json",
+   "frames": 37,
+   "animations": {
+    "Match3_Icon": 32,
+    "Match3_BG": 5
+   },
+   "size": [
+    1015,
+    2027
+   ]
+  },
+  {
+   "key": "megaset-0",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/megaset-0.png",
+   "data": "atlas/megaset-0.json",
+   "frames": 91,
+   "animations": {
+    "spinObj": 5,
+    "shmup-baddie": 3,
+    "bsquadron": 2,
+    "flectrum": 2,
+    "phaser": 2,
+    "shmup-ship": 2
+   },
+   "size": null
+  },
+  {
+   "key": "megaset-1",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/megaset-1.png",
+   "data": "atlas/megaset-1.json",
+   "frames": 49,
+   "animations": {
+    "spinObj": 3,
+    "car": 2
+   },
+   "size": null
+  },
+  {
+   "key": "megaset-2",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/megaset-2.png",
+   "data": "atlas/megaset-2.json",
+   "frames": 24,
+   "animations": {
+    "tetrisblock": 2
+   },
+   "size": null
+  },
+  {
+   "key": "megaset-3",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/megaset-3.png",
+   "data": "atlas/megaset-3.json",
+   "frames": 22,
+   "animations": {
+    "contra": 2
+   },
+   "size": null
+  },
+  {
+   "key": "monsters",
+   "role": "enemy",
+   "type": "atlas",
+   "texture": "atlas/monsters.png",
+   "data": "atlas/monsters.json",
+   "frames": 28,
+   "animations": {
+    "icegolem": 1,
+    "magmagolem": 1,
+    "stonegolem": 1,
+    "troll": 1,
+    "ogre": 1,
+    "giantspider": 1,
+    "slime": 1,
+    "zombie": 1,
+    "frogman": 1,
+    "imp": 1,
+    "ghost": 1,
+    "hobgoblin": 1,
+    "hero-mage": 1,
+    "skeletalwarrior": 1,
+    "hero-warrior": 1,
+    "swashbuckler": 1,
+    "gnoll": 1,
+    "scout": 1,
+    "wererat": 1,
+    "assassin": 1,
+    "hero-ranger": 1,
+    "darkreaper": 1,
+    "goblin": 1,
+    "lizardman": 1,
+    "guard": 1,
+    "cultist": 1,
+    "drow": 1,
+    "ruffian": 1
+   },
+   "size": [
+    1375,
+    494
+   ]
+  },
+  {
+   "key": "nine-slice",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "atlas/nine-slice.png",
+   "data": "atlas/nine-slice.json",
+   "frames": 6,
+   "animations": {
+    "copy-that-floppy": 1,
+    "button-bg": 1,
+    "blue-box": 1,
+    "flectrum": 1,
+    "1bitblock": 1,
+    "healthbar": 1
+   },
+   "size": [
+    454,
+    220
+   ]
+  },
+  {
+   "key": "rotated-atlas",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/rotated-atlas.png",
+   "data": "atlas/rotated-atlas.json",
+   "frames": 162,
+   "animations": {
+    "spinObj": 8,
+    "bsquadron": 3,
+    "phaser": 3,
+    "shmup-baddie": 3,
+    "tetrisblock": 3,
+    "atari": 2,
+    "car": 2,
+    "flectrum": 2,
+    "longarrow": 2,
+    "mushroom": 2,
+    "shmup-ship": 2,
+    "thrust_ship": 2
+   },
+   "size": null
+  },
+  {
+   "key": "timeline",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "atlas/timeline.png",
+   "data": "atlas/timeline.json",
+   "frames": 10,
+   "animations": {
+    "ice": 3
+   },
+   "size": [
+    452,
+    494
+   ]
+  },
+  {
+   "key": "tp3test",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/tp3test.png",
+   "data": "atlas/tp3test.json",
+   "frames": 11,
+   "animations": {
+    "bunny": 1,
+    "atari130xe": 1,
+    "elephant": 1,
+    "exocet_spaceman": 1,
+    "copy-that-floppy": 1,
+    "fuji": 1,
+    "kirito_by_vali233": 1,
+    "asuna_by_vali233": 1,
+    "cokecan": 1,
+    "ilkke": 1,
+    "gem": 1
+   },
+   "size": [
+    501,
+    450
+   ]
+  },
+  {
+   "key": "tweenparts",
+   "role": "grabbag",
+   "type": "atlas",
+   "texture": "atlas/tweenparts.png",
+   "data": "atlas/tweenparts.json",
+   "frames": 62,
+   "animations": {
+    "_": 21,
+    "GoldCoinPNGSequence": 6,
+    "Head01": 3,
+    "Body02": 2,
+    "Wing02": 2,
+    "Arm01": 2,
+    "Leg01": 2
+   },
+   "size": [
+    2027,
+    1181
+   ]
+  },
+  {
+   "key": "alien",
+   "role": "character",
+   "type": "atlas",
+   "texture": "animations/alien.png",
+   "data": "animations/alien.json",
+   "frames": 35,
+   "animations": {
+    "01_Idle": 18,
+    "03_Walk": 13,
+    "02_Turn_to_walk": 4
+   },
+   "size": [
+    1506,
+    891
+   ]
+  },
+  {
+   "key": "bird",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/bird.png",
+   "data": "animations/bird.json",
+   "frames": 10,
+   "animations": {
+    "frame": 10
+   },
+   "size": [
+    86,
+    980
+   ]
+  },
+  {
+   "key": "california-raisins",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/california-raisins.png",
+   "data": "animations/california-raisins.json",
+   "frames": 12,
+   "animations": {
+    "frame": 12
+   },
+   "size": [
+    1932,
+    404
+   ]
+  },
+  {
+   "key": "cube",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/cube.png",
+   "data": "animations/cube.json",
+   "frames": 23,
+   "animations": {
+    "frame": 23
+   },
+   "size": null
+  },
+  {
+   "key": "diamond",
+   "role": "ui_item",
+   "type": "atlas",
+   "texture": "animations/diamond.png",
+   "data": "animations/diamond.json",
+   "frames": 16,
+   "animations": {
+    "diamond": 16
+   },
+   "size": [
+    783,
+    64
+   ]
+  },
+  {
+   "key": "elves-craft-pixel",
+   "role": "character",
+   "type": "atlas",
+   "texture": "animations/elves-craft-pixel.png",
+   "data": "animations/elves-craft-pixel.json",
+   "frames": 33,
+   "animations": {
+    "green_attack": 6,
+    "blue_attack": 5,
+    "green_idle": 5,
+    "green_die": 5,
+    "blue_die": 5,
+    "blue_idle": 5
+   },
+   "size": [
+    494,
+    1014
+   ]
+  },
+  {
+   "key": "knight",
+   "role": "character",
+   "type": "atlas",
+   "texture": "animations/knight.png",
+   "data": "animations/knight.json",
+   "frames": 92,
+   "animations": {
+    "attack_A": 14,
+    "attack_C": 14,
+    "attack_B": 13,
+    "die": 10,
+    "run": 8,
+    "guard": 6,
+    "idle": 6,
+    "get_hit": 5,
+    "jump_start": 4,
+    "guard_end": 4,
+    "guard_start": 4,
+    "fall_loop": 2,
+    "jump_loop": 2
+   },
+   "size": [
+    927,
+    254
+   ]
+  },
+  {
+   "key": "robo",
+   "role": "character",
+   "type": "atlas",
+   "texture": "animations/robo.png",
+   "data": "animations/robo.json",
+   "frames": 15,
+   "animations": {
+    "Running": 15
+   },
+   "size": [
+    1962,
+    219
+   ]
+  },
+  {
+   "key": "rocket",
+   "role": "prop",
+   "type": "atlas",
+   "texture": "animations/rocket.png",
+   "data": "animations/rocket.json",
+   "frames": 14,
+   "animations": {
+    "trail": 13
+   },
+   "size": [
+    969,
+    286
+   ]
+  },
+  {
+   "key": "sao0",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/sao0.png",
+   "data": "animations/sao0.json",
+   "frames": 27,
+   "animations": {
+    "_": 27
+   },
+   "size": null
+  },
+  {
+   "key": "sao1",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/sao1.png",
+   "data": "animations/sao1.json",
+   "frames": 24,
+   "animations": {
+    "_": 24
+   },
+   "size": null
+  },
+  {
+   "key": "sf2",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/sf2.png",
+   "data": "animations/sf2.json",
+   "frames": 23,
+   "animations": {
+    "frame": 23
+   },
+   "size": [
+    1013,
+    1969
+   ]
+  },
+  {
+   "key": "sf2ryu",
+   "role": "character",
+   "type": "atlas",
+   "texture": "animations/sf2ryu.png",
+   "data": "animations/sf2ryu.json",
+   "frames": 17,
+   "animations": {
+    "frame": 17
+   },
+   "size": [
+    1023,
+    256
+   ]
+  },
+  {
+   "key": "soldier",
+   "role": "character",
+   "type": "atlas",
+   "texture": "animations/soldier.png",
+   "data": "animations/soldier.json",
+   "frames": 54,
+   "animations": {
+    "Soldier_2_shot_up": 11,
+    "soldier_3_shoot_front": 11,
+    "Soldier_2_shot_front": 8,
+    "soldier_3_walk": 8,
+    "Soldier_2_walk": 8,
+    "soldier_3_shoot_up": 5,
+    "soldier_3_default": 2
+   },
+   "size": [
+    957,
+    465
+   ]
+  },
+  {
+   "key": "teapot",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/teapot.png",
+   "data": "animations/teapot.json",
+   "frames": 11,
+   "animations": {
+    "frame": 11
+   },
+   "size": [
+    1932,
+    404
+   ]
+  },
+  {
+   "key": "walker",
+   "role": "misc",
+   "type": "atlas",
+   "texture": "animations/walker.png",
+   "data": "animations/walker.json",
+   "frames": 16,
+   "animations": {
+    "frame": 16
+   },
+   "size": null
+  },
+  {
+   "key": "zombie",
+   "role": "enemy",
+   "type": "atlas",
+   "texture": "animations/zombie.png",
+   "data": "animations/zombie.json",
+   "frames": 15,
+   "animations": {
+    "walk": 9,
+    "Death": 6
+   },
+   "size": [
+    949,
+    978
+   ]
+  }
+ ],
+ "tilemaps": [
+  {
+   "key": "collision_test",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/collision_test.json",
+   "widthTiles": 50,
+   "heightTiles": 18,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "ground_1x1",
+     "image": "tilemaps/tiles/ground_1x1.png"
+    },
+    {
+     "name": "walls_1x2",
+     "image": "tilemaps/tiles/walls_1x2.png"
+    },
+    {
+     "name": "coin",
+     "image": "sprites/coin.png"
+    },
+    {
+     "name": "tiles2",
+     "image": "tilemaps/tiles/tiles2.png"
+    }
+   ],
+   "objectLayers": [
+    "collision"
+   ]
+  },
+  {
+   "key": "copy-test",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/copy-test.json",
+   "widthTiles": 12,
+   "heightTiles": 12,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "ground",
+     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "create from tiles",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/create from tiles.json",
+   "widthTiles": 13,
+   "heightTiles": 10,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "fantasy-tiles",
+     "image": "tilemaps/tiles/fantasy-tiles.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "cybernoid",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/cybernoid.json",
+   "widthTiles": 160,
+   "heightTiles": 44,
+   "tileSize": [
+    16,
+    16
+   ],
+   "tilesets": [
+    {
+     "name": "cybernoid",
+     "image": "tilemaps/tiles/cybernoid.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "dual_view",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/dual_view.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_ground_64x64",
+     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+    },
+    {
+     "name": "kenny_items_64x64",
+     "image": "tilemaps/tiles/kenny_items_64x64.png"
+    },
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "features_test",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/features_test.json",
+   "widthTiles": 50,
+   "heightTiles": 18,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "ground_1x1",
+     "image": "tilemaps/tiles/ground_1x1.png"
+    },
+    {
+     "name": "walls_1x2",
+     "image": "tilemaps/tiles/walls_1x2.png"
+    },
+    {
+     "name": "coin",
+     "image": "sprites/coin.png"
+    },
+    {
+     "name": "tiles2",
+     "image": "tilemaps/tiles/tiles2.png"
+    }
+   ],
+   "objectLayers": [
+    "Object Layer 1"
+   ]
+  },
+  {
+   "key": "features_test_rotated",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/features_test_rotated.json",
+   "widthTiles": 50,
+   "heightTiles": 18,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "ground_1x1",
+     "image": "tilemaps/tiles/ground_1x1.png"
+    },
+    {
+     "name": "walls_1x2",
+     "image": "tilemaps/tiles/walls_1x2.png"
+    },
+    {
+     "name": "coin",
+     "image": "sprites/coin.png"
+    },
+    {
+     "name": "tiles2",
+     "image": "tilemaps/tiles/tiles2.png"
+    }
+   ],
+   "objectLayers": [
+    "Object Layer 1"
+   ]
+  },
+  {
+   "key": "flipped-tiles",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/flipped-tiles.json",
+   "widthTiles": 16,
+   "heightTiles": 16,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenney_redux_64x64",
+     "image": "tilemaps/tiles/kenney_redux_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "impact-tilemap",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/impact-tilemap.json",
+   "widthTiles": 25,
+   "heightTiles": 11,
+   "tileSize": [
+    70,
+    70
+   ],
+   "tilesets": [
+    {
+     "name": "kenney",
+     "image": "tilemaps/tiles/kenney.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "level-with-coin-objects",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/level-with-coin-objects.json",
+   "widthTiles": 50,
+   "heightTiles": 18,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "ground_1x1",
+     "image": "tilemaps/tiles/ground_1x1.png"
+    },
+    {
+     "name": "coin",
+     "image": "sprites/coin.png"
+    }
+   ],
+   "objectLayers": [
+    "Coin Object Layer"
+   ]
+  },
+  {
+   "key": "matter-destroy-tile-bodies",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/matter-destroy-tile-bodies.json",
+   "widthTiles": 26,
+   "heightTiles": 20,
+   "tileSize": [
+    16,
+    16
+   ],
+   "tilesets": [
+    {
+     "name": "platformer_tiles",
+     "image": "tilemaps/tiles/platformer_tiles.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "matter-ghost-vertices",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/matter-ghost-vertices.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenney_redux_64x64",
+     "image": "tilemaps/tiles/kenney_redux_64x64.png"
+    }
+   ],
+   "objectLayers": [
+    "Collision"
+   ]
+  },
+  {
+   "key": "matter-platformer-dynamic-example",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/matter-platformer-dynamic-example.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenney_redux_64x64",
+     "image": "tilemaps/tiles/kenney_redux_64x64.png"
+    }
+   ],
+   "objectLayers": [
+    "Sensors"
+   ]
+  },
+  {
+   "key": "matter-platformer",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/matter-platformer.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenney_redux_64x64",
+     "image": "tilemaps/tiles/kenney_redux_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "multi-layer-multi-tileset",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/multi-layer-multi-tileset.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_ground_64x64",
+     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+    },
+    {
+     "name": "kenny_items_64x64",
+     "image": "tilemaps/tiles/kenny_items_64x64.png"
+    },
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "multi-tileset-v12",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/multi-tileset-v12.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_ground_64x64",
+     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+    },
+    {
+     "name": "kenny_items_64x64",
+     "image": "tilemaps/tiles/kenny_items_64x64.png"
+    },
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "multi-tileset",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/multi-tileset.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_ground_64x64",
+     "image": "tilemaps/tiles/kenny_ground_64x64.png"
+    },
+    {
+     "name": "kenny_items_64x64",
+     "image": "tilemaps/tiles/kenny_items_64x64.png"
+    },
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "multilayered-map",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/multilayered-map.json",
+   "widthTiles": 50,
+   "heightTiles": 37,
+   "tileSize": [
+    16,
+    16
+   ],
+   "tilesets": [
+    {
+     "name": "platformer_tiles",
+     "image": "tilemaps/tiles/platformer_tiles.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "multiple-layers",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/multiple-layers.json",
+   "widthTiles": 32,
+   "heightTiles": 32,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "multiple-tile-sizes-collision",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/multiple-tile-sizes-collision.json",
+   "widthTiles": 60,
+   "heightTiles": 18,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "ground_1x1",
+     "image": "tilemaps/tiles/ground_1x1.png"
+    },
+    {
+     "name": "coin",
+     "image": "sprites/coin.png"
+    },
+    {
+     "name": "kenny_items_64x64",
+     "image": "tilemaps/tiles/kenny_items_64x64.png"
+    },
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    },
+    {
+     "name": "walls_1x2",
+     "image": "tilemaps/tiles/walls_1x2.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "ninja-tilemap",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/ninja-tilemap.json",
+   "widthTiles": 25,
+   "heightTiles": 11,
+   "tileSize": [
+    70,
+    70
+   ],
+   "tilesets": [
+    {
+     "name": "kenney",
+     "image": "tilemaps/tiles/kenney.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "platform",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/platform.json",
+   "widthTiles": 50,
+   "heightTiles": 40,
+   "tileSize": [
+    16,
+    16
+   ],
+   "tilesets": [
+    {
+     "name": "platformer_tiles",
+     "image": "tilemaps/tiles/platformer_tiles.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "simple map",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/simple map.json",
+   "widthTiles": 20,
+   "heightTiles": 20,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "drawtiles",
+     "image": "tilemaps/tiles/drawtiles.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "simple-map",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/simple-map.json",
+   "widthTiles": 25,
+   "heightTiles": 19,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "tiles",
+     "image": "tilemaps/tiles/gridtiles.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "slopes",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/slopes.json",
+   "widthTiles": 60,
+   "heightTiles": 19,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "slopes32mud",
+     "image": "tilemaps/tiles/slopes32mud.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "tile-collision-test",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/tile-collision-test.json",
+   "widthTiles": 50,
+   "heightTiles": 18,
+   "tileSize": [
+    32,
+    32
+   ],
+   "tilesets": [
+    {
+     "name": "ground_1x1",
+     "image": "tilemaps/tiles/ground_1x1.png"
+    },
+    {
+     "name": "coin",
+     "image": "sprites/coin.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "tileset-collision-property-v12",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/tileset-collision-property-v12.json",
+   "widthTiles": 15,
+   "heightTiles": 15,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "tileset-collision-property",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/tileset-collision-property.json",
+   "widthTiles": 15,
+   "heightTiles": 15,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "tileset-collision-shapes-automated-test",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/tileset-collision-shapes-automated-test.json",
+   "widthTiles": 5,
+   "heightTiles": 6,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "tileset-collision-shapes-v12",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/tileset-collision-shapes-v12.json",
+   "widthTiles": 15,
+   "heightTiles": 15,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  },
+  {
+   "key": "tileset-collision-shapes",
+   "type": "tilemapTiledJSON",
+   "data": "tilemaps/maps/tileset-collision-shapes.json",
+   "widthTiles": 15,
+   "heightTiles": 15,
+   "tileSize": [
+    64,
+    64
+   ],
+   "tilesets": [
+    {
+     "name": "kenny_platformer_64x64",
+     "image": "tilemaps/tiles/kenny_platformer_64x64.png"
+    }
+   ],
+   "objectLayers": []
+  }
+ ],
+ "images": [
+  {
+   "key": "128x128-v2",
+   "type": "image",
+   "texture": "sprites/128x128-v2.png"
+  },
+  {
+   "key": "128x128",
+   "type": "image",
+   "texture": "sprites/128x128.png"
+  },
+  {
+   "key": "16x16",
+   "type": "image",
+   "texture": "sprites/16x16.png"
+  },
+  {
+   "key": "1bitblock0",
+   "type": "image",
+   "texture": "sprites/1bitblock0.png"
+  },
+  {
+   "key": "1bitblock1",
+   "type": "image",
+   "texture": "sprites/1bitblock1.png"
+  },
+  {
+   "key": "1bitblock2",
+   "type": "image",
+   "texture": "sprites/1bitblock2.png"
+  },
+  {
+   "key": "1bitblock3",
+   "type": "image",
+   "texture": "sprites/1bitblock3.png"
+  },
+  {
+   "key": "32x32-white",
+   "type": "image",
+   "texture": "sprites/32x32-white.png"
+  },
+  {
+   "key": "32x32",
+   "type": "image",
+   "texture": "sprites/32x32.png"
+  },
+  {
+   "key": "50x50-black",
+   "type": "image",
+   "texture": "sprites/50x50-black.png"
+  },
+  {
+   "key": "50x50-white",
+   "type": "image",
+   "texture": "sprites/50x50-white.png"
+  },
+  {
+   "key": "50x50",
+   "type": "image",
+   "texture": "sprites/50x50.png"
+  },
+  {
+   "key": "a",
+   "type": "image",
+   "texture": "sprites/a.png"
+  },
+  {
+   "key": "advanced_wars_land",
+   "type": "image",
+   "texture": "sprites/advanced_wars_land.png"
+  },
+  {
+   "key": "advanced_wars_tank",
+   "type": "image",
+   "texture": "sprites/advanced_wars_tank.png"
+  },
+  {
+   "key": "aero-blaster-ships",
+   "type": "image",
+   "texture": "sprites/aero-blaster-ships.png"
+  },
+  {
+   "key": "alienbusters",
+   "type": "image",
+   "texture": "sprites/alienbusters.png"
+  },
+  {
+   "key": "amiga-cursor",
+   "type": "image",
+   "texture": "sprites/amiga-cursor.png"
+  },
+  {
+   "key": "apple",
+   "type": "image",
+   "texture": "sprites/apple.png"
+  },
+  {
+   "key": "aqua_ball",
+   "type": "image",
+   "texture": "sprites/aqua_ball.png"
+  },
+  {
+   "key": "arrow",
+   "type": "image",
+   "texture": "sprites/arrow.png"
+  },
+  {
+   "key": "arrows",
+   "type": "image",
+   "texture": "sprites/arrows.png"
+  },
+  {
+   "key": "asteroids_ship",
+   "type": "image",
+   "texture": "sprites/asteroids_ship.png"
+  },
+  {
+   "key": "asteroids_ship_white",
+   "type": "image",
+   "texture": "sprites/asteroids_ship_white.png"
+  },
+  {
+   "key": "astorm-truck",
+   "type": "image",
+   "texture": "sprites/astorm-truck.png"
+  },
+  {
+   "key": "asuna_by_vali233",
+   "type": "image",
+   "texture": "sprites/asuna_by_vali233.png"
+  },
+  {
+   "key": "atari1200xl",
+   "type": "image",
+   "texture": "sprites/atari1200xl.png"
+  },
+  {
+   "key": "atari130xe-input",
+   "type": "image",
+   "texture": "sprites/atari130xe-input.png"
+  },
+  {
+   "key": "atari130xe",
+   "type": "image",
+   "texture": "sprites/atari130xe.png"
+  },
+  {
+   "key": "atari400",
+   "type": "image",
+   "texture": "sprites/atari400.png"
+  },
+  {
+   "key": "atari800",
+   "type": "image",
+   "texture": "sprites/atari800.png"
+  },
+  {
+   "key": "atari800xl",
+   "type": "image",
+   "texture": "sprites/atari800xl.png"
+  },
+  {
+   "key": "b",
+   "type": "image",
+   "texture": "sprites/b.png"
+  },
+  {
+   "key": "baddie_cat_1",
+   "type": "image",
+   "texture": "sprites/baddie_cat_1.png"
+  },
+  {
+   "key": "ball-pink",
+   "type": "image",
+   "texture": "sprites/ball-pink.png"
+  },
+  {
+   "key": "balls",
+   "type": "image",
+   "texture": "sprites/balls.png"
+  },
+  {
+   "key": "beball1",
+   "type": "image",
+   "texture": "sprites/beball1.png"
+  },
+  {
+   "key": "beer",
+   "type": "image",
+   "texture": "sprites/beer.png"
+  },
+  {
+   "key": "bikkuriman",
+   "type": "image",
+   "texture": "sprites/bikkuriman.png"
+  },
+  {
+   "key": "blade",
+   "type": "image",
+   "texture": "sprites/blade.png"
+  },
+  {
+   "key": "block-ice",
+   "type": "image",
+   "texture": "sprites/block-ice.png"
+  },
+  {
+   "key": "block-slime",
+   "type": "image",
+   "texture": "sprites/block-slime.png"
+  },
+  {
+   "key": "block",
+   "type": "image",
+   "texture": "sprites/block.png"
+  },
+  {
+   "key": "blockANM",
+   "type": "image",
+   "texture": "sprites/blockANM.png"
+  },
+  {
+   "key": "blockANP",
+   "type": "image",
+   "texture": "sprites/blockANP.png"
+  },
+  {
+   "key": "blockAP",
+   "type": "image",
+   "texture": "sprites/blockAP.png"
+  },
+  {
+   "key": "blockBNM",
+   "type": "image",
+   "texture": "sprites/blockBNM.png"
+  },
+  {
+   "key": "blockBNP",
+   "type": "image",
+   "texture": "sprites/blockBNP.png"
+  },
+  {
+   "key": "blockBP",
+   "type": "image",
+   "texture": "sprites/blockBP.png"
+  },
+  {
+   "key": "blockCNP",
+   "type": "image",
+   "texture": "sprites/blockCNP.png"
+  },
+  {
+   "key": "blockCP",
+   "type": "image",
+   "texture": "sprites/blockCP.png"
+  },
+  {
+   "key": "blockDNP",
+   "type": "image",
+   "texture": "sprites/blockDNP.png"
+  },
+  {
+   "key": "blockDP",
+   "type": "image",
+   "texture": "sprites/blockDP.png"
+  },
+  {
+   "key": "blocka",
+   "type": "image",
+   "texture": "sprites/blocka.png"
+  },
+  {
+   "key": "blockb",
+   "type": "image",
+   "texture": "sprites/blockb.png"
+  },
+  {
+   "key": "blockc",
+   "type": "image",
+   "texture": "sprites/blockc.png"
+  },
+  {
+   "key": "blockd",
+   "type": "image",
+   "texture": "sprites/blockd.png"
+  },
+  {
+   "key": "blocks",
+   "type": "image",
+   "texture": "sprites/blocks.png"
+  },
+  {
+   "key": "blue_ball",
+   "type": "image",
+   "texture": "sprites/blue_ball.png"
+  },
+  {
+   "key": "bluebar",
+   "type": "image",
+   "texture": "sprites/bluebar.png"
+  },
+  {
+   "key": "bluemetal_32x32x4",
+   "type": "image",
+   "texture": "sprites/bluemetal_32x32x4.png"
+  },
+  {
+   "key": "blur-bg",
+   "type": "image",
+   "texture": "sprites/blur-bg.png"
+  },
+  {
+   "key": "bobs-by-cleathley",
+   "type": "image",
+   "texture": "sprites/bobs-by-cleathley.png"
+  },
+  {
+   "key": "bombcolor",
+   "type": "image",
+   "texture": "sprites/bombcolor.png"
+  },
+  {
+   "key": "bombfan",
+   "type": "image",
+   "texture": "sprites/bombfan.png"
+  },
+  {
+   "key": "bombmine",
+   "type": "image",
+   "texture": "sprites/bombmine.png"
+  },
+  {
+   "key": "bombstar",
+   "type": "image",
+   "texture": "sprites/bombstar.png"
+  },
+  {
+   "key": "boom32wh12",
+   "type": "image",
+   "texture": "sprites/boom32wh12.png"
+  },
+  {
+   "key": "bottomleft",
+   "type": "image",
+   "texture": "sprites/bottomleft.png"
+  },
+  {
+   "key": "bottomright",
+   "type": "image",
+   "texture": "sprites/bottomright.png"
+  },
+  {
+   "key": "box-item-boxed",
+   "type": "image",
+   "texture": "sprites/box-item-boxed.png"
+  },
+  {
+   "key": "brain",
+   "type": "image",
+   "texture": "sprites/brain.png"
+  },
+  {
+   "key": "brush1",
+   "type": "image",
+   "texture": "sprites/brush1.png"
+  },
+  {
+   "key": "brush2",
+   "type": "image",
+   "texture": "sprites/brush2.png"
+  },
+  {
+   "key": "brush3",
+   "type": "image",
+   "texture": "sprites/brush3.png"
+  },
+  {
+   "key": "bsquadron-enemies",
+   "type": "image",
+   "texture": "sprites/bsquadron-enemies.png"
+  },
+  {
+   "key": "bsquadron1",
+   "type": "image",
+   "texture": "sprites/bsquadron1.png"
+  },
+  {
+   "key": "bsquadron2",
+   "type": "image",
+   "texture": "sprites/bsquadron2.png"
+  },
+  {
+   "key": "bsquadron3",
+   "type": "image",
+   "texture": "sprites/bsquadron3.png"
+  },
+  {
+   "key": "budbrain_chick",
+   "type": "image",
+   "texture": "sprites/budbrain_chick.png"
+  },
+  {
+   "key": "bullet",
+   "type": "image",
+   "texture": "sprites/bullet.png"
+  },
+  {
+   "key": "bunny",
+   "type": "image",
+   "texture": "sprites/bunny.png"
+  },
+  {
+   "key": "button-bg",
+   "type": "image",
+   "texture": "sprites/button-bg.png"
+  },
+  {
+   "key": "button-text",
+   "type": "image",
+   "texture": "sprites/button-text.png"
+  },
+  {
+   "key": "cake",
+   "type": "image",
+   "texture": "sprites/cake.png"
+  },
+  {
+   "key": "cakewalk",
+   "type": "image",
+   "texture": "sprites/cakewalk.png"
+  },
+  {
+   "key": "car-police",
+   "type": "image",
+   "texture": "sprites/car-police.png"
+  },
+  {
+   "key": "car-red",
+   "type": "image",
+   "texture": "sprites/car-red.png"
+  },
+  {
+   "key": "car-yellow",
+   "type": "image",
+   "texture": "sprites/car-yellow.png"
+  },
+  {
+   "key": "car",
+   "type": "image",
+   "texture": "sprites/car.png"
+  },
+  {
+   "key": "car90",
+   "type": "image",
+   "texture": "sprites/car90.png"
+  },
+  {
+   "key": "cards80x112",
+   "type": "image",
+   "texture": "sprites/cards80x112.png"
+  },
+  {
+   "key": "carrot",
+   "type": "image",
+   "texture": "sprites/carrot.png"
+  },
+  {
+   "key": "catstick",
+   "type": "image",
+   "texture": "sprites/catstick.png"
+  },
+  {
+   "key": "cave",
+   "type": "image",
+   "texture": "sprites/cave.png"
+  },
+  {
+   "key": "centroid",
+   "type": "image",
+   "texture": "sprites/centroid.png"
+  },
+  {
+   "key": "chain",
+   "type": "image",
+   "texture": "sprites/chain.png"
+  },
+  {
+   "key": "checkerboard",
+   "type": "image",
+   "texture": "sprites/checkerboard.png"
+  },
+  {
+   "key": "chick",
+   "type": "image",
+   "texture": "sprites/chick.png"
+  },
+  {
+   "key": "chunk",
+   "type": "image",
+   "texture": "sprites/chunk.png"
+  },
+  {
+   "key": "clown",
+   "type": "image",
+   "texture": "sprites/clown.png"
+  },
+  {
+   "key": "cocktail",
+   "type": "image",
+   "texture": "sprites/cocktail.png"
+  },
+  {
+   "key": "coffee",
+   "type": "image",
+   "texture": "sprites/coffee.png"
+  },
+  {
+   "key": "coin-16x16x4",
+   "type": "image",
+   "texture": "sprites/coin-16x16x4.png"
+  },
+  {
+   "key": "coin",
+   "type": "image",
+   "texture": "sprites/coin.png"
+  },
+  {
+   "key": "cokecan",
+   "type": "image",
+   "texture": "sprites/cokecan.png"
+  },
+  {
+   "key": "columns-blue",
+   "type": "image",
+   "texture": "sprites/columns-blue.png"
+  },
+  {
+   "key": "columns-orange",
+   "type": "image",
+   "texture": "sprites/columns-orange.png"
+  },
+  {
+   "key": "columns-red",
+   "type": "image",
+   "texture": "sprites/columns-red.png"
+  },
+  {
+   "key": "copy-that-floppy",
+   "type": "image",
+   "texture": "sprites/copy-that-floppy.png"
+  },
+  {
+   "key": "crate",
+   "type": "image",
+   "texture": "sprites/crate.png"
+  },
+  {
+   "key": "crate32",
+   "type": "image",
+   "texture": "sprites/crate32.png"
+  },
+  {
+   "key": "cursor-rotate",
+   "type": "image",
+   "texture": "sprites/cursor-rotate.png"
+  },
+  {
+   "key": "cyberpunk-street",
+   "type": "image",
+   "texture": "sprites/cyberpunk-street.png"
+  },
+  {
+   "key": "darkwing_crazy",
+   "type": "image",
+   "texture": "sprites/darkwing_crazy.png"
+  },
+  {
+   "key": "default",
+   "type": "image",
+   "texture": "sprites/default.png"
+  },
+  {
+   "key": "diamond",
+   "type": "image",
+   "texture": "sprites/diamond.png"
+  },
+  {
+   "key": "diamonds32x24x5",
+   "type": "image",
+   "texture": "sprites/diamonds32x24x5.png"
+  },
+  {
+   "key": "diamonds32x5",
+   "type": "image",
+   "texture": "sprites/diamonds32x5.png"
+  },
+  {
+   "key": "donut",
+   "type": "image",
+   "texture": "sprites/donut.png"
+  },
+  {
+   "key": "dragcircle",
+   "type": "image",
+   "texture": "sprites/dragcircle.png"
+  },
+  {
+   "key": "dragonegg",
+   "type": "image",
+   "texture": "sprites/dragonegg.png"
+  },
+  {
+   "key": "drawcursor",
+   "type": "image",
+   "texture": "sprites/drawcursor.png"
+  },
+  {
+   "key": "dude-cropped",
+   "type": "image",
+   "texture": "sprites/dude-cropped.png"
+  },
+  {
+   "key": "dude",
+   "type": "image",
+   "texture": "sprites/dude.png"
+  },
+  {
+   "key": "eggplant",
+   "type": "image",
+   "texture": "sprites/eggplant.png"
+  },
+  {
+   "key": "elephant",
+   "type": "image",
+   "texture": "sprites/elephant.png"
+  },
+  {
+   "key": "enemy-bullet",
+   "type": "image",
+   "texture": "sprites/enemy-bullet.png"
+  },
+  {
+   "key": "exocet-carrot",
+   "type": "image",
+   "texture": "sprites/exocet-carrot.png"
+  },
+  {
+   "key": "exocet_spaceman",
+   "type": "image",
+   "texture": "sprites/exocet_spaceman.png"
+  },
+  {
+   "key": "explosion",
+   "type": "image",
+   "texture": "sprites/explosion.png"
+  },
+  {
+   "key": "eyes",
+   "type": "image",
+   "texture": "sprites/eyes.png"
+  },
+  {
+   "key": "firstaid",
+   "type": "image",
+   "texture": "sprites/firstaid.png"
+  },
+  {
+   "key": "fish-136x80",
+   "type": "image",
+   "texture": "sprites/fish-136x80.png"
+  },
+  {
+   "key": "fish-136x80_n",
+   "type": "image",
+   "texture": "sprites/fish-136x80_n.png"
+  },
+  {
+   "key": "flectrum",
+   "type": "image",
+   "texture": "sprites/flectrum.png"
+  },
+  {
+   "key": "flectrum2",
+   "type": "image",
+   "texture": "sprites/flectrum2.png"
+  },
+  {
+   "key": "flower-exo",
+   "type": "image",
+   "texture": "sprites/flower-exo.png"
+  },
+  {
+   "key": "fmship",
+   "type": "image",
+   "texture": "sprites/fmship.png"
+  },
+  {
+   "key": "fork",
+   "type": "image",
+   "texture": "sprites/fork.png"
+  },
+  {
+   "key": "fruitnveg32wh37",
+   "type": "image",
+   "texture": "sprites/fruitnveg32wh37.png"
+  },
+  {
+   "key": "fruitnveg64wh37",
+   "type": "image",
+   "texture": "sprites/fruitnveg64wh37.png"
+  },
+  {
+   "key": "fuji",
+   "type": "image",
+   "texture": "sprites/fuji.png"
+  },
+  {
+   "key": "gameboy_seize_color_40x60",
+   "type": "image",
+   "texture": "sprites/gameboy_seize_color_40x60.png"
+  },
+  {
+   "key": "gem-blue-16x16x4",
+   "type": "image",
+   "texture": "sprites/gem-blue-16x16x4.png"
+  },
+  {
+   "key": "gem-green-16x16x4",
+   "type": "image",
+   "texture": "sprites/gem-green-16x16x4.png"
+  },
+  {
+   "key": "gem-red-16x16x4",
+   "type": "image",
+   "texture": "sprites/gem-red-16x16x4.png"
+  },
+  {
+   "key": "gem",
+   "type": "image",
+   "texture": "sprites/gem.png"
+  },
+  {
+   "key": "ghost",
+   "type": "image",
+   "texture": "sprites/ghost.png"
+  },
+  {
+   "key": "ghost1",
+   "type": "image",
+   "texture": "sprites/ghost1.png"
+  },
+  {
+   "key": "gingerbread",
+   "type": "image",
+   "texture": "sprites/gingerbread.png"
+  },
+  {
+   "key": "green_ball",
+   "type": "image",
+   "texture": "sprites/green_ball.png"
+  },
+  {
+   "key": "healthbar",
+   "type": "image",
+   "texture": "sprites/healthbar.png"
+  },
+  {
+   "key": "heart",
+   "type": "image",
+   "texture": "sprites/heart.png"
+  },
+  {
+   "key": "heartstar",
+   "type": "image",
+   "texture": "sprites/heartstar.png"
+  },
+  {
+   "key": "heartstar32",
+   "type": "image",
+   "texture": "sprites/heartstar32.png"
+  },
+  {
+   "key": "helix",
+   "type": "image",
+   "texture": "sprites/helix.png"
+  },
+  {
+   "key": "hello",
+   "type": "image",
+   "texture": "sprites/hello.png"
+  },
+  {
+   "key": "hotdog",
+   "type": "image",
+   "texture": "sprites/hotdog.png"
+  },
+  {
+   "key": "humstar",
+   "type": "image",
+   "texture": "sprites/humstar.png"
+  },
+  {
+   "key": "ilkke",
+   "type": "image",
+   "texture": "sprites/ilkke.png"
+  },
+  {
+   "key": "interference_ball_48x48",
+   "type": "image",
+   "texture": "sprites/interference_ball_48x48.png"
+  },
+  {
+   "key": "interference_tunnel",
+   "type": "image",
+   "texture": "sprites/interference_tunnel.png"
+  },
+  {
+   "key": "jets",
+   "type": "image",
+   "texture": "sprites/jets.png"
+  },
+  {
+   "key": "kirito_by_vali233",
+   "type": "image",
+   "texture": "sprites/kirito_by_vali233.png"
+  },
+  {
+   "key": "lemming",
+   "type": "image",
+   "texture": "sprites/lemming.png"
+  },
+  {
+   "key": "lollipop",
+   "type": "image",
+   "texture": "sprites/lollipop.png"
+  },
+  {
+   "key": "longarrow-down",
+   "type": "image",
+   "texture": "sprites/longarrow-down.png"
+  },
+  {
+   "key": "longarrow-white",
+   "type": "image",
+   "texture": "sprites/longarrow-white.png"
+  },
+  {
+   "key": "longarrow",
+   "type": "image",
+   "texture": "sprites/longarrow.png"
+  },
+  {
+   "key": "longarrow2",
+   "type": "image",
+   "texture": "sprites/longarrow2.png"
+  },
+  {
+   "key": "loop",
+   "type": "image",
+   "texture": "sprites/loop.png"
+  },
+  {
+   "key": "maggot",
+   "type": "image",
+   "texture": "sprites/maggot.png"
+  },
+  {
+   "key": "magnify-glass-inside",
+   "type": "image",
+   "texture": "sprites/magnify-glass-inside.png"
+  },
+  {
+   "key": "magnify-glass-outside",
+   "type": "image",
+   "texture": "sprites/magnify-glass-outside.png"
+  },
+  {
+   "key": "mana_card",
+   "type": "image",
+   "texture": "sprites/mana_card.png"
+  },
+  {
+   "key": "mask1",
+   "type": "image",
+   "texture": "sprites/mask1.png"
+  },
+  {
+   "key": "mask2",
+   "type": "image",
+   "texture": "sprites/mask2.png"
+  },
+  {
+   "key": "master",
+   "type": "image",
+   "texture": "sprites/master.png"
+  },
+  {
+   "key": "melon",
+   "type": "image",
+   "texture": "sprites/melon.png"
+  },
+  {
+   "key": "metalface78x92-n",
+   "type": "image",
+   "texture": "sprites/metalface78x92-n.png"
+  },
+  {
+   "key": "metalface78x92",
+   "type": "image",
+   "texture": "sprites/metalface78x92.png"
+  },
+  {
+   "key": "metalslug_monster39x40",
+   "type": "image",
+   "texture": "sprites/metalslug_monster39x40.png"
+  },
+  {
+   "key": "metalslug_mummy37x45",
+   "type": "image",
+   "texture": "sprites/metalslug_mummy37x45.png"
+  },
+  {
+   "key": "mine",
+   "type": "image",
+   "texture": "sprites/mine.png"
+  },
+  {
+   "key": "mouse_jim_sachs",
+   "type": "image",
+   "texture": "sprites/mouse_jim_sachs.png"
+  },
+  {
+   "key": "mushroom-32x32",
+   "type": "image",
+   "texture": "sprites/mushroom-32x32.png"
+  },
+  {
+   "key": "mushroom",
+   "type": "image",
+   "texture": "sprites/mushroom.png"
+  },
+  {
+   "key": "mushroom16x16",
+   "type": "image",
+   "texture": "sprites/mushroom16x16.png"
+  },
+  {
+   "key": "mushroom2",
+   "type": "image",
+   "texture": "sprites/mushroom2.png"
+  },
+  {
+   "key": "onion",
+   "type": "image",
+   "texture": "sprites/onion.png"
+  },
+  {
+   "key": "orange-cat1",
+   "type": "image",
+   "texture": "sprites/orange-cat1.png"
+  },
+  {
+   "key": "orange-cat2",
+   "type": "image",
+   "texture": "sprites/orange-cat2.png"
+  },
+  {
+   "key": "orb-blue",
+   "type": "image",
+   "texture": "sprites/orb-blue.png"
+  },
+  {
+   "key": "orb-green",
+   "type": "image",
+   "texture": "sprites/orb-green.png"
+  },
+  {
+   "key": "orb-red",
+   "type": "image",
+   "texture": "sprites/orb-red.png"
+  },
+  {
+   "key": "oz_pov_melting_disk",
+   "type": "image",
+   "texture": "sprites/oz_pov_melting_disk.png"
+  },
+  {
+   "key": "pacman_by_oz_28x28",
+   "type": "image",
+   "texture": "sprites/pacman_by_oz_28x28.png"
+  },
+  {
+   "key": "palm-tree-left",
+   "type": "image",
+   "texture": "sprites/palm-tree-left.png"
+  },
+  {
+   "key": "palm-tree-right",
+   "type": "image",
+   "texture": "sprites/palm-tree-right.png"
+  },
+  {
+   "key": "pangball",
+   "type": "image",
+   "texture": "sprites/pangball.png"
+  },
+  {
+   "key": "parsec",
+   "type": "image",
+   "texture": "sprites/parsec.png"
+  },
+  {
+   "key": "particle1",
+   "type": "image",
+   "texture": "sprites/particle1.png"
+  },
+  {
+   "key": "pepper",
+   "type": "image",
+   "texture": "sprites/pepper.png"
+  },
+  {
+   "key": "phaser-dude",
+   "type": "image",
+   "texture": "sprites/phaser-dude.png"
+  },
+  {
+   "key": "phaser-large",
+   "type": "image",
+   "texture": "sprites/phaser-large.png"
+  },
+  {
+   "key": "phaser-ship",
+   "type": "image",
+   "texture": "sprites/phaser-ship.png"
+  },
+  {
+   "key": "phaser-wire-300",
+   "type": "image",
+   "texture": "sprites/phaser-wire-300.png"
+  },
+  {
+   "key": "phaser",
+   "type": "image",
+   "texture": "sprites/phaser.png"
+  },
+  {
+   "key": "phaser1",
+   "type": "image",
+   "texture": "sprites/phaser1.png"
+  },
+  {
+   "key": "phaser2",
+   "type": "image",
+   "texture": "sprites/phaser2.png"
+  },
+  {
+   "key": "phaser3-logo-alpha",
+   "type": "image",
+   "texture": "sprites/phaser3-logo-alpha.png"
+  },
+  {
+   "key": "phaser3-logo-small",
+   "type": "image",
+   "texture": "sprites/phaser3-logo-small.png"
+  },
+  {
+   "key": "phaser3-logo-x2",
+   "type": "image",
+   "texture": "sprites/phaser3-logo-x2.png"
+  },
+  {
+   "key": "phaser3-logo",
+   "type": "image",
+   "texture": "sprites/phaser3-logo.png"
+  },
+  {
+   "key": "phaser_tiny",
+   "type": "image",
+   "texture": "sprites/phaser_tiny.png"
+  },
+  {
+   "key": "pineapple",
+   "type": "image",
+   "texture": "sprites/pineapple.png"
+  },
+  {
+   "key": "plane",
+   "type": "image",
+   "texture": "sprites/plane.png"
+  },
+  {
+   "key": "planet1",
+   "type": "image",
+   "texture": "sprites/planet1.png"
+  },
+  {
+   "key": "planet2",
+   "type": "image",
+   "texture": "sprites/planet2.png"
+  },
+  {
+   "key": "planet3",
+   "type": "image",
+   "texture": "sprites/planet3.png"
+  },
+  {
+   "key": "platform",
+   "type": "image",
+   "texture": "sprites/platform.png"
+  },
+  {
+   "key": "player",
+   "type": "image",
+   "texture": "sprites/player.png"
+  },
+  {
+   "key": "player_handgun",
+   "type": "image",
+   "texture": "sprites/player_handgun.png"
+  },
+  {
+   "key": "poo",
+   "type": "image",
+   "texture": "sprites/poo.png"
+  },
+  {
+   "key": "purple_ball",
+   "type": "image",
+   "texture": "sprites/purple_ball.png"
+  },
+  {
+   "key": "pyramid",
+   "type": "image",
+   "texture": "sprites/pyramid.png"
+  },
+  {
+   "key": "ra_dont_crack_under_pressure",
+   "type": "image",
+   "texture": "sprites/ra_dont_crack_under_pressure.png"
+  },
+  {
+   "key": "rain",
+   "type": "image",
+   "texture": "sprites/rain.png"
+  },
+  {
+   "key": "red_ball",
+   "type": "image",
+   "texture": "sprites/red_ball.png"
+  },
+  {
+   "key": "rgblaser",
+   "type": "image",
+   "texture": "sprites/rgblaser.png"
+  },
+  {
+   "key": "rick",
+   "type": "image",
+   "texture": "sprites/rick.png"
+  },
+  {
+   "key": "rocks",
+   "type": "image",
+   "texture": "sprites/rocks.png"
+  },
+  {
+   "key": "saw",
+   "type": "image",
+   "texture": "sprites/saw.png"
+  },
+  {
+   "key": "shinyball",
+   "type": "image",
+   "texture": "sprites/shinyball.png"
+  },
+  {
+   "key": "ship",
+   "type": "image",
+   "texture": "sprites/ship.png"
+  },
+  {
+   "key": "shmup-baddie-bullet",
+   "type": "image",
+   "texture": "sprites/shmup-baddie-bullet.png"
+  },
+  {
+   "key": "shmup-baddie",
+   "type": "image",
+   "texture": "sprites/shmup-baddie.png"
+  },
+  {
+   "key": "shmup-baddie2",
+   "type": "image",
+   "texture": "sprites/shmup-baddie2.png"
+  },
+  {
+   "key": "shmup-baddie3",
+   "type": "image",
+   "texture": "sprites/shmup-baddie3.png"
+  },
+  {
+   "key": "shmup-boom",
+   "type": "image",
+   "texture": "sprites/shmup-boom.png"
+  },
+  {
+   "key": "shmup-bullet",
+   "type": "image",
+   "texture": "sprites/shmup-bullet.png"
+  },
+  {
+   "key": "shmup-ship",
+   "type": "image",
+   "texture": "sprites/shmup-ship.png"
+  },
+  {
+   "key": "shmup-ship2",
+   "type": "image",
+   "texture": "sprites/shmup-ship2.png"
+  },
+  {
+   "key": "skull",
+   "type": "image",
+   "texture": "sprites/skull.png"
+  },
+  {
+   "key": "skullcandle",
+   "type": "image",
+   "texture": "sprites/skullcandle.png"
+  },
+  {
+   "key": "slime",
+   "type": "image",
+   "texture": "sprites/slime.png"
+  },
+  {
+   "key": "slimeeyes",
+   "type": "image",
+   "texture": "sprites/slimeeyes.png"
+  },
+  {
+   "key": "snake",
+   "type": "image",
+   "texture": "sprites/snake.png"
+  },
+  {
+   "key": "snowflake-pixel",
+   "type": "image",
+   "texture": "sprites/snowflake-pixel.png"
+  },
+  {
+   "key": "snowflakes",
+   "type": "image",
+   "texture": "sprites/snowflakes.png"
+  },
+  {
+   "key": "snowflakes_large",
+   "type": "image",
+   "texture": "sprites/snowflakes_large.png"
+  },
+  {
+   "key": "sonic",
+   "type": "image",
+   "texture": "sprites/sonic.png"
+  },
+  {
+   "key": "sonic_havok_sanity",
+   "type": "image",
+   "texture": "sprites/sonic_havok_sanity.png"
+  },
+  {
+   "key": "soundtracker",
+   "type": "image",
+   "texture": "sprites/soundtracker.png"
+  },
+  {
+   "key": "space-baddie-purple",
+   "type": "image",
+   "texture": "sprites/space-baddie-purple.png"
+  },
+  {
+   "key": "space-baddie",
+   "type": "image",
+   "texture": "sprites/space-baddie.png"
+  },
+  {
+   "key": "spaceman",
+   "type": "image",
+   "texture": "sprites/spaceman.png"
+  },
+  {
+   "key": "speakers",
+   "type": "image",
+   "texture": "sprites/speakers.png"
+  },
+  {
+   "key": "spikedball",
+   "type": "image",
+   "texture": "sprites/spikedball.png"
+  },
+  {
+   "key": "spinObj_01",
+   "type": "image",
+   "texture": "sprites/spinObj_01.png"
+  },
+  {
+   "key": "spinObj_02",
+   "type": "image",
+   "texture": "sprites/spinObj_02.png"
+  },
+  {
+   "key": "spinObj_03",
+   "type": "image",
+   "texture": "sprites/spinObj_03.png"
+  },
+  {
+   "key": "spinObj_04",
+   "type": "image",
+   "texture": "sprites/spinObj_04.png"
+  },
+  {
+   "key": "spinObj_05",
+   "type": "image",
+   "texture": "sprites/spinObj_05.png"
+  },
+  {
+   "key": "spinObj_06",
+   "type": "image",
+   "texture": "sprites/spinObj_06.png"
+  },
+  {
+   "key": "spinObj_07",
+   "type": "image",
+   "texture": "sprites/spinObj_07.png"
+  },
+  {
+   "key": "spinObj_08",
+   "type": "image",
+   "texture": "sprites/spinObj_08.png"
+  },
+  {
+   "key": "splat",
+   "type": "image",
+   "texture": "sprites/splat.png"
+  },
+  {
+   "key": "star",
+   "type": "image",
+   "texture": "sprites/star.png"
+  },
+  {
+   "key": "steelbox",
+   "type": "image",
+   "texture": "sprites/steelbox.png"
+  },
+  {
+   "key": "stormlord-dragon96x64",
+   "type": "image",
+   "texture": "sprites/stormlord-dragon96x64.png"
+  },
+  {
+   "key": "strawberry-cake",
+   "type": "image",
+   "texture": "sprites/strawberry-cake.png"
+  },
+  {
+   "key": "strip1",
+   "type": "image",
+   "texture": "sprites/strip1.png"
+  },
+  {
+   "key": "strip2",
+   "type": "image",
+   "texture": "sprites/strip2.png"
+  },
+  {
+   "key": "stripes400x32-v2",
+   "type": "image",
+   "texture": "sprites/stripes400x32-v2.png"
+  },
+  {
+   "key": "stripes800x32-bg",
+   "type": "image",
+   "texture": "sprites/stripes800x32-bg.png"
+  },
+  {
+   "key": "stripes800x32-layer",
+   "type": "image",
+   "texture": "sprites/stripes800x32-layer.png"
+  },
+  {
+   "key": "stripes800x32-v2",
+   "type": "image",
+   "texture": "sprites/stripes800x32-v2.png"
+  },
+  {
+   "key": "stripes800x32",
+   "type": "image",
+   "texture": "sprites/stripes800x32.png"
+  },
+  {
+   "key": "tetrisblock1",
+   "type": "image",
+   "texture": "sprites/tetrisblock1.png"
+  },
+  {
+   "key": "tetrisblock2",
+   "type": "image",
+   "texture": "sprites/tetrisblock2.png"
+  },
+  {
+   "key": "tetrisblock3",
+   "type": "image",
+   "texture": "sprites/tetrisblock3.png"
+  },
+  {
+   "key": "thrust_ship",
+   "type": "image",
+   "texture": "sprites/thrust_ship.png"
+  },
+  {
+   "key": "thrust_ship2",
+   "type": "image",
+   "texture": "sprites/thrust_ship2.png"
+  },
+  {
+   "key": "tinycar",
+   "type": "image",
+   "texture": "sprites/tinycar.png"
+  },
+  {
+   "key": "tomato",
+   "type": "image",
+   "texture": "sprites/tomato.png"
+  },
+  {
+   "key": "topleft",
+   "type": "image",
+   "texture": "sprites/topleft.png"
+  },
+  {
+   "key": "topright",
+   "type": "image",
+   "texture": "sprites/topright.png"
+  },
+  {
+   "key": "treasure_trap",
+   "type": "image",
+   "texture": "sprites/treasure_trap.png"
+  },
+  {
+   "key": "tree-european",
+   "type": "image",
+   "texture": "sprites/tree-european.png"
+  },
+  {
+   "key": "tree",
+   "type": "image",
+   "texture": "sprites/tree.png"
+  },
+  {
+   "key": "triangle",
+   "type": "image",
+   "texture": "sprites/triangle.png"
+  },
+  {
+   "key": "triangle2",
+   "type": "image",
+   "texture": "sprites/triangle2.png"
+  },
+  {
+   "key": "ufo",
+   "type": "image",
+   "texture": "sprites/ufo.png"
+  },
+  {
+   "key": "ukko-fujilogy-texture-64x64",
+   "type": "image",
+   "texture": "sprites/ukko-fujilogy-texture-64x64.png"
+  },
+  {
+   "key": "vu",
+   "type": "image",
+   "texture": "sprites/vu.png"
+  },
+  {
+   "key": "wabbit",
+   "type": "image",
+   "texture": "sprites/wabbit.png"
+  },
+  {
+   "key": "wand",
+   "type": "image",
+   "texture": "sprites/wand.png"
+  },
+  {
+   "key": "wasp",
+   "type": "image",
+   "texture": "sprites/wasp.png"
+  },
+  {
+   "key": "watermelon",
+   "type": "image",
+   "texture": "sprites/watermelon.png"
+  },
+  {
+   "key": "wizball",
+   "type": "image",
+   "texture": "sprites/wizball.png"
+  },
+  {
+   "key": "wrap",
+   "type": "image",
+   "texture": "sprites/wrap.png"
+  },
+  {
+   "key": "ww2plane",
+   "type": "image",
+   "texture": "sprites/ww2plane.png"
+  },
+  {
+   "key": "ww2plane90",
+   "type": "image",
+   "texture": "sprites/ww2plane90.png"
+  },
+  {
+   "key": "x2kship",
+   "type": "image",
+   "texture": "sprites/x2kship.png"
+  },
+  {
+   "key": "xenon2_bomb",
+   "type": "image",
+   "texture": "sprites/xenon2_bomb.png"
+  },
+  {
+   "key": "xenon2_ship",
+   "type": "image",
+   "texture": "sprites/xenon2_ship.png"
+  },
+  {
+   "key": "yellow_ball",
+   "type": "image",
+   "texture": "sprites/yellow_ball.png"
+  },
+  {
+   "key": "yune",
+   "type": "image",
+   "texture": "sprites/yune.png"
+  },
+  {
+   "key": "zelda-hearts",
+   "type": "image",
+   "texture": "sprites/zelda-hearts.png"
+  },
+  {
+   "key": "zelda-life",
+   "type": "image",
+   "texture": "sprites/zelda-life.png"
+  }
+ ]
+}
