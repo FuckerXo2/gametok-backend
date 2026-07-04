@@ -186,3 +186,110 @@ export function drawParallax(
   }
   return drawn;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATLAS + ANIMATION — draw one sprite sheet (image + frame rectangles) and play
+// its named animations. This is what lets the kernel use packed sprite sheets
+// (Phaser/TexturePacker-style) where a whole character lives in ONE image with
+// its walk/attack/die frames declared as data — instead of one file per frame.
+//
+// The resolver inlines the atlas image into DREAM_IMAGES and writes a NORMALIZED
+// descriptor into window.DREAM_ATLASES, keyed by role (e.g. 'player','enemy'):
+//   { image, frames: { name -> {frame,sourceSize?,spriteSourceSize?,trimmed?,rotated?} },
+//     animations: { anim -> [frameName, ...] } }
+// The builder never parses raw atlas JSON — it just calls playAnim/drawAtlas.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type AtlasFrame = {
+  frame: { x: number; y: number; w: number; h: number };
+  rotated?: boolean;
+  trimmed?: boolean;
+  spriteSourceSize?: { x: number; y: number; w: number; h: number };
+  sourceSize?: { w: number; h: number };
+};
+type Atlas = { image: string; frames: Record<string, AtlasFrame>; animations: Record<string, string[]> };
+
+function atlasesMap(): Record<string, Atlas> {
+  return ((window as unknown as { DREAM_ATLASES?: Record<string, Atlas> }).DREAM_ATLASES) || {};
+}
+
+/** Is a packed sprite-sheet available for this role/name? (e.g. hasAtlas('player')). */
+export function hasAtlas(name: string): boolean {
+  return Boolean(atlasesMap()[name]);
+}
+
+/** Animation names available on an atlas (e.g. ['idle','run','attack_A','die']). */
+export function animList(name: string): string[] {
+  const a = atlasesMap()[name];
+  return a ? Object.keys(a.animations || {}) : [];
+}
+
+function drawFrame(
+  ctx: CanvasRenderingContext2D, atlas: Atlas, frameName: string, x: number, y: number, o: DrawOpts,
+): boolean {
+  const im = imageFor(atlas.image);
+  const fr = atlas.frames?.[frameName];
+  if (!im || !fr) return false;
+  const src = fr.frame;
+  // Anchor + size off the UNTRIMMED source box so every frame of an animation shares
+  // the same footprint (trimmed frames jitter otherwise).
+  const sw = fr.sourceSize?.w ?? src.w;
+  const sh = fr.sourceSize?.h ?? src.h;
+  let scale = 1;
+  if (o.size) scale = o.size / Math.max(sw, sh);
+  if (o.scale) scale *= o.scale;
+  const anchorX = (sw * scale) / 2;
+  const anchorY = o.anchor === 'top' ? 0 : o.anchor === 'bottom' ? sh * scale : (sh * scale) / 2;
+  const sss = fr.trimmed && fr.spriteSourceSize ? fr.spriteSourceSize : { x: 0, y: 0 };
+  ctx.save();
+  ctx.imageSmoothingEnabled = !pixelArt();
+  ctx.translate(x, y);
+  if (o.flipX) ctx.scale(-1, 1);
+  // Top-left of the untrimmed box, relative to the anchor; add the trim offset. On flipX the
+  // horizontal trim is measured from the opposite edge so mirrored frames stay aligned.
+  const offX = (o.flipX ? (sw - sss.x - src.w) : sss.x) * scale;
+  const left = -anchorX + offX;
+  const top = -anchorY + sss.y * scale;
+  if (fr.rotated) {
+    // Packer rotated the frame 90° CW to save space: draw with a matching rotation. Source w/h swap.
+    ctx.translate(left + (src.h * scale) / 2, top + (src.w * scale) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.drawImage(im, src.x, src.y, src.w, src.h, -(src.w * scale) / 2, -(src.h * scale) / 2, src.w * scale, src.h * scale);
+  } else {
+    ctx.drawImage(im, src.x, src.y, src.w, src.h, left, top, src.w * scale, src.h * scale);
+  }
+  ctx.restore();
+  return true;
+}
+
+/** Draw ONE named frame of an atlas: drawAtlas(ctx, 'player', 'idle/frame0001', x, y). */
+export function drawAtlas(
+  ctx: CanvasRenderingContext2D, name: string, frameName: string, x: number, y: number, o: DrawOpts = {},
+): boolean {
+  const atlas = atlasesMap()[name];
+  return atlas ? drawFrame(ctx, atlas, frameName, x, y, o) : false;
+}
+
+/**
+ * Play a named animation from a packed sprite sheet — the EASY path for animated characters:
+ *   playAnim(ctx, 'player', 'run', t, x, y, { size: 48, anchor: 'bottom', flipX: !facingRight })
+ * `t` is elapsed seconds. Loops by default; pass loop:false to hold the last frame (e.g. a death
+ * pose). Falls back to the atlas's first frame, then returns false, so you can draw a fallback.
+ */
+export function playAnim(
+  ctx: CanvasRenderingContext2D, name: string, anim: string, t: number,
+  x: number, y: number, o: DrawOpts & { fps?: number; loop?: boolean } = {},
+): boolean {
+  const atlas = atlasesMap()[name];
+  if (!atlas) return false;
+  const frames = atlas.animations?.[anim];
+  if (!frames || !frames.length) {
+    // no such animation — show the first available frame so the character still appears
+    const first = Object.keys(atlas.frames || {})[0];
+    return first ? drawFrame(ctx, atlas, first, x, y, o) : false;
+  }
+  const fps = o.fps ?? 12;
+  const i = Math.floor(Math.max(0, t) * fps);
+  const idx = o.loop === false ? Math.min(i, frames.length - 1) : i % frames.length;
+  return drawFrame(ctx, atlas, frames[idx], x, y, o);
+}
