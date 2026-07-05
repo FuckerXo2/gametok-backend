@@ -123,8 +123,8 @@ ${asset2dBlock}
 - hudBlocks: [] unless hudScaffold true.
 - hudAuthority: "agent" (default) — implement agent owns HUD layout in #hud and/or canvas, styled with the uiKit palette/font/glow. For action/arcade/runner/score-chase games this is a CLEAN INTEGRATED overlay (corner glowing numbers, icon lives) — NOT boxed chips. For content-heavy casual games it may be grounded uiKit panels. Either way: themed, never generic dev UI, and never three identical bordered stat boxes.
 - antiPatterns must include overlapping UI and duplicate end-state copy when relevant.
-- Do not reference Phaser unless you truly need it — default engine is canvas-2d.`,
-        user: `${mustBe3D ? `MANDATORY — Phase 1 classified this game as 3D (${phase1Perspective}). This is BINDING: you MUST output a 3D foundation — "dimension":"3D", "engine":"threejs", a 3D "lane" (threejs_world | voxel_world | threejs_runner | threejs_first_person), a "cameraRig", and EMPTY "assetSlots". Do NOT output "canvas-2d" or any 2D/flat lane (no *_vertical, top_down, side_view, arcade-flat). "space shooter", "survive waves", "shmup" etc. are still 3D here because Phase 1 said so — downgrading to 2D is a hard failure.
+- ALL games use Native Phaser 3 (or Three.js for 3D). Default engine is phaser3.`,
+        user: `${mustBe3D ? `MANDATORY — Phase 1 classified this game as 3D (${phase1Perspective}). This is BINDING: you MUST output a 3D foundation — "dimension":"3D", "engine":"threejs", a 3D "lane" (threejs_world | voxel_world | threejs_runner | threejs_first_person), a "cameraRig", and EMPTY "assetSlots". Do NOT output "phaser3" or any 2D/flat lane (no *_vertical, top_down, side_view, arcade-flat). "space shooter", "survive waves", "shmup" etc. are still 3D here because Phase 1 said so — downgrading to 2D is a hard failure.
 
 DEPTH MANDATE (equally binding): a 3D play space MUST use the DEPTH axis. interactionLoops must describe obstacles / enemies / targets spawning deep on the -Z axis (e.g. z = -120) and rushing toward the camera, growing as they approach. The player may STRAFE on the X/Y screen plane, but the WORLD travels in depth. Edge-spawning — "asteroids come from the screen edges", "fly up/down and shoot up the screen", any +Y-only screen-plane loop — is the flat 1979-arcade reflex and a HARD FAILURE. If Phase 1 describes such a flat loop, you MUST rewrite interactionLoops into a forward-flight / approach-the-camera depth experience.
 
@@ -141,7 +141,7 @@ Return this JSON shape:
   "lane": "short_snake_case design lane for this game (e.g. timed_order_cooking, projectile_action, endless_runner — not a legacy template folder name)",
   "dimension": "2D | 3D",
   "perspective": "top_down | side_view | arcade | scene",
-  "engine": "canvas-2d | threejs",
+  "engine": "phaser3 | threejs",
   "cameraRig": "(3D only) first_person | third_person_chase | orbit | fixed_angle",
   "initialState": "MENU | PLAYING | PREP",
   "stateFlow": ["PLAYING", "RESULT"],
@@ -305,7 +305,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         lane: asString(source.lane, 'arcade'),
         dimension: asString(source.dimension, qualityIntent.technicalRequirements?.dimension || '2D').toUpperCase(),
         perspective: asString(source.perspective, qualityIntent.technicalRequirements?.perspective || 'top_down'),
-        engine: asString(source.engine, 'canvas-2d'),
+        engine: asString(source.engine, 'phaser3'),
         cameraRig: asString(source.cameraRig, ''),
         initialState: asString(source.initialState, 'PLAYING'),
         stateFlow: asArray(source.stateFlow).length ? asArray(source.stateFlow) : ['PLAYING', 'RESULT'],
@@ -508,7 +508,7 @@ export function buildFallbackFoundationSeed(qualityIntent = {}) {
         lane: primaryMechanic ? slugify(primaryMechanic) : 'arcade',
         dimension: asString(tech.dimension, '2D'),
         perspective: asString(tech.perspective, 'top_down'),
-        engine: 'canvas-2d',
+        engine: 'phaser3',
         interactionLoops: [coreLoop || primaryMechanic || 'Touch-first mobile loop with visible feedback.'].filter(Boolean),
         entityBlueprints,
         controls: asArray(tech.controls).length ? asArray(tech.controls) : ['tap'],
@@ -574,13 +574,13 @@ export function buildMakerTemplateContractFromFoundation(foundation = {}, qualit
         || String(foundation.lane || '').toLowerCase().includes('voxel_world')
         || String(foundation.engine || '').toLowerCase() === 'threejs';
     if (phase1Is3D && String(foundation.dimension || '').toUpperCase() !== '3D') {
-        console.warn(`[Foundation] Phase 1 said 3D but foundation returned dimension=${foundation.dimension || '2D'} engine=${foundation.engine || 'canvas-2d'} lane=${foundation.lane || '?'} — forcing 3D (threejs-kernel) to honor Phase 1.`);
+        console.warn(`[Foundation] Phase 1 said 3D but foundation returned dimension=${foundation.dimension || '2D'} engine=${foundation.engine || 'phaser3'} lane=${foundation.lane || '?'} — forcing 3D (threejs-kernel) to honor Phase 1.`);
     }
     return {
         version: 1,
         source: 'gametok-dynamic-foundation',
         templateId: is3D ? 'threejs-kernel' : 'canvas-kernel',
-        engine: is3D ? 'threejs' : (foundation.engine || 'canvas-2d'),
+        engine: is3D ? 'threejs' : 'phaser3',
         archetype: foundation.lane || 'dynamic',
         recommendedLibrary: is3D
             ? 'Three.js (WebGL) on shared GameTok 3D kernel (bootstrap + threeAssets).'
