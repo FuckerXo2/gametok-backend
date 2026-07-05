@@ -262,14 +262,14 @@ export function phaser2dSpritePromptBlock(resolution = {}) {
     
     lines.push('');
     lines.push('HOW TO USE (copy-paste these patterns):');
-    lines.push('  SPRITES:     playAnim(ctx, \'player\', \'run\', t, x, y, { size: 64, anchor: \'bottom\', flipX: !facingRight })');
-    lines.push('               drawAtlas(ctx, \'enemy\', \'idle/frame0001\', x, y, { size: 48 })');
-    lines.push('               if (!playAnim(ctx, \'player\', \'idle\', t, x, y)) { /* fallback rectangle */ }');
+    lines.push('  SPRITES:     if (!animatedSprite(ctx, \'player\', \'run\', t, x, y, { size: 64, anchor: \'bottom\', flipX: !facingRight })) { /* fallback */ }');
+    lines.push('               if (!sprite(ctx, \'enemy\', x, y, { size: 48 })) { /* fallback */ }');
+    lines.push('               if (!sprite(ctx, \'projectile\', x, y, { size: 16 })) { /* fallback */ }');
     lines.push('  BACKGROUND:  drawBackground(ctx, \'background\')  // fills entire canvas');
     lines.push('  MUSIC:       playBGM(\'bgm\', 0.3)  // call once, loops automatically, no-op if already playing');
     lines.push('               stopBGM()  // stop music');
     lines.push('  SFX:         playSFX(\'sfx_0\', 0.5)  // one-shot, overlapping is fine');
-    lines.push('  CHECK FIRST: if (hasAtlas(\'player\')) { ... }  if (hasAudio(\'bgm\')) { ... }  if (hasBackground()) { ... }');
+    lines.push('  CHECK FIRST: if (hasSprite(\'player\')) { ... }  if (hasAudio(\'bgm\')) { ... }  if (hasBackground()) { ... }');
     lines.push('');
     lines.push('IMPORTANT: Do NOT access window.DREAM_* globals directly. Use ONLY the sprite.ts helpers above.');
     
