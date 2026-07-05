@@ -747,7 +747,7 @@ export function buildIndexHtmlFromFoundation(foundation = {}) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>\${title}</title>
+  <title>${title}</title>
   <style>
     html, body {
       margin: 0;
@@ -786,16 +786,16 @@ function jsString(value = '') {
 export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
     const implNotes = asArray(foundation.implementationNotes).slice(0, 8)
-        .map((note) => `// \${String(note || '').replace(/[\\r\\n]+/g, ' ').trim()}`)
-        .join('\\n');
+        .map((note) => `// ${String(note || '').replace(/[\r\n]+/g, ' ').trim()}`)
+        .join('\n');
 
     return `// @ts-nocheck
 // GameTok Native Phaser 3 foundation stub
-// Foundation: \${foundation.foundationId || 'dynamic'} (\${foundation.lane || 'arcade'})
+// Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
 // Phase 2 owns the full game logic.
 // You MUST load all image and audio assets directly from public CDNs like:
 // 'https://labs.phaser.io/assets/'
-\${implNotes}
+${implNotes}
 
 class BootScene extends Phaser.Scene {
     constructor() {
@@ -822,7 +822,7 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        const text = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, '\${title}\\nTap to Start', {
+        const text = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, '${title}\nTap to Start', {
             fontSize: '32px',
             color: '#ffffff',
             align: 'center'
