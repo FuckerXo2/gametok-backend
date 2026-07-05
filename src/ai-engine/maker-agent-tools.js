@@ -1078,7 +1078,7 @@ export async function runMakerAgentToolTurn({
                 if (mode === MAKER_AGENT_TURN_MODE_REPAIR && priorReads >= 1 && !roundEdited) {
                     result.note = `${result.note ? `${result.note} ` : ''}REPAIR: ${readPath} was already read earlier this turn. You must apply_patch or write_file next.`;
                 } else if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && priorReads >= 1 && !roundEdited) {
-                    result.note = `${result.note ? `${result.note} ` : ''}IMPLEMENT: ${readPath} was already read earlier this turn. Use write_file or apply_patch on src/main.ts next.`;
+                    result.note = `${result.note ? `${result.note} ` : ''}IMPLEMENT: ${readPath} was already read earlier this turn. Use write_file or apply_patch on the appropriate source files next.`;
                 }
             }
 
@@ -1093,7 +1093,7 @@ export async function runMakerAgentToolTurn({
                 editsApplied.push(editSummary);
                 noEditsNeeded = false;
                 roundEdited = true;
-                if (editSummary.path === 'src/main.ts') {
+                if (editSummary.path === 'src/main.ts' || editSummary.path.endsWith('.ts')) {
                     touchedMainTs = true;
                     if (
                         mode === MAKER_AGENT_TURN_MODE_IMPLEMENT
@@ -1169,12 +1169,12 @@ export async function runMakerAgentToolTurn({
                 log.events.push({ type: 'stuck_read_file_full_snapshot_injected', mode, round: round + 1, files: stuckPaths });
             }
             if (repairReadOnlyRounds > REPAIR_MAX_READ_ONLY_ROUNDS) {
-                throw new Error('Repair mode stalled on read-only tool calls — apply_patch or write_file on src/main.ts now');
+                throw new Error('Repair mode stalled on read-only tool calls — apply_patch or write_file on the appropriate source files now');
             }
             if (repairReadOnlyRounds >= REPAIR_MAX_READ_ONLY_ROUNDS) {
                 messages.push({
                     role: 'user',
-                    content: 'REPAIR REQUIRED: Stop reading files. Call apply_patch or write_file on src/main.ts now to fix the targeted failures from last run evidence.',
+                    content: 'REPAIR REQUIRED: Stop reading files. Call apply_patch or write_file on the appropriate source files now to fix the targeted failures from last run evidence.',
                 });
             }
         }
