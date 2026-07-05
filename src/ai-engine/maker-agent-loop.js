@@ -347,7 +347,7 @@ export function buildMakerAgentImplementPrompt({
         ...getMakerAgentToolInstructionLines(MAKER_AGENT_TURN_MODE_IMPLEMENT),
         "- SCOPE — BUILD ONE POLISHED VERTICAL SLICE, NOT THE WHOLE GENRE: if the prompt asks for breadth (\"all the mechanics Madden has\", \"everything X has\", a long feature list), DO NOT try to implement them all — you WILL run out of turns and ship a broken, non-compiling build. Implement the foundation's primaryMechanic / core loop COMPLETELY and make it feel great (one thing done well), and skip or lightly stub the rest. A focused game that works beats a sprawling one that doesn't. The foundation contract above is already trimmed to a buildable slice — build exactly that, do not re-expand it from the prompt's wish-list.",
         '- You own the full mobile layout: index.html structure, src/styles.css, and all gameplay logic.',
-        '- BUILD A ROBUST MULTI-FILE ARCHITECTURE: Use the write_file tool to create separate files for scenes (src/scenes/BootScene.ts, GameScene.ts) and entities (src/entities/Player.ts). DO NOT cram everything into main.ts.',
+        '- BUILD A ROBUST MULTI-FILE ARCHITECTURE: Use the write_file tool to create separate files for scenes (src/scenes/BootScene.ts, GameScene.ts) and entities (src/entities/Player.ts). DO NOT cram everything into main.ts. Keep individual files under 300 lines to prevent output truncation.',
         '- Follow foundation layoutComposition and composition law below — no fixed template shell is provided.',
         '- Use read_file / grep_project / apply_patch to build incrementally on disk.',
         '- After each edit, tsc runs automatically — read tsc errors in tool results and fix before continuing.',
