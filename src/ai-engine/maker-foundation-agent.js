@@ -742,67 +742,38 @@ export function buildMakerAssetContractFromFoundation(foundation = {}, qualityIn
 
 export function buildIndexHtmlFromFoundation(foundation = {}) {
     const title = asString(foundation.title, 'GameTok Game');
-    const hudIdsSeen = new Set();
-    const hudBlocks = asArray(foundation.hudBlocks).filter((block) => {
-        const id = slugify(block);
-        if (hudIdsSeen.has(id)) return false;
-        hudIdsSeen.add(id);
-        return true;
-    });
-    const useScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
-    const hudInner = useScaffold
-        ? hudBlocks.map((block) => {
-            const id = slugify(block);
-            return `      <div class="hud-chip hud-${id}">
-        <span>${block}</span>
-        <strong id="${id}-value">0</strong>
-      </div>`;
-        }).join('\n')
-        : '';
-
     return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>${title}</title>
+  <title>\${title}</title>
   <style>
     html, body {
-      margin: 0 !important;
-      padding: 0 !important;
-      width: 100%;
-      height: 100%;
-      overflow: hidden !important;
-    }
-    #game-shell {
-      position: fixed;
-      inset: 0;
       margin: 0;
       padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
       overflow: hidden;
+      font-family: sans-serif;
     }
-    #game-canvas {
-      position: fixed !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      display: block;
+    #game-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas {
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
 <body>
-  <main id="game-shell" aria-label="${title}">
-    <canvas id="game-canvas"></canvas>
-    <div id="hud" data-hud aria-live="polite">
-${hudInner}
-    </div>
-    <div id="controls-layer" data-controls></div>
-    <div id="status-line" role="status">${asString(foundation.statusCopy, 'Tap to play!')}</div>
-  </main>
-  <script type="module" src="/src/bootstrap.ts"></script>
+  <div id="game-container"></div>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
 `;
@@ -814,254 +785,88 @@ function jsString(value = '') {
 
 export function buildMainTsStubFromFoundation(foundation = {}, qualityIntent = {}) {
     const title = asString(foundation.title, qualityIntent.title || 'GameTok Game');
-    const kit = normalizeUiKit(foundation.uiKit, qualityIntent);
-    const kitPalette = kit.palette;
-    const hudBlocks = asArray(foundation.hudBlocks);
-    const useHudScaffold = usesKernelHudScaffold(foundation) && hudBlocks.length > 0;
-    const hudIdsSeen = new Set(['score']);
-    const hudRefs = useHudScaffold ? hudBlocks
-        .map((block) => slugify(block))
-        .filter((id) => {
-            if (hudIdsSeen.has(id)) return false;
-            hudIdsSeen.add(id);
-            return true;
-        })
-        .map((id) => `  ${id}: document.getElementById('${id}-value'),`)
-        .join('\n') : '';
-    const stateKeys = [...new Set(asArray(foundation.requiredState).filter((key) => !['width', 'height'].includes(key)))];
-    const coveredStateKeys = new Set(stateKeys);
-    const stateInit = stateKeys.map((key) => {
-        if (key === 'score' || key.endsWith('Count')) return `  ${key}: 0,`;
-        if (key === 'combo' || key === 'comboMultiplier') return `  ${key}: 1,`;
-        if (key === 'timeLeft' || key === 'orderTimeLeft' || key === 'dayTimer' || key === 'time') return `  ${key}: 120,`;
-        if (key === 'gameOver' || key.startsWith('is')) return `  ${key}: false,`;
-        if (key.endsWith('[]')) return `  ${key}: [],`;
-        const laneInit = inferFoundationStateInitializer(key, foundation);
-        return `  ${key}: ${laneInit},`;
-    }).join('\n');
-    const hudStateInit = useHudScaffold ? hudBlocks
-        .map((block) => slugify(block))
-        .filter((id, index, ids) => id !== 'score' && !coveredStateKeys.has(id) && ids.indexOf(id) === index)
-        .map((id) => {
-            coveredStateKeys.add(id);
-            if (id.includes('time')) return `  ${id}: 120,`;
-            if (id.includes('combo')) return `  ${id}: 1,`;
-            return `  ${id}: 0,`;
-        })
-        .join('\n') : '';
-    const combinedStateInit = [stateInit, hudStateInit].filter(Boolean).join('\n');
-
-    const probeMethods = asArray(foundation.probeMethods);
-    const extraProbeLines = probeMethods
-        .filter((probe) => !['snapshot', 'step', 'reset', 'placeIngredient', 'triggerCooking', 'serveOrder', 'spawnCustomer'].includes(probe.name))
-        .map((probe) => `  ${probe.name}(...args) {
-    // Foundation probe stub — Phase 2 agent implements ${probe.name}(): ${probe.description || probe.name}
-    return null;
-  },`)
-        .join('\n');
-    // Embed notes as SINGLE-LINE comments. Model free-text (especially non-ASCII / RTL like Arabic) can
-    // carry raw newlines or line-separator chars (U+2028 / U+2029 / U+0085) that survive JSON repair —
-    // without flattening them, `// ${note}` breaks and the continuation lands as uncommented code, so the
-    // stub fails tsc (TS1434 "Unexpected identifier"/TS1005) and the whole job dies on attempt 1. Collapse
-    // every line break / control char to a space.
-    const oneLine = (value) => String(value == null ? '' : value).replace(/[\r\n\u0085\u2028\u2029\u0000-\u001F]+/g, ' ').trim();
     const implNotes = asArray(foundation.implementationNotes).slice(0, 8)
-        .map((note) => `// ${oneLine(note)}`)
-        .join('\n');
+        .map((note) => `// \${String(note || '').replace(/[\\r\\n]+/g, ' ').trim()}`)
+        .join('\\n');
 
-    const stubBody = `// @ts-nocheck
-// GameTok dynamic foundation stub — Phase 2 file agent: implement the full game loop below.
-// Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'arcade'})
-// Phase 2 owns full layout (index.html, styles.css, main.ts) — follow layoutComposition in foundation contract.
-${implNotes}
-import './styles.css';
+    return `// @ts-nocheck
+// GameTok Native Phaser 3 foundation stub
+// Foundation: \${foundation.foundationId || 'dynamic'} (\${foundation.lane || 'arcade'})
+// Phase 2 owns the full game logic.
+// You MUST load all image and audio assets directly from public CDNs like:
+// 'https://labs.phaser.io/assets/'
+\${implNotes}
 
-const canvasEl = document.getElementById('game-canvas');
-if (!(canvasEl instanceof HTMLCanvasElement)) {
-  throw new Error('Missing #game-canvas element');
-}
-const canvas = canvasEl;
-const ctxOrNull = canvas.getContext('2d');
-if (!ctxOrNull) {
-  throw new Error('Could not acquire 2D canvas context');
-}
-const ctx = ctxOrNull;
-const statusLine = document.getElementById('status-line');
-const hudMount = document.getElementById('hud');
-${useHudScaffold ? `const hud = {
-  score: document.getElementById('score-value'),
-${hudRefs}
-};` : '// Phase 2: design minimal game-specific HUD in #hud and/or canvas (see foundation hudDesign).'}
-
-// Boot-frame theme seeded from the foundation uiKit so even the stub frame reads themed.
-// Phase 2 owns the full UI and reuses these uiKit tokens across every panel/button/meter.
-const GAME_THEME = {
-  title: ${jsString(title)},
-  styleFamily: ${jsString(kit.styleFamily)},
-  backgroundA: '#0f172a',
-  backgroundB: '#1e293b',
-  panel: ${jsString(kitPalette.panel)},
-  panelBorder: ${jsString(kitPalette.panelBorder)},
-  accent: ${jsString(kitPalette.accent)},
-  textPrimary: ${jsString(kitPalette.textPrimary)},
-  textMuted: ${jsString(kitPalette.textMuted)},
-  radius: ${Number(kit.radius) || 16},
-  danger: '#fb7185',
-};
-
-const state = {
-  width: 390,
-  height: 844,
-${combinedStateInit}
-  lastTick: performance.now(),
-  started: false,
-};
-
-function resizeCanvas() {
-  state.width = window.innerWidth || 390;
-  state.height = window.innerHeight || 844;
-  canvas.width = state.width;
-  canvas.height = state.height;
-}
-
-function getAssetImage(key) {
-  if (!key) return null;
-  const img = window.DREAM_IMAGES?.[key];
-  if (img && img.complete && img.naturalWidth > 0) return img;
-  return null;
-}
-
-function resolveBackgroundImage() {
-  const candidates = ['background1', 'background', 'environment', 'toybox_background'];
-  const pack = Array.isArray(window.DREAM_ASSET_PACK) ? window.DREAM_ASSET_PACK : [];
-  for (const asset of pack) {
-    const role = String(asset?.role || asset?.category || '').toLowerCase();
-    const type = String(asset?.type || '').toLowerCase();
-    if (type === 'background' || role === 'background' || role === 'environment') {
-      candidates.push(asset.key || asset.id || asset.runtimeKey);
+class BootScene extends Phaser.Scene {
+    constructor() {
+        super('BootScene');
     }
-  }
-  const seen = new Set();
-  for (const key of candidates) {
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    const img = getAssetImage(key);
-    if (img) return img;
-  }
-  return null;
+
+    preload() {
+        // Enable CORS for public CDN loading
+        this.load.setCORS('anonymous');
+        
+        // Example native loading from Phaser Labs:
+        // this.load.image('background', 'https://labs.phaser.io/assets/skies/space3.png');
+        // this.load.image('player', 'https://labs.phaser.io/assets/sprites/ship.png');
+    }
+
+    create() {
+        this.scene.start('GameScene');
+    }
 }
 
-function drawBackground() {
-  const bg = resolveBackgroundImage();
-  if (bg) {
-    const scale = Math.max(state.width / bg.naturalWidth, state.height / bg.naturalHeight);
-    const w = bg.naturalWidth * scale;
-    const h = bg.naturalHeight * scale;
-    ctx.drawImage(bg, (state.width - w) / 2, (state.height - h) / 2, w, h);
-    return;
-  }
-  const gradient = ctx.createLinearGradient(0, 0, 0, state.height);
-  gradient.addColorStop(0, GAME_THEME.backgroundA);
-  gradient.addColorStop(1, GAME_THEME.backgroundB);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, state.width, state.height);
+class GameScene extends Phaser.Scene {
+    constructor() {
+        super('GameScene');
+    }
+
+    create() {
+        const text = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, '\${title}\\nTap to Start', {
+            fontSize: '32px',
+            color: '#ffffff',
+            align: 'center'
+        }).setOrigin(0.5);
+
+        this.input.once('pointerdown', () => {
+            text.destroy();
+            // Start game
+        });
+    }
+
+    update(time: number, delta: number) {
+        // Game loop
+    }
 }
 
-function drawPlayerFallback(x, y, size) {
-  ctx.fillStyle = GAME_THEME.accent;
-  ctx.beginPath();
-  ctx.arc(x, y, size * 0.5, 0, Math.PI * 2);
-  ctx.fill();
-}
+const config: Phaser.Types.Core.GameConfig = {
+    type: Phaser.AUTO,
+    parent: 'game-container',
+    width: window.innerWidth,
+    height: window.innerHeight,
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 0 },
+            debug: false
+        }
+    },
+    scene: [BootScene, GameScene],
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    }
+};
 
-function drawPlayer() {
-  const img = getAssetImage('player') || getAssetImage('player1');
-  const x = state.width * 0.5;
-  const y = state.height * 0.62;
-  const size = Math.min(state.width, state.height) * 0.16;
-  if (img) {
-    ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
-    return;
-  }
-  drawPlayerFallback(x, y, size);
-}
+new Phaser.Game(config);
 
-${useHudScaffold ? `function syncHud() {
-  if (hud.score) hud.score.textContent = String(state.score ?? 0);
-  ${hudBlocks.filter((b) => slugify(b) !== 'score').map((block) => {
-        const id = slugify(block);
-        return `if (hud.${id}) hud.${id}.textContent = String(state.${id} ?? 0);`;
-    }).join('\n  ')}
-}
-
-function drawHud() {
-  syncHud();
-}` : `function drawHud() {
-  // TODO Phase 2: implement minimal HUD per foundation hudDesign (fuel bar top-left, distance top-right, etc.)
-}`}
-
-export function renderAll() {
-  ctx.clearRect(0, 0, state.width, state.height);
-  drawBackground();
-  drawPlayer();
-  drawHud();
-  if (statusLine && !state.started) {
-    statusLine.textContent = ${jsString(foundation.statusCopy || 'Tap to play!')};
-  }
-}
-
-export function stepGame(dt = 16) {
-  if (state.gameOver) return;
-  state.started = true;
-  // TODO: Phase 2 agent implements ${foundation.lane || 'core'} loop here.
-}
-
-export function resetGame() {
-  state.score = 0;
-  state.gameOver = false;
-  state.started = false;
-  state.lastTick = performance.now();
-  renderAll();
-}
-
-function gameLoop(now) {
-  const dt = Math.min(32, now - state.lastTick);
-  state.lastTick = now;
-  stepGame(dt);
-  renderAll();
-  requestAnimationFrame(gameLoop);
-}
-
+// Expose probe for verification
 window.__GAMETOK_TEMPLATE_PROBE__ = {
-  snapshot() {
-    return JSON.parse(JSON.stringify({
-      score: state.score,
-      gameOver: state.gameOver,
-      started: state.started,
-      lane: ${jsString(foundation.lane || 'dynamic')},
-    }));
-  },
-  step(ms = 16) {
-    stepGame(ms);
-    renderAll();
-    return this.snapshot();
-  },
-  reset() {
-    resetGame();
-    return this.snapshot();
-  },
-${extraProbeLines ? `${extraProbeLines}\n` : ''}};
-
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
-canvas.addEventListener('pointerdown', () => {
-  state.started = true;
-  if (statusLine) statusLine.textContent = 'Playing!';
-});
-renderAll();
-requestAnimationFrame(gameLoop);
+    snapshot() { return { score: 0, started: true }; },
+    step() { return this.snapshot(); },
+    reset() { return this.snapshot(); }
+};
 `;
-    return stripCookingStateLeaksFromSource(stubBody, foundation).content;
 }
 
 export function buildFoundationDebugChecks(foundation = {}) {

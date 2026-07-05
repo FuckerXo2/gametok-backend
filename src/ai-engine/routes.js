@@ -5289,26 +5289,10 @@ async function runMakerAgentInspectionTurns({
         }
     }
 
-    // 2D Phaser assets: for canvas-kernel games, pick atlases, audio, and backgrounds by prompt
-    // relevance, fetch from R2 and inline them (window.DREAM_ATLASES, DREAM_AUDIO, DREAM_BACKGROUNDS
-    // via src/dreamSprites.ts).
+    // 2D Phaser 
+    // Disabled: Using Native Phaser 3 with public CDNs instead of custom catalog base64 injection.
     let phaser2dBlock = '';
     let phaser2dHasGround = false; // flag to enforce ground rendering if tiles are provided
-    if (templateContract?.templateId === 'canvas-kernel') {
-        try {
-            const p2dPacks = selectPhaser2dAssets(prompt, qualityIntent, templateContract?.foundation || null);
-            if (p2dPacks && p2dPacks.picks && Object.keys(p2dPacks.picks).length > 0) {
-                const p2dMat = await materializePhaser2dSprites(projectRoot, p2dPacks.picks, { pixelArt: false });
-                if (p2dMat) {
-                    phaser2dBlock = phaser2dSpritePromptBlock(p2dPacks.picks);
-                    phaser2dHasGround = p2dMat.roles.includes('tiles');
-                    console.log(`🎨 [Phase 2 job=${jobId}] Phaser 2D: ${p2dMat.count} atlases materialized (roles: ${p2dMat.roles.join(', ')})`);
-                }
-            }
-        } catch (e) {
-            console.warn(`🎨 [Phase 2 job=${jobId}] 2D asset materialize skipped: ${e?.message || e}`);
-        }
-    }
     let modelUsageForceRetries = 0;
 
     // Capture the empty stub size before any agent edits, so we can tell a real implementation from

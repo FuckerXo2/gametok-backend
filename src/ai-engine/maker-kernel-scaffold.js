@@ -74,10 +74,10 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         source: 'gametok-dynamic-kernel-scaffold',
         foundationId: foundation.foundationId || null,
         rule: freeBuild3D
-            ? 'Kernel files (bootstrap, assetLoader, threeAssets, types) are read-only. Phase 2 agent OWNS the multi-file game under src/ (game/, core/, systems/, entities/, world/) plus a thin main.ts entry. createThreeStage() provides renderer/camera/lights/shadows; keep main.ts exporting stepGame/renderAll/resetGame and setting __GAMETOK_TEMPLATE_PROBE__. Specialize the seeded modules into the requested game. PHYSICS: for any ball/car/bounce/launch/ragdoll/collision game, use `import { createPhysics } from "./physics.ts"` (cannon-es) — createPhysics({gravity}) gives sphere()/box()/staticPlane()/staticBox() bodies linked to meshes + step(dt); NEVER hand-roll collisions/gravity for physics-driven games.'
+            ? 'You are building a 3D game using Native Three.js. Load GLTF models and textures directly from public CDNs (e.g. raw.githubusercontent.com or unpkg). Do NOT use proprietary gametok wrappers. Create your scene in main.ts.'
                 : use3D
-                ? 'Kernel files (bootstrap, assetLoader, threeAssets, types) are read-only. Phase 2 agent owns the entire game in src/main.ts (single file — state, refs, loop, probe are pre-wired; fill the TODO functions in place). createThreeStage() owns renderer/camera/lights/resize — extend it, never delete it. PHYSICS: for ball/car/bounce/launch/ragdoll/collision games, `import { createPhysics } from "./physics.ts"` (cannon-es) — real rigid-body physics; do NOT hand-roll it.'
-                : 'Kernel files (bootstrap, assetLoader, types) are read-only. Phase 2 agent owns main.ts, styles.css, and index.html structure.',
+                ? 'You are building a 3D game using Native Three.js. Load GLTF models and textures directly from public CDNs. Create your scene natively.'
+                : 'You are building a 2D game using Native Phaser 3. You MUST load all image and audio assets directly from public CDNs like https://labs.phaser.io/assets/ in your BootScene preload. Do NOT use proprietary gametok wrappers. Phase 2 agent owns main.ts, styles.css, and index.html.',
         files,
     };
 }
