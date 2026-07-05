@@ -163,11 +163,11 @@ export function analyzeFoundationStubSources(mainTs = '', indexHtml = '') {
         });
     }
 
-    if (!String(indexHtml).includes('id="game-canvas"')) {
+    if (!String(indexHtml).includes('id="game-container"')) {
         issues.push({
-            id: 'missing_game_canvas',
+            id: 'missing_game_container',
             severity: 'error',
-            message: 'Generated index.html is missing #game-canvas.',
+            message: 'Generated index.html is missing #game-container.',
         });
     }
 
