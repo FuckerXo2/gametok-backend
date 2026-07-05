@@ -166,7 +166,20 @@ function sourceAssetReferences(source) {
             refs.add(key);
         }
     }
-    return Array.from(refs);
+
+    const generatedPatterns = [
+        /\bgenerateTexture\s*\(\s*['"`]([^'"`]+)['"`]/g,
+        /\bcreateCanvas\s*\(\s*['"`]([^'"`]+)['"`]/g,
+    ];
+    const generatedKeys = new Set();
+    for (const pattern of generatedPatterns) {
+        let match;
+        while ((match = pattern.exec(source)) !== null) {
+            generatedKeys.add(match[1]);
+        }
+    }
+
+    return Array.from(refs).filter(ref => !generatedKeys.has(ref) && !['__DEFAULT', '__MISSING'].includes(ref));
 }
 
 function unsafeCanvasDrawImageCalls(source) {
