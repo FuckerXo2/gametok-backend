@@ -299,9 +299,9 @@ export function buildUserMediaInstructionBlock(userMedia = null) {
             ? `The player said use it as: "${img.instruction}". Do exactly that — it overrides any default role.`
             : `Use it as the ${img.role}.`;
         if (img.animated) {
-            lines.push(`- Animated image asset key "${img.key}" (a GIF/sticker — it MUST keep animating). ${directive} Render it as a positioned HTML <img> element layered over #game-container, src resolved at runtime: (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${img.key}")?.url. Move/scale it with CSS transforms if it needs to travel around the screen.`);
+            lines.push(`- Animated image "${img.key}" (a GIF/sticker — it MUST keep animating). ${directive} Render it as a positioned HTML <img> element layered over #game-container with src="${img.url}". Move/scale it with CSS transforms if it needs to travel around the screen.`);
         } else {
-            lines.push(`- Image asset key "${img.key}". ${directive} Load it like other pack assets (getAssetImage("${img.key}") / firstByRole).`);
+            lines.push(`- Image "${img.key}". ${directive} Load it directly: const img = new Image(); img.src = "${img.url}"; then draw it on the canvas once loaded.`);
         }
     }
     for (const vid of videos) {
@@ -310,7 +310,7 @@ export function buildUserMediaInstructionBlock(userMedia = null) {
             : (vid.role === 'background'
                 ? 'Use it as a full-bleed looping background behind gameplay.'
                 : `Use it for the ${vid.role}.`);
-        lines.push(`- Video asset key "${vid.key}". ${directive} Resolve its src at runtime: const src = (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${vid.key}")?.url. Create an HTMLVideoElement (muted, loop, playsInline, autoplay) with that src, then position a <video> under #game-container. Never leave it unused.`);
+        lines.push(`- Video "${vid.key}". ${directive} Create an HTMLVideoElement (muted, loop, playsInline, autoplay) with src="${vid.url}", then position a <video> under #game-container. Never leave it unused.`);
     }
     return lines.join('\n');
 }
@@ -483,8 +483,6 @@ export function buildMakerAgentInspectionPrompt({
             'This is a repair pass after build/preflight/sandbox evidence. Make the smallest edits that fix the reported failures.',
             'Use read_file once per path, then apply_patch or write_file. Do not re-read the same file repeatedly without editing it.',
             'You MUST apply at least one write_file/apply_patch edit before finish_inspection. Reading alone is not a repair.',
-            'If preflight says required asset slots are unreferenced: add getAssetImage(key) calls using ALLOWED ASSET PACK KEYS and draw generated backgrounds in renderAll.',
-            'If preflight lists unknown keys like prop1/item1: replace them with exact keys from ALLOWED ASSET PACK KEYS or remove the reference.',
             'Focus on targetedRepairTasks and failed checks below — ignore unrelated contract noise.',
         ]),
         ...(useTools ? [

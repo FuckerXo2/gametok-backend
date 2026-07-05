@@ -8,17 +8,15 @@
 const PIPELINE = {
     phases: [
         'Phase 1 — Spec: understand the user prompt (title, loop, mechanics, art direction). No code.',
-        'Phase 1.5 — Foundation Architect: design THIS game foundation contract JSON (state, functions, probes, asset slots, first frame, acceptance). Do not pick legacy template folders.',
-        'Artist — Generate PNG assets from foundation assetSlots + art direction. Assets load at runtime via DREAM_IMAGES.',
-        'Phase 2 — File Agent: implement the full game in src/main.ts (and html/css if needed) on top of the kernel scaffold stub.',
-        'Phase 3 — Sandbox: headless boot, blank-canvas check, probe API, asset usage, foundation acceptance checks.',
+        'Phase 1.5 — Foundation Architect: design THIS game foundation contract JSON (state, functions, probes, first frame, acceptance). Do not pick legacy template folders.',
+        'Phase 2 — File Agent: implement the full game in src/main.ts (and html/css if needed) on top of the kernel scaffold stub. Load any sprites/audio from public CDNs; draw everything else with code. 3D uses Kenney models.',
+        'Phase 3 — Sandbox: headless boot, blank-canvas check, probe API, foundation acceptance checks.',
     ],
     agents: {
         spec: 'Extract playable behavior only. Do not choose template folders when dynamic foundation is enabled.',
-        foundation: 'Author the per-job foundation contract. You design the game shape; the kernel is fixed.',
-        artist: 'Generate isolated sprites/backgrounds matching assetSlots roles. No HUD text baked into images.',
-        fileAgent: 'Implement foundation requiredFunctions and probeMethods. You have CLI access: use run_command for python scripts, npm installs, and scaffolding. Do NOT run blocking commands like npm run dev. Replace stub gameplay with the real loop.',
-        sandbox: 'Enforces foundation contract + global laws (visible first frame, no external nav, assets used).',
+        foundation: 'Author the per-job foundation contract. You design the game shape; the kernel is fixed. No asset slots — art is CDN + code-drawn (2D) or Kenney models (3D).',
+        fileAgent: 'Implement foundation requiredFunctions and probeMethods. Load sprites/audio from public CDNs and draw the rest with code (2D) or use Kenney models (3D). You have CLI access: use run_command for python scripts, npm installs, and scaffolding. Do NOT run blocking commands like npm run dev. Replace stub gameplay with the real loop.',
+        sandbox: 'Enforces foundation contract + global laws (visible first frame, no external nav).',
     },
 };
 
@@ -33,22 +31,18 @@ const KERNEL = {
         'vite.config.js',
     ],
     bootOrder: [
-        'index.html loads src/bootstrap.ts',
-        'bootstrap calls loadDreamAssets() from assetLoader.ts',
-        'assetLoader fills window.DREAM_IMAGES from public/assets/asset-pack.json + window.DREAM_ASSET_PACK',
-        'bootstrap dynamic-imports src/main.ts after assets resolve (or on failure, boot anyway)',
+        'index.html loads src/main.ts (kernel scaffold).',
+        'Load any image/audio assets yourself from public CDNs in your own preload/init; draw everything else with code.',
+        'main.ts installs window.__GAMETOK_TEMPLATE_PROBE__ before/at first frame.',
     ],
     runtimeGlobals: [
-        'window.DREAM_IMAGES — HTMLImageElement map by asset key/role',
-        'window.DREAM_ASSET_PACK — runtime asset metadata array',
-        'window.DREAM_ASSETS — optional inline data URLs',
-        'window.DREAM_ANIMATIONS / DREAM_TILESETS / DREAM_AUDIO_MANIFEST when present',
         'window.__GAMETOK_TEMPLATE_PROBE__ — sandbox verification API (methods from foundation contract)',
+        '(No DREAM_* asset globals — 2D art is CDN + code-drawn, 3D uses Kenney models.)',
     ],
     firstFrameLaw: [
         'Frame 1 must NOT be blank.',
-        'Draw background (generated background role or code gradient fallback).',
-        'Draw primary subject (player or equivalent) using DREAM_IMAGES or code fallback shape.',
+        'Draw background (CDN image or code gradient).',
+        'Draw primary subject (player or equivalent) from a CDN sprite or a code-drawn shape.',
         'Show code-rendered HUD or status affordance.',
         'Prove the game exists before the player taps.',
     ],
@@ -90,12 +84,10 @@ const COMPOSITION_LAW = [
 ];
 
 const ASSET_LAW = [
-    'Sprites: transparent PNG subjects (player, enemy, item, prop, effect).',
-    'Backgrounds: opaque scenery only — no HUD, no characters, no text, no buttons.',
+    '2D art: load sprites/backgrounds from public CDNs (e.g. https://labs.phaser.io/assets/) in your own preload, OR draw them procedurally with canvas/Phaser graphics. There is no generated asset pack and no DREAM_* globals.',
+    '3D art: use Kenney models via the provided loadModel() helpers; skin with the threeAssets helpers. Never getAssetImage().',
     'HUD, meters, buttons, labels, timers: code-rendered only (DOM or canvas text/shapes).',
-    'Use getAssetImage(key) or DREAM_IMAGES[key] in canvas games — never paste data URLs into source.',
-    'Background keys commonly aliased: background1, background, environment, toybox_background.',
-    'If an asset fails quality (blank/transparent), use a code fallback shape — do not pretend the broken PNG is fine.',
+    'Never paste data URLs or base64 blobs into source.',
 ];
 
 const THREEJS_GAMEPLAY_LAW = [
@@ -121,8 +113,6 @@ const SANDBOX_LAW = [
 const KNOWN_FAILURES = [
     'Blockshot pattern: user asked 3D but game ran on 2D canvas → blank or wrong game. Fix: block unsupported 3D early.',
     'Blank canvas pattern: code boots but renderAll/stepGame never draws → sandbox fails. Fix: implement foundation firstFrame + renderAll.',
-    'Asset orphan pattern: artist generated sprites but main.ts never calls getAssetImage → acceptance fails. Fix: wire assetSlots to renderers.',
-    'Transparent player pattern: imgly/RMBG wiped sprite → quality gate fails. Fix: regen asset or code fallback.',
     'Classifier mismatch (legacy): archetype routed to wrong template folder. Fix: dynamic foundation replaces folder picking.',
     'Canvas viewport overflow pattern: main.ts dropped styles.css or offset the canvas → sandbox fails with rect like 8,8,398,852 on a 390x844 viewport. Fix: full-bleed canvas at 0,0; guard canvas with instanceof HTMLCanvasElement.',
     'Repair TS18047 canvas-null spiral: after getElementById("game-canvas"), narrow with instanceof HTMLCanvasElement before using canvas.width/height.',

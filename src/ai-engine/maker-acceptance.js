@@ -1,4 +1,3 @@
-import { isBlockingAssetQualityIssue } from './maker-asset-quality.js';
 
 function asArray(value) {
     return Array.isArray(value) ? value : [];
@@ -102,12 +101,7 @@ function scoreAssets(sandbox = null, assetContract = null, assetManifest = null,
     if (hasFailedCheck(sandbox, 'asset_tilesets_unused')) {
         failures.push('Generated tilesets are unused.');
     }
-    if (assetQuality && assetQuality.passed === false) {
-        const fatalIssues = asArray(assetQuality.issues).filter(isBlockingAssetQualityIssue);
-        if (fatalIssues.length > 0) {
-            failures.push(`Generated asset quality failed: ${fatalIssues.map((entry) => entry.message || entry.id).slice(0, 3).join('; ')}`);
-        }
-    }
+    // Asset-quality gate removed with the 2D image-gen teardown; no generated art to grade.
     return {
         score: failures.length === 0 ? 10 : 0,
         passed: failures.length === 0,

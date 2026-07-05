@@ -1111,10 +1111,10 @@ export function injectUserMediaAssets(generatedAssets = null, mediaAttachments =
             ...(base.manifest || {}),
             assets: [...asArray(base.manifest?.assets), ...packEntries],
         },
-        // Strip urls from the prompt-facing summary — builder resolves them by key at runtime.
+        // Builder loads user media directly from its CDN/R2 url (no asset pack / DREAM runtime).
         userMedia: {
-            images: images.map(({ key, role, instruction, label, animated }) => ({ key, role, instruction, label, animated })),
-            videos: videos.map(({ key, role, instruction, label }) => ({ key, role, instruction, label })),
+            images: images.map(({ key, role, instruction, label, animated, url }) => ({ key, role, instruction, label, animated, url })),
+            videos: videos.map(({ key, role, instruction, label, url }) => ({ key, role, instruction, label, url })),
         },
     };
 }

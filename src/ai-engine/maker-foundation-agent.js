@@ -64,19 +64,12 @@ export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
     // Swap in tile-the-ground / scatter-props guidance so the foundation stops instructing the blind
     // builder to draw an asset that will never exist.
     const phaser2d = !mustBe3D && use2dAssetsOnly();
-    const asset2dBlock = phaser2d
-        ? `- ASSETS: this 2D game is built from REAL Phaser sprite art (player, enemies, items, ground tiles, props, decorative background pieces) auto-selected from a themed pack AFTER this foundation. You do NOT design assetSlots — leave "assetSlots": [] (the artist agent does not run). Do NOT invent art briefs or reference a single painted portrait background image (there is none).
+    const asset2dBlock = `- ASSETS: there is NO asset-generation step and NO asset pack. Leave "assetSlots": []. The builder gets art two ways only: (a) load sprites/backgrounds/audio from public CDNs (e.g. https://labs.phaser.io/assets/) in its own preload, or (b) draw everything procedurally with canvas / Phaser graphics. Do NOT design art briefs, do NOT reference a generated background image, a themed pack, or getAssetImage/DREAM_IMAGES — none of those exist.
 - THE WORLD MUST NOT BE A FLAT EMPTY VOID (that is what makes a game look unfinished next to competitors) — but HOW you fill it depends on the camera, so pick the right one:
-  * TOP-DOWN / OVERHEAD (arena shooters, dungeons, .io games): TILE THE FLOOR. The builder calls tileGround(ctx, w, h) to fill the whole play area with the pack's seamless \`tiles\`, then scatterProps(ctx, ...) to dress it with ~6-12 static props (crates/barrels/debris). firstFrame: tiled floor → props → player → enemies → HUD.
-  * SIDE-SCROLLER / PLATFORMER: do NOT tile a full-screen floor. Draw a SKY (a code gradient sky is CORRECT and good here, not a failure), then a sparse FAR PARALLAX layer from the \`background\` pieces (clouds/hills — via drawParallax(), a few big pieces, NEVER tiled edge-to-edge), then build platforms/ground from platform/tile sprites, then entities, then HUD.
-  * BOARD / PUZZLE / CARD / MENU-STYLE (match-3, solitaire, trays): neither — a clean themed uiKit background band + the board/tray art is correct; do not force ground tiles.
-- NEVER tile the decorative \`background\` pieces across the screen — they are horizon scenery, not a seamless surface (tiling them looks broken). Ground tiling is ONLY for the \`tiles\` floor role.
-- Describe the chosen approach concretely in firstFrame/layoutComposition (e.g. top-down: "tile floor, scatter 8 props"; platformer: "gradient dusk sky, 3 parallax hills, tiled grass platforms").`
-        : `- assetSlots are the ONLY list the artist agent will generate. Translate Phase 1 visualAssets (player, enemies, items, backgrounds, props) into concrete assetSlots with matching ids when possible.
-- Each assetSlot description must be a complete art brief for the artist (subject, pose, framing, isolation rules). Reuse Phase 1 visual asset descriptions when they fit.
-- background assetSlot is REQUIRED for every 2D game: vivid portrait environment art (768x1344), scene-specific to the prompt, premium App Store mobile game quality — not abstract color fields. (3D games skip this — their sky/ground are code-colored.)
-- assetSlots for ingredients/items must share palette, line weight, and style with the background artDirection.
-- Do not rely on Phase 1 visualAssets being generated separately — if the game needs an image, it must appear in assetSlots.`;
+  * TOP-DOWN / OVERHEAD (arena shooters, dungeons, .io games): fill the whole play area with a code-drawn or CDN-tiled floor pattern, then scatter ~6-12 code-drawn or CDN static props (crates/barrels/debris). firstFrame: floor → props → player → enemies → HUD.
+  * SIDE-SCROLLER / PLATFORMER: draw a SKY (a code gradient sky is CORRECT and good here), then a sparse FAR PARALLAX layer (a few big code/CDN pieces — clouds/hills, NEVER tiled edge-to-edge), then build platforms/ground, then entities, then HUD.
+  * BOARD / PUZZLE / CARD / MENU-STYLE (match-3, solitaire, trays): a clean code-drawn UI background band + the board/tray art is correct; do not force ground tiles.
+- Describe the chosen approach concretely in firstFrame/layoutComposition (e.g. top-down: "tiled floor, scatter 8 props"; platformer: "gradient dusk sky, 3 parallax hills, tiled grass platforms").`;
     return {
         system: `${getMakerSystemManualBlock('foundation')}
 
@@ -85,10 +78,9 @@ You are the GameTok Foundation Architect for mobile HTML5 canvas games.
 Your job is to design the per-game foundation contract that the implementation agent will build on top of the shared runtime kernel described in the system manual above.
 
 The kernel already provides (DO NOT redesign these):
-- src/bootstrap.ts loads DreamAssets then imports src/main.ts
-- src/assetLoader.ts populates window.DREAM_IMAGES from asset-pack + DREAM_ASSET_PACK
 - Vite single-file build, mobile viewport, touch-first controls
 - window.__GAMETOK_TEMPLATE_PROBE__ for sandbox verification
+- (No asset loader / DREAM globals: 2D art is CDN + code-drawn, 3D uses Kenney models.)
 
 You MUST output ONLY raw JSON.
 
@@ -182,7 +174,7 @@ Return this JSON shape:
   "hudScaffold": false,
   "hudBlocks": [],
   "hudAuthority": "agent",
-  "firstFrame": [${phaser2d ? '"Fill the world (top-down: tile floor + props; side-scroller: sky + parallax + platforms)", "Draw player", "Show score HUD"' : '"Draw background image", "Draw player", "Show score HUD"'}],
+  "firstFrame": [${phaser2d ? '"Fill the world (top-down: tile floor + props; side-scroller: sky + parallax + platforms)", "Draw player", "Show score HUD"' : '"Draw code-colored sky + ground", "Draw player", "Show score HUD"'}],
   "interactionLoops": ["short description of core input loop"],
   "entityBlueprints": [
     { "id": "player", "role": "player", "description": "who the player is" }
@@ -554,9 +546,9 @@ export function buildMakerTemplateContractFromFoundation(foundation = {}, qualit
             'Do not duplicate HUD, order UI, or end-state on canvas AND DOM.',
             ...(foundation.layoutComposition?.layoutRules || []).slice(0, 4),
         ],
-        dreamAssets: [
-            'Use window.DREAM_IMAGES, DREAM_ASSET_PACK keys, or getAssetImage(key) helpers.',
-            'Never paste generated data URLs into source files; reference runtime keys.',
+        assets: [
+            '2D: load sprites/audio from public CDNs in your own preload, or draw with code. No asset pack, no DREAM_* globals, no getAssetImage.',
+            '3D: use Kenney models via loadModel(); never paste data URLs into source files.',
         ],
     };
 
