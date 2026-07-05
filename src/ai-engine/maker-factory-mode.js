@@ -44,7 +44,7 @@ export function isFreeBuildMode() {
 export function isMakerFactoryMinimalMode() {
     const raw = process.env.GAMETOK_FACTORY_MINIMAL;
     if (raw === undefined || raw === null || String(raw).trim() === '') {
-        return true;
+        return false;
     }
     return String(raw).toLowerCase() !== 'false';
 }

@@ -48,7 +48,7 @@ export function useDynamicFoundation() {
 // and code-drawn primitives as fallback, never FLUX. Flip GAMETOK_2D_KENNEY_ONLY=false to restore
 // FLUX sprite-gen for 2D (e.g. if Phaser coverage is insufficient for a genre).
 export function use2dAssetsOnly() {
-    return String(process.env.GAMETOK_2D_ASSETS_ONLY || 'true').toLowerCase() !== 'false';
+    return String(process.env.GAMETOK_2D_ASSETS_ONLY || 'false').toLowerCase() !== 'false';
 }
 
 export function buildFoundationAgentPrompt(qualityIntent = {}, prompt = '') {
