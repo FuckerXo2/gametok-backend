@@ -24,7 +24,7 @@ import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMake
 import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
 import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { applyDeterministicPreflightRepairs, applyDeterministicStateObjectDedupeRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
-import { buildThreeMainTsStubFromFoundation, isThreeFoundation, regraftRunnerEditRegion } from './maker-threejs-stub.js';
+import { buildThreeMainTsStubFromFoundation, isThreeFoundation } from './maker-threejs-stub.js';
 import { detectRunnerSacredRegionTelemetry } from './maker-preflight-validator.js';
 import {
     isFreeBuildMode,
@@ -4927,19 +4927,6 @@ async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets
                         console.log(`🧪 [Raw Model Contract job=${path.basename(workspace || '')}] phase=${phase} turn=${turnNumber} heldEngineOnOwn=${!rawDrift.drift} markers=${rawDrift.markersPresent}${rawDrift.reasons.length ? ` reasons=[${rawDrift.reasons.join(',')}]` : ''}`);
                     }
                 } catch { /* measurement only */ }
-                if (isFreeBuildMode()) {
-                    // FREE BUILD: do not graft. Ship the model's own full game. The
-                    // render-readiness preflight floor still gates it; archive tag +
-                    // GAMETOK_FREE_BUILD=off restore the graft instantly.
-                    console.log(`🆓 [Free Build job=${path.basename(workspace || '')}] graft SKIPPED — shipping model's own game (phase=${phase} turn=${turnNumber})`);
-                } else {
-                    const canonicalMain = buildThreeMainTsStubFromFoundation(_foundation, {});
-                    const graft = regraftRunnerEditRegion(generatedMain, canonicalMain);
-                    if (graft.changed) {
-                        await fs.promises.writeFile(mainTsPath, graft.content, 'utf8');
-                        console.log(`🔧 [Engine Graft job=${path.basename(workspace || '')}] mode=${graft.mode} (${graft.reason}) — canonical engine + model EDIT region (phase=${phase} turn=${turnNumber})`);
-                    }
-                }
             } catch (graftError) {
                 console.warn(`🔧 [Engine Graft] failed (non-fatal): ${graftError?.message || graftError}`);
             }
