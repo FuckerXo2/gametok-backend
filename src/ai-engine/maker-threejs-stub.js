@@ -25,7 +25,7 @@ export function buildThreeMainTsStubFromFoundation(foundation = {}, qualityInten
 import * as THREE from 'three';
 
 // GameTok Native Three.js foundation stub
-// Foundation: \${foundation.foundationId || 'dynamic'} (\${foundation.lane || 'threejs'})
+// Foundation: ${foundation.foundationId || 'dynamic'} (${foundation.lane || 'threejs'})
 // Phase 2 owns the full 3D game logic in this file.
 // Load any GLTF models directly from public CDNs like raw.githubusercontent.com.
 
@@ -74,5 +74,5 @@ window.__GAMETOK_TEMPLATE_PROBE__ = {
     step() { return this.snapshot(); },
     reset() { return this.snapshot(); }
 };
-\`;
+`;
 }
