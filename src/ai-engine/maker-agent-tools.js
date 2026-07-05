@@ -21,28 +21,28 @@ export const MAKER_AGENT_TURN_MODE_IMPLEMENT = 'implement';
 export const MAKER_AGENT_TURN_MODE_REPAIR = 'repair';
 
 const MIN_FIND_LENGTH = 12;
-const MAX_WRITE_FILE_CHARS = 32000;
+const MAX_WRITE_FILE_CHARS = 1000000;
 const MAX_WRITE_FILE_CHARS_MAIN = Math.max(
     16000,
-    Math.min(128000, Number(process.env.GAMETOK_MAKER_AGENT_MAIN_TS_MAX_CHARS || 96000)),
+    Math.min(1000000, Number(process.env.GAMETOK_MAKER_AGENT_MAIN_TS_MAX_CHARS || 1000000)),
 );
 const DEFAULT_MAX_ROUNDS = 16;
 const DEFAULT_MAX_TOOL_CALLS = 24;
 const IMPLEMENT_MAX_ROUNDS = Math.max(
     4,
-    Math.min(30, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_ROUNDS || 20)),
+    Math.min(60, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_ROUNDS || 60)),
 );
 const REPAIR_MAX_ROUNDS = Math.max(
     4,
-    Math.min(12, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_ROUNDS || 8)),
+    Math.min(30, Number(process.env.GAMETOK_MAKER_AGENT_REPAIR_MAX_ROUNDS || 30)),
 );
 const IMPLEMENT_MAX_TOOL_CALLS = Math.max(
     6,
-    Math.min(96, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 64)),
+    Math.min(256, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS || 256)),
 );
 const IMPLEMENT_MAX_TOOL_CALLS_CEILING = Math.max(
     IMPLEMENT_MAX_TOOL_CALLS,
-    Math.min(128, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS_CEILING || 96)),
+    Math.min(512, Number(process.env.GAMETOK_MAKER_AGENT_IMPLEMENT_MAX_TOOL_CALLS_CEILING || 512)),
 );
 const IMPLEMENT_ASSET_KEY_BONUS_THRESHOLD = Math.max(
     24,

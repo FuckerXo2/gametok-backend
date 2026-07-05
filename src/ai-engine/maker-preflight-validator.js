@@ -1170,7 +1170,8 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
     const wiresBackgroundRenderer = /\bdrawBackground\s*\(\s*\)/.test(sourceWithoutBgDefs)
         || /\b__gtDrawGeneratedBackground\s*\(/.test(sourceWithoutBgDefs)
         || /\baddBackgroundCover\s*\(/.test(sourceWithoutBgDefs)
-        || /drawImage\([^;]{0,200}(?:resolveBackgroundImage\s*\(\s*\)|getAssetImage\s*\(\s*['"](?:background1|background|environment)['"]\s*\))/.test(sourceWithoutBgDefs);
+        || /drawImage\([^;]{0,200}(?:resolveBackgroundImage\s*\(\s*\)|getAssetImage\s*\(\s*['"](?:background1|background|environment)['"]\s*\))/.test(sourceWithoutBgDefs)
+        || /\b(?:add|make)\.(?:image|sprite|tileSprite)[^;]+(?:background|environment)/i.test(sourceWithoutBgDefs);
     if (requiresBackgroundArt && packHasBackgroundArt && hasVisualAssets && !wiresBackgroundRenderer) {
         issues.push({
             id: 'preflight_background_not_wired',
@@ -1188,7 +1189,8 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
     const packHasItemArt = packFacts.roles.has('item')
         || [...packFacts.keys].some((key) => /^item\d*$/i.test(String(key)));
     const wiresItemRenderer = /__gtDrawPickups|__gtItemAssetKeys|drawImage\([^;]{0,200}getAssetImage\(\s*['"`]item/i.test(source)
-        || /(?:pickups|collectibles|fuelCans|gasCans)\.forEach\([\s\S]{0,400}drawImage/is.test(source);
+        || /(?:pickups|collectibles|fuelCans|gasCans)\.forEach\([\s\S]{0,400}drawImage/is.test(source)
+        || /\b(?:add|physics\.add)\.(?:image|sprite)[^;]+item/i.test(source);
     if (requiresItemArt && packHasItemArt && hasVisualAssets && !wiresItemRenderer) {
         issues.push({
             id: 'preflight_item_not_wired',
@@ -1206,7 +1208,8 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
     const packHasPropArt = packFacts.roles.has('prop')
         || [...packFacts.keys].some((key) => /^prop\d*$/i.test(String(key)));
     const wiresPropRenderer = /__gtDrawProps|__gtPropAssetKeys|drawImage\([^;]{0,200}getAssetImage\(\s*['"`]prop/i.test(source)
-        || /firstByRole\(\s*['"`]prop['"`]\s*\)[^;{]*drawImage/is.test(source);
+        || /firstByRole\(\s*['"`]prop['"`]\s*\)[^;{]*drawImage/is.test(source)
+        || /\b(?:add|physics\.add)\.(?:image|sprite)[^;]+prop/i.test(source);
     if (requiresPropArt && packHasPropArt && hasVisualAssets && !wiresPropRenderer) {
         issues.push({
             id: 'preflight_prop_not_wired',
@@ -1224,7 +1227,8 @@ export async function runMakerPreflightChecks({ projectRoot, generatedAssets = n
     const packHasObstacleArt = packFacts.roles.has('obstacle')
         || [...packFacts.keys].some((key) => /^obstacle\d*$/i.test(String(key)));
     const wiresObstacleRenderer = /__gtDrawHazards|__gtObstacleAssetKeys|drawImage\([^;]{0,200}getAssetImage\(\s*['"`]obstacle/i.test(source)
-        || /firstByRole\(\s*['"`]obstacle['"`]\s*\)[^;{]*drawImage/is.test(source);
+        || /firstByRole\(\s*['"`]obstacle['"`]\s*\)[^;{]*drawImage/is.test(source)
+        || /\b(?:add|physics\.add)\.(?:image|sprite)[^;]+obstacle/i.test(source);
     if (requiresObstacleArt && packHasObstacleArt && hasVisualAssets && !wiresObstacleRenderer) {
         issues.push({
             id: 'preflight_obstacle_not_wired',

@@ -17,12 +17,10 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         throw new Error(`${templateId} base scaffold missing — cannot materialize dynamic foundation.`);
     }
 
-    // FREE BUILD 3D: seed the generic MULTI-FILE scaffold (entry + game + core +
-    // systems + entities + world) — a playable base the model specializes. Single
-    // file (flag off / 2D) keeps the original in-place stub.
-    const freeBuild3D = use3D && isFreeBuildMode();
-    const threeScaffold = freeBuild3D ? buildThreeScaffoldFiles(foundation, qualityIntent) : null;
-    const generatedMain = freeBuild3D
+    // FREE BUILD: seed the generic MULTI-FILE scaffold for 3D, and allow 2D to generate multiple files.
+    const freeBuild = isFreeBuildMode();
+    const threeScaffold = (use3D && freeBuild) ? buildThreeScaffoldFiles(foundation, qualityIntent) : null;
+    const generatedMain = (use3D && freeBuild)
         ? threeScaffold.find((f) => f.path === 'src/main.ts').content
         : use3D
             ? buildThreeMainTsStubFromFoundation(foundation, qualityIntent)
@@ -50,11 +48,8 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         files.push({ path: 'index.html', content: generatedIndex });
     }
 
-    // Single-file 3D: buildThreeExtraFiles() returns [] (no scene.ts/mechanics.ts).
-    // The whole game lives in main.ts — kept as a call site in case extra read-only
-    // helpers are ever reintroduced, but never splits gameplay across files.
-    if (freeBuild3D) {
-        // Seed the multi-file scaffold modules (everything except main.ts, already set).
+    // Seed extra files
+    if (use3D && freeBuild) {
         for (const ef of threeScaffold) {
             if (ef.path !== 'src/main.ts' && !files.some((f) => f.path === ef.path)) {
                 files.push(ef);
@@ -73,10 +68,12 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
         templateId,
         source: 'gametok-dynamic-kernel-scaffold',
         foundationId: foundation.foundationId || null,
-        rule: freeBuild3D
+        rule: (use3D && freeBuild)
             ? 'You are building a 3D game using Native Three.js. Load GLTF models and textures directly from public CDNs (e.g. raw.githubusercontent.com or unpkg). Do NOT use proprietary gametok wrappers. Create your scene in main.ts.'
                 : use3D
                 ? 'You are building a 3D game using Native Three.js. Load GLTF models and textures directly from public CDNs. Create your scene natively.'
+                : freeBuild
+                ? 'You are building a 2D game using Native Phaser 3. You MUST load all image and audio assets directly from public CDNs like https://labs.phaser.io/assets/ in your BootScene preload. Build a robust multi-file architecture: you own main.ts, but SHOULD use write_file to create separate files like src/scenes/GameScene.ts, src/entities/Player.ts, etc. to organize your logic cleanly.'
                 : 'You are building a 2D game using Native Phaser 3. You MUST load all image and audio assets directly from public CDNs like https://labs.phaser.io/assets/ in your BootScene preload. Do NOT use proprietary gametok wrappers. Phase 2 agent owns main.ts, styles.css, and index.html.',
         files,
     };
