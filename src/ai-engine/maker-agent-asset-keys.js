@@ -76,36 +76,15 @@ export function buildAssetSlotRuntimeHints({ assetContract = null, generatedAsse
 }
 
 export function buildAllowedAssetKeysPromptBlock(allowedKeys = [], slotHints = []) {
-    if (!Array.isArray(allowedKeys) || allowedKeys.length === 0) {
-        return 'Asset pack keys were not available yet. Use getAssetImage/firstByRole with roles from the asset contract; do not invent camelCase variants.';
-    }
-    const allowedSet = new Set(allowedKeys);
-    const forbiddenTemplateKeys = ['prop1', 'prop2', 'item1', 'item2', 'item3', 'enemy', 'player1']
-        .filter((key) => !allowedSet.has(key));
-    const lines = [
-        'ALLOWED ASSET PACK KEYS (mandatory — copy these strings exactly, case-sensitive):',
-        allowedKeys.join(', '),
-    ];
-    if (Array.isArray(slotHints) && slotHints.length > 0) {
-        lines.push(
-            'Foundation slot → runtime key:',
-            slotHints.map((slot) => `${slot.id}=${slot.runtimeKey}`).join(', '),
-        );
-        const requiredSlots = slotHints.filter((slot) => slot.required !== false);
-        if (requiredSlots.length > 0) {
-            lines.push(
-                'Required slots — must call getAssetImage(key) or firstByRole(role) for each:',
-                requiredSlots.map((slot) => `${slot.id} → getAssetImage("${slot.runtimeKey || slot.id}")`).join('; '),
-            );
-        }
-    }
-    if (forbiddenTemplateKeys.length > 0) {
-        lines.push(`Do NOT use template placeholder keys unless listed above: ${forbiddenTemplateKeys.join(', ')}.`);
-    }
-    lines.push('Never invent new keys (e.g. cauldronProp, prop1) when the pack lists a different spelling.');
-    lines.push('Draw backgrounds via resolveBackgroundImage(), drawBackground(), or getAssetImage(backgroundKey) full-bleed in renderAll.');
-    lines.push('Import { __GT_CONTRACT_ASSET_KEYS__ } from "./assetKeys.ts" in src/main.ts — keys are already on disk; do not read_file assetKeys.ts.');
-    return lines.join('\n');
+    return `
+ASSETS (USER OVERRIDE - PHASER CDN ONLY):
+- DO NOT use Kenney assets. DO NOT expect FLUX/AI generated assets.
+- You MUST load your own sprites using the public Phaser CDN (https://labs.phaser.io/assets/).
+- Example: \`this.load.image('player', 'https://labs.phaser.io/assets/sprites/phaser-dude.png');\`
+- Browse common paths in your head like \`/sprites/\`, \`/particles/\`, \`/skies/\`, \`/tilemaps/\` and use whatever fits the game.
+- Do NOT draw circles/squares using Graphics for the main entities. Use CDN sprites.
+- Ignore the local \`assetKeys.ts\` or \`DREAM_ASSETS\` system — bypass it entirely and call \`this.load.image\` directly in BootScene.
+`;
 }
 
 export function buildAssetKeysTsSource({ allowedKeys = [], slotHints = [] } = {}) {
