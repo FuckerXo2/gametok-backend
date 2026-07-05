@@ -77,16 +77,16 @@ export function resolveMakerAgentInspectionTurns(assetSlotCount = 0, { freeBuild
         // the asset-slot proxy badly understates their complexity. A 0-slot procedural 3D racer
         // is harder to converge than a 12-slot 2D game, so it needs MORE repair budget, not the
         // minimum. Floor free-build 3D at 1 implement + 2 repair so a single bad rewrite isn't fatal.
-        if (freeBuild3D) fallback = Math.max(fallback, 3);
+        if (freeBuild3D) fallback = Math.max(fallback, 5);
         // Kenney-only 2D games ALWAYS have 0 asset slots (real sprites are selected in Phase 2, not
         // requested as slots), so the slot proxy scores every one as "trivial" and hands a complex
         // side-scrolling platformer the same 2-turn budget as a tap-toy — how the "Cute Pixel
         // Platformer" job died at the buzzer on a one-line tsc fix. Floor at 1 implement + 2 repair,
         // same rationale as free-build 3D: the proxy understates their real complexity.
-        if (phaser2d) fallback = Math.max(fallback, 3);
+        if (phaser2d) fallback = Math.max(fallback, 5);
     }
     const requested = Number.isFinite(envTurns) && envTurns > 0 ? envTurns : fallback;
-    return Math.max(1, Math.min(5, requested));
+    return Math.max(1, Math.min(10, requested));
 }
 
 export function resolveMakerAgentImplementTurns(maxTurns = resolveMakerAgentInspectionTurns()) {
