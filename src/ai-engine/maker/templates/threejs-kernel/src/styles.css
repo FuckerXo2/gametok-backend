@@ -24,7 +24,7 @@ body {
   overflow: hidden;
 }
 
-#game-canvas {
+#game-container {
   position: absolute;
   inset: 0;
   width: 100%;

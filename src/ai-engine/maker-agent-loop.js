@@ -299,7 +299,7 @@ export function buildUserMediaInstructionBlock(userMedia = null) {
             ? `The player said use it as: "${img.instruction}". Do exactly that — it overrides any default role.`
             : `Use it as the ${img.role}.`;
         if (img.animated) {
-            lines.push(`- Animated image asset key "${img.key}" (a GIF/sticker — it MUST keep animating). ${directive} Render it as a positioned HTML <img> element layered over #game-canvas, src resolved at runtime: (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${img.key}")?.url. Do NOT draw it with ctx.drawImage — that freezes a GIF to its first frame. Move/scale it with CSS transforms if it needs to travel around the screen.`);
+            lines.push(`- Animated image asset key "${img.key}" (a GIF/sticker — it MUST keep animating). ${directive} Render it as a positioned HTML <img> element layered over #game-container, src resolved at runtime: (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${img.key}")?.url. Move/scale it with CSS transforms if it needs to travel around the screen.`);
         } else {
             lines.push(`- Image asset key "${img.key}". ${directive} Load it like other pack assets (getAssetImage("${img.key}") / firstByRole).`);
         }
@@ -310,7 +310,7 @@ export function buildUserMediaInstructionBlock(userMedia = null) {
             : (vid.role === 'background'
                 ? 'Use it as a full-bleed looping background behind gameplay.'
                 : `Use it for the ${vid.role}.`);
-        lines.push(`- Video asset key "${vid.key}". ${directive} Resolve its src at runtime: const src = (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${vid.key}")?.url. Create an HTMLVideoElement (muted, loop, playsInline, autoplay) with that src, then draw it each frame with ctx.drawImage(videoEl, ...) or position a <video> under #game-canvas. Never leave it unused.`);
+        lines.push(`- Video asset key "${vid.key}". ${directive} Resolve its src at runtime: const src = (window.DREAM_ASSET_PACK||[]).find(a => a.key === "${vid.key}")?.url. Create an HTMLVideoElement (muted, loop, playsInline, autoplay) with that src, then position a <video> under #game-container. Never leave it unused.`);
     }
     return lines.join('\n');
 }
@@ -352,12 +352,12 @@ export function buildMakerAgentImplementPrompt({
         '- After each edit, tsc runs automatically — read tsc errors in tool results and fix before continuing.',
         "- TYPE IMPORTS: when importing something from another file that is used ONLY as a type (an interface or type alias — e.g. Hazard, Enemy, GameState), import it type-only: `import { spawnFoo, type Hazard } from './x.ts'`. A plain value import of a type passes tsc but BREAKS the vite build (\"X is not exported by ...\"). Values (functions, classes, consts) stay normal imports.",
         '- Kernel boot is already wired: loadDreamAssets → import main.ts. Replace stub logic only.',
-        '- Keep import "./styles.css", #game-canvas at viewport 0,0, getAssetImage/firstByRole for sprites.',
+        '- Keep import "./styles.css", and bind the Phaser game to #game-container.',
         ...(!is3D ? [
-            '- Canvas game: guard canvas with instanceof HTMLCanvasElement before width/height/getContext.',
+            '- ALL games use Native Phaser 3. Do not use raw canvas ctx methods.',
         ] : []),
         ...(!is3D ? [
-            `- KERNEL MODULES ALREADY IN THIS PROJECT: src/sdf2d.ts (UI toolkit for crisp anti-aliased HUD panels and buttons) and src/iso.ts (isometric grid). They are on disk right now. NEVER fall back to flat ctx.fillRect() for HUD panels or UI menus. Use src/sdf2d.ts for all UI. CRITICAL: sdf2d is a UI TOOLKIT. Do NOT use it for game entities (players, enemies, items) — use standard canvas primitives or asset images for those.`,
+            `- KERNEL MODULES ALREADY IN THIS PROJECT: src/sdf2d.ts (UI toolkit for crisp anti-aliased HUD panels and buttons) and src/iso.ts (isometric grid). They are on disk right now. Use src/sdf2d.ts for all UI. CRITICAL: sdf2d is a UI TOOLKIT. Do NOT use it for game entities (players, enemies, items) — use standard Phaser Sprites for those.`,
             `- 2D SDF UI POLISH — src/sdf2d.ts IS present, import it: import { bakeSDF, sdRoundRect, opSmoothUnion, makeHudPanel } from './sdf2d.ts'. Use it ONLY for HUD panels, menus, and buttons. bakeSDF(w, h, sdf, { fillTop, fillBottom, outline, outlineWidth, glow, glowSize, highlight }) returns a canvas you ctx.drawImage(sprite, x, y). makeHudPanel is a worked example — read it, then bake the UI shapes THIS game needs. Prefer this over bare ctx.fillRect for UI panels so the HUD reads as designed.`,
             "- sdf2d EXACT API (models repeatedly get these two wrong and burn every repair turn — get them right the FIRST time, do NOT re-read sdf2d.ts more than once): (1) an SDF is a FUNCTION (x,y)=>number; sdCircle(r) / sdRoundRect(halfW,halfH,r) / sdCapsule(...) RETURN such a function — pass the function itself to opSmoothUnion/bakeSDF, never call it (sdCircle(10)(x,y) is a NUMBER and fails typecheck). opSmoothUnion(a, b, k) takes two SDF FUNCTIONS + a number and returns an SDF, e.g. opSmoothUnion(sdCircle(10), (x,y)=>sdCircle(8)(x-6,y), 4). (2) In the bakeSDF options object, `highlight` is a BOOLEAN (highlight: true) — NOT an object; fillTop/fillBottom/outline/glow are color strings; outlineWidth/glowSize are numbers.",
         ] : []),
@@ -514,17 +514,16 @@ export function buildMakerAgentInspectionPrompt({
         '- If you absolutely must use Graphics for UI, background, or drawing, you MUST call `graphics.clear()` at the beginning of every `update()` loop frame to prevent ghosting and trails. Failure to do this will result in immediate rejection.',
         ...(implementMode ? [
             '- IMPLEMENT: write the complete src/main.ts in one write_file call, then finish_inspection.',
-            '- Preserve kernel boot shape: import "./styles.css", #game-canvas, resizeCanvas, getAssetImage helpers unless foundation requires otherwise.',
+            '- Preserve kernel boot shape: import "./styles.css", Native Phaser 3 Game object on #game-container, unless foundation requires otherwise.',
         ] : [
             '- REPAIR: preserve the selected scaffold and existing project shape.',
             '- Use patches[].replacements with find text copied exactly from Project files.',
         ]),
         '- Edit only index.html or existing/new src/**/*.css, src/**/*.ts, src/**/*.js, src/**/*.json files.',
         '- Protected scaffold/runtime files are read-only: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, src/scenes/Preloader.ts, Base*.ts files, package.json, tsconfig.json, and vite.config.ts.',
-        '- For canvas-kernel dynamic foundations, implement the Foundation contract requiredFunctions and probeMethods in src/main.ts. The kernel already boots assets and draws a first-frame stub — replace stubs with the real loop.',
-        '- For canvas-kernel, keep import "./styles.css" in src/main.ts and keep #game-canvas full-bleed at viewport 0,0. After getElementById("game-canvas"), narrow with instanceof HTMLCanvasElement before width/height/getContext calls (avoids TS18047 repair failures).',
+        '- CRITICAL: You MUST keep `window.__GAMETOK_TEMPLATE_PROBE__ = { snapshot(){}, step(){}, reset(){} }` at the bottom of src/main.ts. If you delete it, the sandbox WILL CRASH.',
+        '- ALL projects use Native Phaser 3 (or Three.js if 3D). Do not use raw canvas or getElementById("game-canvas"). The HTML provides <div id="game-container"></div>. Bind your Phaser.Game to it.',
         '- OpenGame asset protocol: read/use public/assets/asset-pack.json keys by construction. For Phaser projects, pass texture keys to this.add.image/sprite or this.physics.add.sprite; do not pass manifest objects or data URLs.',
-        '- For canvas projects, ctx.drawImage may receive only HTMLImageElement/ImageBitmap/Canvas-like objects. Never pass DreamAssets.getImage(), DREAM_ASSET_PACK entries, asset-pack records, or raw data URL strings to drawImage.',
         ...(implementMode ? [] : [
             '- Do not rewrite entire src/main.ts unless the file is corrupt or evidence requires it.',
         ]),
