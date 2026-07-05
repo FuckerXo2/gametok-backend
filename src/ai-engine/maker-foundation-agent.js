@@ -325,7 +325,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
         hudBlocks: asArray(source.hudBlocks),
         firstFrame: asArray(source.firstFrame).length
             ? asArray(source.firstFrame)
-            : (!is3DFoundation && use2dKenneyOnly()
+            : (!is3DFoundation && use2dAssetsOnly()
                 ? ['Fill the world (tile floor for top-down, or sky + parallax for side-scroller)', 'Draw player or primary subject', 'Show HUD']
                 : ['Draw background', 'Draw player or primary subject', 'Show HUD']),
         interactionLoops: asArray(source.interactionLoops),
@@ -336,7 +336,7 @@ export function normalizeFoundationContract(raw = {}, qualityIntent = {}) {
             : ['Core loop responds to input within 10 seconds'],
         antiPatterns: asArray(source.antiPatterns),
         implementationNotes: asArray(source.implementationNotes),
-        assetSlots: (is3DFoundation || use2dKenneyOnly()) ? [] : (assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints)),
+        assetSlots: (is3DFoundation || use2dAssetsOnly()) ? [] : (assetSlots.length ? assetSlots : buildDefaultAssetSlots(qualityIntent, entityBlueprints)),
         statusCopy: asString(source.statusCopy, 'Tap to play!'),
         userIntent: qualityIntent.userIntent || null,
     });
