@@ -208,11 +208,16 @@ export async function materializePhaser2dSprites(projectRoot, resolution = {}, o
         
         if (!ok.size) return null;
 
+        const allBase64Assets = {};
+        for (const role in atlasesData) allBase64Assets[atlasesData[role].image] = atlasesData[role].image;
+        for (const role in backgroundsData) allBase64Assets[backgroundsData[role]] = backgroundsData[role];
+
         const moduleSource = [
             '// Generated runtime data — DO NOT EDIT. Phaser 2D assets for this game (base64 data-URIs)',
             `;(window as unknown as { DREAM_ATLASES?: Record<string,any> }).DREAM_ATLASES = Object.assign((window as unknown as { DREAM_ATLASES?: Record<string,any> }).DREAM_ATLASES || {}, ${JSON.stringify(atlasesData)});`,
             `;(window as unknown as { DREAM_AUDIO?: Record<string,string> }).DREAM_AUDIO = Object.assign((window as unknown as { DREAM_AUDIO?: Record<string,string> }).DREAM_AUDIO || {}, ${JSON.stringify(audioData)});`,
             `;(window as unknown as { DREAM_BACKGROUNDS?: Record<string,string> }).DREAM_BACKGROUNDS = Object.assign((window as unknown as { DREAM_BACKGROUNDS?: Record<string,string> }).DREAM_BACKGROUNDS || {}, ${JSON.stringify(backgroundsData)});`,
+            `;(window as unknown as { DREAM_ASSETS?: Record<string,string> }).DREAM_ASSETS = Object.assign((window as unknown as { DREAM_ASSETS?: Record<string,string> }).DREAM_ASSETS || {}, ${JSON.stringify(allBase64Assets)});`,
             `;(window as unknown as { DREAM_SPRITE_ROLES?: unknown }).DREAM_SPRITE_ROLES = ${JSON.stringify(roleMap)};`,
             `;(window as unknown as { DREAM_PIXEL_ART?: boolean }).DREAM_PIXEL_ART = ${opts.pixelArt ? 'true' : 'false'};`,
             'export {};',
@@ -234,7 +239,7 @@ export function phaser2dSpritePromptBlock(resolution = {}) {
         'REAL 2D ASSETS PROVIDED (Phaser atlases, audio, backgrounds) — strongly prefer these over hand-drawn primitives (ctx.fillRect/arc).',
         'All helpers are exported from \'./sprite.ts\'. Import ONLY what you need:',
         '',
-        '  import { hasAtlas, drawAtlas, playAnim, hasAudio, playSFX, playBGM, stopBGM, hasBackground, drawBackground } from \'./sprite.ts\';',
+        '  import { sprite, animatedSprite, hasAtlas, drawAtlas, playAnim, tileGround, scatterProps, drawParallax, hasAudio, playSFX, playBGM, stopBGM, hasBackground, drawBackground } from \'./sprite.ts\';',
         '',
         'AVAILABLE ASSETS:',
     ];
