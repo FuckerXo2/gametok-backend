@@ -21,7 +21,14 @@ export const MAKER_AGENT_TURN_MODE_IMPLEMENT = 'implement';
 export const MAKER_AGENT_TURN_MODE_REPAIR = 'repair';
 
 const MIN_FIND_LENGTH = 12;
-const MAX_WRITE_FILE_CHARS = 1000000;
+const MAX_WRITE_FILE_CHARS = Math.max(
+    8000,
+    Math.min(64000, Number(process.env.GAMETOK_MAKER_AGENT_WRITE_FILE_MAX_CHARS || 32000)),
+);
+const MAX_WRITE_FILE_LINES = Math.max(
+    100,
+    Math.min(600, Number(process.env.GAMETOK_MAKER_AGENT_WRITE_FILE_MAX_LINES || 350)),
+);
 const MAX_WRITE_FILE_CHARS_MAIN = Math.max(
     16000,
     Math.min(1000000, Number(process.env.GAMETOK_MAKER_AGENT_MAIN_TS_MAX_CHARS || 1000000)),
@@ -673,7 +680,24 @@ async function executeWriteFile(projectRoot, helpers, args = {}, { mode = MAKER_
     const cleanPath = normalizeMakerToolPath(filePath);
     const maxChars = isMainTsPath(cleanPath) ? MAX_WRITE_FILE_CHARS_MAIN : MAX_WRITE_FILE_CHARS;
     if (content.length > maxChars) {
-        throw new Error(`write_file content exceeds ${maxChars} chars for ${cleanPath}`);
+        throw new Error(`write_file content exceeds ${maxChars} chars for ${cleanPath}. Split this file into smaller modules (max ~${MAX_WRITE_FILE_LINES} lines per file). For example, extract entity classes into src/entities/*.ts and systems into src/systems/*.ts.`);
+    }
+
+    // Hard line-count enforcement for non-main files. The #1 cause of generation failures
+    // is the AI cramming 800+ lines into a single GameScene.ts, which truncates the DeepSeek
+    // output mid-stream and produces "Unexpected end of input" syntax errors. By rejecting
+    // oversized files at write time, the AI is forced to split into smaller modules.
+    if (!isMainTsPath(cleanPath)) {
+        const lineCount = content.split('\n').length;
+        if (lineCount > MAX_WRITE_FILE_LINES) {
+            throw new Error(
+                `write_file REJECTED — ${cleanPath} has ${lineCount} lines (max ${MAX_WRITE_FILE_LINES}). `
+                + 'Large files cause output truncation and broken builds. '
+                + 'Split into smaller files: extract classes/functions into separate modules '
+                + '(e.g. src/entities/Player.ts, src/entities/Zombie.ts, src/systems/WaveManager.ts, src/systems/InputHandler.ts, src/ui/HUD.ts). '
+                + 'Each file should be focused and under 300 lines. Import them back into the scene file.'
+            );
+        }
     }
 
     if (mode === MAKER_AGENT_TURN_MODE_IMPLEMENT && !isImplementEditAllowed(cleanPath)) {
