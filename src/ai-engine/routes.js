@@ -5268,26 +5268,9 @@ async function runMakerAgentInspectionTurns({
         jobId,
     });
 
-    // 3D Kenney models: for threejs-kernel games, pick + fetch a relevant shortlist from R2 and inline
-    // them (window.DREAM_MODELS in index.html) so the builder can loadModel() real kit pieces. Fully
-    // guarded — yields '' (-> code-geometry fallback) on no genre match or any fetch failure.
+    // Disabled: Using Native Three.js with public CDNs instead of custom catalog base64 injection.
     let kenney3dBlock = '';
     let kenney3dModelKeys = [];
-    if (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)) {
-        try {
-            // Match on the ENGLISH foundation/intent text, not just the raw (often non-English) prompt —
-            // otherwise a Spanish "habitación" never hits the Furniture Kit and the room ships as bare boxes.
-            const kenneyRetrievalText = buildKenneyRetrievalText(prompt, qualityIntent, templateContract?.foundation);
-            const picked = await materializeKenney3dModels(projectRoot, kenneyRetrievalText, { limit: 18 });
-            if (picked.length) {
-                kenney3dBlock = kenney3dModelPromptBlock(picked);
-                kenney3dModelKeys = picked.map((m) => m.key);
-                console.log(`🧩 [Phase 2 job=${jobId}] Kenney 3D models: ${picked.length} inlined (${[...new Set(picked.map((m) => m.kit))].join(', ')})`);
-            }
-        } catch (e) {
-            console.warn(`🧩 [Phase 2 job=${jobId}] Kenney 3D materialize skipped: ${e?.message || e}`);
-        }
-    }
 
     // 2D Phaser 
     // Disabled: Using Native Phaser 3 with public CDNs instead of custom catalog base64 injection.
