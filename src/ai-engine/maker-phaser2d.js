@@ -147,11 +147,18 @@ export async function materializePhaser2dSprites(projectRoot, resolution = {}, o
                 if (!jsonRes.ok) return;
                 const atlasJson = await jsonRes.json();
                 
+                // Handle both Phaser 3 format ({ textures: [{ frames: [...] }] }) and
+                // flat TexturePacker format ({ frames: [...] or { frames: { key: {...} } })
+                let rawFrames = atlasJson.frames;
+                if (!rawFrames && Array.isArray(atlasJson.textures) && atlasJson.textures[0]?.frames) {
+                    rawFrames = atlasJson.textures[0].frames;
+                }
+                
                 let frames = {};
-                if (Array.isArray(atlasJson.frames)) {
-                    for (const f of atlasJson.frames) frames[f.filename] = f;
-                } else if (typeof atlasJson.frames === 'object') {
-                    for (const [filename, f] of Object.entries(atlasJson.frames)) frames[filename] = f;
+                if (Array.isArray(rawFrames)) {
+                    for (const f of rawFrames) frames[f.filename] = f;
+                } else if (rawFrames && typeof rawFrames === 'object') {
+                    for (const [filename, f] of Object.entries(rawFrames)) frames[filename] = f;
                 }
                 
                 const animations = {};
@@ -162,10 +169,32 @@ export async function materializePhaser2dSprites(projectRoot, resolution = {}, o
                         if (matches.length === 0) matches = frameNames.filter(f => f.includes(animName));
                         if (matches.length > 0) animations[animName] = matches;
                     }
+                } else if (frameNames.length > 0) {
+                    // Auto-derive animations from frame name prefixes (e.g. Death_005 → prefix "Death")
+                    const groups = {};
+                    for (const name of frameNames) {
+                        // Strip trailing digits/underscores/separators to get the animation prefix
+                        const prefix = name.replace(/[_\-\s]?\d+$/, '');
+                        if (prefix) {
+                            if (!groups[prefix]) groups[prefix] = [];
+                            groups[prefix].push(name);
+                        }
+                    }
+                    for (const [prefix, grpFrames] of Object.entries(groups)) {
+                        if (grpFrames.length >= 2) {
+                            // Convert prefix to lowercase for consistent API (Death → death, Walk → walk)
+                            animations[prefix.toLowerCase()] = grpFrames;
+                        }
+                    }
+                    // Also add an 'idle' alias pointing to the first animation group if none exists
+                    const animKeys = Object.keys(animations);
+                    if (animKeys.length > 0 && !animations['idle']) {
+                        animations['idle'] = animations[animKeys[0]];
+                    }
                 }
 
                 atlasesData[role] = { image: imageBase64, frames, animations };
-                roleMap[role] = { base: meta.key };
+                roleMap[role] = { base: meta.key, animations: Object.keys(animations).length > 0 ? animations : undefined };
                 ok.add(role);
                 
             } else if (meta.file && meta.file.startsWith('skies/') || meta.file?.startsWith('pics/')) {
