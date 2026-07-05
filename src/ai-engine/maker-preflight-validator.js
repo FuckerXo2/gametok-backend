@@ -150,7 +150,6 @@ function sourceAssetReferences(source) {
         /\bDREAM_IMAGES\s*(?:\?\.)?\s*\[\s*['"`]([^'"`]+)['"`]\s*\]/g,
         /\bDREAM_ASSETS\s*(?:\?\.)?\s*\[\s*['"`]([^'"`]+)['"`]\s*\]/g,
         /\b(?:this\.)?textures\.exists\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
-        /\b(?:this\.)?load\.(?:image|spritesheet|audio)\s*\(\s*['"`]([^'"`]+)['"`]/g,
         /\b(?:this\.)?(?:add|physics\.add)\.(?:image|sprite)\s*\(\s*[^,\n]+,\s*[^,\n]+,\s*['"`]([^'"`]+)['"`]/g,
         /\.setTexture\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
     ];
@@ -170,6 +169,7 @@ function sourceAssetReferences(source) {
     const generatedPatterns = [
         /\bgenerateTexture\s*\(\s*['"`]([^'"`]+)['"`]/g,
         /\bcreateCanvas\s*\(\s*['"`]([^'"`]+)['"`]/g,
+        /\b(?:this\.)?load\.(?:image|spritesheet|audio)\s*\(\s*['"`]([^'"`]+)['"`]/g,
     ];
     const generatedKeys = new Set();
     for (const pattern of generatedPatterns) {
