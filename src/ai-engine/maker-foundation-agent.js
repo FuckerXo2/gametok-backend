@@ -822,7 +822,7 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        const text = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, '${title}\nTap to Start', {
+        const text = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, '${title}\\nTap to Start', {
             fontSize: '32px',
             color: '#ffffff',
             align: 'center'
