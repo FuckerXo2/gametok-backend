@@ -209,8 +209,20 @@ export async function materializePhaser2dSprites(projectRoot, resolution = {}, o
         if (!ok.size) return null;
 
         const allBase64Assets = {};
-        for (const role in atlasesData) allBase64Assets[atlasesData[role].image] = atlasesData[role].image;
-        for (const role in backgroundsData) allBase64Assets[backgroundsData[role]] = backgroundsData[role];
+        for (const role in atlasesData) {
+            const img = atlasesData[role].image;
+            // Key by the raw data-URI (for drawFrame's imageFor(atlas.image))
+            allBase64Assets[img] = img;
+            // Key by role name (e.g. 'enemy') so sprite(ctx,'enemy',...) → imageFor('enemy') works
+            allBase64Assets[role] = img;
+            // Key by catalog key name (e.g. 'zombie') so imageFor(roleMap.enemy.base) works
+            const catalogKey = roleMap[role]?.base;
+            if (catalogKey && catalogKey !== role) allBase64Assets[catalogKey] = img;
+        }
+        for (const role in backgroundsData) {
+            allBase64Assets[backgroundsData[role]] = backgroundsData[role];
+            allBase64Assets[role] = backgroundsData[role];
+        }
 
         const moduleSource = [
             '// Generated runtime data — DO NOT EDIT. Phaser 2D assets for this game (base64 data-URIs)',
