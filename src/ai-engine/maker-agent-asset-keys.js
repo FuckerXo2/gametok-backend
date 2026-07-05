@@ -886,11 +886,24 @@ export function repairMainTsAssetWiringInSource(source = '', {
         return { content, changed: content !== source, repairs };
     }
 
+    // Native Phaser 3 projects (the default engine for all 2D canvas-kernel games) load
+    // sprites via BootScene.preload() against public CDNs, not via a raw canvas ctx +
+    // getAssetImage()/DREAM_IMAGES pattern. Injecting that helper here does nothing useful
+    // and, since canvas-kernel's scaffold never declares `Window.DREAM_IMAGES`, it fails
+    // tsc with TS2339 on every repair pass — an infinite inject/strip loop with the agent,
+    // which correctly removes dead code it never wrote. Bail out like the three.js case.
+    const isPhaserProject = /from\s+['"]phaser['"]/.test(content)
+        || /extends\s+Phaser\.Scene/.test(content)
+        || /new\s+Phaser\.Game\s*\(/.test(content);
+    if (isPhaserProject) {
+        return { content, changed: content !== source, repairs };
+    }
+
     const requiredKeyRefs = collectRequiredAssetKeyRefs(assetContract, slotHints, allowedKeys);
     if (!/\bfunction getAssetImage\s*\(/.test(content) && !/\bconst getAssetImage\s*=/.test(content)) {
         content = `function getAssetImage(key) {
   if (!key) return null;
-  const img = window.DREAM_IMAGES?.[key];
+  const img = (window as any).DREAM_IMAGES?.[key];
   if (img && img.complete && img.naturalWidth > 0) return img;
   return null;
 }
