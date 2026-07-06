@@ -22,6 +22,7 @@ import assetsRouter from './assets-router.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import { deleteCoverAsset } from './cover-art.js';
+import { getCatalog } from './ai-engine/load-catalog.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -5117,6 +5118,15 @@ const start = async () => {
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
+    
+    // Verify asset catalog is loaded
+    const catalog = getCatalog();
+    if (catalog && catalog.metadata) {
+      console.log(`✅ Asset catalog loaded: ${catalog.metadata.totalAssets} assets available`);
+    } else {
+      console.warn('⚠️  Asset catalog not found or empty');
+      console.warn('   Run: npm run build:catalog');
+    }
   });
 
   let shuttingDown = false;

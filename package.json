@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
+    "build:catalog": "node src/ai-engine/build-catalog.js",
     "seed-bots": "node seed-bots.js",
     "bots:bootstrap": "node scripts/bots-bootstrap.mjs --count 2000 --games 80 --actions 2500",
     "bots:status": "node scripts/bots-bootstrap.mjs --status",
@@ -62,6 +63,7 @@
     "expo-server-sdk": "^3.11.0",
     "express": "^4.18.2",
     "google-auth-library": "^10.7.0",
+    "image-size": "^2.0.2",
     "images-scraper": "^7.0.0",
     "jsonwebtoken": "^9.0.3",
     "jwks-rsa": "^4.0.1",
