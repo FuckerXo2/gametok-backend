@@ -114,9 +114,9 @@ Use these assets from the catalog (already hosted and ready to use):
 ${assetList}
 
 **Asset URL Format**: 
-- Use the BASE_URL from environment: \`process.env.RAILWAY_PUBLIC_DOMAIN ? \`https://\${process.env.RAILWAY_PUBLIC_DOMAIN}/assets/\` : 'http://localhost:3000/assets/'\`
+- Use the R2 CDN BASE_URL: \`'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/'\`
 - Construct full URLs: \`\${BASE_URL}{path}\`
-- Example: If BASE_URL is 'http://localhost:3000/assets/' and path is 'sprites/zombie.png', use 'http://localhost:3000/assets/sprites/zombie.png'
+- Example: If BASE_URL is 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/' and path is 'audio/DOG.mp3', use 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/audio/DOG.mp3'
 
 **CRITICAL**: Only use assets from the list above. They are guaranteed to exist and are properly themed for your game.
 
@@ -198,7 +198,7 @@ module.exports = defineConfig({
 - Keyboard controls as secondary fallback only
 - Touch controls: virtual joystick, tap to shoot, or pointer-follow movement
 - **ANIMATIONS**: Use spritesheet animations for characters (walk, idle, attack, death)
-- Load all assets from https://labs.phaser.io/assets/
+- Load all assets from the R2 CDN: https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/
 - Fixed game dimensions (390x844 for mobile portrait)
 - **POLISH**: Particle effects, screen shake, sound effects, smooth tweens
 - **JUICE**: Add visual feedback for every action (hit flash, score popups, damage numbers)
