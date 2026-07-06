@@ -110,6 +110,7 @@ import {
     useDynamicFoundation,
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
+import { buildClaudeStylePrompt } from './maker-claude-style-prompt.js';
 import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
@@ -6088,6 +6089,121 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
     }
 }
 
+// Claude-style flow: the simplified "generate like Claude does" path — pure Phaser 3 + JS + R2 CDN
+// assets, no scaffold/foundation/contract machinery. buildClaudeStylePrompt() already injects the
+// R2 asset catalog (themed by prompt) and the correct CDN base URL, so the model emits a complete
+// single-file game that Vite bundles to one HTML file. ON by default on this branch; flip
+// GAMETOK_CLAUDE_STYLE=false to fall back to the kernel-scaffold pipeline.
+function useClaudeStyleFlow() {
+    return String(process.env.GAMETOK_CLAUDE_STYLE || 'true').toLowerCase() !== 'false';
+}
+
+// Ensure the per-game project can resolve phaser/vite/vite-plugin-singlefile without a per-game
+// `npm install` (slow on Railway): symlink the project's node_modules to the backend's, exactly like
+// the kernel builder does. Backend already ships all three deps (checked at wire-in time).
+async function linkBackendNodeModules(projectRoot) {
+    const projectNodeModules = path.join(projectRoot, 'node_modules');
+    const backendRoot = path.resolve(__dirname, '..', '..');
+    const backendNodeModules = path.join(backendRoot, 'node_modules');
+    try {
+        const stat = await fs.promises.lstat(projectNodeModules).catch(() => null);
+        if (!stat || !stat.isSymbolicLink()) {
+            if (stat) await fs.promises.rm(projectNodeModules, { recursive: true, force: true });
+            if (fs.existsSync(backendNodeModules)) {
+                await fs.promises.symlink(backendNodeModules, projectNodeModules, 'dir');
+            }
+        }
+    } catch (e) {
+        console.warn(`[Claude-style] node_modules symlink failed:`, e?.message);
+    }
+}
+
+// Self-contained Claude-style job: prompt → DeepSeek (via callAI) → files → Vite build → single HTML.
+// Persists to the existing ai_games row and returns the same shape executeDreamJob's non-persist
+// path returns. Throws on failure so executeDreamJob's catch marks the job errored.
+async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt }) {
+    console.log(`🎮 [Claude-style] Generating Phaser game for job ${jobId} (R2 CDN assets)`);
+    await reportProgress(12, 'spec', 'Reading your idea...');
+
+    // 1. Build the Claude-style prompt (asset catalog + CDN base URL are injected here).
+    const { system, user } = buildClaudeStylePrompt(prompt);
+    await writeMakerText(makerWorkspace, 'logs/claude-style-prompt.txt', `${system}\n\n---\n\n${user}`);
+
+    // 2. Generate the project files. callAI handles DeepSeek/NVIDIA failover + JSON repair and
+    //    returns the parsed { files: [...] } object the prompt asks for.
+    await reportProgress(30, 'build', 'Writing the game...');
+    const result = await callAI(system, user, MAKER_IMPLEMENT_MAX_TOKENS, 0.7);
+    if (!result || !Array.isArray(result.files) || result.files.length === 0) {
+        throw new Error('Claude-style generation returned no files array');
+    }
+
+    // 3. Write the files to a project root under the maker workspace.
+    const projectRoot = path.join(makerWorkspace, 'claude-style-project');
+    await fs.promises.mkdir(projectRoot, { recursive: true });
+    await writeProjectFilesToRoot(projectRoot, result.files);
+    console.log(`📝 [Claude-style] Wrote ${result.files.length} files: ${result.files.map((f) => f.path).join(', ')}`);
+    await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: result.files }, { title: prompt }, 'claude-style-phaser').catch(() => {});
+
+    // 4. Build with Vite → single inlined HTML.
+    await reportProgress(60, 'build', 'Bundling the game...');
+    await linkBackendNodeModules(projectRoot);
+    const { execSync } = await import('child_process');
+    try {
+        execSync('npx vite build', { cwd: projectRoot, stdio: 'pipe', timeout: 180_000 });
+    } catch (viteError) {
+        const out = ((viteError.stdout?.toString?.() || '') + '\n' + (viteError.stderr?.toString?.() || '')).trim();
+        const buildError = new Error(`[Claude-style] Vite build failed:\n${out.slice(0, 2000)}`);
+        buildError.code = 'VITE_BUILD_FAILED';
+        throw buildError;
+    }
+    const distIndex = path.join(projectRoot, 'dist', 'index.html');
+    const rawGameHtml = await fs.promises.readFile(distIndex, 'utf8');
+    const finalHtml = normalizeHtmlDocument(rawGameHtml);
+    await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
+    console.log(`✅ [Claude-style] Built ${finalHtml.length} chars of single-file game`);
+
+    // 5. Best-effort sandbox verify for a thumbnail; never fail a good build on a verify hiccup.
+    await reportProgress(80, 'verify', 'Testing the game...');
+    let finalScreenshot = null;
+    try {
+        const sandboxRes = await verifyGame(finalHtml, { sourceHtml: rawGameHtml });
+        finalScreenshot = sandboxRes?.screenshot || null;
+    } catch (verifyErr) {
+        console.warn(`[Claude-style] verify skipped: ${verifyErr?.message || verifyErr}`);
+    }
+
+    const finalTitle = resolveDreamGameTitle({ specTitle: null, html: finalHtml, fallback: 'GameTok Game' });
+
+    if (!persistToDb) {
+        await reportProgress(100, 'complete', 'Game ready!');
+        forgetCancelledJob(jobId);
+        return { jobId, title: finalTitle, html: finalHtml, rawHtml: rawGameHtml, screenshot: finalScreenshot, workspace: makerWorkspace, buildMode: 'claude-style-phaser' };
+    }
+
+    // 6. Persist to the existing ai_games row (same columns the maker finalize writes).
+    const classification = await classifyPublishedGame({ title: finalTitle, prompt, description: 'Claude-style Phaser Creation: ' + prompt, htmlPayload: finalHtml });
+    assertJobNotCancelled(jobId);
+    await pool.query(
+        `UPDATE ai_games
+         SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4,
+             category = $5, subcategory = $6, primary_tab = $7, interaction_type = $8,
+             classification_confidence = $9, classification_tags = $10, discovery_chips = $11
+         WHERE id = $12`,
+        [finalTitle, finalHtml, rawGameHtml, finalScreenshot,
+         classification.category, classification.subcategory, classification.primaryTab, classification.interactionType,
+         classification.confidence, JSON.stringify(classification.tags), JSON.stringify(classification.discoveryChips || []), jobId]
+    );
+    console.log(`✅ [Claude-style] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
+    await recordGenerationTelemetry(jobId, { engine: 'claude-style-phaser', resultTitle: finalTitle, durationMs: Date.now() - progStartedAt });
+    await reportProgress(100, 'complete', 'Game ready!');
+    forgetCancelledJob(jobId);
+    pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
+        .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
+        .catch((error) => console.log('[Notifications] Game ready notify error:', error));
+
+    return { jobId, title: finalTitle, html: finalHtml, rawHtml: rawGameHtml, screenshot: finalScreenshot, workspace: makerWorkspace, buildMode: 'claude-style-phaser' };
+}
+
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     const persistToDb = jobPayload?.persistToDb !== false;
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
@@ -6173,6 +6289,17 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
+
+        // ── CLAUDE-STYLE FLOW (default) ──
+        // Bypass the kernel-scaffold/foundation/contract pipeline entirely and generate a pure
+        // Phaser 3 + JS game wired to the R2 CDN asset catalog, the way Claude does it. Errors here
+        // fall through to the shared catch below, which marks the job errored.
+        if (useClaudeStyleFlow()) {
+            buildMode = 'claude-style-phaser';
+            await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');
+            return await runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt });
+        }
+
         await writeMakerText(makerWorkspace, 'maker-system-manual.md', formatMakerSystemManual('full'));
         await writeMakerJson(makerWorkspace, 'maker-system-manual.json', getMakerSystemManualSummary());
         await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');

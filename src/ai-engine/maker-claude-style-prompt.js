@@ -132,12 +132,13 @@ ${assetList}
    - Desktop games: width: 800, height: 600
    - Always use Phaser.Scale.FIT mode with autoCenter
 
-3. **All Assets from Catalog** - Use ONLY assets listed in the "AVAILABLE ASSETS" section above
-   - Base URL is dynamically set based on environment (Railway or localhost)
-   - **CRITICAL**: Only use assets from the catalog list - they are guaranteed to exist
-   - Assets are pre-filtered by theme to match your game concept
-   - For missing functionality: Draw colored rectangles/circles using Phaser.GameObjects.Graphics
-   - Better to have working placeholder graphics than broken image loads
+3. **RENDER THE REAL SPRITES — this is the #1 rule** - The assets in "AVAILABLE ASSETS" are the whole point. LOAD them AND DISPLAY them.
+   - Every core visible object MUST be a loaded catalog image, shown with \`this.add.image(...)\` / \`this.add.sprite(...)\` / \`this.physics.add.sprite(...)\`: the **background/track**, the **player**, every **collectible**, every **obstacle/enemy**.
+   - You MUST call \`this.load.image(key, path)\` in preload() for each, then in create() draw it with that key. If you loaded it, you MUST show it.
+   - Use ONLY assets from the catalog list above — they are guaranteed to exist (verified 200 on the CDN).
+   - **BANNED as the primary look**: do NOT render the game as a grid of lines, a plain colored background, or bare rectangles/circles when a catalog sprite exists for that thing. A green wireframe grid is an automatic FAIL.
+   - Primitives (\`Phaser.GameObjects.Graphics\`, rectangles, circles) are allowed ONLY for: HUD/UI chrome, particle dots, and as a fallback INSIDE a \`this.load.on('loaderror', ...)\` handler when a specific image fails — never as the default art.
+   - Scroll the background by moving/tiling the loaded track image (\`this.add.tileSprite\` with the road texture), not by drawing lines.
 
 4. **Project Structure** - Always create these exact files:
    - index.html (minimal, just loads the module)
@@ -185,9 +186,8 @@ module.exports = defineConfig({
    - No TypeScript syntax
    - Proper null checks before accessing physics bodies
    - Check this.input.keyboard exists before using it
-   - **CRITICAL**: Wrap asset loading in try-catch or use load events
-   - Handle asset load failures gracefully - use colored shapes as fallback
-   - Test that game boots even if assets fail to load
+   - **CRITICAL**: Register a \`this.load.on('loaderror', ...)\` handler; ONLY inside it may you swap a failed image for a colored-shape fallback
+   - Test that game boots even if an asset fails — but the happy path MUST show the loaded sprites
 
 # GAME REQUIREMENTS
 
@@ -205,6 +205,7 @@ module.exports = defineConfig({
 
 # REMEMBER
 
+- **SHOW THE LOADED SPRITES** — background, player, coins, obstacles are catalog images, NOT drawn shapes. No grids, no bare rectangles for gameplay objects.
 - Use JavaScript (.js) NOT TypeScript
 - Fixed dimensions ONLY (no window.innerWidth)
 - All assets from CDN
