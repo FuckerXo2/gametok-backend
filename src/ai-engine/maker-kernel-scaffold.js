@@ -11,14 +11,18 @@ export async function buildKernelScaffold(foundation = {}, qualityIntent = {}) {
     // 3D foundations (dimension '3D' / threejs lanes, model-decided in Phase 1.5 —
     // NOT keyword routing) get the three.js kernel; everything else stays canvas.
     const use3D = isThreeFoundation(foundation);
-    const templateId = use3D ? 'threejs-kernel' : 'canvas-kernel';
+    const freeBuild = isFreeBuildMode();
+    // Phaser games skip canvas-kernel entirely — just use phaser-minimal (no probe contract)
+    const usePhaser = !use3D && (freeBuild || foundation.engine === 'phaser3');
+    const templateId = use3D ? 'threejs-kernel' 
+                     : usePhaser ? 'phaser-minimal'
+                     : 'canvas-kernel';
     const base = await loadMakerTemplateScaffold(templateId);
     if (!base || !Array.isArray(base.files) || base.files.length === 0) {
         throw new Error(`${templateId} base scaffold missing — cannot materialize dynamic foundation.`);
     }
 
     // FREE BUILD: seed the generic MULTI-FILE scaffold for 3D, and allow 2D to generate multiple files.
-    const freeBuild = isFreeBuildMode();
     const threeScaffold = (use3D && freeBuild) ? buildThreeScaffoldFiles(foundation, qualityIntent) : null;
     const generatedMain = (use3D && freeBuild)
         ? threeScaffold.find((f) => f.path === 'src/main.ts').content
