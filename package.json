@@ -4,7 +4,7 @@
   "description": "GameTok API backend",
   "main": "src/index.js",
   "scripts": {
-    "start": "node scripts/upload-assets-on-deploy.js && node src/index.js",
+    "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "build:catalog": "node src/ai-engine/build-catalog.js",
     "seed-bots": "node seed-bots.js",
