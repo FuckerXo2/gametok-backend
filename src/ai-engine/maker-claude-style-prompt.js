@@ -4,7 +4,43 @@
 // - Just clean Phaser 3 + JavaScript + CDN assets
 // - Fixed dimensions, single-file output via Vite
 
-import { getCatalog, getAssetsByTheme, getDiverseSample } from './load-catalog.js';
+import { getCatalog, getAssetsByTheme, getDiverseSample, selectGameAssets } from './load-catalog.js';
+
+/**
+ * Detect the intended camera orientation from the prompt so we only surface correctly-oriented art
+ * (a top-down racer must not be handed side-view cars). Defaults to top_down for 2D mobile.
+ */
+function detectOrientation(prompt) {
+  const p = prompt.toLowerCase();
+  if (/\b(isometric|iso|axonometric)\b/.test(p)) return 'isometric';
+  if (/\b(side-?scroll|platformer|side view|sidescroller|runner|jump)\b/.test(p)) return 'side';
+  if (/\b(top-?down|topdown|overhead|birds?-?eye|racing|race|driving|tank)\b/.test(p)) return 'top_down';
+  return 'top_down';
+}
+
+// Present role-grouped, orientation-filtered assets so the blind model can map them correctly.
+const ROLE_LABEL = {
+  vehicle: 'PLAYER / VEHICLES', character: 'PLAYER / CHARACTERS', ground: 'GROUND / TRACK TILES (tile these to build the world)',
+  obstacle: 'OBSTACLES', pickup: 'PICKUPS / COLLECTIBLES', projectile: 'PROJECTILES',
+  background: 'BACKGROUNDS', prop: 'PROPS / DECORATION', ui: 'UI', audio: 'AUDIO',
+};
+const R2_BASE_URL = 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/';
+// The path the model must load is the R2 KEY (the part after /assets/), NOT the local folder path.
+const assetKey = (a) => (a.url || '').replace(R2_BASE_URL, '') || a.localPath;
+function formatGroupedAssets(grouped) {
+  const roles = Object.keys(grouped);
+  if (!roles.length) return '(No catalog assets matched — draw code fallbacks.)';
+  let out = '';
+  for (const role of roles) {
+    out += `\n## ${ROLE_LABEL[role] || role.toUpperCase()}\n`;
+    for (const a of grouped[role]) {
+      const dim = a.width && a.height ? ` ${a.width}x${a.height}` : '';
+      const tile = a.tileable ? ' [tileable]' : '';
+      out += `- \`${assetKey(a)}\` — ${a.description}${dim}${tile}\n`;
+    }
+  }
+  return out;
+}
 
 /**
  * Extract theme keywords from user prompt
@@ -94,16 +130,16 @@ function formatAssetsForPrompt(assets) {
 }
 
 export function buildClaudeStylePrompt(userPrompt) {
-    // Extract theme keywords from user prompt
+    // Extract theme keywords + camera orientation from the user prompt.
     const themeKeywords = extractThemeKeywords(userPrompt);
-    
-    // Get relevant assets based on themes
-    const relevantAssets = themeKeywords.length > 0
-      ? getAssetsByTheme(themeKeywords, 100)
-      : getDiverseSample(100);
-    
-    // Format assets for prompt
-    const assetList = formatAssetsForPrompt(relevantAssets);
+    const orientation = detectOrientation(userPrompt);
+
+    // Preferred path: unified catalog (Kenney 2D + re-tagged Phaser), grouped by role and filtered to
+    // the right orientation. Falls back to the old flat themed list if the unified catalog is absent.
+    const grouped = selectGameAssets({ themes: themeKeywords, orientation, perRole: 14 });
+    const assetList = Object.keys(grouped).length
+      ? formatGroupedAssets(grouped)
+      : formatAssetsForPrompt(themeKeywords.length ? getAssetsByTheme(themeKeywords, 100) : getDiverseSample(100));
     return {
         system: `You are a Phaser 3 game code generator. Your job is to write a complete, working Phaser 3 game from scratch using JavaScript.
 
@@ -192,8 +228,10 @@ module.exports = defineConfig({
 # GAME REQUIREMENTS
 
 - Complete, playable game with win/lose conditions
-- Score system  
-- Game over screen with restart button
+- **THE WORLD BACKGROUND IS BUILT FROM THE GROUND/TRACK TILES** — cover the play area by tiling the loaded ground/track sprite (e.g. \`this.add.tileSprite(...)\` scrolling toward the player). NEVER draw a grid of lines or a plain fill as the background. If there are GROUND/TRACK TILES in the asset list, using them for the background is MANDATORY.
+- **Timers start > 0.** If there's a countdown, initialize it to a real value (e.g. 60) and only end the game when it actually reaches 0. The game MUST be playable for several seconds on load — never show GAME OVER immediately.
+- Score system
+- Game over screen with restart button (RESTART must fully reset timer/score and resume play)
 - **MOBILE-FIRST**: Primary controls MUST be touch/pointer based
 - Keyboard controls as secondary fallback only
 - Touch controls: virtual joystick, tap to shoot, or pointer-follow movement

@@ -86,5 +86,68 @@ export function getDiverseSample(limit = 100) {
   return samples.slice(0, limit);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// UNIFIED CATALOG (Kenney 2D + re-tagged Phaser), honest schema:
+//   { id, source, url, type, theme[], role, orientation, description, width, height, tileable, pack }
+// The generation model is blind, so entries are grouped by ROLE and filtered by ORIENTATION at
+// prompt time — that's what stops a side-view poster being used as a top-down road.
+// ─────────────────────────────────────────────────────────────────────────────
+let unifiedCache = null;
+function loadUnifiedCatalog() {
+  if (unifiedCache) return unifiedCache;
+  const sources = ['kenney2d-catalog.json', 'phaser-catalog-normalized.json'];
+  const merged = [];
+  for (const f of sources) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(__dirname, f), 'utf8'));
+      if (Array.isArray(data.assets)) merged.push(...data.assets);
+    } catch (err) {
+      console.warn(`⚠️  Unified catalog: could not load ${f}: ${err.message}`);
+    }
+  }
+  unifiedCache = merged;
+  if (merged.length) console.log(`✅ Unified asset catalog: ${merged.length} assets (Kenney 2D + Phaser)`);
+  return unifiedCache;
+}
+
+export function getUnifiedCatalog() { return loadUnifiedCatalog(); }
+
+// Role buckets a 2D game actually wires, in prompt-presentation order.
+const ROLE_ORDER = ['vehicle', 'character', 'ground', 'obstacle', 'pickup', 'projectile', 'background', 'prop', 'ui', 'audio'];
+
+/**
+ * Pick real, correctly-oriented assets for a game, grouped by role.
+ * @param {{themes?: string[], orientation?: string, perRole?: number}} opts
+ * @returns {Object<string, Object[]>} role -> assets
+ */
+export function selectGameAssets({ themes = [], orientation = null, perRole = 14 } = {}) {
+  const all = loadUnifiedCatalog();
+  if (!all.length) return {};
+  const themeSet = new Set(themes.map((t) => t.toLowerCase()));
+
+  const matchesTheme = (a) => themeSet.size === 0 || (a.theme || []).some((t) => themeSet.has(t.toLowerCase()));
+  // Orientation filter: keep exact matches + orientation-agnostic roles (ui/audio/pickup often n_a or
+  // unknown). Never let a 'side' sprite into a 'top_down' game's gameplay roles.
+  const AGNOSTIC_ROLES = new Set(['ui', 'audio', 'pickup']);
+  const matchesOrient = (a) => {
+    if (!orientation) return true;
+    if (AGNOSTIC_ROLES.has(a.role)) return true;
+    return a.orientation === orientation || a.orientation === 'unknown' || a.orientation === 'n_a';
+  };
+  // Prefer Kenney (honest labels) then exact-orientation then bigger sprites.
+  const rank = (a) => (a.source === 'kenney2d' ? 0 : 1) * 100 + (a.orientation === orientation ? 0 : 10);
+
+  const grouped = {};
+  for (const role of ROLE_ORDER) {
+    const picks = all
+      .filter((a) => a.role === role && matchesTheme(a) && matchesOrient(a))
+      .sort((x, y) => rank(x) - rank(y))
+      .slice(0, perRole);
+    if (picks.length) grouped[role] = picks;
+  }
+  return grouped;
+}
+
 // Load catalog on module import for automatic initialization
 loadCatalog();
+loadUnifiedCatalog();

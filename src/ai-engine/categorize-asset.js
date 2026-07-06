@@ -13,7 +13,7 @@ const THEME_KEYWORDS = {
   'visual-novel': ['character', 'portrait', 'dialogue', 'ui', 'textbox', 'background', 'scene', 'story'],
   'puzzle': ['block', 'tile', 'match', 'gem', 'puzzle', 'grid', 'swap'],
   'rpg': ['rpg', 'character', 'hero', 'monster', 'dungeon', 'quest', 'spell', 'magic'],
-  'racing': ['car', 'vehicle', 'road', 'track', 'race', 'speed', 'wheel', 'driver'],
+  'racing': ['car', 'vehicle', 'road', 'track', 'race', 'racer', 'driver', 'kart'],
   'generic': [] // Fallback theme
 };
 
@@ -25,24 +25,20 @@ const THEME_KEYWORDS = {
  */
 function extractThemes(pathLower, name) {
   const themes = [];
-  
+  // Match keywords on WORD boundaries, not substrings. The old `includes('car')` matched "card",
+  // "carpet", "scary" — which is why the "racing" theme filled up with memory-game cards, color
+  // wheels, and a font named "Victory Road". Split path+name into word tokens and match whole words
+  // (with light singular/plural tolerance) so "card" no longer counts as "car".
+  const haystack = `${pathLower} ${name}`;
+  const tokens = new Set(haystack.split(/[^a-z0-9]+/i).filter(Boolean));
+  const hasWord = (kw) => tokens.has(kw) || tokens.has(`${kw}s`) || (kw.endsWith('s') && tokens.has(kw.slice(0, -1)));
+
   for (const [theme, keywords] of Object.entries(THEME_KEYWORDS)) {
-    // Skip 'generic' as it's a fallback
-    if (theme === 'generic') continue;
-    
-    for (const keyword of keywords) {
-      if (pathLower.includes(keyword) || name.includes(keyword)) {
-        themes.push(theme);
-        break; // One match per theme is enough
-      }
-    }
+    if (theme === 'generic') continue; // fallback only
+    if (keywords.some((kw) => hasWord(kw))) themes.push(theme);
   }
-  
-  // Default to 'generic' if no themes matched
-  if (themes.length === 0) {
-    themes.push('generic');
-  }
-  
+
+  if (themes.length === 0) themes.push('generic');
   return themes;
 }
 
