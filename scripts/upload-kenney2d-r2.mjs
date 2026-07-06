@@ -66,19 +66,29 @@ const client = new S3Client({
 const Bucket = process.env.R2_BUCKET_NAME;
 async function exists(Key) { try { await client.send(new HeadObjectCommand({ Bucket, Key })); return true; } catch { return false; } }
 
-console.log(`[kenney2d-r2] uploading ${targets.length} sprites (${themeFilter || 'ALL'}) to ${Bucket}/kenney2d/`);
-let up = 0, skipped = 0, missing = 0;
-for (const a of targets) {
+const CONCURRENCY = Number(valOf('--concurrency')) || 50; // parallel workers; overlaps the R2 round-trips
+console.log(`[kenney2d-r2] uploading ${targets.length} sprites (${themeFilter || 'ALL'}) to ${Bucket}/kenney2d/ with ${CONCURRENCY} workers`);
+let up = 0, skipped = 0, missing = 0, done = 0;
+async function handle(a) {
   const Key = `assets/${keyOf(a)}`;           // bucket layout mirrors phaser: assets/<...>
   const src = srcOf(a);
-  if (!fs.existsSync(src)) { missing += 1; continue; }
-  if (!force && await exists(Key)) { skipped += 1; continue; }
+  if (!fs.existsSync(src)) { missing += 1; return; }
+  if (!force && await exists(Key)) { skipped += 1; return; }
   await client.send(new PutObjectCommand({
     Bucket, Key, Body: fs.readFileSync(src),
     ContentType: 'image/png', CacheControl: 'public, max-age=31536000, immutable',
   }));
   up += 1;
-  if (up % 200 === 0) console.log(`  …${up} uploaded`);
 }
+// Fixed pool of workers pulling from a shared cursor — keeps CONCURRENCY requests in flight.
+let cursor = 0;
+async function worker() {
+  while (cursor < targets.length) {
+    const a = targets[cursor++];
+    try { await handle(a); } catch (e) { console.warn(`  ! ${keyOf(a)}: ${e.message}`); }
+    if (++done % 500 === 0) console.log(`  …${done}/${targets.length} processed (${up} up, ${skipped} present)`);
+  }
+}
+await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 console.log(`[kenney2d-r2] done: ${up} uploaded, ${skipped} present, ${missing} missing.`);
 console.log(`[kenney2d-r2] sample URL: ${targets[0].url}`);
