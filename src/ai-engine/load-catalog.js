@@ -152,12 +152,24 @@ export function selectGameAssets({ themes = [], orientation = null, perRole = 14
     return r;
   };
 
+  // Collapse near-duplicate variants (e.g. Kenney's 4 rotations naturePack_001_0..3, or _small_1..5)
+  // to one representative so a role's slots show distinct items, not 4 copies of the same tree.
+  const familyKey = (a) => `${a.role}:${(a.localPath || a.url || '').toLowerCase().replace(/[_-]?\d+(\.\w+)?$/, '')}`;
+
   const grouped = {};
   for (const role of ROLE_ORDER) {
-    const picks = all
+    const ranked = all
       .filter((a) => a.role === role && matchesTheme(a) && matchesOrient(a))
-      .sort((x, y) => rank(x) - rank(y))
-      .slice(0, perRole);
+      .sort((x, y) => rank(x) - rank(y));
+    const seen = new Set();
+    const picks = [];
+    for (const a of ranked) {
+      const k = familyKey(a);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      picks.push(a);
+      if (picks.length >= perRole) break;
+    }
     if (picks.length) grouped[role] = picks;
   }
   return grouped;
