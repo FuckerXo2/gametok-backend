@@ -240,6 +240,13 @@ module.exports = defineConfig({
 - **THE WORLD BACKGROUND IS BUILT FROM THE GROUND/TRACK TILES** — cover the play area by tiling the loaded ground/track sprite (e.g. \`this.add.tileSprite(...)\` scrolling toward the player). NEVER draw a grid of lines or a plain fill as the background. If there are GROUND/TRACK TILES in the asset list, using them for the background is MANDATORY.
 - **Timers start > 0.** If there's a countdown, initialize it to a real value (e.g. 60) and only end the game when it actually reaches 0. The game MUST be playable for several seconds on load — never show GAME OVER immediately.
 - Score system
+- **DESIGN A UNIQUE, THEMED HUD — never ship the default look.** Do NOT reuse the generic "monospace text top-left + flat colored rectangle bar" layout that every game defaults to. The HUD is code-drawn (that's fine), but it MUST be visually designed to match THIS game's world, and look different from other games:
+  - Choose a cohesive palette from the theme (neon/dark for space & cyber, warm pastels for cooking/diner, earthy greens/browns for survival, bold high-contrast arcade for racing/shooter).
+  - Set deliberate typography — \`fontFamily\`, size, weight, color, and a \`stroke\`/shadow — NOT the Phaser default font.
+  - Draw stat bars with intent: a background track + fill, rounded ends or segments, a border — not a bare rectangle. Add a small drawn icon (heart, coin, star, fuel) beside each stat.
+  - Use rounded panels (\`graphics.fillRoundedRect\`), subtle drop shadows, and thoughtful corner placement. Vary the layout per game.
+  - Buttons (restart, action) must be styled to match — rounded, colored, with a label and a pressed/hover state.
+  - Goal: the HUD should read as hand-designed for this specific game, clearly distinct from a template.
 - Game over screen with restart button (RESTART must fully reset timer/score and resume play)
 - **TOUCH CONTROLS MUST ACTUALLY WORK — this is played on a PHONE with fingers, no keyboard exists.** A game that only responds to WASD/arrow keys is BROKEN and fails. This is the #1 gameplay rule.
   - The PRIMARY control MUST be pointer/touch and MUST fully drive the player. Register handlers in create():
