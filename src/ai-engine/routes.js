@@ -6144,15 +6144,32 @@ async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportPro
     console.log(`📝 [Claude-style] Wrote ${result.files.length} files: ${result.files.map((f) => f.path).join(', ')}`);
     await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: result.files }, { title: prompt }, 'claude-style-phaser').catch(() => {});
 
-    // 4. Build with Vite → single inlined HTML.
+    // 4. Build with Vite → single inlined HTML. Build PROGRAMMATICALLY via vite's Node API instead
+    // of shelling out to `npx vite build` with the generated config: vite 8 bundles a CJS
+    // vite.config.js into a temp .mjs whose require('vite-plugin-singlefile') fails to resolve the
+    // plugin's ESM subpath in production (MODULE_NOT_FOUND). Importing the plugin directly here
+    // resolves it reliably from node_modules, and configFile:false ignores the fragile generated
+    // config entirely. The project's own vite.config.js is now irrelevant to the build.
     await reportProgress(60, 'build', 'Bundling the game...');
     await linkBackendNodeModules(projectRoot);
-    const { execSync } = await import('child_process');
     try {
-        execSync('npx vite build', { cwd: projectRoot, stdio: 'pipe', timeout: 180_000 });
+        const { build } = await import('vite');
+        const { viteSingleFile } = await import('vite-plugin-singlefile');
+        await build({
+            root: projectRoot,
+            configFile: false,
+            logLevel: 'silent',
+            plugins: [viteSingleFile()],
+            build: {
+                target: 'esnext',
+                assetsInlineLimit: 100000000,
+                chunkSizeWarningLimit: 100000000,
+                cssCodeSplit: false,
+                rollupOptions: { output: { inlineDynamicImports: true } },
+            },
+        });
     } catch (viteError) {
-        const out = ((viteError.stdout?.toString?.() || '') + '\n' + (viteError.stderr?.toString?.() || '')).trim();
-        const buildError = new Error(`[Claude-style] Vite build failed:\n${out.slice(0, 2000)}`);
+        const buildError = new Error(`[Claude-style] Vite build failed:\n${(viteError?.message || String(viteError)).slice(0, 2000)}`);
         buildError.code = 'VITE_BUILD_FAILED';
         throw buildError;
     }
@@ -6292,12 +6309,34 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
 
         // ── CLAUDE-STYLE FLOW (default) ──
         // Bypass the kernel-scaffold/foundation/contract pipeline entirely and generate a pure
-        // Phaser 3 + JS game wired to the R2 CDN asset catalog, the way Claude does it. Errors here
-        // fall through to the shared catch below, which marks the job errored.
+        // Phaser 3 + JS game wired to the R2 CDN asset catalog, the way Claude does it. Handle errors
+        // HERE (not the shared maker catch below) — that catch references maker-flow vars like
+        // qualityIntent that never get declared on this path, so letting a Claude-style error fall
+        // through masks the real cause with "qualityIntent is not defined".
         if (useClaudeStyleFlow()) {
             buildMode = 'claude-style-phaser';
             await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');
-            return await runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt });
+            try {
+                return await runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt });
+            } catch (claudeStyleErr) {
+                if (isCancellationError(claudeStyleErr)) {
+                    console.log(`🛑 [Claude-style] Canceled job ${jobId}.`);
+                    if (persistToDb) await markJobCanceled(jobId);
+                    if (!persistToDb) throw claudeStyleErr;
+                    return;
+                }
+                console.error(`❌ [Claude-style] job ${jobId} failed:`, claudeStyleErr);
+                stopProgressCreep();
+                if (makerWorkspace) {
+                    await writeMakerJson(makerWorkspace, 'gametok-build-report.json', {
+                        version: 1, jobId, engine: 'claude-style-phaser', status: 'failed',
+                        completedAt: new Date().toISOString(), workspace: makerWorkspace,
+                        error: claudeStyleErr?.message || String(claudeStyleErr), stack: claudeStyleErr?.stack || null,
+                    }).catch(() => {});
+                }
+                if (persistToDb) { await markJobError(jobId, 'Claude-style generation failed', claudeStyleErr); return; }
+                throw claudeStyleErr;
+            }
         }
 
         await writeMakerText(makerWorkspace, 'maker-system-manual.md', formatMakerSystemManual('full'));
