@@ -163,10 +163,12 @@ ${assetList}
    - No type annotations
    - No interfaces or type imports
 
-2. **Fixed Dimensions** - NEVER use window.innerWidth or window.innerHeight
-   - Mobile games: width: 390, height: 844
-   - Desktop games: width: 800, height: 600
-   - Always use Phaser.Scale.FIT mode with autoCenter
+2. **FILL THE PHONE SCREEN — no black bars** - the game runs FULLSCREEN in a mobile feed. It MUST cover the whole screen edge-to-edge.
+   - Design at a fixed portrait base: width: 390, height: 844.
+   - Scale config: \`scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH, width: 390, height: 844 }\`.
+   - **Use ENVELOP, NOT FIT.** FIT letterboxes with black bars; ENVELOP scales up to cover the entire screen. This is mandatory.
+   - In index.html set \`html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}\` and the canvas/parent fill 100%.
+   - Keep the player, HUD and key gameplay near the CENTER so ENVELOP's slight edge-crop never hides them.
 
 3. **RENDER THE REAL SPRITES — this is the #1 rule** - The assets in "AVAILABLE ASSETS" are the whole point. LOAD them AND DISPLAY them.
    - Every core visible object MUST be a loaded catalog image, shown with \`this.add.image(...)\` / \`this.add.sprite(...)\` / \`this.physics.add.sprite(...)\`: the **background/track**, the **player**, every **collectible**, every **obstacle/enemy**.
@@ -232,9 +234,13 @@ module.exports = defineConfig({
 - **Timers start > 0.** If there's a countdown, initialize it to a real value (e.g. 60) and only end the game when it actually reaches 0. The game MUST be playable for several seconds on load — never show GAME OVER immediately.
 - Score system
 - Game over screen with restart button (RESTART must fully reset timer/score and resume play)
-- **MOBILE-FIRST**: Primary controls MUST be touch/pointer based
-- Keyboard controls as secondary fallback only
-- Touch controls: virtual joystick, tap to shoot, or pointer-follow movement
+- **TOUCH CONTROLS MUST ACTUALLY WORK — this is played on a PHONE with fingers, no keyboard exists.** A game that only responds to WASD/arrow keys is BROKEN and fails. This is the #1 gameplay rule.
+  - The PRIMARY control MUST be pointer/touch and MUST fully drive the player. Register handlers in create():
+    - **Move**: player follows the finger — \`this.input.on('pointermove', (p) => { player.x = p.x; player.y = p.y; })\` (or drag / lerp toward p.x,p.y / on-screen virtual joystick / tilt via deviceorientation).
+    - **Act (shoot/jump/flap)**: \`this.input.on('pointerdown', () => { /* fire/jump */ })\` — a tap.
+  - The game MUST be fully playable with ONLY dragging and tapping — never require a key press to start, move, or act.
+  - Keyboard (WASD/arrows) is allowed ONLY as an optional secondary desktop fallback, never the sole input.
+  - Use \`this.input.addPointer(2)\` if you need multi-touch (move + shoot at once).
 - **ANIMATIONS**: Use spritesheet animations for characters (walk, idle, attack, death)
 - Load all assets from the R2 CDN: https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/
 - Fixed game dimensions (390x844 for mobile portrait)
@@ -243,9 +249,11 @@ module.exports = defineConfig({
 
 # REMEMBER
 
+- **TOUCH-FIRST**: fully playable with drag + tap alone (pointermove/pointerdown), NOT keyboard-only. WASD-only = broken.
+- **FULLSCREEN**: Phaser.Scale.ENVELOP (fills the phone, no black bars), NOT FIT. body margin:0, overflow:hidden.
 - **SHOW THE LOADED SPRITES** — background, player, coins, obstacles are catalog images, NOT drawn shapes. No grids, no bare rectangles for gameplay objects.
 - Use JavaScript (.js) NOT TypeScript
-- Fixed dimensions ONLY (no window.innerWidth)
+- 390x844 portrait base design (with ENVELOP scaling to fill)
 - All assets from CDN
 - Pure Phaser 3 code
 - Return valid JSON only`,
