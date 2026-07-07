@@ -134,8 +134,23 @@ export function selectGameAssets({ themes = [], orientation = null, perRole = 14
     if (AGNOSTIC_ROLES.has(a.role)) return true;
     return a.orientation === orientation || a.orientation === 'unknown' || a.orientation === 'n_a';
   };
-  // Prefer Kenney (honest labels) then exact-orientation then bigger sprites.
-  const rank = (a) => (a.source === 'kenney2d' ? 0 : 1) * 100 + (a.orientation === orientation ? 0 : 10);
+  // Abstract/prototype/placeholder art (letter cubes, blank tiles, prototype textures, patterns) is
+  // designed for greyboxing, not shipping. It was outranking real themed art — e.g. an iso survival
+  // game rendered Axonometric-Blocks A/B/C letter cubes as "resources" instead of Isometric-Nature
+  // trees. Push it to last-resort so real art always wins when it exists.
+  const JUNK_PACK = /axonometric|block pack|prototype|development essentials|pattern pack|letter tiles|abstract platformer|shape characters/i;
+  const isJunk = (a) => JUNK_PACK.test(a.pack || '')
+    || /abstracttile|prototype|placeholder|blank|patternpack/i.test(a.localPath || '');
+  // Lower rank = picked first. Layers: junk last, prefer honest Kenney labels, exact orientation,
+  // and (when themes are requested) assets that actually carry the requested theme.
+  const rank = (a) => {
+    let r = 0;
+    if (isJunk(a)) r += 1000;
+    r += (a.source === 'kenney2d' ? 0 : 20);
+    r += (a.orientation === orientation ? 0 : 10);
+    if (themeSet.size && (a.theme || []).some((t) => themeSet.has(t.toLowerCase()))) r -= 5;
+    return r;
+  };
 
   const grouped = {};
   for (const role of ROLE_ORDER) {

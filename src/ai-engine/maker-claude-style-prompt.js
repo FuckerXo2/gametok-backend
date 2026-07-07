@@ -57,11 +57,18 @@ function extractThemeKeywords(prompt) {
     'medieval': ['medieval', 'knight', 'castle', 'sword', 'dragon'],
     'shooter': ['shooter', 'shoot', 'gun', 'bullet', 'weapon'],
     'platformer': ['platform', 'jump', 'coin', 'gem', 'mario'],
-    'cooking': ['cooking', 'food', 'kitchen', 'chef', 'restaurant'],
+    'cooking': ['cooking', 'food', 'kitchen', 'chef', 'restaurant', 'diner', 'serve', 'burger'],
     'racing': ['racing', 'race', 'car', 'vehicle', 'track'],
     'puzzle': ['puzzle', 'match', 'block', 'tile'],
     'rpg': ['rpg', 'dungeon', 'quest', 'character', 'hero'],
-    'visual-novel': ['visual novel', 'story', 'dialogue', 'character']
+    'visual-novel': ['visual novel', 'story', 'dialogue', 'character'],
+    // outdoor/survival/farming/mining games need real terrain + trees/rocks (Isometric Nature etc.),
+    // NOT abstract greybox blocks — map these words to the nature theme.
+    'nature': ['survival', 'survive', 'wilderness', 'forest', 'jungle', 'woods', 'farm', 'farming',
+               'mining', 'mine', 'craft', 'crafting', 'gather', 'harvest', 'island', 'camping', 'fishing', 'nature', 'outdoor'],
+    'military': ['tank', 'army', 'war', 'battle', 'soldier', 'artillery'],
+    'pirate': ['pirate', 'treasure', 'sea', 'ocean', 'sail'],
+    'sports': ['sport', 'sports', 'soccer', 'football', 'golf', 'basketball', 'tennis']
   };
   
   for (const [theme, words] of Object.entries(keywords)) {
