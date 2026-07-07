@@ -95,7 +95,7 @@ export function getDiverseSample(limit = 100) {
 let unifiedCache = null;
 function loadUnifiedCatalog() {
   if (unifiedCache) return unifiedCache;
-  const sources = ['kenney2d-catalog.json', 'phaser-catalog-normalized.json'];
+  const sources = ['kenney2d-catalog.json', 'phaser-catalog-normalized.json', 'cooking-catalog.json'];
   const merged = [];
   for (const f of sources) {
     try {
@@ -113,7 +113,7 @@ function loadUnifiedCatalog() {
 export function getUnifiedCatalog() { return loadUnifiedCatalog(); }
 
 // Role buckets a 2D game actually wires, in prompt-presentation order.
-const ROLE_ORDER = ['vehicle', 'character', 'ground', 'obstacle', 'pickup', 'projectile', 'background', 'prop', 'ui', 'audio'];
+const ROLE_ORDER = ['vehicle', 'character', 'ground', 'obstacle', 'pickup', 'served', 'projectile', 'background', 'prop', 'ui', 'audio'];
 
 /**
  * Pick real, correctly-oriented assets for a game, grouped by role.
@@ -128,7 +128,7 @@ export function selectGameAssets({ themes = [], orientation = null, perRole = 14
   const matchesTheme = (a) => themeSet.size === 0 || (a.theme || []).some((t) => themeSet.has(t.toLowerCase()));
   // Orientation filter: keep exact matches + orientation-agnostic roles (ui/audio/pickup often n_a or
   // unknown). Never let a 'side' sprite into a 'top_down' game's gameplay roles.
-  const AGNOSTIC_ROLES = new Set(['ui', 'audio', 'pickup']);
+  const AGNOSTIC_ROLES = new Set(['ui', 'audio', 'pickup', 'served']);
   const matchesOrient = (a) => {
     if (!orientation) return true;
     if (AGNOSTIC_ROLES.has(a.role)) return true;

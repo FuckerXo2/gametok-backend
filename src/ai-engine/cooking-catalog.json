@@ -1,0 +1,1744 @@
+{
+  "metadata": {
+    "source": "cooking",
+    "generatedAt": "2026-07-07T16:32:38.850Z",
+    "totalAssets": 102,
+    "r2Base": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/"
+  },
+  "assets": [
+    {
+      "id": "cooking/ghostpixels/01_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/01_dish.png",
+      "localPath": "01_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "prop",
+      "orientation": "n_a",
+      "description": "dish (empty dishware) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/02_dish_2",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/02_dish_2.png",
+      "localPath": "02_dish_2.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "dish 2 (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/03_dish_pile",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/03_dish_pile.png",
+      "localPath": "03_dish_pile.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "prop",
+      "orientation": "n_a",
+      "description": "dish pile (empty dishware) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/04_bowl",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/04_bowl.png",
+      "localPath": "04_bowl.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "prop",
+      "orientation": "n_a",
+      "description": "bowl (empty dishware) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/05_apple_pie",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/05_apple_pie.png",
+      "localPath": "05_apple_pie.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "apple pie (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/06_apple_pie_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/06_apple_pie_dish.png",
+      "localPath": "06_apple_pie_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "apple pie plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/07_bread",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/07_bread.png",
+      "localPath": "07_bread.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "bread (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/08_bread_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/08_bread_dish.png",
+      "localPath": "08_bread_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "bread plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/09_baguette",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/09_baguette.png",
+      "localPath": "09_baguette.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "baguette (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/100_taco_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/100_taco_dish.png",
+      "localPath": "100_taco_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "taco plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/101_waffle",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/101_waffle.png",
+      "localPath": "101_waffle.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "waffle (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/102_waffle_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/102_waffle_dish.png",
+      "localPath": "102_waffle_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "waffle plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/10_baguette_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/10_baguette_dish.png",
+      "localPath": "10_baguette_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "baguette plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/11_bun",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/11_bun.png",
+      "localPath": "11_bun.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "bun (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/12_bun_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/12_bun_dish.png",
+      "localPath": "12_bun_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "bun plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/13_bacon",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/13_bacon.png",
+      "localPath": "13_bacon.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "bacon (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/14_bacon_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/14_bacon_dish.png",
+      "localPath": "14_bacon_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "bacon plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/15_burger",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/15_burger.png",
+      "localPath": "15_burger.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "burger (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/16_burger_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/16_burger_dish.png",
+      "localPath": "16_burger_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "burger plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/17_burger_napkin",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/17_burger_napkin.png",
+      "localPath": "17_burger_napkin.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "burger napkin (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/18_burrito",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/18_burrito.png",
+      "localPath": "18_burrito.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "burrito (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/19_burrito_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/19_burrito_dish.png",
+      "localPath": "19_burrito_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "burrito plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/20_bagel",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/20_bagel.png",
+      "localPath": "20_bagel.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "bagel (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/21_bagel_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/21_bagel_dish.png",
+      "localPath": "21_bagel_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "bagel plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/22_cheesecake",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/22_cheesecake.png",
+      "localPath": "22_cheesecake.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "cheesecake (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/23_cheesecake_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/23_cheesecake_dish.png",
+      "localPath": "23_cheesecake_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "cheesecake plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/24_cheesepuff",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/24_cheesepuff.png",
+      "localPath": "24_cheesepuff.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "cheesepuff (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/25_cheesepuff_bowl",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/25_cheesepuff_bowl.png",
+      "localPath": "25_cheesepuff_bowl.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "cheesepuff bowl (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/26_chocolate",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/26_chocolate.png",
+      "localPath": "26_chocolate.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "chocolate (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/27_chocolate_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/27_chocolate_dish.png",
+      "localPath": "27_chocolate_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "chocolate plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/28_cookies",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/28_cookies.png",
+      "localPath": "28_cookies.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "cookies (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/29_cookies_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/29_cookies_dish.png",
+      "localPath": "29_cookies_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "cookies plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/30_chocolatecake",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/30_chocolatecake.png",
+      "localPath": "30_chocolatecake.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "chocolatecake (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/31_chocolatecake_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/31_chocolatecake_dish.png",
+      "localPath": "31_chocolatecake_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "chocolatecake plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/32_curry",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/32_curry.png",
+      "localPath": "32_curry.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "curry (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/33_curry_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/33_curry_dish.png",
+      "localPath": "33_curry_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "curry plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/34_donut",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/34_donut.png",
+      "localPath": "34_donut.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "donut (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/35_donut_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/35_donut_dish.png",
+      "localPath": "35_donut_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "donut plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/36_dumplings",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/36_dumplings.png",
+      "localPath": "36_dumplings.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "dumplings (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/37_dumplings_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/37_dumplings_dish.png",
+      "localPath": "37_dumplings_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "dumplings plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/38_friedegg",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/38_friedegg.png",
+      "localPath": "38_friedegg.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "friedegg (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/39_friedegg_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/39_friedegg_dish.png",
+      "localPath": "39_friedegg_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "friedegg plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/40_eggsalad",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/40_eggsalad.png",
+      "localPath": "40_eggsalad.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "eggsalad (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/41_eggsalad_bowl",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/41_eggsalad_bowl.png",
+      "localPath": "41_eggsalad_bowl.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "eggsalad bowl (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/42_eggtart",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/42_eggtart.png",
+      "localPath": "42_eggtart.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "eggtart (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/43_eggtart_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/43_eggtart_dish.png",
+      "localPath": "43_eggtart_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "eggtart plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/44_frenchfries",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/44_frenchfries.png",
+      "localPath": "44_frenchfries.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "frenchfries (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/45_frenchfries_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/45_frenchfries_dish.png",
+      "localPath": "45_frenchfries_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "frenchfries plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/46_fruitcake",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/46_fruitcake.png",
+      "localPath": "46_fruitcake.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "fruitcake (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/47_fruitcake_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/47_fruitcake_dish.png",
+      "localPath": "47_fruitcake_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "fruitcake plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/48_garlicbread",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/48_garlicbread.png",
+      "localPath": "48_garlicbread.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "garlicbread (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/49_garlicbread_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/49_garlicbread_dish.png",
+      "localPath": "49_garlicbread_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "garlicbread plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/50_giantgummybear",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/50_giantgummybear.png",
+      "localPath": "50_giantgummybear.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "giantgummybear (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/51_giantgummybear_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/51_giantgummybear_dish.png",
+      "localPath": "51_giantgummybear_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "giantgummybear plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/52_gingerbreadman",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/52_gingerbreadman.png",
+      "localPath": "52_gingerbreadman.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "gingerbreadman (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/53_gingerbreadman_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/53_gingerbreadman_dish.png",
+      "localPath": "53_gingerbreadman_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "gingerbreadman plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/54_hotdog",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/54_hotdog.png",
+      "localPath": "54_hotdog.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "hotdog (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/55_hotdog_sauce",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/55_hotdog_sauce.png",
+      "localPath": "55_hotdog_sauce.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "hotdog sauce (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/56_hotdog_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/56_hotdog_dish.png",
+      "localPath": "56_hotdog_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "hotdog plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/57_icecream",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/57_icecream.png",
+      "localPath": "57_icecream.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "icecream (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/58_icecream_bowl",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/58_icecream_bowl.png",
+      "localPath": "58_icecream_bowl.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "icecream bowl (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/59_jelly",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/59_jelly.png",
+      "localPath": "59_jelly.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "jelly (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/60_jelly_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/60_jelly_dish.png",
+      "localPath": "60_jelly_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "jelly plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/61_jam",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/61_jam.png",
+      "localPath": "61_jam.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "jam (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/62_jam_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/62_jam_dish.png",
+      "localPath": "62_jam_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "jam plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/63_lemonpie",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/63_lemonpie.png",
+      "localPath": "63_lemonpie.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "lemonpie (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/64_lemonpie_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/64_lemonpie_dish.png",
+      "localPath": "64_lemonpie_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "lemonpie plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/65_loafbread",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/65_loafbread.png",
+      "localPath": "65_loafbread.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "loafbread (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/66_loafbread_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/66_loafbread_dish.png",
+      "localPath": "66_loafbread_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "loafbread plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/67_macncheese",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/67_macncheese.png",
+      "localPath": "67_macncheese.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "macncheese (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/68_macncheese_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/68_macncheese_dish.png",
+      "localPath": "68_macncheese_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "macncheese plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/69_meatball",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/69_meatball.png",
+      "localPath": "69_meatball.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "meatball (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/70_meatball_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/70_meatball_dish.png",
+      "localPath": "70_meatball_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "meatball plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/71_nacho",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/71_nacho.png",
+      "localPath": "71_nacho.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "nacho (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/72_nacho_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/72_nacho_dish.png",
+      "localPath": "72_nacho_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "nacho plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/73_omlet",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/73_omlet.png",
+      "localPath": "73_omlet.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "omlet (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/74_omlet_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/74_omlet_dish.png",
+      "localPath": "74_omlet_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "omlet plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/75_pudding",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/75_pudding.png",
+      "localPath": "75_pudding.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "pudding (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/76_pudding_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/76_pudding_dish.png",
+      "localPath": "76_pudding_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "pudding plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/77_potatochips",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/77_potatochips.png",
+      "localPath": "77_potatochips.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "potatochips (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/78_potatochips_bowl",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/78_potatochips_bowl.png",
+      "localPath": "78_potatochips_bowl.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "potatochips bowl (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/79_pancakes",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/79_pancakes.png",
+      "localPath": "79_pancakes.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "pancakes (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/80_pancakes_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/80_pancakes_dish.png",
+      "localPath": "80_pancakes_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "pancakes plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/81_pizza",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/81_pizza.png",
+      "localPath": "81_pizza.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "pizza (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/82_pizza_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/82_pizza_dish.png",
+      "localPath": "82_pizza_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "pizza plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/83_popcorn",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/83_popcorn.png",
+      "localPath": "83_popcorn.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "popcorn (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/84_popcorn_bowl",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/84_popcorn_bowl.png",
+      "localPath": "84_popcorn_bowl.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "popcorn bowl (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/85_roastedchicken",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/85_roastedchicken.png",
+      "localPath": "85_roastedchicken.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "roastedchicken (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/86_roastedchicken_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/86_roastedchicken_dish.png",
+      "localPath": "86_roastedchicken_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "roastedchicken plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/87_ramen",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/87_ramen.png",
+      "localPath": "87_ramen.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "ramen (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/88_salmon",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/88_salmon.png",
+      "localPath": "88_salmon.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "salmon (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/89_salmon_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/89_salmon_dish.png",
+      "localPath": "89_salmon_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "salmon plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/90_strawberrycake",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/90_strawberrycake.png",
+      "localPath": "90_strawberrycake.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "strawberrycake (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/91_strawberrycake_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/91_strawberrycake_dish.png",
+      "localPath": "91_strawberrycake_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "strawberrycake plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/92_sandwich",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/92_sandwich.png",
+      "localPath": "92_sandwich.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "sandwich (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/93_sandwich_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/93_sandwich_dish.png",
+      "localPath": "93_sandwich_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "sandwich plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/94_spaghetti",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/94_spaghetti.png",
+      "localPath": "94_spaghetti.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "spaghetti (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/95_steak",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/95_steak.png",
+      "localPath": "95_steak.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "steak (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/96_steak_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/96_steak_dish.png",
+      "localPath": "96_steak_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "steak plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/97_sushi",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/97_sushi.png",
+      "localPath": "97_sushi.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "sushi (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/98_sushi_dish",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/98_sushi_dish.png",
+      "localPath": "98_sushi_dish.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "served",
+      "orientation": "n_a",
+      "description": "sushi plated/served on a dish (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    },
+    {
+      "id": "cooking/ghostpixels/99_taco",
+      "source": "ghostpixels",
+      "url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/cooking/ghostpixels/99_taco.png",
+      "localPath": "99_taco.png",
+      "type": "sprite",
+      "theme": [
+        "cooking"
+      ],
+      "role": "pickup",
+      "orientation": "n_a",
+      "description": "taco (raw food / ingredient) (Ghost Pixels pixel food)",
+      "width": 32,
+      "height": 32,
+      "tileable": false,
+      "pack": "Ghost Pixels Food"
+    }
+  ]
+}

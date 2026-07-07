@@ -23,6 +23,7 @@ const ROLE_LABEL = {
   vehicle: 'PLAYER / VEHICLES', character: 'PLAYER / CHARACTERS', ground: 'GROUND / TRACK TILES (tile these to build the world)',
   obstacle: 'OBSTACLES', pickup: 'PICKUPS / COLLECTIBLES', projectile: 'PROJECTILES',
   background: 'BACKGROUNDS', prop: 'PROPS / DECORATION', ui: 'UI', audio: 'AUDIO',
+  served: 'SERVED DISHES (plated food to serve/deliver)',
 };
 const R2_BASE_URL = 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/';
 // The path the model must load is the R2 KEY (the part after /assets/), NOT the local folder path.
