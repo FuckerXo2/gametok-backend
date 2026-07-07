@@ -28,6 +28,21 @@ const ROLE_LABEL = {
 const R2_BASE_URL = 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/';
 // The path the model must load is the R2 KEY (the part after /assets/), NOT the local folder path.
 const assetKey = (a) => (a.url || '').replace(R2_BASE_URL, '') || a.localPath;
+
+// Native pixel sizes across the catalog vary wildly within the same role (16px pixel-art next to
+// 512px hi-res packs). Left to the model this produces mismatched scale (a 720px character next to a
+// 12px obstacle). So we compute a fixed ON-SCREEN target per role (390x844 canvas) and hand the model
+// the exact display size to use, instead of asking it to reason about scaling itself.
+const ROLE_TARGET_PX = {
+  vehicle: 56, character: 48, obstacle: 40, pickup: 28, projectile: 16,
+  prop: 40, served: 40, ground: 64, background: null, ui: null, audio: null,
+};
+// Fit the asset's native aspect ratio inside a `target`x`target` box (contain, not stretch).
+function computeDisplaySize(a, target) {
+  if (!target || !a.width || !a.height) return null;
+  const scale = target / Math.max(a.width, a.height);
+  return { w: Math.round(a.width * scale), h: Math.round(a.height * scale) };
+}
 function formatGroupedAssets(grouped) {
   const roles = Object.keys(grouped);
   if (!roles.length) return '(No catalog assets matched — draw code fallbacks.)';
@@ -37,7 +52,9 @@ function formatGroupedAssets(grouped) {
     for (const a of grouped[role]) {
       const dim = a.width && a.height ? ` ${a.width}x${a.height}` : '';
       const tile = a.tileable ? ' [tileable]' : '';
-      out += `- \`${assetKey(a)}\` — ${a.description}${dim}${tile}\n`;
+      const disp = computeDisplaySize(a, ROLE_TARGET_PX[role]);
+      const render = disp ? ` → setDisplaySize(${disp.w}, ${disp.h})` : '';
+      out += `- \`${assetKey(a)}\` — ${a.description}${dim}${tile}${render}\n`;
     }
   }
   return out;
@@ -186,6 +203,12 @@ ${assetList}
    - Primitives (\`Phaser.GameObjects.Graphics\`, rectangles, circles) are allowed ONLY for: HUD/UI chrome, particle dots, and as a fallback INSIDE a \`this.load.on('loaderror', ...)\` handler when a specific image fails — never as the default art.
    - Scroll the background by moving/tiling the loaded track image (\`this.add.tileSprite\` with the road texture), not by drawing lines.
 
+3.5. **SIZE EVERY SPRITE — never render at native pixel size.** The catalog mixes packs at wildly different native resolutions (a character sprite can be 16px or 720px). Rendering native size WILL produce a giant sprite next to a tiny one in the same game.
+   - Every asset line above ends with \`→ setDisplaySize(W, H)\` when it's a gameplay sprite. You MUST call that exact \`sprite.setDisplaySize(W, H)\` (or \`image.setDisplaySize(W, H)\`) right after creating it. Do not invent your own size or use the sprite's native width/height.
+   - **Physics bodies do NOT auto-follow setDisplaySize** — for every \`this.physics.add.sprite(...)\`/\`this.physics.add.image(...)\`, immediately call \`sprite.body.setSize(W, H)\` (or \`body.setCircle(W/2)\` for round objects) using the SAME W/H you passed to \`setDisplaySize\`, so the hitbox matches what's on screen.
+   - Ground/track tiles use \`this.add.tileSprite(x, y, screenW, screenH, key)\` sized to the screen/world area, not to the tile's native pixels — \`tileSprite\` handles the repeat internally.
+   - Assets with no \`→ setDisplaySize\` hint (background, UI, audio) don't need this — size backgrounds to the canvas instead.
+
 4. **Project Structure** - Always create these exact files:
    - index.html (minimal, just loads the module)
    - package.json (phaser 3.80.1, vite, vite-plugin-singlefile)
@@ -267,6 +290,7 @@ module.exports = defineConfig({
 - **TOUCH-FIRST**: fully playable with drag + tap alone (pointermove/pointerdown), NOT keyboard-only. WASD-only = broken.
 - **FULLSCREEN**: Phaser.Scale.ENVELOP (fills the phone, no black bars), NOT FIT. body margin:0, overflow:hidden.
 - **SHOW THE LOADED SPRITES** — background, player, coins, obstacles are catalog images, NOT drawn shapes. No grids, no bare rectangles for gameplay objects.
+- **SIZE THEM** — call \`setDisplaySize(W, H)\` using the exact numbers given per asset, and \`body.setSize(W, H)\` to match on every physics sprite. Never render at native pixel size.
 - Use JavaScript (.js) NOT TypeScript
 - 390x844 portrait base design (with ENVELOP scaling to fill)
 - All assets from CDN

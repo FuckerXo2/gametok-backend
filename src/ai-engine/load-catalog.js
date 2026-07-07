@@ -95,7 +95,7 @@ export function getDiverseSample(limit = 100) {
 let unifiedCache = null;
 function loadUnifiedCatalog() {
   if (unifiedCache) return unifiedCache;
-  const sources = ['kenney2d-catalog.json', 'phaser-catalog-normalized.json', 'cooking-catalog.json'];
+  const sources = ['kenney2d-catalog.json', 'phaser-catalog-normalized.json', 'cooking-catalog.json', 'diner-catalog.json'];
   const merged = [];
   for (const f of sources) {
     try {

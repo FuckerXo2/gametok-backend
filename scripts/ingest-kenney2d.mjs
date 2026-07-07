@@ -27,6 +27,9 @@ if (!fs.existsSync(PACK_ROOT)) { console.error(`2D asset root not found: ${PACK_
 // ── folders / files we never treat as individual usable sprites ──
 const SKIP_DIR = /^(spritesheet|spritesheets|tilesheet|tilesheets|vector|construct 3|construct3|tiled|isometric|Sample|Preview|Voxel)$/i;
 const SKIP_FILE = /^(preview|sample|license|thumbnail|readme)/i;
+// Full packed spritesheet composites (e.g. Tilemap/tilemap_packed.png) are the WHOLE atlas as one
+// image, not a single usable sprite — never expose them as selectable game assets.
+const SKIP_ATLAS = /^(tilemap|.*_tilemap)(_packed)?\.png$/i;
 const KEEP_EXT = new Set(['.png']);
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -131,10 +134,14 @@ for (const pack of packs) {
     const ext = path.extname(file).toLowerCase();
     if (!KEEP_EXT.has(ext)) continue;
     const base = path.basename(file);
-    if (SKIP_FILE.test(base)) continue;
+    if (SKIP_FILE.test(base) || SKIP_ATLAS.test(base)) continue;
 
     const rel = path.relative(packDir, file);              // e.g. PNG/Cars/car_red_1.png
-    const relNoTop = rel.replace(/^(PNG|Tiles|Sprites)\//i, ''); // Cars/car_red_1.png
+    // Only strip generic non-semantic wrapper dirs. "Tiles" is itself meaningful (maps to role=ground
+    // via roleFor's \btiles\b match) — stripping it when it's the pack's TOP-level folder (e.g.
+    // "Roguelike City Pack/Tiles/tile_0000.png") left subDir empty and silently dumped 5,952 assets
+    // across 22 packs into the generic 'prop' bucket instead of 'ground'. Never strip it.
+    const relNoTop = rel.replace(/^(PNG|Sprites)\//i, ''); // Cars/car_red_1.png
     const subDir = path.dirname(relNoTop) === '.' ? '' : path.dirname(relNoTop);
     const nameNoExt = path.basename(base, ext);
 
