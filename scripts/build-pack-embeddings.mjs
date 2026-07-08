@@ -45,10 +45,27 @@ function buildPackSummaries(assets) {
     }
   }
 
+  // Collapse near-identical variants BEFORE sampling. Kenney names sprites like "characterBlue (1..14)"
+  // or "ball_basket1..4" — without this, 14 identical variants eat every summary slot and the pack's
+  // real variety (balls, bats, rackets) never enters the embedding. This is what made a basketball
+  // prompt unable to find the Sports Pack: its fingerprint was 14x "characterBlue" + "element", no ball.
+  const normalize = (d) => d
+    .replace(/\s*\(\d+\)\s*$/, '')   // "characterBlue (12)" -> "characterBlue"
+    .replace(/[\s_-]*\d+$/, '')      // "ball basket4" / "tile_0000" -> "ball basket" / "tile"
+    .trim();
+
   const summaries = [];
   for (const [name, info] of Object.entries(packs)) {
-    const uniqueDescs = [...new Set(info.descs)];
-    const sampleDescs = uniqueDescs.slice(0, 20).join(', ');
+    // Dedup on the normalized key, but keep the readable normalized form for the summary text.
+    const seen = new Set();
+    const distinct = [];
+    for (const d of info.descs) {
+      const key = normalize(d).toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      distinct.push(normalize(d));
+    }
+    const sampleDescs = distinct.slice(0, 30).join(', ');
     const orient = [...info.orientations].join('/') || 'various';
     const roles = [...info.roles].join(', ');
 
