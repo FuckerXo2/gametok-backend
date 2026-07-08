@@ -129,6 +129,15 @@ export function selectGameAssets({ themes = [], packs = [], orientation = null, 
   const packSet = new Set(packs.map((p) => p.toLowerCase()));
   const hasPackFilter = packSet.size > 0;
   const hasThemeFilter = themeSet.size > 0;
+  // `packs` arrives ordered by embedding relevance (best first). Keep that order so the #1 pack's
+  // assets fill each role before a marginal #8 pack's — otherwise ties break by arbitrary catalog
+  // order and a top-down tank game grabs a Simple Space ship (rank #6) over the #1 tank pack.
+  const packRank = new Map();
+  packs.forEach((p, i) => packRank.set(p.toLowerCase(), i));
+  const packRelevanceBonus = (a) => {
+    const idx = packRank.get((a.pack || '').toLowerCase());
+    return idx === undefined ? 0 : -(packs.length - idx); // #1 -> -packs.length, last -> -1
+  };
 
   const matchesFilter = (a) => {
     if (!hasPackFilter && !hasThemeFilter) return true;
@@ -152,7 +161,7 @@ export function selectGameAssets({ themes = [], packs = [], orientation = null, 
     if (isJunk(a)) r += 1000;
     r += (a.source === 'kenney2d' ? 0 : 20);
     r += (a.orientation === orientation ? 0 : 10);
-    if (hasPackFilter && packSet.has((a.pack || '').toLowerCase())) r -= 10;
+    if (hasPackFilter) r += packRelevanceBonus(a); // ordered: best pack's assets win ties
     if (hasThemeFilter && (a.theme || []).some((t) => themeSet.has(t.toLowerCase()))) r -= 5;
     return r;
   };
