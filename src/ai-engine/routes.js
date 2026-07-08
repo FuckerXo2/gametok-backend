@@ -6191,7 +6191,7 @@ async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportPro
     await reportProgress(12, 'spec', 'Reading your idea...');
 
     // 1. Build the Claude-style prompt (asset catalog + CDN base URL are injected here).
-    const { system, user } = buildClaudeStylePrompt(prompt);
+    const { system, user } = await buildClaudeStylePrompt(prompt);
     await writeMakerText(makerWorkspace, 'logs/claude-style-prompt.txt', `${system}\n\n---\n\n${user}`);
 
     // 2. Generate the project files. callAI handles DeepSeek/NVIDIA failover + JSON repair and

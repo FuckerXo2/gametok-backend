@@ -117,15 +117,25 @@ const ROLE_ORDER = ['vehicle', 'character', 'ground', 'obstacle', 'pickup', 'ser
 
 /**
  * Pick real, correctly-oriented assets for a game, grouped by role.
- * @param {{themes?: string[], orientation?: string, perRole?: number}} opts
+ * @param {{themes?: string[], packs?: string[], orientation?: string, perRole?: number}} opts
+ *   `packs` — pack names from embedding search (semantic); takes priority over `themes` (regex).
+ *   `themes` — legacy keyword themes; used as fallback when embeddings are unavailable.
  * @returns {Object<string, Object[]>} role -> assets
  */
-export function selectGameAssets({ themes = [], orientation = null, perRole = 14 } = {}) {
+export function selectGameAssets({ themes = [], packs = [], orientation = null, perRole = 14 } = {}) {
   const all = loadUnifiedCatalog();
   if (!all.length) return {};
   const themeSet = new Set(themes.map((t) => t.toLowerCase()));
+  const packSet = new Set(packs.map((p) => p.toLowerCase()));
+  const hasPackFilter = packSet.size > 0;
+  const hasThemeFilter = themeSet.size > 0;
 
-  const matchesTheme = (a) => themeSet.size === 0 || (a.theme || []).some((t) => themeSet.has(t.toLowerCase()));
+  const matchesFilter = (a) => {
+    if (!hasPackFilter && !hasThemeFilter) return true;
+    if (hasPackFilter && packSet.has((a.pack || '').toLowerCase())) return true;
+    if (hasThemeFilter && (a.theme || []).some((t) => themeSet.has(t.toLowerCase()))) return true;
+    return false;
+  };
   // Orientation filter: keep exact matches + orientation-agnostic roles (ui/audio/pickup often n_a or
   // unknown). Never let a 'side' sprite into a 'top_down' game's gameplay roles.
   const AGNOSTIC_ROLES = new Set(['ui', 'audio', 'pickup', 'served']);
@@ -134,32 +144,25 @@ export function selectGameAssets({ themes = [], orientation = null, perRole = 14
     if (AGNOSTIC_ROLES.has(a.role)) return true;
     return a.orientation === orientation || a.orientation === 'unknown' || a.orientation === 'n_a';
   };
-  // Abstract/prototype/placeholder art (letter cubes, blank tiles, prototype textures, patterns) is
-  // designed for greyboxing, not shipping. It was outranking real themed art — e.g. an iso survival
-  // game rendered Axonometric-Blocks A/B/C letter cubes as "resources" instead of Isometric-Nature
-  // trees. Push it to last-resort so real art always wins when it exists.
   const JUNK_PACK = /axonometric|block pack|prototype|development essentials|pattern pack|letter tiles|abstract platformer|shape characters/i;
   const isJunk = (a) => JUNK_PACK.test(a.pack || '')
     || /abstracttile|prototype|placeholder|blank|patternpack/i.test(a.localPath || '');
-  // Lower rank = picked first. Layers: junk last, prefer honest Kenney labels, exact orientation,
-  // and (when themes are requested) assets that actually carry the requested theme.
   const rank = (a) => {
     let r = 0;
     if (isJunk(a)) r += 1000;
     r += (a.source === 'kenney2d' ? 0 : 20);
     r += (a.orientation === orientation ? 0 : 10);
-    if (themeSet.size && (a.theme || []).some((t) => themeSet.has(t.toLowerCase()))) r -= 5;
+    if (hasPackFilter && packSet.has((a.pack || '').toLowerCase())) r -= 10;
+    if (hasThemeFilter && (a.theme || []).some((t) => themeSet.has(t.toLowerCase()))) r -= 5;
     return r;
   };
 
-  // Collapse near-duplicate variants (e.g. Kenney's 4 rotations naturePack_001_0..3, or _small_1..5)
-  // to one representative so a role's slots show distinct items, not 4 copies of the same tree.
   const familyKey = (a) => `${a.role}:${(a.localPath || a.url || '').toLowerCase().replace(/[_-]?\d+(\.\w+)?$/, '')}`;
 
   const grouped = {};
   for (const role of ROLE_ORDER) {
     const ranked = all
-      .filter((a) => a.role === role && matchesTheme(a) && matchesOrient(a))
+      .filter((a) => a.role === role && matchesFilter(a) && matchesOrient(a))
       .sort((x, y) => rank(x) - rank(y));
     const seen = new Set();
     const picks = [];

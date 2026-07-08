@@ -5,6 +5,7 @@
 // - Fixed dimensions, single-file output via Vite
 
 import { getCatalog, getAssetsByTheme, getDiverseSample, selectGameAssets } from './load-catalog.js';
+import { findRelevantPacks } from './embedding-search.js';
 
 /**
  * Detect the intended camera orientation from the prompt so we only surface correctly-oriented art
@@ -154,14 +155,15 @@ function formatAssetsForPrompt(assets) {
   return output;
 }
 
-export function buildClaudeStylePrompt(userPrompt) {
-    // Extract theme keywords + camera orientation from the user prompt.
-    const themeKeywords = extractThemeKeywords(userPrompt);
+export async function buildClaudeStylePrompt(userPrompt) {
     const orientation = detectOrientation(userPrompt);
 
-    // Preferred path: unified catalog (Kenney 2D + re-tagged Phaser), grouped by role and filtered to
-    // the right orientation. Falls back to the old flat themed list if the unified catalog is absent.
-    const grouped = selectGameAssets({ themes: themeKeywords, orientation, perRole: 14 });
+    // Semantic search: embed the user prompt and find the most relevant asset packs.
+    // Falls back to the old regex keywords if embeddings are unavailable.
+    const relevantPacks = await findRelevantPacks(userPrompt, 8);
+    const themeKeywords = relevantPacks.length ? [] : extractThemeKeywords(userPrompt);
+
+    const grouped = selectGameAssets({ packs: relevantPacks, themes: themeKeywords, orientation, perRole: 14 });
     const assetList = Object.keys(grouped).length
       ? formatGroupedAssets(grouped)
       : formatAssetsForPrompt(themeKeywords.length ? getAssetsByTheme(themeKeywords, 100) : getDiverseSample(100));
