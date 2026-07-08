@@ -514,7 +514,7 @@ setInterval(() => {
     }
 }, 60 * 1000).unref?.();
 
-async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3, { overrideModel = null } = {}) {
+async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3, { overrideModel = null, reasoningEffort = null } = {}) {
     let raw = '';
     let extracted = '';
     let parseError = null;
@@ -541,6 +541,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
                 ...getTextChatOptions(modelToUse, maxTokens, {
                     providerTag,
                     stream: useMakerAgentStreaming(),
+                    reasoningEffort,
                 }),
                 messages,
             };
@@ -6118,40 +6119,9 @@ async function linkBackendNodeModules(projectRoot) {
     }
 }
 
-// Self-contained Claude-style job: prompt → DeepSeek (via callAI) → files → Vite build → single HTML.
-// Persists to the existing ai_games row and returns the same shape executeDreamJob's non-persist
-// path returns. Throws on failure so executeDreamJob's catch marks the job errored.
-async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt }) {
-    console.log(`🎮 [Claude-style] Generating Phaser game for job ${jobId} (R2 CDN assets)`);
-    await reportProgress(12, 'spec', 'Reading your idea...');
-
-    // 1. Build the Claude-style prompt (asset catalog + CDN base URL are injected here).
-    const { system, user } = buildClaudeStylePrompt(prompt);
-    await writeMakerText(makerWorkspace, 'logs/claude-style-prompt.txt', `${system}\n\n---\n\n${user}`);
-
-    // 2. Generate the project files. callAI handles DeepSeek/NVIDIA failover + JSON repair and
-    //    returns the parsed { files: [...] } object the prompt asks for.
-    await reportProgress(30, 'build', 'Writing the game...');
-    const result = await callAI(system, user, MAKER_IMPLEMENT_MAX_TOKENS, 0.7);
-    if (!result || !Array.isArray(result.files) || result.files.length === 0) {
-        throw new Error('Claude-style generation returned no files array');
-    }
-
-    // 3. Write the files to a project root under the maker workspace.
-    const projectRoot = path.join(makerWorkspace, 'claude-style-project');
-    await fs.promises.mkdir(projectRoot, { recursive: true });
-    await writeProjectFilesToRoot(projectRoot, result.files);
-    console.log(`📝 [Claude-style] Wrote ${result.files.length} files: ${result.files.map((f) => f.path).join(', ')}`);
-    await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: result.files }, { title: prompt }, 'claude-style-phaser').catch(() => {});
-
-    // 4. Build with Vite → single inlined HTML. Build PROGRAMMATICALLY via vite's Node API instead
-    // of shelling out to `npx vite build` with the generated config: vite 8 bundles a CJS
-    // vite.config.js into a temp .mjs whose require('vite-plugin-singlefile') fails to resolve the
-    // plugin's ESM subpath in production (MODULE_NOT_FOUND). Importing the plugin directly here
-    // resolves it reliably from node_modules, and configFile:false ignores the fragile generated
-    // config entirely. The project's own vite.config.js is now irrelevant to the build.
-    await reportProgress(60, 'build', 'Bundling the game...');
-    await linkBackendNodeModules(projectRoot);
+// Reusable Vite bundle step. Called once by the main flow and again by the self-repair turn so both
+// paths share the same normalize + artifact-write logic instead of duplicating 30 lines.
+async function runClaudeStyleViteBuild(projectRoot, makerWorkspace) {
     try {
         const { build } = await import('vite');
         const { viteSingleFile } = await import('vite-plugin-singlefile');
@@ -6177,16 +6147,115 @@ async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportPro
     const rawGameHtml = await fs.promises.readFile(distIndex, 'utf8');
     const finalHtml = normalizeHtmlDocument(rawGameHtml);
     await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
+    return { finalHtml, rawGameHtml };
+}
+
+// Self-repair turn: hand the model its own crashing code + the sandbox error and ask for a fix.
+// Same system prompt (so mandated create() structure + all rules still bind), a targeted user prompt
+// naming the crash and returning the same { files: [...] } shape. One shot; if it doesn't parse or
+// doesn't return files, caller ships the original build.
+async function runClaudeStyleSelfRepair({ system, files, crashText, allCrashes }) {
+    const crashSummary = Array.isArray(allCrashes) && allCrashes.length > 1
+        ? `${crashText}\n\n(other errors: ${allCrashes.slice(1, 4).map((c) => String(c).slice(0, 200)).join(' | ')})`
+        : crashText;
+    const userPrompt = `Your previous build of this game CRASHED in the headless sandbox during boot. Here is the exact runtime error:
+
+${crashSummary}
+
+Below is the code you shipped. Read it, find the cause of the error above, and return a CORRECTED version.
+
+CRITICAL:
+- Return ONLY valid JSON with the same "files" array shape as before (same 5 paths).
+- Fix the ROOT CAUSE, not just the symptom. If a state variable is undefined when a HUD reads it, MOVE the assignment into initState() so it runs BEFORE buildHUD() — never wrap the read in a try/catch or fall back to a literal to hide the crash.
+- Preserve everything that isn't broken. Do not rewrite the whole game.
+- Keep the mandated create() phase order (initState → buildWorld → spawnEntities → buildHUD → wireInput → startTimers).
+
+Current files:
+${JSON.stringify({ files }, null, 2)}
+
+Return ONLY the corrected JSON.`;
+    try {
+        const repaired = await callAI(system, userPrompt, MAKER_IMPLEMENT_MAX_TOKENS, 0.3, { reasoningEffort: MAKER_IMPLEMENT_REASONING_EFFORT });
+        if (repaired && Array.isArray(repaired.files) && repaired.files.length > 0) return repaired;
+    } catch (err) {
+        console.warn(`[Claude-style] self-repair call failed: ${err?.message || err}`);
+    }
+    return null;
+}
+
+// Self-contained Claude-style job: prompt → DeepSeek (via callAI) → files → Vite build → single HTML.
+// Persists to the existing ai_games row and returns the same shape executeDreamJob's non-persist
+// path returns. Throws on failure so executeDreamJob's catch marks the job errored.
+async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt }) {
+    console.log(`🎮 [Claude-style] Generating Phaser game for job ${jobId} (R2 CDN assets)`);
+    await reportProgress(12, 'spec', 'Reading your idea...');
+
+    // 1. Build the Claude-style prompt (asset catalog + CDN base URL are injected here).
+    const { system, user } = buildClaudeStylePrompt(prompt);
+    await writeMakerText(makerWorkspace, 'logs/claude-style-prompt.txt', `${system}\n\n---\n\n${user}`);
+
+    // 2. Generate the project files. callAI handles DeepSeek/NVIDIA failover + JSON repair and
+    //    returns the parsed { files: [...] } object the prompt asks for.
+    await reportProgress(30, 'build', 'Writing the game...');
+    const result = await callAI(system, user, MAKER_IMPLEMENT_MAX_TOKENS, 0.7, { reasoningEffort: MAKER_IMPLEMENT_REASONING_EFFORT });
+    if (!result || !Array.isArray(result.files) || result.files.length === 0) {
+        throw new Error('Claude-style generation returned no files array');
+    }
+
+    // 3. Write the files to a project root under the maker workspace.
+    const projectRoot = path.join(makerWorkspace, 'claude-style-project');
+    await fs.promises.mkdir(projectRoot, { recursive: true });
+    await writeProjectFilesToRoot(projectRoot, result.files);
+    console.log(`📝 [Claude-style] Wrote ${result.files.length} files: ${result.files.map((f) => f.path).join(', ')}`);
+    await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: result.files }, { title: prompt }, 'claude-style-phaser').catch(() => {});
+
+    // 4. Build with Vite → single inlined HTML. Build PROGRAMMATICALLY via vite's Node API instead
+    // of shelling out to `npx vite build` with the generated config: vite 8 bundles a CJS
+    // vite.config.js into a temp .mjs whose require('vite-plugin-singlefile') fails to resolve the
+    // plugin's ESM subpath in production (MODULE_NOT_FOUND). Importing the plugin directly here
+    // resolves it reliably from node_modules, and configFile:false ignores the fragile generated
+    // config entirely. The project's own vite.config.js is now irrelevant to the build.
+    await reportProgress(60, 'build', 'Bundling the game...');
+    await linkBackendNodeModules(projectRoot);
+    let { finalHtml, rawGameHtml } = await runClaudeStyleViteBuild(projectRoot, makerWorkspace);
     console.log(`✅ [Claude-style] Built ${finalHtml.length} chars of single-file game`);
 
-    // 5. Best-effort sandbox verify for a thumbnail; never fail a good build on a verify hiccup.
+    // 5. Sandbox verify. If it crashes, hand the model the crash + the current code and let it fix
+    //    itself once (self-repair turn). This is preventive, not a shipping gate — the model that
+    //    wrote the bug fixes it, we don't hide it behind a sandbox filter.
     await reportProgress(80, 'verify', 'Testing the game...');
     let finalScreenshot = null;
+    let sandboxRes = null;
     try {
-        const sandboxRes = await verifyGame(finalHtml, { sourceHtml: rawGameHtml });
+        sandboxRes = await verifyGame(finalHtml, { sourceHtml: rawGameHtml });
         finalScreenshot = sandboxRes?.screenshot || null;
     } catch (verifyErr) {
         console.warn(`[Claude-style] verify skipped: ${verifyErr?.message || verifyErr}`);
+    }
+    const shouldSelfRepair = sandboxRes && sandboxRes.success === false && !sandboxRes.bypassed && Array.isArray(sandboxRes.crashes) && sandboxRes.crashes.length > 0;
+    if (shouldSelfRepair) {
+        const firstCrash = String(sandboxRes.crashes[0] || '').slice(0, 800);
+        console.log(`🔧 [Claude-style] Sandbox crashed — running one self-repair turn. First crash: ${firstCrash}`);
+        await reportProgress(85, 'build', 'Fixing a crash...');
+        const repaired = await runClaudeStyleSelfRepair({ system, files: result.files, crashText: firstCrash, allCrashes: sandboxRes.crashes });
+        if (repaired && Array.isArray(repaired.files) && repaired.files.length) {
+            await writeProjectFilesToRoot(projectRoot, repaired.files);
+            await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: repaired.files }, { title: prompt }, 'claude-style-phaser').catch(() => {});
+            const rebuilt = await runClaudeStyleViteBuild(projectRoot, makerWorkspace);
+            finalHtml = rebuilt.finalHtml;
+            rawGameHtml = rebuilt.rawGameHtml;
+            result.files = repaired.files;
+            try {
+                const rerun = await verifyGame(finalHtml, { sourceHtml: rawGameHtml });
+                finalScreenshot = rerun?.screenshot || null;
+                if (rerun?.success) console.log('✅ [Claude-style] Self-repair passed sandbox.');
+                else console.log(`⚠️ [Claude-style] Self-repair still fails sandbox (shipping anyway): ${String(rerun?.crashes?.[0] || '').slice(0, 200)}`);
+            } catch (rerunErr) {
+                console.warn(`[Claude-style] post-repair verify skipped: ${rerunErr?.message || rerunErr}`);
+            }
+        } else {
+            console.log('⚠️ [Claude-style] Self-repair returned no files, shipping original build.');
+        }
     }
 
     const finalTitle = resolveDreamGameTitle({ specTitle: null, html: finalHtml, fallback: 'GameTok Game' });

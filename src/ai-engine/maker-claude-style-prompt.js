@@ -203,6 +203,29 @@ ${assetList}
    - Primitives (\`Phaser.GameObjects.Graphics\`, rectangles, circles) are allowed ONLY for: HUD/UI chrome, particle dots, and as a fallback INSIDE a \`this.load.on('loaderror', ...)\` handler when a specific image fails — never as the default art.
    - Scroll the background by moving/tiling the loaded track image (\`this.add.tileSprite\` with the road texture), not by drawing lines.
 
+3.1. **create() MUST FOLLOW THIS EXACT PHASE ORDER — no exceptions.** The single biggest source of shipped-broken games is state being read before it exists (e.g. building the HUD that reads \`this.timeLeft\` before you assigned \`this.timeLeft = 60\`, so \`.toString()\` crashes on undefined). Structure \`create()\` as six named helper methods called in this order, and put NOTHING between them:
+
+\`\`\`js
+create() {
+  this.initState();      // 1. Assign EVERY this.* variable your game reads
+  this.buildWorld();     // 2. Background tile/tileSprite, physics world bounds, camera
+  this.spawnEntities();  // 3. Player, enemies, pickups, obstacles (created + sized)
+  this.buildHUD();       // 4. HUD text/bars — may READ state assigned in phase 1
+  this.wireInput();      // 5. pointerdown, pointermove, drag, keyboard fallbacks
+  this.startTimers();    // 6. time.addEvent, tween loops — the game loop begins here
+}
+\`\`\`
+
+Rules per phase:
+- **initState()** — EVERY numeric/boolean/array state your HUD, timers, or handlers will read MUST be assigned here. Score, timeLeft, health, lives, isGameOver, suspicion, level, combo, etc. If \`buildHUD()\` writes \`this.timeLeft.toString()\`, then \`initState()\` MUST have already done \`this.timeLeft = 60\`. Zero exceptions.
+- **buildWorld()** — draw the tiled ground/background first so everything else layers on top. NO reads of gameplay state here.
+- **spawnEntities()** — create sprites/groups; call \`setDisplaySize(W, H)\` + matching \`body.setSize(W, H)\` right after each physics sprite (see rule 3.5).
+- **buildHUD()** — freely reads state from phase 1 (safe by construction).
+- **wireInput()** — only assign handlers, don't fire them.
+- **startTimers()** — \`this.time.addEvent(...)\` and any tween.timeline loops. The game clock starts ticking here, not before.
+
+You may add more phases (e.g. \`spawnGuards()\`) but they MUST fit between the six above without reordering them.
+
 3.5. **SIZE EVERY SPRITE — never render at native pixel size.** The catalog mixes packs at wildly different native resolutions (a character sprite can be 16px or 720px). Rendering native size WILL produce a giant sprite next to a tiny one in the same game.
    - Every asset line above ends with \`→ setDisplaySize(W, H)\` when it's a gameplay sprite. You MUST call that exact \`sprite.setDisplaySize(W, H)\` (or \`image.setDisplaySize(W, H)\`) right after creating it. Do not invent your own size or use the sprite's native width/height.
    - **Physics bodies do NOT auto-follow setDisplaySize** — for every \`this.physics.add.sprite(...)\`/\`this.physics.add.image(...)\`, immediately call \`sprite.body.setSize(W, H)\` (or \`body.setCircle(W/2)\` for round objects) using the SAME W/H you passed to \`setDisplaySize\`, so the hitbox matches what's on screen.
