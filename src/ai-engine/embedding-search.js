@@ -95,4 +95,30 @@ export async function findRelevantPacks(prompt, topK = 8) {
   }
 }
 
+/**
+ * Recall stage for model-in-the-loop selection: return the top-K candidate packs WITH their
+ * summary text (name + sample contents + roles + perspective), so a reasoning model can decide
+ * which packs a game actually needs — instead of trusting raw cosine rank. Cast a wide net here
+ * (K large); the model does the narrowing.
+ * @param {string} prompt
+ * @param {number} topK
+ * @returns {Promise<{pack: string, text: string, score: number}[]>}
+ */
+export async function recallCandidatePacks(prompt, topK = 25) {
+  const data = loadPackEmbeddings();
+  const c = getClient();
+  if (!data || !c) return [];
+  try {
+    const query = stripFeaturesBoilerplate(prompt);
+    const result = await c.embeddings.create({ model: MODEL, input: query });
+    const queryVec = result.data[0].embedding;
+    const scored = data.packs.map(p => ({ pack: p.pack, text: p.text, score: cosine(queryVec, p.embedding) }));
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, topK);
+  } catch (err) {
+    console.error('⚠️  Embedding recall failed:', err.message);
+    return [];
+  }
+}
+
 loadPackEmbeddings();

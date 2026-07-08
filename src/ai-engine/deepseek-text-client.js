@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { getNvidiaTextKeys } from './nvidia-key-pool.js';
 
 export const DEEPSEEK_DIRECT_PROVIDER = 'deepseek-direct';
 
@@ -14,13 +13,6 @@ export function getDeepSeekTextConfig(env = process.env) {
         baseURL: String(env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
         model: String(env.DEEPSEEK_MODEL || 'deepseek-v4-pro').trim(),
     };
-}
-
-/** Opt-in: after DeepSeek direct fails, retry on NVIDIA NIM with the same model chain. Default on. */
-export function isNvidiaFailoverFromDeepSeekEnabled(env = process.env) {
-    if (!isDeepSeekPrimaryEnabled(env)) return false;
-    if (!getNvidiaTextKeys(env).length) return false;
-    return String(env.GAMETOK_NVIDIA_FAILOVER || 'true').toLowerCase() !== 'false';
 }
 
 /** Opt-in: route all text agents through DeepSeek direct API when DEEPSEEK_API_KEY is set. */
@@ -64,6 +56,31 @@ export function resolveDeepSeekModel(model = null, env = process.env) {
 export function isDeepSeekV4ModelName(model = '') {
     const value = String(model || '');
     return value.startsWith('deepseek-ai/deepseek-v4') || /^deepseek-v4/i.test(value);
+}
+
+/**
+ * Fast, non-thinking DeepSeek Flash JSON call for structured-output tasks that don't need deep
+ * reasoning (classification, concept-card copy, conversational intent parsing). `thinking: {
+ * type: 'disabled' }` is required for genuine non-thinking speed — `reasoning_effort: 'low'` alone
+ * still burns ~200+ reasoning tokens before emitting content (measured: 1.5s/0 reasoning tokens
+ * disabled vs 4.7s/217 reasoning tokens at 'low'), which can truncate the actual JSON out of a
+ * tight max_tokens budget. Returns the parsed JSON object, or throws — caller decides fallback.
+ * @param {{systemPrompt: string, messages: {role: string, content: string}[], maxTokens?: number, temperature?: number, model?: string}} args
+ */
+export async function callDeepSeekFlashJson({ systemPrompt, messages, maxTokens = 400, temperature = 0.3, model = null }, env = process.env) {
+    const config = getDeepSeekTextConfig(env);
+    if (!config) throw new Error('DeepSeek not configured (DEEPSEEK_API_KEY missing)');
+    const client = createDeepSeekTextClient(env);
+    const res = await client.chat.completions.create({
+        model: model || env.GAMETOK_FLASH_MODEL || 'deepseek-v4-flash',
+        max_tokens: getDeepSeekMaxOutputTokens(maxTokens, env),
+        stream: false,
+        thinking: { type: 'disabled' },
+        temperature,
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        response_format: { type: 'json_object' },
+    });
+    return JSON.parse(res.choices[0].message.content);
 }
 
 export function getDeepSeekMaxOutputTokens(requestedMaxTokens, env = process.env) {

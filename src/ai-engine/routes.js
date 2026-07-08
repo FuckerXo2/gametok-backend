@@ -80,6 +80,7 @@ import {
 } from './moonshot-text-client.js';
 import {
     buildDeepSeekChatOptions,
+    callDeepSeekFlashJson,
     createDeepSeekTextClient,
     DEEPSEEK_DIRECT_PROVIDER,
     getDeepSeekTextConfig,
@@ -87,7 +88,6 @@ import {
     isDeepSeekDirectProvider,
     isDeepSeekPrimaryEnabled,
     isDeepSeekV4ModelName,
-    isNvidiaFailoverFromDeepSeekEnabled,
     maskDeepSeekKey,
     resolveDeepSeekModel,
 } from './deepseek-text-client.js';
@@ -97,7 +97,6 @@ import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buil
 import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { buildForgeAutoscaleReport, runForgeAutoscaleTick, isForgeAutoscaleEnabled } from './forge-autoscale.js';
 import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
-import { getNvidiaTextKeys, maskNvidiaKey, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 import {
     assertFoundationSupported,
     buildFallbackFoundationSeed,
@@ -303,7 +302,6 @@ const DREAM_MODELS = {
     spec: resolveDreamModel('DREAMSTREAM_SPEC_MODEL', DEFAULT_KIMI_BUILDER_MODEL), // Use Kimi for Phase 1 too
     premiumBuilder: BUILDER_FALLBACK_MODELS[0],
     labsBuilder: resolveDreamModel('DREAMSTREAM_LABS_MODEL', DEFAULT_KIMI_BUILDER_MODEL),
-    narrativeChat: process.env.DREAMSTREAM_NARRATIVE_MODEL || "meta/llama-3.3-70b-instruct",
 };
 
 function getDreamTextModelLabel() {
@@ -377,14 +375,6 @@ const JOB_TITLES = {
     remixPending: 'Updating Game...',
     labsPending: '🧪 Labs: Cooking...',
 };
-
-function createNvidiaTextClient(apiKey = nextNvidiaTextApiKey()) {
-    return new OpenAI({
-        baseURL: 'https://integrate.api.nvidia.com/v1',
-        apiKey: apiKey || 'missing-key',
-        timeout: Number(process.env.NVIDIA_API_TIMEOUT_MS || 900000),
-    });
-}
 
 // OpenRouter is only used by the experimental Labs route.
 const openRouterClient = new OpenAI({
@@ -520,7 +510,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 
     let parseError = null;
     const maxJsonRewriteAttempts = Math.max(1, BUILDER_JSON_REWRITE_ATTEMPTS);
     // When a lighter/faster model is requested (e.g. flash for Phase 1), pass it as the sole
-    // fallbackModels entry so it wins for both DeepSeek-primary and NVIDIA paths.
+    // fallbackModels entry so it wins for both DeepSeek-primary and Moonshot-primary paths.
     const callFallbackModels = overrideModel
         ? [overrideModel]
         : BUILDER_FALLBACK_MODELS;
@@ -805,7 +795,6 @@ function heuristicClassifyGame({ title = '', prompt = '', description = '', html
 
 async function classifyPublishedGame({ title = '', prompt = '', description = '', htmlPayload = '' }) {
     const heuristic = heuristicClassifyGame({ title, prompt, description, htmlPayload });
-    const model = process.env.DREAMSTREAM_CLASSIFIER_MODEL || DREAM_MODELS.spec;
     const htmlSignal = String(htmlPayload || '')
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -814,17 +803,8 @@ async function classifyPublishedGame({ title = '', prompt = '', description = ''
         .slice(0, 1800);
 
     try {
-        // Add 30 second timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Classification timeout after 30s')), 30000);
-        });
-
-        const classificationPromise = createNvidiaTextClient().chat.completions.create({
-            model,
-            messages: [
-                {
-                    role: 'system',
-                    content: `You classify short-form interactive games for a discovery feed.
+        const parsed = await callDeepSeekFlashJson({
+            systemPrompt: `You classify short-form interactive games for a discovery feed.
 Return raw JSON only with this exact schema:
 {
   "primaryTab": "Explore|Games|Horror|Quiz|Roleplay",
@@ -834,30 +814,24 @@ Return raw JSON only with this exact schema:
   "tags": ["lowercase-tag"],
   "confidence": 0.0
 }
-Choose the tab based on the actual experience, not marketing words. Horror is only for genuinely unsettling or fear-driven experiences. Quiz is for question/puzzle/trivia-driven experiences. Roleplay is for character/social/story fantasies. Games is for action/arcade/driving/platformer/simulation play. Explore is for creative tools, experimental pieces, toys, generators, and things that do not fit the other lanes cleanly.`
-                },
-                {
-                    role: 'user',
-                    content: JSON.stringify({
-                        title,
-                        prompt,
-                        description,
-                        htmlSignal,
-                        allowedTabs: DISCOVERY_TABS,
-                        allowedCategories: DISCOVERY_CATEGORIES,
-                        allowedSubcategories: DISCOVERY_SUBCATEGORIES,
-                        allowedInteractionTypes: INTERACTION_TYPES,
-                    }),
-                },
-            ],
+Choose the tab based on the actual experience, not marketing words. Horror is only for genuinely unsettling or fear-driven experiences. Quiz is for question/puzzle/trivia-driven experiences. Roleplay is for character/social/story fantasies. Games is for action/arcade/driving/platformer/simulation play. Explore is for creative tools, experimental pieces, toys, generators, and things that do not fit the other lanes cleanly.`,
+            messages: [{
+                role: 'user',
+                content: JSON.stringify({
+                    title,
+                    prompt,
+                    description,
+                    htmlSignal,
+                    allowedTabs: DISCOVERY_TABS,
+                    allowedCategories: DISCOVERY_CATEGORIES,
+                    allowedSubcategories: DISCOVERY_SUBCATEGORIES,
+                    allowedInteractionTypes: INTERACTION_TYPES,
+                }),
+            }],
+            maxTokens: 220,
             temperature: 0.1,
-            max_tokens: 220,
         });
 
-        const res = await Promise.race([classificationPromise, timeoutPromise]);
-
-        const raw = res?.choices?.[0]?.message?.content || '';
-        const parsed = JSON.parse(extractJson(raw));
         const primaryTab = DISCOVERY_TABS.includes(parsed?.primaryTab) ? parsed.primaryTab : heuristic.primaryTab;
         const category = DISCOVERY_CATEGORIES.includes(parsed?.category) ? parsed.category : heuristic.category;
         const subcategory = DISCOVERY_SUBCATEGORIES.includes(parsed?.subcategory) ? parsed.subcategory : heuristic.subcategory;
@@ -1049,6 +1023,14 @@ async function withAbortableTimeout(task, timeoutMs, label) {
     }
 }
 
+// NVIDIA removed from the text/game-gen path entirely (2026-07-08): it was never anything but an
+// emergency failover here, and separately 4 other endpoints called it directly with no DeepSeek
+// option at all (see callDeepSeekFlashJson call sites) — that's what produced the hardcoded
+// "Clear tap-friendly controls" filler spec whenever NVIDIA/Llama was slow. DeepSeek direct is now
+// the only text provider (Moonshot remains as an explicit opt-in primary/failover, independent of
+// this decision — it's off by default and was never NVIDIA). If DeepSeek's API has an outage,
+// generation now fails outright rather than silently degrading through NVIDIA — a deliberate
+// tradeoff, not an oversight.
 async function withNvidiaRetries(task, {
     label,
     jobId = null,
@@ -1061,166 +1043,75 @@ async function withNvidiaRetries(task, {
     const logLabel = formatJobLogLabel(label, jobId);
     const deepseekPrimary = isDeepSeekPrimaryEnabled();
     const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
-    const moonshotFailover = !deepseekPrimary && !moonshotPrimary && (enableMoonshotFailover ?? isMoonshotFailoverEnabled());
 
     if (deepseekPrimary) {
         const deepseekConfig = getDeepSeekTextConfig();
         const deepseekClient = createDeepSeekTextClient();
-        let deepseekFailed = false;
-        if (deepseekConfig && deepseekClient) {
-            const modelsToTry = [...new Set(
-                (fallbackModels.length > 0 ? fallbackModels : [deepseekConfig.model])
-                    .map((model) => resolveDeepSeekModel(model)),
-            )];
-
-            for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex += 1) {
-                const currentModel = modelsToTry[modelIndex];
-
-                for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-                    try {
-                        if (modelIndex > 0 || attempt > 1) {
-                            console.log(`🔁 [${logLabel}] DeepSeek attempt ${attempt}/${maxAttempts} on ${currentModel} (model ${modelIndex + 1}/${modelsToTry.length})...`);
-                        } else {
-                            console.log(`🐋 [${logLabel}] DeepSeek direct (${currentModel}, key ${maskDeepSeekKey(deepseekConfig.apiKey)})`);
-                        }
-                        return await task(currentModel, deepseekClient, DEEPSEEK_DIRECT_PROVIDER);
-                    } catch (error) {
-                        lastError = error;
-                        const classification = classifyProviderError(error);
-                        const retryAction = attempt < maxAttempts ? 'retry' : 'failover';
-                        console.warn(`🧭 [${logLabel}] ${formatProviderRetryDecision(classification, retryAction)} on DeepSeek ${currentModel} (attempt ${attempt}/${maxAttempts})`);
-
-                        const isLastModel = modelIndex === modelsToTry.length - 1;
-                        if (attempt >= maxAttempts && isLastModel) {
-                            break;
-                        }
-                        if (attempt >= maxAttempts) {
-                            break;
-                        }
-
-                        await sleep(baseDelayMs * attempt);
-                    }
-                }
-            }
-
-            deepseekFailed = true;
-        } else {
-            console.warn(`🐋 [${logLabel}] DeepSeek primary requested but DEEPSEEK_API_KEY missing — using NVIDIA text path`);
+        if (!deepseekConfig || !deepseekClient) {
+            throw new Error(`[${logLabel}] DeepSeek primary requested but DEEPSEEK_API_KEY is missing`);
         }
 
-        if (!deepseekFailed) {
-            // Missing DeepSeek key — fall through to NVIDIA.
-        } else if (isNvidiaFailoverFromDeepSeekEnabled() && getNvidiaTextKeys().length > 0) {
-            console.warn(`🐋→🔑 [${logLabel}] DeepSeek direct exhausted — failing over to NVIDIA NIM (${(fallbackModels.length > 0 ? fallbackModels : BUILDER_FALLBACK_MODELS).join('>')})`);
-        } else {
-            throw lastError;
-        }
-    } else if (moonshotPrimary) {
-        const moonshotConfig = getMoonshotTextConfig();
-        const moonshotClient = createMoonshotTextClient();
-        if (moonshotConfig && moonshotClient) {
+        const modelsToTry = [...new Set(
+            (fallbackModels.length > 0 ? fallbackModels : [deepseekConfig.model])
+                .map((model) => resolveDeepSeekModel(model)),
+        )];
+
+        for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex += 1) {
+            const currentModel = modelsToTry[modelIndex];
+
             for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
                 try {
-                    if (attempt > 1) {
-                        console.log(`🌙 [${logLabel}] Moonshot primary retry ${attempt}/${maxAttempts} (${moonshotConfig.model})...`);
+                    if (modelIndex > 0 || attempt > 1) {
+                        console.log(`🔁 [${logLabel}] DeepSeek attempt ${attempt}/${maxAttempts} on ${currentModel} (model ${modelIndex + 1}/${modelsToTry.length})...`);
                     } else {
-                        console.log(`🌙 [${logLabel}] Moonshot primary (${moonshotConfig.model}, key ${maskMoonshotKey(moonshotConfig.apiKey)})`);
+                        console.log(`🐋 [${logLabel}] DeepSeek direct (${currentModel}, key ${maskDeepSeekKey(deepseekConfig.apiKey)})`);
                     }
-                    return await task(moonshotConfig.model, moonshotClient, MOONSHOT_DIRECT_PROVIDER);
+                    return await task(currentModel, deepseekClient, DEEPSEEK_DIRECT_PROVIDER);
                 } catch (error) {
                     lastError = error;
                     const classification = classifyProviderError(error);
-                    console.warn(`🌙 [${logLabel}] ${formatProviderRetryDecision(classification, attempt < maxAttempts ? 'rotate_key' : 'throw')} on Moonshot direct (attempt ${attempt}/${maxAttempts})`);
+                    const retryAction = attempt < maxAttempts ? 'retry' : 'switch_model';
+                    console.warn(`🧭 [${logLabel}] ${formatProviderRetryDecision(classification, retryAction)} on DeepSeek ${currentModel} (attempt ${attempt}/${maxAttempts})`);
+
                     if (attempt >= maxAttempts) {
                         break;
                     }
                     await sleep(baseDelayMs * attempt);
                 }
             }
-            throw lastError;
         }
-        console.warn(`🌙 [${logLabel}] Moonshot primary requested but MOONSHOT_API_KEY missing — using NVIDIA text path`);
+
+        throw lastError;
     }
 
-    const modelsToTry = fallbackModels.length > 0 ? fallbackModels : [null];
-    const retriesPerModel = maxAttempts;
-    const modelFailures = [];
-
-    for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex += 1) {
-        const currentModel = modelsToTry[modelIndex];
-        let stallsOnModel = 0;
-        const failureKinds = [];
-
-        for (let attempt = 1; attempt <= retriesPerModel; attempt += 1) {
+    if (moonshotPrimary) {
+        const moonshotConfig = getMoonshotTextConfig();
+        const moonshotClient = createMoonshotTextClient();
+        if (!moonshotConfig || !moonshotClient) {
+            throw new Error(`[${logLabel}] Moonshot primary requested but MOONSHOT_API_KEY is missing`);
+        }
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
             try {
-                if (modelIndex > 0 || attempt > 1) {
-                    console.log(`🔁 [${logLabel}] Attempt ${attempt}/${retriesPerModel} on ${currentModel || 'default model'} (model ${modelIndex + 1}/${modelsToTry.length})...`);
+                if (attempt > 1) {
+                    console.log(`🌙 [${logLabel}] Moonshot primary retry ${attempt}/${maxAttempts} (${moonshotConfig.model})...`);
+                } else {
+                    console.log(`🌙 [${logLabel}] Moonshot primary (${moonshotConfig.model}, key ${maskMoonshotKey(moonshotConfig.apiKey)})`);
                 }
-                const apiKey = nextNvidiaTextApiKey();
-                const client = createNvidiaTextClient(apiKey);
-                console.log(`🔑 [${logLabel}] Text key ${maskNvidiaKey(apiKey)} for ${currentModel || 'default model'} attempt ${attempt}/${retriesPerModel}`);
-                return await task(currentModel, client, apiKey);
+                return await task(moonshotConfig.model, moonshotClient, MOONSHOT_DIRECT_PROVIDER);
             } catch (error) {
                 lastError = error;
                 const classification = classifyProviderError(error);
-                if (classification.kind === ProviderFailureKind.STALL) {
-                    stallsOnModel += 1;
-                }
-                failureKinds.push(classification.kind);
-
-                const action = decideProviderRetryAction(classification, {
-                    attempt,
-                    maxAttempts: retriesPerModel,
-                    stallsOnCurrentModel: stallsOnModel,
-                });
-                console.warn(`🧭 [${logLabel}] ${formatProviderRetryDecision(classification, action)} on ${currentModel || 'default model'} (attempt ${attempt}/${retriesPerModel})`);
-
-                const isLastModel = modelIndex === modelsToTry.length - 1;
-
-                if (action === 'switch_model') {
-                    if (!isLastModel) {
-                        console.warn(`⏭️ [${logLabel}] Escalating from ${currentModel || 'default model'} to ${modelsToTry[modelIndex + 1]} after ${classification.reason}`);
-                    }
+                console.warn(`🌙 [${logLabel}] ${formatProviderRetryDecision(classification, attempt < maxAttempts ? 'rotate_key' : 'throw')} on Moonshot direct (attempt ${attempt}/${maxAttempts})`);
+                if (attempt >= maxAttempts) {
                     break;
                 }
-
-                if (attempt >= retriesPerModel) {
-                    if (isLastModel) {
-                        break;
-                    }
-                    break;
-                }
-
-                const waitMs = baseDelayMs * attempt;
-                await sleep(waitMs);
+                await sleep(baseDelayMs * attempt);
             }
         }
-
-        modelFailures.push({
-            model: currentModel,
-            stalls: stallsOnModel,
-            kinds: failureKinds,
-        });
+        throw lastError;
     }
 
-    if (moonshotFailover && shouldMoonshotFailover(modelFailures, lastError)) {
-        const moonshotConfig = getMoonshotTextConfig();
-        const moonshotClient = createMoonshotTextClient();
-        if (moonshotConfig && moonshotClient) {
-            console.warn(`🌙 [${logLabel}] NVIDIA text path blocked on ${modelFailures.length} model(s) — failing over to Moonshot direct (${moonshotConfig.model}, key ${maskMoonshotKey(moonshotConfig.apiKey)})`);
-            try {
-                return await task(moonshotConfig.model, moonshotClient, 'moonshot-direct');
-            } catch (moonshotError) {
-                lastError = moonshotError;
-                const moonshotClassification = classifyProviderError(moonshotError);
-                console.error(`🌙 [${logLabel}] Moonshot failover failed: ${formatProviderRetryDecision(moonshotClassification, 'throw')}`);
-            }
-        } else {
-            console.warn(`🌙 [${logLabel}] Moonshot failover skipped — MOONSHOT_API_KEY not configured`);
-        }
-    }
-
-    throw lastError;
+    throw new Error(`[${logLabel}] No text provider configured — set GAMETOK_DEEPSEEK_PRIMARY=true with DEEPSEEK_API_KEY (or configure Moonshot primary).`);
 }
 
 function extractText(response) {
@@ -6194,7 +6085,7 @@ async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportPro
     const { system, user } = await buildClaudeStylePrompt(prompt);
     await writeMakerText(makerWorkspace, 'logs/claude-style-prompt.txt', `${system}\n\n---\n\n${user}`);
 
-    // 2. Generate the project files. callAI handles DeepSeek/NVIDIA failover + JSON repair and
+    // 2. Generate the project files. callAI handles DeepSeek retries + JSON repair and
     //    returns the parsed { files: [...] } object the prompt asks for.
     await reportProgress(30, 'build', 'Writing the game...');
     const result = await callAI(system, user, MAKER_IMPLEMENT_MAX_TOKENS, 0.7, { reasoningEffort: MAKER_IMPLEMENT_REASONING_EFFORT });
@@ -6368,10 +6259,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         const streamStall = getStreamStallConfig();
         const deepseekConfig = getDeepSeekTextConfig();
         const deepseekPrimary = isDeepSeekPrimaryEnabled();
-        const nvidiaFailoverFromDeepseek = isNvidiaFailoverFromDeepSeekEnabled();
         const moonshotConfig = getMoonshotTextConfig();
         const moonshotPrimary = !deepseekPrimary && isMoonshotPrimaryEnabled();
-        console.log(`🔑 [DREAM JOB] Text keys=${getNvidiaTextKeys().length} deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} phase2ImplementMaxTokens=${MAKER_IMPLEMENT_MAX_TOKENS} phase2RepairMaxTokens=${MAKER_TOOL_MAX_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} nvidiaFailover=${nvidiaFailoverFromDeepseek ? 'on' : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} moonshotFailover=${!deepseekPrimary && !moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} factoryMinimal=${isMakerFactoryMinimalMode() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${getMakerAgentInspectionTurns()}(implement=${resolveMakerAgentImplementTurns(getMakerAgentInspectionTurns())}+repair)`);
+        console.log(`🔑 [DREAM JOB] deepseekMaxOutput=${DEEPSEEK_MAX_OUTPUT_TOKENS} phase1Timeout=${Math.round(PHASE1_TIMEOUT_MS / 1000)}s phase1MaxTokens=${PHASE1_MAX_OUTPUT_TOKENS} phase1_5MaxTokens=${PHASE1_5_MAX_OUTPUT_TOKENS} phase2ImplementMaxTokens=${MAKER_IMPLEMENT_MAX_TOKENS} phase2RepairMaxTokens=${MAKER_TOOL_MAX_TOKENS} attemptsPerModel=${PHASE1_ATTEMPTS_PER_MODEL} builderModels=${BUILDER_FALLBACK_MODELS.join('>')} streamFirstByte=${Math.round(streamStall.firstByteMs / 1000)}s streamStall=${Math.round(streamStall.stallMs / 1000)}s deepseekPrimary=${deepseekPrimary && deepseekConfig ? `on(${deepseekConfig.model})` : 'off'} moonshotPrimary=${moonshotPrimary && moonshotConfig ? `on(${moonshotConfig.model})` : 'off'} heuristicFallback=${ALLOW_PHASE1_HEURISTIC_FALLBACK ? 'on' : 'off'} dynamicFoundation=${useDynamicFoundation() ? 'on' : 'off'} factoryMinimal=${isMakerFactoryMinimalMode() ? 'on' : 'off'} makerAgentTools=${useMakerAgentTools() ? 'on' : 'off'} makerImplementMode=${useMakerAgentImplementMode() ? 'on' : 'off'} makerStreaming=${useMakerAgentStreaming() ? 'on' : 'off'} implementTimeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s implementModels=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')} phase2Turns=${getMakerAgentInspectionTurns()}(implement=${resolveMakerAgentImplementTurns(getMakerAgentInspectionTurns())}+repair)`);
         const maker = await createGameTokMakerWorkspace(jobId, prompt, mediaAttachments);
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
@@ -7952,28 +7842,18 @@ router.post('/narrative/chat', async (req, res) => {
             'The brief should be a builder-ready prompt for an interactive narrative game with setting, player role, mechanics, choices, tone, and ending direction.',
         ].join('\n');
 
-        const response = await withNvidiaRetries((_, client, providerTag) => {
-            const modelToUse = resolveTextModelForProvider(DREAM_MODELS.narrativeChat, providerTag);
-            return client.chat.completions.create({
-                ...getTextChatOptions(modelToUse, 900, {
-                    providerTag,
-                    stream: false,
-                    temperature: isMoonshotDirectProvider(providerTag) ? undefined : 0.55,
-                }),
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...messages,
-                ],
-            });
-        }, { label: 'Narrative Chat', maxAttempts: 2, baseDelayMs: 1000 });
-
-        const raw = extractText(response);
         let parsed;
         try {
-            parsed = JSON.parse(extractJson(raw));
+            parsed = await callDeepSeekFlashJson({
+                systemPrompt,
+                messages,
+                maxTokens: 900,
+                temperature: 0.55,
+            });
         } catch (error) {
+            console.warn('[NARRATIVE CHAT] Falling back after model failure:', error?.message || error);
             parsed = {
-                reply: raw || 'I’m with you. Tell me the world you want, the player role, and what should make it playable.',
+                reply: 'I’m with you. Tell me the world you want, the player role, and what should make it playable.',
                 brief: '',
                 ready: false,
             };
@@ -7984,7 +7864,6 @@ router.post('/narrative/chat', async (req, res) => {
             reply: String(parsed.reply || '').slice(0, 1200),
             brief: String(parsed.brief || '').slice(0, 5000),
             ready: Boolean(parsed.ready),
-            model: DREAM_MODELS.narrativeChat,
         });
     } catch (error) {
         console.error('[NARRATIVE CHAT] Error:', error);
@@ -8034,20 +7913,14 @@ router.post('/generate-spec', async (req, res) => {
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
-        const nvidiaClient = createNvidiaTextClient();
-
         const fallbackSpec = buildFallbackGameSpec(prompt);
-        let timeoutId;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error('Spec generation timed out')), 25000);
-        });
 
-        const apiCallPromise = nvidiaClient.chat.completions.create({
-            model: DREAM_MODELS.narrativeChat,
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are a senior mobile game designer writing the pre-create concept card for a game generation app.
+        let spec = fallbackSpec;
+        let usedFallback = false;
+        let warning;
+        try {
+            const parsed = await callDeepSeekFlashJson({
+                systemPrompt: `You are a senior mobile game designer writing the pre-create concept card for a game generation app.
 Your copy must feel specific, confident, and product-quality.
 
 ${formatUnitySpecPromptBlock()}
@@ -8067,49 +7940,22 @@ Rules:
 - Do not invent multiplayer, online play, customization, shops, campaigns, upgrades, or extra modes unless the user explicitly requested them
 - Every feature must be a real implied mechanic from the prompt
 - Prefer concrete verbs and systems: aim, charge, fire, land, dodge, draw, split, ricochet, survive
-- Make it sound like a polished store-quality game pitch without overpromising`
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            temperature: 0.8,
-            max_tokens: 250,
-        });
-
-        let response;
-        try {
-            response = await Promise.race([apiCallPromise, timeoutPromise]);
+- Make it sound like a polished store-quality game pitch without overpromising`,
+                messages: [{ role: 'user', content: prompt }],
+                maxTokens: 250,
+                temperature: 0.8,
+            });
+            spec = { ...fallbackSpec, ...parsed };
         } catch (error) {
             console.warn('[GENERATE SPEC] Falling back after model failure:', error?.message || error);
-            return res.json({
-                success: true,
-                spec: fallbackSpec,
-                fallback: true,
-                warning: error?.message || 'Spec model unavailable',
-            });
-        } finally {
-            if (timeoutId) clearTimeout(timeoutId);
+            usedFallback = true;
+            warning = error?.message || 'Spec model unavailable';
         }
 
-        const aiResponse = response.choices[0]?.message?.content || '{}';
-        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-        let spec = fallbackSpec;
-        if (jsonMatch) {
-            try {
-                spec = {
-                    ...fallbackSpec,
-                    ...JSON.parse(jsonMatch[0]),
-                };
-            } catch (parseError) {
-                console.warn('[GENERATE SPEC] Model returned invalid JSON; using fallback spec:', parseError?.message || parseError);
-            }
-        }
-
-        res.json({ 
-            success: true, 
-            spec
+        res.json({
+            success: true,
+            spec,
+            ...(usedFallback ? { fallback: true, warning } : {}),
         });
 
     } catch (error) {
@@ -8161,20 +8007,11 @@ router.post('/interpret-edit', async (req, res) => {
                 content: String((m && (m.content ?? m.text)) || '').slice(0, 800),
             }))
             .filter((m) => m.content);
-        const nvidiaClient = createNvidiaTextClient();
-
-        const timeoutPromise = new Promise((_, reject) => {
-            // 18s was too tight — the narrativeChat model intermittently timed out on
-            // remixes and dropped to the keyword fallback. 30s before degrading.
-            setTimeout(() => reject(new Error('Edit interpretation timed out')), 30000);
-        });
-
-        const apiCallPromise = nvidiaClient.chat.completions.create({
-            model: DREAM_MODELS.narrativeChat,
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are the in-chat edit assistant inside GameTok's Dream Forge. You are having a short, friendly CONVERSATION with a user who wants to change their EXISTING game. Talk like a sharp, encouraging game-dev buddy: actually react to what they say — answer their questions, riff with them, confirm, or ask ONE clarifying question. Never invent a brand-new game.
+        let intent = fallback;
+        let usedFallback = false;
+        try {
+            const parsed = await callDeepSeekFlashJson({
+                systemPrompt: `You are the in-chat edit assistant inside GameTok's Dream Forge. You are having a short, friendly CONVERSATION with a user who wants to change their EXISTING game. Talk like a sharp, encouraging game-dev buddy: actually react to what they say — answer their questions, riff with them, confirm, or ask ONE clarifying question. Never invent a brand-new game.
 
 Return ONLY valid JSON in this exact format:
 {
@@ -8192,55 +8029,35 @@ Rules:
 - Use the conversation so far for context and build the edit up across turns.
 - If the request is clear, needsClarification=false and question=null.
 - For vague background requests, ask what style they want and offer chips like Original, Match the game, Neon, Space, Surprise me.
-- No generic feature bullets. finalInstruction must be direct and specific for the edit model.`
-                },
-                {
-                    role: 'system',
-                    content: `GAME CONTEXT — title: "${gameTitle || 'Untitled'}", current state: "${currentSummary || 'a generated mobile game'}". Keep every edit faithful to THIS game.`,
-                },
-                ...historyMessages,
-                {
-                    role: 'user',
-                    content: String(instructions),
-                },
-            ],
-            temperature: 0.5,
-            max_tokens: 450,
-        });
+- No generic feature bullets. finalInstruction must be direct and specific for the edit model.
 
-        let response;
-        try {
-            response = await Promise.race([apiCallPromise, timeoutPromise]);
+GAME CONTEXT — title: "${gameTitle || 'Untitled'}", current state: "${currentSummary || 'a generated mobile game'}". Keep every edit faithful to THIS game.`,
+                messages: [
+                    ...historyMessages,
+                    { role: 'user', content: String(instructions) },
+                ],
+                maxTokens: 450,
+                temperature: 0.5,
+            });
+            intent = {
+                ...fallback,
+                ...parsed,
+                reply: parsed.reply ? String(parsed.reply).slice(0, 400) : fallback.reply,
+                summary: String(parsed.summary || fallback.summary).slice(0, 100),
+                finalInstruction: String(parsed.finalInstruction || fallback.finalInstruction).slice(0, 2000),
+                needsClarification: Boolean(parsed.needsClarification),
+                question: parsed.question ? String(parsed.question).slice(0, 180) : null,
+                suggestions: Array.isArray(parsed.suggestions)
+                    ? parsed.suggestions.map((item) => String(item).slice(0, 32)).filter(Boolean).slice(0, 6)
+                    : fallback.suggestions,
+                confidence: ['high', 'medium', 'low'].includes(parsed.confidence) ? parsed.confidence : fallback.confidence,
+            };
         } catch (error) {
             console.warn('[INTERPRET EDIT] Falling back after model failure:', error?.message || error);
-            return res.json({ success: true, intent: fallback, fallback: true });
+            usedFallback = true;
         }
 
-        const aiResponse = response.choices[0]?.message?.content || '{}';
-        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-        let intent = fallback;
-        if (jsonMatch) {
-            try {
-                const parsed = JSON.parse(jsonMatch[0]);
-                intent = {
-                    ...fallback,
-                    ...parsed,
-                    reply: parsed.reply ? String(parsed.reply).slice(0, 400) : fallback.reply,
-                    summary: String(parsed.summary || fallback.summary).slice(0, 100),
-                    finalInstruction: String(parsed.finalInstruction || fallback.finalInstruction).slice(0, 2000),
-                    needsClarification: Boolean(parsed.needsClarification),
-                    question: parsed.question ? String(parsed.question).slice(0, 180) : null,
-                    suggestions: Array.isArray(parsed.suggestions)
-                        ? parsed.suggestions.map((item) => String(item).slice(0, 32)).filter(Boolean).slice(0, 6)
-                        : fallback.suggestions,
-                    confidence: ['high', 'medium', 'low'].includes(parsed.confidence) ? parsed.confidence : fallback.confidence,
-                };
-            } catch (parseError) {
-                console.warn('[INTERPRET EDIT] Model returned invalid JSON; using fallback:', parseError?.message || parseError);
-            }
-        }
-
-        res.json({ success: true, intent });
+        res.json({ success: true, intent, ...(usedFallback ? { fallback: true } : {}) });
     } catch (error) {
         console.error('[INTERPRET EDIT] Error:', error);
         res.status(500).json({ error: error.message || 'Edit interpretation failed' });
@@ -8262,13 +8079,13 @@ router.post('/refine-spec', async (req, res) => {
             return res.status(400).json({ error: "userMessage is required" });
         }
 
-        const nvidiaClient = createNvidiaTextClient();
+        const historyMessages = conversationHistory.map(msg => ({
+            role: msg.role === 'ai' ? 'assistant' : 'user',
+            content: msg.content,
+        }));
 
-        // Build conversation messages
-        const messages = [
-            {
-                role: 'system',
-                content: `You are a game design assistant helping refine a game concept through conversation.
+        const result = await callDeepSeekFlashJson({
+            systemPrompt: `You are a game design assistant helping refine a game concept through conversation.
 
 Your job is to:
 1. Analyze the conversation history and the user's latest message
@@ -8293,39 +8110,11 @@ Rules for deciding readiness:
 - If critical details are missing (genre, mechanics, goal, etc.) → ready=false, ask specific question
 - If the user says "that's good" or "let's build it" → ready=true
 - Keep questions focused and specific
-- Update the spec with each iteration based on new info`
-            },
-            ...conversationHistory.map(msg => ({
-                role: msg.role === 'ai' ? 'assistant' : 'user',
-                content: msg.content
-            })),
-            {
-                role: 'user',
-                content: userMessage
-            }
-        ];
-
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Refinement timed out')), 25000);
-        });
-
-        const apiCallPromise = nvidiaClient.chat.completions.create({
-            model: DREAM_MODELS.narrativeChat,
-            messages,
+- Update the spec with each iteration based on new info`,
+            messages: [...historyMessages, { role: 'user', content: userMessage }],
+            maxTokens: 400,
             temperature: 0.7,
-            max_tokens: 400,
         });
-
-        const response = await Promise.race([apiCallPromise, timeoutPromise]);
-
-        const aiResponse = response.choices[0]?.message?.content || '{}';
-        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-        
-        if (!jsonMatch) {
-            throw new Error('AI did not return valid JSON');
-        }
-
-        const result = JSON.parse(jsonMatch[0]);
 
         // Ensure the response has the required structure
         if (typeof result.ready !== 'boolean') {

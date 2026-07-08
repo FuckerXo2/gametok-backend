@@ -5,7 +5,8 @@
 // - Fixed dimensions, single-file output via Vite
 
 import { getCatalog, getAssetsByTheme, getDiverseSample, selectGameAssets } from './load-catalog.js';
-import { findRelevantPacks } from './embedding-search.js';
+import { findRelevantPacks, recallCandidatePacks } from './embedding-search.js';
+import { selectPacksWithModel } from './asset-selection.js';
 
 /**
  * Detect the intended camera orientation from the prompt so we only surface correctly-oriented art
@@ -156,11 +157,31 @@ function formatAssetsForPrompt(assets) {
 }
 
 export async function buildClaudeStylePrompt(userPrompt) {
-    const orientation = detectOrientation(userPrompt);
+    // Asset selection, three tiers (each is a fallback for the one above):
+    //   1. Model-in-the-loop: embedding RECALLS a wide candidate net, a fast reasoning model SELECTS
+    //      the packs + orientation this game actually needs (prevention — the smart model decides).
+    //   2. Embedding rank only: if the selection model is unavailable/failed, use cosine top-8.
+    //   3. Regex keywords: if embeddings themselves are unavailable.
+    let relevantPacks = [];
+    let orientation = null;
 
-    // Semantic search: embed the user prompt and find the most relevant asset packs.
-    // Falls back to the old regex keywords if embeddings are unavailable.
-    const relevantPacks = await findRelevantPacks(userPrompt, 8);
+    const candidates = await recallCandidatePacks(userPrompt, 25);
+    if (candidates.length) {
+        const picked = await selectPacksWithModel({ concept: userPrompt, candidates });
+        if (picked && !picked.drawInstead && picked.packs.length) {
+            relevantPacks = picked.packs;
+            orientation = picked.orientation;
+        }
+    }
+
+    // Tier 2: fall back to raw embedding rank if the model didn't return a usable selection.
+    if (!relevantPacks.length) {
+        relevantPacks = await findRelevantPacks(userPrompt, 8);
+    }
+    // Orientation: model's choice wins; otherwise detect from the prompt.
+    if (!orientation) orientation = detectOrientation(userPrompt);
+
+    // Tier 3: regex themes only when embeddings gave us nothing at all.
     const themeKeywords = relevantPacks.length ? [] : extractThemeKeywords(userPrompt);
 
     const grouped = selectGameAssets({ packs: relevantPacks, themes: themeKeywords, orientation, perRole: 14 });
