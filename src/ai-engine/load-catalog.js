@@ -159,20 +159,41 @@ export function selectGameAssets({ themes = [], packs = [], orientation = null, 
 
   const familyKey = (a) => `${a.role}:${(a.localPath || a.url || '').toLowerCase().replace(/[_-]?\d+(\.\w+)?$/, '')}`;
 
-  const grouped = {};
-  for (const role of ROLE_ORDER) {
-    const ranked = all
-      .filter((a) => a.role === role && matchesFilter(a) && matchesOrient(a))
-      .sort((x, y) => rank(x) - rank(y));
-    const seen = new Set();
-    const picks = [];
+  // Dedup near-duplicate variants, append onto `picks`, stop at perRole. Mutates seen/picks.
+  const takeFrom = (ranked, seen, picks) => {
     for (const a of ranked) {
+      if (picks.length >= perRole) break;
       const k = familyKey(a);
       if (seen.has(k)) continue;
       seen.add(k);
       picks.push(a);
-      if (picks.length >= perRole) break;
     }
+  };
+
+  // Gameplay roles the model NEEDS to build a coherent game. If orientation filtering empties one of
+  // these, we'd starve the model into inventing off-theme art (e.g. a diving prompt matched the right
+  // pirate/nautical packs, but every ship is `side` orientation, so a top_down filter left vehicle +
+  // character empty and the model fell back to leftover space-shooter props). So: keep orientation
+  // strict when it yields enough, but backfill from the SAME theme/pack pool ignoring orientation when
+  // a gameplay role comes up short. A slightly-wrong-angle on-theme sprite beats an off-theme one.
+  const GAMEPLAY_ROLES = new Set(['vehicle', 'character', 'ground', 'obstacle', 'pickup', 'projectile']);
+  const MIN_PER_GAMEPLAY_ROLE = 3;
+
+  const grouped = {};
+  for (const role of ROLE_ORDER) {
+    const themed = all.filter((a) => a.role === role && matchesFilter(a));
+    const strict = themed.filter(matchesOrient).sort((x, y) => rank(x) - rank(y));
+
+    const seen = new Set();
+    const picks = [];
+    takeFrom(strict, seen, picks);
+
+    // Backfill starved gameplay roles from the same on-theme pool, relaxing orientation only.
+    if (GAMEPLAY_ROLES.has(role) && picks.length < MIN_PER_GAMEPLAY_ROLE) {
+      const relaxed = themed.filter((a) => !matchesOrient(a)).sort((x, y) => rank(x) - rank(y));
+      takeFrom(relaxed, seen, picks);
+    }
+
     if (picks.length) grouped[role] = picks;
   }
   return grouped;
