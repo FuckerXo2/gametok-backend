@@ -57,13 +57,25 @@ function cosine(a, b) {
  * @param {number} topK - Number of packs to return (default 8)
  * @returns {Promise<string[]>} Pack names ranked by relevance, or [] on failure
  */
+// The client sends a compound "<raw idea>\n\nTitle: ...\nDescription: ...\nFeatures: ..." block.
+// Features is often generic UX boilerplate ("tap-friendly controls", "mobile-first pacing") that's
+// near-identical across every game regardless of genre — for terse prompts it can outweigh the one
+// genre word in the text and drown out the real signal (reproduced: "1v1 basketball..." lost Sports
+// Pack entirely with Features included, but Sports Pack -> #3 once Features was stripped). Title and
+// Description carry real signal (Description is usually the raw idea restated); Features doesn't.
+function stripFeaturesBoilerplate(prompt) {
+  const idx = prompt.search(/\n\s*Features:/i);
+  return idx === -1 ? prompt : prompt.slice(0, idx);
+}
+
 export async function findRelevantPacks(prompt, topK = 8) {
   const data = loadPackEmbeddings();
   const c = getClient();
   if (!data || !c) return [];
 
   try {
-    const result = await c.embeddings.create({ model: MODEL, input: prompt });
+    const query = stripFeaturesBoilerplate(prompt);
+    const result = await c.embeddings.create({ model: MODEL, input: query });
     const queryVec = result.data[0].embedding;
 
     const scored = data.packs.map(p => ({
