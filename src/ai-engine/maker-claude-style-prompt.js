@@ -188,11 +188,12 @@ export async function buildClaudeStylePrompt(userPrompt) {
     let entities = [];
     let plan = null;
 
-    // Design + pack recall are both driven by the raw concept and can run in parallel.
-    const [plannedResult, candidates] = await Promise.all([
-        designGamePlan(userPrompt),
-        recallCandidatePacks(userPrompt, 25),
-    ]);
+    // Recall runs first (no LLM, fast) so the design step can see what art is actually available.
+    // Otherwise the plan speculates in the abstract and can pick an orientation the catalog can't
+    // fulfil (reproduced: basketball plan said "side" while all our Sports Pack art is top-down —
+    // hoop got starved out by the orientation filter downstream).
+    const candidates = await recallCandidatePacks(userPrompt, 25);
+    const plannedResult = await designGamePlan(userPrompt, { availablePacks: candidates });
     if (plannedResult) {
         plan = plannedResult;
         entities = plan.entities;

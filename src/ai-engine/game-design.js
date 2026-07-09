@@ -20,15 +20,23 @@ import { isDeepSeekPrimaryEnabled, callDeepSeekFlashJson } from './deepseek-text
 
 const DESIGN_MODEL = process.env.GAMETOK_DESIGN_MODEL || 'deepseek-v4-flash';
 
-const SYSTEM = `You are a senior mobile game designer. Given a game concept (a one-line idea from a user),
-produce a concrete, buildable design plan. The plan will drive both asset retrieval and code
-generation, so it must be specific enough that a builder could implement it without asking questions.
+const SYSTEM = `You are a senior mobile game designer. Given a game concept (a one-line idea from a user)
+AND a shortlist of candidate asset packs that are actually available, produce a concrete design plan
+GROUNDED IN THE AVAILABLE ART. The plan will drive both asset retrieval and code generation, so it
+must be specific enough that a builder could implement it without asking questions.
 
 Think like a designer for a 15-second-to-fun TikTok-style vertical mobile game:
 - The game runs in a vertical portrait window, plays with touch (drag + tap only, no keyboard).
 - It should feel complete in seconds — a clear goal, immediate feedback, a satisfying loop.
 - Choose ONE tight core loop. Do NOT invent extra modes, multiplayer, upgrades, or shops.
 - Every entity you list must appear on screen. Do NOT list HUD/UI text or sound as entities.
+
+CRITICAL — orientation MUST match the packs you can use:
+- The candidate packs listed for you note their "Perspective" (top_down, side, isometric, or various).
+- Pick the orientation that matches the packs most relevant to the concept. If the relevant packs
+  are top-down, DO NOT design a side-view game — the art will not fit and the game will look broken.
+- Only pick "side" if a side-view pack genuinely fits the concept (a platformer, a shot-arc game
+  where the target is above the player, etc.). Prefer top_down when in doubt.
 
 Return ONLY JSON, no prose, no markdown fences:
 {
@@ -44,6 +52,10 @@ Return ONLY JSON, no prose, no markdown fences:
 
 /**
  * @param {string} concept - the raw game concept from the user
+ * @param {{availablePacks?: {pack: string, text: string}[]}} [opts]
+ *   availablePacks: candidate pack summaries (from recallCandidatePacks) so the plan is grounded in
+ *   what art actually exists. If omitted, plans blind (worse quality — orientation may not match
+ *   available assets).
  * @returns {Promise<null | {
  *   coreLoop: string,
  *   orientation: 'top_down'|'side'|'isometric',
@@ -55,12 +67,18 @@ Return ONLY JSON, no prose, no markdown fences:
  *   hud: string[],
  * }>} the plan, or null on failure (caller falls back to shallow entity listing)
  */
-export async function designGamePlan(concept) {
+export async function designGamePlan(concept, { availablePacks = [] } = {}) {
   if (!isDeepSeekPrimaryEnabled()) return null;
   try {
+    // Feed the top candidate packs into the user message so the model plans against real art.
+    // Cap at 12 to keep the prompt tight — recall's top-12 covers the meaningful signal without
+    // wallpapering the design step with noise from long-tail low-relevance matches.
+    const packBlock = availablePacks.length
+      ? `\n\nCANDIDATE ASSET PACKS (this is the art you can use — plan for what's actually here):\n${availablePacks.slice(0, 12).map((p, i) => `${i + 1}. ${p.text}`).join('\n')}`
+      : '';
     const parsed = await callDeepSeekFlashJson({
       systemPrompt: SYSTEM,
-      messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}` }],
+      messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}${packBlock}` }],
       maxTokens: 1200,
       temperature: 0.4,
       model: DESIGN_MODEL,
