@@ -156,11 +156,22 @@ export function selectGameAssets({ themes = [], packs = [], orientation = null, 
   const JUNK_PACK = /axonometric|block pack|prototype|development essentials|pattern pack|letter tiles|abstract platformer|shape characters/i;
   const isJunk = (a) => JUNK_PACK.test(a.pack || '')
     || /abstracttile|prototype|placeholder|blank|patternpack/i.test(a.localPath || '');
+  // A description like "element (64)" or "tile 0000" just echoes the raw filename — it carries zero
+  // semantic info, vs a real label like "basketball hoop and backboard (orange rim)". Without this,
+  // rank() ties every generically-named item in a pack, and the perRole=14 cap silently keeps
+  // whichever 14 happen to sort first alphabetically (e.g. "element (1)", "(10)", "(11)"...) —
+  // starving out the ONE specifically-labeled item (the hoop) that a game actually needs. Reproduced:
+  // a basketball prompt correctly picked Sports Pack (Flash inferred "hoop, backboard, ball" from the
+  // pack summary) but the actual prompt shown to the generator never contained the hoop — 14 numbered
+  // filler elements crowded it out first.
+  const GENERIC_NAME = /\(\d+\)\s*$|\b\d{3,4}\s*$/;
+  const isGenericallyNamed = (a) => GENERIC_NAME.test(String(a.description || '').split('—')[0].trim());
   const rank = (a) => {
     let r = 0;
     if (isJunk(a)) r += 1000;
     r += (a.source === 'kenney2d' ? 0 : 20);
     r += (a.orientation === orientation ? 0 : 10);
+    if (isGenericallyNamed(a)) r += 3; // real labels win ties within the same pack/role
     if (hasPackFilter) r += packRelevanceBonus(a); // ordered: best pack's assets win ties
     if (hasThemeFilter && (a.theme || []).some((t) => themeSet.has(t.toLowerCase()))) r -= 5;
     return r;

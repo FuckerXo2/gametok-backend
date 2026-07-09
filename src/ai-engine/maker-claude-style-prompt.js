@@ -6,7 +6,8 @@
 
 import { getCatalog, getAssetsByTheme, getDiverseSample, selectGameAssets } from './load-catalog.js';
 import { findRelevantPacks, recallCandidatePacks } from './embedding-search.js';
-import { selectPacksWithModel } from './asset-selection.js';
+import { selectPacksWithModel, listRequiredEntities } from './asset-selection.js';
+import { retrieveAssetsForEntities } from './asset-retrieval.js';
 
 /**
  * Detect the intended camera orientation from the prompt so we only surface correctly-oriented art
@@ -157,16 +158,39 @@ function formatAssetsForPrompt(assets) {
   return output;
 }
 
+// Fold flat entity-retrieval matches into the same {role: [...]} shape selectGameAssets() returns,
+// so formatGroupedAssets() (role headers, per-role setDisplaySize sizing) works unchanged either way.
+function groupByRole(assets, perRole) {
+    const grouped = {};
+    for (const a of assets) {
+        if (!a.role) continue;
+        (grouped[a.role] ||= []).push(a);
+    }
+    for (const role of Object.keys(grouped)) grouped[role] = grouped[role].slice(0, perRole);
+    return grouped;
+}
+
 export async function buildClaudeStylePrompt(userPrompt) {
-    // Asset selection, three tiers (each is a fallback for the one above):
-    //   1. Model-in-the-loop: embedding RECALLS a wide candidate net, a fast reasoning model SELECTS
-    //      the packs + orientation this game actually needs (prevention — the smart model decides).
+    // Asset selection tiers (each is a fallback for the one above):
+    //   0. Entity-level RAG: list the concrete visual entities this game needs ("basketball hoop",
+    //      "player character"...) and search for each DIRECTLY against per-item embeddings. This is
+    //      the real fix for "the hoop got crowded out by 13 generic siblings" — tier 1's perRole cap
+    //      picks by pack/role bucket with no per-item relevance signal, so a specific item can lose a
+    //      coin-flip tie against generic filler from the same pack. Entity search sidesteps that: you
+    //      ask for a hoop, you get a hoop, regardless of what bucket it's filed under.
+    //   1. Model-in-the-loop pack selection: embedding RECALLS a wide candidate net, a fast model
+    //      SELECTS the packs + orientation this game needs — also feeds tier 0's pack-affinity bias.
     //   2. Embedding rank only: if the selection model is unavailable/failed, use cosine top-8.
     //   3. Regex keywords: if embeddings themselves are unavailable.
     let relevantPacks = [];
     let orientation = null;
 
-    const candidates = await recallCandidatePacks(userPrompt, 25);
+    // Tier 1 (pack selection) and entity listing both only need the raw prompt — run in parallel.
+    const [candidates, entities] = await Promise.all([
+        recallCandidatePacks(userPrompt, 25),
+        listRequiredEntities(userPrompt),
+    ]);
+
     if (candidates.length) {
         const picked = await selectPacksWithModel({ concept: userPrompt, candidates });
         if (picked && !picked.drawInstead && picked.packs.length) {
@@ -174,18 +198,32 @@ export async function buildClaudeStylePrompt(userPrompt) {
             orientation = picked.orientation;
         }
     }
-
-    // Tier 2: fall back to raw embedding rank if the model didn't return a usable selection.
     if (!relevantPacks.length) {
-        relevantPacks = await findRelevantPacks(userPrompt, 8);
+        relevantPacks = await findRelevantPacks(userPrompt, 8); // tier 2
     }
-    // Orientation: model's choice wins; otherwise detect from the prompt.
     if (!orientation) orientation = detectOrientation(userPrompt);
+    const themeKeywords = relevantPacks.length ? [] : extractThemeKeywords(userPrompt); // tier 3
 
-    // Tier 3: regex themes only when embeddings gave us nothing at all.
-    const themeKeywords = relevantPacks.length ? [] : extractThemeKeywords(userPrompt);
+    // Tier 0: entity retrieval, biased toward the pack(s) tier 1 identified (visual coherence —
+    // a basketball player from Sports Pack over an equally-plausible generic CDN humanoid — gated so
+    // the bias can't force a genuinely wrong item just because it shares a pack, see asset-retrieval.js).
+    let grouped = {};
+    if (entities.length) {
+        const results = await retrieveAssetsForEntities(entities, { topKPerEntity: 4, orientation, preferPacks: relevantPacks });
+        const flat = [];
+        const seen = new Set();
+        for (const r of results) for (const m of r.matches) {
+            if (seen.has(m.id)) continue;
+            seen.add(m.id);
+            flat.push(m);
+        }
+        if (flat.length) grouped = groupByRole(flat, 10);
+    }
 
-    const grouped = selectGameAssets({ packs: relevantPacks, themes: themeKeywords, orientation, perRole: 14 });
+    // Fallback to pack/role-bucket selection if entity retrieval found nothing usable.
+    if (!Object.keys(grouped).length) {
+        grouped = selectGameAssets({ packs: relevantPacks, themes: themeKeywords, orientation, perRole: 14 });
+    }
     const assetList = Object.keys(grouped).length
       ? formatGroupedAssets(grouped)
       : formatAssetsForPrompt(themeKeywords.length ? getAssetsByTheme(themeKeywords, 100) : getDiverseSample(100));

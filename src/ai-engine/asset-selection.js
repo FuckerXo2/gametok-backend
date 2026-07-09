@@ -63,3 +63,46 @@ export async function selectPacksWithModel({ concept, candidates }) {
     return null;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PER-ENTITY RETRIEVAL (RAG) — the actual fix for "the hoop got crowded out by 13
+// generic siblings." Instead of picking PACKS and hoping the right ITEM survives the
+// perRole cap downstream, this lists the concrete visual entities the game needs, so
+// each one can be searched for directly (see asset-retrieval.js).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ENTITY_SYSTEM = `You are a game asset director. Given a game concept, list the concrete VISUAL
+entities this specific game needs as sprites — the things a player would actually see on screen.
+
+Rules:
+- Be concrete and specific: "basketball hoop", not "sports equipment". "basketball", not "ball".
+- Include: the player character(s)/vehicle, the ball/weapon/tool they use, the ground/court/track,
+  obstacles or enemies, collectibles, and any distinctive prop the concept implies (a hoop for
+  basketball, a net for volleyball, a shark for a shark-chase game).
+- 4-8 entities. Do not include HUD/UI text, sound, or particle effects — those are code-drawn.
+- Each entity is a short noun phrase (2-4 words), not a sentence.
+
+Return ONLY JSON: {"entities": ["basketball hoop", "basketball", "player character", "court ground", ...]}`;
+
+/**
+ * @param {string} concept - the game concept/prompt
+ * @returns {Promise<string[]>} concrete visual entities, or [] on failure
+ */
+export async function listRequiredEntities(concept) {
+  if (!isDeepSeekPrimaryEnabled()) return [];
+  try {
+    const parsed = await callDeepSeekFlashJson({
+      systemPrompt: ENTITY_SYSTEM,
+      messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}` }],
+      maxTokens: 250,
+      temperature: 0.3,
+      model: SELECTION_MODEL,
+    });
+    const entities = Array.isArray(parsed.entities) ? parsed.entities.filter(e => typeof e === 'string' && e.trim()) : [];
+    console.log(`📋 Required entities (${SELECTION_MODEL}): [${entities.join(', ')}]`);
+    return entities;
+  } catch (err) {
+    console.error('⚠️  Entity listing failed:', err.message);
+    return [];
+  }
+}
