@@ -8,6 +8,7 @@ import { getCatalog, getAssetsByTheme, getDiverseSample, selectGameAssets } from
 import { findRelevantPacks, recallCandidatePacks } from './embedding-search.js';
 import { selectPacksWithModel, listRequiredEntities } from './asset-selection.js';
 import { retrieveAssetsForEntities } from './asset-retrieval.js';
+import { designGamePlan, formatPlanForBuilder } from './game-design.js';
 
 /**
  * Detect the intended camera orientation from the prompt so we only surface correctly-oriented art
@@ -171,31 +172,49 @@ function groupByRole(assets, perRole) {
 }
 
 export async function buildClaudeStylePrompt(userPrompt) {
-    // Asset selection tiers (each is a fallback for the one above):
-    //   0. Entity-level RAG: list the concrete visual entities this game needs ("basketball hoop",
-    //      "player character"...) and search for each DIRECTLY against per-item embeddings. This is
-    //      the real fix for "the hoop got crowded out by 13 generic siblings" — tier 1's perRole cap
-    //      picks by pack/role bucket with no per-item relevance signal, so a specific item can lose a
-    //      coin-flip tie against generic filler from the same pack. Entity search sidesteps that: you
-    //      ask for a hoop, you get a hoop, regardless of what bucket it's filed under.
-    //   1. Model-in-the-loop pack selection: embedding RECALLS a wide candidate net, a fast model
-    //      SELECTS the packs + orientation this game needs — also feeds tier 0's pack-affinity bias.
-    //   2. Embedding rank only: if the selection model is unavailable/failed, use cosine top-8.
-    //   3. Regex keywords: if embeddings themselves are unavailable.
+    // Pipeline (each layer degrades gracefully if the next one up is unavailable):
+    //   -1. DESIGN — Flash produces a real structured plan (core loop, entities, orientation, layout,
+    //       controls, win/lose, HUD) BEFORE we touch assets. Was: no design step at all — the builder
+    //       improvised silently in throwaway reasoning tokens. Now: the plan drives retrieval (search
+    //       for the entities the DESIGN needs, not a shallow guess off the raw prompt) AND is injected
+    //       into the builder's user message so the model executes a design instead of wandering into one.
+    //    0. Entity-level RAG: search per-asset embeddings for each entity the plan named. Fixes
+    //       "the hoop got crowded out" — you ask for a hoop, you get a hoop, regardless of bucket.
+    //    1. Pack selection: embedding recalls candidates, a fast model picks the packs + orientation.
+    //       Also feeds pack-affinity bias into tier 0 for visual coherence.
+    //    2. Embedding rank only, 3. regex keywords: successive fallbacks if the layer above is dead.
     let relevantPacks = [];
     let orientation = null;
+    let entities = [];
+    let plan = null;
 
-    // Tier 1 (pack selection) and entity listing both only need the raw prompt — run in parallel.
-    const [candidates, entities] = await Promise.all([
+    // Design + pack recall are both driven by the raw concept and can run in parallel.
+    const [plannedResult, candidates] = await Promise.all([
+        designGamePlan(userPrompt),
         recallCandidatePacks(userPrompt, 25),
-        listRequiredEntities(userPrompt),
     ]);
+    if (plannedResult) {
+        plan = plannedResult;
+        entities = plan.entities;
+        orientation = plan.orientation;
+    } else {
+        // Design failed — degrade to shallow entity listing (previous behavior).
+        entities = await listRequiredEntities(userPrompt);
+    }
 
     if (candidates.length) {
         const picked = await selectPacksWithModel({ concept: userPrompt, candidates });
         if (picked && !picked.drawInstead && picked.packs.length) {
             relevantPacks = picked.packs;
-            orientation = picked.orientation;
+            // Pack selection's orientation wins over the plan's when both are set. Why: the plan's
+            // orientation is a speculative design call ("basketball is side-view"), but the pack
+            // selection is grounded in what our catalog ACTUALLY has (Sports Pack art is top-down).
+            // A mismatch starves entity retrieval — reproduced: plan said side, pack said top_down,
+            // hoop got filtered out because its orientation was top_down. Prefer the grounded signal.
+            if (picked.orientation && plan?.orientation && picked.orientation !== plan.orientation) {
+                console.log(`⚠️  Plan orientation (${plan.orientation}) disagrees with pack selection (${picked.orientation}) — using pack orientation to stay grounded in available assets.`);
+            }
+            if (picked.orientation) orientation = picked.orientation;
         }
     }
     if (!relevantPacks.length) {
@@ -385,7 +404,7 @@ module.exports = defineConfig({
         user: `Create a complete Phaser 3 game based on this description:
 
 ${userPrompt}
-
+${plan ? '\n' + formatPlanForBuilder(plan) + '\n' : ''}
 Return ONLY valid JSON with the "files" array. No markdown code blocks, no explanation.`
     };
 }
