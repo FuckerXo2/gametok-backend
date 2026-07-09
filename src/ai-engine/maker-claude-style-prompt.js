@@ -33,8 +33,9 @@ const assetKey = (a) => (a.url || '').replace(R2_BASE_URL, '') || a.localPath;
 
 // Native pixel sizes across the catalog vary wildly within the same role (16px pixel-art next to
 // 512px hi-res packs). Left to the model this produces mismatched scale (a 720px character next to a
-// 12px obstacle). So we compute a fixed ON-SCREEN target per role (390x844 canvas) and hand the model
-// the exact display size to use, instead of asking it to reason about scaling itself.
+// 12px obstacle). So we compute a fixed ON-SCREEN target per role (calibrated to a ~390px-wide
+// portrait phone; real device widths are 390–430px so these hold) and hand the model the exact
+// display size to use, instead of asking it to reason about scaling itself.
 const ROLE_TARGET_PX = {
   vehicle: 56, character: 48, obstacle: 40, pickup: 28, projectile: 16,
   prop: 40, served: 40, ground: 64, background: null, ui: null, audio: null,
@@ -211,12 +212,12 @@ ${assetList}
    - No type annotations
    - No interfaces or type imports
 
-2. **FILL THE PHONE SCREEN — no black bars** - the game runs FULLSCREEN in a mobile feed. It MUST cover the whole screen edge-to-edge.
-   - Design at a fixed portrait base: width: 390, height: 844.
-   - Scale config: \`scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH, width: 390, height: 844 }\`.
-   - **Use ENVELOP, NOT FIT.** FIT letterboxes with black bars; ENVELOP scales up to cover the entire screen. This is mandatory.
+2. **THE CANVAS IS THE REAL SCREEN — fill it, never design to a fixed 390×844 rectangle.** The game runs fullscreen in a mobile feed AND inside a shorter preview box. Designing to a fixed 390×844 and letting Phaser scale/crop it is BANNED: when the real container is a different shape (e.g. the preview is ~390×720), the fixed design gets cropped and your score/buttons at the top and bottom edges are sliced off. Make the canvas equal the actual container and lay everything out from the LIVE size.
+   - Scale config: \`scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }\`. The canvas now equals the real container — nothing is cropped and there are no black bars. Do NOT use ENVELOP or FIT, and do NOT pass a fixed width/height.
+   - **NEVER hardcode 390 or 844.** Read the live size wherever you position things: \`const W = this.scale.width, H = this.scale.height;\`. Place everything as a fraction of W/H — screen center is \`W/2, H/2\`; a bottom button sits at \`H - H*0.10\`, not \`844 - 84\`.
+   - Put ALL positioning inside one \`layout(W, H)\` method, call it once at the end of create(), and re-run it on resize so it adapts to preview vs full screen: \`this.scale.on('resize', (s) => this.layout(s.width, s.height));\`. Any background/tileSprite must be sized to W×H and resized here too.
+   - **SAFE AREA — MANDATORY. This is what stops your HUD getting cut off.** The extreme top and bottom of the screen sit under the status bar/notch and home indicator, and the preview box is shorter still. Every HUD element, score, timer, and button MUST have its center inside \`y ∈ [H*0.10, H*0.90]\` and \`x ∈ [W*0.05, W*0.95]\`. Full-bleed background art may reach the edges; TEXT and CONTROLS may NOT touch the extreme top/bottom edges.
    - In index.html set \`html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}\` and the canvas/parent fill 100%.
-   - Keep the player, HUD and key gameplay near the CENTER so ENVELOP's slight edge-crop never hides them.
 
 3. **RENDER THE REAL SPRITES — this is the #1 rule** - The assets in "AVAILABLE ASSETS" are the whole point. LOAD them AND DISPLAY them.
    - Every core visible object MUST be a loaded catalog image, shown with \`this.add.image(...)\` / \`this.add.sprite(...)\` / \`this.physics.add.sprite(...)\`: the **background/track**, the **player**, every **collectible**, every **obstacle/enemy**.
@@ -327,18 +328,18 @@ module.exports = defineConfig({
   - Use \`this.input.addPointer(2)\` if you need multi-touch (move + shoot at once).
 - **ANIMATIONS**: Use spritesheet animations for characters (walk, idle, attack, death)
 - Load all assets from the R2 CDN: https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/
-- Fixed game dimensions (390x844 for mobile portrait)
+- Responsive portrait: canvas fills the real container via Scale.RESIZE; lay out from live this.scale.width/height (do not assume 390×844)
 - **POLISH**: Particle effects, screen shake, sound effects, smooth tweens
 - **JUICE**: Add visual feedback for every action (hit flash, score popups, damage numbers)
 
 # REMEMBER
 
 - **TOUCH-FIRST**: fully playable with drag + tap alone (pointermove/pointerdown), NOT keyboard-only. WASD-only = broken.
-- **FULLSCREEN**: Phaser.Scale.ENVELOP (fills the phone, no black bars), NOT FIT. body margin:0, overflow:hidden.
+- **FULLSCREEN**: Phaser.Scale.RESIZE (canvas = the real container, no crop, no black bars), NOT ENVELOP/FIT. body margin:0, overflow:hidden.
+- **LIVE SIZE, SAFE AREA**: read \`this.scale.width/height\`, never hardcode 390/844; keep all HUD + buttons inside y ∈ [H*0.10, H*0.90] so nothing gets cut off in the shorter preview box.
 - **SHOW THE LOADED SPRITES** — background, player, coins, obstacles are catalog images, NOT drawn shapes. No grids, no bare rectangles for gameplay objects.
 - **SIZE THEM** — call \`setDisplaySize(W, H)\` using the exact numbers given per asset, and \`body.setSize(W, H)\` to match on every physics sprite. Never render at native pixel size.
 - Use JavaScript (.js) NOT TypeScript
-- 390x844 portrait base design (with ENVELOP scaling to fill)
 - All assets from CDN
 - Pure Phaser 3 code
 - Return valid JSON only`,
