@@ -343,15 +343,17 @@ app.post('/api/admin/assign-avatars', async (req, res) => {
 
 // Admin endpoint to regenerate all AI game thumbnails
 app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
-  const { limit, dryRun } = req.body;
-  
+  const { limit, dryRun, force } = req.body;
+
   try {
     // Import the regeneration logic
     const { generateAndApplyCover, deleteCoverAsset } = await import('./cover-art.js');
-    
+
     // Get all AI-generated games that need new thumbnails
+    // With force=true, regenerate ALL games regardless of current thumbnail URL
+    // (use when R2 files have been deleted but DB still points to them)
     const query = `
-      SELECT 
+      SELECT
         id as draft_id,
         title,
         prompt,
@@ -363,9 +365,9 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
         classification_tags,
         discovery_chips
       FROM ai_games
-      WHERE is_draft = FALSE 
+      WHERE is_draft = FALSE
         AND html_payload != ''
-        AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '%r2.dev/covers/%')
+        ${force ? '' : `AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '%r2.dev/covers/%')`}
       ORDER BY created_at DESC
       ${limit ? `LIMIT ${limit}` : ''}
     `;
