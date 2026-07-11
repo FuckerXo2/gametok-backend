@@ -396,8 +396,10 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
       totalGames: games.length
     });
 
-    // Process ALL in parallel (no rate limiting)
-    const promises = games.map(async (game) => {
+    // Process in small batches — Stable Horde's anonymous key gets low
+    // priority and chokes under high concurrency.
+    const REGEN_CONCURRENCY = 3;
+    const processGame = async (game) => {
       try {
         if (!game.prompt) {
           skippedCount++;
@@ -442,10 +444,12 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
         failCount++;
         console.error(`[thumbnail-regen] ❌ ${game.title}:`, error.message);
       }
-    });
+    };
 
-    // Wait for all to complete
-    await Promise.all(promises);
+    for (let i = 0; i < games.length; i += REGEN_CONCURRENCY) {
+      const batch = games.slice(i, i + REGEN_CONCURRENCY);
+      await Promise.all(batch.map(processGame));
+    }
 
     console.log(`[thumbnail-regen] Complete: ${successCount} success, ${failCount} failed, ${skippedCount} skipped`);
 
