@@ -1,15 +1,8 @@
 /**
- * Cover art generation via NVIDIA NIM FLUX.1-schnell.
+ * Cover art generation pipeline.
  *
- * Generates rich illustrated cover art for AI-published games.
- * Falls back gracefully to existing screenshot thumbnails when the model
- * is unavailable, rate-limited, or returns invalid output.
- *
- * Pipeline:
- *  1. Build a rich prompt from (title, original idea prompt, classification).
- *  2. POST to https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell
- *  3. Decode base64 JPEG → save to /public/uploads/covers/<gameId>.jpg
- *  4. Update ai_games.thumbnail and games.thumbnail with /uploads/covers/<gameId>.jpg
+ * Primary:   Stable Horde (free, community GPU) → R2
+ * Fallback:  Hugging Face Inference API SDXL → R2
  *
  * Designed to run async / fire-and-forget so we never block publish.
  */
@@ -19,7 +12,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pkg from 'pg';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { maskNvidiaKey, nextNvidiaImageApiKey } from './ai-engine/nvidia-key-pool.js';
 
 const { Pool } = pkg;
 
@@ -39,7 +31,9 @@ const s3Client = new S3Client({
 const COVER_ROOT = path.join(__dirname, '../public/uploads/covers');
 fs.mkdirSync(COVER_ROOT, { recursive: true });
 
-const NVIDIA_FLUX_URL = 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell';
+const STABLE_HORDE_URL = 'https://stablehorde.net/api/v2/generate/async';
+const STABLE_HORDE_APIKEY = process.env.STABLE_HORDE_APIKEY || '0000000000'; // anonymous key works
+const HF_MODEL_URL = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
 
 // --- Prompt engineering -----------------------------------------------------
 
@@ -153,27 +147,24 @@ Subcategory: ${classification?.subcategory || 'none'}
 Tags: ${classification?.tags?.join(', ') || 'none'}
 
 Based on this game's unique characteristics, create a detailed image generation prompt that includes:
-1. How the title text should appear (style, effects, mood-appropriate typography)
-2. The specific art style that matches this game's theme and mechanics
-3. The composition, camera angle, and focal points
-4. Color palette and lighting that fits the mood
-5. Specific visual elements that represent the game's core concept
-6. The overall aesthetic intensity and appeal
+1. The specific art style that matches this game's theme and mechanics
+2. The composition, camera angle, and focal points
+3. Color palette and lighting that fits the mood
+4. Specific visual elements that represent the game's core concept
+5. The overall aesthetic intensity and appeal
 
 Make it vibrant, eye-catching, and perfectly matched to THIS specific game. The prompt should be 150-250 words and create a portrait-oriented mobile game promotional poster.
+
+CRITICAL: The image must contain ZERO text, ZERO letters, ZERO words, ZERO title, ZERO logo, ZERO UI, ZERO HUD. Pure imagery only. End the prompt with the phrase: "no text, no letters, no words, no typography, no title text, no logo, no watermark, no UI".
 
 Return ONLY the image generation prompt, no explanations or meta-commentary.`;
 
     try {
-        // Use the lightweight text model for concise visual cover prompts.
-        const nvidiaClient = await import('openai').then(m => m.default);
-        const client = new nvidiaClient({
-            baseURL: 'https://integrate.api.nvidia.com/v1',
-            apiKey: process.env.NVIDIA_API_KEY,
-        });
+        const OpenAI = await import('openai').then(m => m.default);
+        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
         const response = await client.chat.completions.create({
-            model: 'meta/llama-3.3-70b-instruct',
+            model: 'gpt-4o-mini',
             messages: [{ role: 'user', content: analysisPrompt }],
             temperature: 0.8,
             max_tokens: 500,
@@ -248,78 +239,109 @@ function buildFallbackPrompt({ title, prompt, classification }) {
     })();
 
     return [
-        `High-end mobile game promotional poster for "${titleText}".`,
-        `Title displayed at top in ${textStyle}.`,
+        `High-end mobile game key art illustration for a game called "${titleText}".`,
         `Art style: ${styleHint}, ${mediumHint}.`,
         `${cameraHint}, featuring ${subjectLine}.`,
         tagHint ? `Themes: ${tagHint}.` : '',
         `Aesthetic: ${intensityLevel}, professional app-store quality.`,
         'Portrait composition, eye-catching, clear focal point.',
+        'No text, no letters, no words, no typography, no title text, no logo, no watermark, no UI.',
     ].filter(Boolean).join(' ');
 }
 
 /**
- * Build a rich, descriptive prompt for FLUX.1-schnell.
- * Now uses AI to generate truly adaptive prompts.
+ * Build a rich, descriptive prompt for image generation.
+ * Uses AI (gpt-4o-mini) to generate truly adaptive prompts.
  */
 export async function buildCoverPrompt({ title, prompt, classification }) {
     return await generateAdaptiveThumbnailPrompt({ title, prompt, classification });
 }
 
-// --- NVIDIA call ------------------------------------------------------------
+// --- Stable Horde (primary, free) -------------------------------------------
 
-/**
- * Calls FLUX.1-schnell. Returns Buffer (JPEG) or null on failure.
- * Portrait dimensions 832x1216 fit our portrait card aspect (≈11:14).
- */
-async function callFluxSchnell(prompt, { width = 832, height = 1216, seed = 0, steps = 4 } = {}) {
-    const nvidiaKey = nextNvidiaImageApiKey();
-    if (!nvidiaKey) {
-        throw new Error('NVIDIA_API_KEY is not configured');
-    }
-
-    const body = {
-        prompt,
-        width,
-        height,
-        cfg_scale: 0,
-        mode: 'base',
-        samples: 1,
-        seed: seed || Math.floor(Math.random() * 4_000_000_000),
-        steps,
-    };
-
-    const res = await fetch(NVIDIA_FLUX_URL, {
+async function callStableHorde(prompt, { width = 832, height = 1216 } = {}) {
+    // Submit job
+    const submitRes = await fetch(STABLE_HORDE_URL, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${nvidiaKey}`,
-            'Accept': 'application/json',
             'Content-Type': 'application/json',
+            'apikey': STABLE_HORDE_APIKEY,
+            'Client-Agent': 'gametok:1.0:gametok.co',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+            prompt,
+            params: {
+                width,
+                height,
+                steps: 25,
+                cfg_scale: 7,
+                sampler_name: 'k_euler_a',
+                karras: true,
+            },
+            models: ['stable_diffusion_xl'],
+            r2: false,
+            nsfw: false,
+            censor_nsfw: true,
+        }),
+    });
+
+    if (!submitRes.ok) {
+        const t = await submitRes.text().catch(() => '');
+        throw new Error(`StableHorde submit ${submitRes.status}: ${t.slice(0, 200)}`);
+    }
+
+    const { id } = await submitRes.json();
+    if (!id) throw new Error('StableHorde: no job id returned');
+
+    // Poll until done (max 3 minutes)
+    const deadline = Date.now() + 3 * 60 * 1000;
+    while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 4000));
+        const checkRes = await fetch(`https://stablehorde.net/api/v2/generate/check/${id}`, {
+            headers: { 'apikey': STABLE_HORDE_APIKEY },
+        });
+        if (!checkRes.ok) continue;
+        const check = await checkRes.json();
+        if (!check.done) continue;
+
+        const statusRes = await fetch(`https://stablehorde.net/api/v2/generate/status/${id}`, {
+            headers: { 'apikey': STABLE_HORDE_APIKEY },
+        });
+        if (!statusRes.ok) throw new Error(`StableHorde status ${statusRes.status}`);
+        const status = await statusRes.json();
+        const gen = status?.generations?.[0];
+        if (!gen?.img) throw new Error('StableHorde: no image in result');
+
+        // img is a URL to the generated image
+        const imgRes = await fetch(gen.img);
+        if (!imgRes.ok) throw new Error(`StableHorde image fetch ${imgRes.status}`);
+        const arr = await imgRes.arrayBuffer();
+        return Buffer.from(arr);
+    }
+
+    throw new Error('StableHorde: timed out after 3 minutes');
+}
+
+// --- Hugging Face SDXL (fallback, free) -------------------------------------
+
+async function callHuggingFace(prompt) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (process.env.HF_TOKEN) headers['Authorization'] = `Bearer ${process.env.HF_TOKEN}`;
+
+    const res = await fetch(HF_MODEL_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            inputs: prompt,
+            parameters: { width: 832, height: 1216 },
+        }),
     });
 
     if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`FLUX ${res.status} ${res.statusText} (${maskNvidiaKey(nvidiaKey)}): ${text.slice(0, 200)}`);
+        const t = await res.text().catch(() => '');
+        throw new Error(`HuggingFace ${res.status}: ${t.slice(0, 200)}`);
     }
 
-    const json = await res.json();
-    const artifact = json?.artifacts?.[0];
-    if (!artifact || artifact.finishReason !== 'SUCCESS' || !artifact.base64) {
-        throw new Error(`FLUX returned non-success artifact (finishReason=${artifact?.finishReason || 'missing'})`);
-    }
-    return Buffer.from(artifact.base64, 'base64');
-}
-
-// --- Pollinations fallback --------------------------------------------------
-
-async function callPollinationsFallback(prompt) {
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=832&height=1216&nologo=true&enhance=true&model=flux`;
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`Pollinations ${res.status} ${res.statusText}`);
-    }
     const arr = await res.arrayBuffer();
     return Buffer.from(arr);
 }
@@ -349,59 +371,46 @@ async function saveCoverBuffer(gameId, buffer) {
         }
     }
 
-    // No R2? Use a Pollinations URL directly (survives Railway redeploys)
-    console.warn('[cover-art] R2 not configured, returning Pollinations URL instead of saving locally');
-    return null; // Signal caller to use Pollinations URL
+    console.warn('[cover-art] R2 not configured — cover art requires R2');
+    return null;
 }
 
 // --- Public API -------------------------------------------------------------
 
 /**
- * Build a permanent Pollinations URL for a game (no download needed).
- */
-function buildPollinationsUrl({ title, prompt, classification, gameId }) {
-    // Use fallback for Pollinations URL (synchronous)
-    const finalPrompt = buildFallbackPrompt({ title, prompt, classification });
-    const seed = hashSeed(`${gameId || ''} ${title || ''}`);
-    return `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=512&height=768&nologo=true&enhance=true&model=flux&seed=${seed}`;
-}
-
-/**
- * Generate a cover-art image and return its public URL, or null.
- * Tries FLUX.1-schnell → R2 first. If R2 isn't configured, returns a
- * permanent Pollinations URL (no local disk needed).
+ * Generate a cover-art image and return its R2 public URL, or null.
+ * Pipeline: Stable Horde → Hugging Face SDXL.
+ * Requires R2 to be configured — returns null otherwise.
  */
 export async function generateCoverArtImage({ title, prompt, classification, gameId }) {
-    // Fast path: if R2 isn't configured, skip downloading entirely
-    // and just return a Pollinations URL that the frontend can load directly
     if (!process.env.R2_BUCKET_NAME || !process.env.R2_ACCESS_KEY_ID) {
-        return buildPollinationsUrl({ title, prompt, classification, gameId });
+        console.warn('[cover-art] R2 not configured — skipping cover art');
+        return null;
     }
 
-    // R2 is configured — try to generate and upload a real image
     const finalPrompt = await buildCoverPrompt({ title, prompt, classification });
     let buffer;
+
     try {
-        buffer = await callFluxSchnell(finalPrompt);
+        console.log('[cover-art] Trying Stable Horde...');
+        buffer = await callStableHorde(finalPrompt);
     } catch (err) {
-        console.warn('[cover-art] FLUX failed:', err.message);
+        console.warn('[cover-art] Stable Horde failed:', err.message);
         try {
-            buffer = await callPollinationsFallback(finalPrompt);
+            console.log('[cover-art] Trying Hugging Face SDXL...');
+            buffer = await callHuggingFace(finalPrompt);
         } catch (err2) {
-            console.warn('[cover-art] Pollinations fallback failed:', err2.message);
-            // Even if download fails, return a URL the frontend can load
-            return buildPollinationsUrl({ title, prompt, classification, gameId });
+            console.warn('[cover-art] Hugging Face failed:', err2.message);
+            return null;
         }
     }
 
     if (!buffer || buffer.length < 1024) {
-        console.warn('[cover-art] empty/too-small buffer, using Pollinations URL');
-        return buildPollinationsUrl({ title, prompt, classification, gameId });
+        console.warn('[cover-art] empty/too-small buffer, skipping');
+        return null;
     }
 
-    const savedUrl = await saveCoverBuffer(gameId, buffer);
-    // If R2 save failed (returned null), use Pollinations URL
-    return savedUrl || buildPollinationsUrl({ title, prompt, classification, gameId });
+    return await saveCoverBuffer(gameId, buffer);
 }
 
 /**
@@ -506,8 +515,8 @@ export function enqueueCoverGeneration(pool, params) {
 
 export const coverArtInternals = {
     buildCoverPrompt,
-    callFluxSchnell,
-    callPollinationsFallback,
+    callStableHorde,
+    callHuggingFace,
     saveCoverBuffer,
     COVER_ROOT,
 };
