@@ -529,26 +529,6 @@ app.get('/api/admin/thumbnail-status', async (req, res) => {
   }
 });
 
-// TEMP diagnostic endpoint — remove after use
-app.get('/api/admin/debug-game-counts', async (req, res) => {
-  try {
-    const aiTotal = await pool.query('SELECT COUNT(*) FROM ai_games');
-    const aiDraftFalse = await pool.query('SELECT COUNT(*) FROM ai_games WHERE is_draft = FALSE');
-    const aiDraftTrue = await pool.query('SELECT COUNT(*) FROM ai_games WHERE is_draft = TRUE');
-    const aiPublishedNoHtml = await pool.query(`SELECT COUNT(*) FROM ai_games WHERE is_draft = FALSE AND (html_payload IS NULL OR html_payload = '')`);
-    const gamesTotal = await pool.query('SELECT COUNT(*) FROM games');
-    res.json({
-      ai_games_total: parseInt(aiTotal.rows[0].count),
-      ai_games_is_draft_false: parseInt(aiDraftFalse.rows[0].count),
-      ai_games_is_draft_true: parseInt(aiDraftTrue.rows[0].count),
-      ai_games_published_missing_html: parseInt(aiPublishedNoHtml.rows[0].count),
-      games_table_total: parseInt(gamesTotal.rows[0].count),
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // ============================================
 // AUTH ENDPOINTS
 // ============================================
