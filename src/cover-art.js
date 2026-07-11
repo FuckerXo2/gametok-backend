@@ -1,8 +1,8 @@
 /**
  * Cover art generation pipeline.
  *
- * Primary:   Stable Horde (free, community GPU) → R2
- * Fallback:  Hugging Face Inference API SDXL → R2
+ * Primary:   Hugging Face Inference API SDXL → R2
+ * Fallback:  Stable Horde (free, community GPU) → R2
  *
  * Designed to run async / fire-and-forget so we never block publish.
  */
@@ -260,7 +260,7 @@ export async function buildCoverPrompt({ title, prompt, classification }) {
     return await generateAdaptiveThumbnailPrompt({ title, prompt, classification });
 }
 
-// --- Stable Horde (primary, free) -------------------------------------------
+// --- Stable Horde (fallback, free) -------------------------------------------
 
 async function callStableHorde(prompt, { width = 832, height = 1216 } = {}) {
     // Submit job
@@ -325,7 +325,7 @@ async function callStableHorde(prompt, { width = 832, height = 1216 } = {}) {
     throw new Error('StableHorde: timed out after 3 minutes');
 }
 
-// --- Hugging Face SDXL (fallback, free) -------------------------------------
+// --- Hugging Face SDXL (primary, free) --------------------------------------
 
 async function callHuggingFace(prompt) {
     const headers = { 'Content-Type': 'application/json' };
@@ -382,7 +382,7 @@ async function saveCoverBuffer(gameId, buffer) {
 
 /**
  * Generate a cover-art image and return its R2 public URL, or null.
- * Pipeline: Stable Horde → Hugging Face SDXL.
+ * Pipeline: Hugging Face SDXL → Stable Horde.
  * Requires R2 to be configured — returns null otherwise.
  */
 export async function generateCoverArtImage({ title, prompt, classification, gameId }) {
@@ -395,15 +395,15 @@ export async function generateCoverArtImage({ title, prompt, classification, gam
     let buffer;
 
     try {
-        console.log('[cover-art] Trying Stable Horde...');
-        buffer = await callStableHorde(finalPrompt);
+        console.log('[cover-art] Trying Hugging Face SDXL...');
+        buffer = await callHuggingFace(finalPrompt);
     } catch (err) {
-        console.warn('[cover-art] Stable Horde failed:', err.message);
+        console.warn('[cover-art] Hugging Face failed:', err.message);
         try {
-            console.log('[cover-art] Trying Hugging Face SDXL...');
-            buffer = await callHuggingFace(finalPrompt);
+            console.log('[cover-art] Trying Stable Horde...');
+            buffer = await callStableHorde(finalPrompt);
         } catch (err2) {
-            console.warn('[cover-art] Hugging Face failed:', err2.message);
+            console.warn('[cover-art] Stable Horde failed:', err2.message);
             return null;
         }
     }
