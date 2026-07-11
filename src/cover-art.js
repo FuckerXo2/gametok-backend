@@ -33,7 +33,7 @@ fs.mkdirSync(COVER_ROOT, { recursive: true });
 
 const STABLE_HORDE_URL = 'https://stablehorde.net/api/v2/generate/async';
 const STABLE_HORDE_APIKEY = process.env.STABLE_HORDE_APIKEY || '0000000000'; // anonymous key works
-const HF_MODEL_URL = 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0';
+const HF_MODEL_URL = 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-3-medium-diffusers';
 
 // --- Prompt engineering -----------------------------------------------------
 
