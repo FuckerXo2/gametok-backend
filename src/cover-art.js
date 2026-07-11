@@ -33,7 +33,7 @@ fs.mkdirSync(COVER_ROOT, { recursive: true });
 
 const STABLE_HORDE_URL = 'https://stablehorde.net/api/v2/generate/async';
 const STABLE_HORDE_APIKEY = process.env.STABLE_HORDE_APIKEY || '0000000000'; // anonymous key works
-const HF_MODEL_URL = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
+const HF_MODEL_URL = 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0';
 
 // --- Prompt engineering -----------------------------------------------------
 
@@ -262,7 +262,13 @@ export async function buildCoverPrompt({ title, prompt, classification }) {
 
 // --- Stable Horde (fallback, free) -------------------------------------------
 
-async function callStableHorde(prompt, { width = 832, height = 1216 } = {}) {
+// Anonymous Stable Horde keys are capped at ~576x576 and rate-limited to
+// a couple of submissions per second — stay under both.
+async function callStableHorde(prompt, { width = 448, height = 576 } = {}) {
+    // Small jitter to avoid tripping the "2 per 1 second" anon rate limit
+    // when several jobs fall back to Horde at once.
+    await new Promise(r => setTimeout(r, 400 + Math.random() * 800));
+
     // Submit job
     const submitRes = await fetch(STABLE_HORDE_URL, {
         method: 'POST',
