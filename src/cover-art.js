@@ -161,10 +161,13 @@ Return ONLY the image generation prompt, no explanations or meta-commentary.`;
 
     try {
         const OpenAI = await import('openai').then(m => m.default);
-        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const client = new OpenAI({
+            baseURL: 'https://api.deepseek.com/v1',
+            apiKey: process.env.DEEPSEEK_API_KEY,
+        });
 
         const response = await client.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: 'deepseek-chat',
             messages: [{ role: 'user', content: analysisPrompt }],
             temperature: 0.8,
             max_tokens: 500,
