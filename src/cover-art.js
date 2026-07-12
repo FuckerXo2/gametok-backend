@@ -358,20 +358,34 @@ async function callHuggingFace(prompt) {
 
 // --- OpenAI gpt-image-1 (paid fallback) -------------------------------------
 
-async function callOpenAiImage(prompt) {
+// Org tier caps gpt-image-1 at ~5 images/min — retry on 429 instead of
+// immediately falling through to the unreliable free providers.
+async function callOpenAiImage(prompt, { retries = 3 } = {}) {
     const OpenAI = await import('openai').then(m => m.default);
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const response = await client.images.generate({
-        model: 'gpt-image-1',
-        prompt,
-        size: '1024x1536',
-        quality: 'low',
-    });
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+            const response = await client.images.generate({
+                model: 'gpt-image-1',
+                prompt,
+                size: '1024x1536',
+                quality: 'low',
+            });
 
-    const b64 = response?.data?.[0]?.b64_json;
-    if (!b64) throw new Error('OpenAI: no image data returned');
-    return Buffer.from(b64, 'base64');
+            const b64 = response?.data?.[0]?.b64_json;
+            if (!b64) throw new Error('OpenAI: no image data returned');
+            return Buffer.from(b64, 'base64');
+        } catch (err) {
+            const isRateLimit = err?.status === 429 || /rate limit/i.test(err?.message || '');
+            if (!isRateLimit || attempt === retries) throw err;
+
+            const waitMatch = /try again in (\d+(?:\.\d+)?)s/i.exec(err?.message || '');
+            const waitMs = waitMatch ? Math.ceil(parseFloat(waitMatch[1]) * 1000) + 500 : 15000;
+            console.warn(`[cover-art] OpenAI rate-limited, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`);
+            await new Promise(r => setTimeout(r, waitMs));
+        }
+    }
 }
 
 // --- Saving -----------------------------------------------------------------
