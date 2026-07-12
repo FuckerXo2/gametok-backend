@@ -2,7 +2,8 @@
  * Cover art generation pipeline.
  *
  * Primary:   Hugging Face Inference API SDXL → R2
- * Fallback:  Stable Horde (free, community GPU) → R2
+ * Fallback1: Stable Horde (free, community GPU) → R2
+ * Fallback2: OpenAI gpt-image-1 (paid) → R2
  *
  * Designed to run async / fire-and-forget so we never block publish.
  */
@@ -355,6 +356,24 @@ async function callHuggingFace(prompt) {
     return Buffer.from(arr);
 }
 
+// --- OpenAI gpt-image-1 (paid fallback) -------------------------------------
+
+async function callOpenAiImage(prompt) {
+    const OpenAI = await import('openai').then(m => m.default);
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const response = await client.images.generate({
+        model: 'gpt-image-1',
+        prompt,
+        size: '1024x1536',
+        quality: 'low',
+    });
+
+    const b64 = response?.data?.[0]?.b64_json;
+    if (!b64) throw new Error('OpenAI: no image data returned');
+    return Buffer.from(b64, 'base64');
+}
+
 // --- Saving -----------------------------------------------------------------
 
 async function saveCoverBuffer(gameId, buffer) {
@@ -388,7 +407,7 @@ async function saveCoverBuffer(gameId, buffer) {
 
 /**
  * Generate a cover-art image and return its R2 public URL, or null.
- * Pipeline: Hugging Face SDXL → Stable Horde.
+ * Pipeline: Hugging Face SDXL → Stable Horde → OpenAI gpt-image-1 (paid).
  * Requires R2 to be configured — returns null otherwise.
  */
 export async function generateCoverArtImage({ title, prompt, classification, gameId }) {
@@ -410,7 +429,13 @@ export async function generateCoverArtImage({ title, prompt, classification, gam
             buffer = await callStableHorde(finalPrompt);
         } catch (err2) {
             console.warn('[cover-art] Stable Horde failed:', err2.message);
-            return null;
+            try {
+                console.log('[cover-art] Trying OpenAI gpt-image-1...');
+                buffer = await callOpenAiImage(finalPrompt);
+            } catch (err3) {
+                console.warn('[cover-art] OpenAI failed:', err3.message);
+                return null;
+            }
         }
     }
 
@@ -526,6 +551,7 @@ export const coverArtInternals = {
     buildCoverPrompt,
     callStableHorde,
     callHuggingFace,
+    callOpenAiImage,
     saveCoverBuffer,
     COVER_ROOT,
 };
