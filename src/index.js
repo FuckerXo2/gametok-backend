@@ -552,7 +552,7 @@ app.post('/api/auth/signup', async (req, res) => {
     );
 
     const user = result.rows[0];
-    res.json({ user: formatUser(user), token });
+    res.json({ user: await formatUserWithFollowCounts(user), token });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error' });
@@ -578,7 +578,7 @@ app.post('/api/auth/login', async (req, res) => {
       user.token = token;
     }
 
-    res.json({ user: formatUser(user), token });
+    res.json({ user: await formatUserWithFollowCounts(user), token });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error' });
@@ -689,7 +689,7 @@ app.post('/api/auth/oauth', async (req, res) => {
       }
     }
 
-    res.json({ user: formatUser(user), token, isNewUser });
+    res.json({ user: await formatUserWithFollowCounts(user), token, isNewUser });
   } catch (e) {
     console.error('OAuth error:', e);
     res.status(500).json({ error: 'Server error' });
@@ -703,7 +703,7 @@ app.get('/api/auth/me', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM users WHERE token = $1', [token]);
     if (result.rows.length === 0) return res.status(401).json({ error: 'Invalid token' });
-    res.json({ user: formatUser(result.rows[0]) });
+    res.json({ user: await formatUserWithFollowCounts(result.rows[0]) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -746,6 +746,29 @@ function formatUser(row) {
     following: [],
     createdAt: row.created_at
   };
+}
+
+// Same as formatUser but attaches live follower/following counts from
+// the followers table in a single roundtrip. Use this for endpoints that
+// hydrate the current user's profile (login, /auth/me, etc.).
+async function formatUserWithFollowCounts(row) {
+  const base = formatUser(row);
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE following_id = $1)::int AS followers,
+         COUNT(*) FILTER (WHERE follower_id  = $1)::int AS following
+       FROM followers
+       WHERE follower_id = $1 OR following_id = $1`,
+      [row.id]
+    );
+    base.followersCount = rows[0]?.followers || 0;
+    base.followingCount = rows[0]?.following || 0;
+  } catch (e) {
+    base.followersCount = 0;
+    base.followingCount = 0;
+  }
+  return base;
 }
 
 
@@ -2975,7 +2998,7 @@ app.get('/api/users/:id', async (req, res) => {
     }
 
     res.json({
-      user: formatUser(user),
+      user: await formatUserWithFollowCounts(user),
       isFollowing,
       isMutual,
       stats: {
@@ -3123,7 +3146,7 @@ app.put('/api/users/:id', async (req, res) => {
        WHERE id = $5 RETURNING *`,
       [displayName, bio, avatar, username, req.params.id]
     );
-    res.json({ user: formatUser(result.rows[0]) });
+    res.json({ user: await formatUserWithFollowCounts(result.rows[0]) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
