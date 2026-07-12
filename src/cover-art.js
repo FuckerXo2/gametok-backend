@@ -156,7 +156,7 @@ Based on this game's unique characteristics, create a detailed image generation 
 
 Make it vibrant, eye-catching, and perfectly matched to THIS specific game. The prompt should be 150-250 words and create a portrait-oriented mobile game promotional poster.
 
-CRITICAL: The image must contain ZERO text, ZERO letters, ZERO words, ZERO title, ZERO logo, ZERO UI, ZERO HUD. Pure imagery only. End the prompt with the phrase: "no text, no letters, no words, no typography, no title text, no logo, no watermark, no UI".
+CRITICAL: Include the game title "${titleText}" rendered directly in the artwork as bold, professional key-art typography (like a real app store poster) — clean, legible, well-composed with the scene, not cluttered. Specify where the title sits (top, bottom, or integrated into the scene) and its style (font weight, color, glow/shadow) so it looks intentional, not slapped on.
 
 Return ONLY the image generation prompt, no explanations or meta-commentary.`;
 
@@ -249,7 +249,7 @@ function buildFallbackPrompt({ title, prompt, classification }) {
         tagHint ? `Themes: ${tagHint}.` : '',
         `Aesthetic: ${intensityLevel}, professional app-store quality.`,
         'Portrait composition, eye-catching, clear focal point.',
-        'No text, no letters, no words, no typography, no title text, no logo, no watermark, no UI.',
+        `Title "${titleText}" rendered in the artwork as ${textStyle}, positioned like real app store key art — legible, well-integrated, not cluttered.`,
     ].filter(Boolean).join(' ');
 }
 
