@@ -1,0 +1,715 @@
+{
+  "summary": {
+    "deferredInput": 116,
+    "rescued": 3,
+    "splitOutputItems": 0,
+    "finalRejected": 111,
+    "stillDeferred": 2,
+    "curatedBefore": 177,
+    "curatedAfter": 180,
+    "delta": 3
+  },
+  "rescued": [
+    {
+      "id": "kenney/space_shooter_remastered/playership1_damage__space_shooter_remastered_99x75",
+      "pack": "Space Shooter Remastered",
+      "stem": "playerShip1_damage",
+      "frameCount": 3
+    },
+    {
+      "id": "kenney/space_shooter_remastered/playership2_damage__space_shooter_remastered_112x75",
+      "pack": "Space Shooter Remastered",
+      "stem": "playerShip2_damage",
+      "frameCount": 3
+    },
+    {
+      "id": "kenney/space_shooter_remastered/playership3_damage__space_shooter_remastered_98x75",
+      "pack": "Space Shooter Remastered",
+      "stem": "playerShip3_damage",
+      "frameCount": 3
+    }
+  ],
+  "split": [],
+  "finalRejected": [
+    {
+      "id": "kenney/monochrome_rpg_tileset/tile__tiles",
+      "pack": "Monochrome RPG Tileset",
+      "stem": "tile",
+      "reason": "character/enemy are 4-frame color-variant palettes of one static sprite (mint/gold/red/blue), not walk animations"
+    },
+    {
+      "id": "kenney/monochrome_rpg_tileset/character__sprites",
+      "pack": "Monochrome RPG Tileset",
+      "stem": "character",
+      "reason": "character/enemy are 4-frame color-variant palettes of one static sprite (mint/gold/red/blue), not walk animations"
+    },
+    {
+      "id": "kenney/monochrome_rpg_tileset/enemy__sprites",
+      "pack": "Monochrome RPG Tileset",
+      "stem": "enemy",
+      "reason": "character/enemy are 4-frame color-variant palettes of one static sprite (mint/gold/red/blue), not walk animations"
+    },
+    {
+      "id": "kenney/monochrome_rpg_tileset/heart__sprites",
+      "pack": "Monochrome RPG Tileset",
+      "stem": "heart",
+      "reason": "character/enemy are 4-frame color-variant palettes of one static sprite (mint/gold/red/blue), not walk animations"
+    },
+    {
+      "id": "kenney/monochrome_rpg_tileset/tile__tiles",
+      "pack": "Monochrome RPG Tileset",
+      "stem": "tile",
+      "reason": "character/enemy are 4-frame color-variant palettes of one static sprite (mint/gold/red/blue), not walk animations"
+    },
+    {
+      "id": "kenney/monochrome_rpg_tileset/tile__tiles",
+      "pack": "Monochrome RPG Tileset",
+      "stem": "tile",
+      "reason": "character/enemy are 4-frame color-variant palettes of one static sprite (mint/gold/red/blue), not walk animations"
+    },
+    {
+      "id": "kenney/pirate_pack/crew__pirate_pack_22x22",
+      "pack": "Pirate Pack",
+      "stem": "crew",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/dinghylarge__pirate_pack_20x38",
+      "pack": "Pirate Pack",
+      "stem": "dinghyLarge",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/dinghysmall__pirate_pack_16x26",
+      "pack": "Pirate Pack",
+      "stem": "dinghySmall",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/explosion__pirate_pack_74x75",
+      "pack": "Pirate Pack",
+      "stem": "explosion",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/fire__pirate_pack_18x39",
+      "pack": "Pirate Pack",
+      "stem": "fire",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/flag__pirate_pack_6x22",
+      "pack": "Pirate Pack",
+      "stem": "flag",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/hulllarge__pirate_pack_50x108",
+      "pack": "Pirate Pack",
+      "stem": "hullLarge",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/hullsmall__pirate_pack_40x108",
+      "pack": "Pirate Pack",
+      "stem": "hullSmall",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/saillarge__pirate_pack_66x47",
+      "pack": "Pirate Pack",
+      "stem": "sailLarge",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/sailsmall__pirate_pack_42x9",
+      "pack": "Pirate Pack",
+      "stem": "sailSmall",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/ship__pirate_pack_66x113",
+      "pack": "Pirate Pack",
+      "stem": "ship",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pirate_pack/wood__pirate_pack_26x10",
+      "pack": "Pirate Pack",
+      "stem": "wood",
+      "reason": "\"ship\" is 24 static ship designs (color × flag variants); crew/dinghies/hulls/sails are props or static variants"
+    },
+    {
+      "id": "kenney/pixel_shmup/ship__ships",
+      "pack": "Pixel Shmup",
+      "stem": "ship",
+      "reason": "ship is 24 static ship-design color variants + tile atlas — no animation"
+    },
+    {
+      "id": "kenney/pixel_shmup/tile__tiles",
+      "pack": "Pixel Shmup",
+      "stem": "tile",
+      "reason": "ship is 24 static ship-design color variants + tile atlas — no animation"
+    },
+    {
+      "id": "kenney/pixel_vehicle_pack/man_walk__pixel_vehicle_pack_11x15",
+      "pack": "Pixel Vehicle Pack",
+      "stem": "man_walk",
+      "reason": "man_walk / woman_walk are real 2-frame walk cycles but at 11×15 native — too tiny to display recognizably even after upscaling"
+    },
+    {
+      "id": "kenney/pixel_vehicle_pack/woman_walk__pixel_vehicle_pack_11x15",
+      "pack": "Pixel Vehicle Pack",
+      "stem": "woman_walk",
+      "reason": "man_walk / woman_walk are real 2-frame walk cycles but at 11×15 native — too tiny to display recognizably even after upscaling"
+    },
+    {
+      "id": "kenney/rts_medieval/medievalenvironment__rts_medieval_38x48",
+      "pack": "RTS Medieval",
+      "stem": "medievalEnvironment",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval/medievalstructure__rts_medieval_63x64",
+      "pack": "RTS Medieval",
+      "stem": "medievalStructure",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval/medievaltile__rts_medieval_64x64",
+      "pack": "RTS Medieval",
+      "stem": "medievalTile",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval/medievalunit__rts_medieval_20x26",
+      "pack": "RTS Medieval",
+      "stem": "medievalUnit",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval/medievalenvironment__rts_medieval_76x96",
+      "pack": "RTS Medieval",
+      "stem": "medievalEnvironment",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval/medievalstructure__rts_medieval_126x128",
+      "pack": "RTS Medieval",
+      "stem": "medievalStructure",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval/medievaltile__rts_medieval_128x128",
+      "pack": "RTS Medieval",
+      "stem": "medievalTile",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval/medievalunit__rts_medieval_41x52",
+      "pack": "RTS Medieval",
+      "stem": "medievalUnit",
+      "reason": "medievalUnit grids are per-color palettes of 6 static villager/soldier designs, not walk cycles"
+    },
+    {
+      "id": "kenney/rts_medieval__pixel_/tile__tiles",
+      "pack": "RTS Medieval (Pixel)",
+      "stem": "tile",
+      "reason": "pixel-art variant of RTS Medieval — same static color-palette structure"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifienvironment__rts_sci-fi_38x46",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiEnvironment",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifistructure__rts_sci-fi_64x64",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiStructure",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifitile__rts_sci-fi_64x64",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiTile",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifiunit__rts_sci-fi_51x40",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiUnit",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifienvironment__rts_sci-fi_76x92",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiEnvironment",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifistructure__rts_sci-fi_128x128",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiStructure",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifitile__rts_sci-fi_128x128",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiTile",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/rts_sci-fi/scifiunit__rts_sci-fi_102x80",
+      "pack": "RTS Sci-fi",
+      "stem": "scifiUnit",
+      "reason": "scifiUnit grids are per-team-color palettes of mixed unit types (infantry + tank models), not walk cycles — each color-block is 12 static unit designs"
+    },
+    {
+      "id": "kenney/racing_pack/rock__racing_pack_89x72",
+      "pack": "Racing Pack",
+      "stem": "rock",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/skidmark_long__racing_pack_76x192",
+      "pack": "Racing Pack",
+      "stem": "skidmark_long",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/skidmark_short__racing_pack_76x16",
+      "pack": "Racing Pack",
+      "stem": "skidmark_short",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/land_dirt__racing_pack_128x128",
+      "pack": "Racing Pack",
+      "stem": "land_dirt",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/land_grass__racing_pack_128x128",
+      "pack": "Racing Pack",
+      "stem": "land_grass",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/land_sand__racing_pack_128x128",
+      "pack": "Racing Pack",
+      "stem": "land_sand",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/road_asphalt__racing_pack_128x128",
+      "pack": "Racing Pack",
+      "stem": "road_asphalt",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/road_dirt__racing_pack_128x128",
+      "pack": "Racing Pack",
+      "stem": "road_dirt",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/road_sand__racing_pack_128x128",
+      "pack": "Racing Pack",
+      "stem": "road_sand",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_black__racing_pack_71x131",
+      "pack": "Racing Pack",
+      "stem": "car_black",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_black_small__racing_pack_40x70",
+      "pack": "Racing Pack",
+      "stem": "car_black_small",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_blue__racing_pack_71x131",
+      "pack": "Racing Pack",
+      "stem": "car_blue",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_blue_small__racing_pack_40x70",
+      "pack": "Racing Pack",
+      "stem": "car_blue_small",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_green__racing_pack_71x131",
+      "pack": "Racing Pack",
+      "stem": "car_green",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_green_small__racing_pack_40x70",
+      "pack": "Racing Pack",
+      "stem": "car_green_small",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_red__racing_pack_71x131",
+      "pack": "Racing Pack",
+      "stem": "car_red",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_red_small__racing_pack_40x70",
+      "pack": "Racing Pack",
+      "stem": "car_red_small",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_yellow__racing_pack_71x131",
+      "pack": "Racing Pack",
+      "stem": "car_yellow",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/racing_pack/car_yellow_small__racing_pack_40x70",
+      "pack": "Racing Pack",
+      "stem": "car_yellow_small",
+      "reason": "cars are 5 static car MODELS per color (sedan/hatch/wagon/etc.), no motion frames — splitting yields single-image sprites"
+    },
+    {
+      "id": "kenney/sokoban_pack/block__sokoban_pack_64x64",
+      "pack": "Sokoban Pack",
+      "stem": "block",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/crate__sokoban_pack_64x64",
+      "pack": "Sokoban Pack",
+      "stem": "crate",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/environment__sokoban_pack_64x64",
+      "pack": "Sokoban Pack",
+      "stem": "environment",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/ground__sokoban_pack_64x64",
+      "pack": "Sokoban Pack",
+      "stem": "ground",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/block__sokoban_pack_128x128",
+      "pack": "Sokoban Pack",
+      "stem": "block",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/crate__sokoban_pack_128x128",
+      "pack": "Sokoban Pack",
+      "stem": "crate",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/environment__sokoban_pack_128x128",
+      "pack": "Sokoban Pack",
+      "stem": "environment",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/ground__sokoban_pack_128x128",
+      "pack": "Sokoban Pack",
+      "stem": "ground",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/beam__space_shooter_remastered_43x31",
+      "pack": "Space Shooter Remastered",
+      "stem": "beam",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/beamlong__space_shooter_remastered_25x67",
+      "pack": "Space Shooter Remastered",
+      "stem": "beamLong",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/cockpitblue__space_shooter_remastered_60x75",
+      "pack": "Space Shooter Remastered",
+      "stem": "cockpitBlue",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/cockpitgreen__space_shooter_remastered_60x75",
+      "pack": "Space Shooter Remastered",
+      "stem": "cockpitGreen",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/cockpitred__space_shooter_remastered_60x75",
+      "pack": "Space Shooter Remastered",
+      "stem": "cockpitRed",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/cockpityellow__space_shooter_remastered_60x75",
+      "pack": "Space Shooter Remastered",
+      "stem": "cockpitYellow",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/enemyblack__space_shooter_remastered_104x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "enemyBlack",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/enemyblue__space_shooter_remastered_104x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "enemyBlue",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/enemygreen__space_shooter_remastered_104x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "enemyGreen",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/enemyred__space_shooter_remastered_104x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "enemyRed",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/engine__space_shooter_remastered_49x45",
+      "pack": "Space Shooter Remastered",
+      "stem": "engine",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/fire__space_shooter_remastered_16x41",
+      "pack": "Space Shooter Remastered",
+      "stem": "fire",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/gun__space_shooter_remastered_21x52",
+      "pack": "Space Shooter Remastered",
+      "stem": "gun",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/laserblue__space_shooter_remastered_48x57",
+      "pack": "Space Shooter Remastered",
+      "stem": "laserBlue",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/lasergreen__space_shooter_remastered_48x57",
+      "pack": "Space Shooter Remastered",
+      "stem": "laserGreen",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/laserred__space_shooter_remastered_48x57",
+      "pack": "Space Shooter Remastered",
+      "stem": "laserRed",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorbrown_big__space_shooter_remastered_120x98",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorBrown_big",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorbrown_med__space_shooter_remastered_45x43",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorBrown_med",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorbrown_small__space_shooter_remastered_29x28",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorBrown_small",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorbrown_tiny__space_shooter_remastered_18x18",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorBrown_tiny",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorgrey_big__space_shooter_remastered_120x98",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorGrey_big",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorgrey_med__space_shooter_remastered_45x43",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorGrey_med",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorgrey_small__space_shooter_remastered_29x28",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorGrey_small",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/meteorgrey_tiny__space_shooter_remastered_18x18",
+      "pack": "Space Shooter Remastered",
+      "stem": "meteorGrey_tiny",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/numeral__space_shooter_remastered_19x19",
+      "pack": "Space Shooter Remastered",
+      "stem": "numeral",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/scratch__space_shooter_remastered_21x16",
+      "pack": "Space Shooter Remastered",
+      "stem": "scratch",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/shield__space_shooter_remastered_144x137",
+      "pack": "Space Shooter Remastered",
+      "stem": "shield",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/star__space_shooter_remastered_25x24",
+      "pack": "Space Shooter Remastered",
+      "stem": "star",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/wingblue__space_shooter_remastered_51x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "wingBlue",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/winggreen__space_shooter_remastered_51x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "wingGreen",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/wingred__space_shooter_remastered_51x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "wingRed",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/space_shooter_remastered/wingyellow__space_shooter_remastered_51x84",
+      "pack": "Space Shooter Remastered",
+      "stem": "wingYellow",
+      "reason": "static color-variant enemy models, modular wings/cockpits, projectiles, HUD — not walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tank_bullet__tank_pack_38x26",
+      "pack": "Tank Pack",
+      "stem": "tank_bullet",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tank_bulletfly__tank_pack_90x26",
+      "pack": "Tank Pack",
+      "stem": "tank_bulletFly",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tank_explosion__tank_pack_74x74",
+      "pack": "Tank Pack",
+      "stem": "tank_explosion",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tankdesert__tank_pack_92x69",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankDesert",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tankdesert_body__tank_pack_84x53",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankDesert_body",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tankgreen__tank_pack_92x69",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankGreen",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tankgreen_body__tank_pack_84x53",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankGreen_body",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tankgrey__tank_pack_92x69",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankGrey",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tankgrey_body__tank_pack_84x53",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankGrey_body",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tanknavy__tank_pack_92x69",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankNavy",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tanknavy_body__tank_pack_84x53",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankNavy_body",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_tanktracks__tank_pack_74x48",
+      "pack": "Tank Pack",
+      "stem": "tanks_tankTracks",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    },
+    {
+      "id": "kenney/tank_pack/tanks_turret__tank_pack_48x15",
+      "pack": "Tank Pack",
+      "stem": "tanks_turret",
+      "reason": "tanks_tankX are 5 static tank models/angles per color; bullets, tracks, explosions, turret are props/effects — no walk cycles"
+    }
+  ],
+  "stillDeferred": [
+    {
+      "id": "kenney/sokoban_pack/player__sokoban_pack_49x54",
+      "pack": "Sokoban Pack",
+      "stem": "player",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    },
+    {
+      "id": "kenney/sokoban_pack/player__sokoban_pack_98x108",
+      "pack": "Sokoban Pack",
+      "stem": "player",
+      "reason": "player 24-frame grid contains real animation content but not a clean 4-direction × 6-frame walk cycle — needs per-frame inspection to determine actual layout"
+    }
+  ]
+}

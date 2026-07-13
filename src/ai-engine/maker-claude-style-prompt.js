@@ -48,6 +48,28 @@ function computeDisplaySize(a, target) {
   const scale = target / Math.max(a.width, a.height);
   return { w: Math.round(a.width * scale), h: Math.round(a.height * scale) };
 }
+// Emit a Phaser-ready summary per asset. v2 items (identified by presence of atlas_url) get the
+// full atlas + animation contract the builder needs — sheet URL, atlas JSON URL, load key, exact
+// animation names and frame ranges, native cell size. Legacy items keep the old shape.
+function formatV2AssetLine(a, role) {
+  const disp = computeDisplaySize(a, ROLE_TARGET_PX[role]);
+  const targetDisplay = disp ? ` → setDisplaySize(${disp.w}, ${disp.h})` : '';
+  const key = `v2_${a.id.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
+  const animLines = Object.entries(a.atlas_animations || {}).map(([name, def]) => {
+    const range = def.frames.length <= 6 ? `[${def.frames.join(',')}]` : `[${def.frames[0]}..${def.frames[def.frames.length-1]}]`;
+    return `        '${name}': frames ${range}, fps ${def.fps}, loop ${def.loop}`;
+  }).join('\n');
+  const tags = `${a.species}·${a.animation_type}·${a.perspective}·${a.playable_role}`;
+  return (
+`- **${a.description}** [${tags}]
+    key: '${key}'  native ${a.canvas_size?.w}x${a.canvas_size?.h}${targetDisplay}
+    sheet: ${a.url}
+    atlas: ${a.atlas_url}
+    animations:
+${animLines}`
+  );
+}
+
 function formatGroupedAssets(grouped) {
   const roles = Object.keys(grouped);
   if (!roles.length) return '(No catalog assets matched — draw code fallbacks.)';
@@ -55,6 +77,8 @@ function formatGroupedAssets(grouped) {
   for (const role of roles) {
     out += `\n## ${ROLE_LABEL[role] || role.toUpperCase()}\n`;
     for (const a of grouped[role]) {
+      if (a.atlas_url) { out += formatV2AssetLine(a, role) + '\n\n'; continue; }
+      // Legacy path (kept for the old-catalog fallback so nothing regresses if v2 retrieval misses)
       const dim = a.width && a.height ? ` ${a.width}x${a.height}` : '';
       const tile = a.tileable ? ' [tileable]' : '';
       const disp = computeDisplaySize(a, ROLE_TARGET_PX[role]);
@@ -256,12 +280,34 @@ Use these assets from the catalog (already hosted and ready to use):
 
 ${assetList}
 
-**Asset URL Format**: 
+**Asset URL Format**:
 - Use the R2 CDN BASE_URL: \`'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/'\`
 - Construct full URLs: \`\${BASE_URL}{path}\`
 - Example: If BASE_URL is 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/' and path is 'audio/DOG.mp3', use 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/audio/DOG.mp3'
 
 **CRITICAL**: Only use assets from the list above. They are guaranteed to exist and are properly themed for your game.
+
+**HOW TO LOAD v2 SPRITE ATLASES (any asset with sheet + atlas URLs above):**
+Each v2 asset is a Phaser TexturePacker JSON-Hash atlas. In preload() call \`this.load.atlas(key, sheetUrl, atlasUrl)\` — DO NOT use \`this.load.image\` on the sheet URL; the atlas file carries the per-frame rects. Then in create() build the animation using the exact animation name and frame range listed for that asset:
+\`\`\`js
+// preload()
+this.load.atlas('v2_...', sheetUrl, atlasUrl);
+
+// create() — one anims.create per animation the asset provides
+this.anims.create({
+  key: 'walk',
+  frames: this.anims.generateFrameNumbers('v2_...', { start: 0, end: N-1 }),
+  frameRate: 8,
+  repeat: -1,
+});
+
+// Then create the sprite and play the animation
+const player = this.physics.add.sprite(W/2, H*0.8, 'v2_...');
+player.setDisplaySize(48, 64);         // use the → setDisplaySize hint shown per asset
+player.body.setSize(48, 64);            // physics body follows setDisplaySize manually
+player.play('walk');
+\`\`\`
+Notes: the animation name (\`'walk'\`, \`'damage'\`, \`'rotate'\`, etc.) is whatever the asset lists — use it verbatim so the animation matches its semantics. Frame counts and fps come from the animation entry per asset.
 
 # CRITICAL RULES
 
@@ -277,13 +323,20 @@ ${assetList}
    - **SAFE AREA — MANDATORY. This is what stops your HUD getting cut off.** The extreme top and bottom of the screen sit under the status bar/notch and home indicator, and the preview box is shorter still. Every HUD element, score, timer, and button MUST have its center inside \`y ∈ [H*0.10, H*0.90]\` and \`x ∈ [W*0.05, W*0.95]\`. Full-bleed background art may reach the edges; TEXT and CONTROLS may NOT touch the extreme top/bottom edges.
    - In index.html set \`html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}\` and the canvas/parent fill 100%.
 
-3. **RENDER THE REAL SPRITES — this is the #1 rule** - The assets in "AVAILABLE ASSETS" are the whole point. LOAD them AND DISPLAY them.
-   - Every core visible object MUST be a loaded catalog image, shown with \`this.add.image(...)\` / \`this.add.sprite(...)\` / \`this.physics.add.sprite(...)\`: the **background/track**, the **player**, every **collectible**, every **obstacle/enemy**.
-   - You MUST call \`this.load.image(key, path)\` in preload() for each, then in create() draw it with that key. If you loaded it, you MUST show it.
-   - Use ONLY assets from the catalog list above — they are guaranteed to exist (verified 200 on the CDN).
-   - **BANNED as the primary look**: do NOT render the game as a grid of lines, a plain colored background, or bare rectangles/circles when a catalog sprite exists for that thing. A green wireframe grid is an automatic FAIL.
-   - Primitives (\`Phaser.GameObjects.Graphics\`, rectangles, circles) are allowed ONLY for: HUD/UI chrome, particle dots, and as a fallback INSIDE a \`this.load.on('loaderror', ...)\` handler when a specific image fails — never as the default art.
-   - Scroll the background by moving/tiling the loaded track image (\`this.add.tileSprite\` with the road texture), not by drawing lines.
+3. **SPRITES FOR CHARACTERS + KEY PROPS · CODE-DRAWN LAYERS FOR ENVIRONMENT — this is the #1 visual rule.** Split what you render into two buckets. Using the wrong bucket for a thing is an automatic FAIL.
+
+   **Sprite bucket (MUST use catalog images):** anything that needs a recognizable identity at a glance — the **player character**, **NPCs / enemies**, **vehicles**, and **key gameplay props** (basketball hoop, treasure chest, tank, car, weapon, specific collectible). Faces, silhouettes, and iconic shapes cannot be faked by code-drawn primitives. For each of these, call \`this.load.image(key, path)\` in preload() using EXACTLY the paths in AVAILABLE ASSETS, then \`this.add.image/sprite(...)\` in create(). If you loaded it, you MUST show it.
+
+   **Code-drawn bucket (build with \`this.add.graphics()\` — a well-crafted code scene beats a tiled 64×64 sprite):** the environment — sky, ground, terrain, walls, backdrops, decoration. Build in LAYERS with intent:
+   - **Sky**: a vertical gradient (dawn/dusk/night/deep-space/theme-matched) — NEVER a flat single fill. In Phaser: draw a full-screen \`graphics.fillGradientStyle(topColor, topColor, bottomColor, bottomColor, 1).fillRect(0,0,W,H*0.55)\`.
+   - **Distant layers**: silhouette hills / mountains / city / trees drawn as filled paths — \`g.beginPath(); g.moveTo(0,H); for(x…) g.lineTo(x, baseY + Math.sin(x*freq)*amp + Math.sin(x*freq*2.3)*amp*0.4); g.lineTo(W,H); g.closePath(); g.fillPath();\` — two or three layers in progressively lighter shades for atmospheric depth.
+   - **Ground**: a filled gradient base + a randomized loop of small \`fillEllipse\` calls for dirt/pebble texture + short \`strokeLineShape\` curves for grass tufts along the terrain edge. Seed the randomness so it's stable across frames.
+   - **Decoration**: rocks (irregular polygon via \`beginPath\`+\`lineTo\`+\`fillPath\`), trees (trunk rect + 3–5 overlapping filled circles for canopy), flowers (stem line + small colored dot). Scatter 10–30 of them.
+   - **Environment sprites in AVAILABLE ASSETS are OPTIONAL** — a \`tileSprite\` of a real texture is fine if it genuinely fits the theme, but do NOT reach for it as a substitute for actually designing the scene. A layered code scene almost always looks richer.
+
+   **BANNED as the environment (automatic FAIL):** a single flat colored fill, a bright uniform green plane, a wireframe grid, or any "programmer art" default. If your sky/ground/backdrop looks like it took under 10 lines of code, redo it with gradients, silhouette layers, and texture.
+
+   Primitives (\`Phaser.GameObjects.Graphics\`, rectangles, circles) are additionally allowed for HUD/UI chrome, particle dots, and as a fallback INSIDE \`this.load.on('loaderror', ...)\` when a required sprite fails.
 
 3.1. **create() MUST FOLLOW THIS EXACT PHASE ORDER — no exceptions.** The single biggest source of shipped-broken games is state being read before it exists (e.g. building the HUD that reads \`this.timeLeft\` before you assigned \`this.timeLeft = 60\`, so \`.toString()\` crashes on undefined). Structure \`create()\` as six named helper methods called in this order, and put NOTHING between them:
 
@@ -366,7 +419,7 @@ module.exports = defineConfig({
 # GAME REQUIREMENTS
 
 - Complete, playable game with win/lose conditions
-- **THE WORLD BACKGROUND IS BUILT FROM THE GROUND/TRACK TILES** — cover the play area by tiling the loaded ground/track sprite (e.g. \`this.add.tileSprite(...)\` scrolling toward the player). NEVER draw a grid of lines or a plain fill as the background. If there are GROUND/TRACK TILES in the asset list, using them for the background is MANDATORY.
+- **THE ENVIRONMENT MUST LOOK DESIGNED** — either a code-drawn layered scene (sky gradient + silhouette hills + textured ground + grass/rocks — see rule 3) OR a tiled ground sprite via \`this.add.tileSprite(...)\`. Whichever route you pick, the world must feel intentional and match the theme. BANNED as the environment: a single flat colored fill, a wireframe grid, or bright uniform green. Prefer code-drawn for stylized/themed scenes (fantasy, space, sunset, night); prefer tiling a real sprite when the catalog has a texture that genuinely fits (e.g. a road for a racer).
 - **Timers start > 0.** If there's a countdown, initialize it to a real value (e.g. 60) and only end the game when it actually reaches 0. The game MUST be playable for several seconds on load — never show GAME OVER immediately.
 - Score system
 - **DESIGN A UNIQUE, THEMED HUD — never ship the default look.** Do NOT reuse the generic "monospace text top-left + flat colored rectangle bar" layout that every game defaults to. The HUD is code-drawn (that's fine), but it MUST be visually designed to match THIS game's world, and look different from other games:
@@ -395,8 +448,8 @@ module.exports = defineConfig({
 - **TOUCH-FIRST**: fully playable with drag + tap alone (pointermove/pointerdown), NOT keyboard-only. WASD-only = broken.
 - **FULLSCREEN**: Phaser.Scale.RESIZE (canvas = the real container, no crop, no black bars), NOT ENVELOP/FIT. body margin:0, overflow:hidden.
 - **LIVE SIZE, SAFE AREA**: read \`this.scale.width/height\`, never hardcode 390/844; keep all HUD + buttons inside y ∈ [H*0.10, H*0.90] so nothing gets cut off in the shorter preview box.
-- **SHOW THE LOADED SPRITES** — background, player, coins, obstacles are catalog images, NOT drawn shapes. No grids, no bare rectangles for gameplay objects.
-- **SIZE THEM** — call \`setDisplaySize(W, H)\` using the exact numbers given per asset, and \`body.setSize(W, H)\` to match on every physics sprite. Never render at native pixel size.
+- **CHARACTERS + KEY PROPS = SPRITES · ENVIRONMENT = CODE-DRAWN LAYERS** — load and display catalog sprites for the player, enemies, vehicles, hoops, chests, weapons. Draw the sky/ground/hills/decoration with \`graphics\` — layered gradients + silhouettes + textured detail. Never a flat fill or wireframe grid.
+- **SIZE THE SPRITES** — for every catalog image you display, call \`setDisplaySize(W, H)\` using the exact numbers given per asset, and \`body.setSize(W, H)\` on physics sprites. Never render at native pixel size.
 - Use JavaScript (.js) NOT TypeScript
 - All assets from CDN
 - Pure Phaser 3 code

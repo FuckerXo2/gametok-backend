@@ -1,0 +1,6778 @@
+[
+  {
+    "id": "kenney/abstract_platformer/enemyfloating__abstract_platformer_55x55",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "enemyFloating",
+    "frameCount": 4,
+    "atlas": {
+      "sheet": "enemyfloating__abstract_platformer_55x55.png",
+      "frameSize": {
+        "w": 55,
+        "h": 55
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyfloating__abstract_platformer_55x55.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyfloating__abstract_platformer_55x55_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/enemyflyingalt__abstract_platformer_63x36",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "enemyFlyingAlt",
+    "frameCount": 4,
+    "atlas": {
+      "sheet": "enemyflyingalt__abstract_platformer_63x36.png",
+      "frameSize": {
+        "w": 63,
+        "h": 36
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyflyingalt__abstract_platformer_63x36.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyflyingalt__abstract_platformer_63x36_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/enemyflying__abstract_platformer_64x43",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "enemyFlying",
+    "frameCount": 4,
+    "atlas": {
+      "sheet": "enemyflying__abstract_platformer_64x43.png",
+      "frameSize": {
+        "w": 64,
+        "h": 43
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyflying__abstract_platformer_64x43.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyflying__abstract_platformer_64x43_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/enemyspikey__abstract_platformer_32x64",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "enemySpikey",
+    "frameCount": 4,
+    "atlas": {
+      "sheet": "enemyspikey__abstract_platformer_32x64.png",
+      "frameSize": {
+        "w": 32,
+        "h": 64
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyspikey__abstract_platformer_32x64.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyspikey__abstract_platformer_32x64_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/enemyswimming__abstract_platformer_46x32",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "enemySwimming",
+    "frameCount": 4,
+    "atlas": {
+      "sheet": "enemyswimming__abstract_platformer_46x32.png",
+      "frameSize": {
+        "w": 46,
+        "h": 32
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyswimming__abstract_platformer_46x32.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemyswimming__abstract_platformer_46x32_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/enemywalking__abstract_platformer_49x44",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "enemyWalking",
+    "frameCount": 4,
+    "atlas": {
+      "sheet": "enemywalking__abstract_platformer_49x44.png",
+      "frameSize": {
+        "w": 49,
+        "h": 44
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemywalking__abstract_platformer_49x44.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/enemywalking__abstract_platformer_49x44_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerblue_swim__abstract_platformer_44x54",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerBlue_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playerblue_swim__abstract_platformer_44x54.png",
+      "frameSize": {
+        "w": 44,
+        "h": 54
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_swim__abstract_platformer_44x54.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_swim__abstract_platformer_44x54_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerblue_switch__abstract_platformer_54x54",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerBlue_switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playerblue_switch__abstract_platformer_54x54.png",
+      "frameSize": {
+        "w": 54,
+        "h": 54
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_switch__abstract_platformer_54x54.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_switch__abstract_platformer_54x54_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerblue_up__abstract_platformer_46x54",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerBlue_up",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "playerblue_up__abstract_platformer_46x54.png",
+      "frameSize": {
+        "w": 46,
+        "h": 54
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_up__abstract_platformer_46x54.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_up__abstract_platformer_46x54_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerblue_walk__abstract_platformer_64x54",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerBlue_walk",
+    "frameCount": 5,
+    "atlas": {
+      "sheet": "playerblue_walk__abstract_platformer_64x54.png",
+      "frameSize": {
+        "w": 64,
+        "h": 54
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_walk__abstract_platformer_64x54.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerblue_walk__abstract_platformer_64x54_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergreen_swim__abstract_platformer_41x54",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGreen_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playergreen_swim__abstract_platformer_41x54.png",
+      "frameSize": {
+        "w": 41,
+        "h": 54
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_swim__abstract_platformer_41x54.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_swim__abstract_platformer_41x54_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergreen_switch__abstract_platformer_51x50",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGreen_switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playergreen_switch__abstract_platformer_51x50.png",
+      "frameSize": {
+        "w": 51,
+        "h": 50
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_switch__abstract_platformer_51x50.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_switch__abstract_platformer_51x50_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergreen_up__abstract_platformer_40x50",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGreen_up",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "playergreen_up__abstract_platformer_40x50.png",
+      "frameSize": {
+        "w": 40,
+        "h": 50
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_up__abstract_platformer_40x50.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_up__abstract_platformer_40x50_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergreen_walk__abstract_platformer_64x50",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGreen_walk",
+    "frameCount": 5,
+    "atlas": {
+      "sheet": "playergreen_walk__abstract_platformer_64x50.png",
+      "frameSize": {
+        "w": 64,
+        "h": 50
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_walk__abstract_platformer_64x50.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergreen_walk__abstract_platformer_64x50_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergrey_swim__abstract_platformer_44x42",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGrey_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playergrey_swim__abstract_platformer_44x42.png",
+      "frameSize": {
+        "w": 44,
+        "h": 42
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_swim__abstract_platformer_44x42.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_swim__abstract_platformer_44x42_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergrey_switch__abstract_platformer_50x45",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGrey_switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playergrey_switch__abstract_platformer_50x45.png",
+      "frameSize": {
+        "w": 50,
+        "h": 45
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_switch__abstract_platformer_50x45.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_switch__abstract_platformer_50x45_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergrey_up__abstract_platformer_44x45",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGrey_up",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "playergrey_up__abstract_platformer_44x45.png",
+      "frameSize": {
+        "w": 44,
+        "h": 45
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_up__abstract_platformer_44x45.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_up__abstract_platformer_44x45_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playergrey_walk__abstract_platformer_64x45",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerGrey_walk",
+    "frameCount": 5,
+    "atlas": {
+      "sheet": "playergrey_walk__abstract_platformer_64x45.png",
+      "frameSize": {
+        "w": 64,
+        "h": 45
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_walk__abstract_platformer_64x45.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playergrey_walk__abstract_platformer_64x45_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerred_swim__abstract_platformer_48x51",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerRed_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playerred_swim__abstract_platformer_48x51.png",
+      "frameSize": {
+        "w": 48,
+        "h": 51
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_swim__abstract_platformer_48x51.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_swim__abstract_platformer_48x51_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerred_switch__abstract_platformer_52x48",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerRed_switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "playerred_switch__abstract_platformer_52x48.png",
+      "frameSize": {
+        "w": 52,
+        "h": 48
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_switch__abstract_platformer_52x48.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_switch__abstract_platformer_52x48_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerred_up__abstract_platformer_56x48",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerRed_up",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "playerred_up__abstract_platformer_56x48.png",
+      "frameSize": {
+        "w": 56,
+        "h": 48
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_up__abstract_platformer_56x48.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_up__abstract_platformer_56x48_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/abstract_platformer/playerred_walk__abstract_platformer_64x48",
+    "source": "kenney/Abstract Platformer",
+    "pack": "Abstract Platformer",
+    "mode": "xml",
+    "stem": "playerRed_walk",
+    "frameCount": 5,
+    "atlas": {
+      "sheet": "playerred_walk__abstract_platformer_64x48.png",
+      "frameSize": {
+        "w": 64,
+        "h": 48
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_walk__abstract_platformer_64x48.png",
+    "previewPath": "v2-catalog/staging/kenney-all/abstract_platformer/playerred_walk__abstract_platformer_64x48_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/alien_ufo_pack/shipbeige_damage__alien_ufo_pack_124x67",
+    "source": "kenney/Alien UFO Pack",
+    "pack": "Alien UFO Pack",
+    "mode": "xml",
+    "stem": "shipBeige_damage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "shipbeige_damage__alien_ufo_pack_124x67.png",
+      "frameSize": {
+        "w": 124,
+        "h": 67
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipbeige_damage__alien_ufo_pack_124x67.png",
+    "previewPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipbeige_damage__alien_ufo_pack_124x67_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/alien_ufo_pack/shipblue_damage__alien_ufo_pack_124x90",
+    "source": "kenney/Alien UFO Pack",
+    "pack": "Alien UFO Pack",
+    "mode": "xml",
+    "stem": "shipBlue_damage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "shipblue_damage__alien_ufo_pack_124x90.png",
+      "frameSize": {
+        "w": 124,
+        "h": 90
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipblue_damage__alien_ufo_pack_124x90.png",
+    "previewPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipblue_damage__alien_ufo_pack_124x90_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/alien_ufo_pack/shipgreen_damage__alien_ufo_pack_124x68",
+    "source": "kenney/Alien UFO Pack",
+    "pack": "Alien UFO Pack",
+    "mode": "xml",
+    "stem": "shipGreen_damage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "shipgreen_damage__alien_ufo_pack_124x68.png",
+      "frameSize": {
+        "w": 124,
+        "h": 68
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipgreen_damage__alien_ufo_pack_124x68.png",
+    "previewPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipgreen_damage__alien_ufo_pack_124x68_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/alien_ufo_pack/shipyellow_damage__alien_ufo_pack_124x62",
+    "source": "kenney/Alien UFO Pack",
+    "pack": "Alien UFO Pack",
+    "mode": "xml",
+    "stem": "shipYellow_damage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "shipyellow_damage__alien_ufo_pack_124x62.png",
+      "frameSize": {
+        "w": 124,
+        "h": 62
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipyellow_damage__alien_ufo_pack_124x62.png",
+    "previewPath": "v2-catalog/staging/kenney-all/alien_ufo_pack/shipyellow_damage__alien_ufo_pack_124x62_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_001__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_001",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_001__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_001__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_001__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_002__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_002",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_002__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_002__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_002__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_003__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_003",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_003__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_003__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_003__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_004__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_004",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_004__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_004__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_004__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_005__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_005",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_005__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_005__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_005__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_006__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_006",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_006__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_006__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_006__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_007__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_007",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_007__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_007__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_007__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_008__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_008",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_008__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_008__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_008__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_009__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_009",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_009__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_009__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_009__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_010__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_010",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_010__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_010__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_010__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_011__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_011",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_011__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_011__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_011__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_012__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_012",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_012__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_012__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_012__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_013__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_013",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_013__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_013__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_013__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_014__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_014",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_014__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_014__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_014__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_015__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_015",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_015__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_015__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_015__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_016__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_016",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_016__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_016__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_016__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_017__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_017",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_017__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_017__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_017__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_018__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_018",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_018__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_018__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_018__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_019__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_019",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_019__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_019__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_019__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_020__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_020",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_020__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_020__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_020__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_021__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_021",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_021__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_021__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_021__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_022__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_022",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_022__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_022__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_022__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_023__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_023",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_023__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_023__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_023__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_024__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_024",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_024__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_024__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_024__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_025__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_025",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_025__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_025__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_025__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_026__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_026",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_026__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_026__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_026__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_027__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_027",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_027__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_027__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_027__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_028__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_028",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_028__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_028__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_028__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/isometric_watercraft/watercraftpack_029__isometric_watercraft_512x512",
+    "source": "kenney/Isometric Watercraft",
+    "pack": "Isometric Watercraft",
+    "mode": "xml",
+    "stem": "watercraftPack_029",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "watercraftpack_029__isometric_watercraft_512x512.png",
+      "frameSize": {
+        "w": 512,
+        "h": 512
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_029__isometric_watercraft_512x512.png",
+    "previewPath": "v2-catalog/staging/kenney-all/isometric_watercraft/watercraftpack_029__isometric_watercraft_512x512_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/jumper_pack/bunny1_walk__jumper_pack_120x207",
+    "source": "kenney/Jumper Pack",
+    "pack": "Jumper Pack",
+    "mode": "xml",
+    "stem": "bunny1_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "bunny1_walk__jumper_pack_120x207.png",
+      "frameSize": {
+        "w": 120,
+        "h": 207
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/jumper_pack/bunny1_walk__jumper_pack_120x207.png",
+    "previewPath": "v2-catalog/staging/kenney-all/jumper_pack/bunny1_walk__jumper_pack_120x207_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/jumper_pack/bunny2_walk__jumper_pack_121x207",
+    "source": "kenney/Jumper Pack",
+    "pack": "Jumper Pack",
+    "mode": "xml",
+    "stem": "bunny2_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "bunny2_walk__jumper_pack_121x207.png",
+      "frameSize": {
+        "w": 121,
+        "h": 207
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/jumper_pack/bunny2_walk__jumper_pack_121x207.png",
+    "previewPath": "v2-catalog/staging/kenney-all/jumper_pack/bunny2_walk__jumper_pack_121x207_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/jumper_pack/spikeman_walk__jumper_pack_120x159",
+    "source": "kenney/Jumper Pack",
+    "pack": "Jumper Pack",
+    "mode": "xml",
+    "stem": "spikeMan_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "spikeman_walk__jumper_pack_120x159.png",
+      "frameSize": {
+        "w": 120,
+        "h": 159
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/jumper_pack/spikeman_walk__jumper_pack_120x159.png",
+    "previewPath": "v2-catalog/staging/kenney-all/jumper_pack/spikeman_walk__jumper_pack_120x159_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/jumper_pack/wingman__jumper_pack_216x126",
+    "source": "kenney/Jumper Pack",
+    "pack": "Jumper Pack",
+    "mode": "xml",
+    "stem": "wingMan",
+    "frameCount": 5,
+    "atlas": {
+      "sheet": "wingman__jumper_pack_216x126.png",
+      "frameSize": {
+        "w": 216,
+        "h": 126
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/jumper_pack/wingman__jumper_pack_216x126.png",
+    "previewPath": "v2-catalog/staging/kenney-all/jumper_pack/wingman__jumper_pack_216x126_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_base/fishswim__platformer_assets_base_66x43",
+    "source": "kenney/Platformer Assets Base",
+    "pack": "Platformer Assets Base",
+    "mode": "xml",
+    "stem": "fishSwim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "fishswim__platformer_assets_base_66x43.png",
+      "frameSize": {
+        "w": 66,
+        "h": 43
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_base/fishswim__platformer_assets_base_66x43.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_base/fishswim__platformer_assets_base_66x43_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_base/flyfly__platformer_assets_base_75x36",
+    "source": "kenney/Platformer Assets Base",
+    "pack": "Platformer Assets Base",
+    "mode": "xml",
+    "stem": "flyFly",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "flyfly__platformer_assets_base_75x36.png",
+      "frameSize": {
+        "w": 75,
+        "h": 36
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_base/flyfly__platformer_assets_base_75x36.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_base/flyfly__platformer_assets_base_75x36_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_base/slimewalk__platformer_assets_base_51x28",
+    "source": "kenney/Platformer Assets Base",
+    "pack": "Platformer Assets Base",
+    "mode": "xml",
+    "stem": "slimeWalk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "slimewalk__platformer_assets_base_51x28.png",
+      "frameSize": {
+        "w": 51,
+        "h": 28
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_base/slimewalk__platformer_assets_base_51x28.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_base/slimewalk__platformer_assets_base_51x28_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_base/snailwalk__platformer_assets_base_57x31",
+    "source": "kenney/Platformer Assets Base",
+    "pack": "Platformer Assets Base",
+    "mode": "xml",
+    "stem": "snailWalk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "snailwalk__platformer_assets_base_57x31.png",
+      "frameSize": {
+        "w": 57,
+        "h": 31
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_base/snailwalk__platformer_assets_base_57x31.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_base/snailwalk__platformer_assets_base_57x31_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_base/p1_walk__platformer_assets_base_72x97",
+    "source": "kenney/Platformer Assets Base",
+    "pack": "Platformer Assets Base",
+    "mode": "xml",
+    "stem": "p1_walk",
+    "frameCount": 11,
+    "atlas": {
+      "sheet": "p1_walk__platformer_assets_base_72x97.png",
+      "frameSize": {
+        "w": 72,
+        "h": 97
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_base/p1_walk__platformer_assets_base_72x97.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_base/p1_walk__platformer_assets_base_72x97_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_base/p2_walk__platformer_assets_base_70x94",
+    "source": "kenney/Platformer Assets Base",
+    "pack": "Platformer Assets Base",
+    "mode": "xml",
+    "stem": "p2_walk",
+    "frameCount": 11,
+    "atlas": {
+      "sheet": "p2_walk__platformer_assets_base_70x94.png",
+      "frameSize": {
+        "w": 70,
+        "h": 94
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_base/p2_walk__platformer_assets_base_70x94.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_base/p2_walk__platformer_assets_base_70x94_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_base/p3_walk__platformer_assets_base_72x97",
+    "source": "kenney/Platformer Assets Base",
+    "pack": "Platformer Assets Base",
+    "mode": "xml",
+    "stem": "p3_walk",
+    "frameCount": 11,
+    "atlas": {
+      "sheet": "p3_walk__platformer_assets_base_72x97.png",
+      "frameSize": {
+        "w": 72,
+        "h": 97
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_base/p3_walk__platformer_assets_base_72x97.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_base/p3_walk__platformer_assets_base_72x97_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_climb__platformer_assets_extra_animations___enemies_66x95",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienBeige_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienbeige_climb__platformer_assets_extra_animations___enemies_66x95.png",
+      "frameSize": {
+        "w": 66,
+        "h": 95
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienbeige_climb__platformer_assets_extra_animations___enemies_66x95.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienbeige_climb__platformer_assets_extra_animations___enemies_66x95_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_swim__platformer_assets_extra_animations___enemies_70x100",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienBeige_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienbeige_swim__platformer_assets_extra_animations___enemies_70x100.png",
+      "frameSize": {
+        "w": 70,
+        "h": 100
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienbeige_swim__platformer_assets_extra_animations___enemies_70x100.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienbeige_swim__platformer_assets_extra_animations___enemies_70x100_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_walk__platformer_assets_extra_animations___enemies_70x96",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienBeige_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienbeige_walk__platformer_assets_extra_animations___enemies_70x96.png",
+      "frameSize": {
+        "w": 70,
+        "h": 96
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienbeige_walk__platformer_assets_extra_animations___enemies_70x96.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienbeige_walk__platformer_assets_extra_animations___enemies_70x96_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_climb__platformer_assets_extra_animations___enemies_66x92",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienBlue_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienblue_climb__platformer_assets_extra_animations___enemies_66x92.png",
+      "frameSize": {
+        "w": 66,
+        "h": 92
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienblue_climb__platformer_assets_extra_animations___enemies_66x92.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienblue_climb__platformer_assets_extra_animations___enemies_66x92_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_swim__platformer_assets_extra_animations___enemies_70x97",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienBlue_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienblue_swim__platformer_assets_extra_animations___enemies_70x97.png",
+      "frameSize": {
+        "w": 70,
+        "h": 97
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienblue_swim__platformer_assets_extra_animations___enemies_70x97.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienblue_swim__platformer_assets_extra_animations___enemies_70x97_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_walk__platformer_assets_extra_animations___enemies_67x96",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienBlue_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienblue_walk__platformer_assets_extra_animations___enemies_67x96.png",
+      "frameSize": {
+        "w": 67,
+        "h": 96
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienblue_walk__platformer_assets_extra_animations___enemies_67x96.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienblue_walk__platformer_assets_extra_animations___enemies_67x96_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_climb__platformer_assets_extra_animations___enemies_66x92",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienGreen_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "aliengreen_climb__platformer_assets_extra_animations___enemies_66x92.png",
+      "frameSize": {
+        "w": 66,
+        "h": 92
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/aliengreen_climb__platformer_assets_extra_animations___enemies_66x92.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/aliengreen_climb__platformer_assets_extra_animations___enemies_66x92_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_swim__platformer_assets_extra_animations___enemies_70x97",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienGreen_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "aliengreen_swim__platformer_assets_extra_animations___enemies_70x97.png",
+      "frameSize": {
+        "w": 70,
+        "h": 97
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/aliengreen_swim__platformer_assets_extra_animations___enemies_70x97.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/aliengreen_swim__platformer_assets_extra_animations___enemies_70x97_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_walk__platformer_assets_extra_animations___enemies_70x96",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienGreen_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "aliengreen_walk__platformer_assets_extra_animations___enemies_70x96.png",
+      "frameSize": {
+        "w": 70,
+        "h": 96
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/aliengreen_walk__platformer_assets_extra_animations___enemies_70x96.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/aliengreen_walk__platformer_assets_extra_animations___enemies_70x96_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_climb__platformer_assets_extra_animations___enemies_66x92",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienPink_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienpink_climb__platformer_assets_extra_animations___enemies_66x92.png",
+      "frameSize": {
+        "w": 66,
+        "h": 92
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienpink_climb__platformer_assets_extra_animations___enemies_66x92.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienpink_climb__platformer_assets_extra_animations___enemies_66x92_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_swim__platformer_assets_extra_animations___enemies_70x97",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienPink_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienpink_swim__platformer_assets_extra_animations___enemies_70x97.png",
+      "frameSize": {
+        "w": 70,
+        "h": 97
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienpink_swim__platformer_assets_extra_animations___enemies_70x97.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienpink_swim__platformer_assets_extra_animations___enemies_70x97_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_walk__platformer_assets_extra_animations___enemies_70x96",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienPink_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienpink_walk__platformer_assets_extra_animations___enemies_70x96.png",
+      "frameSize": {
+        "w": 70,
+        "h": 96
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienpink_walk__platformer_assets_extra_animations___enemies_70x96.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienpink_walk__platformer_assets_extra_animations___enemies_70x96_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_climb__platformer_assets_extra_animations___enemies_66x82",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienYellow_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienyellow_climb__platformer_assets_extra_animations___enemies_66x82.png",
+      "frameSize": {
+        "w": 66,
+        "h": 82
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienyellow_climb__platformer_assets_extra_animations___enemies_66x82.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienyellow_climb__platformer_assets_extra_animations___enemies_66x82_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_swim__platformer_assets_extra_animations___enemies_70x87",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienYellow_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienyellow_swim__platformer_assets_extra_animations___enemies_70x87.png",
+      "frameSize": {
+        "w": 70,
+        "h": 87
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienyellow_swim__platformer_assets_extra_animations___enemies_70x87.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienyellow_swim__platformer_assets_extra_animations___enemies_70x87_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_walk__platformer_assets_extra_animations___enemies_70x86",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "alienYellow_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienyellow_walk__platformer_assets_extra_animations___enemies_70x86.png",
+      "frameSize": {
+        "w": 70,
+        "h": 86
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienyellow_walk__platformer_assets_extra_animations___enemies_70x86.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/alienyellow_walk__platformer_assets_extra_animations___enemies_70x86_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_assets_extra_animations___enemies/spider_walk__platformer_assets_extra_animations___enemies_77x53",
+    "source": "kenney/Platformer Assets Extra Animations & Enemies",
+    "pack": "Platformer Assets Extra Animations & Enemies",
+    "mode": "xml",
+    "stem": "spider_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "spider_walk__platformer_assets_extra_animations___enemies_77x53.png",
+      "frameSize": {
+        "w": 77,
+        "h": 53
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/spider_walk__platformer_assets_extra_animations___enemies_77x53.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_assets_extra_animations___enemies/spider_walk__platformer_assets_extra_animations___enemies_77x53_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/adventurer_action__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "adventurer_action",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "adventurer_action__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_action__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_action__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/adventurer_cheer__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "adventurer_cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "adventurer_cheer__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_cheer__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_cheer__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/adventurer_climb__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "adventurer_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "adventurer_climb__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_climb__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_climb__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/adventurer_hold__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "adventurer_hold",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "adventurer_hold__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_hold__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_hold__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/adventurer_swim__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "adventurer_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "adventurer_swim__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_swim__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_swim__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/adventurer_walk__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "adventurer_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "adventurer_walk__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_walk__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/adventurer_walk__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/female_action__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "female_action",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "female_action__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_action__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_action__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/female_cheer__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "female_cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "female_cheer__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_cheer__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_cheer__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/female_climb__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "female_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "female_climb__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_climb__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_climb__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/female_hold__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "female_hold",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "female_hold__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_hold__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_hold__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/female_swim__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "female_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "female_swim__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_swim__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_swim__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/female_walk__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "female_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "female_walk__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_walk__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/female_walk__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/player_action__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "player_action",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "player_action__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_action__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_action__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/player_cheer__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "player_cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "player_cheer__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_cheer__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_cheer__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/player_climb__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "player_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "player_climb__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_climb__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_climb__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/player_hold__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "player_hold",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "player_hold__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_hold__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_hold__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/player_swim__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "player_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "player_swim__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_swim__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_swim__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/player_walk__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "player_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "player_walk__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_walk__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/player_walk__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/soldier_action__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "soldier_action",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "soldier_action__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_action__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_action__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/soldier_cheer__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "soldier_cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "soldier_cheer__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_cheer__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_cheer__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/soldier_climb__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "soldier_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "soldier_climb__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_climb__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_climb__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/soldier_hold__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "soldier_hold",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "soldier_hold__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_hold__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_hold__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/soldier_swim__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "soldier_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "soldier_swim__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_swim__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_swim__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/soldier_walk__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "soldier_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "soldier_walk__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_walk__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/soldier_walk__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/zombie_action__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "zombie_action",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "zombie_action__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_action__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_action__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/zombie_cheer__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "zombie_cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "zombie_cheer__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_cheer__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_cheer__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/zombie_climb__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "zombie_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "zombie_climb__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_climb__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_climb__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/zombie_hold__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "zombie_hold",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "zombie_hold__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_hold__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_hold__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/zombie_swim__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "zombie_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "zombie_swim__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_swim__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_swim__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_characters_1/zombie_walk__poses",
+    "source": "kenney/Platformer Characters 1",
+    "pack": "Platformer Characters 1",
+    "mode": "filename",
+    "stem": "zombie_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "zombie_walk__poses.png",
+      "frameSize": {
+        "w": 80,
+        "h": 110
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_walk__poses.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_characters_1/zombie_walk__poses_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienbeige_climb__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienBeige_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienbeige_climb__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienbeige_climb__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienbeige_climb__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienbeige_swim__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienBeige_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienbeige_swim__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienbeige_swim__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienbeige_swim__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienbeige_walk__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienBeige_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienbeige_walk__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienbeige_walk__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienbeige_walk__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienblue_climb__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienBlue_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienblue_climb__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienblue_climb__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienblue_climb__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienblue_swim__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienBlue_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienblue_swim__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienblue_swim__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienblue_swim__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienblue_walk__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienBlue_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienblue_walk__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienblue_walk__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienblue_walk__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/aliengreen_climb__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienGreen_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "aliengreen_climb__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/aliengreen_climb__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/aliengreen_climb__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/aliengreen_swim__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienGreen_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "aliengreen_swim__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/aliengreen_swim__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/aliengreen_swim__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/aliengreen_walk__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienGreen_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "aliengreen_walk__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/aliengreen_walk__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/aliengreen_walk__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienpink_climb__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienPink_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienpink_climb__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienpink_climb__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienpink_climb__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienpink_swim__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienPink_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienpink_swim__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienpink_swim__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienpink_swim__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienpink_walk__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienPink_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienpink_walk__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienpink_walk__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienpink_walk__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienyellow_climb__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienYellow_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienyellow_climb__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienyellow_climb__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienyellow_climb__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienyellow_swim__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienYellow_swim",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienyellow_swim__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienyellow_swim__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienyellow_swim__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/platformer_pack_remastered/alienyellow_walk__platformer_pack_remastered_128x256",
+    "source": "kenney/Platformer Pack Remastered",
+    "pack": "Platformer Pack Remastered",
+    "mode": "xml",
+    "stem": "alienYellow_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "alienyellow_walk__platformer_pack_remastered_128x256.png",
+      "frameSize": {
+        "w": 128,
+        "h": 256
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienyellow_walk__platformer_pack_remastered_128x256.png",
+    "previewPath": "v2-catalog/staging/kenney-all/platformer_pack_remastered/alienyellow_walk__platformer_pack_remastered_128x256_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_bluedamage__robot_pack_157x128",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_blueDamage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_bluedamage__robot_pack_157x128.png",
+      "frameSize": {
+        "w": 157,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_bluedamage__robot_pack_157x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_bluedamage__robot_pack_157x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_bluedrive__robot_pack_158x150",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_blueDrive",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_bluedrive__robot_pack_158x150.png",
+      "frameSize": {
+        "w": 158,
+        "h": 150
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_bluedrive__robot_pack_158x150.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_bluedrive__robot_pack_158x150_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_greendamage__robot_pack_157x104",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_greenDamage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_greendamage__robot_pack_157x104.png",
+      "frameSize": {
+        "w": 157,
+        "h": 104
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_greendamage__robot_pack_157x104.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_greendamage__robot_pack_157x104_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_greendrive__robot_pack_158x120",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_greenDrive",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_greendrive__robot_pack_158x120.png",
+      "frameSize": {
+        "w": 158,
+        "h": 120
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_greendrive__robot_pack_158x120.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_greendrive__robot_pack_158x120_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_reddamage__robot_pack_179x128",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_redDamage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_reddamage__robot_pack_179x128.png",
+      "frameSize": {
+        "w": 179,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_reddamage__robot_pack_179x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_reddamage__robot_pack_179x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_reddrive__robot_pack_180x150",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_redDrive",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_reddrive__robot_pack_180x150.png",
+      "frameSize": {
+        "w": 180,
+        "h": 150
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_reddrive__robot_pack_180x150.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_reddrive__robot_pack_180x150_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_yellowdamage__robot_pack_183x128",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_yellowDamage",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_yellowdamage__robot_pack_183x128.png",
+      "frameSize": {
+        "w": 183,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_yellowdamage__robot_pack_183x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_yellowdamage__robot_pack_183x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/robot_pack/robot_yellowdrive__robot_pack_184x150",
+    "source": "kenney/Robot Pack",
+    "pack": "Robot Pack",
+    "mode": "xml",
+    "stem": "robot_yellowDrive",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "robot_yellowdrive__robot_pack_184x150.png",
+      "frameSize": {
+        "w": 184,
+        "h": 150
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/robot_pack/robot_yellowdrive__robot_pack_184x150.png",
+    "previewPath": "v2-catalog/staging/kenney-all/robot_pack/robot_yellowdrive__robot_pack_184x150_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/simplified_platformer_pack/platformchar_climb__characters",
+    "source": "kenney/Simplified Platformer Pack",
+    "pack": "Simplified Platformer Pack",
+    "mode": "filename",
+    "stem": "platformChar_climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "platformchar_climb__characters.png",
+      "frameSize": {
+        "w": 96,
+        "h": 96
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/simplified_platformer_pack/platformchar_climb__characters.png",
+    "previewPath": "v2-catalog/staging/kenney-all/simplified_platformer_pack/platformchar_climb__characters_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/simplified_platformer_pack/platformchar_walk__characters",
+    "source": "kenney/Simplified Platformer Pack",
+    "pack": "Simplified Platformer Pack",
+    "mode": "filename",
+    "stem": "platformChar_walk",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "platformchar_walk__characters.png",
+      "frameSize": {
+        "w": 96,
+        "h": 96
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/simplified_platformer_pack/platformchar_walk__characters.png",
+    "previewPath": "v2-catalog/staging/kenney-all/simplified_platformer_pack/platformchar_walk__characters_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/tappy_plane/planeblue__tappy_plane_88x73",
+    "source": "kenney/Tappy Plane",
+    "pack": "Tappy Plane",
+    "mode": "xml",
+    "stem": "planeBlue",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "planeblue__tappy_plane_88x73.png",
+      "frameSize": {
+        "w": 88,
+        "h": 73
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/tappy_plane/planeblue__tappy_plane_88x73.png",
+    "previewPath": "v2-catalog/staging/kenney-all/tappy_plane/planeblue__tappy_plane_88x73_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/tappy_plane/planegreen__tappy_plane_88x73",
+    "source": "kenney/Tappy Plane",
+    "pack": "Tappy Plane",
+    "mode": "xml",
+    "stem": "planeGreen",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "planegreen__tappy_plane_88x73.png",
+      "frameSize": {
+        "w": 88,
+        "h": 73
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/tappy_plane/planegreen__tappy_plane_88x73.png",
+    "previewPath": "v2-catalog/staging/kenney-all/tappy_plane/planegreen__tappy_plane_88x73_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/tappy_plane/planered__tappy_plane_88x73",
+    "source": "kenney/Tappy Plane",
+    "pack": "Tappy Plane",
+    "mode": "xml",
+    "stem": "planeRed",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "planered__tappy_plane_88x73.png",
+      "frameSize": {
+        "w": 88,
+        "h": 73
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/tappy_plane/planered__tappy_plane_88x73.png",
+    "previewPath": "v2-catalog/staging/kenney-all/tappy_plane/planered__tappy_plane_88x73_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/tappy_plane/planeyellow__tappy_plane_88x73",
+    "source": "kenney/Tappy Plane",
+    "pack": "Tappy Plane",
+    "mode": "xml",
+    "stem": "planeYellow",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "planeyellow__tappy_plane_88x73.png",
+      "frameSize": {
+        "w": 88,
+        "h": 73
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/tappy_plane/planeyellow__tappy_plane_88x73.png",
+    "previewPath": "v2-catalog/staging/kenney-all/tappy_plane/planeyellow__tappy_plane_88x73_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/climb__female_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "climb__female_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/climb__female_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/climb__female_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/cheer__female_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "cheer__female_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__female_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__female_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/switch__female_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "switch__female_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/switch__female_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/switch__female_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/run__female_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "run",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "run__female_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/run__female_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/run__female_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/attack__female_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "attack",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "attack__female_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/attack__female_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/attack__female_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/walk__female_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "walk",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "walk__female_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/walk__female_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/walk__female_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/climb__female_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "climb__female_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/climb__female_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/climb__female_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/cheer__female_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "cheer__female_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__female_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__female_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/switch__female_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "switch__female_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/switch__female_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/switch__female_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/run__female_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "run",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "run__female_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/run__female_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/run__female_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/attack__female_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "attack",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "attack__female_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/attack__female_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/attack__female_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/walk__female_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "walk",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "walk__female_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/walk__female_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/walk__female_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/climb__male_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "climb__male_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/climb__male_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/climb__male_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/cheer__male_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "cheer__male_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__male_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__male_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/switch__male_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "switch__male_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/switch__male_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/switch__male_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/run__male_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "run",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "run__male_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/run__male_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/run__male_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/attack__male_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "attack",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "attack__male_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/attack__male_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/attack__male_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/walk__male_adventurer_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "walk",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "walk__male_adventurer_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/walk__male_adventurer_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/walk__male_adventurer_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/climb__male_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "climb__male_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/climb__male_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/climb__male_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/cheer__male_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "cheer__male_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__male_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__male_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/switch__male_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "switch__male_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/switch__male_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/switch__male_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/run__male_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "run",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "run__male_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/run__male_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/run__male_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/attack__male_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "attack",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "attack__male_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/attack__male_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/attack__male_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/walk__male_person_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "walk",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "walk__male_person_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/walk__male_person_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/walk__male_person_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/climb__robot_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "climb__robot_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/climb__robot_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/climb__robot_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/cheer__robot_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "cheer__robot_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__robot_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__robot_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/switch__robot_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "switch__robot_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/switch__robot_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/switch__robot_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/run__robot_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "run",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "run__robot_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/run__robot_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/run__robot_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/attack__robot_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "attack",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "attack__robot_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/attack__robot_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/attack__robot_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/walk__robot_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "walk",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "walk__robot_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/walk__robot_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/walk__robot_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/climb__zombie_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "climb",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "climb__zombie_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/climb__zombie_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/climb__zombie_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/cheer__zombie_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "cheer",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "cheer__zombie_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__zombie_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/cheer__zombie_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/switch__zombie_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "switch",
+    "frameCount": 2,
+    "atlas": {
+      "sheet": "switch__zombie_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/switch__zombie_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/switch__zombie_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/run__zombie_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "run",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "run__zombie_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/run__zombie_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/run__zombie_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/attack__zombie_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "attack",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "attack__zombie_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/attack__zombie_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/attack__zombie_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/toon_characters/walk__zombie_96x128",
+    "source": "kenney/Toon Characters",
+    "pack": "Toon Characters",
+    "mode": "xml",
+    "stem": "walk",
+    "frameCount": 8,
+    "atlas": {
+      "sheet": "walk__zombie_96x128.png",
+      "frameSize": {
+        "w": 96,
+        "h": 128
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/toon_characters/walk__zombie_96x128.png",
+    "previewPath": "v2-catalog/staging/kenney-all/toon_characters/walk__zombie_96x128_preview.png",
+    "label": {
+      "role": null,
+      "orientation": null,
+      "quality": null,
+      "description": null,
+      "keep": null,
+      "needsLabel": true
+    },
+    "reviewed": false
+  },
+  {
+    "id": "kenney/space_shooter_remastered/playership1_damage__space_shooter_remastered_99x75",
+    "source": "kenney/Space Shooter Remastered",
+    "pack": "Space Shooter Remastered",
+    "mode": "xml",
+    "stem": "playerShip1_damage",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "playership1_damage__space_shooter_remastered_99x75.png",
+      "frameSize": {
+        "w": 99,
+        "h": 75
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/space_shooter_remastered/playership1_damage__space_shooter_remastered_99x75.png",
+    "previewPath": "v2-catalog/staging/kenney-all/space_shooter_remastered/playership1_damage__space_shooter_remastered_99x75_preview.png",
+    "label": {
+      "role": "vehicle",
+      "orientation": "top_down",
+      "quality": 4,
+      "description": "playerShip1_damage — ship damage state animation",
+      "keep": true,
+      "rejectReason": "",
+      "needsLabel": false,
+      "labeledBy": "claude-vision-inline (rescue)"
+    },
+    "reviewed": true,
+    "rescuedFrom": "pack-level DEFERRED but item is a real animation at stem level"
+  },
+  {
+    "id": "kenney/space_shooter_remastered/playership2_damage__space_shooter_remastered_112x75",
+    "source": "kenney/Space Shooter Remastered",
+    "pack": "Space Shooter Remastered",
+    "mode": "xml",
+    "stem": "playerShip2_damage",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "playership2_damage__space_shooter_remastered_112x75.png",
+      "frameSize": {
+        "w": 112,
+        "h": 75
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/space_shooter_remastered/playership2_damage__space_shooter_remastered_112x75.png",
+    "previewPath": "v2-catalog/staging/kenney-all/space_shooter_remastered/playership2_damage__space_shooter_remastered_112x75_preview.png",
+    "label": {
+      "role": "vehicle",
+      "orientation": "top_down",
+      "quality": 4,
+      "description": "playerShip2_damage — ship damage state animation",
+      "keep": true,
+      "rejectReason": "",
+      "needsLabel": false,
+      "labeledBy": "claude-vision-inline (rescue)"
+    },
+    "reviewed": true,
+    "rescuedFrom": "pack-level DEFERRED but item is a real animation at stem level"
+  },
+  {
+    "id": "kenney/space_shooter_remastered/playership3_damage__space_shooter_remastered_98x75",
+    "source": "kenney/Space Shooter Remastered",
+    "pack": "Space Shooter Remastered",
+    "mode": "xml",
+    "stem": "playerShip3_damage",
+    "frameCount": 3,
+    "atlas": {
+      "sheet": "playership3_damage__space_shooter_remastered_98x75.png",
+      "frameSize": {
+        "w": 98,
+        "h": 75
+      },
+      "animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 8,
+          "loop": true
+        }
+      }
+    },
+    "sheetPath": "v2-catalog/staging/kenney-all/space_shooter_remastered/playership3_damage__space_shooter_remastered_98x75.png",
+    "previewPath": "v2-catalog/staging/kenney-all/space_shooter_remastered/playership3_damage__space_shooter_remastered_98x75_preview.png",
+    "label": {
+      "role": "vehicle",
+      "orientation": "top_down",
+      "quality": 4,
+      "description": "playerShip3_damage — ship damage state animation",
+      "keep": true,
+      "rejectReason": "",
+      "needsLabel": false,
+      "labeledBy": "claude-vision-inline (rescue)"
+    },
+    "reviewed": true,
+    "rescuedFrom": "pack-level DEFERRED but item is a real animation at stem level"
+  }
+]
