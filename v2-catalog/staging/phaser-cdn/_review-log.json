@@ -1,0 +1,873 @@
+{
+  "summary": {
+    "input": 138,
+    "kept": 34,
+    "rejected": 9,
+    "deferred": 95
+  },
+  "kept": [
+    {
+      "id": "phaser-cdn/animations/alien__03_walk",
+      "source": "phaser-cdn animations/alien"
+    },
+    {
+      "id": "phaser-cdn/animations/alien__02_turn_to_walk",
+      "source": "phaser-cdn animations/alien"
+    },
+    {
+      "id": "phaser-cdn/animations/alien__01_idle",
+      "source": "phaser-cdn animations/alien"
+    },
+    {
+      "id": "phaser-cdn/animations/bird____all__",
+      "source": "phaser-cdn animations/bird"
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_attack",
+      "source": "phaser-cdn animations/elves-craft-pixel"
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_attack",
+      "source": "phaser-cdn animations/elves-craft-pixel"
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_idle",
+      "source": "phaser-cdn animations/elves-craft-pixel"
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_die",
+      "source": "phaser-cdn animations/elves-craft-pixel"
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_die",
+      "source": "phaser-cdn animations/elves-craft-pixel"
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_idle",
+      "source": "phaser-cdn animations/elves-craft-pixel"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__attack_a",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__attack_c",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__attack_b",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__guard",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__fall_loop",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__jump_loop",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__jump_start",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__run",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__guard_end",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__die",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__get_hit",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__guard_start",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/knight__idle",
+      "source": "phaser-cdn animations/knight"
+    },
+    {
+      "id": "phaser-cdn/animations/robo__running",
+      "source": "phaser-cdn animations/robo"
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_3_shoot_up",
+      "source": "phaser-cdn animations/soldier"
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_2_shot_up",
+      "source": "phaser-cdn animations/soldier"
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_3_shoot_front",
+      "source": "phaser-cdn animations/soldier"
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_2_shot_front",
+      "source": "phaser-cdn animations/soldier"
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_3_walk",
+      "source": "phaser-cdn animations/soldier"
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_2_walk",
+      "source": "phaser-cdn animations/soldier"
+    },
+    {
+      "id": "phaser-cdn/animations/walker__frame",
+      "source": "phaser-cdn animations/walker"
+    },
+    {
+      "id": "phaser-cdn/animations/zombie__death",
+      "source": "phaser-cdn animations/zombie"
+    },
+    {
+      "id": "phaser-cdn/animations/zombie__walk",
+      "source": "phaser-cdn animations/zombie"
+    },
+    {
+      "id": "phaser-cdn/tweens/golem",
+      "source": "phaser-cdn tweens/golem"
+    }
+  ],
+  "rejected": [
+    {
+      "id": "phaser-cdn/animations/california-raisins__frame",
+      "reason": "California Raisins branded IP — do not redistribute"
+    },
+    {
+      "id": "phaser-cdn/animations/cube____all__",
+      "reason": "rotating cube — not character/vehicle/animal"
+    },
+    {
+      "id": "phaser-cdn/animations/rocket__trail",
+      "reason": "rocket \"trail\" is exhaust flame effect only, no vehicle body"
+    },
+    {
+      "id": "phaser-cdn/animations/sao0____all__",
+      "reason": "Sword Art Online copyright IP (Aniplex) — do not redistribute"
+    },
+    {
+      "id": "phaser-cdn/animations/sao1____all__",
+      "reason": "Sword Art Online copyright IP (Aniplex) — do not redistribute"
+    },
+    {
+      "id": "phaser-cdn/animations/sf2__frame",
+      "reason": "Street Fighter II copyright IP (Capcom) — do not redistribute"
+    },
+    {
+      "id": "phaser-cdn/animations/sf2ryu__frame",
+      "reason": "Street Fighter II copyright IP (Capcom) — do not redistribute"
+    },
+    {
+      "id": "phaser-cdn/animations/sao",
+      "reason": "Sword Art Online copyright IP (Aniplex) — do not redistribute"
+    },
+    {
+      "id": "phaser-cdn/tweens/ufo",
+      "reason": "3 static UFO color variants — not animation frames (color-variant grid)"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "phaser-cdn/animations_aseprite/paladin-array____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_aseprite/paladin____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_cybercity/cybercity-multi____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_cybercity/cybercity0____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_cybercity/cybercity1____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_cybercity/cybercity2____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_bank-panic/bank-panic____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests/player____all__",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_bubble/frame",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations/cat",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_cube/frame",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_cybercity/cybercity-multi-",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_cybercity/cybercity",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_horse/frame",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/animations_lazer/lazer_",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/audio_sid/mutants",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/audio_sid/robocop",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/audio_sid/thrust",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/compressed_uncompressed/multi-",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/demoscene/birdy-nam-nam-bg",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/demoscene/joes",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/demoscene/raster-bw-",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/demoscene/star",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_asteroids/asteroid",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/ball",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/blue",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/green",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/paddle",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/particle",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/purple",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/red",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/silver",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_breakout/yellow",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_card-memory-game_cards/card-",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_multi/invader",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_pacman/bezel",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/games_sliding-puzzle/pic",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/normal-maps/gem",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/normal-maps/orb-",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/particles/elec",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/particles/fire",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/particles/flame",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/particles/leaf",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/particles/muzzleflash",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/particles/soft",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/particles/splinter",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/phaserbyexample_starshake_assets_images/foe",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/phaserbyexample_starshake_assets_images/stage",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/phaserbyexample_wallhamer_assets_images/brick",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/phaserbyexample_wallhamer_assets_images/platform",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/pics/card",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/pics/contra",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/pics/splat",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/pics/touhou",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/rapier/circle",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/rope/pipe",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sets_objects/bush",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sets_objects/mushroom",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sets_objects/platform",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sets_objects/sign",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sets_objects/tree",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/skies/cavern",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/skies/gradient",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/skies/sky",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/skies/space",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/skies/underwater",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/spine_4_1_dragon/dragon-pma_",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/1bitblock",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/atari",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/brush",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/bsquadron",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites_bullets/bullet",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/mask",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/orange-cat",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/phaser",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/planet",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/shmup-baddie",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/spinobj_",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/strip",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/sprites/tetrisblock",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_columns_frames/diamond_",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_columns_frames/prism_",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_columns_frames/ruby_",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_columns_frames/square_",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_fruit/veg",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_invaders/invader",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_piano/key",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_space/asteroid",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_space/moon",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_space/muzzleflash",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_terrain/terrain",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_twist/bob",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/tests_underwater/foreground-",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/textures/distortion",
+      "reason": "no rule matched — needs manual review in future session"
+    },
+    {
+      "id": "phaser-cdn/textures/grid-ps",
+      "reason": "no rule matched — needs manual review in future session"
+    }
+  ],
+  "packStats": {
+    "phaser-cdn animations/alien": {
+      "keep": 3,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn/animations/aseprite/paladin-array.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/animations/aseprite/paladin.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn animations/bird": {
+      "keep": 1,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn/animations/california-raisins.json": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    },
+    "phaser-cdn/animations/cube.json": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    },
+    "phaser-cdn/animations/cybercity/cybercity-multi.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/animations/cybercity/cybercity0.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/animations/cybercity/cybercity1.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/animations/cybercity/cybercity2.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn animations/elves-craft-pixel": {
+      "keep": 6,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn animations/knight": {
+      "keep": 13,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn animations/robo": {
+      "keep": 1,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn/animations/rocket.json": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    },
+    "phaser-cdn/animations/sao0.json": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    },
+    "phaser-cdn/animations/sao1.json": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    },
+    "phaser-cdn/animations/sf2.json": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    },
+    "phaser-cdn/animations/sf2ryu.json": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    },
+    "phaser-cdn animations/soldier": {
+      "keep": 6,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn animations/walker": {
+      "keep": 1,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn animations/zombie": {
+      "keep": 2,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn/games/bank-panic/bank-panic.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/tests/player.json": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/animations/bubble": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/animations": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/animations/cube": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/animations/cybercity": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 2
+    },
+    "phaser-cdn/raw-frames/animations/horse": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/animations/lazer": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/audio/sid": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 3
+    },
+    "phaser-cdn/raw-frames/compressed/uncompressed": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/demoscene": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 4
+    },
+    "phaser-cdn/raw-frames/games/asteroids": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/games/breakout": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 9
+    },
+    "phaser-cdn/raw-frames/games/card-memory-game/cards": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/games/multi": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/games/pacman": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/games/sliding-puzzle": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/normal-maps": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 2
+    },
+    "phaser-cdn/raw-frames/particles": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 7
+    },
+    "phaser-cdn/raw-frames/phaserbyexample/starshake/assets/images": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 2
+    },
+    "phaser-cdn/raw-frames/phaserbyexample/wallhamer/assets/images": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 2
+    },
+    "phaser-cdn/raw-frames/pics": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 4
+    },
+    "phaser-cdn/raw-frames/rapier": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/rope": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/sets/objects": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 5
+    },
+    "phaser-cdn/raw-frames/skies": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 5
+    },
+    "phaser-cdn/raw-frames/spine/4.1/dragon": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/sprites": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 12
+    },
+    "phaser-cdn/raw-frames/sprites/bullets": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/tests/columns/frames": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 4
+    },
+    "phaser-cdn/raw-frames/tests/fruit": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/tests/invaders": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/tests/piano": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/tests/space": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 3
+    },
+    "phaser-cdn/raw-frames/tests/terrain": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/tests/twist": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/tests/underwater": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 1
+    },
+    "phaser-cdn/raw-frames/textures": {
+      "keep": 0,
+      "reject": 0,
+      "defer": 2
+    },
+    "phaser-cdn tweens/golem": {
+      "keep": 1,
+      "reject": 0,
+      "defer": 0
+    },
+    "phaser-cdn/raw-frames/tweens": {
+      "keep": 0,
+      "reject": 1,
+      "defer": 0
+    }
+  }
+}

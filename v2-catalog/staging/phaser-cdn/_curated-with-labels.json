@@ -1,0 +1,818 @@
+[
+  {
+    "item": {
+      "id": "phaser-cdn/animations/alien__03_walk",
+      "source": "phaser-cdn/animations/alien.json",
+      "stem": "03_Walk",
+      "animName": "03_Walk",
+      "frameCount": 13,
+      "canvasW": 201,
+      "canvasH": 313,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__03_walk.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__03_walk_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/alien",
+      "species": "alien",
+      "asset_type": "character",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "rendered green-headed alien astronaut in silver spacesuit with laser pistol"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/alien__02_turn_to_walk",
+      "source": "phaser-cdn/animations/alien.json",
+      "stem": "02_Turn_to_walk",
+      "animName": "02_Turn_to_walk",
+      "frameCount": 4,
+      "canvasW": 180,
+      "canvasH": 297,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__02_turn_to_walk.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__02_turn_to_walk_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/alien",
+      "species": "alien",
+      "asset_type": "character",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "rendered green-headed alien astronaut in silver spacesuit with laser pistol"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/alien__01_idle",
+      "source": "phaser-cdn/animations/alien.json",
+      "stem": "01_Idle",
+      "animName": "01_Idle",
+      "frameCount": 18,
+      "canvasW": 199,
+      "canvasH": 293,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__01_idle.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__01_idle_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/alien",
+      "species": "alien",
+      "asset_type": "character",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "rendered green-headed alien astronaut in silver spacesuit with laser pistol"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/bird____all__",
+      "source": "phaser-cdn/animations/bird.json",
+      "stem": "__all__",
+      "animName": "__all__",
+      "frameCount": 10,
+      "canvasW": 108,
+      "canvasH": 103,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/bird____all__.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/bird____all___preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/bird",
+      "species": "monster",
+      "asset_type": "creature",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 3,
+      "desc_prefix": "stylized pink ostrich-like bird with orange spots"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_attack",
+      "source": "phaser-cdn/animations/elves-craft-pixel.json",
+      "stem": "green_attack",
+      "animName": "green_attack",
+      "frameCount": 6,
+      "canvasW": 265,
+      "canvasH": 134,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_attack.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_attack_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/elves-craft-pixel",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "stylized elf wizard/mage character with pointed hat and staff"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_attack",
+      "source": "phaser-cdn/animations/elves-craft-pixel.json",
+      "stem": "blue_attack",
+      "animName": "blue_attack",
+      "frameCount": 5,
+      "canvasW": 235,
+      "canvasH": 138,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_attack.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_attack_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/elves-craft-pixel",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "stylized elf wizard/mage character with pointed hat and staff"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_idle",
+      "source": "phaser-cdn/animations/elves-craft-pixel.json",
+      "stem": "green_idle",
+      "animName": "green_idle",
+      "frameCount": 5,
+      "canvasW": 265,
+      "canvasH": 134,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_idle.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_idle_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/elves-craft-pixel",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "stylized elf wizard/mage character with pointed hat and staff"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_die",
+      "source": "phaser-cdn/animations/elves-craft-pixel.json",
+      "stem": "green_die",
+      "animName": "green_die",
+      "frameCount": 5,
+      "canvasW": 265,
+      "canvasH": 134,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_die.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_die_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/elves-craft-pixel",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "stylized elf wizard/mage character with pointed hat and staff"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_die",
+      "source": "phaser-cdn/animations/elves-craft-pixel.json",
+      "stem": "blue_die",
+      "animName": "blue_die",
+      "frameCount": 5,
+      "canvasW": 235,
+      "canvasH": 138,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_die.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_die_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/elves-craft-pixel",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "stylized elf wizard/mage character with pointed hat and staff"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_idle",
+      "source": "phaser-cdn/animations/elves-craft-pixel.json",
+      "stem": "blue_idle",
+      "animName": "blue_idle",
+      "frameCount": 5,
+      "canvasW": 235,
+      "canvasH": 138,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_idle.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_idle_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/elves-craft-pixel",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "stylized elf wizard/mage character with pointed hat and staff"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__attack_a",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "attack_A",
+      "animName": "attack_A",
+      "frameCount": 14,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_a.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_a_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__attack_c",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "attack_C",
+      "animName": "attack_C",
+      "frameCount": 14,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_c.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_c_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__attack_b",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "attack_B",
+      "animName": "attack_B",
+      "frameCount": 13,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_b.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_b_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__guard",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "guard",
+      "animName": "guard",
+      "frameCount": 6,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__fall_loop",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "fall_loop",
+      "animName": "fall_loop",
+      "frameCount": 2,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__fall_loop.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__fall_loop_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__jump_loop",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "jump_loop",
+      "animName": "jump_loop",
+      "frameCount": 2,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_loop.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_loop_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__jump_start",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "jump_start",
+      "animName": "jump_start",
+      "frameCount": 4,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_start.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_start_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__run",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "run",
+      "animName": "run",
+      "frameCount": 8,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__run.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__run_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__guard_end",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "guard_end",
+      "animName": "guard_end",
+      "frameCount": 4,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_end.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_end_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__die",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "die",
+      "animName": "die",
+      "frameCount": 10,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__die.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__die_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__get_hit",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "get_hit",
+      "animName": "get_hit",
+      "frameCount": 5,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__get_hit.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__get_hit_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__guard_start",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "guard_start",
+      "animName": "guard_start",
+      "frameCount": 4,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_start.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_start_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/knight__idle",
+      "source": "phaser-cdn/animations/knight.json",
+      "stem": "idle",
+      "animName": "idle",
+      "frameCount": 6,
+      "canvasW": 79,
+      "canvasH": 63,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__idle.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__idle_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/knight",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "pixel-art armored knight with sword"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/robo__running",
+      "source": "phaser-cdn/animations/robo.json",
+      "stem": "Running",
+      "animName": "Running",
+      "frameCount": 15,
+      "canvasW": 300,
+      "canvasH": 256,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/robo__running.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/robo__running_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/robo",
+      "species": "robot",
+      "asset_type": "character",
+      "theme": "sci_fi",
+      "playable_role": "generic",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "cute cartoon grey robot with big eyes and antenna"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/soldier__soldier_3_shoot_up",
+      "source": "phaser-cdn/animations/soldier.json",
+      "stem": "soldier_3_shoot_up",
+      "animName": "soldier_3_shoot_up",
+      "frameCount": 5,
+      "canvasW": 140,
+      "canvasH": 140,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_up.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_up_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/soldier",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "military",
+      "playable_role": "generic",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "WWII-era camo soldier with rifle"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/soldier__soldier_2_shot_up",
+      "source": "phaser-cdn/animations/soldier.json",
+      "stem": "Soldier_2_shot_up",
+      "animName": "Soldier_2_shot_up",
+      "frameCount": 11,
+      "canvasW": 140,
+      "canvasH": 140,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_up.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_up_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/soldier",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "military",
+      "playable_role": "generic",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "WWII-era camo soldier with rifle"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/soldier__soldier_3_shoot_front",
+      "source": "phaser-cdn/animations/soldier.json",
+      "stem": "soldier_3_shoot_front",
+      "animName": "soldier_3_shoot_front",
+      "frameCount": 11,
+      "canvasW": 140,
+      "canvasH": 140,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_front.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_front_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/soldier",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "military",
+      "playable_role": "generic",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "WWII-era camo soldier with rifle"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/soldier__soldier_2_shot_front",
+      "source": "phaser-cdn/animations/soldier.json",
+      "stem": "Soldier_2_shot_front",
+      "animName": "Soldier_2_shot_front",
+      "frameCount": 8,
+      "canvasW": 140,
+      "canvasH": 140,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_front.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_front_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/soldier",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "military",
+      "playable_role": "generic",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "WWII-era camo soldier with rifle"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/soldier__soldier_3_walk",
+      "source": "phaser-cdn/animations/soldier.json",
+      "stem": "soldier_3_walk",
+      "animName": "soldier_3_walk",
+      "frameCount": 8,
+      "canvasW": 140,
+      "canvasH": 140,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_walk.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_walk_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/soldier",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "military",
+      "playable_role": "generic",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "WWII-era camo soldier with rifle"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/soldier__soldier_2_walk",
+      "source": "phaser-cdn/animations/soldier.json",
+      "stem": "Soldier_2_walk",
+      "animName": "Soldier_2_walk",
+      "frameCount": 8,
+      "canvasW": 140,
+      "canvasH": 140,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_walk.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_walk_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/soldier",
+      "species": "human",
+      "asset_type": "character",
+      "theme": "military",
+      "playable_role": "generic",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "WWII-era camo soldier with rifle"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/walker__frame",
+      "source": "phaser-cdn/animations/walker.json",
+      "stem": "frame",
+      "animName": "frame",
+      "frameCount": 16,
+      "canvasW": 218,
+      "canvasH": 159,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/walker__frame.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/walker__frame_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/walker",
+      "species": "robot",
+      "asset_type": "vehicle",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "detailed pixel-art sci-fi mech walker with multiple guns"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/zombie__death",
+      "source": "phaser-cdn/animations/zombie.json",
+      "stem": "Death",
+      "animName": "Death",
+      "frameCount": 6,
+      "canvasW": 352,
+      "canvasH": 466,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__death.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__death_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/zombie",
+      "species": "zombie",
+      "asset_type": "character",
+      "theme": "platformer",
+      "playable_role": "enemy",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "rendered zombie crawling on all fours, blue tattered shirt"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/animations/zombie__walk",
+      "source": "phaser-cdn/animations/zombie.json",
+      "stem": "walk",
+      "animName": "walk",
+      "frameCount": 9,
+      "canvasW": 256,
+      "canvasH": 251,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__walk.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__walk_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn animations/zombie",
+      "species": "zombie",
+      "asset_type": "character",
+      "theme": "platformer",
+      "playable_role": "enemy",
+      "perspective": "side",
+      "movement": "ground",
+      "quality": 5,
+      "desc_prefix": "rendered zombie crawling on all fours, blue tattered shirt"
+    }
+  },
+  {
+    "item": {
+      "id": "phaser-cdn/tweens/golem",
+      "source": "phaser-cdn/raw-frames/tweens",
+      "stem": "golem",
+      "animName": "walk",
+      "frameCount": 2,
+      "canvasW": 296,
+      "canvasH": 364,
+      "sheetPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/tweens/golem.png",
+      "previewPath": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/tweens/golem_preview.png"
+    },
+    "label": {
+      "source": "phaser-cdn tweens/golem",
+      "species": "monster",
+      "asset_type": "creature",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "perspective": "front",
+      "movement": "ground",
+      "quality": 4,
+      "desc_prefix": "blue armored demon/golem boss, front-facing idle breathing animation"
+    }
+  }
+]

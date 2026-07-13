@@ -13,4 +13,4 @@ public/assets/
 # Only the top-level manifest/log JSONs (starting with _) are kept as audit trail.
 v2-catalog/staging/**/*.png
 v2-catalog/staging/**/*.json
-!v2-catalog/staging/kenney-all/_*.json
+!v2-catalog/staging/*/_*.json

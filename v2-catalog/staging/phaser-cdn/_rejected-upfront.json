@@ -1,0 +1,934 @@
+[
+  {
+    "path": "animations/diamond.json",
+    "reason": "diamond effect, not character"
+  },
+  {
+    "path": "animations/gems.json",
+    "reason": "gem sprites, not character"
+  },
+  {
+    "path": "animations/lazer/lazer.json",
+    "reason": "projectile effect"
+  },
+  {
+    "path": "animations/spine/spineboy-pro.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/spineboy.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/coin-pro.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/demos.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/goblins-pro.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/raptor-pro.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/spineboy-ess.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/stretchyman-pro.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/tank-pro.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/spine/webgl/vine-pro.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "animations/teapot.json",
+    "reason": "inanimate object"
+  },
+  {
+    "path": "atlas/banners.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/big-forest.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/big-forest.tp.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/bitmap-fonts.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/cards.json",
+    "reason": "playing cards"
+  },
+  {
+    "path": "atlas/chiller.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/clouds.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/girl.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/glade.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/isoblocks.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/jellies.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/match3.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/megaset-0.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/megaset-1.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/megaset-2.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/megaset-3.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/monsters.json",
+    "reason": "ambiguous — deferring, may check in review"
+  },
+  {
+    "path": "atlas/multi-webp.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/nine-slice.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/rotated-atlas.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/timeline.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/tp3-multi-atlas.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/tp3test.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/trimsheet/trimsheet.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "atlas/tweenparts.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "audio/Ludwig van Beethoven - The Creatures of Prometheus, Op. 43/sprites.json",
+    "reason": "audio sprite JSON, not sprite atlas"
+  },
+  {
+    "path": "audio/SoundEffects/fx_mixdown.json",
+    "reason": "audio sprite JSON, not sprite atlas"
+  },
+  {
+    "path": "audio/kyobi/kyobi.json",
+    "reason": "audio sprite JSON, not sprite atlas"
+  },
+  {
+    "path": "bugs/e_spinwave.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "compressed/uncompressed/multi-ASTC-4x4-lRGB.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "compressed/uncompressed/multi-ETC2-lRGB.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "compressed/uncompressed/multi-PVRTC-4BPP-lRGB.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "compressed/uncompressed/multi-S3TC-BC3-lRGB.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "compressed/uncompressed/multi.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "compressed/uncompressed/textures.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "demoscene/birdy.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "demoscene/budbrain.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "games/breakout/breakout.json",
+    "reason": "brick + paddle assets, not character animation"
+  },
+  {
+    "path": "games/card-memory-game/fruits/fruits_atlas.json",
+    "reason": "card face icons"
+  },
+  {
+    "path": "games/coin-clicker/coin.json",
+    "reason": "single coin sprite"
+  },
+  {
+    "path": "games/emoji-match/emojis.json",
+    "reason": "emoji icon set"
+  },
+  {
+    "path": "games/flood/blobs.json",
+    "reason": "verified earlier as junk UI swatches / static variant grid"
+  },
+  {
+    "path": "games/flood/monsters.json",
+    "reason": "verified earlier as junk UI swatches / static variant grid"
+  },
+  {
+    "path": "games/tom/font/font.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "games/tom/font.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "games/tom/tomato/tomato_anim.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/pack1.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/pack2.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/pack3.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/pack4.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/pack5.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/pack6.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/texture-packer-atlas-with-normals.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/texture-packer-multi-atlas-with-normals.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "loader-tests/texture-packer-multi-atlas.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "particles/bubbles.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "particles/emitter.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "particles/explosion.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "particles/flares.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "paths/types-test.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "paths/waves.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "phaser3/boing.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene0.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene1.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene2.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene3.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene4.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene5.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene6.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene7.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene8.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene0.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene1.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene2.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene3.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene4.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scenex.json",
+    "reason": "sample game tilemap scenes"
+  },
+  {
+    "path": "physics/catstick.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "physics/compound.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "physics/fruit-shapes.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "physics/fruit-sprites.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "physics/mountain.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "rope/ui-icons.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "sets/platformer.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "spine/3.8/alien/alien-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/coin/coin-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/coin2/coin-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/demos/demos.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/dragon/dragon-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/goblins/goblins-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/hero/hero-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/owl/owl-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/powerup/powerup-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/raptor/raptor-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/speedy/speedy-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/spineboy/spineboy-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/spineboy/spineboy-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/stretchyman/stretchyman-stretchy-ik-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/tank/tank-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/vine/vine-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/3.8/windmill/windmill-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.0/spineboy-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/coin/coin-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/demos/demos.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/dragon/dragon-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/goblins/goblins-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/owl/owl-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/raptor/raptor-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/spineboy/canvas/spineboy-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/spineboy/spineboy-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/stretchyman/stretchyman-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/tank/tank-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/4.1/vine/vine-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/alien/alien-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/alien/alien-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/coin/coin-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/demos/demos.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/dragon/dragon-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/goblins/goblins-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/goblins/goblins-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/hero/hero-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/hero/hero-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/owl/owl-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/powerup/powerup-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/powerup/powerup-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/raptor/raptor-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/speedy/speedy-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/spineboy/spineboy-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/spineboy/spineboy-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/stretchyman/stretchyman-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/stretchyman/stretchyman-stretchy-ik-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/tank/tank-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/vine/vine-pro.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "spine/windmill/windmill-ess.json",
+    "reason": "Spine runtime format — incompatible with Phaser basic atlas loader"
+  },
+  {
+    "path": "sprites/blocks.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "sprites/speakers/speakers.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/9slice/9slice.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/columns/columns.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/columns/gems.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/fruit/veg.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/fruit/veg2.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/grave/candle.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/iso/isometric-grass-and-water-small.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/iso/isometric-grass-and-water.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/meadow/grass.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/piano/piano.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/scenes/space.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/scenes/ui.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/twist/bobs.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/zombie-no-pivot.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/zombie-pivot-absolute.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/zombie-pivot.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tests/zoom/nemesis.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "tilemaps/MedievalRTS/sample.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/hex/10x10-test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/hex-test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/hexagonal-mini-6x.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/hexagonal.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/iso6790.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/isorpg.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/isotest.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/tilemaps/sandbox.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/tilemaps/testHexa.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/tilemaps/testfinal.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/tilemaps/testhexa2.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/tilemaps/testhexa3.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/tilemaps/testhexa4.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/iso/tilemaps/teststaggered.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/cave.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/collision_test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/commando.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/copy-test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/create from tiles.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/cybernoid.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/dangerous-kiss.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/depthsort.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/desert.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/dual_view.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/features-test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/features_test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/features_test_rotated.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/flipped-tiles.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/image-collection.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/impact-tilemap.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/impact.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/impact2.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/impact3.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/level-with-coin-objects.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/matter-destroy-tile-bodies.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/matter-ghost-vertices.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/matter-platformer-dynamic-example.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/matter-platformer.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/multi-layer-multi-tileset.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/multi-tileset-v12.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/multi-tileset.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/multilayered-map.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/multiple-layers.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/multiple-tile-sizes-collision.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/ninja-tilemap.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/phaser_tiles.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/platform.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/simple map.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/simple-map.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/slopes.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/super-mario-3.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/super-mario.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tile properties v14.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tile-collision-test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tile_properties-v12.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tile_properties.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tileorder.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tileset-collision-property-v12.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tileset-collision-property.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tileset-collision-shapes-automated-test.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tileset-collision-shapes-v12.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/maps/tileset-collision-shapes.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "tilemaps/tmx/unsorted/desert2.json",
+    "reason": "tilemap tile atlas — environment"
+  },
+  {
+    "path": "ui/dark-ui.json",
+    "reason": "not in curated include list"
+  },
+  {
+    "path": "ui/nine-slice.json",
+    "reason": "not in curated include list"
+  }
+]

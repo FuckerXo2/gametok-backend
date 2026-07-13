@@ -1,0 +1,1597 @@
+{
+  "items": [
+    {
+      "id": "phaser-cdn/animations/alien__03_walk",
+      "asset_type": "character",
+      "species": "alien",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "frame_count": 13,
+      "canvas_size": {
+        "w": 201,
+        "h": 313
+      },
+      "source_pack": "phaser-cdn animations/alien",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "rendered green-headed alien astronaut in silver spacesuit with laser pistol, walk animation (13 frames)",
+      "search_text": "character alien walk side ground sci_fi enemy rendered green headed alien astronaut in silver spacesuit with laser pistol walk animation 13 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_alien/alien__03_walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_alien/alien__03_walk.json",
+        "sheet_key": "assets/v2/character/phaser_animations_alien/alien__03_walk.png",
+        "atlas_key": "assets/v2/character/phaser_animations_alien/alien__03_walk.json"
+      },
+      "atlas_ref": {
+        "sheet": "alien__03_walk.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__03_walk.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__03_walk_preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/alien__02_turn_to_walk",
+      "asset_type": "character",
+      "species": "alien",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 180,
+        "h": 297
+      },
+      "source_pack": "phaser-cdn animations/alien",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "rendered green-headed alien astronaut in silver spacesuit with laser pistol, turn_to_walk animation (4 frames)",
+      "search_text": "character alien walk side ground sci_fi enemy rendered green headed alien astronaut in silver spacesuit with laser pistol turn_to_walk animation 4 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_alien/alien__02_turn_to_walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_alien/alien__02_turn_to_walk.json",
+        "sheet_key": "assets/v2/character/phaser_animations_alien/alien__02_turn_to_walk.png",
+        "atlas_key": "assets/v2/character/phaser_animations_alien/alien__02_turn_to_walk.json"
+      },
+      "atlas_ref": {
+        "sheet": "alien__02_turn_to_walk.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__02_turn_to_walk.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__02_turn_to_walk_preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/alien__01_idle",
+      "asset_type": "character",
+      "species": "alien",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "frame_count": 18,
+      "canvas_size": {
+        "w": 199,
+        "h": 293
+      },
+      "source_pack": "phaser-cdn animations/alien",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "rendered green-headed alien astronaut in silver spacesuit with laser pistol, idle animation (18 frames)",
+      "search_text": "character alien idle side ground sci_fi enemy rendered green headed alien astronaut in silver spacesuit with laser pistol idle animation 18 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_alien/alien__01_idle.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_alien/alien__01_idle.json",
+        "sheet_key": "assets/v2/character/phaser_animations_alien/alien__01_idle.png",
+        "atlas_key": "assets/v2/character/phaser_animations_alien/alien__01_idle.json"
+      },
+      "atlas_ref": {
+        "sheet": "alien__01_idle.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__01_idle.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/alien__01_idle_preview.png",
+        "animations": {
+          "idle": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/bird____all__",
+      "asset_type": "creature",
+      "species": "monster",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 10,
+      "canvas_size": {
+        "w": 108,
+        "h": 103
+      },
+      "source_pack": "phaser-cdn animations/bird",
+      "quality_score": 3,
+      "confidence_score": 0.9,
+      "description": "stylized pink ostrich-like bird with orange spots, walk animation (10 frames)",
+      "search_text": "creature monster walk side ground casual enemy stylized pink ostrich like bird with orange spots walk animation 10 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_animations_bird/bird____all__.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_animations_bird/bird____all__.json",
+        "sheet_key": "assets/v2/creature/phaser_animations_bird/bird____all__.png",
+        "atlas_key": "assets/v2/creature/phaser_animations_bird/bird____all__.json"
+      },
+      "atlas_ref": {
+        "sheet": "bird____all__.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/bird____all__.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/bird____all___preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_attack",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 6,
+      "canvas_size": {
+        "w": 265,
+        "h": 134
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "stylized elf wizard/mage character with pointed hat and staff, green_attack animation (6 frames)",
+      "search_text": "character human attack side ground fantasy player stylized elf wizard mage character with pointed hat and staff green_attack animation 6 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_attack.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_attack.json",
+        "sheet_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_attack.png",
+        "atlas_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_attack.json"
+      },
+      "atlas_ref": {
+        "sheet": "elves-craft-pixel__green_attack.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_attack.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_attack_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_attack",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 235,
+        "h": 138
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "stylized elf wizard/mage character with pointed hat and staff, blue_attack animation (5 frames)",
+      "search_text": "character human attack side ground fantasy player stylized elf wizard mage character with pointed hat and staff blue_attack animation 5 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_attack.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_attack.json",
+        "sheet_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_attack.png",
+        "atlas_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_attack.json"
+      },
+      "atlas_ref": {
+        "sheet": "elves-craft-pixel__blue_attack.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_attack.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_attack_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_idle",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 265,
+        "h": 134
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "stylized elf wizard/mage character with pointed hat and staff, green_idle animation (5 frames)",
+      "search_text": "character human idle side ground fantasy player stylized elf wizard mage character with pointed hat and staff green_idle animation 5 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_idle.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_idle.json",
+        "sheet_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_idle.png",
+        "atlas_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_idle.json"
+      },
+      "atlas_ref": {
+        "sheet": "elves-craft-pixel__green_idle.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_idle.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_idle_preview.png",
+        "animations": {
+          "idle": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__green_die",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "damage",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 265,
+        "h": 134
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "stylized elf wizard/mage character with pointed hat and staff, green_die animation (5 frames)",
+      "search_text": "character human damage side ground fantasy player stylized elf wizard mage character with pointed hat and staff green_die animation 5 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_die.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_die.json",
+        "sheet_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_die.png",
+        "atlas_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__green_die.json"
+      },
+      "atlas_ref": {
+        "sheet": "elves-craft-pixel__green_die.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_die.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__green_die_preview.png",
+        "animations": {
+          "damage": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_die",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "damage",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 235,
+        "h": 138
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "stylized elf wizard/mage character with pointed hat and staff, blue_die animation (5 frames)",
+      "search_text": "character human damage side ground fantasy player stylized elf wizard mage character with pointed hat and staff blue_die animation 5 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_die.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_die.json",
+        "sheet_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_die.png",
+        "atlas_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_die.json"
+      },
+      "atlas_ref": {
+        "sheet": "elves-craft-pixel__blue_die.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_die.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_die_preview.png",
+        "animations": {
+          "damage": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/elves-craft-pixel__blue_idle",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 235,
+        "h": 138
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "stylized elf wizard/mage character with pointed hat and staff, blue_idle animation (5 frames)",
+      "search_text": "character human idle side ground fantasy player stylized elf wizard mage character with pointed hat and staff blue_idle animation 5 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_idle.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_idle.json",
+        "sheet_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_idle.png",
+        "atlas_key": "assets/v2/character/phaser_animations_elves-craft-pixel/elves-craft-pixel__blue_idle.json"
+      },
+      "atlas_ref": {
+        "sheet": "elves-craft-pixel__blue_idle.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_idle.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/elves-craft-pixel__blue_idle_preview.png",
+        "animations": {
+          "idle": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__attack_a",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 14,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, attack_a animation (14 frames)",
+      "search_text": "character human attack side ground fantasy player pixel art armored knight with sword attack_a animation 14 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__attack_a.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__attack_a.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__attack_a.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__attack_a.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__attack_a.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_a.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_a_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__attack_c",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 14,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, attack_c animation (14 frames)",
+      "search_text": "character human attack side ground fantasy player pixel art armored knight with sword attack_c animation 14 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__attack_c.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__attack_c.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__attack_c.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__attack_c.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__attack_c.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_c.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_c_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__attack_b",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 13,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, attack_b animation (13 frames)",
+      "search_text": "character human attack side ground fantasy player pixel art armored knight with sword attack_b animation 13 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__attack_b.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__attack_b.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__attack_b.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__attack_b.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__attack_b.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_b.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__attack_b_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__guard",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 6,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, guard animation (6 frames)",
+      "search_text": "character human idle side ground fantasy player pixel art armored knight with sword guard animation 6 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__guard.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__guard.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__guard.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__guard.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__guard.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_preview.png",
+        "animations": {
+          "idle": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__fall_loop",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "damage",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 2,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, fall_loop animation (2 frames)",
+      "search_text": "character human damage side ground fantasy player pixel art armored knight with sword fall_loop animation 2 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__fall_loop.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__fall_loop.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__fall_loop.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__fall_loop.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__fall_loop.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__fall_loop.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__fall_loop_preview.png",
+        "animations": {
+          "damage": {
+            "frames": [
+              0,
+              1
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__jump_loop",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "action",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 2,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, jump_loop animation (2 frames)",
+      "search_text": "character human action side ground fantasy player pixel art armored knight with sword jump_loop animation 2 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__jump_loop.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__jump_loop.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__jump_loop.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__jump_loop.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__jump_loop.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_loop.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_loop_preview.png",
+        "animations": {
+          "action": {
+            "frames": [
+              0,
+              1
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__jump_start",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "action",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, jump_start animation (4 frames)",
+      "search_text": "character human action side ground fantasy player pixel art armored knight with sword jump_start animation 4 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__jump_start.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__jump_start.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__jump_start.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__jump_start.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__jump_start.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_start.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__jump_start_preview.png",
+        "animations": {
+          "action": {
+            "frames": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__run",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "run",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 8,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, run animation (8 frames)",
+      "search_text": "character human run side ground fantasy player pixel art armored knight with sword run animation 8 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__run.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__run.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__run.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__run.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__run.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__run.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__run_preview.png",
+        "animations": {
+          "run": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__guard_end",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, guard_end animation (4 frames)",
+      "search_text": "character human idle side ground fantasy player pixel art armored knight with sword guard_end animation 4 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__guard_end.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__guard_end.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__guard_end.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__guard_end.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__guard_end.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_end.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_end_preview.png",
+        "animations": {
+          "idle": {
+            "frames": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__die",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "damage",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 10,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, die animation (10 frames)",
+      "search_text": "character human damage side ground fantasy player pixel art armored knight with sword die animation 10 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__die.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__die.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__die.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__die.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__die.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__die.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__die_preview.png",
+        "animations": {
+          "damage": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__get_hit",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, get_hit animation (5 frames)",
+      "search_text": "character human attack side ground fantasy player pixel art armored knight with sword get_hit animation 5 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__get_hit.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__get_hit.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__get_hit.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__get_hit.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__get_hit.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__get_hit.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__get_hit_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__guard_start",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, guard_start animation (4 frames)",
+      "search_text": "character human idle side ground fantasy player pixel art armored knight with sword guard_start animation 4 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__guard_start.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__guard_start.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__guard_start.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__guard_start.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__guard_start.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_start.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__guard_start_preview.png",
+        "animations": {
+          "idle": {
+            "frames": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/knight__idle",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 6,
+      "canvas_size": {
+        "w": 79,
+        "h": 63
+      },
+      "source_pack": "phaser-cdn animations/knight",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "pixel-art armored knight with sword, idle animation (6 frames)",
+      "search_text": "character human idle side ground fantasy player pixel art armored knight with sword idle animation 6 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__idle.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_knight/knight__idle.json",
+        "sheet_key": "assets/v2/character/phaser_animations_knight/knight__idle.png",
+        "atlas_key": "assets/v2/character/phaser_animations_knight/knight__idle.json"
+      },
+      "atlas_ref": {
+        "sheet": "knight__idle.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__idle.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/knight__idle_preview.png",
+        "animations": {
+          "idle": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/robo__running",
+      "asset_type": "character",
+      "species": "robot",
+      "animation_type": "run",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "sci_fi",
+      "playable_role": "generic",
+      "frame_count": 15,
+      "canvas_size": {
+        "w": 300,
+        "h": 256
+      },
+      "source_pack": "phaser-cdn animations/robo",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "cute cartoon grey robot with big eyes and antenna, running animation (15 frames)",
+      "search_text": "character robot run side ground sci_fi generic cute cartoon grey robot with big eyes and antenna running animation 15 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_robo/robo__running.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_robo/robo__running.json",
+        "sheet_key": "assets/v2/character/phaser_animations_robo/robo__running.png",
+        "atlas_key": "assets/v2/character/phaser_animations_robo/robo__running.json"
+      },
+      "atlas_ref": {
+        "sheet": "robo__running.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/robo__running.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/robo__running_preview.png",
+        "animations": {
+          "run": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_3_shoot_up",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "military",
+      "playable_role": "generic",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn animations/soldier",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "WWII-era camo soldier with rifle, soldier_3_shoot_up animation (5 frames)",
+      "search_text": "character human attack side ground military generic wwii era camo soldier with rifle soldier_3_shoot_up animation 5 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_up.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_up.json",
+        "sheet_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_up.png",
+        "atlas_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_up.json"
+      },
+      "atlas_ref": {
+        "sheet": "soldier__soldier_3_shoot_up.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_up.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_up_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_2_shot_up",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "military",
+      "playable_role": "generic",
+      "frame_count": 11,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn animations/soldier",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "WWII-era camo soldier with rifle, soldier_2_shot_up animation (11 frames)",
+      "search_text": "character human attack side ground military generic wwii era camo soldier with rifle soldier_2_shot_up animation 11 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_up.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_up.json",
+        "sheet_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_up.png",
+        "atlas_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_up.json"
+      },
+      "atlas_ref": {
+        "sheet": "soldier__soldier_2_shot_up.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_up.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_up_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_3_shoot_front",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "military",
+      "playable_role": "generic",
+      "frame_count": 11,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn animations/soldier",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "WWII-era camo soldier with rifle, soldier_3_shoot_front animation (11 frames)",
+      "search_text": "character human attack side ground military generic wwii era camo soldier with rifle soldier_3_shoot_front animation 11 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_front.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_front.json",
+        "sheet_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_front.png",
+        "atlas_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_3_shoot_front.json"
+      },
+      "atlas_ref": {
+        "sheet": "soldier__soldier_3_shoot_front.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_front.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_shoot_front_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_2_shot_front",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "military",
+      "playable_role": "generic",
+      "frame_count": 8,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn animations/soldier",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "WWII-era camo soldier with rifle, soldier_2_shot_front animation (8 frames)",
+      "search_text": "character human attack side ground military generic wwii era camo soldier with rifle soldier_2_shot_front animation 8 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_front.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_front.json",
+        "sheet_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_front.png",
+        "atlas_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_2_shot_front.json"
+      },
+      "atlas_ref": {
+        "sheet": "soldier__soldier_2_shot_front.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_front.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_shot_front_preview.png",
+        "animations": {
+          "attack": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_3_walk",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "military",
+      "playable_role": "generic",
+      "frame_count": 8,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn animations/soldier",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "WWII-era camo soldier with rifle, soldier_3_walk animation (8 frames)",
+      "search_text": "character human walk side ground military generic wwii era camo soldier with rifle soldier_3_walk animation 8 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_3_walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_3_walk.json",
+        "sheet_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_3_walk.png",
+        "atlas_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_3_walk.json"
+      },
+      "atlas_ref": {
+        "sheet": "soldier__soldier_3_walk.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_walk.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_3_walk_preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/soldier__soldier_2_walk",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "military",
+      "playable_role": "generic",
+      "frame_count": 8,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn animations/soldier",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "WWII-era camo soldier with rifle, soldier_2_walk animation (8 frames)",
+      "search_text": "character human walk side ground military generic wwii era camo soldier with rifle soldier_2_walk animation 8 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_2_walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_soldier/soldier__soldier_2_walk.json",
+        "sheet_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_2_walk.png",
+        "atlas_key": "assets/v2/character/phaser_animations_soldier/soldier__soldier_2_walk.json"
+      },
+      "atlas_ref": {
+        "sheet": "soldier__soldier_2_walk.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_walk.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/soldier__soldier_2_walk_preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/walker__frame",
+      "asset_type": "vehicle",
+      "species": "robot",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "sci_fi",
+      "playable_role": "enemy",
+      "frame_count": 16,
+      "canvas_size": {
+        "w": 218,
+        "h": 159
+      },
+      "source_pack": "phaser-cdn animations/walker",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "detailed pixel-art sci-fi mech walker with multiple guns, frame animation (16 frames)",
+      "search_text": "vehicle robot walk side ground sci_fi enemy detailed pixel art sci fi mech walker with multiple guns frame animation 16 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/vehicle/phaser_animations_walker/walker__frame.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/vehicle/phaser_animations_walker/walker__frame.json",
+        "sheet_key": "assets/v2/vehicle/phaser_animations_walker/walker__frame.png",
+        "atlas_key": "assets/v2/vehicle/phaser_animations_walker/walker__frame.json"
+      },
+      "atlas_ref": {
+        "sheet": "walker__frame.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/walker__frame.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/walker__frame_preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/zombie__death",
+      "asset_type": "character",
+      "species": "zombie",
+      "animation_type": "damage",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "platformer",
+      "playable_role": "enemy",
+      "frame_count": 6,
+      "canvas_size": {
+        "w": 352,
+        "h": 466
+      },
+      "source_pack": "phaser-cdn animations/zombie",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "rendered zombie crawling on all fours, blue tattered shirt, death animation (6 frames)",
+      "search_text": "character zombie damage side ground platformer enemy rendered zombie crawling on all fours blue tattered shirt death animation 6 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_zombie/zombie__death.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_zombie/zombie__death.json",
+        "sheet_key": "assets/v2/character/phaser_animations_zombie/zombie__death.png",
+        "atlas_key": "assets/v2/character/phaser_animations_zombie/zombie__death.json"
+      },
+      "atlas_ref": {
+        "sheet": "zombie__death.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__death.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__death_preview.png",
+        "animations": {
+          "damage": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/animations/zombie__walk",
+      "asset_type": "character",
+      "species": "zombie",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "platformer",
+      "playable_role": "enemy",
+      "frame_count": 9,
+      "canvas_size": {
+        "w": 256,
+        "h": 251
+      },
+      "source_pack": "phaser-cdn animations/zombie",
+      "quality_score": 5,
+      "confidence_score": 0.9,
+      "description": "rendered zombie crawling on all fours, blue tattered shirt, walk animation (9 frames)",
+      "search_text": "character zombie walk side ground platformer enemy rendered zombie crawling on all fours blue tattered shirt walk animation 9 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_zombie/zombie__walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_animations_zombie/zombie__walk.json",
+        "sheet_key": "assets/v2/character/phaser_animations_zombie/zombie__walk.png",
+        "atlas_key": "assets/v2/character/phaser_animations_zombie/zombie__walk.json"
+      },
+      "atlas_ref": {
+        "sheet": "zombie__walk.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__walk.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/animations/zombie__walk_preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    },
+    {
+      "id": "phaser-cdn/tweens/golem",
+      "asset_type": "creature",
+      "species": "monster",
+      "animation_type": "walk",
+      "perspective": "front",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 2,
+      "canvas_size": {
+        "w": 296,
+        "h": 364
+      },
+      "source_pack": "phaser-cdn tweens/golem",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "blue armored demon/golem boss, front-facing idle breathing animation, walk animation (2 frames)",
+      "search_text": "creature monster walk front ground fantasy enemy blue armored demon golem boss front facing idle breathing animation walk animation 2 frames",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_tweens_golem/golem.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_tweens_golem/golem.json",
+        "sheet_key": "assets/v2/creature/phaser_tweens_golem/golem.png",
+        "atlas_key": "assets/v2/creature/phaser_tweens_golem/golem.json"
+      },
+      "atlas_ref": {
+        "sheet": "golem.png",
+        "sheet_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/tweens/golem.png",
+        "preview_path": "/Users/abiolalimitless/gameidea/gametok-backend/v2-catalog/staging/phaser-cdn/tweens/golem_preview.png",
+        "animations": {
+          "walk": {
+            "frames": [
+              0,
+              1
+            ],
+            "fps": 12,
+            "loop": true
+          }
+        }
+      }
+    }
+  ]
+}

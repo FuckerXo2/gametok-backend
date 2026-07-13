@@ -1,0 +1,18 @@
+[
+  {
+    "path": "animations/aseprite/tank.json",
+    "error": "PNG fetch failed: 404 https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/animations/aseprite/C:\\Users\\rdave\\Desktop\\tank.png"
+  },
+  {
+    "path": "games/pacman/map.json",
+    "error": "unable to detect image path in JSON"
+  },
+  {
+    "path": "games/tom/tomato/tomato_atlas.json",
+    "error": "unable to detect image path in JSON"
+  },
+  {
+    "path": "physics/supercar.json",
+    "error": "unable to detect image path in JSON"
+  }
+]
