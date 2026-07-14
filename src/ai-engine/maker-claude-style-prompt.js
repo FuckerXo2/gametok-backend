@@ -1,47 +1,37 @@
-// Claude-style Phaser game generation prompt
-// This prompt instructs the AI to generate games exactly like Claude does:
-// - No scaffolds, no templates, no contracts
-// - Just clean Phaser 3 + JavaScript + CDN assets
-// - Fixed dimensions, single-file output via Vite
+// Claude-style Phaser game generation prompt — v2 catalog pipeline.
+// Flow: design plan (grounded in the v2 catalog summary) → entity-level RAG for the plan's SPRITE
+// entities only → dominant-pack coherence re-rank → builder prompt with per-asset atlas contracts.
+// Environment/props/UI are code-drawn by design; there are no environment sprites anymore.
 
-import { getCatalog, getAssetsByTheme, getDiverseSample, selectGameAssets } from './load-catalog.js';
-import { findRelevantPacks, recallCandidatePacks } from './embedding-search.js';
-import { selectPacksWithModel, listRequiredEntities } from './asset-selection.js';
-import { retrieveAssetsForEntities } from './asset-retrieval.js';
+import { listRequiredEntities } from './asset-selection.js';
+import { retrieveAssetsForEntities, getCatalogSummary } from './asset-retrieval.js';
 import { designGamePlan, formatPlanForBuilder } from './game-design.js';
 
 /**
- * Detect the intended camera orientation from the prompt so we only surface correctly-oriented art
- * (a top-down racer must not be handed side-view cars). Defaults to top_down for 2D mobile.
+ * Fallback orientation from the raw prompt, used only when the design step fails. Defaults to
+ * 'side' — the v2 catalog is overwhelmingly side-view (144 side vs ~10 top_down), so side is the
+ * orientation we can actually cast.
  */
 function detectOrientation(prompt) {
   const p = prompt.toLowerCase();
   if (/\b(isometric|iso|axonometric)\b/.test(p)) return 'isometric';
-  if (/\b(side-?scroll|platformer|side view|sidescroller|runner|jump)\b/.test(p)) return 'side';
-  if (/\b(top-?down|topdown|overhead|birds?-?eye|racing|race|driving|tank)\b/.test(p)) return 'top_down';
-  return 'top_down';
+  if (/\b(top-?down|topdown|overhead|birds?-?eye)\b/.test(p)) return 'top_down';
+  return 'side';
 }
 
-// Present role-grouped, orientation-filtered assets so the blind model can map them correctly.
+// Role headers for the AVAILABLE ASSETS list. v2 retrieval only produces character (incl.
+// creatures) and vehicle roles — everything else in a game is code-drawn.
 const ROLE_LABEL = {
-  vehicle: 'PLAYER / VEHICLES', character: 'PLAYER / CHARACTERS', ground: 'GROUND / TRACK TILES (tile these to build the world)',
-  obstacle: 'OBSTACLES', pickup: 'PICKUPS / COLLECTIBLES', projectile: 'PROJECTILES',
-  background: 'BACKGROUNDS', prop: 'PROPS / DECORATION', ui: 'UI', audio: 'AUDIO',
-  served: 'SERVED DISHES (plated food to serve/deliver)',
+  character: 'CHARACTERS / CREATURES (catalog sprites)',
+  vehicle: 'VEHICLES (catalog sprites)',
 };
-const R2_BASE_URL = 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/';
-// The path the model must load is the R2 KEY (the part after /assets/), NOT the local folder path.
-const assetKey = (a) => (a.url || '').replace(R2_BASE_URL, '') || a.localPath;
 
 // Native pixel sizes across the catalog vary wildly within the same role (16px pixel-art next to
 // 512px hi-res packs). Left to the model this produces mismatched scale (a 720px character next to a
 // 12px obstacle). So we compute a fixed ON-SCREEN target per role (calibrated to a ~390px-wide
 // portrait phone; real device widths are 390–430px so these hold) and hand the model the exact
 // display size to use, instead of asking it to reason about scaling itself.
-const ROLE_TARGET_PX = {
-  vehicle: 56, character: 48, obstacle: 40, pickup: 28, projectile: 16,
-  prop: 40, served: 40, ground: 64, background: null, ui: null, audio: null,
-};
+const ROLE_TARGET_PX = { vehicle: 56, character: 48 };
 // Fit the asset's native aspect ratio inside a `target`x`target` box (contain, not stretch).
 function computeDisplaySize(a, target) {
   if (!target || !a.width || !a.height) return null;
@@ -68,17 +58,19 @@ function formatV2AssetLine(a, role) {
     );
   }
 
-  // ANIMATED assets — load as a TexturePacker atlas and build each named animation.
+  // ANIMATED assets — every v2 sheet is a uniform horizontal strip of frameW×frameH cells, so the
+  // native load is `this.load.spritesheet(key, url, { frameWidth, frameHeight })`. NOT load.atlas:
+  // the sidecar JSON on R2 is our own descriptor format, not TexturePacker — Phaser's atlas loader
+  // rejects it ("missing 'frames' Object"; reproduced in a live generated game).
+  const fw = a.canvas_size?.w, fh = a.canvas_size?.h;
   const animLines = Object.entries(a.atlas_animations || {}).map(([name, def]) => {
     const range = def.frames.length <= 6 ? `[${def.frames.join(',')}]` : `[${def.frames[0]}..${def.frames[def.frames.length-1]}]`;
     return `        '${name}': frames ${range}, fps ${def.fps}, loop ${def.loop}`;
   }).join('\n');
   return (
 `- **${a.description}** [${tags}·ANIMATED]
-    key: '${key}'  native ${a.canvas_size?.w}x${a.canvas_size?.h}${targetDisplay}
-    sheet: ${a.url}
-    atlas: ${a.atlas_url}
-    → ANIMATED. preload: this.load.atlas('${key}', sheet, atlas). Build the animation(s) below with anims.create + generateFrameNumbers, then sprite.play(name).
+    key: '${key}'  frame ${fw}x${fh}${targetDisplay}
+    → ANIMATED. preload: this.load.spritesheet('${key}', '${a.url}', { frameWidth: ${fw}, frameHeight: ${fh} }). Build the animation(s) below with anims.create + generateFrameNumbers, then sprite.play(name).
     animations:
 ${animLines}`
   );
@@ -91,114 +83,14 @@ function formatGroupedAssets(grouped) {
   for (const role of roles) {
     out += `\n## ${ROLE_LABEL[role] || role.toUpperCase()}\n`;
     for (const a of grouped[role]) {
-      if (a.atlas_url) { out += formatV2AssetLine(a, role) + '\n\n'; continue; }
-      // Legacy path (kept for the old-catalog fallback so nothing regresses if v2 retrieval misses)
-      const dim = a.width && a.height ? ` ${a.width}x${a.height}` : '';
-      const tile = a.tileable ? ' [tileable]' : '';
-      const disp = computeDisplaySize(a, ROLE_TARGET_PX[role]);
-      const render = disp ? ` → setDisplaySize(${disp.w}, ${disp.h})` : '';
-      out += `- \`${assetKey(a)}\` — ${a.description}${dim}${tile}${render}\n`;
+      out += formatV2AssetLine(a, role) + '\n\n';
     }
   }
   return out;
 }
 
-/**
- * Extract theme keywords from user prompt
- * @param {string} prompt - User's game description
- * @returns {string[]} Array of matched theme names
- */
-function extractThemeKeywords(prompt) {
-  const promptLower = prompt.toLowerCase();
-  const themes = [];
-  
-  const keywords = {
-    'zombie': ['zombie', 'undead', 'horror', 'skeleton'],
-    'space': ['space', 'alien', 'rocket', 'galaxy', 'star', 'ufo'],
-    'medieval': ['medieval', 'knight', 'castle', 'sword', 'dragon'],
-    'shooter': ['shooter', 'shoot', 'gun', 'bullet', 'weapon'],
-    'platformer': ['platform', 'jump', 'coin', 'gem', 'mario'],
-    'cooking': ['cooking', 'food', 'kitchen', 'chef', 'restaurant', 'diner', 'serve', 'burger'],
-    'racing': ['racing', 'race', 'car', 'vehicle', 'track'],
-    'puzzle': ['puzzle', 'match', 'block', 'tile'],
-    'rpg': ['rpg', 'dungeon', 'quest', 'character', 'hero'],
-    'visual-novel': ['visual novel', 'story', 'dialogue', 'character'],
-    // outdoor/survival/farming/mining games need real terrain + trees/rocks (Isometric Nature etc.),
-    // NOT abstract greybox blocks — map these words to the nature theme.
-    'nature': ['survival', 'survive', 'wilderness', 'forest', 'jungle', 'woods', 'farm', 'farming',
-               'mining', 'mine', 'craft', 'crafting', 'gather', 'harvest', 'island', 'camping', 'fishing', 'nature', 'outdoor'],
-    'military': ['tank', 'army', 'war', 'battle', 'soldier', 'artillery'],
-    'pirate': ['pirate', 'treasure', 'sea', 'ocean', 'sail'],
-    'sports': ['sport', 'sports', 'soccer', 'football', 'golf', 'basketball', 'tennis']
-  };
-  
-  for (const [theme, words] of Object.entries(keywords)) {
-    if (words.some(word => promptLower.includes(word))) {
-      themes.push(theme);
-    }
-  }
-  
-  return themes;
-}
-
-/**
- * Format assets for inclusion in AI prompt
- * @param {Object[]} assets - Array of asset objects from catalog
- * @returns {string} Formatted markdown string of assets
- */
-function formatAssetsForPrompt(assets) {
-  if (!assets || assets.length === 0) {
-    return '(No assets available - use fallback graphics)';
-  }
-  
-  // Group by type
-  const byType = {
-    sprite: [],
-    spritesheet: [],
-    audio: []
-  };
-  
-  assets.forEach(asset => {
-    if (byType[asset.type]) {
-      byType[asset.type].push(asset);
-    }
-  });
-  
-  let output = '';
-  
-  // Format sprites
-  if (byType.sprite.length > 0) {
-    output += '## Sprites\n\n';
-    byType.sprite.forEach(asset => {
-      output += `- **${asset.path}** - ${asset.description} [${asset.themes.join(', ')}]\n`;
-    });
-    output += '\n';
-  }
-  
-  // Format spritesheets
-  if (byType.spritesheet.length > 0) {
-    output += '## Spritesheets (Animated)\n\n';
-    byType.spritesheet.forEach(asset => {
-      const jsonPath = asset.path.replace(/\.(png|jpg|jpeg)$/i, '.json');
-      output += `- **${asset.path}** + **${jsonPath}** - ${asset.description} [${asset.themes.join(', ')}]\n`;
-    });
-    output += '\n';
-  }
-  
-  // Format audio (limit to 10 entries)
-  if (byType.audio.length > 0) {
-    output += '## Audio\n\n';
-    byType.audio.slice(0, 10).forEach(asset => {
-      output += `- **${asset.path}** - ${asset.description}\n`;
-    });
-    output += '\n';
-  }
-  
-  return output;
-}
-
-// Fold flat entity-retrieval matches into the same {role: [...]} shape selectGameAssets() returns,
-// so formatGroupedAssets() (role headers, per-role setDisplaySize sizing) works unchanged either way.
+// Fold flat entity-retrieval matches into {role: [...]} shape for formatGroupedAssets()
+// (role headers + per-role setDisplaySize sizing).
 function groupByRole(assets, perRole) {
     const grouped = {};
     for (const a of assets) {
@@ -209,65 +101,61 @@ function groupByRole(assets, perRole) {
     return grouped;
 }
 
-export async function buildClaudeStylePrompt(userPrompt) {
-    // Pipeline (each layer degrades gracefully if the next one up is unavailable):
-    //   -1. DESIGN — Flash produces a real structured plan (core loop, entities, orientation, layout,
-    //       controls, win/lose, HUD) BEFORE we touch assets. Was: no design step at all — the builder
-    //       improvised silently in throwaway reasoning tokens. Now: the plan drives retrieval (search
-    //       for the entities the DESIGN needs, not a shallow guess off the raw prompt) AND is injected
-    //       into the builder's user message so the model executes a design instead of wandering into one.
-    //    0. Entity-level RAG: search per-asset embeddings for each entity the plan named. Fixes
-    //       "the hoop got crowded out" — you ask for a hoop, you get a hoop, regardless of bucket.
-    //    1. Pack selection: embedding recalls candidates, a fast model picks the packs + orientation.
-    //       Also feeds pack-affinity bias into tier 0 for visual coherence.
-    //    2. Embedding rank only, 3. regex keywords: successive fallbacks if the layer above is dead.
-    let relevantPacks = [];
-    let orientation = null;
-    let entities = [];
-    let plan = null;
+// Visual-coherence re-rank: find the dominant source_pack among all retrieved matches, then within
+// each entity's matches boost same-pack items (+0.18, gated at a 0.50 plausibility floor — same
+// calibration as asset-retrieval.js) and keep the top `keep`. One game's cast should come from one
+// art style where possible: a toon zombie next to a toon adventurer, not next to a rendered zombie.
+function coherenceRerank(results, keep = 2) {
+    const packCounts = {};
+    for (const r of results) for (const m of r.matches) {
+        if (m.source_pack) packCounts[m.source_pack] = (packCounts[m.source_pack] || 0) + 1;
+    }
+    const dominant = Object.entries(packCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    for (const r of results) {
+        r.matches = r.matches
+            .map(m => ({ ...m, _score: m.score + (dominant && m.source_pack === dominant && m.score >= 0.50 ? 0.18 : 0) }))
+            .sort((a, b) => b._score - a._score)
+            .slice(0, keep);
+    }
+    return { results, dominant };
+}
 
-    // Recall runs first (no LLM, fast) so the design step can see what art is actually available.
-    // Otherwise the plan speculates in the abstract and can pick an orientation the catalog can't
-    // fulfil (reproduced: basketball plan said "side" while all our Sports Pack art is top-down —
-    // hoop got starved out by the orientation filter downstream).
-    const candidates = await recallCandidatePacks(userPrompt, 25);
-    const plannedResult = await designGamePlan(userPrompt, { availablePacks: candidates });
+export async function buildClaudeStylePrompt(userPrompt) {
+    // v2 pipeline:
+    //   1. DESIGN — Flash produces a structured plan grounded in the REAL v2 catalog summary
+    //      (species/counts/perspectives/animated-vs-static). Every entity is tagged sprite|code.
+    //   2. RETRIEVE — entity-level RAG over v2 embeddings, but ONLY for the plan's sprite entities
+    //      (characters/creatures/vehicles). Code-drawn entities never touch the catalog.
+    //   3. COHERENCE — re-rank retrieved matches toward the dominant source pack so one game's cast
+    //      shares an art style.
+    //   4. BUILD PROMPT — per-asset atlas contracts (animated: load.atlas + anims; static:
+    //      load.image + move with code) + the plan as explicit marching orders.
+    // If the design step fails, degrade to a shallow entity list off the raw prompt (all treated as
+    // sprite candidates). If retrieval finds nothing, the game is fully code-drawn — that's valid.
+    let orientation = null;
+    let plan = null;
+    let spriteEntityNames = [];
+
+    const catalogSummary = getCatalogSummary();
+    const plannedResult = await designGamePlan(userPrompt, { catalogSummary });
     if (plannedResult) {
         plan = plannedResult;
-        entities = plan.entities;
         orientation = plan.orientation;
+        spriteEntityNames = plan.entities.filter(e => e.render === 'sprite').map(e => e.name);
     } else {
-        // Design failed — degrade to shallow entity listing (previous behavior).
-        entities = await listRequiredEntities(userPrompt);
+        spriteEntityNames = await listRequiredEntities(userPrompt);
+        orientation = detectOrientation(userPrompt);
     }
 
-    if (candidates.length) {
-        const picked = await selectPacksWithModel({ concept: userPrompt, candidates });
-        if (picked && !picked.drawInstead && picked.packs.length) {
-            relevantPacks = picked.packs;
-            // Pack selection's orientation wins over the plan's when both are set. Why: the plan's
-            // orientation is a speculative design call ("basketball is side-view"), but the pack
-            // selection is grounded in what our catalog ACTUALLY has (Sports Pack art is top-down).
-            // A mismatch starves entity retrieval — reproduced: plan said side, pack said top_down,
-            // hoop got filtered out because its orientation was top_down. Prefer the grounded signal.
-            if (picked.orientation && plan?.orientation && picked.orientation !== plan.orientation) {
-                console.log(`⚠️  Plan orientation (${plan.orientation}) disagrees with pack selection (${picked.orientation}) — using pack orientation to stay grounded in available assets.`);
-            }
-            if (picked.orientation) orientation = picked.orientation;
-        }
-    }
-    if (!relevantPacks.length) {
-        relevantPacks = await findRelevantPacks(userPrompt, 8); // tier 2
-    }
-    if (!orientation) orientation = detectOrientation(userPrompt);
-    const themeKeywords = relevantPacks.length ? [] : extractThemeKeywords(userPrompt); // tier 3
-
-    // Tier 0: entity retrieval, biased toward the pack(s) tier 1 identified (visual coherence —
-    // a basketball player from Sports Pack over an equally-plausible generic CDN humanoid — gated so
-    // the bias can't force a genuinely wrong item just because it shares a pack, see asset-retrieval.js).
     let grouped = {};
-    if (entities.length) {
-        const results = await retrieveAssetsForEntities(entities, { topKPerEntity: 4, orientation, preferPacks: relevantPacks });
+    if (spriteEntityNames.length) {
+        const raw = await retrieveAssetsForEntities(spriteEntityNames, {
+            topKPerEntity: 4,
+            orientation,
+            softOrientation: true, // side-view player on a top-down concept beats NO player
+        });
+        const { results, dominant } = coherenceRerank(raw, 2);
+        if (dominant) console.log(`🎨 Coherence anchor pack: ${dominant}`);
         const flat = [];
         const seen = new Set();
         for (const r of results) for (const m of r.matches) {
@@ -278,13 +166,9 @@ export async function buildClaudeStylePrompt(userPrompt) {
         if (flat.length) grouped = groupByRole(flat, 10);
     }
 
-    // Fallback to pack/role-bucket selection if entity retrieval found nothing usable.
-    if (!Object.keys(grouped).length) {
-        grouped = selectGameAssets({ packs: relevantPacks, themes: themeKeywords, orientation, perRole: 14 });
-    }
     const assetList = Object.keys(grouped).length
       ? formatGroupedAssets(grouped)
-      : formatAssetsForPrompt(themeKeywords.length ? getAssetsByTheme(themeKeywords, 100) : getDiverseSample(100));
+      : '(No catalog sprites matched this concept — every entity in this game is code-drawn. Draw them WELL with layered graphics.)';
     return {
         system: `You are a Phaser 3 game code generator. Your job is to write a complete, working Phaser 3 game from scratch using JavaScript.
 
@@ -294,34 +178,29 @@ Use these assets from the catalog (already hosted and ready to use):
 
 ${assetList}
 
-**Asset URL Format**:
-- Use the R2 CDN BASE_URL: \`'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/'\`
-- Construct full URLs: \`\${BASE_URL}{path}\`
-- Example: If BASE_URL is 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/' and path is 'audio/DOG.mp3', use 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/audio/DOG.mp3'
+**CRITICAL**: Use ONLY the assets listed above, via the exact full URLs shown per asset. They are guaranteed live on the CDN. Do NOT invent other asset URLs — nothing else exists.
 
-**CRITICAL**: Only use assets from the list above. They are guaranteed to exist and are properly themed for your game.
+**HOW TO LOAD — every asset above is marked ANIMATED or STATIC:**
 
-**HOW TO LOAD v2 SPRITE ATLASES (any asset with sheet + atlas URLs above):**
-Each v2 asset is a Phaser TexturePacker JSON-Hash atlas. In preload() call \`this.load.atlas(key, sheetUrl, atlasUrl)\` — DO NOT use \`this.load.image\` on the sheet URL; the atlas file carries the per-frame rects. Then in create() build the animation using the exact animation name and frame range listed for that asset:
+ANIMATED: a uniform horizontal frame strip. Load with \`this.load.spritesheet(key, url, { frameWidth, frameHeight })\` using the exact frame dimensions shown per asset — NOT \`load.atlas\`, NOT \`load.image\`. Then build + play each listed animation:
 \`\`\`js
 // preload()
-this.load.atlas('v2_...', sheetUrl, atlasUrl);
+this.load.spritesheet('v2_...', url, { frameWidth: FW, frameHeight: FH }); // exact values from the asset line
 
-// create() — one anims.create per animation the asset provides
+// create()
 this.anims.create({
-  key: 'walk',
+  key: 'walk',                          // exact animation name from the asset's list
   frames: this.anims.generateFrameNumbers('v2_...', { start: 0, end: N-1 }),
   frameRate: 8,
   repeat: -1,
 });
-
-// Then create the sprite and play the animation
 const player = this.physics.add.sprite(W/2, H*0.8, 'v2_...');
-player.setDisplaySize(48, 64);         // use the → setDisplaySize hint shown per asset
+player.setDisplaySize(48, 64);          // use the → setDisplaySize hint shown per asset
 player.body.setSize(48, 64);            // physics body follows setDisplaySize manually
 player.play('walk');
 \`\`\`
-Notes: the animation name (\`'walk'\`, \`'damage'\`, \`'rotate'\`, etc.) is whatever the asset lists — use it verbatim so the animation matches its semantics. Frame counts and fps come from the animation entry per asset.
+
+STATIC (single image URL): \`this.load.image(key, imageUrl)\` in preload(), then \`this.add.image/sprite\` and move it entirely with code — velocity, \`setRotation\`, tweens (bob/squash/tilt). NEVER call \`anims.create\`/\`play\` on a static asset.
 
 # CRITICAL RULES
 
@@ -337,16 +216,16 @@ Notes: the animation name (\`'walk'\`, \`'damage'\`, \`'rotate'\`, etc.) is what
    - **SAFE AREA — MANDATORY. This is what stops your HUD getting cut off.** The extreme top and bottom of the screen sit under the status bar/notch and home indicator, and the preview box is shorter still. Every HUD element, score, timer, and button MUST have its center inside \`y ∈ [H*0.10, H*0.90]\` and \`x ∈ [W*0.05, W*0.95]\`. Full-bleed background art may reach the edges; TEXT and CONTROLS may NOT touch the extreme top/bottom edges.
    - In index.html set \`html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}\` and the canvas/parent fill 100%.
 
-3. **SPRITES FOR CHARACTERS + KEY PROPS · CODE-DRAWN LAYERS FOR ENVIRONMENT — this is the #1 visual rule.** Split what you render into two buckets. Using the wrong bucket for a thing is an automatic FAIL.
+3. **SPRITES FOR CHARACTERS / CREATURES / VEHICLES · CODE-DRAWN EVERYTHING ELSE — this is the #1 visual rule.** Split what you render into two buckets. Using the wrong bucket for a thing is an automatic FAIL.
 
-   **Sprite bucket (MUST use catalog images):** anything that needs a recognizable identity at a glance — the **player character**, **NPCs / enemies**, **vehicles**, and **key gameplay props** (basketball hoop, treasure chest, tank, car, weapon, specific collectible). Faces, silhouettes, and iconic shapes cannot be faked by code-drawn primitives. For each of these, call \`this.load.image(key, path)\` in preload() using EXACTLY the paths in AVAILABLE ASSETS, then \`this.add.image/sprite(...)\` in create(). If you loaded it, you MUST show it.
+   **Sprite bucket (MUST use catalog assets):** living things and vehicles ONLY — the **player character**, **NPCs / enemies / creatures**, **vehicles** (cars, ships, planes, boats, UFOs). Faces and silhouettes cannot be faked by code-drawn primitives. Every asset in AVAILABLE ASSETS is marked **ANIMATED** (load with \`this.load.atlas\`, build its animations, \`sprite.play(...)\`) or **STATIC** (load with \`this.load.image\`, move/rotate/scale it with code — never call anims on it). Follow the per-asset instructions exactly. If you loaded it, you MUST show it.
 
-   **Code-drawn bucket (build with \`this.add.graphics()\` — a well-crafted code scene beats a tiled 64×64 sprite):** the environment — sky, ground, terrain, walls, backdrops, decoration. Build in LAYERS with intent:
+   **Code-drawn bucket (build with \`this.add.graphics()\`):** EVERYTHING ELSE — environment (sky, ground, terrain, walls, backdrops), gameplay objects (hoops, goals, balls, coins, bullets, platforms, obstacles, chests), decoration, HUD. There are NO prop or environment sprites in the catalog — do not invent asset URLs for them. A well-crafted code drawing beats a tiled texture. Build environments in LAYERS with intent:
    - **Sky**: a vertical gradient (dawn/dusk/night/deep-space/theme-matched) — NEVER a flat single fill. In Phaser: draw a full-screen \`graphics.fillGradientStyle(topColor, topColor, bottomColor, bottomColor, 1).fillRect(0,0,W,H*0.55)\`.
    - **Distant layers**: silhouette hills / mountains / city / trees drawn as filled paths — \`g.beginPath(); g.moveTo(0,H); for(x…) g.lineTo(x, baseY + Math.sin(x*freq)*amp + Math.sin(x*freq*2.3)*amp*0.4); g.lineTo(W,H); g.closePath(); g.fillPath();\` — two or three layers in progressively lighter shades for atmospheric depth.
    - **Ground**: a filled gradient base + a randomized loop of small \`fillEllipse\` calls for dirt/pebble texture + short \`strokeLineShape\` curves for grass tufts along the terrain edge. Seed the randomness so it's stable across frames.
    - **Decoration**: rocks (irregular polygon via \`beginPath\`+\`lineTo\`+\`fillPath\`), trees (trunk rect + 3–5 overlapping filled circles for canopy), flowers (stem line + small colored dot). Scatter 10–30 of them.
-   - **Environment sprites in AVAILABLE ASSETS are OPTIONAL** — a \`tileSprite\` of a real texture is fine if it genuinely fits the theme, but do NOT reach for it as a substitute for actually designing the scene. A layered code scene almost always looks richer.
+   - **Gameplay objects get the same care**: a basketball hoop is a backboard rect + rim arc + net lines; a coin is a filled circle + inner ring + shine dot; a goal is posts + crossbar + net cross-hatch. Iconic, readable, multi-element — never a single bare rectangle.
 
    **BANNED as the environment (automatic FAIL):** a single flat colored fill, a bright uniform green plane, a wireframe grid, or any "programmer art" default. If your sky/ground/backdrop looks like it took under 10 lines of code, redo it with gradients, silhouette layers, and texture.
 
@@ -433,7 +312,7 @@ module.exports = defineConfig({
 # GAME REQUIREMENTS
 
 - Complete, playable game with win/lose conditions
-- **THE ENVIRONMENT MUST LOOK DESIGNED** — either a code-drawn layered scene (sky gradient + silhouette hills + textured ground + grass/rocks — see rule 3) OR a tiled ground sprite via \`this.add.tileSprite(...)\`. Whichever route you pick, the world must feel intentional and match the theme. BANNED as the environment: a single flat colored fill, a wireframe grid, or bright uniform green. Prefer code-drawn for stylized/themed scenes (fantasy, space, sunset, night); prefer tiling a real sprite when the catalog has a texture that genuinely fits (e.g. a road for a racer).
+- **THE ENVIRONMENT MUST LOOK DESIGNED** — a code-drawn layered scene (sky gradient + silhouette layers + textured ground + scattered decoration — see rule 3), themed to THIS game (fantasy dusk, deep space, neon night, sunny court). BANNED: a single flat colored fill, a wireframe grid, bright uniform green.
 - **Timers start > 0.** If there's a countdown, initialize it to a real value (e.g. 60) and only end the game when it actually reaches 0. The game MUST be playable for several seconds on load — never show GAME OVER immediately.
 - Score system
 - **DESIGN A UNIQUE, THEMED HUD — never ship the default look.** Do NOT reuse the generic "monospace text top-left + flat colored rectangle bar" layout that every game defaults to. The HUD is code-drawn (that's fine), but it MUST be visually designed to match THIS game's world, and look different from other games:
@@ -451,7 +330,7 @@ module.exports = defineConfig({
   - The game MUST be fully playable with ONLY dragging and tapping — never require a key press to start, move, or act.
   - Keyboard (WASD/arrows) is allowed ONLY as an optional secondary desktop fallback, never the sole input.
   - Use \`this.input.addPointer(2)\` if you need multi-touch (move + shoot at once).
-- **ANIMATIONS**: Use spritesheet animations for characters (walk, idle, attack, death)
+- **ANIMATIONS**: For every ANIMATED catalog sprite, build and PLAY its animation(s) — a character standing frozen while sliding around is a fail. For STATIC catalog sprites, add life with code: bob with a sine tween, tilt into turns with setRotation, squash-and-stretch on impact.
 - Load all assets from the R2 CDN: https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/
 - Responsive portrait: canvas fills the real container via Scale.RESIZE; lay out from live this.scale.width/height (do not assume 390×844)
 - **POLISH**: Particle effects, screen shake, sound effects, smooth tweens
@@ -462,7 +341,7 @@ module.exports = defineConfig({
 - **TOUCH-FIRST**: fully playable with drag + tap alone (pointermove/pointerdown), NOT keyboard-only. WASD-only = broken.
 - **FULLSCREEN**: Phaser.Scale.RESIZE (canvas = the real container, no crop, no black bars), NOT ENVELOP/FIT. body margin:0, overflow:hidden.
 - **LIVE SIZE, SAFE AREA**: read \`this.scale.width/height\`, never hardcode 390/844; keep all HUD + buttons inside y ∈ [H*0.10, H*0.90] so nothing gets cut off in the shorter preview box.
-- **CHARACTERS + KEY PROPS = SPRITES · ENVIRONMENT = CODE-DRAWN LAYERS** — load and display catalog sprites for the player, enemies, vehicles, hoops, chests, weapons. Draw the sky/ground/hills/decoration with \`graphics\` — layered gradients + silhouettes + textured detail. Never a flat fill or wireframe grid.
+- **CHARACTERS/CREATURES/VEHICLES = CATALOG SPRITES · EVERYTHING ELSE = CODE-DRAWN** — load and display catalog sprites for the player, enemies, creatures, vehicles (ANIMATED → play the animation; STATIC → move it with code). Draw environment AND gameplay objects (hoops, balls, coins, platforms) with \`graphics\` — layered, multi-element, never a flat fill or bare rectangle.
 - **SIZE THE SPRITES** — for every catalog image you display, call \`setDisplaySize(W, H)\` using the exact numbers given per asset, and \`body.setSize(W, H)\` on physics sprites. Never render at native pixel size.
 - Use JavaScript (.js) NOT TypeScript
 - All assets from CDN

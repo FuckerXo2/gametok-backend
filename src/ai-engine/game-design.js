@@ -1,65 +1,70 @@
 /**
  * Design-first game planning — the "actually think about what you're building" step.
  *
- * Before this, the pipeline was assets-first: shallow entity-list off the raw concept → retrieve →
- * builder makes it up as it goes. The builder's reasoning was invisible (we throw away
- * reasoning_content), so nothing forced a real design decision anywhere. Games came out lazy-shaped
- * — right assets, wrong game.
+ * v2 rework: the plan is grounded in a SUMMARY OF THE REAL v2 SPRITE CATALOG (species, counts,
+ * perspectives, animated-vs-static) instead of the old pack-recall layer, which described a catalog
+ * that no longer exists. The designer also tags every entity with HOW it will be rendered:
+ *   - render:"sprite" — characters / creatures / vehicles, cast from the catalog (these drive RAG)
+ *   - render:"code"   — environment, props, projectiles, effects, UI — drawn with Phaser graphics
+ * This is the enforcement point for the two-bucket visual rule: sprites carry identity (faces,
+ * silhouettes), code draws everything else better than a tiled texture ever did.
  *
- * Now: DeepSeek Flash produces a structured plan up front (core loop, entities, layout, controls,
- * win condition, HUD). That plan drives BOTH the RAG asset retrieval (entities the design ACTUALLY
- * needs, not a guess) AND is passed as explicit context to the builder call — so the builder is no
- * longer wandering into the design; it's executing one. The plan is logged, which also finally
- * makes the design step visible in generation logs.
- *
- * Flash + `reasoning_effort: 'low'` (some thinking, not the wide-eyed non-thinking mode used for
- * pure routing tasks like pack selection). ~3-6s, cheap. If Flash proves too shallow we can bump
- * to V4 Pro without changing the callsite.
+ * Flash + low reasoning effort: ~3-6s, cheap. Bump GAMETOK_DESIGN_MODEL if it proves too shallow.
  */
 import { isDeepSeekPrimaryEnabled, callDeepSeekFlashJson } from './deepseek-text-client.js';
 
 const DESIGN_MODEL = process.env.GAMETOK_DESIGN_MODEL || 'deepseek-v4-flash';
 
 const SYSTEM = `You are a senior mobile game designer. Given a game concept (a one-line idea from a user)
-AND a shortlist of candidate asset packs that are actually available, produce a concrete design plan
-GROUNDED IN THE AVAILABLE ART. The plan will drive both asset retrieval and code generation, so it
-must be specific enough that a builder could implement it without asking questions.
+AND a summary of the sprite catalog that is actually available, produce a concrete design plan
+GROUNDED IN THE AVAILABLE ART. The plan drives both asset retrieval and code generation, so it must
+be specific enough that a builder could implement it without asking questions.
 
 Think like a designer for a 15-second-to-fun TikTok-style vertical mobile game:
 - The game runs in a vertical portrait window, plays with touch (drag + tap only, no keyboard).
 - It should feel complete in seconds — a clear goal, immediate feedback, a satisfying loop.
 - Choose ONE tight core loop. Do NOT invent extra modes, multiplayer, upgrades, or shops.
-- Every entity you list must appear on screen. Do NOT list HUD/UI text or sound as entities.
 
-CRITICAL — orientation MUST match the packs you can use:
-- The candidate packs listed for you note their "Perspective" (top_down, side, isometric, or various).
-- Pick the orientation that matches the packs most relevant to the concept. If the relevant packs
-  are top-down, DO NOT design a side-view game — the art will not fit and the game will look broken.
-- Only pick "side" if a side-view pack genuinely fits the concept (a platformer, a shot-arc game
-  where the target is above the player, etc.). Prefer top_down when in doubt.
+HOW THINGS GET RENDERED — tag every entity with "render":
+- "sprite": ONLY characters, creatures, and vehicles — they are cast from the sprite catalog below.
+  Pick entities the catalog can actually fulfil (e.g. if the concept needs a monster and the catalog
+  has golems/trolls/ogres, name it "stone golem monster" so retrieval finds it). Some catalog sprites
+  are ANIMATED (walk/attack/idle cycles), some are STATIC (single image the game moves with code —
+  perfect for vehicles and boss monsters).
+- "code": EVERYTHING ELSE — ground, sky, court, track, walls, hoops, goals, balls, coins, bullets,
+  obstacles, platforms, particles, HUD. The builder draws these with layered Phaser graphics
+  (gradients, silhouettes, textured detail). There are NO prop/environment sprites — do not invent them.
+
+ORIENTATION must match the art you cast:
+- Check each sprite entity's available perspectives in the catalog summary. If your player character
+  only exists side-view, design a side-view game.
+- Only pick "top_down" if the concept truly demands it AND top-down sprites exist for the entities
+  (mostly ships/UFOs). "isometric" only fits the boat fleet.
 
 Return ONLY JSON, no prose, no markdown fences:
 {
   "coreLoop": "2-3 sentences describing what the player DOES moment-to-moment and why it feels good.",
-  "orientation": "top_down" | "side" | "isometric",
-  "entities": ["4-8 concrete visual nouns — the sprites the game needs (e.g. \\"basketball hoop\\", \\"player character\\", \\"court ground\\")"],
+  "orientation": "side" | "top_down" | "isometric",
+  "entities": [
+    { "name": "concrete visual noun retrieval can search (e.g. \\"zombie enemy\\", \\"basketball hoop\\")",
+      "render": "sprite" | "code",
+      "role": "player" | "enemy" | "npc" | "object" }
+  ],
   "layout": "1-2 sentences describing where things live on the vertical screen (top/middle/bottom).",
   "controls": "1 sentence describing the ONE primary touch gesture and what it does.",
-  "winCondition": "How the player wins (must be concrete: 'score 3 baskets', 'survive 60 seconds').",
+  "winCondition": "How the player wins (concrete: 'score 3 baskets', 'survive 60 seconds').",
   "loseCondition": "How the player loses (or 'none' if it's a score-attack).",
-  "hud": ["3-5 short strings — the on-screen readouts (e.g. \\"score\\", \\"time left\\", \\"turn indicator\\")"]
-}`;
+  "hud": ["3-5 short strings — the on-screen readouts (e.g. \\"score\\", \\"time left\\")"]
+}
+List 4-8 entities total. Every entity must appear on screen. No HUD/text/sound as entities.`;
 
 /**
  * @param {string} concept - the raw game concept from the user
- * @param {{availablePacks?: {pack: string, text: string}[]}} [opts]
- *   availablePacks: candidate pack summaries (from recallCandidatePacks) so the plan is grounded in
- *   what art actually exists. If omitted, plans blind (worse quality — orientation may not match
- *   available assets).
+ * @param {{catalogSummary?: string}} [opts] - compact v2 catalog inventory (from getCatalogSummary())
  * @returns {Promise<null | {
  *   coreLoop: string,
- *   orientation: 'top_down'|'side'|'isometric',
- *   entities: string[],
+ *   orientation: 'side'|'top_down'|'isometric',
+ *   entities: {name: string, render: 'sprite'|'code', role: string}[],
  *   layout: string,
  *   controls: string,
  *   winCondition: string,
@@ -67,26 +72,29 @@ Return ONLY JSON, no prose, no markdown fences:
  *   hud: string[],
  * }>} the plan, or null on failure (caller falls back to shallow entity listing)
  */
-export async function designGamePlan(concept, { availablePacks = [] } = {}) {
+export async function designGamePlan(concept, { catalogSummary = '' } = {}) {
   if (!isDeepSeekPrimaryEnabled()) return null;
   try {
-    // Feed the top candidate packs into the user message so the model plans against real art.
-    // Cap at 12 to keep the prompt tight — recall's top-12 covers the meaningful signal without
-    // wallpapering the design step with noise from long-tail low-relevance matches.
-    const packBlock = availablePacks.length
-      ? `\n\nCANDIDATE ASSET PACKS (this is the art you can use — plan for what's actually here):\n${availablePacks.slice(0, 12).map((p, i) => `${i + 1}. ${p.text}`).join('\n')}`
+    const catalogBlock = catalogSummary
+      ? `\n\nSPRITE CATALOG (this is ALL the sprite art that exists — cast from it, code-draw everything else):\n${catalogSummary}`
       : '';
     const parsed = await callDeepSeekFlashJson({
       systemPrompt: SYSTEM,
-      messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}${packBlock}` }],
-      maxTokens: 1200,
+      messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}${catalogBlock}` }],
+      maxTokens: 1400,
       temperature: 0.4,
       model: DESIGN_MODEL,
       reasoningEffort: 'low',
     });
-    // Validate essential fields — a broken plan should degrade to the old shallow entity flow,
-    // not silently drive retrieval + build with garbage.
-    const entities = Array.isArray(parsed.entities) ? parsed.entities.filter(e => typeof e === 'string' && e.trim()) : [];
+    // Validate essentials — a broken plan degrades to the shallow entity flow, never drives garbage.
+    const rawEntities = Array.isArray(parsed.entities) ? parsed.entities : [];
+    const entities = rawEntities
+      .filter(e => e && typeof e.name === 'string' && e.name.trim())
+      .map(e => ({
+        name: e.name.trim(),
+        render: e.render === 'sprite' ? 'sprite' : 'code',
+        role: typeof e.role === 'string' ? e.role : 'object',
+      }));
     const orientation = ['top_down', 'side', 'isometric'].includes(parsed.orientation) ? parsed.orientation : null;
     if (!entities.length || !orientation) return null;
 
@@ -100,14 +108,14 @@ export async function designGamePlan(concept, { availablePacks = [] } = {}) {
       loseCondition: String(parsed.loseCondition || '').trim(),
       hud: Array.isArray(parsed.hud) ? parsed.hud.filter(h => typeof h === 'string' && h.trim()) : [],
     };
+    const spriteNames = plan.entities.filter(e => e.render === 'sprite').map(e => e.name);
+    const codeNames = plan.entities.filter(e => e.render === 'code').map(e => e.name);
     console.log(`🧠 Game plan (${DESIGN_MODEL}):`);
     console.log(`   Core loop: ${plan.coreLoop}`);
     console.log(`   Orientation: ${plan.orientation}`);
-    console.log(`   Entities: [${plan.entities.join(', ')}]`);
-    console.log(`   Layout: ${plan.layout}`);
-    console.log(`   Controls: ${plan.controls}`);
+    console.log(`   Sprite entities: [${spriteNames.join(', ')}]`);
+    console.log(`   Code-drawn entities: [${codeNames.join(', ')}]`);
     console.log(`   Win: ${plan.winCondition} · Lose: ${plan.loseCondition}`);
-    console.log(`   HUD: [${plan.hud.join(', ')}]`);
     return plan;
   } catch (err) {
     console.error('⚠️  Game plan generation failed:', err.message);
@@ -116,11 +124,14 @@ export async function designGamePlan(concept, { availablePacks = [] } = {}) {
 }
 
 /**
- * Render the plan as a human-readable block to inject into the builder's user prompt. Kept simple
- * and terse — the builder's system prompt already teaches HOW to build; this just says WHAT to build.
+ * Render the plan as a human-readable block injected into the builder's user prompt. The builder's
+ * system prompt teaches HOW to build; this says WHAT to build — including which entities come from
+ * the AVAILABLE ASSETS list vs which the builder must draw with graphics.
  */
 export function formatPlanForBuilder(plan) {
   if (!plan) return '';
+  const spriteEntities = plan.entities.filter(e => e.render === 'sprite');
+  const codeEntities = plan.entities.filter(e => e.render === 'code');
   return `# GAME DESIGN (build EXACTLY this — do not invent extra modes or scope)
 
 Core loop: ${plan.coreLoop}
@@ -131,5 +142,9 @@ Win condition: ${plan.winCondition}
 Lose condition: ${plan.loseCondition}
 HUD readouts: ${plan.hud.join(', ')}
 
-The AVAILABLE ASSETS list above was retrieved specifically for this design — every entity the design needs (${plan.entities.join(', ')}) has candidate sprites in that list.`;
+SPRITE entities — cast from the AVAILABLE ASSETS list above (each was retrieved for this design):
+${spriteEntities.map(e => `- ${e.name} (${e.role})`).join('\n') || '- (none — this game is fully code-drawn)'}
+
+CODE-DRAWN entities — draw these with layered Phaser graphics, NOT sprites (none exist for them):
+${codeEntities.map(e => `- ${e.name} (${e.role})`).join('\n') || '- (none)'}`;
 }

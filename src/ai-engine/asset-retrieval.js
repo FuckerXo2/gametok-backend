@@ -121,10 +121,13 @@ function searchByVector(queryVec, { topK = 3, orientation = null, excludeIds = n
 /**
  * Batch-search N entities in one OpenAI call (cheap: entities are short phrases).
  * @param {string[]} entities e.g. ["basketball player", "goal", "puck"]
- * @param {{topKPerEntity?: number, orientation?: string, preferPacks?: string[]}} opts
+ * @param {{topKPerEntity?: number, orientation?: string, preferPacks?: string[], softOrientation?: boolean}} opts
+ *   softOrientation: if the orientation filter starves an entity to zero matches, retry that entity
+ *   without the filter — a side-view player on a top-down concept beats no player at all, and the
+ *   catalog is heavily side-view (144 side vs ~10 top_down), so hard filtering starves often.
  * @returns {Promise<{entity: string, matches: object[]}[]>}
  */
-export async function retrieveAssetsForEntities(entities, { topKPerEntity = 3, orientation = null, preferPacks = null } = {}) {
+export async function retrieveAssetsForEntities(entities, { topKPerEntity = 3, orientation = null, preferPacks = null, softOrientation = false } = {}) {
   const data = loadAssetEmbeddings();
   const c = getClient();
   if (!data || !c || !entities?.length) return [];
@@ -135,7 +138,10 @@ export async function retrieveAssetsForEntities(entities, { topKPerEntity = 3, o
     const seen = new Set();
     for (let i = 0; i < entities.length; i++) {
       const queryVec = new Float32Array(result.data[i].embedding);
-      const matches = searchByVector(queryVec, { topK: topKPerEntity, orientation, excludeIds: seen, preferPacks });
+      let matches = searchByVector(queryVec, { topK: topKPerEntity, orientation, excludeIds: seen, preferPacks });
+      if (!matches.length && orientation && softOrientation) {
+        matches = searchByVector(queryVec, { topK: topKPerEntity, orientation: null, excludeIds: seen, preferPacks });
+      }
       matches.forEach(m => seen.add(m.id));
       results.push({ entity: entities[i], matches });
     }
@@ -144,4 +150,45 @@ export async function retrieveAssetsForEntities(entities, { topKPerEntity = 3, o
     console.error('⚠️  Entity retrieval failed:', err.message);
     return [];
   }
+}
+
+/**
+ * Compact, dynamically-generated summary of what the v2 catalog can actually cast — fed to the
+ * design step so plans are grounded in real inventory instead of speculation. Groups by
+ * asset_type + motion, lists species with counts and available perspectives, and states the
+ * catalog-wide perspective reality (heavily side-view) so the designer picks fulfillable camera angles.
+ */
+export function getCatalogSummary() {
+  const data = loadAssetEmbeddings();
+  if (!data) return '(catalog unavailable)';
+  const groups = new Map(); // "asset_type|motion" -> Map(species -> {count, perspectives:Set})
+  const perspTotals = {};
+  for (const it of data.items) {
+    const motion = it.motion || 'animated';
+    const gk = `${it.asset_type}|${motion}`;
+    if (!groups.has(gk)) groups.set(gk, new Map());
+    const g = groups.get(gk);
+    if (!g.has(it.species)) g.set(it.species, { count: 0, perspectives: new Set(), anims: new Set() });
+    const s = g.get(it.species);
+    s.count++;
+    s.perspectives.add(it.perspective);
+    if (motion === 'animated') s.anims.add(it.animation_type);
+    perspTotals[it.perspective] = (perspTotals[it.perspective] || 0) + 1;
+  }
+  const order = ['character|animated', 'creature|animated', 'vehicle|animated', 'character|static', 'creature|static', 'vehicle|static'];
+  const lines = [];
+  for (const gk of order) {
+    if (!groups.has(gk)) continue;
+    const [type, motion] = gk.split('|');
+    const speciesEntries = [...groups.get(gk).entries()].sort((a, b) => b[1].count - a[1].count);
+    const parts = speciesEntries.map(([sp, s]) => {
+      const persp = [...s.perspectives].join('/');
+      const anims = motion === 'animated' ? `; anims: ${[...s.anims].slice(0, 6).join(',')}` : '';
+      return `${sp} ×${s.count} (${persp}${anims})`;
+    });
+    lines.push(`${type.toUpperCase()}S — ${motion.toUpperCase()}: ${parts.join(' · ')}`);
+  }
+  const perspLine = Object.entries(perspTotals).sort((a, b) => b[1] - a[1]).map(([p, c]) => `${p}: ${c}`).join(', ');
+  lines.push(`PERSPECTIVE REALITY: ${perspLine} — the catalog is overwhelmingly SIDE-VIEW. Design side-view games unless the concept truly demands otherwise.`);
+  return lines.join('\n');
 }
