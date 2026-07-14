@@ -1,17 +1,18 @@
 /**
- * v2 per-asset retrieval — searches the v2 catalog (180 curated animated character/creature/vehicle
- * sprites) instead of the legacy 39k-item pool.
+ * v2 per-asset retrieval — searches the v2 catalog (144 character-centric entries, curated character/
+ * creature/vehicle sprites) instead of the legacy 39k-item pool.
  *
- * The old catalog mixed characters with tiles, HUD icons, static props, and modular parts, so
- * "find me a hoop" could return anything from a real basketball hoop to a floor tile that shared a
- * few tokens. v2 is curated to only ship things a game can actually render as an animated sprite,
- * with controlled-enum labels (asset_type, species, animation_type, perspective, movement, theme,
- * playable_role) that anchor the embedding on the axes the design planner queries.
+ * CHARACTER-CENTRIC (not animation-centric): each entry is ONE character carrying ALL of its
+ * animations. Earlier the catalog embedded 262 items — one per animation — so "basketball player"
+ * could match a character's SWIM pose specifically (whichever animation's description happened to
+ * score highest) instead of the character as a whole with its full move-set. One embedding per
+ * character, built from a shared description + the list of available animations, fixes that: a
+ * single retrieval hit now brings every animation that character has.
  *
- * Backward compatibility: the return shape includes legacy fields (`role`, `orientation`, `url`,
- * `description`) so existing prompt-formatting code in maker-claude-style-prompt.js keeps working
- * while it also gets the new v2 fields (`animation_type`, `species`, `atlas_url`, `atlas_animations`,
- * `canvas_size`) for real Phaser atlas wiring.
+ * Each animation is still a SEPARATE physical sheet on R2 (poses were never packed into one shared
+ * texture) — a character with 3 animations means 3 `load.spritesheet` calls, one texture key per
+ * animation, each `sprite.play()`-able. See asset-retrieval.js `shapeItem` and the builder prompt
+ * formatter in maker-claude-style-prompt.js for the exact per-animation load contract.
  */
 import fs from 'fs';
 import path from 'path';
@@ -33,10 +34,10 @@ function loadAssetEmbeddings() {
       item.vecArr = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
     }
     cache = data;
-    console.log(`✅ v2 asset embeddings loaded: ${data.items.length} items, ${data.dimension}d`);
+    console.log(`✅ v2 asset embeddings loaded: ${data.items.length} characters, ${data.dimension}d`);
     return cache;
   } catch (err) {
-    console.warn('⚠️  v2-asset-embeddings.json not found — run: node scripts/v2-build-embeddings.mjs');
+    console.warn('⚠️  v2-asset-embeddings.json not found — run: node scripts/v2-regroup-characters.mjs');
     return null;
   }
 }
@@ -64,29 +65,24 @@ function assetTypeToRole(assetType) {
 
 function shapeItem(v2, score) {
   return {
-    // Legacy fields (used by maker-claude-style-prompt.js's groupByRole + formatGroupedAssets)
     id: v2.id,
     role: assetTypeToRole(v2.asset_type),
-    orientation: v2.perspective,
-    url: v2.r2?.sheet_url,
     description: v2.description,
-    width: v2.canvas_size?.w,
-    height: v2.canvas_size?.h,
     pack: v2.source_pack,
-    // v2 fields — the builder uses these to load atlases and play animations correctly.
+    source_pack: v2.source_pack, // coherenceRerank in maker-claude-style-prompt.js reads this exact field
     asset_type: v2.asset_type,
     species: v2.species,
     motion: v2.motion || 'animated',
-    animation_type: v2.animation_type,
     perspective: v2.perspective,
     movement: v2.movement,
     theme: v2.theme,
     playable_role: v2.playable_role,
-    frame_count: v2.frame_count,
-    canvas_size: v2.canvas_size,
     quality_score: v2.quality_score,
-    atlas_url: v2.r2?.atlas_url,
-    atlas_animations: v2.atlas_animations,
+    // ANIMATED: animations = { name: { sheet_url, atlas_url, frame_count, canvas_size, fps, loop } }
+    // STATIC: animations = {}; image_url + canvas_size carry the single sprite instead.
+    animations: v2.animations || {},
+    image_url: v2.image_url,
+    canvas_size: v2.canvas_size, // only meaningful for static (animated entries vary per-animation)
     score,
   };
 }
@@ -124,7 +120,7 @@ function searchByVector(queryVec, { topK = 3, orientation = null, excludeIds = n
  * @param {{topKPerEntity?: number, orientation?: string, preferPacks?: string[], softOrientation?: boolean}} opts
  *   softOrientation: if the orientation filter starves an entity to zero matches, retry that entity
  *   without the filter — a side-view player on a top-down concept beats no player at all, and the
- *   catalog is heavily side-view (144 side vs ~10 top_down), so hard filtering starves often.
+ *   catalog is heavily side-view, so hard filtering starves often.
  * @returns {Promise<{entity: string, matches: object[]}[]>}
  */
 export async function retrieveAssetsForEntities(entities, { topKPerEntity = 3, orientation = null, preferPacks = null, softOrientation = false } = {}) {
@@ -155,13 +151,13 @@ export async function retrieveAssetsForEntities(entities, { topKPerEntity = 3, o
 /**
  * Compact, dynamically-generated summary of what the v2 catalog can actually cast — fed to the
  * design step so plans are grounded in real inventory instead of speculation. Groups by
- * asset_type + motion, lists species with counts and available perspectives, and states the
- * catalog-wide perspective reality (heavily side-view) so the designer picks fulfillable camera angles.
+ * asset_type + motion, lists species with CHARACTER counts (not animation counts) and available
+ * perspectives/animation names, plus the catalog-wide perspective reality (heavily side-view).
  */
 export function getCatalogSummary() {
   const data = loadAssetEmbeddings();
   if (!data) return '(catalog unavailable)';
-  const groups = new Map(); // "asset_type|motion" -> Map(species -> {count, perspectives:Set})
+  const groups = new Map(); // "asset_type|motion" -> Map(species -> {count, perspectives:Set, anims:Set})
   const perspTotals = {};
   for (const it of data.items) {
     const motion = it.motion || 'animated';
@@ -170,9 +166,9 @@ export function getCatalogSummary() {
     const g = groups.get(gk);
     if (!g.has(it.species)) g.set(it.species, { count: 0, perspectives: new Set(), anims: new Set() });
     const s = g.get(it.species);
-    s.count++;
+    s.count++; // one character, regardless of how many animations it has
     s.perspectives.add(it.perspective);
-    if (motion === 'animated') s.anims.add(it.animation_type);
+    for (const a of (it.animation_names || [])) s.anims.add(a);
     perspTotals[it.perspective] = (perspTotals[it.perspective] || 0) + 1;
   }
   const order = ['character|animated', 'creature|animated', 'vehicle|animated', 'character|static', 'creature|static', 'vehicle|static'];

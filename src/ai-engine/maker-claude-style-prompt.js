@@ -32,47 +32,51 @@ const ROLE_LABEL = {
 // portrait phone; real device widths are 390–430px so these hold) and hand the model the exact
 // display size to use, instead of asking it to reason about scaling itself.
 const ROLE_TARGET_PX = { vehicle: 56, character: 48 };
-// Fit the asset's native aspect ratio inside a `target`x`target` box (contain, not stretch).
-function computeDisplaySize(a, target) {
-  if (!target || !a.width || !a.height) return null;
-  const scale = target / Math.max(a.width, a.height);
-  return { w: Math.round(a.width * scale), h: Math.round(a.height * scale) };
+// Fit a native w×h into a `target`x`target` box (contain, not stretch).
+function fitBox(w, h, target) {
+  if (!target || !w || !h) return null;
+  const scale = target / Math.max(w, h);
+  return { w: Math.round(w * scale), h: Math.round(h * scale) };
 }
-// Emit a Phaser-ready summary per asset. v2 items (identified by presence of atlas_url) get the
-// full atlas + animation contract the builder needs — sheet URL, atlas JSON URL, load key, exact
-// animation names and frame ranges, native cell size. Legacy items keep the old shape.
+
+// Emit a Phaser-ready summary for one CHARACTER (may carry multiple animations, each a separate
+// physical sheet — see asset-retrieval.js header comment). One display-size box is computed from
+// the primary (first-listed) animation and applied to every animation of this character so it
+// doesn't visually resize when switching pose.
 function formatV2AssetLine(a, role) {
-  const disp = computeDisplaySize(a, ROLE_TARGET_PX[role]);
-  const targetDisplay = disp ? ` → setDisplaySize(${disp.w}, ${disp.h})` : '';
   const key = `v2_${a.id.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
   const tags = `${a.species}·${a.perspective}·${a.playable_role}`;
 
-  // STATIC assets (motion==='static') have no animation frames — load as a plain image and move it
-  // with code (position/rotation/scale). Do NOT tell the model to build animations for these.
+  // STATIC: single image, no animation frames — load as a plain image and move it with code.
   if (a.motion === 'static') {
+    const disp = fitBox(a.canvas_size?.w, a.canvas_size?.h, ROLE_TARGET_PX[role]);
+    const targetDisplay = disp ? ` → setDisplaySize(${disp.w}, ${disp.h})` : '';
     return (
 `- **${a.description}** [${tags}·STATIC]
     key: '${key}'  native ${a.canvas_size?.w}x${a.canvas_size?.h}${targetDisplay}
-    image: ${a.url}
-    → STATIC sprite (no animation). preload: this.load.image('${key}', '${a.url}'). Draw with this.add.image/sprite and move it with code (x/y velocity, setRotation, setScale). Do NOT call anims.create/play on this.`
+    image: ${a.image_url}
+    → STATIC sprite (no animation). preload: this.load.image('${key}', '${a.image_url}'). Draw with this.add.image/sprite and move it with code (x/y velocity, setRotation, setScale). Do NOT call anims.create/play on this.`
     );
   }
 
-  // ANIMATED assets — every v2 sheet is a uniform horizontal strip of frameW×frameH cells, so the
-  // native load is `this.load.spritesheet(key, url, { frameWidth, frameHeight })`. NOT load.atlas:
-  // the sidecar JSON on R2 is our own descriptor format, not TexturePacker — Phaser's atlas loader
-  // rejects it ("missing 'frames' Object"; reproduced in a live generated game).
-  const fw = a.canvas_size?.w, fh = a.canvas_size?.h;
-  const animLines = Object.entries(a.atlas_animations || {}).map(([name, def]) => {
-    const range = def.frames.length <= 6 ? `[${def.frames.join(',')}]` : `[${def.frames[0]}..${def.frames[def.frames.length-1]}]`;
-    return `        '${name}': frames ${range}, fps ${def.fps}, loop ${def.loop}`;
+  // ANIMATED: one or more named poses, each its OWN spritesheet PNG on R2 (never packed together).
+  // Each pose gets its own texture key `${key}_${animName}` + its own load.spritesheet call (native
+  // frame size differs per pose) + its own anims.create — then sprite.play('walk') / .play('attack')
+  // switches texture automatically, Phaser handles that.
+  const animNames = Object.keys(a.animations);
+  const primary = a.animations[animNames[0]];
+  const disp = fitBox(primary.canvas_size.w, primary.canvas_size.h, ROLE_TARGET_PX[role]);
+  const targetDisplay = disp ? ` → setDisplaySize(${disp.w}, ${disp.h}) [use this SAME box for every pose below]` : '';
+  const poseLines = animNames.map(name => {
+    const def = a.animations[name];
+    const poseKey = `${key}_${name}`;
+    return `    - '${name}': preload this.load.spritesheet('${poseKey}', '${def.sheet_url}', { frameWidth: ${def.canvas_size.w}, frameHeight: ${def.canvas_size.h} }); anims.create({ key: '${name}', frames: this.anims.generateFrameNumbers('${poseKey}', { start: 0, end: ${def.frame_count - 1} }), frameRate: ${def.fps}, repeat: ${def.loop ? -1 : 0} }); sprite.play('${name}')`;
   }).join('\n');
   return (
-`- **${a.description}** [${tags}·ANIMATED]
-    key: '${key}'  frame ${fw}x${fh}${targetDisplay}
-    → ANIMATED. preload: this.load.spritesheet('${key}', '${a.url}', { frameWidth: ${fw}, frameHeight: ${fh} }). Build the animation(s) below with anims.create + generateFrameNumbers, then sprite.play(name).
-    animations:
-${animLines}`
+`- **${a.description}** [${tags}·ANIMATED, ${animNames.length} pose(s): ${animNames.join(', ')}]
+    key base: '${key}'${targetDisplay}
+    → ANIMATED. Each pose is a separate spritesheet — set up ALL of them in preload()/create(), then call sprite.play(name) to switch:
+${poseLines}`
   );
 }
 
@@ -182,25 +186,23 @@ ${assetList}
 
 **HOW TO LOAD — every asset above is marked ANIMATED or STATIC:**
 
-ANIMATED: a uniform horizontal frame strip. Load with \`this.load.spritesheet(key, url, { frameWidth, frameHeight })\` using the exact frame dimensions shown per asset — NOT \`load.atlas\`, NOT \`load.image\`. Then build + play each listed animation:
+ANIMATED characters can have MULTIPLE poses (walk, idle, attack...) — each pose is its OWN spritesheet PNG (never packed together), so it needs its OWN texture key and its OWN \`load.spritesheet\` call. The asset's pose list above gives you the exact call for each. Set up EVERY pose the character has, then switch between them with \`sprite.play(name)\`:
 \`\`\`js
-// preload()
-this.load.spritesheet('v2_...', url, { frameWidth: FW, frameHeight: FH }); // exact values from the asset line
+// preload() — one load.spritesheet call PER POSE, exact keys/urls/dims from the asset's pose list
+this.load.spritesheet('v2_knight_walk', walkUrl, { frameWidth: 79, frameHeight: 63 });
+this.load.spritesheet('v2_knight_attack', attackUrl, { frameWidth: 90, frameHeight: 80 });
 
-// create()
-this.anims.create({
-  key: 'walk',                          // exact animation name from the asset's list
-  frames: this.anims.generateFrameNumbers('v2_...', { start: 0, end: N-1 }),
-  frameRate: 8,
-  repeat: -1,
-});
-const player = this.physics.add.sprite(W/2, H*0.8, 'v2_...');
-player.setDisplaySize(48, 64);          // use the → setDisplaySize hint shown per asset
-player.body.setSize(48, 64);            // physics body follows setDisplaySize manually
-player.play('walk');
+// create() — one anims.create PER POSE
+this.anims.create({ key: 'walk', frames: this.anims.generateFrameNumbers('v2_knight_walk', { start: 0, end: 7 }), frameRate: 8, repeat: -1 });
+this.anims.create({ key: 'attack', frames: this.anims.generateFrameNumbers('v2_knight_attack', { start: 0, end: 13 }), frameRate: 12, repeat: 0 });
+
+const player = this.physics.add.sprite(W/2, H*0.8, 'v2_knight_walk'); // start on any one pose's texture
+player.setDisplaySize(48, 64);          // use the SAME box for every pose of this character (shown once per asset)
+player.body.setSize(48, 64);
+player.play('walk');                    // later: player.play('attack') — Phaser swaps the texture automatically
 \`\`\`
 
-STATIC (single image URL): \`this.load.image(key, imageUrl)\` in preload(), then \`this.add.image/sprite\` and move it entirely with code — velocity, \`setRotation\`, tweens (bob/squash/tilt). NEVER call \`anims.create\`/\`play\` on a static asset.
+STATIC (single image URL, no poses): \`this.load.image(key, imageUrl)\` in preload(), then \`this.add.image/sprite\` and move it entirely with code — velocity, \`setRotation\`, tweens (bob/squash/tilt). NEVER call \`anims.create\`/\`play\` on a static asset.
 
 # CRITICAL RULES
 
