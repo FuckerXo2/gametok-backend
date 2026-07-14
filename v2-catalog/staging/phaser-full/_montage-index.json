@@ -1,0 +1,1381 @@
+[
+  {
+    "idx": 0,
+    "id": "phaser/animations/alien__03_walk",
+    "source": "animations/alien.json",
+    "anim": "03_Walk",
+    "frameCount": 13
+  },
+  {
+    "idx": 1,
+    "id": "phaser/animations/alien__02_turn_to_walk",
+    "source": "animations/alien.json",
+    "anim": "02_Turn_to_walk",
+    "frameCount": 4
+  },
+  {
+    "idx": 2,
+    "id": "phaser/animations/alien__01_idle",
+    "source": "animations/alien.json",
+    "anim": "01_Idle",
+    "frameCount": 18
+  },
+  {
+    "idx": 3,
+    "id": "phaser/animations_aseprite/paladin-array____all__",
+    "source": "animations/aseprite/paladin-array.json",
+    "anim": "__all__",
+    "frameCount": 270
+  },
+  {
+    "idx": 4,
+    "id": "phaser/animations_aseprite/paladin____all__",
+    "source": "animations/aseprite/paladin.json",
+    "anim": "__all__",
+    "frameCount": 270
+  },
+  {
+    "idx": 5,
+    "id": "phaser/animations_aseprite/tank__tank",
+    "source": "animations/aseprite/tank.json",
+    "anim": "tank",
+    "frameCount": 9
+  },
+  {
+    "idx": 6,
+    "id": "phaser/animations/bird____all__",
+    "source": "animations/bird.json",
+    "anim": "__all__",
+    "frameCount": 10
+  },
+  {
+    "idx": 7,
+    "id": "phaser/animations/california-raisins__frame",
+    "source": "animations/california-raisins.json",
+    "anim": "frame",
+    "frameCount": 12
+  },
+  {
+    "idx": 8,
+    "id": "phaser/animations/cube____all__",
+    "source": "animations/cube.json",
+    "anim": "__all__",
+    "frameCount": 23
+  },
+  {
+    "idx": 9,
+    "id": "phaser/animations_cybercity/cybercity-multi____all__",
+    "source": "animations/cybercity/cybercity-multi.json",
+    "anim": "__all__",
+    "frameCount": 48
+  },
+  {
+    "idx": 10,
+    "id": "phaser/animations_cybercity/cybercity0____all__",
+    "source": "animations/cybercity/cybercity0.json",
+    "anim": "__all__",
+    "frameCount": 48
+  },
+  {
+    "idx": 11,
+    "id": "phaser/animations_cybercity/cybercity1____all__",
+    "source": "animations/cybercity/cybercity1.json",
+    "anim": "__all__",
+    "frameCount": 48
+  },
+  {
+    "idx": 12,
+    "id": "phaser/animations_cybercity/cybercity2____all__",
+    "source": "animations/cybercity/cybercity2.json",
+    "anim": "__all__",
+    "frameCount": 3
+  },
+  {
+    "idx": 13,
+    "id": "phaser/animations/diamond__diamond",
+    "source": "animations/diamond.json",
+    "anim": "diamond",
+    "frameCount": 16
+  },
+  {
+    "idx": 14,
+    "id": "phaser/animations/elves-craft-pixel__green_attack",
+    "source": "animations/elves-craft-pixel.json",
+    "anim": "green_attack",
+    "frameCount": 6
+  },
+  {
+    "idx": 15,
+    "id": "phaser/animations/elves-craft-pixel__blue_attack",
+    "source": "animations/elves-craft-pixel.json",
+    "anim": "blue_attack",
+    "frameCount": 5
+  },
+  {
+    "idx": 16,
+    "id": "phaser/animations/elves-craft-pixel__green_idle",
+    "source": "animations/elves-craft-pixel.json",
+    "anim": "green_idle",
+    "frameCount": 5
+  },
+  {
+    "idx": 17,
+    "id": "phaser/animations/elves-craft-pixel__green_die",
+    "source": "animations/elves-craft-pixel.json",
+    "anim": "green_die",
+    "frameCount": 5
+  },
+  {
+    "idx": 18,
+    "id": "phaser/animations/elves-craft-pixel__blue_die",
+    "source": "animations/elves-craft-pixel.json",
+    "anim": "blue_die",
+    "frameCount": 5
+  },
+  {
+    "idx": 19,
+    "id": "phaser/animations/elves-craft-pixel__blue_idle",
+    "source": "animations/elves-craft-pixel.json",
+    "anim": "blue_idle",
+    "frameCount": 5
+  },
+  {
+    "idx": 20,
+    "id": "phaser/animations/knight__attack_a",
+    "source": "animations/knight.json",
+    "anim": "attack_A",
+    "frameCount": 14
+  },
+  {
+    "idx": 21,
+    "id": "phaser/animations/knight__attack_c",
+    "source": "animations/knight.json",
+    "anim": "attack_C",
+    "frameCount": 14
+  },
+  {
+    "idx": 22,
+    "id": "phaser/animations/knight__attack_b",
+    "source": "animations/knight.json",
+    "anim": "attack_B",
+    "frameCount": 13
+  },
+  {
+    "idx": 23,
+    "id": "phaser/animations/knight__guard",
+    "source": "animations/knight.json",
+    "anim": "guard",
+    "frameCount": 6
+  },
+  {
+    "idx": 24,
+    "id": "phaser/animations/knight__fall_loop",
+    "source": "animations/knight.json",
+    "anim": "fall_loop",
+    "frameCount": 2
+  },
+  {
+    "idx": 25,
+    "id": "phaser/animations/knight__jump_loop",
+    "source": "animations/knight.json",
+    "anim": "jump_loop",
+    "frameCount": 2
+  },
+  {
+    "idx": 26,
+    "id": "phaser/animations/knight__jump_start",
+    "source": "animations/knight.json",
+    "anim": "jump_start",
+    "frameCount": 4
+  },
+  {
+    "idx": 27,
+    "id": "phaser/animations/knight__run",
+    "source": "animations/knight.json",
+    "anim": "run",
+    "frameCount": 8
+  },
+  {
+    "idx": 28,
+    "id": "phaser/animations/knight__guard_end",
+    "source": "animations/knight.json",
+    "anim": "guard_end",
+    "frameCount": 4
+  },
+  {
+    "idx": 29,
+    "id": "phaser/animations/knight__die",
+    "source": "animations/knight.json",
+    "anim": "die",
+    "frameCount": 10
+  },
+  {
+    "idx": 30,
+    "id": "phaser/animations/knight__get_hit",
+    "source": "animations/knight.json",
+    "anim": "get_hit",
+    "frameCount": 5
+  },
+  {
+    "idx": 31,
+    "id": "phaser/animations/knight__guard_start",
+    "source": "animations/knight.json",
+    "anim": "guard_start",
+    "frameCount": 4
+  },
+  {
+    "idx": 32,
+    "id": "phaser/animations/knight__idle",
+    "source": "animations/knight.json",
+    "anim": "idle",
+    "frameCount": 6
+  },
+  {
+    "idx": 33,
+    "id": "phaser/animations_lazer/lazer__lazer",
+    "source": "animations/lazer/lazer.json",
+    "anim": "lazer",
+    "frameCount": 23
+  },
+  {
+    "idx": 34,
+    "id": "phaser/animations/robo__running",
+    "source": "animations/robo.json",
+    "anim": "Running",
+    "frameCount": 15
+  },
+  {
+    "idx": 35,
+    "id": "phaser/animations/rocket__trail",
+    "source": "animations/rocket.json",
+    "anim": "trail",
+    "frameCount": 13
+  },
+  {
+    "idx": 36,
+    "id": "phaser/animations/sao0____all__",
+    "source": "animations/sao0.json",
+    "anim": "__all__",
+    "frameCount": 27
+  },
+  {
+    "idx": 37,
+    "id": "phaser/animations/sao1____all__",
+    "source": "animations/sao1.json",
+    "anim": "__all__",
+    "frameCount": 24
+  },
+  {
+    "idx": 38,
+    "id": "phaser/animations/seacreatures_json__bluejellyfish",
+    "source": "animations/seacreatures_json.json",
+    "anim": "blueJellyfish",
+    "frameCount": 33
+  },
+  {
+    "idx": 39,
+    "id": "phaser/animations/seacreatures_json__crab",
+    "source": "animations/seacreatures_json.json",
+    "anim": "crab",
+    "frameCount": 27
+  },
+  {
+    "idx": 40,
+    "id": "phaser/animations/seacreatures_json__flyingfish",
+    "source": "animations/seacreatures_json.json",
+    "anim": "flyingFish",
+    "frameCount": 2
+  },
+  {
+    "idx": 41,
+    "id": "phaser/animations/seacreatures_json__greenjellyfish",
+    "source": "animations/seacreatures_json.json",
+    "anim": "greenJellyfish",
+    "frameCount": 40
+  },
+  {
+    "idx": 42,
+    "id": "phaser/animations/seacreatures_json__octopus",
+    "source": "animations/seacreatures_json.json",
+    "anim": "octopus",
+    "frameCount": 25
+  },
+  {
+    "idx": 43,
+    "id": "phaser/animations/seacreatures_json__purplefish",
+    "source": "animations/seacreatures_json.json",
+    "anim": "purpleFish",
+    "frameCount": 21
+  },
+  {
+    "idx": 44,
+    "id": "phaser/animations/seacreatures_json__seahorse",
+    "source": "animations/seacreatures_json.json",
+    "anim": "seahorse",
+    "frameCount": 6
+  },
+  {
+    "idx": 45,
+    "id": "phaser/animations/seacreatures_json__squid",
+    "source": "animations/seacreatures_json.json",
+    "anim": "squid",
+    "frameCount": 16
+  },
+  {
+    "idx": 46,
+    "id": "phaser/animations/seacreatures_json__stingray",
+    "source": "animations/seacreatures_json.json",
+    "anim": "stingray",
+    "frameCount": 24
+  },
+  {
+    "idx": 47,
+    "id": "phaser/animations/sf2__frame",
+    "source": "animations/sf2.json",
+    "anim": "frame",
+    "frameCount": 23
+  },
+  {
+    "idx": 48,
+    "id": "phaser/animations/sf2ryu__frame",
+    "source": "animations/sf2ryu.json",
+    "anim": "frame",
+    "frameCount": 17
+  },
+  {
+    "idx": 49,
+    "id": "phaser/animations/soldier__soldier_3_shoot_up",
+    "source": "animations/soldier.json",
+    "anim": "soldier_3_shoot_up",
+    "frameCount": 5
+  },
+  {
+    "idx": 50,
+    "id": "phaser/animations/soldier__soldier_2_shot_up",
+    "source": "animations/soldier.json",
+    "anim": "Soldier_2_shot_up",
+    "frameCount": 11
+  },
+  {
+    "idx": 51,
+    "id": "phaser/animations/soldier__soldier_3_shoot_front",
+    "source": "animations/soldier.json",
+    "anim": "soldier_3_shoot_front",
+    "frameCount": 11
+  },
+  {
+    "idx": 52,
+    "id": "phaser/animations/soldier__soldier_2_shot_front",
+    "source": "animations/soldier.json",
+    "anim": "Soldier_2_shot_front",
+    "frameCount": 8
+  },
+  {
+    "idx": 53,
+    "id": "phaser/animations/soldier__soldier_3_default",
+    "source": "animations/soldier.json",
+    "anim": "soldier_3_default",
+    "frameCount": 2
+  },
+  {
+    "idx": 54,
+    "id": "phaser/animations/soldier__soldier_3_walk",
+    "source": "animations/soldier.json",
+    "anim": "soldier_3_walk",
+    "frameCount": 8
+  },
+  {
+    "idx": 55,
+    "id": "phaser/animations/soldier__soldier_2_walk",
+    "source": "animations/soldier.json",
+    "anim": "Soldier_2_walk",
+    "frameCount": 8
+  },
+  {
+    "idx": 56,
+    "id": "phaser/animations/teapot__frame",
+    "source": "animations/teapot.json",
+    "anim": "frame",
+    "frameCount": 11
+  },
+  {
+    "idx": 57,
+    "id": "phaser/animations/walker__frame",
+    "source": "animations/walker.json",
+    "anim": "frame",
+    "frameCount": 16
+  },
+  {
+    "idx": 58,
+    "id": "phaser/animations/zombie__death",
+    "source": "animations/zombie.json",
+    "anim": "Death",
+    "frameCount": 6
+  },
+  {
+    "idx": 59,
+    "id": "phaser/animations/zombie__walk",
+    "source": "animations/zombie.json",
+    "anim": "walk",
+    "frameCount": 9
+  },
+  {
+    "idx": 60,
+    "id": "phaser/atlas/banners__banner",
+    "source": "atlas/banners.json",
+    "anim": "Banner",
+    "frameCount": 10
+  },
+  {
+    "idx": 61,
+    "id": "phaser/atlas/banners__badges",
+    "source": "atlas/banners.json",
+    "anim": "Badges",
+    "frameCount": 24
+  },
+  {
+    "idx": 62,
+    "id": "phaser/atlas/big-forest_tp__cloud",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Cloud",
+    "frameCount": 3
+  },
+  {
+    "idx": 63,
+    "id": "phaser/atlas/big-forest_tp__mountain",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Mountain",
+    "frameCount": 2
+  },
+  {
+    "idx": 64,
+    "id": "phaser/atlas/big-forest_tp__ground",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Ground",
+    "frameCount": 4
+  },
+  {
+    "idx": 65,
+    "id": "phaser/atlas/big-forest_tp__grass",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Grass",
+    "frameCount": 5
+  },
+  {
+    "idx": 66,
+    "id": "phaser/atlas/big-forest_tp__detail",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Detail",
+    "frameCount": 4
+  },
+  {
+    "idx": 67,
+    "id": "phaser/atlas/big-forest_tp__stump",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Stump",
+    "frameCount": 2
+  },
+  {
+    "idx": 68,
+    "id": "phaser/atlas/big-forest_tp__trunk",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Trunk",
+    "frameCount": 4
+  },
+  {
+    "idx": 69,
+    "id": "phaser/atlas/big-forest_tp__leaves",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "Leaves",
+    "frameCount": 2
+  },
+  {
+    "idx": 70,
+    "id": "phaser/atlas/big-forest_tp__looseleaves",
+    "source": "atlas/big-forest.tp.json",
+    "anim": "LooseLeaves",
+    "frameCount": 3
+  },
+  {
+    "idx": 71,
+    "id": "phaser/atlas/cards__clubs",
+    "source": "atlas/cards.json",
+    "anim": "clubs",
+    "frameCount": 9
+  },
+  {
+    "idx": 72,
+    "id": "phaser/atlas/cards__diamonds",
+    "source": "atlas/cards.json",
+    "anim": "diamonds",
+    "frameCount": 9
+  },
+  {
+    "idx": 73,
+    "id": "phaser/atlas/cards__hearts",
+    "source": "atlas/cards.json",
+    "anim": "hearts",
+    "frameCount": 9
+  },
+  {
+    "idx": 74,
+    "id": "phaser/atlas/cards__spades",
+    "source": "atlas/cards.json",
+    "anim": "spades",
+    "frameCount": 9
+  },
+  {
+    "idx": 75,
+    "id": "phaser/atlas/clouds__shadow",
+    "source": "atlas/clouds.json",
+    "anim": "shadow",
+    "frameCount": 3
+  },
+  {
+    "idx": 76,
+    "id": "phaser/atlas/clouds__cloud",
+    "source": "atlas/clouds.json",
+    "anim": "cloud",
+    "frameCount": 3
+  },
+  {
+    "idx": 77,
+    "id": "phaser/atlas/glade__stonee",
+    "source": "atlas/glade.json",
+    "anim": "Stonee",
+    "frameCount": 4
+  },
+  {
+    "idx": 78,
+    "id": "phaser/atlas/glade__tree",
+    "source": "atlas/glade.json",
+    "anim": "Tree",
+    "frameCount": 3
+  },
+  {
+    "idx": 79,
+    "id": "phaser/atlas/glade__spruce",
+    "source": "atlas/glade.json",
+    "anim": "Spruce",
+    "frameCount": 6
+  },
+  {
+    "idx": 80,
+    "id": "phaser/atlas/glade__wood",
+    "source": "atlas/glade.json",
+    "anim": "Wood",
+    "frameCount": 3
+  },
+  {
+    "idx": 81,
+    "id": "phaser/atlas/glade__bush",
+    "source": "atlas/glade.json",
+    "anim": "Bush",
+    "frameCount": 3
+  },
+  {
+    "idx": 82,
+    "id": "phaser/atlas/glade__flower",
+    "source": "atlas/glade.json",
+    "anim": "Flower",
+    "frameCount": 4
+  },
+  {
+    "idx": 83,
+    "id": "phaser/atlas/glade__grass",
+    "source": "atlas/glade.json",
+    "anim": "Grass",
+    "frameCount": 2
+  },
+  {
+    "idx": 84,
+    "id": "phaser/atlas/isoblocks__block",
+    "source": "atlas/isoblocks.json",
+    "anim": "block",
+    "frameCount": 231
+  },
+  {
+    "idx": 85,
+    "id": "phaser/atlas/jellies__withshadow_jelly",
+    "source": "atlas/jellies.json",
+    "anim": "WithShadow/Jelly",
+    "frameCount": 6
+  },
+  {
+    "idx": 86,
+    "id": "phaser/atlas/jellies__blank_jelly",
+    "source": "atlas/jellies.json",
+    "anim": "Blank/Jelly",
+    "frameCount": 6
+  },
+  {
+    "idx": 87,
+    "id": "phaser/atlas/jellies__noshadow_jelly",
+    "source": "atlas/jellies.json",
+    "anim": "NoShadow/Jelly",
+    "frameCount": 6
+  },
+  {
+    "idx": 88,
+    "id": "phaser/atlas/jellies__witheyeshades_jelly",
+    "source": "atlas/jellies.json",
+    "anim": "WithEyeShades/Jelly",
+    "frameCount": 6
+  },
+  {
+    "idx": 89,
+    "id": "phaser/atlas/jellies__face",
+    "source": "atlas/jellies.json",
+    "anim": "Face",
+    "frameCount": 6
+  },
+  {
+    "idx": 90,
+    "id": "phaser/atlas/match3__match3_bg",
+    "source": "atlas/match3.json",
+    "anim": "Match3_BG",
+    "frameCount": 5
+  },
+  {
+    "idx": 91,
+    "id": "phaser/atlas/match3__match3_icon",
+    "source": "atlas/match3.json",
+    "anim": "Match3_Icon",
+    "frameCount": 32
+  },
+  {
+    "idx": 92,
+    "id": "phaser/atlas/megaset-0__bsquadron",
+    "source": "atlas/megaset-0.json",
+    "anim": "bsquadron",
+    "frameCount": 2
+  },
+  {
+    "idx": 93,
+    "id": "phaser/atlas/megaset-0__flectrum",
+    "source": "atlas/megaset-0.json",
+    "anim": "flectrum",
+    "frameCount": 2
+  },
+  {
+    "idx": 94,
+    "id": "phaser/atlas/megaset-0__phaser",
+    "source": "atlas/megaset-0.json",
+    "anim": "phaser",
+    "frameCount": 2
+  },
+  {
+    "idx": 95,
+    "id": "phaser/atlas/megaset-0__shmup-baddie",
+    "source": "atlas/megaset-0.json",
+    "anim": "shmup-baddie",
+    "frameCount": 3
+  },
+  {
+    "idx": 96,
+    "id": "phaser/atlas/megaset-0__shmup-ship",
+    "source": "atlas/megaset-0.json",
+    "anim": "shmup-ship",
+    "frameCount": 2
+  },
+  {
+    "idx": 97,
+    "id": "phaser/atlas/megaset-0__spinobj",
+    "source": "atlas/megaset-0.json",
+    "anim": "spinObj",
+    "frameCount": 5
+  },
+  {
+    "idx": 98,
+    "id": "phaser/atlas/megaset-1__car",
+    "source": "atlas/megaset-1.json",
+    "anim": "car",
+    "frameCount": 2
+  },
+  {
+    "idx": 99,
+    "id": "phaser/atlas/megaset-1__spinobj",
+    "source": "atlas/megaset-1.json",
+    "anim": "spinObj",
+    "frameCount": 3
+  },
+  {
+    "idx": 100,
+    "id": "phaser/atlas/megaset-2__tetrisblock",
+    "source": "atlas/megaset-2.json",
+    "anim": "tetrisblock",
+    "frameCount": 2
+  },
+  {
+    "idx": 101,
+    "id": "phaser/atlas/megaset-3__contra",
+    "source": "atlas/megaset-3.json",
+    "anim": "contra",
+    "frameCount": 2
+  },
+  {
+    "idx": 102,
+    "id": "phaser/atlas/multi-webp__bg",
+    "source": "atlas/multi-webp.json",
+    "anim": "bg",
+    "frameCount": 6
+  },
+  {
+    "idx": 103,
+    "id": "phaser/atlas/rotated-atlas__atari",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "atari",
+    "frameCount": 2
+  },
+  {
+    "idx": 104,
+    "id": "phaser/atlas/rotated-atlas__car",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "car",
+    "frameCount": 2
+  },
+  {
+    "idx": 105,
+    "id": "phaser/atlas/rotated-atlas__longarrow",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "longarrow",
+    "frameCount": 2
+  },
+  {
+    "idx": 106,
+    "id": "phaser/atlas/rotated-atlas__mushroom",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "mushroom",
+    "frameCount": 2
+  },
+  {
+    "idx": 107,
+    "id": "phaser/atlas/rotated-atlas__phaser",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "phaser",
+    "frameCount": 3
+  },
+  {
+    "idx": 108,
+    "id": "phaser/atlas/rotated-atlas__shmup-baddie",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "shmup-baddie",
+    "frameCount": 3
+  },
+  {
+    "idx": 109,
+    "id": "phaser/atlas/rotated-atlas__shmup-ship",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "shmup-ship",
+    "frameCount": 2
+  },
+  {
+    "idx": 110,
+    "id": "phaser/atlas/rotated-atlas__spinobj",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "spinObj",
+    "frameCount": 8
+  },
+  {
+    "idx": 111,
+    "id": "phaser/atlas/rotated-atlas__tetrisblock",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "tetrisblock",
+    "frameCount": 3
+  },
+  {
+    "idx": 112,
+    "id": "phaser/atlas/rotated-atlas__thrust_ship",
+    "source": "atlas/rotated-atlas.json",
+    "anim": "thrust_ship",
+    "frameCount": 2
+  },
+  {
+    "idx": 113,
+    "id": "phaser/atlas/timeline__ice",
+    "source": "atlas/timeline.json",
+    "anim": "ice",
+    "frameCount": 3
+  },
+  {
+    "idx": 114,
+    "id": "phaser/atlas/tp3-multi-atlas__longarrow",
+    "source": "atlas/tp3-multi-atlas.json",
+    "anim": "longarrow",
+    "frameCount": 2
+  },
+  {
+    "idx": 115,
+    "id": "phaser/atlas/tp3-multi-atlas__phaser",
+    "source": "atlas/tp3-multi-atlas.json",
+    "anim": "phaser",
+    "frameCount": 2
+  },
+  {
+    "idx": 116,
+    "id": "phaser/atlas/tp3-multi-atlas__shmup-baddie",
+    "source": "atlas/tp3-multi-atlas.json",
+    "anim": "shmup-baddie",
+    "frameCount": 2
+  },
+  {
+    "idx": 117,
+    "id": "phaser/atlas/tweenparts____all__",
+    "source": "atlas/tweenparts.json",
+    "anim": "__all__",
+    "frameCount": 21
+  },
+  {
+    "idx": 118,
+    "id": "phaser/atlas/tweenparts__head01",
+    "source": "atlas/tweenparts.json",
+    "anim": "Head01",
+    "frameCount": 3
+  },
+  {
+    "idx": 119,
+    "id": "phaser/atlas/tweenparts__body02",
+    "source": "atlas/tweenparts.json",
+    "anim": "Body02",
+    "frameCount": 2
+  },
+  {
+    "idx": 120,
+    "id": "phaser/atlas/tweenparts__goldcoinpngsequence",
+    "source": "atlas/tweenparts.json",
+    "anim": "GoldCoinPNGSequence",
+    "frameCount": 6
+  },
+  {
+    "idx": 121,
+    "id": "phaser/atlas/tweenparts__wing02",
+    "source": "atlas/tweenparts.json",
+    "anim": "Wing02",
+    "frameCount": 2
+  },
+  {
+    "idx": 122,
+    "id": "phaser/atlas/tweenparts__arm01",
+    "source": "atlas/tweenparts.json",
+    "anim": "Arm01",
+    "frameCount": 2
+  },
+  {
+    "idx": 123,
+    "id": "phaser/atlas/tweenparts__leg01",
+    "source": "atlas/tweenparts.json",
+    "anim": "Leg01",
+    "frameCount": 2
+  },
+  {
+    "idx": 124,
+    "id": "phaser/demoscene/budbrain__hatch",
+    "source": "demoscene/budbrain.json",
+    "anim": "hatch",
+    "frameCount": 4
+  },
+  {
+    "idx": 125,
+    "id": "phaser/demoscene/budbrain__lay",
+    "source": "demoscene/budbrain.json",
+    "anim": "lay",
+    "frameCount": 20
+  },
+  {
+    "idx": 126,
+    "id": "phaser/demoscene/budbrain__sing",
+    "source": "demoscene/budbrain.json",
+    "anim": "sing",
+    "frameCount": 3
+  },
+  {
+    "idx": 127,
+    "id": "phaser/games_bank-panic/bank-panic__bandit",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "bandit",
+    "frameCount": 2
+  },
+  {
+    "idx": 128,
+    "id": "phaser/games_bank-panic/bank-panic__door",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "door",
+    "frameCount": 5
+  },
+  {
+    "idx": 129,
+    "id": "phaser/games_bank-panic/bank-panic__hat",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "hat",
+    "frameCount": 7
+  },
+  {
+    "idx": 130,
+    "id": "phaser/games_bank-panic/bank-panic__bandit1smoke",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "bandit1smoke",
+    "frameCount": 2
+  },
+  {
+    "idx": 131,
+    "id": "phaser/games_bank-panic/bank-panic__bandit2smoke",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "bandit2smoke",
+    "frameCount": 2
+  },
+  {
+    "idx": 132,
+    "id": "phaser/games_bank-panic/bank-panic__cowboy",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "cowboy",
+    "frameCount": 2
+  },
+  {
+    "idx": 133,
+    "id": "phaser/games_bank-panic/bank-panic____all__",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "__all__",
+    "frameCount": 12
+  },
+  {
+    "idx": 134,
+    "id": "phaser/games_bank-panic/bank-panic__bandit1shot",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "bandit1shot",
+    "frameCount": 2
+  },
+  {
+    "idx": 135,
+    "id": "phaser/games_bank-panic/bank-panic__bandit2shot",
+    "source": "games/bank-panic/bank-panic.json",
+    "anim": "bandit2shot",
+    "frameCount": 2
+  },
+  {
+    "idx": 136,
+    "id": "phaser/games_breakout/breakout__ball",
+    "source": "games/breakout/breakout.json",
+    "anim": "ball",
+    "frameCount": 2
+  },
+  {
+    "idx": 137,
+    "id": "phaser/games_breakout/breakout__blue",
+    "source": "games/breakout/breakout.json",
+    "anim": "blue",
+    "frameCount": 2
+  },
+  {
+    "idx": 138,
+    "id": "phaser/games_breakout/breakout__green",
+    "source": "games/breakout/breakout.json",
+    "anim": "green",
+    "frameCount": 2
+  },
+  {
+    "idx": 139,
+    "id": "phaser/games_breakout/breakout__paddle",
+    "source": "games/breakout/breakout.json",
+    "anim": "paddle",
+    "frameCount": 2
+  },
+  {
+    "idx": 140,
+    "id": "phaser/games_breakout/breakout__particle",
+    "source": "games/breakout/breakout.json",
+    "anim": "particle",
+    "frameCount": 3
+  },
+  {
+    "idx": 141,
+    "id": "phaser/games_breakout/breakout__purple",
+    "source": "games/breakout/breakout.json",
+    "anim": "purple",
+    "frameCount": 2
+  },
+  {
+    "idx": 142,
+    "id": "phaser/games_breakout/breakout__red",
+    "source": "games/breakout/breakout.json",
+    "anim": "red",
+    "frameCount": 2
+  },
+  {
+    "idx": 143,
+    "id": "phaser/games_breakout/breakout__silver",
+    "source": "games/breakout/breakout.json",
+    "anim": "silver",
+    "frameCount": 2
+  },
+  {
+    "idx": 144,
+    "id": "phaser/games_breakout/breakout__yellow",
+    "source": "games/breakout/breakout.json",
+    "anim": "yellow",
+    "frameCount": 2
+  },
+  {
+    "idx": 145,
+    "id": "phaser/games_coin-clicker/coin__vanish",
+    "source": "games/coin-clicker/coin.json",
+    "anim": "vanish",
+    "frameCount": 4
+  },
+  {
+    "idx": 146,
+    "id": "phaser/games_coin-clicker/coin__coin",
+    "source": "games/coin-clicker/coin.json",
+    "anim": "coin",
+    "frameCount": 7
+  },
+  {
+    "idx": 147,
+    "id": "phaser/games_emoji-match/emojis__smile",
+    "source": "games/emoji-match/emojis.json",
+    "anim": "smile",
+    "frameCount": 40
+  },
+  {
+    "idx": 148,
+    "id": "phaser/games_germs/germs__blue",
+    "source": "games/germs/germs.json",
+    "anim": "blue",
+    "frameCount": 3
+  },
+  {
+    "idx": 149,
+    "id": "phaser/games_germs/germs__red",
+    "source": "games/germs/germs.json",
+    "anim": "red",
+    "frameCount": 3
+  },
+  {
+    "idx": 150,
+    "id": "phaser/games_germs/germs__green",
+    "source": "games/germs/germs.json",
+    "anim": "green",
+    "frameCount": 3
+  },
+  {
+    "idx": 151,
+    "id": "phaser/games_germs/germs__purple",
+    "source": "games/germs/germs.json",
+    "anim": "purple",
+    "frameCount": 3
+  },
+  {
+    "idx": 152,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-big-die",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-big-die",
+    "frameCount": 5
+  },
+  {
+    "idx": 153,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-big-idle",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-big-idle",
+    "frameCount": 4
+  },
+  {
+    "idx": 154,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-big-throw",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-big-throw",
+    "frameCount": 9
+  },
+  {
+    "idx": 155,
+    "id": "phaser/games_snowmen-attack/sprites__throw",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "throw",
+    "frameCount": 12
+  },
+  {
+    "idx": 156,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-small-die",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-small-die",
+    "frameCount": 5
+  },
+  {
+    "idx": 157,
+    "id": "phaser/games_snowmen-attack/sprites__idle",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "idle",
+    "frameCount": 4
+  },
+  {
+    "idx": 158,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-big-walk",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-big-walk",
+    "frameCount": 8
+  },
+  {
+    "idx": 159,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-small-throw",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-small-throw",
+    "frameCount": 9
+  },
+  {
+    "idx": 160,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-small-idle",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-small-idle",
+    "frameCount": 4
+  },
+  {
+    "idx": 161,
+    "id": "phaser/games_snowmen-attack/sprites__snowball",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowball",
+    "frameCount": 3
+  },
+  {
+    "idx": 162,
+    "id": "phaser/games_snowmen-attack/sprites__snowman-small-walk",
+    "source": "games/snowmen-attack/sprites.json",
+    "anim": "snowman-small-walk",
+    "frameCount": 8
+  },
+  {
+    "idx": 163,
+    "id": "phaser/particles/bubbles__elec",
+    "source": "particles/bubbles.json",
+    "anim": "elec",
+    "frameCount": 4
+  },
+  {
+    "idx": 164,
+    "id": "phaser/particles/explosion__muzzleflash",
+    "source": "particles/explosion.json",
+    "anim": "muzzleflash",
+    "frameCount": 4
+  },
+  {
+    "idx": 165,
+    "id": "phaser/phaser3/boing__boing",
+    "source": "phaser3/boing.json",
+    "anim": "boing",
+    "frameCount": 14
+  },
+  {
+    "idx": 166,
+    "id": "phaser/sets/platformer____all__",
+    "source": "sets/platformer.json",
+    "anim": "__all__",
+    "frameCount": 18
+  },
+  {
+    "idx": 167,
+    "id": "phaser/sets/platformer__bush",
+    "source": "sets/platformer.json",
+    "anim": "bush",
+    "frameCount": 4
+  },
+  {
+    "idx": 168,
+    "id": "phaser/sets/platformer__mushroom",
+    "source": "sets/platformer.json",
+    "anim": "mushroom",
+    "frameCount": 2
+  },
+  {
+    "idx": 169,
+    "id": "phaser/sets/platformer__platform",
+    "source": "sets/platformer.json",
+    "anim": "platform",
+    "frameCount": 3
+  },
+  {
+    "idx": 170,
+    "id": "phaser/sets/platformer__sign",
+    "source": "sets/platformer.json",
+    "anim": "sign",
+    "frameCount": 2
+  },
+  {
+    "idx": 171,
+    "id": "phaser/sets/platformer__tree",
+    "source": "sets/platformer.json",
+    "anim": "tree",
+    "frameCount": 2
+  },
+  {
+    "idx": 172,
+    "id": "phaser/tests_columns/columns__diamond",
+    "source": "tests/columns/columns.json",
+    "anim": "diamond",
+    "frameCount": 16
+  },
+  {
+    "idx": 173,
+    "id": "phaser/tests_columns/columns__prism",
+    "source": "tests/columns/columns.json",
+    "anim": "prism",
+    "frameCount": 7
+  },
+  {
+    "idx": 174,
+    "id": "phaser/tests_columns/columns__ruby",
+    "source": "tests/columns/columns.json",
+    "anim": "ruby",
+    "frameCount": 7
+  },
+  {
+    "idx": 175,
+    "id": "phaser/tests_columns/columns__square",
+    "source": "tests/columns/columns.json",
+    "anim": "square",
+    "frameCount": 15
+  },
+  {
+    "idx": 176,
+    "id": "phaser/tests_columns/gems__diamond",
+    "source": "tests/columns/gems.json",
+    "anim": "diamond",
+    "frameCount": 16
+  },
+  {
+    "idx": 177,
+    "id": "phaser/tests_columns/gems__prism",
+    "source": "tests/columns/gems.json",
+    "anim": "prism",
+    "frameCount": 7
+  },
+  {
+    "idx": 178,
+    "id": "phaser/tests_columns/gems__ruby",
+    "source": "tests/columns/gems.json",
+    "anim": "ruby",
+    "frameCount": 7
+  },
+  {
+    "idx": 179,
+    "id": "phaser/tests_columns/gems__square",
+    "source": "tests/columns/gems.json",
+    "anim": "square",
+    "frameCount": 15
+  },
+  {
+    "idx": 180,
+    "id": "phaser/tests_fruit/veg____all__",
+    "source": "tests/fruit/veg.json",
+    "anim": "__all__",
+    "frameCount": 10
+  },
+  {
+    "idx": 181,
+    "id": "phaser/tests_fruit/veg__veg",
+    "source": "tests/fruit/veg.json",
+    "anim": "veg",
+    "frameCount": 37
+  },
+  {
+    "idx": 182,
+    "id": "phaser/tests_fruit/veg2____all__",
+    "source": "tests/fruit/veg2.json",
+    "anim": "__all__",
+    "frameCount": 10
+  },
+  {
+    "idx": 183,
+    "id": "phaser/tests_grave/candle__candlefl",
+    "source": "tests/grave/candle.json",
+    "anim": "candleFl",
+    "frameCount": 14
+  },
+  {
+    "idx": 184,
+    "id": "phaser/tests_meadow/grass__grass-spring",
+    "source": "tests/meadow/grass.json",
+    "anim": "grass-spring",
+    "frameCount": 30
+  },
+  {
+    "idx": 185,
+    "id": "phaser/tests_piano/piano__key",
+    "source": "tests/piano/piano.json",
+    "anim": "key",
+    "frameCount": 12
+  },
+  {
+    "idx": 186,
+    "id": "phaser/tests/player____all__",
+    "source": "tests/player.json",
+    "anim": "__all__",
+    "frameCount": 80
+  },
+  {
+    "idx": 187,
+    "id": "phaser/tests_space/space__asteroid",
+    "source": "tests/space/space.json",
+    "anim": "asteroid",
+    "frameCount": 4
+  },
+  {
+    "idx": 188,
+    "id": "phaser/tests_space/space__moon",
+    "source": "tests/space/space.json",
+    "anim": "moon",
+    "frameCount": 7
+  },
+  {
+    "idx": 189,
+    "id": "phaser/tests_space/space__muzzleflash",
+    "source": "tests/space/space.json",
+    "anim": "muzzleflash",
+    "frameCount": 2
+  },
+  {
+    "idx": 190,
+    "id": "phaser/tests_twist/bobs__bob",
+    "source": "tests/twist/bobs.json",
+    "anim": "bob",
+    "frameCount": 15
+  },
+  {
+    "idx": 191,
+    "id": "phaser/tests/zombie-no-pivot__walk",
+    "source": "tests/zombie-no-pivot.json",
+    "anim": "Walk",
+    "frameCount": 10
+  },
+  {
+    "idx": 192,
+    "id": "phaser/tests/zombie-pivot-absolute__walk",
+    "source": "tests/zombie-pivot-absolute.json",
+    "anim": "Walk",
+    "frameCount": 10
+  },
+  {
+    "idx": 193,
+    "id": "phaser/tests/zombie-pivot__walk",
+    "source": "tests/zombie-pivot.json",
+    "anim": "Walk",
+    "frameCount": 10
+  },
+  {
+    "idx": 194,
+    "id": "phaser/ui/nine-slice__blue_button",
+    "source": "ui/nine-slice.json",
+    "anim": "blue_button",
+    "frameCount": 4
+  },
+  {
+    "idx": 195,
+    "id": "phaser/ui/nine-slice__yellow_button",
+    "source": "ui/nine-slice.json",
+    "anim": "yellow_button",
+    "frameCount": 14
+  },
+  {
+    "idx": 196,
+    "id": "phaser/ui/nine-slice__buttonorangefill",
+    "source": "ui/nine-slice.json",
+    "anim": "ButtonOrangeFill",
+    "frameCount": 2
+  }
+]

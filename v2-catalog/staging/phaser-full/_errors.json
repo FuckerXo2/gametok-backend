@@ -1,0 +1,234 @@
+[
+  {
+    "path": "animations/gems.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "atlas/big-forest.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "atlas/bitmap-fonts.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "atlas/chiller.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "atlas/girl.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "atlas/monsters.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "atlas/nine-slice.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "atlas/tp3test.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "atlas/trimsheet/trimsheet.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "bugs/e_spinwave.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "compressed/uncompressed/multi-ASTC-4x4-lRGB.json",
+    "error": "png fetch failed"
+  },
+  {
+    "path": "compressed/uncompressed/multi-ETC2-lRGB.json",
+    "error": "png fetch failed"
+  },
+  {
+    "path": "compressed/uncompressed/multi-PVRTC-4BPP-lRGB.json",
+    "error": "png fetch failed"
+  },
+  {
+    "path": "compressed/uncompressed/multi-S3TC-BC3-lRGB.json",
+    "error": "png fetch failed"
+  },
+  {
+    "path": "compressed/uncompressed/multi.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "compressed/uncompressed/textures.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "demoscene/birdy.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "games/card-memory-game/fruits/fruits_atlas.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "games/flood/blobs.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "games/flood/monsters.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "games/pacman/map.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "games/tom/font/font.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "games/tom/font.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "games/tom/tomato/tomato_anim.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "games/tom/tomato/tomato_atlas.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "particles/emitter.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "particles/flares.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene0.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene1.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene2.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene3.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene4.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene5.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene6.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene7.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/pushpull/assets/maps/scene8.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene0.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene1.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene2.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene3.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scene4.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "phaserbyexample/wallhamer/assets/maps/scenex.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "physics/catstick.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "physics/compound.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "physics/fruit-shapes.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "physics/fruit-sprites.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "physics/mountain.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "physics/supercar.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "rope/ui-icons.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "sprites/blocks.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "sprites/speakers/speakers.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "tests/9slice/9slice.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "tests/iso/isometric-grass-and-water-small.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "tests/iso/isometric-grass-and-water.json",
+    "error": "no frames/image"
+  },
+  {
+    "path": "tests/scenes/space.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "tests/scenes/ui.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "tests/zoom/nemesis.json",
+    "error": "no multi-frame animations"
+  },
+  {
+    "path": "ui/dark-ui.json",
+    "error": "no multi-frame animations"
+  }
+]

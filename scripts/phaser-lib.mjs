@@ -38,6 +38,13 @@ export function extractAnimAndFrame(filename) {
   m = filename.match(/^(.+?)_(\d)$/);
   if (m) return { anim: m[1], frameIdx: parseInt(m[2], 10) };
 
+  // Trailing digits attached directly with NO separator, but only when the prefix ends in a letter
+  // or hyphen (so "snowman-big-die1" → anim "snowman-big-die", frame 1; "blue3" → "blue", 3).
+  // Guarded to not fire on dimension-like names ("32x32") by requiring a trailing alpha/hyphen
+  // right before the number.
+  m = filename.match(/^(.*[a-zA-Z-])(\d+)$/);
+  if (m) return { anim: m[1].replace(/[-_]+$/, ''), frameIdx: parseInt(m[2], 10) };
+
   // Fallback: no numeric suffix — use whole filename as anim, no frame index (won't group)
   return { anim: filename, frameIdx: null };
 }

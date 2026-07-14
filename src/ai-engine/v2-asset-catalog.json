@@ -65,7 +65,7 @@
       "generic"
     ]
   },
-  "builtAt": "2026-07-13T21:48:40.130Z",
+  "builtAt": "2026-07-14T09:02:15.736Z",
   "items": [
     {
       "id": "kenney/abstract_platformer/enemyfloating__abstract_platformer_55x55",
@@ -7823,6 +7823,686 @@
           "frames": [
             0,
             1
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/demoscene/budbrain__hatch",
+      "asset_type": "creature",
+      "species": "chick",
+      "animation_type": "action",
+      "perspective": "front",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "npc",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 122,
+        "h": 244
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "orange baby chick hatching out of an egg shell, hatch animation (4 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_demoscene_budbrain/budbrain__hatch.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_demoscene_budbrain/budbrain__hatch.json",
+        "sheet_key": "assets/v2/creature/phaser_demoscene_budbrain/budbrain__hatch.png",
+        "atlas_key": "assets/v2/creature/phaser_demoscene_budbrain/budbrain__hatch.json"
+      },
+      "atlas_animations": {
+        "action": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/demoscene/budbrain__sing",
+      "asset_type": "creature",
+      "species": "chick",
+      "animation_type": "cheer",
+      "perspective": "front",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "npc",
+      "frame_count": 3,
+      "canvas_size": {
+        "w": 122,
+        "h": 244
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "orange baby chick chirping/singing with open beak, sing animation (3 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_demoscene_budbrain/budbrain__sing.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_demoscene_budbrain/budbrain__sing.json",
+        "sheet_key": "assets/v2/creature/phaser_demoscene_budbrain/budbrain__sing.png",
+        "atlas_key": "assets/v2/creature/phaser_demoscene_budbrain/budbrain__sing.json"
+      },
+      "atlas_animations": {
+        "cheer": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_bank-panic/bank-panic__hat",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "cheer",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "npc",
+      "frame_count": 7,
+      "canvas_size": {
+        "w": 200,
+        "h": 400
+      },
+      "quality_score": 3,
+      "confidence_score": 0.9,
+      "description": "western cowboy character tipping his bowler hat, hat animation (7 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_bank-panic_bank-panic/bank-panic__hat.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_bank-panic_bank-panic/bank-panic__hat.json",
+        "sheet_key": "assets/v2/character/phaser_games_bank-panic_bank-panic/bank-panic__hat.png",
+        "atlas_key": "assets/v2/character/phaser_games_bank-panic_bank-panic/bank-panic__hat.json"
+      },
+      "atlas_animations": {
+        "cheer": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_germs/germs__blue",
+      "asset_type": "creature",
+      "species": "germ",
+      "animation_type": "idle",
+      "perspective": "front",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 3,
+      "canvas_size": {
+        "w": 46,
+        "h": 39
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "blue jelly germ blob with big eyes, squishy idle animation, blue animation (3 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__blue.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__blue.json",
+        "sheet_key": "assets/v2/creature/phaser_games_germs_germs/germs__blue.png",
+        "atlas_key": "assets/v2/creature/phaser_games_germs_germs/germs__blue.json"
+      },
+      "atlas_animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_germs/germs__red",
+      "asset_type": "creature",
+      "species": "germ",
+      "animation_type": "idle",
+      "perspective": "front",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 3,
+      "canvas_size": {
+        "w": 39,
+        "h": 38
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "red jelly germ blob with big eyes, squishy idle animation, red animation (3 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__red.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__red.json",
+        "sheet_key": "assets/v2/creature/phaser_games_germs_germs/germs__red.png",
+        "atlas_key": "assets/v2/creature/phaser_games_germs_germs/germs__red.json"
+      },
+      "atlas_animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_germs/germs__green",
+      "asset_type": "creature",
+      "species": "germ",
+      "animation_type": "idle",
+      "perspective": "front",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 3,
+      "canvas_size": {
+        "w": 43,
+        "h": 35
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "green jelly germ blob with big eyes, squishy idle animation, green animation (3 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__green.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__green.json",
+        "sheet_key": "assets/v2/creature/phaser_games_germs_germs/germs__green.png",
+        "atlas_key": "assets/v2/creature/phaser_games_germs_germs/germs__green.json"
+      },
+      "atlas_animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_germs/germs__purple",
+      "asset_type": "creature",
+      "species": "germ",
+      "animation_type": "idle",
+      "perspective": "front",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 3,
+      "canvas_size": {
+        "w": 43,
+        "h": 35
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "purple jelly germ blob with big eyes, squishy idle animation, purple animation (3 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__purple.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_germs_germs/germs__purple.json",
+        "sheet_key": "assets/v2/creature/phaser_games_germs_germs/germs__purple.png",
+        "atlas_key": "assets/v2/creature/phaser_games_germs_germs/germs__purple.json"
+      },
+      "atlas_animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-big-die",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "damage",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 180,
+        "h": 180
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "large snowman enemy with top hat, melting/death animation, snowman-big-die animation (5 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-die.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-die.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-die.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-die.json"
+      },
+      "atlas_animations": {
+        "damage": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-big-idle",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 180,
+        "h": 180
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "large snowman enemy with top hat, idle animation, snowman-big-idle animation (4 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-idle.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-idle.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-idle.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-idle.json"
+      },
+      "atlas_animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-big-throw",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 9,
+      "canvas_size": {
+        "w": 180,
+        "h": 180
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "large snowman enemy with top hat, throwing snowball attack, snowman-big-throw animation (9 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-throw.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-throw.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-throw.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-throw.json"
+      },
+      "atlas_animations": {
+        "attack": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-big-walk",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 8,
+      "canvas_size": {
+        "w": 180,
+        "h": 180
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "large snowman enemy with top hat, walk cycle, snowman-big-walk animation (8 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-walk.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-walk.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-big-walk.json"
+      },
+      "atlas_animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-small-die",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "damage",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 5,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "small snowman enemy, melting/death animation, snowman-small-die animation (5 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-die.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-die.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-die.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-die.json"
+      },
+      "atlas_animations": {
+        "damage": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-small-idle",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "small snowman enemy, idle animation, snowman-small-idle animation (4 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-idle.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-idle.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-idle.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-idle.json"
+      },
+      "atlas_animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-small-throw",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 9,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "small snowman enemy, throwing snowball attack, snowman-small-throw animation (9 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-throw.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-throw.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-throw.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-throw.json"
+      },
+      "atlas_animations": {
+        "attack": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__snowman-small-walk",
+      "asset_type": "character",
+      "species": "snowman",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "enemy",
+      "frame_count": 8,
+      "canvas_size": {
+        "w": 140,
+        "h": 140
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "small snowman enemy, walk cycle, snowman-small-walk animation (8 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-walk.json",
+        "sheet_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-walk.png",
+        "atlas_key": "assets/v2/character/phaser_games_snowmen-attack_sprites/sprites__snowman-small-walk.json"
+      },
+      "atlas_animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__throw",
+      "asset_type": "creature",
+      "species": "penguin",
+      "animation_type": "attack",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "player",
+      "frame_count": 12,
+      "canvas_size": {
+        "w": 96,
+        "h": 96
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "black-and-white penguin player character, throwing snowball, throw animation (12 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__throw.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__throw.json",
+        "sheet_key": "assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__throw.png",
+        "atlas_key": "assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__throw.json"
+      },
+      "atlas_animations": {
+        "attack": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/games_snowmen-attack/sprites__idle",
+      "asset_type": "creature",
+      "species": "penguin",
+      "animation_type": "idle",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "casual",
+      "playable_role": "player",
+      "frame_count": 4,
+      "canvas_size": {
+        "w": 96,
+        "h": 96
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "black-and-white penguin player character, idle animation, idle animation (4 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__idle.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__idle.json",
+        "sheet_key": "assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__idle.png",
+        "atlas_key": "assets/v2/creature/phaser_games_snowmen-attack_sprites/sprites__idle.json"
+      },
+      "atlas_animations": {
+        "idle": {
+          "frames": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "fps": 12,
+          "loop": true
+        }
+      }
+    },
+    {
+      "id": "phaser/tests/zombie-no-pivot__walk",
+      "asset_type": "character",
+      "species": "zombie",
+      "animation_type": "walk",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "platformer",
+      "playable_role": "enemy",
+      "frame_count": 10,
+      "canvas_size": {
+        "w": 430,
+        "h": 519
+      },
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "cartoon pixel-art zombie with red cap and blue shirt, walk cycle, Walk animation (10 frames)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_tests_zombie-no-pivot/zombie-no-pivot__walk.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_tests_zombie-no-pivot/zombie-no-pivot__walk.json",
+        "sheet_key": "assets/v2/character/phaser_tests_zombie-no-pivot/zombie-no-pivot__walk.png",
+        "atlas_key": "assets/v2/character/phaser_tests_zombie-no-pivot/zombie-no-pivot__walk.json"
+      },
+      "atlas_animations": {
+        "walk": {
+          "frames": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
           ],
           "fps": 12,
           "loop": true
