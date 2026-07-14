@@ -64,6 +64,7 @@ async function main() {
     playable_role: l.playable_role,
     frame_count: l.frame_count,
     canvas_size: l.canvas_size,
+    source_pack: l.source_pack,
     quality_score: l.quality_score,
     confidence_score: l.confidence_score,
     description: l.description,

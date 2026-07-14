@@ -173,7 +173,8 @@ function floatsToBase64(f) { return Buffer.from(new Float32Array(f).buffer).toSt
 const newEmbItems = finalized.map((l, i) => ({
   id: l.id, asset_type: l.asset_type, species: l.species, animation_type: l.animation_type,
   perspective: l.perspective, movement: l.movement, theme: l.theme, playable_role: l.playable_role,
-  frame_count: l.frame_count, canvas_size: l.canvas_size, quality_score: l.quality_score,
+  frame_count: l.frame_count, canvas_size: l.canvas_size, source_pack: l.source_pack,
+  quality_score: l.quality_score,
   confidence_score: l.confidence_score, description: l.description, r2: l.r2,
   atlas_animations: l.atlas_ref.animations, vec: floatsToBase64(embResp.data[i].embedding),
 }));

@@ -101,7 +101,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/enemyflyingalt__abstract_platformer_63x36",
@@ -137,7 +138,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/enemyflying__abstract_platformer_64x43",
@@ -173,7 +175,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/enemyspikey__abstract_platformer_32x64",
@@ -209,7 +212,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/enemyswimming__abstract_platformer_46x32",
@@ -245,7 +249,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/enemywalking__abstract_platformer_49x44",
@@ -281,7 +286,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_swim__abstract_platformer_44x54",
@@ -315,7 +321,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_switch__abstract_platformer_54x54",
@@ -349,7 +356,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_up__abstract_platformer_46x54",
@@ -384,7 +392,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_walk__abstract_platformer_64x54",
@@ -421,7 +430,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_swim__abstract_platformer_41x54",
@@ -455,7 +465,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_switch__abstract_platformer_51x50",
@@ -489,7 +500,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_up__abstract_platformer_40x50",
@@ -524,7 +536,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_walk__abstract_platformer_64x50",
@@ -561,7 +574,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_swim__abstract_platformer_44x42",
@@ -595,7 +609,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_switch__abstract_platformer_50x45",
@@ -629,7 +644,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_up__abstract_platformer_44x45",
@@ -664,7 +680,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_walk__abstract_platformer_64x45",
@@ -701,7 +718,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerred_swim__abstract_platformer_48x51",
@@ -735,7 +753,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerred_switch__abstract_platformer_52x48",
@@ -769,7 +788,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerred_up__abstract_platformer_56x48",
@@ -804,7 +824,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/abstract_platformer/playerred_walk__abstract_platformer_64x48",
@@ -841,7 +862,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Abstract Platformer"
     },
     {
       "id": "kenney/alien_ufo_pack/shipbeige_damage__alien_ufo_pack_124x67",
@@ -875,7 +897,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Alien UFO Pack"
     },
     {
       "id": "kenney/alien_ufo_pack/shipblue_damage__alien_ufo_pack_124x90",
@@ -909,7 +932,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Alien UFO Pack"
     },
     {
       "id": "kenney/alien_ufo_pack/shipgreen_damage__alien_ufo_pack_124x68",
@@ -943,7 +967,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Alien UFO Pack"
     },
     {
       "id": "kenney/alien_ufo_pack/shipyellow_damage__alien_ufo_pack_124x62",
@@ -977,7 +1002,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Alien UFO Pack"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_001__isometric_watercraft_512x512",
@@ -1017,7 +1043,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_002__isometric_watercraft_512x512",
@@ -1057,7 +1084,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_003__isometric_watercraft_512x512",
@@ -1097,7 +1125,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_004__isometric_watercraft_512x512",
@@ -1137,7 +1166,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_005__isometric_watercraft_512x512",
@@ -1177,7 +1207,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_006__isometric_watercraft_512x512",
@@ -1217,7 +1248,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_007__isometric_watercraft_512x512",
@@ -1257,7 +1289,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_008__isometric_watercraft_512x512",
@@ -1297,7 +1330,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_009__isometric_watercraft_512x512",
@@ -1337,7 +1371,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_010__isometric_watercraft_512x512",
@@ -1377,7 +1412,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_011__isometric_watercraft_512x512",
@@ -1417,7 +1453,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_012__isometric_watercraft_512x512",
@@ -1457,7 +1494,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_013__isometric_watercraft_512x512",
@@ -1497,7 +1535,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_014__isometric_watercraft_512x512",
@@ -1537,7 +1576,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_015__isometric_watercraft_512x512",
@@ -1577,7 +1617,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_016__isometric_watercraft_512x512",
@@ -1617,7 +1658,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_017__isometric_watercraft_512x512",
@@ -1657,7 +1699,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_018__isometric_watercraft_512x512",
@@ -1697,7 +1740,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_019__isometric_watercraft_512x512",
@@ -1737,7 +1781,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_020__isometric_watercraft_512x512",
@@ -1777,7 +1822,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_021__isometric_watercraft_512x512",
@@ -1817,7 +1863,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_022__isometric_watercraft_512x512",
@@ -1857,7 +1904,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_023__isometric_watercraft_512x512",
@@ -1897,7 +1945,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_024__isometric_watercraft_512x512",
@@ -1937,7 +1986,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_025__isometric_watercraft_512x512",
@@ -1977,7 +2027,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_026__isometric_watercraft_512x512",
@@ -2017,7 +2068,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_027__isometric_watercraft_512x512",
@@ -2057,7 +2109,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_028__isometric_watercraft_512x512",
@@ -2097,7 +2150,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_029__isometric_watercraft_512x512",
@@ -2137,7 +2191,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Isometric Watercraft"
     },
     {
       "id": "kenney/jumper_pack/bunny1_walk__jumper_pack_120x207",
@@ -2171,7 +2226,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Jumper Pack"
     },
     {
       "id": "kenney/jumper_pack/bunny2_walk__jumper_pack_121x207",
@@ -2205,7 +2261,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Jumper Pack"
     },
     {
       "id": "kenney/jumper_pack/spikeman_walk__jumper_pack_120x159",
@@ -2239,7 +2296,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Jumper Pack"
     },
     {
       "id": "kenney/jumper_pack/wingman__jumper_pack_216x126",
@@ -2276,7 +2334,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Jumper Pack"
     },
     {
       "id": "kenney/platformer_assets_base/fishswim__platformer_assets_base_66x43",
@@ -2310,7 +2369,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Base"
     },
     {
       "id": "kenney/platformer_assets_base/flyfly__platformer_assets_base_75x36",
@@ -2344,7 +2404,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Base"
     },
     {
       "id": "kenney/platformer_assets_base/slimewalk__platformer_assets_base_51x28",
@@ -2378,7 +2439,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Base"
     },
     {
       "id": "kenney/platformer_assets_base/snailwalk__platformer_assets_base_57x31",
@@ -2412,7 +2474,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Base"
     },
     {
       "id": "kenney/platformer_assets_base/p1_walk__platformer_assets_base_72x97",
@@ -2455,7 +2518,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Base"
     },
     {
       "id": "kenney/platformer_assets_base/p2_walk__platformer_assets_base_70x94",
@@ -2498,7 +2562,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Base"
     },
     {
       "id": "kenney/platformer_assets_base/p3_walk__platformer_assets_base_72x97",
@@ -2541,7 +2606,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Base"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_climb__platformer_assets_extra_animations___enemies_66x95",
@@ -2575,7 +2641,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_swim__platformer_assets_extra_animations___enemies_70x100",
@@ -2609,7 +2676,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_walk__platformer_assets_extra_animations___enemies_70x96",
@@ -2643,7 +2711,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_climb__platformer_assets_extra_animations___enemies_66x92",
@@ -2677,7 +2746,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_swim__platformer_assets_extra_animations___enemies_70x97",
@@ -2711,7 +2781,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_walk__platformer_assets_extra_animations___enemies_67x96",
@@ -2745,7 +2816,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_climb__platformer_assets_extra_animations___enemies_66x92",
@@ -2779,7 +2851,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_swim__platformer_assets_extra_animations___enemies_70x97",
@@ -2813,7 +2886,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_walk__platformer_assets_extra_animations___enemies_70x96",
@@ -2847,7 +2921,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_climb__platformer_assets_extra_animations___enemies_66x92",
@@ -2881,7 +2956,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_swim__platformer_assets_extra_animations___enemies_70x97",
@@ -2915,7 +2991,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_walk__platformer_assets_extra_animations___enemies_70x96",
@@ -2949,7 +3026,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_climb__platformer_assets_extra_animations___enemies_66x82",
@@ -2983,7 +3061,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_swim__platformer_assets_extra_animations___enemies_70x87",
@@ -3017,7 +3096,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_walk__platformer_assets_extra_animations___enemies_70x86",
@@ -3051,7 +3131,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/spider_walk__platformer_assets_extra_animations___enemies_77x53",
@@ -3085,7 +3166,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Assets Extra Animations & Enemies"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_action__poses",
@@ -3119,7 +3201,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_cheer__poses",
@@ -3153,7 +3236,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_climb__poses",
@@ -3187,7 +3271,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_hold__poses",
@@ -3221,7 +3306,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_swim__poses",
@@ -3255,7 +3341,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_walk__poses",
@@ -3289,7 +3376,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/female_action__poses",
@@ -3323,7 +3411,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/female_cheer__poses",
@@ -3357,7 +3446,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/female_climb__poses",
@@ -3391,7 +3481,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/female_hold__poses",
@@ -3425,7 +3516,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/female_swim__poses",
@@ -3459,7 +3551,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/female_walk__poses",
@@ -3493,7 +3586,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/player_action__poses",
@@ -3527,7 +3621,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/player_cheer__poses",
@@ -3561,7 +3656,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/player_climb__poses",
@@ -3595,7 +3691,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/player_hold__poses",
@@ -3629,7 +3726,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/player_swim__poses",
@@ -3663,7 +3761,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/player_walk__poses",
@@ -3697,7 +3796,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_action__poses",
@@ -3731,7 +3831,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_cheer__poses",
@@ -3765,7 +3866,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_climb__poses",
@@ -3799,7 +3901,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_hold__poses",
@@ -3833,7 +3936,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_swim__poses",
@@ -3867,7 +3971,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_walk__poses",
@@ -3901,7 +4006,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_action__poses",
@@ -3935,7 +4041,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_cheer__poses",
@@ -3969,7 +4076,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_climb__poses",
@@ -4003,7 +4111,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_hold__poses",
@@ -4037,7 +4146,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_swim__poses",
@@ -4071,7 +4181,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_walk__poses",
@@ -4105,7 +4216,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Characters 1"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienbeige_climb__platformer_pack_remastered_128x256",
@@ -4139,7 +4251,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienbeige_swim__platformer_pack_remastered_128x256",
@@ -4173,7 +4286,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienbeige_walk__platformer_pack_remastered_128x256",
@@ -4207,7 +4321,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienblue_climb__platformer_pack_remastered_128x256",
@@ -4241,7 +4356,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienblue_swim__platformer_pack_remastered_128x256",
@@ -4275,7 +4391,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienblue_walk__platformer_pack_remastered_128x256",
@@ -4309,7 +4426,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/aliengreen_climb__platformer_pack_remastered_128x256",
@@ -4343,7 +4461,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/aliengreen_swim__platformer_pack_remastered_128x256",
@@ -4377,7 +4496,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/aliengreen_walk__platformer_pack_remastered_128x256",
@@ -4411,7 +4531,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienpink_climb__platformer_pack_remastered_128x256",
@@ -4445,7 +4566,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienpink_swim__platformer_pack_remastered_128x256",
@@ -4479,7 +4601,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienpink_walk__platformer_pack_remastered_128x256",
@@ -4513,7 +4636,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienyellow_climb__platformer_pack_remastered_128x256",
@@ -4547,7 +4671,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienyellow_swim__platformer_pack_remastered_128x256",
@@ -4581,7 +4706,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienyellow_walk__platformer_pack_remastered_128x256",
@@ -4615,7 +4741,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Platformer Pack Remastered"
     },
     {
       "id": "kenney/robot_pack/robot_bluedamage__robot_pack_157x128",
@@ -4649,7 +4776,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/robot_pack/robot_bluedrive__robot_pack_158x150",
@@ -4683,7 +4811,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/robot_pack/robot_greendamage__robot_pack_157x104",
@@ -4717,7 +4846,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/robot_pack/robot_greendrive__robot_pack_158x120",
@@ -4751,7 +4881,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/robot_pack/robot_reddamage__robot_pack_179x128",
@@ -4785,7 +4916,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/robot_pack/robot_reddrive__robot_pack_180x150",
@@ -4819,7 +4951,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/robot_pack/robot_yellowdamage__robot_pack_183x128",
@@ -4853,7 +4986,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/robot_pack/robot_yellowdrive__robot_pack_184x150",
@@ -4887,7 +5021,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Robot Pack"
     },
     {
       "id": "kenney/simplified_platformer_pack/platformchar_climb__characters",
@@ -4921,7 +5056,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Simplified Platformer Pack"
     },
     {
       "id": "kenney/simplified_platformer_pack/platformchar_walk__characters",
@@ -4955,7 +5091,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Simplified Platformer Pack"
     },
     {
       "id": "kenney/tappy_plane/planeblue__tappy_plane_88x73",
@@ -4990,7 +5127,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Tappy Plane"
     },
     {
       "id": "kenney/tappy_plane/planegreen__tappy_plane_88x73",
@@ -5025,7 +5163,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Tappy Plane"
     },
     {
       "id": "kenney/tappy_plane/planered__tappy_plane_88x73",
@@ -5060,7 +5199,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Tappy Plane"
     },
     {
       "id": "kenney/tappy_plane/planeyellow__tappy_plane_88x73",
@@ -5095,7 +5235,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Tappy Plane"
     },
     {
       "id": "kenney/toon_characters/climb__female_adventurer_96x128",
@@ -5129,7 +5270,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/cheer__female_adventurer_96x128",
@@ -5163,7 +5305,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/switch__female_adventurer_96x128",
@@ -5197,7 +5340,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/run__female_adventurer_96x128",
@@ -5232,7 +5376,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/attack__female_adventurer_96x128",
@@ -5267,7 +5412,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/walk__female_adventurer_96x128",
@@ -5307,7 +5453,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/climb__female_person_96x128",
@@ -5341,7 +5488,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/cheer__female_person_96x128",
@@ -5375,7 +5523,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/switch__female_person_96x128",
@@ -5409,7 +5558,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/run__female_person_96x128",
@@ -5444,7 +5594,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/attack__female_person_96x128",
@@ -5479,7 +5630,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/walk__female_person_96x128",
@@ -5519,7 +5671,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/climb__male_adventurer_96x128",
@@ -5553,7 +5706,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/cheer__male_adventurer_96x128",
@@ -5587,7 +5741,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/switch__male_adventurer_96x128",
@@ -5621,7 +5776,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/run__male_adventurer_96x128",
@@ -5656,7 +5812,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/attack__male_adventurer_96x128",
@@ -5691,7 +5848,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/walk__male_adventurer_96x128",
@@ -5731,7 +5889,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/climb__male_person_96x128",
@@ -5765,7 +5924,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/cheer__male_person_96x128",
@@ -5799,7 +5959,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/switch__male_person_96x128",
@@ -5833,7 +5994,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/run__male_person_96x128",
@@ -5868,7 +6030,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/attack__male_person_96x128",
@@ -5903,7 +6066,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/walk__male_person_96x128",
@@ -5943,7 +6107,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/climb__robot_96x128",
@@ -5977,7 +6142,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/cheer__robot_96x128",
@@ -6011,7 +6177,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/switch__robot_96x128",
@@ -6045,7 +6212,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/run__robot_96x128",
@@ -6080,7 +6248,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/attack__robot_96x128",
@@ -6115,7 +6284,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/walk__robot_96x128",
@@ -6155,7 +6325,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/climb__zombie_96x128",
@@ -6189,7 +6360,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/cheer__zombie_96x128",
@@ -6223,7 +6395,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/switch__zombie_96x128",
@@ -6257,7 +6430,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/run__zombie_96x128",
@@ -6292,7 +6466,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/attack__zombie_96x128",
@@ -6327,7 +6502,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/toon_characters/walk__zombie_96x128",
@@ -6367,7 +6543,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Toon Characters"
     },
     {
       "id": "kenney/space_shooter_remastered/playership1_damage__space_shooter_remastered_99x75",
@@ -6402,7 +6579,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Space Shooter Remastered"
     },
     {
       "id": "kenney/space_shooter_remastered/playership2_damage__space_shooter_remastered_112x75",
@@ -6437,7 +6615,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Space Shooter Remastered"
     },
     {
       "id": "kenney/space_shooter_remastered/playership3_damage__space_shooter_remastered_98x75",
@@ -6472,7 +6651,8 @@
           "fps": 8,
           "loop": true
         }
-      }
+      },
+      "source_pack": "Space Shooter Remastered"
     },
     {
       "id": "phaser-cdn/animations/alien__03_walk",
@@ -6517,7 +6697,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/alien"
     },
     {
       "id": "phaser-cdn/animations/alien__02_turn_to_walk",
@@ -6553,7 +6734,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/alien"
     },
     {
       "id": "phaser-cdn/animations/alien__01_idle",
@@ -6603,7 +6785,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/alien"
     },
     {
       "id": "phaser-cdn/animations/bird____all__",
@@ -6645,7 +6828,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/bird"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__green_attack",
@@ -6683,7 +6867,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__blue_attack",
@@ -6720,7 +6905,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__green_idle",
@@ -6757,7 +6943,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__green_die",
@@ -6794,7 +6981,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__blue_die",
@@ -6831,7 +7019,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__blue_idle",
@@ -6868,7 +7057,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/elves-craft-pixel"
     },
     {
       "id": "phaser-cdn/animations/knight__attack_a",
@@ -6914,7 +7104,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__attack_c",
@@ -6960,7 +7151,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__attack_b",
@@ -7005,7 +7197,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__guard",
@@ -7043,7 +7236,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__fall_loop",
@@ -7077,7 +7271,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__jump_loop",
@@ -7111,7 +7306,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__jump_start",
@@ -7147,7 +7343,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__run",
@@ -7187,7 +7384,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__guard_end",
@@ -7223,7 +7421,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__die",
@@ -7265,7 +7464,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__get_hit",
@@ -7302,7 +7502,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__guard_start",
@@ -7338,7 +7539,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/knight__idle",
@@ -7376,7 +7578,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/knight"
     },
     {
       "id": "phaser-cdn/animations/robo__running",
@@ -7423,7 +7626,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/robo"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_3_shoot_up",
@@ -7460,7 +7664,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/soldier"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_2_shot_up",
@@ -7503,7 +7708,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/soldier"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_3_shoot_front",
@@ -7546,7 +7752,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/soldier"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_2_shot_front",
@@ -7586,7 +7793,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/soldier"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_3_walk",
@@ -7626,7 +7834,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/soldier"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_2_walk",
@@ -7666,7 +7875,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/soldier"
     },
     {
       "id": "phaser-cdn/animations/walker__frame",
@@ -7714,7 +7924,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/walker"
     },
     {
       "id": "phaser-cdn/animations/zombie__death",
@@ -7752,7 +7963,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/zombie"
     },
     {
       "id": "phaser-cdn/animations/zombie__walk",
@@ -7793,7 +8005,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn animations/zombie"
     },
     {
       "id": "phaser-cdn/tweens/golem",
@@ -7827,7 +8040,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn tweens/golem"
     },
     {
       "id": "phaser/demoscene/budbrain__hatch",
@@ -7863,7 +8077,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn demoscene/budbrain.json"
     },
     {
       "id": "phaser/demoscene/budbrain__sing",
@@ -7898,7 +8113,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn demoscene/budbrain.json"
     },
     {
       "id": "phaser/games_bank-panic/bank-panic__hat",
@@ -7937,7 +8153,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/bank-panic/bank-panic.json"
     },
     {
       "id": "phaser/games_germs/germs__blue",
@@ -7972,7 +8189,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/germs/germs.json"
     },
     {
       "id": "phaser/games_germs/germs__red",
@@ -8007,7 +8225,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/germs/germs.json"
     },
     {
       "id": "phaser/games_germs/germs__green",
@@ -8042,7 +8261,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/germs/germs.json"
     },
     {
       "id": "phaser/games_germs/germs__purple",
@@ -8077,7 +8297,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/germs/germs.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-die",
@@ -8114,7 +8335,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-idle",
@@ -8150,7 +8372,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-throw",
@@ -8191,7 +8414,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-walk",
@@ -8231,7 +8455,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-die",
@@ -8268,7 +8493,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-idle",
@@ -8304,7 +8530,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-throw",
@@ -8345,7 +8572,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-walk",
@@ -8385,7 +8613,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__throw",
@@ -8429,7 +8658,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__idle",
@@ -8465,7 +8695,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
     },
     {
       "id": "phaser/tests/zombie-no-pivot__walk",
@@ -8507,7 +8738,8 @@
           "fps": 12,
           "loop": true
         }
-      }
+      },
+      "source_pack": "phaser-cdn tests/zombie-no-pivot.json"
     }
   ]
 }

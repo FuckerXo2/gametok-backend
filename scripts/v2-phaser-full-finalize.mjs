@@ -98,7 +98,7 @@ const openai = new OpenAI({ apiKey:process.env.OPENAI_API_KEY });
 const embText = l => `${l.asset_type} ${l.species} ${l.animation_type} ${l.perspective} ${l.movement} ${l.theme} ${l.playable_role}. ${l.description}`;
 const resp = await openai.embeddings.create({ model:'text-embedding-3-small', input:finalized.map(embText), dimensions:256 });
 const b64 = f => Buffer.from(new Float32Array(f).buffer).toString('base64');
-const newEmb = finalized.map((l,i)=>({ id:l.id, asset_type:l.asset_type, species:l.species, animation_type:l.animation_type, perspective:l.perspective, movement:l.movement, theme:l.theme, playable_role:l.playable_role, frame_count:l.frame_count, canvas_size:l.canvas_size, quality_score:l.quality_score, confidence_score:l.confidence_score, description:l.description, r2:l.r2, atlas_animations:l.atlas_ref.animations, vec:b64(resp.data[i].embedding) }));
+const newEmb = finalized.map((l,i)=>({ id:l.id, asset_type:l.asset_type, species:l.species, animation_type:l.animation_type, perspective:l.perspective, movement:l.movement, theme:l.theme, playable_role:l.playable_role, frame_count:l.frame_count, canvas_size:l.canvas_size, source_pack:l.source_pack, quality_score:l.quality_score, confidence_score:l.confidence_score, description:l.description, r2:l.r2, atlas_animations:l.atlas_ref.animations, vec:b64(resp.data[i].embedding) }));
 
 const embPath = path.join(AI_DIR,'v2-asset-embeddings.json'), catPath = path.join(AI_DIR,'v2-asset-catalog.json');
 const emb = JSON.parse(fs.readFileSync(embPath)), cat = JSON.parse(fs.readFileSync(catPath));
