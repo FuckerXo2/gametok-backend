@@ -65,7 +65,7 @@
       "generic"
     ]
   },
-  "builtAt": "2026-07-14T09:02:15.736Z",
+  "builtAt": "2026-07-14T15:07:29.237Z",
   "items": [
     {
       "id": "kenney/abstract_platformer/enemyfloating__abstract_platformer_55x55",
@@ -102,7 +102,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/enemyflyingalt__abstract_platformer_63x36",
@@ -139,7 +140,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/enemyflying__abstract_platformer_64x43",
@@ -176,7 +178,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/enemyspikey__abstract_platformer_32x64",
@@ -213,7 +216,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/enemyswimming__abstract_platformer_46x32",
@@ -250,7 +254,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/enemywalking__abstract_platformer_49x44",
@@ -287,7 +292,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_swim__abstract_platformer_44x54",
@@ -322,7 +328,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_switch__abstract_platformer_54x54",
@@ -357,7 +364,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_up__abstract_platformer_46x54",
@@ -393,7 +401,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerblue_walk__abstract_platformer_64x54",
@@ -431,7 +440,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_swim__abstract_platformer_41x54",
@@ -466,7 +476,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_switch__abstract_platformer_51x50",
@@ -501,7 +512,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_up__abstract_platformer_40x50",
@@ -537,7 +549,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergreen_walk__abstract_platformer_64x50",
@@ -575,7 +588,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_swim__abstract_platformer_44x42",
@@ -610,7 +624,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_switch__abstract_platformer_50x45",
@@ -645,7 +660,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_up__abstract_platformer_44x45",
@@ -681,7 +697,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playergrey_walk__abstract_platformer_64x45",
@@ -719,7 +736,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerred_swim__abstract_platformer_48x51",
@@ -754,7 +772,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerred_switch__abstract_platformer_52x48",
@@ -789,7 +808,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerred_up__abstract_platformer_56x48",
@@ -825,7 +845,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/abstract_platformer/playerred_walk__abstract_platformer_64x48",
@@ -863,7 +884,8 @@
           "loop": true
         }
       },
-      "source_pack": "Abstract Platformer"
+      "source_pack": "Abstract Platformer",
+      "motion": "animated"
     },
     {
       "id": "kenney/alien_ufo_pack/shipbeige_damage__alien_ufo_pack_124x67",
@@ -898,7 +920,8 @@
           "loop": true
         }
       },
-      "source_pack": "Alien UFO Pack"
+      "source_pack": "Alien UFO Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/alien_ufo_pack/shipblue_damage__alien_ufo_pack_124x90",
@@ -933,7 +956,8 @@
           "loop": true
         }
       },
-      "source_pack": "Alien UFO Pack"
+      "source_pack": "Alien UFO Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/alien_ufo_pack/shipgreen_damage__alien_ufo_pack_124x68",
@@ -968,7 +992,8 @@
           "loop": true
         }
       },
-      "source_pack": "Alien UFO Pack"
+      "source_pack": "Alien UFO Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/alien_ufo_pack/shipyellow_damage__alien_ufo_pack_124x62",
@@ -1003,7 +1028,8 @@
           "loop": true
         }
       },
-      "source_pack": "Alien UFO Pack"
+      "source_pack": "Alien UFO Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_001__isometric_watercraft_512x512",
@@ -1044,7 +1070,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_002__isometric_watercraft_512x512",
@@ -1085,7 +1112,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_003__isometric_watercraft_512x512",
@@ -1126,7 +1154,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_004__isometric_watercraft_512x512",
@@ -1167,7 +1196,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_005__isometric_watercraft_512x512",
@@ -1208,7 +1238,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_006__isometric_watercraft_512x512",
@@ -1249,7 +1280,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_007__isometric_watercraft_512x512",
@@ -1290,7 +1322,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_008__isometric_watercraft_512x512",
@@ -1331,7 +1364,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_009__isometric_watercraft_512x512",
@@ -1372,7 +1406,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_010__isometric_watercraft_512x512",
@@ -1413,7 +1448,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_011__isometric_watercraft_512x512",
@@ -1454,7 +1490,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_012__isometric_watercraft_512x512",
@@ -1495,7 +1532,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_013__isometric_watercraft_512x512",
@@ -1536,7 +1574,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_014__isometric_watercraft_512x512",
@@ -1577,7 +1616,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_015__isometric_watercraft_512x512",
@@ -1618,7 +1658,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_016__isometric_watercraft_512x512",
@@ -1659,7 +1700,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_017__isometric_watercraft_512x512",
@@ -1700,7 +1742,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_018__isometric_watercraft_512x512",
@@ -1741,7 +1784,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_019__isometric_watercraft_512x512",
@@ -1782,7 +1826,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_020__isometric_watercraft_512x512",
@@ -1823,7 +1868,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_021__isometric_watercraft_512x512",
@@ -1864,7 +1910,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_022__isometric_watercraft_512x512",
@@ -1905,7 +1952,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_023__isometric_watercraft_512x512",
@@ -1946,7 +1994,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_024__isometric_watercraft_512x512",
@@ -1987,7 +2036,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_025__isometric_watercraft_512x512",
@@ -2028,7 +2078,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_026__isometric_watercraft_512x512",
@@ -2069,7 +2120,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_027__isometric_watercraft_512x512",
@@ -2110,7 +2162,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_028__isometric_watercraft_512x512",
@@ -2151,7 +2204,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/isometric_watercraft/watercraftpack_029__isometric_watercraft_512x512",
@@ -2192,7 +2246,8 @@
           "loop": true
         }
       },
-      "source_pack": "Isometric Watercraft"
+      "source_pack": "Isometric Watercraft",
+      "motion": "animated"
     },
     {
       "id": "kenney/jumper_pack/bunny1_walk__jumper_pack_120x207",
@@ -2227,7 +2282,8 @@
           "loop": true
         }
       },
-      "source_pack": "Jumper Pack"
+      "source_pack": "Jumper Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/jumper_pack/bunny2_walk__jumper_pack_121x207",
@@ -2262,7 +2318,8 @@
           "loop": true
         }
       },
-      "source_pack": "Jumper Pack"
+      "source_pack": "Jumper Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/jumper_pack/spikeman_walk__jumper_pack_120x159",
@@ -2297,7 +2354,8 @@
           "loop": true
         }
       },
-      "source_pack": "Jumper Pack"
+      "source_pack": "Jumper Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/jumper_pack/wingman__jumper_pack_216x126",
@@ -2335,7 +2393,8 @@
           "loop": true
         }
       },
-      "source_pack": "Jumper Pack"
+      "source_pack": "Jumper Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_base/fishswim__platformer_assets_base_66x43",
@@ -2370,7 +2429,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Base"
+      "source_pack": "Platformer Assets Base",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_base/flyfly__platformer_assets_base_75x36",
@@ -2405,7 +2465,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Base"
+      "source_pack": "Platformer Assets Base",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_base/slimewalk__platformer_assets_base_51x28",
@@ -2440,7 +2501,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Base"
+      "source_pack": "Platformer Assets Base",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_base/snailwalk__platformer_assets_base_57x31",
@@ -2475,7 +2537,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Base"
+      "source_pack": "Platformer Assets Base",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_base/p1_walk__platformer_assets_base_72x97",
@@ -2519,7 +2582,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Base"
+      "source_pack": "Platformer Assets Base",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_base/p2_walk__platformer_assets_base_70x94",
@@ -2563,7 +2627,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Base"
+      "source_pack": "Platformer Assets Base",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_base/p3_walk__platformer_assets_base_72x97",
@@ -2607,7 +2672,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Base"
+      "source_pack": "Platformer Assets Base",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_climb__platformer_assets_extra_animations___enemies_66x95",
@@ -2642,7 +2708,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_swim__platformer_assets_extra_animations___enemies_70x100",
@@ -2677,7 +2744,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienbeige_walk__platformer_assets_extra_animations___enemies_70x96",
@@ -2712,7 +2780,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_climb__platformer_assets_extra_animations___enemies_66x92",
@@ -2747,7 +2816,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_swim__platformer_assets_extra_animations___enemies_70x97",
@@ -2782,7 +2852,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienblue_walk__platformer_assets_extra_animations___enemies_67x96",
@@ -2817,7 +2888,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_climb__platformer_assets_extra_animations___enemies_66x92",
@@ -2852,7 +2924,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_swim__platformer_assets_extra_animations___enemies_70x97",
@@ -2887,7 +2960,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/aliengreen_walk__platformer_assets_extra_animations___enemies_70x96",
@@ -2922,7 +2996,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_climb__platformer_assets_extra_animations___enemies_66x92",
@@ -2957,7 +3032,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_swim__platformer_assets_extra_animations___enemies_70x97",
@@ -2992,7 +3068,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienpink_walk__platformer_assets_extra_animations___enemies_70x96",
@@ -3027,7 +3104,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_climb__platformer_assets_extra_animations___enemies_66x82",
@@ -3062,7 +3140,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_swim__platformer_assets_extra_animations___enemies_70x87",
@@ -3097,7 +3176,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/alienyellow_walk__platformer_assets_extra_animations___enemies_70x86",
@@ -3132,7 +3212,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_assets_extra_animations___enemies/spider_walk__platformer_assets_extra_animations___enemies_77x53",
@@ -3167,7 +3248,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Assets Extra Animations & Enemies"
+      "source_pack": "Platformer Assets Extra Animations & Enemies",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_action__poses",
@@ -3202,7 +3284,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_cheer__poses",
@@ -3237,7 +3320,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_climb__poses",
@@ -3272,7 +3356,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_hold__poses",
@@ -3307,7 +3392,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_swim__poses",
@@ -3342,7 +3428,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/adventurer_walk__poses",
@@ -3377,7 +3464,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/female_action__poses",
@@ -3412,7 +3500,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/female_cheer__poses",
@@ -3447,7 +3536,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/female_climb__poses",
@@ -3482,7 +3572,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/female_hold__poses",
@@ -3517,7 +3608,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/female_swim__poses",
@@ -3552,7 +3644,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/female_walk__poses",
@@ -3587,7 +3680,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/player_action__poses",
@@ -3622,7 +3716,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/player_cheer__poses",
@@ -3657,7 +3752,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/player_climb__poses",
@@ -3692,7 +3788,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/player_hold__poses",
@@ -3727,7 +3824,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/player_swim__poses",
@@ -3762,7 +3860,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/player_walk__poses",
@@ -3797,7 +3896,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_action__poses",
@@ -3832,7 +3932,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_cheer__poses",
@@ -3867,7 +3968,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_climb__poses",
@@ -3902,7 +4004,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_hold__poses",
@@ -3937,7 +4040,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_swim__poses",
@@ -3972,7 +4076,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/soldier_walk__poses",
@@ -4007,7 +4112,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_action__poses",
@@ -4042,7 +4148,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_cheer__poses",
@@ -4077,7 +4184,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_climb__poses",
@@ -4112,7 +4220,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_hold__poses",
@@ -4147,7 +4256,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_swim__poses",
@@ -4182,7 +4292,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_characters_1/zombie_walk__poses",
@@ -4217,7 +4328,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Characters 1"
+      "source_pack": "Platformer Characters 1",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienbeige_climb__platformer_pack_remastered_128x256",
@@ -4252,7 +4364,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienbeige_swim__platformer_pack_remastered_128x256",
@@ -4287,7 +4400,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienbeige_walk__platformer_pack_remastered_128x256",
@@ -4322,7 +4436,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienblue_climb__platformer_pack_remastered_128x256",
@@ -4357,7 +4472,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienblue_swim__platformer_pack_remastered_128x256",
@@ -4392,7 +4508,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienblue_walk__platformer_pack_remastered_128x256",
@@ -4427,7 +4544,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/aliengreen_climb__platformer_pack_remastered_128x256",
@@ -4462,7 +4580,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/aliengreen_swim__platformer_pack_remastered_128x256",
@@ -4497,7 +4616,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/aliengreen_walk__platformer_pack_remastered_128x256",
@@ -4532,7 +4652,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienpink_climb__platformer_pack_remastered_128x256",
@@ -4567,7 +4688,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienpink_swim__platformer_pack_remastered_128x256",
@@ -4602,7 +4724,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienpink_walk__platformer_pack_remastered_128x256",
@@ -4637,7 +4760,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienyellow_climb__platformer_pack_remastered_128x256",
@@ -4672,7 +4796,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienyellow_swim__platformer_pack_remastered_128x256",
@@ -4707,7 +4832,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/platformer_pack_remastered/alienyellow_walk__platformer_pack_remastered_128x256",
@@ -4742,7 +4868,8 @@
           "loop": true
         }
       },
-      "source_pack": "Platformer Pack Remastered"
+      "source_pack": "Platformer Pack Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_bluedamage__robot_pack_157x128",
@@ -4777,7 +4904,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_bluedrive__robot_pack_158x150",
@@ -4812,7 +4940,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_greendamage__robot_pack_157x104",
@@ -4847,7 +4976,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_greendrive__robot_pack_158x120",
@@ -4882,7 +5012,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_reddamage__robot_pack_179x128",
@@ -4917,7 +5048,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_reddrive__robot_pack_180x150",
@@ -4952,7 +5084,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_yellowdamage__robot_pack_183x128",
@@ -4987,7 +5120,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/robot_pack/robot_yellowdrive__robot_pack_184x150",
@@ -5022,7 +5156,8 @@
           "loop": true
         }
       },
-      "source_pack": "Robot Pack"
+      "source_pack": "Robot Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/simplified_platformer_pack/platformchar_climb__characters",
@@ -5057,7 +5192,8 @@
           "loop": true
         }
       },
-      "source_pack": "Simplified Platformer Pack"
+      "source_pack": "Simplified Platformer Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/simplified_platformer_pack/platformchar_walk__characters",
@@ -5092,7 +5228,8 @@
           "loop": true
         }
       },
-      "source_pack": "Simplified Platformer Pack"
+      "source_pack": "Simplified Platformer Pack",
+      "motion": "animated"
     },
     {
       "id": "kenney/tappy_plane/planeblue__tappy_plane_88x73",
@@ -5128,7 +5265,8 @@
           "loop": true
         }
       },
-      "source_pack": "Tappy Plane"
+      "source_pack": "Tappy Plane",
+      "motion": "animated"
     },
     {
       "id": "kenney/tappy_plane/planegreen__tappy_plane_88x73",
@@ -5164,7 +5302,8 @@
           "loop": true
         }
       },
-      "source_pack": "Tappy Plane"
+      "source_pack": "Tappy Plane",
+      "motion": "animated"
     },
     {
       "id": "kenney/tappy_plane/planered__tappy_plane_88x73",
@@ -5200,7 +5339,8 @@
           "loop": true
         }
       },
-      "source_pack": "Tappy Plane"
+      "source_pack": "Tappy Plane",
+      "motion": "animated"
     },
     {
       "id": "kenney/tappy_plane/planeyellow__tappy_plane_88x73",
@@ -5236,7 +5376,8 @@
           "loop": true
         }
       },
-      "source_pack": "Tappy Plane"
+      "source_pack": "Tappy Plane",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/climb__female_adventurer_96x128",
@@ -5271,7 +5412,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/cheer__female_adventurer_96x128",
@@ -5306,7 +5448,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/switch__female_adventurer_96x128",
@@ -5341,7 +5484,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/run__female_adventurer_96x128",
@@ -5377,7 +5521,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/attack__female_adventurer_96x128",
@@ -5413,7 +5558,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/walk__female_adventurer_96x128",
@@ -5454,7 +5600,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/climb__female_person_96x128",
@@ -5489,7 +5636,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/cheer__female_person_96x128",
@@ -5524,7 +5672,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/switch__female_person_96x128",
@@ -5559,7 +5708,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/run__female_person_96x128",
@@ -5595,7 +5745,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/attack__female_person_96x128",
@@ -5631,7 +5782,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/walk__female_person_96x128",
@@ -5672,7 +5824,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/climb__male_adventurer_96x128",
@@ -5707,7 +5860,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/cheer__male_adventurer_96x128",
@@ -5742,7 +5896,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/switch__male_adventurer_96x128",
@@ -5777,7 +5932,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/run__male_adventurer_96x128",
@@ -5813,7 +5969,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/attack__male_adventurer_96x128",
@@ -5849,7 +6006,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/walk__male_adventurer_96x128",
@@ -5890,7 +6048,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/climb__male_person_96x128",
@@ -5925,7 +6084,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/cheer__male_person_96x128",
@@ -5960,7 +6120,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/switch__male_person_96x128",
@@ -5995,7 +6156,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/run__male_person_96x128",
@@ -6031,7 +6193,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/attack__male_person_96x128",
@@ -6067,7 +6230,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/walk__male_person_96x128",
@@ -6108,7 +6272,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/climb__robot_96x128",
@@ -6143,7 +6308,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/cheer__robot_96x128",
@@ -6178,7 +6344,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/switch__robot_96x128",
@@ -6213,7 +6380,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/run__robot_96x128",
@@ -6249,7 +6417,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/attack__robot_96x128",
@@ -6285,7 +6454,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/walk__robot_96x128",
@@ -6326,7 +6496,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/climb__zombie_96x128",
@@ -6361,7 +6532,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/cheer__zombie_96x128",
@@ -6396,7 +6568,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/switch__zombie_96x128",
@@ -6431,7 +6604,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/run__zombie_96x128",
@@ -6467,7 +6641,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/attack__zombie_96x128",
@@ -6503,7 +6678,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/toon_characters/walk__zombie_96x128",
@@ -6544,7 +6720,8 @@
           "loop": true
         }
       },
-      "source_pack": "Toon Characters"
+      "source_pack": "Toon Characters",
+      "motion": "animated"
     },
     {
       "id": "kenney/space_shooter_remastered/playership1_damage__space_shooter_remastered_99x75",
@@ -6580,7 +6757,8 @@
           "loop": true
         }
       },
-      "source_pack": "Space Shooter Remastered"
+      "source_pack": "Space Shooter Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/space_shooter_remastered/playership2_damage__space_shooter_remastered_112x75",
@@ -6616,7 +6794,8 @@
           "loop": true
         }
       },
-      "source_pack": "Space Shooter Remastered"
+      "source_pack": "Space Shooter Remastered",
+      "motion": "animated"
     },
     {
       "id": "kenney/space_shooter_remastered/playership3_damage__space_shooter_remastered_98x75",
@@ -6652,7 +6831,8 @@
           "loop": true
         }
       },
-      "source_pack": "Space Shooter Remastered"
+      "source_pack": "Space Shooter Remastered",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/alien__03_walk",
@@ -6698,7 +6878,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/alien"
+      "source_pack": "phaser-cdn animations/alien",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/alien__02_turn_to_walk",
@@ -6735,7 +6916,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/alien"
+      "source_pack": "phaser-cdn animations/alien",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/alien__01_idle",
@@ -6786,7 +6968,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/alien"
+      "source_pack": "phaser-cdn animations/alien",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/bird____all__",
@@ -6829,7 +7012,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/bird"
+      "source_pack": "phaser-cdn animations/bird",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__green_attack",
@@ -6868,7 +7052,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/elves-craft-pixel"
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__blue_attack",
@@ -6906,7 +7091,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/elves-craft-pixel"
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__green_idle",
@@ -6944,7 +7130,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/elves-craft-pixel"
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__green_die",
@@ -6982,7 +7169,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/elves-craft-pixel"
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__blue_die",
@@ -7020,7 +7208,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/elves-craft-pixel"
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/elves-craft-pixel__blue_idle",
@@ -7058,7 +7247,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/elves-craft-pixel"
+      "source_pack": "phaser-cdn animations/elves-craft-pixel",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__attack_a",
@@ -7105,7 +7295,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__attack_c",
@@ -7152,7 +7343,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__attack_b",
@@ -7198,7 +7390,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__guard",
@@ -7237,7 +7430,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__fall_loop",
@@ -7272,7 +7466,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__jump_loop",
@@ -7307,7 +7502,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__jump_start",
@@ -7344,7 +7540,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__run",
@@ -7385,7 +7582,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__guard_end",
@@ -7422,7 +7620,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__die",
@@ -7465,7 +7664,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__get_hit",
@@ -7503,7 +7703,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__guard_start",
@@ -7540,7 +7741,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/knight__idle",
@@ -7579,7 +7781,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/knight"
+      "source_pack": "phaser-cdn animations/knight",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/robo__running",
@@ -7627,7 +7830,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/robo"
+      "source_pack": "phaser-cdn animations/robo",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_3_shoot_up",
@@ -7665,7 +7869,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/soldier"
+      "source_pack": "phaser-cdn animations/soldier",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_2_shot_up",
@@ -7709,7 +7914,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/soldier"
+      "source_pack": "phaser-cdn animations/soldier",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_3_shoot_front",
@@ -7753,7 +7959,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/soldier"
+      "source_pack": "phaser-cdn animations/soldier",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_2_shot_front",
@@ -7794,7 +8001,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/soldier"
+      "source_pack": "phaser-cdn animations/soldier",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_3_walk",
@@ -7835,7 +8043,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/soldier"
+      "source_pack": "phaser-cdn animations/soldier",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/soldier__soldier_2_walk",
@@ -7876,7 +8085,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/soldier"
+      "source_pack": "phaser-cdn animations/soldier",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/walker__frame",
@@ -7925,7 +8135,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/walker"
+      "source_pack": "phaser-cdn animations/walker",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/zombie__death",
@@ -7964,7 +8175,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/zombie"
+      "source_pack": "phaser-cdn animations/zombie",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/animations/zombie__walk",
@@ -8006,7 +8218,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn animations/zombie"
+      "source_pack": "phaser-cdn animations/zombie",
+      "motion": "animated"
     },
     {
       "id": "phaser-cdn/tweens/golem",
@@ -8041,7 +8254,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn tweens/golem"
+      "source_pack": "phaser-cdn tweens/golem",
+      "motion": "animated"
     },
     {
       "id": "phaser/demoscene/budbrain__hatch",
@@ -8078,7 +8292,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn demoscene/budbrain.json"
+      "source_pack": "phaser-cdn demoscene/budbrain.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/demoscene/budbrain__sing",
@@ -8114,7 +8329,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn demoscene/budbrain.json"
+      "source_pack": "phaser-cdn demoscene/budbrain.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_bank-panic/bank-panic__hat",
@@ -8154,7 +8370,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/bank-panic/bank-panic.json"
+      "source_pack": "phaser-cdn games/bank-panic/bank-panic.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_germs/germs__blue",
@@ -8190,7 +8407,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/germs/germs.json"
+      "source_pack": "phaser-cdn games/germs/germs.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_germs/germs__red",
@@ -8226,7 +8444,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/germs/germs.json"
+      "source_pack": "phaser-cdn games/germs/germs.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_germs/germs__green",
@@ -8262,7 +8481,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/germs/germs.json"
+      "source_pack": "phaser-cdn games/germs/germs.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_germs/germs__purple",
@@ -8298,7 +8518,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/germs/germs.json"
+      "source_pack": "phaser-cdn games/germs/germs.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-die",
@@ -8336,7 +8557,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-idle",
@@ -8373,7 +8595,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-throw",
@@ -8415,7 +8638,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-big-walk",
@@ -8456,7 +8680,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-die",
@@ -8494,7 +8719,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-idle",
@@ -8531,7 +8757,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-throw",
@@ -8573,7 +8800,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__snowman-small-walk",
@@ -8614,7 +8842,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__throw",
@@ -8659,7 +8888,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/games_snowmen-attack/sprites__idle",
@@ -8696,7 +8926,8 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json"
+      "source_pack": "phaser-cdn games/snowmen-attack/sprites.json",
+      "motion": "animated"
     },
     {
       "id": "phaser/tests/zombie-no-pivot__walk",
@@ -8739,7 +8970,818 @@
           "loop": true
         }
       },
-      "source_pack": "phaser-cdn tests/zombie-no-pivot.json"
+      "source_pack": "phaser-cdn tests/zombie-no-pivot.json",
+      "motion": "animated"
+    },
+    {
+      "id": "phaser/atlas_monsters/icegolem",
+      "asset_type": "creature",
+      "species": "golem",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 243,
+        "h": 233
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "ice elemental golem, jagged frozen body (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/icegolem.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/icegolem.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/icegolem.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/icegolem.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/magmagolem",
+      "asset_type": "creature",
+      "species": "golem",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 232,
+        "h": 242
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "magma/lava elemental golem, glowing molten cracks (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/magmagolem.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/magmagolem.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/magmagolem.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/magmagolem.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/stonegolem",
+      "asset_type": "creature",
+      "species": "golem",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 226,
+        "h": 229
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "rocky stone golem, boulder body (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/stonegolem.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/stonegolem.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/stonegolem.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/stonegolem.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/troll",
+      "asset_type": "creature",
+      "species": "troll",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 193,
+        "h": 210
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "hulking green troll with tusks (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/troll.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/troll.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/troll.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/troll.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/ogre",
+      "asset_type": "creature",
+      "species": "ogre",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 178,
+        "h": 210
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "grey brute ogre with axe (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ogre.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ogre.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/ogre.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/ogre.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/giantspider",
+      "asset_type": "creature",
+      "species": "spider",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 207,
+        "h": 163
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red giant spider, multiple legs and eyes (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/giantspider.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/giantspider.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/giantspider.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/giantspider.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/slime",
+      "asset_type": "creature",
+      "species": "slime",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 196,
+        "h": 121
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green translucent slime blob with skulls inside (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/slime.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/slime.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/slime.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/slime.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/zombie",
+      "asset_type": "character",
+      "species": "zombie",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 117,
+        "h": 131
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "gaunt grey undead zombie (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/zombie.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/zombie.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/zombie.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/zombie.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/frogman",
+      "asset_type": "creature",
+      "species": "frogman",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 147,
+        "h": 203
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green frog-man humanoid with spear (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/frogman.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/frogman.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/frogman.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/frogman.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/imp",
+      "asset_type": "creature",
+      "species": "imp",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 133,
+        "h": 168
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red demon imp with blades and tail (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/imp.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/imp.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/imp.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/imp.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/ghost",
+      "asset_type": "creature",
+      "species": "ghost",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 130,
+        "h": 165
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "pale translucent floating ghost (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ghost.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ghost.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/ghost.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/ghost.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hobgoblin",
+      "asset_type": "character",
+      "species": "goblin",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 133,
+        "h": 155
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "armored hobgoblin with sword and shield (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hobgoblin.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hobgoblin.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hobgoblin.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hobgoblin.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hero-mage",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 113,
+        "h": 148
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "hooded hero mage wielding fire magic (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-mage.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-mage.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hero-mage.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hero-mage.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/skeletalwarrior",
+      "asset_type": "creature",
+      "species": "skeleton",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 148,
+        "h": 137
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "skeletal warrior with sword and shield (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hero-warrior",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 141,
+        "h": 137
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "armored hero warrior with sword and shield, red cape (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-warrior.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-warrior.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hero-warrior.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hero-warrior.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/swashbuckler",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 131,
+        "h": 116
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red-coat swashbuckler with dual cutlasses (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/swashbuckler.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/swashbuckler.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/swashbuckler.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/swashbuckler.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/gnoll",
+      "asset_type": "creature",
+      "species": "gnoll",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 120,
+        "h": 128
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "hyena-headed gnoll beast with weapon (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/gnoll.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/gnoll.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/gnoll.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/gnoll.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/scout",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 97,
+        "h": 120
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green-cloaked scout holding a torch (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/scout.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/scout.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/scout.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/scout.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/wererat",
+      "asset_type": "creature",
+      "species": "wererat",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 112,
+        "h": 133
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "grey were-rat humanoid with claws (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/wererat.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/wererat.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/wererat.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/wererat.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/assassin",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 69,
+        "h": 103
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "black-clad hooded assassin with dagger (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/assassin.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/assassin.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/assassin.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/assassin.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hero-ranger",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 111,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green hero ranger with dual blades (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-ranger.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-ranger.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hero-ranger.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hero-ranger.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/darkreaper",
+      "asset_type": "creature",
+      "species": "reaper",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 88,
+        "h": 110
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "grim reaper in black robe with scythe (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/darkreaper.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/darkreaper.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/darkreaper.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/darkreaper.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/goblin",
+      "asset_type": "creature",
+      "species": "goblin",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 75,
+        "h": 75
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "small green goblin, crouched (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/goblin.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/goblin.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/goblin.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/goblin.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/lizardman",
+      "asset_type": "creature",
+      "species": "lizardman",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 111,
+        "h": 126
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green lizard-man with shield and blade (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/lizardman.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/lizardman.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/lizardman.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/lizardman.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/guard",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "npc",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 84,
+        "h": 96
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "armored town guard with sword and red tabard (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/guard.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/guard.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/guard.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/guard.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/cultist",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 90,
+        "h": 95
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red-robed hooded cultist with fire (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/cultist.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/cultist.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/cultist.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/cultist.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/drow",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 90,
+        "h": 113
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "dark-elf drow in black armor with blade (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/drow.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/drow.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/drow.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/drow.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/ruffian",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 78,
+        "h": 96
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "bald bandit ruffian with sword on shoulder (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/ruffian.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/ruffian.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/ruffian.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/ruffian.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/sprites/alienbusters",
+      "asset_type": "vehicle",
+      "species": "spaceship",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "air",
+      "theme": "sci_fi",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 163,
+        "h": 64
+      },
+      "source_pack": "phaser-cdn sprites",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "detailed sci-fi \"Alien Busters\" spaceship, side view (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/vehicle/phaser_sprites/alienbusters.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/vehicle/phaser_sprites/alienbusters.json",
+        "sheet_key": "assets/v2/vehicle/phaser_sprites/alienbusters.png",
+        "atlas_key": "assets/v2/vehicle/phaser_sprites/alienbusters.json"
+      },
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/sprites/master",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "npc",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 57,
+        "h": 77
+      },
+      "source_pack": "phaser-cdn sprites",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "old kung-fu master in white robe standing on a cloud (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_sprites/master.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_sprites/master.json",
+        "sheet_key": "assets/v2/character/phaser_sprites/master.png",
+        "atlas_key": "assets/v2/character/phaser_sprites/master.json"
+      },
+      "atlas_animations": {}
     }
   ]
 }

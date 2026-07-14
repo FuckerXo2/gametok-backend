@@ -1,0 +1,844 @@
+{
+  "items": [
+    {
+      "id": "phaser/atlas_monsters/icegolem",
+      "asset_type": "creature",
+      "species": "golem",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 243,
+        "h": 233
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "ice elemental golem, jagged frozen body (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/icegolem.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/icegolem.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/icegolem.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/icegolem.json"
+      },
+      "search_text": "creature golem static side ground fantasy enemy ice elemental golem jagged frozen body static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/magmagolem",
+      "asset_type": "creature",
+      "species": "golem",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 232,
+        "h": 242
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "magma/lava elemental golem, glowing molten cracks (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/magmagolem.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/magmagolem.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/magmagolem.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/magmagolem.json"
+      },
+      "search_text": "creature golem static side ground fantasy enemy magma lava elemental golem glowing molten cracks static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/stonegolem",
+      "asset_type": "creature",
+      "species": "golem",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 226,
+        "h": 229
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "rocky stone golem, boulder body (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/stonegolem.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/stonegolem.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/stonegolem.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/stonegolem.json"
+      },
+      "search_text": "creature golem static side ground fantasy enemy rocky stone golem boulder body static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/troll",
+      "asset_type": "creature",
+      "species": "troll",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 193,
+        "h": 210
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "hulking green troll with tusks (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/troll.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/troll.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/troll.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/troll.json"
+      },
+      "search_text": "creature troll static side ground fantasy enemy hulking green troll with tusks static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/ogre",
+      "asset_type": "creature",
+      "species": "ogre",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 178,
+        "h": 210
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "grey brute ogre with axe (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ogre.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ogre.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/ogre.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/ogre.json"
+      },
+      "search_text": "creature ogre static side ground fantasy enemy grey brute ogre with axe static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/giantspider",
+      "asset_type": "creature",
+      "species": "spider",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 207,
+        "h": 163
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red giant spider, multiple legs and eyes (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/giantspider.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/giantspider.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/giantspider.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/giantspider.json"
+      },
+      "search_text": "creature spider static side ground fantasy enemy red giant spider multiple legs and eyes static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/slime",
+      "asset_type": "creature",
+      "species": "slime",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 196,
+        "h": 121
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green translucent slime blob with skulls inside (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/slime.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/slime.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/slime.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/slime.json"
+      },
+      "search_text": "creature slime static side ground fantasy enemy green translucent slime blob with skulls inside static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/zombie",
+      "asset_type": "character",
+      "species": "zombie",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 117,
+        "h": 131
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "gaunt grey undead zombie (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/zombie.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/zombie.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/zombie.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/zombie.json"
+      },
+      "search_text": "character zombie static side ground fantasy enemy gaunt grey undead zombie static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/frogman",
+      "asset_type": "creature",
+      "species": "frogman",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 147,
+        "h": 203
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green frog-man humanoid with spear (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/frogman.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/frogman.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/frogman.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/frogman.json"
+      },
+      "search_text": "creature frogman static side ground fantasy enemy green frog man humanoid with spear static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/imp",
+      "asset_type": "creature",
+      "species": "imp",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 133,
+        "h": 168
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red demon imp with blades and tail (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/imp.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/imp.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/imp.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/imp.json"
+      },
+      "search_text": "creature imp static side ground fantasy enemy red demon imp with blades and tail static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/ghost",
+      "asset_type": "creature",
+      "species": "ghost",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 130,
+        "h": 165
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "pale translucent floating ghost (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ghost.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/ghost.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/ghost.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/ghost.json"
+      },
+      "search_text": "creature ghost static side ground fantasy enemy pale translucent floating ghost static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hobgoblin",
+      "asset_type": "character",
+      "species": "goblin",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 133,
+        "h": 155
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "armored hobgoblin with sword and shield (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hobgoblin.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hobgoblin.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hobgoblin.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hobgoblin.json"
+      },
+      "search_text": "character goblin static side ground fantasy enemy armored hobgoblin with sword and shield static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hero-mage",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 113,
+        "h": 148
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "hooded hero mage wielding fire magic (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-mage.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-mage.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hero-mage.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hero-mage.json"
+      },
+      "search_text": "character human static side ground fantasy player hooded hero mage wielding fire magic static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/skeletalwarrior",
+      "asset_type": "creature",
+      "species": "skeleton",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 148,
+        "h": 137
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "skeletal warrior with sword and shield (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/skeletalwarrior.json"
+      },
+      "search_text": "creature skeleton static side ground fantasy enemy skeletal warrior with sword and shield static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hero-warrior",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 141,
+        "h": 137
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "armored hero warrior with sword and shield, red cape (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-warrior.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-warrior.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hero-warrior.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hero-warrior.json"
+      },
+      "search_text": "character human static side ground fantasy player armored hero warrior with sword and shield red cape static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/swashbuckler",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 131,
+        "h": 116
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red-coat swashbuckler with dual cutlasses (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/swashbuckler.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/swashbuckler.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/swashbuckler.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/swashbuckler.json"
+      },
+      "search_text": "character human static side ground fantasy enemy red coat swashbuckler with dual cutlasses static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/gnoll",
+      "asset_type": "creature",
+      "species": "gnoll",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 120,
+        "h": 128
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "hyena-headed gnoll beast with weapon (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/gnoll.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/gnoll.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/gnoll.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/gnoll.json"
+      },
+      "search_text": "creature gnoll static side ground fantasy enemy hyena headed gnoll beast with weapon static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/scout",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 97,
+        "h": 120
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green-cloaked scout holding a torch (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/scout.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/scout.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/scout.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/scout.json"
+      },
+      "search_text": "character human static side ground fantasy player green cloaked scout holding a torch static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/wererat",
+      "asset_type": "creature",
+      "species": "wererat",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 112,
+        "h": 133
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "grey were-rat humanoid with claws (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/wererat.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/wererat.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/wererat.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/wererat.json"
+      },
+      "search_text": "creature wererat static side ground fantasy enemy grey were rat humanoid with claws static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/assassin",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 69,
+        "h": 103
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "black-clad hooded assassin with dagger (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/assassin.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/assassin.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/assassin.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/assassin.json"
+      },
+      "search_text": "character human static side ground fantasy enemy black clad hooded assassin with dagger static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/hero-ranger",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 111,
+        "h": 140
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green hero ranger with dual blades (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-ranger.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/hero-ranger.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/hero-ranger.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/hero-ranger.json"
+      },
+      "search_text": "character human static side ground fantasy player green hero ranger with dual blades static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/darkreaper",
+      "asset_type": "creature",
+      "species": "reaper",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 88,
+        "h": 110
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "grim reaper in black robe with scythe (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/darkreaper.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/darkreaper.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/darkreaper.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/darkreaper.json"
+      },
+      "search_text": "creature reaper static side ground fantasy enemy grim reaper in black robe with scythe static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/goblin",
+      "asset_type": "creature",
+      "species": "goblin",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 75,
+        "h": 75
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "small green goblin, crouched (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/goblin.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/goblin.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/goblin.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/goblin.json"
+      },
+      "search_text": "creature goblin static side ground fantasy enemy small green goblin crouched static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/lizardman",
+      "asset_type": "creature",
+      "species": "lizardman",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 111,
+        "h": 126
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "green lizard-man with shield and blade (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/lizardman.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/creature/phaser_atlas_monsters/lizardman.json",
+        "sheet_key": "assets/v2/creature/phaser_atlas_monsters/lizardman.png",
+        "atlas_key": "assets/v2/creature/phaser_atlas_monsters/lizardman.json"
+      },
+      "search_text": "creature lizardman static side ground fantasy enemy green lizard man with shield and blade static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/guard",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "npc",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 84,
+        "h": 96
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "armored town guard with sword and red tabard (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/guard.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/guard.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/guard.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/guard.json"
+      },
+      "search_text": "character human static side ground fantasy npc armored town guard with sword and red tabard static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/cultist",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 90,
+        "h": 95
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "red-robed hooded cultist with fire (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/cultist.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/cultist.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/cultist.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/cultist.json"
+      },
+      "search_text": "character human static side ground fantasy enemy red robed hooded cultist with fire static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/drow",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 90,
+        "h": 113
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "dark-elf drow in black armor with blade (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/drow.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/drow.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/drow.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/drow.json"
+      },
+      "search_text": "character human static side ground fantasy enemy dark elf drow in black armor with blade static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/atlas_monsters/ruffian",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "enemy",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 78,
+        "h": 96
+      },
+      "source_pack": "phaser-cdn atlas/monsters",
+      "quality_score": 5,
+      "confidence_score": 0.95,
+      "description": "bald bandit ruffian with sword on shoulder (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/ruffian.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_atlas_monsters/ruffian.json",
+        "sheet_key": "assets/v2/character/phaser_atlas_monsters/ruffian.png",
+        "atlas_key": "assets/v2/character/phaser_atlas_monsters/ruffian.json"
+      },
+      "search_text": "character human static side ground fantasy enemy bald bandit ruffian with sword on shoulder static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/sprites/alienbusters",
+      "asset_type": "vehicle",
+      "species": "spaceship",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "air",
+      "theme": "sci_fi",
+      "playable_role": "player",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 163,
+        "h": 64
+      },
+      "source_pack": "phaser-cdn sprites",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "detailed sci-fi \"Alien Busters\" spaceship, side view (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/vehicle/phaser_sprites/alienbusters.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/vehicle/phaser_sprites/alienbusters.json",
+        "sheet_key": "assets/v2/vehicle/phaser_sprites/alienbusters.png",
+        "atlas_key": "assets/v2/vehicle/phaser_sprites/alienbusters.json"
+      },
+      "search_text": "vehicle spaceship static side air sci_fi player detailed sci fi alien busters spaceship side view static single frame sprite move with code",
+      "atlas_animations": {}
+    },
+    {
+      "id": "phaser/sprites/master",
+      "asset_type": "character",
+      "species": "human",
+      "animation_type": "idle",
+      "motion": "static",
+      "perspective": "side",
+      "movement": "ground",
+      "theme": "fantasy",
+      "playable_role": "npc",
+      "frame_count": 1,
+      "canvas_size": {
+        "w": 57,
+        "h": 77
+      },
+      "source_pack": "phaser-cdn sprites",
+      "quality_score": 4,
+      "confidence_score": 0.9,
+      "description": "old kung-fu master in white robe standing on a cloud (static single-frame sprite, move with code)",
+      "r2": {
+        "sheet_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_sprites/master.png",
+        "atlas_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/v2/character/phaser_sprites/master.json",
+        "sheet_key": "assets/v2/character/phaser_sprites/master.png",
+        "atlas_key": "assets/v2/character/phaser_sprites/master.json"
+      },
+      "search_text": "character human static side ground fantasy npc old kung fu master in white robe standing on a cloud static single frame sprite move with code",
+      "atlas_animations": {}
+    }
+  ]
+}

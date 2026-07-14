@@ -1,0 +1,170 @@
+[
+  {
+    "name": "icegolem",
+    "local": "v2-catalog/staging/monsters/icegolem.png",
+    "w": 243,
+    "h": 233
+  },
+  {
+    "name": "magmagolem",
+    "local": "v2-catalog/staging/monsters/magmagolem.png",
+    "w": 232,
+    "h": 242
+  },
+  {
+    "name": "stonegolem",
+    "local": "v2-catalog/staging/monsters/stonegolem.png",
+    "w": 226,
+    "h": 229
+  },
+  {
+    "name": "troll",
+    "local": "v2-catalog/staging/monsters/troll.png",
+    "w": 193,
+    "h": 210
+  },
+  {
+    "name": "ogre",
+    "local": "v2-catalog/staging/monsters/ogre.png",
+    "w": 178,
+    "h": 210
+  },
+  {
+    "name": "giantspider",
+    "local": "v2-catalog/staging/monsters/giantspider.png",
+    "w": 207,
+    "h": 163
+  },
+  {
+    "name": "slime",
+    "local": "v2-catalog/staging/monsters/slime.png",
+    "w": 196,
+    "h": 121
+  },
+  {
+    "name": "zombie",
+    "local": "v2-catalog/staging/monsters/zombie.png",
+    "w": 117,
+    "h": 131
+  },
+  {
+    "name": "frogman",
+    "local": "v2-catalog/staging/monsters/frogman.png",
+    "w": 147,
+    "h": 203
+  },
+  {
+    "name": "imp",
+    "local": "v2-catalog/staging/monsters/imp.png",
+    "w": 133,
+    "h": 168
+  },
+  {
+    "name": "ghost",
+    "local": "v2-catalog/staging/monsters/ghost.png",
+    "w": 130,
+    "h": 165
+  },
+  {
+    "name": "hobgoblin",
+    "local": "v2-catalog/staging/monsters/hobgoblin.png",
+    "w": 133,
+    "h": 155
+  },
+  {
+    "name": "hero-mage",
+    "local": "v2-catalog/staging/monsters/hero-mage.png",
+    "w": 113,
+    "h": 148
+  },
+  {
+    "name": "skeletalwarrior",
+    "local": "v2-catalog/staging/monsters/skeletalwarrior.png",
+    "w": 148,
+    "h": 137
+  },
+  {
+    "name": "hero-warrior",
+    "local": "v2-catalog/staging/monsters/hero-warrior.png",
+    "w": 141,
+    "h": 137
+  },
+  {
+    "name": "swashbuckler",
+    "local": "v2-catalog/staging/monsters/swashbuckler.png",
+    "w": 131,
+    "h": 116
+  },
+  {
+    "name": "gnoll",
+    "local": "v2-catalog/staging/monsters/gnoll.png",
+    "w": 120,
+    "h": 128
+  },
+  {
+    "name": "scout",
+    "local": "v2-catalog/staging/monsters/scout.png",
+    "w": 97,
+    "h": 120
+  },
+  {
+    "name": "wererat",
+    "local": "v2-catalog/staging/monsters/wererat.png",
+    "w": 112,
+    "h": 133
+  },
+  {
+    "name": "assassin",
+    "local": "v2-catalog/staging/monsters/assassin.png",
+    "w": 69,
+    "h": 103
+  },
+  {
+    "name": "hero-ranger",
+    "local": "v2-catalog/staging/monsters/hero-ranger.png",
+    "w": 111,
+    "h": 140
+  },
+  {
+    "name": "darkreaper",
+    "local": "v2-catalog/staging/monsters/darkreaper.png",
+    "w": 88,
+    "h": 110
+  },
+  {
+    "name": "goblin",
+    "local": "v2-catalog/staging/monsters/goblin.png",
+    "w": 75,
+    "h": 75
+  },
+  {
+    "name": "lizardman",
+    "local": "v2-catalog/staging/monsters/lizardman.png",
+    "w": 111,
+    "h": 126
+  },
+  {
+    "name": "guard",
+    "local": "v2-catalog/staging/monsters/guard.png",
+    "w": 84,
+    "h": 96
+  },
+  {
+    "name": "cultist",
+    "local": "v2-catalog/staging/monsters/cultist.png",
+    "w": 90,
+    "h": 95
+  },
+  {
+    "name": "drow",
+    "local": "v2-catalog/staging/monsters/drow.png",
+    "w": 90,
+    "h": 113
+  },
+  {
+    "name": "ruffian",
+    "local": "v2-catalog/staging/monsters/ruffian.png",
+    "w": 78,
+    "h": 96
+  }
+]

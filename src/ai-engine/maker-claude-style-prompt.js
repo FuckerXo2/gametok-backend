@@ -55,16 +55,30 @@ function formatV2AssetLine(a, role) {
   const disp = computeDisplaySize(a, ROLE_TARGET_PX[role]);
   const targetDisplay = disp ? ` → setDisplaySize(${disp.w}, ${disp.h})` : '';
   const key = `v2_${a.id.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
+  const tags = `${a.species}·${a.perspective}·${a.playable_role}`;
+
+  // STATIC assets (motion==='static') have no animation frames — load as a plain image and move it
+  // with code (position/rotation/scale). Do NOT tell the model to build animations for these.
+  if (a.motion === 'static') {
+    return (
+`- **${a.description}** [${tags}·STATIC]
+    key: '${key}'  native ${a.canvas_size?.w}x${a.canvas_size?.h}${targetDisplay}
+    image: ${a.url}
+    → STATIC sprite (no animation). preload: this.load.image('${key}', '${a.url}'). Draw with this.add.image/sprite and move it with code (x/y velocity, setRotation, setScale). Do NOT call anims.create/play on this.`
+    );
+  }
+
+  // ANIMATED assets — load as a TexturePacker atlas and build each named animation.
   const animLines = Object.entries(a.atlas_animations || {}).map(([name, def]) => {
     const range = def.frames.length <= 6 ? `[${def.frames.join(',')}]` : `[${def.frames[0]}..${def.frames[def.frames.length-1]}]`;
     return `        '${name}': frames ${range}, fps ${def.fps}, loop ${def.loop}`;
   }).join('\n');
-  const tags = `${a.species}·${a.animation_type}·${a.perspective}·${a.playable_role}`;
   return (
-`- **${a.description}** [${tags}]
+`- **${a.description}** [${tags}·ANIMATED]
     key: '${key}'  native ${a.canvas_size?.w}x${a.canvas_size?.h}${targetDisplay}
     sheet: ${a.url}
     atlas: ${a.atlas_url}
+    → ANIMATED. preload: this.load.atlas('${key}', sheet, atlas). Build the animation(s) below with anims.create + generateFrameNumbers, then sprite.play(name).
     animations:
 ${animLines}`
   );

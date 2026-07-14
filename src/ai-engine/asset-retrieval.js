@@ -76,6 +76,7 @@ function shapeItem(v2, score) {
     // v2 fields — the builder uses these to load atlases and play animations correctly.
     asset_type: v2.asset_type,
     species: v2.species,
+    motion: v2.motion || 'animated',
     animation_type: v2.animation_type,
     perspective: v2.perspective,
     movement: v2.movement,
