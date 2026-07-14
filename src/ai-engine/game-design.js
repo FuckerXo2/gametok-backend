@@ -41,6 +41,18 @@ ORIENTATION must match the art you cast:
 - Only pick "top_down" if the concept truly demands it AND top-down sprites exist for the entities
   (mostly ships/UFOs). "isometric" only fits the boat fleet.
 
+WHEN TWO SPRITE ENTITIES PLAY A SIMILAR ROLE (e.g. two players in a 1v1, a player and a same-species
+rival), give each a DISTINCT name so retrieval doesn't cast two copies of the same character. Check
+the catalog summary for which distinguishing axis that species actually has:
+- Aliens, robots, UFOs, and most vehicles come in color variants (blue/green/red/yellow) — use color
+  for these: "blue robot" + "red robot".
+- Humans in this catalog are NOT color-coded — they are distinct named characters (adventurer,
+  soldier, zombie, mage, knight, etc.). For two human entities, name each a DIFFERENT character/class,
+  never a color: "adventurer player character" + "soldier player character", not "blue human" +
+  "red human" (that will retrieve wrong-species nonsense — there is no red human in the catalog).
+When unsure whether a species has color variants, default to distinguishing by class/species/name
+rather than guessing a color exists. Never name two sprite entities identically.
+
 Return ONLY JSON, no prose, no markdown fences:
 {
   "coreLoop": "2-3 sentences describing what the player DOES moment-to-moment and why it feels good.",
