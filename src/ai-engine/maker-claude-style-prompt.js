@@ -160,6 +160,26 @@ export async function buildClaudeStylePrompt(userPrompt) {
         });
         const { results, dominant } = coherenceRerank(raw, 2);
         if (dominant) console.log(`🎨 Coherence anchor pack: ${dominant}`);
+
+        // Similarity floor: the catalog has no entry for some concepts (a literal snake, a piano
+        // key). Without a floor the weakest available match still gets returned and the builder
+        // is told "you MUST show it" — forcing a wrong sprite (a fantasy monster as a snake head)
+        // into a game that has nothing to do with it. Calibrated against real data: genuine matches
+        // score 0.6-0.8 (basketball player 0.68, knight 0.67-0.84, zombie 0.69); the observed
+        // garbage-tier case (snake head -> random monster) scored 0.32. 0.42 sits well below every
+        // real match seen and well above the one confirmed bad one.
+        const MIN_SPRITE_SCORE = 0.42;
+        const downgraded = [];
+        for (const r of results) {
+            const survivors = r.matches.filter(m => m._score >= MIN_SPRITE_SCORE);
+            if (!survivors.length && r.matches.length) downgraded.push(r.entity);
+            r.matches = survivors;
+        }
+        if (downgraded.length) {
+            console.log(`⬇️  No good sprite match (score < ${MIN_SPRITE_SCORE}) for: [${downgraded.join(', ')}] — reclassified to code-drawn`);
+            if (plan) for (const e of plan.entities) if (downgraded.includes(e.name)) e.render = 'code';
+        }
+
         const flat = [];
         const seen = new Set();
         for (const r of results) for (const m of r.matches) {
