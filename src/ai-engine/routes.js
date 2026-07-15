@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import OpenAI from 'openai';
 import { randomUUID } from 'crypto';
 import vm from 'vm';
@@ -109,7 +110,7 @@ import {
     useDynamicFoundation,
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
-import { buildClaudeStylePrompt } from './maker-claude-style-prompt.js';
+import { buildGamePrompt } from './maker-game-prompt.js';
 import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
@@ -5981,205 +5982,179 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
     }
 }
 
-// Claude-style flow: the simplified "generate like Claude does" path — pure Phaser 3 + JS + R2 CDN
-// assets, no scaffold/foundation/contract machinery. buildClaudeStylePrompt() already injects the
-// R2 asset catalog (themed by prompt) and the correct CDN base URL, so the model emits a complete
-// single-file game that Vite bundles to one HTML file. ON by default on this branch; flip
-// GAMETOK_CLAUDE_STYLE=false to fall back to the kernel-scaffold pipeline.
-function useClaudeStyleFlow() {
+// Game generation flow: the simplified static file path — R2 CDN
+// assets, no scaffold/foundation/contract machinery. buildGamePrompt() already injects the
+// R2 asset catalog (themed by prompt) and the correct CDN base URL, so the model emits complete
+// static files (HTML/JS/CSS) that run standalone.
+function useGameGenerationFlow() {
     return String(process.env.GAMETOK_CLAUDE_STYLE || 'true').toLowerCase() !== 'false';
 }
 
-// Ensure the per-game project can resolve phaser/vite/vite-plugin-singlefile without a per-game
-// `npm install` (slow on Railway): symlink the project's node_modules to the backend's, exactly like
-// the kernel builder does. Backend already ships all three deps (checked at wire-in time).
-async function linkBackendNodeModules(projectRoot) {
-    const projectNodeModules = path.join(projectRoot, 'node_modules');
-    const backendRoot = path.resolve(__dirname, '..', '..');
-    const backendNodeModules = path.join(backendRoot, 'node_modules');
-    try {
-        const stat = await fs.promises.lstat(projectNodeModules).catch(() => null);
-        if (!stat || !stat.isSymbolicLink()) {
-            if (stat) await fs.promises.rm(projectNodeModules, { recursive: true, force: true });
-            if (fs.existsSync(backendNodeModules)) {
-                await fs.promises.symlink(backendNodeModules, projectNodeModules, 'dir');
-            }
-        }
-    } catch (e) {
-        console.warn(`[Claude-style] node_modules symlink failed:`, e?.message);
-    }
-}
+function startLocalServer(projectRoot) {
+    return new Promise((resolve, reject) => {
+        const mimeTypes = {
+            '.html': 'text/html',
+            '.js': 'application/javascript',
+            '.mjs': 'application/javascript',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.svg': 'image/svg+xml',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+        };
 
-// Reusable Vite bundle step. Called once by the main flow and again by the self-repair turn so both
-// paths share the same normalize + artifact-write logic instead of duplicating 30 lines.
-async function runClaudeStyleViteBuild(projectRoot, makerWorkspace) {
-    try {
-        const { build } = await import('vite');
-        const { viteSingleFile } = await import('vite-plugin-singlefile');
-        await build({
-            root: projectRoot,
-            configFile: false,
-            logLevel: 'silent',
-            plugins: [viteSingleFile()],
-            build: {
-                target: 'esnext',
-                assetsInlineLimit: 100000000,
-                chunkSizeWarningLimit: 100000000,
-                cssCodeSplit: false,
-                rollupOptions: { output: { inlineDynamicImports: true } },
-            },
+        const server = http.createServer((req, res) => {
+            const urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+            let filePath = path.join(projectRoot, urlPath);
+            
+            fs.stat(filePath, (err, stats) => {
+                if (!err && stats.isDirectory()) {
+                    filePath = path.join(filePath, 'index.html');
+                }
+                
+                fs.readFile(filePath, (readErr, data) => {
+                    if (readErr) {
+                        res.writeHead(404, { 'Content-Type': 'text/plain' });
+                        res.end('404 Not Found');
+                        return;
+                    }
+                    const ext = path.extname(filePath).toLowerCase();
+                    const contentType = mimeTypes[ext] || 'application/octet-stream';
+                    res.writeHead(200, { 'Content-Type': contentType });
+                    res.end(data);
+                });
+            });
         });
-    } catch (viteError) {
-        const buildError = new Error(`[Claude-style] Vite build failed:\n${(viteError?.message || String(viteError)).slice(0, 2000)}`);
-        buildError.code = 'VITE_BUILD_FAILED';
-        throw buildError;
-    }
-    const distIndex = path.join(projectRoot, 'dist', 'index.html');
-    const rawGameHtml = await fs.promises.readFile(distIndex, 'utf8');
-    const finalHtml = normalizeHtmlDocument(rawGameHtml);
-    await writeMakerText(makerWorkspace, 'artifact/index.html', finalHtml);
-    return { finalHtml, rawGameHtml };
+
+        server.listen(0, '127.0.0.1', () => {
+            const address = server.address();
+            const port = address.port;
+            console.log(`📡 [Local Sandbox Server] Serving ${projectRoot} on http://127.0.0.1:${port}`);
+            resolve({
+                url: `http://127.0.0.1:${port}/index.html`,
+                close: () => new Promise((closeRes) => server.close(closeRes)),
+            });
+        });
+
+        server.on('error', (err) => {
+            reject(err);
+        });
+    });
 }
 
-// Self-repair turn: hand the model its own crashing code + the sandbox error and ask for a fix.
-// Same system prompt (so mandated create() structure + all rules still bind), a targeted user prompt
-// naming the crash and returning the same { files: [...] } shape. One shot; if it doesn't parse or
-// doesn't return files, caller ships the original build.
-async function runClaudeStyleSelfRepair({ system, files, crashText, allCrashes }) {
-    const crashSummary = Array.isArray(allCrashes) && allCrashes.length > 1
-        ? `${crashText}\n\n(other errors: ${allCrashes.slice(1, 4).map((c) => String(c).slice(0, 200)).join(' | ')})`
-        : crashText;
-    const userPrompt = `Your previous build of this game CRASHED in the headless sandbox during boot. Here is the exact runtime error:
-
-${crashSummary}
-
-Below is the code you shipped. Read it, find the cause of the error above, and return a CORRECTED version.
-
-CRITICAL:
-- Return ONLY valid JSON with the same "files" array shape as before (same 5 paths).
-- Fix the ROOT CAUSE, not just the symptom. If a state variable is undefined when a HUD reads it, MOVE the assignment into initState() so it runs BEFORE buildHUD() — never wrap the read in a try/catch or fall back to a literal to hide the crash.
-- Preserve everything that isn't broken. Do not rewrite the whole game.
-- Keep the mandated create() phase order (initState → buildWorld → spawnEntities → buildHUD → wireInput → startTimers).
-
-Current files:
-${JSON.stringify({ files }, null, 2)}
-
-Return ONLY the corrected JSON.`;
-    try {
-        const repaired = await callAI(system, userPrompt, MAKER_IMPLEMENT_MAX_TOKENS, 0.3, { reasoningEffort: MAKER_IMPLEMENT_REASONING_EFFORT });
-        if (repaired && Array.isArray(repaired.files) && repaired.files.length > 0) return repaired;
-    } catch (err) {
-        console.warn(`[Claude-style] self-repair call failed: ${err?.message || err}`);
-    }
-    return null;
-}
-
-// Self-contained Claude-style job: prompt → DeepSeek (via callAI) → files → Vite build → single HTML.
+// Self-contained Claude-style job: prompt → Kimi CLI → files → local verification → R2 upload → Redirect HTML payload.
 // Persists to the existing ai_games row and returns the same shape executeDreamJob's non-persist
 // path returns. Throws on failure so executeDreamJob's catch marks the job errored.
-async function runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt }) {
-    console.log(`🎮 [Claude-style] Generating Phaser game for job ${jobId} (R2 CDN assets)`);
+async function runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt }) {
+    console.log(`🎮 [Game-Gen] Generating game for job ${jobId} (R2 CDN assets)`);
     await reportProgress(12, 'spec', 'Reading your idea...');
 
-    // 1. Build the Claude-style prompt (asset catalog + CDN base URL are injected here).
-    const { system, user } = await buildClaudeStylePrompt(prompt);
-    await writeMakerText(makerWorkspace, 'logs/claude-style-prompt.txt', `${system}\n\n---\n\n${user}`);
+    // 1. Build the game prompt (asset catalog + CDN base URL are injected here).
+    const { system, user } = await buildGamePrompt(prompt);
+    await writeMakerText(makerWorkspace, 'logs/game-prompt.txt', `${system}\n\n---\n\n${user}`);
 
-    // 2. Generate the project files. callAI handles DeepSeek retries + JSON repair and
-    //    returns the parsed { files: [...] } object the prompt asks for.
-    await reportProgress(30, 'build', 'Writing the game...');
-    const result = await callAI(system, user, MAKER_IMPLEMENT_MAX_TOKENS, 0.7, { reasoningEffort: MAKER_IMPLEMENT_REASONING_EFFORT });
-    if (!result || !Array.isArray(result.files) || result.files.length === 0) {
-        throw new Error('Claude-style generation returned no files array');
-    }
-
-    // 3. Write the files to a project root under the maker workspace.
-    const projectRoot = path.join(makerWorkspace, 'claude-style-project');
+    // 2. Setup project folder
+    const projectRoot = path.join(makerWorkspace, 'game-project');
     await fs.promises.mkdir(projectRoot, { recursive: true });
-    await writeProjectFilesToRoot(projectRoot, result.files);
-    console.log(`📝 [Claude-style] Wrote ${result.files.length} files: ${result.files.map((f) => f.path).join(', ')}`);
-    await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: result.files }, { title: prompt }, 'claude-style-phaser').catch(() => {});
 
-    // 4. Build with Vite → single inlined HTML. Build PROGRAMMATICALLY via vite's Node API instead
-    // of shelling out to `npx vite build` with the generated config: vite 8 bundles a CJS
-    // vite.config.js into a temp .mjs whose require('vite-plugin-singlefile') fails to resolve the
-    // plugin's ESM subpath in production (MODULE_NOT_FOUND). Importing the plugin directly here
-    // resolves it reliably from node_modules, and configFile:false ignores the fragile generated
-    // config entirely. The project's own vite.config.js is now irrelevant to the build.
-    await reportProgress(60, 'build', 'Bundling the game...');
-    await linkBackendNodeModules(projectRoot);
-    let { finalHtml, rawGameHtml } = await runClaudeStyleViteBuild(projectRoot, makerWorkspace);
-    console.log(`✅ [Claude-style] Built ${finalHtml.length} chars of single-file game`);
+    // 3. Execute Kimi Code CLI globally to generate and build the game files autonomously.
+    await reportProgress(30, 'build', 'Writing the game with Kimi CLI...');
+    const { runKimiCliAgent } = await import('./maker-kimi-cli-runner.js');
+    await runKimiCliAgent(projectRoot, system, user);
 
-    // 5. Sandbox verify. If it crashes, hand the model the crash + the current code and let it fix
-    //    itself once (self-repair turn). This is preventive, not a shipping gate — the model that
-    //    wrote the bug fixes it, we don't hide it behind a sandbox filter.
+    // Snapshot the files and save the editable source to DB
+    const finalFiles = await snapshotMakerSourceFiles(projectRoot, []);
+    console.log(`📝 [Game-Gen] Kimi CLI wrote files: ${finalFiles.map((f) => f.path).join(', ')}`);
+    await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: finalFiles }, { title: prompt }, 'r2-cdn').catch(() => {});
+
+    // 4. Spin up local static HTTP server for Puppeteer verification
+    await reportProgress(60, 'build', 'Setting up local sandbox test environment...');
+    const localServer = await startLocalServer(projectRoot);
+    const rawGameHtml = await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf-8').catch(() => '');
+
+    // 5. Sandbox verify. If it crashes, run Kimi CLI self-repair.
     await reportProgress(80, 'verify', 'Testing the game...');
     let finalScreenshot = null;
     let sandboxRes = null;
     try {
-        sandboxRes = await verifyGame(finalHtml, { sourceHtml: rawGameHtml });
+        sandboxRes = await verifyGame(localServer.url, { sourceHtml: rawGameHtml });
         finalScreenshot = sandboxRes?.screenshot || null;
     } catch (verifyErr) {
-        console.warn(`[Claude-style] verify skipped: ${verifyErr?.message || verifyErr}`);
+        console.warn(`[Game-Gen] verify skipped: ${verifyErr?.message || verifyErr}`);
     }
     const shouldSelfRepair = sandboxRes && sandboxRes.success === false && !sandboxRes.bypassed && Array.isArray(sandboxRes.crashes) && sandboxRes.crashes.length > 0;
     if (shouldSelfRepair) {
         const firstCrash = String(sandboxRes.crashes[0] || '').slice(0, 800);
-        console.log(`🔧 [Claude-style] Sandbox crashed — running one self-repair turn. First crash: ${firstCrash}`);
-        await reportProgress(85, 'build', 'Fixing a crash...');
-        const repaired = await runClaudeStyleSelfRepair({ system, files: result.files, crashText: firstCrash, allCrashes: sandboxRes.crashes });
-        if (repaired && Array.isArray(repaired.files) && repaired.files.length) {
-            await writeProjectFilesToRoot(projectRoot, repaired.files);
-            await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: repaired.files }, { title: prompt }, 'claude-style-phaser').catch(() => {});
-            const rebuilt = await runClaudeStyleViteBuild(projectRoot, makerWorkspace);
-            finalHtml = rebuilt.finalHtml;
-            rawGameHtml = rebuilt.rawGameHtml;
-            result.files = repaired.files;
+        console.log(`🔧 [Game-Gen] Sandbox crashed — running Kimi CLI self-repair. First crash: ${firstCrash}`);
+        await reportProgress(85, 'build', 'Fixing a crash with Kimi...');
+        const repairPrompt = `
+The previous build of this game compiled but crashed during boot in our sandbox with the following error:
+${firstCrash}
+
+Please inspect the code files in this directory, fix the bug causing this crash, run "npm run build" to test compilation, and ensure it builds correctly. Exit once you have fixed the error.
+`;
+        try {
+            await runKimiCliAgent(projectRoot, system, repairPrompt);
+            const repairedFiles = await snapshotMakerSourceFiles(projectRoot, []);
+            await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: repairedFiles }, { title: prompt }, 'r2-cdn').catch(() => {});
             try {
-                const rerun = await verifyGame(finalHtml, { sourceHtml: rawGameHtml });
+                const rerun = await verifyGame(localServer.url, { sourceHtml: rawGameHtml });
                 finalScreenshot = rerun?.screenshot || null;
-                if (rerun?.success) console.log('✅ [Claude-style] Self-repair passed sandbox.');
-                else console.log(`⚠️ [Claude-style] Self-repair still fails sandbox (shipping anyway): ${String(rerun?.crashes?.[0] || '').slice(0, 200)}`);
+                if (rerun?.success) console.log('✅ [Game-Gen] Kimi self-repair passed sandbox.');
+                else console.log(`⚠️ [Game-Gen] Kimi self-repair still fails sandbox: ${String(rerun?.crashes?.[0] || '').slice(0, 200)}`);
             } catch (rerunErr) {
-                console.warn(`[Claude-style] post-repair verify skipped: ${rerunErr?.message || rerunErr}`);
+                console.warn(`[Game-Gen] post-repair verify skipped: ${rerunErr?.message || rerunErr}`);
             }
-        } else {
-            console.log('⚠️ [Claude-style] Self-repair returned no files, shipping original build.');
+        } catch (repairErr) {
+            console.error('⚠️ [Game-Gen] Kimi self-repair failed, shipping original build.', repairErr);
         }
     }
 
+    // Close local HTTP server after verification
+    await localServer.close().catch(() => {});
+
+    // 6. Upload static project files to Cloudflare R2
+    await reportProgress(90, 'upload', 'Publishing game files to cloud storage...');
+    const { uploadGameFolderToR2 } = await import('./r2-uploader.js');
+    const publicGameUrl = await uploadGameFolderToR2(jobId, projectRoot);
+
+    const finalHtml = rawGameHtml;
     const finalTitle = resolveDreamGameTitle({ specTitle: null, html: finalHtml, fallback: 'GameTok Game' });
 
     if (!persistToDb) {
         await reportProgress(100, 'complete', 'Game ready!');
         forgetCancelledJob(jobId);
-        return { jobId, title: finalTitle, html: finalHtml, rawHtml: rawGameHtml, screenshot: finalScreenshot, workspace: makerWorkspace, buildMode: 'claude-style-phaser' };
+        return { jobId, title: finalTitle, html: finalHtml, rawHtml: rawGameHtml, screenshot: finalScreenshot, workspace: makerWorkspace, buildMode: 'r2-cdn', gameUrl: publicGameUrl };
     }
 
-    // 6. Persist to the existing ai_games row (same columns the maker finalize writes).
-    const classification = await classifyPublishedGame({ title: finalTitle, prompt, description: 'Claude-style Phaser Creation: ' + prompt, htmlPayload: finalHtml });
+    // 7. Persist to the existing ai_games row
+    const classification = await classifyPublishedGame({ title: finalTitle, prompt, description: 'Game Generation: ' + prompt, htmlPayload: finalHtml });
     assertJobNotCancelled(jobId);
     await pool.query(
         `UPDATE ai_games
          SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4,
              category = $5, subcategory = $6, primary_tab = $7, interaction_type = $8,
-             classification_confidence = $9, classification_tags = $10, discovery_chips = $11
+             classification_confidence = $9, classification_tags = $10, discovery_chips = $11,
+             game_url = $13
          WHERE id = $12`,
-        [finalTitle, finalHtml, rawGameHtml, finalScreenshot,
-         classification.category, classification.subcategory, classification.primaryTab, classification.interactionType,
-         classification.confidence, JSON.stringify(classification.tags), JSON.stringify(classification.discoveryChips || []), jobId]
+         [finalTitle, finalHtml, rawGameHtml, finalScreenshot,
+          classification.category, classification.subcategory, classification.primaryTab, classification.interactionType,
+          classification.confidence, JSON.stringify(classification.tags), JSON.stringify(classification.discoveryChips || []), jobId, publicGameUrl]
     );
-    console.log(`✅ [Claude-style] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
-    await recordGenerationTelemetry(jobId, { engine: 'claude-style-phaser', resultTitle: finalTitle, durationMs: Date.now() - progStartedAt });
+    console.log(`✅ [Game-Gen] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
+    await recordGenerationTelemetry(jobId, { engine: 'r2-cdn', resultTitle: finalTitle, durationMs: Date.now() - progStartedAt });
     await reportProgress(100, 'complete', 'Game ready!');
     forgetCancelledJob(jobId);
     pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
         .then((ownerRes) => notifyGameReady(ownerRes.rows[0]?.user_id, jobId, finalTitle))
         .catch((error) => console.log('[Notifications] Game ready notify error:', error));
 
-    return { jobId, title: finalTitle, html: finalHtml, rawHtml: rawGameHtml, screenshot: finalScreenshot, workspace: makerWorkspace, buildMode: 'claude-style-phaser' };
+    return { jobId, title: finalTitle, html: finalHtml, rawHtml: rawGameHtml, screenshot: finalScreenshot, workspace: makerWorkspace, buildMode: 'r2-cdn', gameUrl: publicGameUrl };
 }
+
 
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     const persistToDb = jobPayload?.persistToDb !== false;
@@ -6266,34 +6241,31 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         makerWorkspace = maker.workspace;
         console.log(`📁 [MAKER WORKSPACE] ${makerWorkspace}`);
 
-        // ── CLAUDE-STYLE FLOW (default) ──
-        // Bypass the kernel-scaffold/foundation/contract pipeline entirely and generate a pure
-        // Phaser 3 + JS game wired to the R2 CDN asset catalog, the way Claude does it. Handle errors
-        // HERE (not the shared maker catch below) — that catch references maker-flow vars like
-        // qualityIntent that never get declared on this path, so letting a Claude-style error fall
-        // through masks the real cause with "qualityIntent is not defined".
-        if (useClaudeStyleFlow()) {
-            buildMode = 'claude-style-phaser';
+        // ── GAME GENERATION FLOW (default) ──
+        // Bypass the kernel-scaffold/foundation/contract pipeline entirely and generate static files
+        // wired to the R2 CDN asset catalog. Handle errors here.
+        if (useGameGenerationFlow()) {
+            buildMode = 'r2-cdn';
             await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');
             try {
-                return await runClaudeStyleDreamJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt });
+                return await runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt });
             } catch (claudeStyleErr) {
                 if (isCancellationError(claudeStyleErr)) {
-                    console.log(`🛑 [Claude-style] Canceled job ${jobId}.`);
+                    console.log(`🛑 [Game-Gen] Canceled job ${jobId}.`);
                     if (persistToDb) await markJobCanceled(jobId);
                     if (!persistToDb) throw claudeStyleErr;
                     return;
                 }
-                console.error(`❌ [Claude-style] job ${jobId} failed:`, claudeStyleErr);
+                console.error(`❌ [Game-Gen] job ${jobId} failed:`, claudeStyleErr);
                 stopProgressCreep();
                 if (makerWorkspace) {
                     await writeMakerJson(makerWorkspace, 'gametok-build-report.json', {
-                        version: 1, jobId, engine: 'claude-style-phaser', status: 'failed',
+                        version: 1, jobId, engine: 'r2-cdn', status: 'failed',
                         completedAt: new Date().toISOString(), workspace: makerWorkspace,
                         error: claudeStyleErr?.message || String(claudeStyleErr), stack: claudeStyleErr?.stack || null,
                     }).catch(() => {});
                 }
-                if (persistToDb) { await markJobError(jobId, 'Claude-style generation failed', claudeStyleErr); return; }
+                if (persistToDb) { await markJobError(jobId, 'Game generation failed', claudeStyleErr); return; }
                 throw claudeStyleErr;
             }
         }
@@ -7329,7 +7301,7 @@ async function snapshotMakerSourceFiles(projectRoot, priorFiles = []) {
             seen.add(rel);
         } catch { /* file may not exist for this game; skip */ }
     };
-    for (const rel of ['index.html', 'src/main.ts', 'src/styles.css', 'src/assetKeys.ts']) await pushFile(rel);
+    for (const rel of ['index.html', 'src/main.ts', 'src/main.js', 'src/styles.css', 'src/style.css', 'src/assetKeys.ts']) await pushFile(rel);
     for (const f of (Array.isArray(priorFiles) ? priorFiles : [])) await pushFile(f?.path);
     const walkSrc = async (relDir) => {
         let entries = [];
@@ -7338,7 +7310,7 @@ async function snapshotMakerSourceFiles(projectRoot, priorFiles = []) {
         for (const ent of entries) {
             const rel = `${relDir}/${ent.name}`;
             if (ent.isDirectory()) { await walkSrc(rel); continue; }
-            if (/\.(ts|tsx|css|json|glsl|vert|frag)$/i.test(ent.name)) await pushFile(rel);
+            if (/\.(js|jsx|ts|tsx|css|json|glsl|vert|frag)$/i.test(ent.name)) await pushFile(rel);
         }
     };
     await walkSrc('src');
@@ -8286,13 +8258,13 @@ router.get('/dream/status/:jobId', async (req, res) => {
             }
 
             const targetDraftId = ephemeralJob.draftId;
-            const editResult = await pool.query('SELECT title, html_payload, raw_code, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [targetDraftId]);
+            const editResult = await pool.query('SELECT title, html_payload, raw_code, game_url, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [targetDraftId]);
             if (editResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Draft not found' });
             }
 
             const row = editResult.rows[0];
-            if (!row.html_payload || row.html_payload === '') {
+            if ((!row.html_payload || row.html_payload === '') && !row.game_url) {
                 return res.json({ status: 'pending' });
             }
 
@@ -8302,12 +8274,13 @@ router.get('/dream/status/:jobId', async (req, res) => {
                 draftId: targetDraftId,
                 title: row.title,
                 htmlPreview: row.html_payload,
+                gameUrl: row.game_url || null,
                 thumbnail: row.thumbnail,
                 classification: getStoredDraftClassification(row),
             });
         }
 
-        const result = await pool.query('SELECT title, html_payload, raw_code, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
+        const result = await pool.query('SELECT title, html_payload, raw_code, game_url, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
         if (result.rows.length === 0) {
             const pendingBoot = pendingJobBoots.get(jobId);
             if (pendingBoot?.status === 'error') {
@@ -8332,8 +8305,8 @@ router.get('/dream/status/:jobId', async (req, res) => {
         
         const row = result.rows[0];
         
-        // If html_payload is still empty, check if it's a hard error or just pending
-        if (!row.html_payload || row.html_payload === '') {
+        // If html_payload/game_url is still empty, check if it's a hard error or just pending
+        if ((!row.html_payload || row.html_payload === '') && !row.game_url) {
             if (row.title && row.title.startsWith('CANCELLED:')) {
                 return res.json({ success: false, status: 'canceled', error: row.title.replace('CANCELLED: ', '') });
             }
@@ -8348,7 +8321,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             if (queueJob?.status === 'canceled') {
                 return res.json({ success: false, status: 'canceled', error: queueJob.error || 'Generation cancelled', ...(await buildQueueProgressPayload(queueJob, jobId)) });
             }
-            // Zombie detection: generation_jobs says 'complete' but html_payload is empty.
+            // Zombie detection: generation_jobs says 'complete' but html_payload/game_url is empty.
             // The worker crashed after marking complete but before writing the game HTML.
             if (queueJob?.status === 'complete') {
                 console.warn(`⚠️ Zombie job detected: ${jobId} — generation_jobs='complete' but ai_games.html_payload is empty`);
@@ -8378,6 +8351,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             draftId: jobId,
             title: row.title,
             htmlPreview: row.html_payload,
+            gameUrl: row.game_url || null,
             thumbnail: row.thumbnail,
             classification: getStoredDraftClassification(row),
             ...(await buildQueueProgressPayload(completeQueueJob || { progress: 100, phase: 'complete', status_message: 'Your game is ready.' }, jobId)),
@@ -8437,7 +8411,7 @@ router.get('/drafts', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE user_id = $1 AND is_draft = true AND html_payload != '' ORDER BY created_at DESC", [userId]);
+        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE user_id = $1 AND is_draft = true AND (html_payload != '' OR game_url IS NOT NULL) ORDER BY created_at DESC", [userId]);
         res.json({ drafts: drafts.rows });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
@@ -8447,7 +8421,7 @@ router.get('/drafts/:id', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const draft = await pool.query("SELECT id, title, prompt, html_payload, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
+        const draft = await pool.query("SELECT id, title, prompt, html_payload, game_url, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
         if (draft.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         res.json({ draft: draft.rows[0] });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
@@ -8628,7 +8602,7 @@ router.post('/reclassify-published', async (req, res) => {
         const draftId = req.body?.draftId ? String(req.body.draftId) : null;
 
         const params = [userId];
-        let whereClause = "WHERE user_id = $1 AND is_draft = false AND html_payload != ''";
+        let whereClause = "WHERE user_id = $1 AND is_draft = false AND (html_payload != '' OR game_url IS NOT NULL)";
         if (draftId) {
             params.push(draftId);
             whereClause += ` AND id = $${params.length}`;
@@ -8636,7 +8610,7 @@ router.post('/reclassify-published', async (req, res) => {
         params.push(limit);
 
         const draftsRes = await pool.query(
-            `SELECT id, title, prompt, html_payload, thumbnail, preview_video_url
+            `SELECT id, title, prompt, html_payload, game_url, thumbnail, preview_video_url
              FROM ai_games
              ${whereClause}
              ORDER BY created_at DESC
@@ -8674,10 +8648,16 @@ const GT_PAUSE_SNIPPET = `<script>(function(){var paused=false;var queue=[];var 
 
 router.get('/play/:targetId', async (req, res) => {
     try {
-        const game = await pool.query("SELECT html_payload FROM ai_games WHERE id::text LIKE $1 LIMIT 1", [req.params.targetId + '%']);
+        const game = await pool.query("SELECT html_payload, game_url FROM ai_games WHERE id::text LIKE $1 LIMIT 1", [req.params.targetId + '%']);
         if (game.rows.length === 0) return res.status(404).send("AI Game Block Missing / Erased");
+        
+        const row = game.rows[0];
+        if (row.game_url) {
+            return res.redirect(302, row.game_url);
+        }
+
         res.setHeader('Content-Type', 'text/html');
-        let html = game.rows[0].html_payload;
+        let html = row.html_payload;
         // Inject the pause snippet as early as possible so it wraps rAF before game code loads.
         if (html.includes('<head>')) html = html.replace('<head>', '<head>' + GT_PAUSE_SNIPPET);
         else if (html.includes('<body>')) html = html.replace('<body>', '<body>' + GT_PAUSE_SNIPPET);
@@ -8697,13 +8677,13 @@ router.get('/admin/games', async (req, res) => {
         const q = (req.query.q || '').toString().trim().slice(0, 100);
         const filter = ['draft', 'posted'].includes(req.query.filter) ? req.query.filter : 'all';
         const whereParams = [];
-        const where = ["html_payload != ''"];
+        const where = ["(html_payload != '' OR game_url IS NOT NULL)"];
         if (q) { whereParams.push('%' + q + '%'); where.push(`(prompt ILIKE $${whereParams.length} OR title ILIKE $${whereParams.length})`); }
         if (filter === 'draft') where.push('is_draft = true');
         if (filter === 'posted') where.push('is_draft = false');
         const whereSql = where.join(' AND ');
         const rows = (await pool.query(
-            `SELECT id, title, prompt, thumbnail, created_at, is_draft, category FROM ai_games WHERE ${whereSql} ORDER BY created_at DESC LIMIT $${whereParams.length + 1} OFFSET $${whereParams.length + 2}`,
+            `SELECT id, title, prompt, game_url, thumbnail, created_at, is_draft, category FROM ai_games WHERE ${whereSql} ORDER BY created_at DESC LIMIT $${whereParams.length + 1} OFFSET $${whereParams.length + 2}`,
             [...whereParams, perPage, page * perPage],
         )).rows;
         const total = (await pool.query(`SELECT count(*)::int AS c FROM ai_games WHERE ${whereSql}`, whereParams)).rows[0].c;
@@ -8788,7 +8768,7 @@ router.get('/admin/backfill-classifications', async (req, res) => {
         const draftId = req.query.draftId ? String(req.query.draftId) : null;
 
         const params = [];
-        let whereClause = "WHERE is_draft = false AND html_payload != ''";
+        let whereClause = "WHERE is_draft = false AND (html_payload != '' OR game_url IS NOT NULL)";
         if (draftId) {
             params.push(draftId);
             whereClause += ` AND id = $${params.length}`;
@@ -8796,7 +8776,7 @@ router.get('/admin/backfill-classifications', async (req, res) => {
         params.push(limit);
 
         const draftsRes = await pool.query(
-            `SELECT id, user_id, title, prompt, html_payload, thumbnail, preview_video_url
+            `SELECT id, user_id, title, prompt, html_payload, game_url, thumbnail, preview_video_url
              FROM ai_games
              ${whereClause}
              ORDER BY created_at DESC

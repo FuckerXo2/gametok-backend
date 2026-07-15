@@ -124,7 +124,8 @@ router.get('/jobs/:jobId', async (req, res) => {
               job.status_message,
               job.error,
               game.title,
-              game.html_payload
+              game.html_payload,
+              game.game_url
        FROM generation_jobs job
        LEFT JOIN ai_games game ON game.id = job.id
        WHERE job.id = $1 AND job.user_id = $2 AND job.kind = 'opengame'`,
@@ -142,6 +143,7 @@ router.get('/jobs/:jobId', async (req, res) => {
       error: row.error,
       title: row.title,
       htmlPreview: row.status === 'complete' ? row.html_payload : undefined,
+      gameUrl: row.status === 'complete' ? (row.game_url || null) : undefined,
     });
   } catch (error) {
     res.status(error.statusCode || 500).json({ error: error.message || 'OpenGame status failed' });

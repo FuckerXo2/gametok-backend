@@ -218,6 +218,7 @@ export const initDB = async () => {
         html_payload TEXT NOT NULL,
         raw_code TEXT NOT NULL,
         artist_code TEXT,
+        game_url TEXT,
         thumbnail TEXT,
         preview_video_url TEXT,
         category VARCHAR(50),
@@ -407,6 +408,9 @@ export const initDB = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'privacy') THEN
           ALTER TABLE ai_games ADD COLUMN privacy VARCHAR(20) DEFAULT 'public';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'game_url') THEN
+          ALTER TABLE ai_games ADD COLUMN game_url TEXT;
         END IF;
         -- Make password nullable for OAuth users
         ALTER TABLE users ALTER COLUMN password DROP NOT NULL;

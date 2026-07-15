@@ -18,9 +18,9 @@ function isCoverArtUrl(url) {
 
 router.get('/status', async (req, res) => {
     try {
-        const total = await pool.query("SELECT COUNT(*)::int AS c FROM ai_games WHERE is_draft = FALSE AND html_payload != ''");
-        const withCover = await pool.query("SELECT COUNT(*)::int AS c FROM ai_games WHERE is_draft = FALSE AND html_payload != '' AND thumbnail LIKE '/uploads/covers/%'");
-        const withScreenshot = await pool.query("SELECT COUNT(*)::int AS c FROM ai_games WHERE is_draft = FALSE AND html_payload != '' AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '/uploads/covers/%')");
+        const total = await pool.query("SELECT COUNT(*)::int AS c FROM ai_games WHERE is_draft = FALSE AND (html_payload != '' OR game_url IS NOT NULL)");
+        const withCover = await pool.query("SELECT COUNT(*)::int AS c FROM ai_games WHERE is_draft = FALSE AND (html_payload != '' OR game_url IS NOT NULL) AND thumbnail LIKE '/uploads/covers/%'");
+        const withScreenshot = await pool.query("SELECT COUNT(*)::int AS c FROM ai_games WHERE is_draft = FALSE AND (html_payload != '' OR game_url IS NOT NULL) AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '/uploads/covers/%')");
         res.json({
             ok: true,
             total: total.rows[0].c,
@@ -90,8 +90,8 @@ router.post('/backfill', async (req, res) => {
         const onlyMissing = req.body?.onlyMissing !== false;
 
         const where = onlyMissing
-            ? "WHERE is_draft = FALSE AND html_payload != '' AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '/uploads/covers/%')"
-            : "WHERE is_draft = FALSE AND html_payload != ''";
+            ? "WHERE is_draft = FALSE AND (html_payload != '' OR game_url IS NOT NULL) AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '/uploads/covers/%')"
+            : "WHERE is_draft = FALSE AND (html_payload != '' OR game_url IS NOT NULL)";
 
         const rows = await pool.query(
             `SELECT id AS draft_id, title, prompt, category, subcategory, primary_tab, interaction_type, classification_tags, discovery_chips

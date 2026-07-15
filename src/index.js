@@ -363,10 +363,11 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
         primary_tab,
         interaction_type,
         classification_tags,
-        discovery_chips
+        discovery_chips,
+        game_url
       FROM ai_games
       WHERE is_draft = FALSE
-        AND html_payload != ''
+        AND (html_payload != '' OR game_url IS NOT NULL)
         ${force ? '' : `AND (thumbnail IS NULL OR thumbnail = '' OR thumbnail NOT LIKE '%r2.dev/covers/%')`}
       ORDER BY created_at DESC
       ${limit ? `LIMIT ${limit}` : ''}
@@ -4867,6 +4868,7 @@ app.get('/api/notifications', async (req, res) => {
          WHERE user_id = $1
            AND is_draft = true
            AND COALESCE(html_payload, '') = ''
+           AND game_url IS NULL
            AND title NOT LIKE 'ERROR:%'
          ORDER BY created_at DESC
          LIMIT 5`,

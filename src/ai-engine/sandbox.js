@@ -79,6 +79,10 @@ function isSceneryAssetRole(values = []) {
 }
 
 async function loadHtmlAsBrowserPage(page, htmlString = '') {
+    if (typeof htmlString === 'string' && (htmlString.startsWith('http://') || htmlString.startsWith('https://'))) {
+        await page.goto(htmlString, { waitUntil: 'load', timeout: 8000 });
+        return;
+    }
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gametok-sandbox-'));
     const htmlPath = path.join(tempDir, 'index.html');
     await fs.writeFile(htmlPath, String(htmlString || ''), 'utf8');

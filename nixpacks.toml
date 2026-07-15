@@ -25,6 +25,12 @@ aptPkgs = [
     "libxshmfence1"
 ]
 
+[phases.install]
+cmds = [
+    "npm ci",
+    "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"
+]
+
 [variables]
 NIXPACKS_NODE_VERSION = "20"
 GAMETOK_MAKER_AGENT_IMPLEMENT_TURNS = "2"

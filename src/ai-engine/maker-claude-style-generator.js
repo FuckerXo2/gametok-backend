@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { buildClaudeStylePrompt } from './maker-claude-style-prompt.js';
+import { buildGamePrompt } from './maker-game-prompt.js';
 import { execSync } from 'child_process';
 import { tmpdir } from 'os';
 
@@ -103,7 +103,7 @@ export async function generateClaudeStyleGame(prompt, options = {}) {
     try {
         // Generate game files using AI
         console.log('🎮 Generating game files...');
-        const promptData = buildClaudeStylePrompt(prompt);
+        const promptData = await buildGamePrompt(prompt);
         const result = await callAIForClaudeStyle(
             promptData.system,
             promptData.user,

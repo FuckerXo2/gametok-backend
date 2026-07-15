@@ -799,7 +799,7 @@ async function waitForDreamReady(jobId, { timeoutMs = 5 * 60_000, pollMs = 4000 
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const result = await pool.query(
-      'SELECT id, user_id, title, prompt, html_payload, raw_code, thumbnail, preview_video_url, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1',
+      'SELECT id, user_id, title, prompt, html_payload, raw_code, game_url, thumbnail, preview_video_url, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1',
       [jobId]
     );
     const row = result.rows[0];
@@ -809,7 +809,7 @@ async function waitForDreamReady(jobId, { timeoutMs = 5 * 60_000, pollMs = 4000 
     if (row.title && String(row.title).startsWith('ERROR:')) {
       throw new Error(row.title.replace('ERROR: ', ''));
     }
-    if (row.html_payload && row.html_payload.length > 0) {
+    if ((row.html_payload && row.html_payload.length > 0) || (row.game_url && row.game_url.length > 0)) {
       return row;
     }
     await new Promise((resolve) => setTimeout(resolve, pollMs));
