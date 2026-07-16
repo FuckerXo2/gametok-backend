@@ -22,8 +22,13 @@
 import https from 'https';
 import http from 'http';
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -175,7 +180,9 @@ async function main() {
             return;
         }
 
-        // Get download URL and check size
+        // Get download URL and process ZIP archive
+        const tempZip = path.join(process.cwd(), `temp_${uid}.zip`);
+        const tempDir = path.join(process.cwd(), `temp_${uid}_extracted`);
         try {
             const dl = await getDownloadUrl(uid);
             if (!dl) {
@@ -183,26 +190,57 @@ async function main() {
                 continue;
             }
 
-            // Download the file
-            console.error(`   ⬇️  Downloading GLB...`);
+            // Download the ZIP archive
+            console.error(`   ⬇️  Downloading zip archive...`);
             const fileRes = await httpGet(dl.url);
             if (fileRes.status !== 200) {
                 console.error(`   ⚠️  Download failed (HTTP ${fileRes.status}), skipping.`);
                 continue;
             }
 
-            const fileBuffer = fileRes.body;
-            const fileSizeKB = Math.round(fileBuffer.length / 1024);
+            // Write ZIP to disk
+            await fsPromises.writeFile(tempZip, fileRes.body);
 
-            if (fileBuffer.length > MAX_FILE_SIZE_BYTES) {
-                console.error(`   ⚠️  Too large (${fileSizeKB}KB > 1024KB), skipping.`);
+            // Clean up old temp directory if exists
+            await fsPromises.rm(tempDir, { recursive: true, force: true });
+            await fsPromises.mkdir(tempDir, { recursive: true });
+
+            // Extract ZIP
+            console.error(`   📦 Extracting zip...`);
+            await execAsync(`unzip -o "${tempZip}" -d "${tempDir}"`);
+
+            // Find GLB file in extracted files
+            const files = await fsPromises.readdir(tempDir);
+            const glbFile = files.find(f => f.toLowerCase().endsWith('.glb'));
+
+            if (!glbFile) {
+                console.error(`   ⚠️  No GLB file found inside the zip archive, skipping.`);
+                // Clean up
+                await fsPromises.rm(tempZip, { force: true });
+                await fsPromises.rm(tempDir, { recursive: true, force: true });
+                continue;
+            }
+
+            const glbPath = path.join(tempDir, glbFile);
+            const glbBuffer = await fsPromises.readFile(glbPath);
+            const fileSizeKB = Math.round(glbBuffer.length / 1024);
+
+            if (glbBuffer.length > MAX_FILE_SIZE_BYTES) {
+                console.error(`   ⚠️  GLB file is too large (${fileSizeKB}KB > 1024KB), skipping.`);
+                // Clean up
+                await fsPromises.rm(tempZip, { force: true });
+                await fsPromises.rm(tempDir, { recursive: true, force: true });
                 continue;
             }
 
             // Upload to R2
-            console.error(`   ☁️  Uploading to R2 (${fileSizeKB}KB)...`);
-            const url = await uploadToR2(uid, fileBuffer);
+            console.error(`   ☁️  Uploading GLB to R2 (${fileSizeKB}KB)...`);
+            const url = await uploadToR2(uid, glbBuffer);
             console.error(`   ✅ Uploaded: ${url}`);
+
+            // Clean up temp files
+            await fsPromises.rm(tempZip, { force: true });
+            await fsPromises.rm(tempDir, { recursive: true, force: true });
 
             // Print result to stdout as JSON
             const result = {
@@ -217,6 +255,11 @@ async function main() {
             return;
         } catch (err) {
             console.error(`   ⚠️  Error processing "${name}": ${err.message}`);
+            // Ensure cleanup on error
+            try {
+                await fsPromises.rm(tempZip, { force: true });
+                await fsPromises.rm(tempDir, { recursive: true, force: true });
+            } catch {}
             continue;
         }
     }
