@@ -67,7 +67,7 @@ CRITICAL Rules:
 6. If you decide to build a 3D game using Three.js, read the relevant graphics, UI, and gameplay guidelines in the "./threejs-skills" directory to ensure showcase quality.
 7. To find 3D models (characters, vehicles, animals, spaceships, etc.) for your game, run: node fetch-3d-model.js "search query"
    It searches Sketchfab for downloadable GLB models under 1MB, downloads the best match, and prints a JSON object with a public CDN "url" you can load directly with THREE.GLTFLoader.
-   Example: node fetch-3d-model.js "low poly dragon" → {"url":"https://...glb","name":"Dragon","animated":true}
+   Example: node fetch-3d-model.js "dragon" → {"url":"https://...glb","name":"Dragon","animated":true}
    Run this for each 3D character/entity you need. Use the returned URL in your GLTFLoader.load() calls.
    If the model has animations (animated: true), inspect gltf.animations at runtime and play the best matching clip.
 8. Run "npm run build" to verify everything is set up.
