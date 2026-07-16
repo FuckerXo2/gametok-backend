@@ -12,8 +12,26 @@
  * Flash + low reasoning effort: ~3-6s, cheap. Bump GAMETOK_DESIGN_MODEL if it proves too shallow.
  */
 import { isDeepSeekPrimaryEnabled, callDeepSeekFlashJson } from './deepseek-text-client.js';
+import { isMoonshotPrimaryEnabled, createMoonshotTextClient, getMoonshotTextConfig } from './moonshot-text-client.js';
 
-const DESIGN_MODEL = process.env.GAMETOK_DESIGN_MODEL || 'deepseek-v4-flash';
+const DESIGN_MODEL = process.env.GAMETOK_DESIGN_MODEL || '';
+
+async function callMoonshotFlashJson({ systemPrompt, messages, maxTokens = 1400, temperature = 0.3 }) {
+  const config = getMoonshotTextConfig();
+  if (!config) throw new Error('Moonshot not configured (MOONSHOT_API_KEY missing)');
+  const client = createMoonshotTextClient();
+  const modelToUse = DESIGN_MODEL || config.model || 'kimi-k2.6';
+  
+  const res = await client.chat.completions.create({
+    model: modelToUse,
+    max_tokens: maxTokens,
+    stream: false,
+    temperature,
+    messages: [{ role: 'system', content: systemPrompt }, ...messages],
+    response_format: { type: 'json_object' },
+  });
+  return JSON.parse(res.choices[0].message.content);
+}
 
 const SYSTEM = `You are a senior mobile game designer. Given a game concept (a one-line idea from a user)
 AND a summary of the sprite catalog that is actually available, produce a concrete design plan
@@ -92,19 +110,37 @@ List 4-8 entities total. Every entity must appear on screen. No HUD/text/sound a
  * }>} the plan, or null on failure (caller falls back to shallow entity listing)
  */
 export async function designGamePlan(concept, { catalogSummary = '' } = {}) {
-  if (!isDeepSeekPrimaryEnabled()) return null;
+  const deepseekEnabled = isDeepSeekPrimaryEnabled();
+  const moonshotEnabled = isMoonshotPrimaryEnabled() || !!getMoonshotTextConfig();
+  
+  if (!deepseekEnabled && !moonshotEnabled) return null;
+  
   try {
     const catalogBlock = catalogSummary
       ? `\n\nSPRITE CATALOG (this is ALL the sprite art that exists — cast from it, code-draw everything else):\n${catalogSummary}`
       : '';
-    const parsed = await callDeepSeekFlashJson({
-      systemPrompt: SYSTEM,
-      messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}${catalogBlock}` }],
-      maxTokens: 1400,
-      temperature: 0.4,
-      model: DESIGN_MODEL,
-      reasoningEffort: 'low',
-    });
+    
+    let parsed;
+    const modelName = DESIGN_MODEL || undefined;
+    
+    if (deepseekEnabled) {
+      parsed = await callDeepSeekFlashJson({
+        systemPrompt: SYSTEM,
+        messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}${catalogBlock}` }],
+        maxTokens: 1400,
+        temperature: 0.4,
+        model: modelName || 'deepseek-v4-flash',
+        reasoningEffort: 'low',
+      });
+    } else {
+      parsed = await callMoonshotFlashJson({
+        systemPrompt: SYSTEM,
+        messages: [{ role: 'user', content: `GAME CONCEPT:\n${concept}${catalogBlock}` }],
+        maxTokens: 1400,
+        temperature: 0.4,
+      });
+    }
+    
     // Validate essentials — a broken plan degrades to the shallow entity flow, never drives garbage.
     const rawEntities = Array.isArray(parsed.entities) ? parsed.entities : [];
     const entities = rawEntities
