@@ -276,7 +276,7 @@ function repairJson(text) {
 
 const router = express.Router();
 
-const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.6";
+const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.7";
 function resolveDreamModel(envName, fallback) {
     const requested = String(process.env[envName] || '').trim();
     return requested || fallback;

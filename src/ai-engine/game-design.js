@@ -20,7 +20,7 @@ async function callMoonshotFlashJson({ systemPrompt, messages, maxTokens = 1400,
   const config = getMoonshotTextConfig();
   if (!config) throw new Error('Moonshot not configured (MOONSHOT_API_KEY missing)');
   const client = createMoonshotTextClient();
-  const modelToUse = DESIGN_MODEL || config.model || 'kimi-k2.6';
+  const modelToUse = DESIGN_MODEL || config.model || 'kimi-k2.7';
   
   const res = await client.chat.completions.create({
     model: modelToUse,

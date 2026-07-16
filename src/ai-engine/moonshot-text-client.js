@@ -9,7 +9,7 @@ export function getMoonshotTextConfig(env = process.env) {
     return {
         apiKey,
         baseURL: String(env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1').replace(/\/+$/, ''),
-        model: String(env.MOONSHOT_MODEL || 'kimi-k2.6').trim(),
+        model: String(env.MOONSHOT_MODEL || 'kimi-k2.7').trim(),
     };
 }
 
@@ -47,7 +47,7 @@ export function maskMoonshotKey(key = '') {
 }
 
 export function resolveMoonshotModel(_nvidiaModel = null, env = process.env) {
-    return getMoonshotTextConfig(env)?.model || 'kimi-k2.6';
+    return getMoonshotTextConfig(env)?.model || 'kimi-k2.7';
 }
 
 /**
@@ -58,7 +58,7 @@ export function buildMoonshotChatOptions(model, requestedMaxTokens, { hasTools =
     const maxTokens = Math.max(256, Math.min(32768, requested));
 
     const options = {
-        model: model || 'kimi-k2.6',
+        model: model || 'kimi-k2.7',
         max_tokens: maxTokens,
         stream,
     };

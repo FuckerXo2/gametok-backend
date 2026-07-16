@@ -13,7 +13,7 @@ const DEFAULT_OPENGAME_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_OPENGAME_MODELS = [
     'qwen/qwen3-coder-480b-a35b-instruct',
     'z-ai/glm-5.1',
-    'moonshotai/kimi-k2.6',
+    'moonshotai/kimi-k2.7',
     'deepseek-ai/deepseek-v4-pro',
 ];
 
