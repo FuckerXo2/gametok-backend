@@ -56,6 +56,7 @@ rather than guessing a color exists. Never name two sprite entities identically.
 Return ONLY JSON, no prose, no markdown fences:
 {
   "coreLoop": "2-3 sentences describing what the player DOES moment-to-moment and why it feels good.",
+  "dimension": "2D" | "3D",
   "orientation": "side" | "top_down" | "isometric",
   "entities": [
     { "name": "concrete visual noun retrieval can search (e.g. \\"zombie enemy\\", \\"basketball hoop\\")",
@@ -68,6 +69,12 @@ Return ONLY JSON, no prose, no markdown fences:
   "loseCondition": "How the player loses (or 'none' if it's a score-attack).",
   "hud": ["3-5 short strings — the on-screen readouts (e.g. \\"score\\", \\"time left\\")"]
 }
+"dimension" rules:
+- "3D" if the concept genuinely requires depth, perspective cameras, or 3D physics (e.g. racing,
+  flight sim, FPS, open-world exploration, Rocket League, Minecraft-style, any game where the camera
+  moves through a 3D world). The builder will use Three.js.
+- "2D" for everything else — side-scrollers, top-down, puzzle, card, arcade. The builder will use
+  Phaser, Canvas, or CSS/DOM.
 List 4-8 entities total. Every entity must appear on screen. No HUD/text/sound as entities.`;
 
 /**
@@ -112,6 +119,7 @@ export async function designGamePlan(concept, { catalogSummary = '' } = {}) {
 
     const plan = {
       coreLoop: String(parsed.coreLoop || '').trim(),
+      dimension: parsed.dimension === '3D' ? '3D' : '2D',
       orientation,
       entities,
       layout: String(parsed.layout || '').trim(),
@@ -123,6 +131,7 @@ export async function designGamePlan(concept, { catalogSummary = '' } = {}) {
     const spriteNames = plan.entities.filter(e => e.render === 'sprite').map(e => e.name);
     const codeNames = plan.entities.filter(e => e.render === 'code').map(e => e.name);
     console.log(`🧠 Game plan (${DESIGN_MODEL}):`);
+    console.log(`   Dimension: ${plan.dimension}`);
     console.log(`   Core loop: ${plan.coreLoop}`);
     console.log(`   Orientation: ${plan.orientation}`);
     console.log(`   Sprite entities: [${spriteNames.join(', ')}]`);
@@ -146,6 +155,7 @@ export function formatPlanForBuilder(plan) {
   const codeEntities = plan.entities.filter(e => e.render === 'code');
   return `# GAME DESIGN (build EXACTLY this — do not invent extra modes or scope)
 
+Dimension: ${plan.dimension}
 Core loop: ${plan.coreLoop}
 Camera: ${plan.orientation}
 Layout: ${plan.layout}

@@ -9,19 +9,17 @@ import { designGamePlan, formatPlanForBuilder } from './game-design.js';
 import { loadAllThreeJSSkills } from './maker-composition-guidance.js';
 
 /**
- * Detect whether the user prompt or game plan implies a 3D game that should use Three.js.
- * This gates whether the detailed AAA Three.js skills are injected into the builder prompt.
+ * Detect whether the game should use the Three.js AAA skills.
+ * Primary signal: the LLM design step classifies dimension as "3D" in the plan.
+ * Fallback: minimal keyword check only when the design step failed (plan is null).
  */
 function detect3D(userPrompt, plan) {
+    // Trust the LLM's classification when available
+    if (plan?.dimension === '3D') return true;
+    if (plan?.dimension === '2D') return false;
+    // Fallback only when plan is null (design step failed) — basic keyword sniff
     const p = (userPrompt || '').toLowerCase();
-    // Explicit 3D keywords
-    if (/\b(3d|three[\s.-]?js|threejs|three\.js)\b/.test(p)) return true;
-    // Common 3D game genres / concepts
-    if (/\b(first[\s-]?person|fps|third[\s-]?person|open[\s-]?world|racing|flight|driving|car game|rocket league|minecraft|roblox)\b/.test(p)) return true;
-    // Plan-level detection (if the design step tagged it)
-    if (plan?.dimension?.toUpperCase() === '3D') return true;
-    if (plan?.engine?.toLowerCase()?.includes('three')) return true;
-    return false;
+    return /\b(3d|three[\s.-]?js|threejs)\b/.test(p);
 }
 
 /**
