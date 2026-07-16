@@ -59,15 +59,26 @@ CRITICAL Rules:
 8. Exit once the build is successful.
 `;
 
-    // Determine target kimi executable (use absolute path to home folder if exists, fallback to PATH)
-    const homeDir = process.env.HOME || '/Users/abiolalimitless';
-    const resolvedKimiPath = path.join(homeDir, '.kimi-code', 'bin', 'kimi');
-    let kimiCmd = 'kimi';
-    try {
-        await fs.access(resolvedKimiPath);
-        kimiCmd = resolvedKimiPath;
-    } catch {
-        // Fallback to global command
+    // Determine target kimi executable by checking multiple possible container/system paths
+    const candidatePaths = [
+        process.env.KIMI_PATH,
+        path.join(process.env.HOME || '', '.kimi-code', 'bin', 'kimi'),
+        '/root/.kimi-code/bin/kimi',
+        '/home/nixpacks/.kimi-code/bin/kimi',
+        '/usr/local/bin/kimi',
+        '/app/.kimi-code/bin/kimi'
+    ].filter(Boolean);
+
+    let kimiCmd = 'kimi'; // Default fallback to system PATH search
+    for (const p of candidatePaths) {
+        try {
+            await fs.access(p);
+            kimiCmd = p;
+            console.log(`🔍 [Kimi Runner] Found Kimi CLI executable at: ${p}`);
+            break;
+        } catch {
+            // Check next candidate
+        }
     }
 
     console.log(`🤖 [Kimi Runner] Spawning global Kimi CLI (${kimiCmd}) in: ${projectRoot}`);

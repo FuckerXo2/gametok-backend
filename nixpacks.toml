@@ -28,7 +28,8 @@ aptPkgs = [
 [phases.install]
 cmds = [
     "npm ci",
-    "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"
+    "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash",
+    "ln -sf $HOME/.kimi-code/bin/kimi /usr/local/bin/kimi || ln -sf /root/.kimi-code/bin/kimi /usr/local/bin/kimi || ln -sf /home/nixpacks/.kimi-code/bin/kimi /usr/local/bin/kimi || true"
 ]
 
 [variables]
