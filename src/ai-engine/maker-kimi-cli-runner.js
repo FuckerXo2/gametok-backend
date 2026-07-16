@@ -1,6 +1,9 @@
 import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Runs the Kimi Code CLI globally installed on the system to autonomously write
@@ -18,6 +21,15 @@ export async function runKimiCliAgent(projectRoot, systemPrompt, userPrompt) {
 
     await fs.writeFile(instructionsPath, systemPrompt, 'utf-8');
     await fs.writeFile(briefPath, userPrompt, 'utf-8');
+
+    // Symlink the threejs-skills folder into the project workspace
+    const destSkillsPath = path.join(projectRoot, 'threejs-skills');
+    try {
+        await fs.symlink(path.join(__dirname, 'threejs-skills'), destSkillsPath, 'dir');
+        console.log(`🔗 [Kimi Runner] Created symlink for Three.js skills inside workspace`);
+    } catch (err) {
+        // If symlink fails (e.g. file exists), check and ignore
+    }
 
     // 2. Prepare a package.json with a simple dummy build script.
     // This allows the agent to run "npm run build" and pass verification immediately.
@@ -42,8 +54,9 @@ CRITICAL Rules:
 3. Load any required external libraries (Phaser, Three.js, etc.) via public CDN <script> tags in index.html (e.g. from https://cdnjs.cloudflare.com/ or https://cdn.jsdelivr.net/).
 4. Ensure the main entry script is loaded in index.html (e.g. using <script type="module" src="main.js"></script>).
 5. Put CSS styles in style.css and load it via a link tag in index.html.
-6. Run "npm run build" to verify everything is set up.
-7. Exit once the build is successful.
+6. If you decide to build a 3D game using Three.js, read the relevant graphics, UI, and gameplay guidelines in the "./threejs-skills" directory to ensure showcase quality.
+7. Run "npm run build" to verify everything is set up.
+8. Exit once the build is successful.
 `;
 
     // Determine target kimi executable (use absolute path to home folder if exists, fallback to PATH)
