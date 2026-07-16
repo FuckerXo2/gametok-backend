@@ -31,6 +31,16 @@ export async function runKimiCliAgent(projectRoot, systemPrompt, userPrompt) {
         // If symlink fails (e.g. file exists), check and ignore
     }
 
+    // Copy the Sketchfab 3D model search tool into the workspace
+    const fetchModelSrc = path.join(__dirname, 'fetch-3d-model.js');
+    const fetchModelDest = path.join(projectRoot, 'fetch-3d-model.js');
+    try {
+        await fs.copyFile(fetchModelSrc, fetchModelDest);
+        console.log(`🔗 [Kimi Runner] Copied fetch-3d-model.js into workspace`);
+    } catch (err) {
+        console.warn(`⚠️ [Kimi Runner] Could not copy fetch-3d-model.js: ${err.message}`);
+    }
+
     // 2. Prepare a package.json with a simple dummy build script.
     // This allows the agent to run "npm run build" and pass verification immediately.
     const packageJsonPath = path.join(projectRoot, 'package.json');
@@ -55,8 +65,13 @@ CRITICAL Rules:
 4. Ensure the main entry script is loaded in index.html (e.g. using <script type="module" src="main.js"></script>).
 5. Put CSS styles in style.css and load it via a link tag in index.html.
 6. If you decide to build a 3D game using Three.js, read the relevant graphics, UI, and gameplay guidelines in the "./threejs-skills" directory to ensure showcase quality.
-7. Run "npm run build" to verify everything is set up.
-8. Exit once the build is successful.
+7. To find 3D models (characters, vehicles, animals, spaceships, etc.) for your game, run: node fetch-3d-model.js "search query"
+   It searches Sketchfab for downloadable GLB models under 1MB, downloads the best match, and prints a JSON object with a public CDN "url" you can load directly with THREE.GLTFLoader.
+   Example: node fetch-3d-model.js "low poly dragon" → {"url":"https://...glb","name":"Dragon","animated":true}
+   Run this for each 3D character/entity you need. Use the returned URL in your GLTFLoader.load() calls.
+   If the model has animations (animated: true), inspect gltf.animations at runtime and play the best matching clip.
+8. Run "npm run build" to verify everything is set up.
+9. Exit once the build is successful.
 `;
 
     // Determine target kimi executable by checking multiple possible container/system paths
