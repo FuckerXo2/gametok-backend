@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 let cachedThreeJSSkills = null;
 
-function loadAllThreeJSSkills() {
+export function loadAllThreeJSSkills() {
     if (cachedThreeJSSkills) return cachedThreeJSSkills;
     try {
         const skillsDir = path.join(__dirname, 'threejs-skills');

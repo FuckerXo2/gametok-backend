@@ -6,6 +6,23 @@
 import { listRequiredEntities } from './asset-selection.js';
 import { retrieveAssetsForEntities, getCatalogSummary } from './asset-retrieval.js';
 import { designGamePlan, formatPlanForBuilder } from './game-design.js';
+import { loadAllThreeJSSkills } from './maker-composition-guidance.js';
+
+/**
+ * Detect whether the user prompt or game plan implies a 3D game that should use Three.js.
+ * This gates whether the detailed AAA Three.js skills are injected into the builder prompt.
+ */
+function detect3D(userPrompt, plan) {
+    const p = (userPrompt || '').toLowerCase();
+    // Explicit 3D keywords
+    if (/\b(3d|three[\s.-]?js|threejs|three\.js)\b/.test(p)) return true;
+    // Common 3D game genres / concepts
+    if (/\b(first[\s-]?person|fps|third[\s-]?person|open[\s-]?world|racing|flight|driving|car game|rocket league|minecraft|roblox)\b/.test(p)) return true;
+    // Plan-level detection (if the design step tagged it)
+    if (plan?.dimension?.toUpperCase() === '3D') return true;
+    if (plan?.engine?.toLowerCase()?.includes('three')) return true;
+    return false;
+}
 
 /**
  * Fallback orientation from the raw prompt, used only when the design step fails. Defaults to
@@ -193,6 +210,17 @@ export async function buildGamePrompt(userPrompt) {
     const assetList = Object.keys(grouped).length
       ? formatGroupedAssets(grouped)
       : '(No catalog sprites matched this concept — every entity in this game is code-drawn. Draw them WELL with layered graphics.)';
+    // Detect if this is a 3D game and load the AAA Three.js skills if so
+    const is3D = detect3D(userPrompt, plan);
+    let threejsSkillsBlock = '';
+    if (is3D) {
+        const skills = loadAllThreeJSSkills();
+        if (skills) {
+            console.log('🎮 3D game detected — injecting Three.js AAA skills into builder prompt');
+            threejsSkillsBlock = `\n\n=== THREE.JS GAMEPLAY & GRAPHICS SKILLS ===\nREAD THE FOLLOWING SKILLS CAREFULLY AND APPLY THEM TO THIS GAME. THIS IS YOUR PRIMARY ARCHITECTURE AND GAME-FEEL GUIDANCE:\n${skills}\n=== END THREE.JS SKILLS ===\n`;
+        }
+    }
+
     return {
         system: `You are an expert game developer. Your job is to write a complete, working, mobile-friendly HTML5 web game directly in the project directory using HTML, CSS, and JavaScript.
 
@@ -238,7 +266,7 @@ ${assetList}
 6. **Juice**: Add screen shake, visual feedback, or particles to make the game feel premium.
 
 7. **Pure JavaScript**: Use standard JS (.js files). No TypeScript.
-`,
+${threejsSkillsBlock}`,
         user: `Create a complete web game based on this description:
 
 ${userPrompt}
