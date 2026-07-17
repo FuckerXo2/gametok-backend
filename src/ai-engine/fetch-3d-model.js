@@ -225,6 +225,22 @@ async function main() {
             const glbBuffer = await fsPromises.readFile(glbPath);
             const fileSizeKB = Math.round(glbBuffer.length / 1024);
 
+            // Verify GLB file validity by checking the 12-byte header
+            if (glbBuffer.length < 12) {
+                console.error(`   ⚠️  GLB file is too small to be valid (${glbBuffer.length} bytes), skipping.`);
+                await fsPromises.rm(tempZip, { force: true });
+                await fsPromises.rm(tempDir, { recursive: true, force: true });
+                continue;
+            }
+
+            const magic = glbBuffer.readUInt32LE(0);
+            if (magic !== 0x46546C67) { // 0x46546C67 is 'glTF' in little-endian ASCII
+                console.error(`   ⚠️  Invalid GLB file format (magic: 0x${magic.toString(16)}), skipping.`);
+                await fsPromises.rm(tempZip, { force: true });
+                await fsPromises.rm(tempDir, { recursive: true, force: true });
+                continue;
+            }
+
             if (glbBuffer.length > MAX_FILE_SIZE_BYTES) {
                 console.error(`   ⚠️  GLB file is too large (${fileSizeKB}KB > 1024KB), skipping.`);
                 // Clean up
