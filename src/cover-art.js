@@ -402,6 +402,7 @@ async function saveCoverBuffer(gameId, buffer) {
                 Key: `covers/${filename}`,
                 Body: buffer,
                 ContentType: 'image/jpeg',
+                CacheControl: 'public, max-age=31536000',
             });
             
             await s3Client.send(command);

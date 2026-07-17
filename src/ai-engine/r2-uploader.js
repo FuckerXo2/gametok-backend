@@ -98,6 +98,7 @@ export async function uploadGameFolderToR2(jobId, projectRoot) {
             Key: key,
             Body: content,
             ContentType: contentType,
+            CacheControl: 'public, max-age=31536000',
         });
 
         await s3Client.send(command);
