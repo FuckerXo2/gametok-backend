@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ensureKimiCliAuth } from './kimi-cli-auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +65,18 @@ CRITICAL Rules:
 8. Run "npm run build" to verify everything is set up.
 9. Exit once the build is successful.
 `;
+
+    // The CLI cannot read an API key from the environment — it only reads
+    // <KIMI_CODE_HOME>/config.toml (normally written by the interactive `kimi
+    // login`). Write that file ourselves, or the spawn below dies with
+    // "No model configured" before generating anything.
+    const auth = ensureKimiCliAuth();
+    if (auth.ok) {
+        console.log(`🔑 [Kimi Runner] Auth ready: ${auth.reason}`);
+    } else {
+        console.error(`❌ [Kimi Runner] KIMI CLI IS NOT AUTHENTICATED: ${auth.reason}`);
+        console.error(`   The CLI will fail with "No model configured". Set MOONSHOT_API_KEY.`);
+    }
 
     // Determine target kimi executable by checking multiple possible container/system paths
     const candidatePaths = [

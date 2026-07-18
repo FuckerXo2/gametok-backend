@@ -71,6 +71,7 @@ import {
 import {
     buildMoonshotChatOptions,
     createMoonshotTextClient,
+    callKimiJson,
     getMoonshotTextConfig,
     isMoonshotDirectProvider,
     isMoonshotFailoverEnabled,
@@ -7891,7 +7892,9 @@ router.post('/generate-spec', async (req, res) => {
         let usedFallback = false;
         let warning;
         try {
-            const parsed = await callDeepSeekFlashJson({
+            // Kimi writes the pitch — the same model that builds the game, so the
+            // plan the user approves is the plan the builder already understands.
+            const parsed = await callKimiJson({
                 systemPrompt: `You are a senior mobile game designer writing the pre-create concept card for a game generation app.
 Your copy must feel specific, confident, and product-quality.
 
@@ -7900,13 +7903,15 @@ ${formatUnitySpecPromptBlock()}
 Return ONLY valid JSON in this exact format:
 {
   "title": "Catchy Title (2-3 words max)",
-  "description": "1-2 polished sentences describing the specific core loop and player fantasy.",
+  "structural": "3-5 word structural phrase naming dimension + perspective + genre (e.g. '3D chase-cam racer', 'top-down arena shooter', 'side-view endless runner')",
+  "description": "1-2 polished sentences describing the specific core loop and player fantasy. The FIRST sentence must contain the structural phrase verbatim.",
   "features": ["Feature 1 (one short sentence)", "Feature 2 (one short sentence)"]
 }
 
 Rules:
 - Title must be 2-3 words maximum
-- Description must be under 240 characters
+- The structural phrase is the most load-bearing choice (2D vs 3D, camera, genre) — commit to the obvious default for the concept and state it as a decision, never hedge
+- Description must be under 240 characters and its first sentence must include the structural phrase word-for-word
 - Features must be 2-3 items, each one short sentence
 - Do not use generic filler like "strategy is key", "satisfying gameplay", or "clear controls"
 - Do not invent multiplayer, online play, customization, shops, campaigns, upgrades, or extra modes unless the user explicitly requested them
@@ -8056,33 +8061,30 @@ router.post('/refine-spec', async (req, res) => {
             content: msg.content,
         }));
 
-        const result = await callDeepSeekFlashJson({
-            systemPrompt: `You are a game design assistant helping refine a game concept through conversation.
-
-Your job is to:
-1. Analyze the conversation history and the user's latest message
-2. Decide if you have enough context to proceed with building the game
-3. If YES: Return ready=true with the final spec
-4. If NO: Ask a clarifying question or provide a refined spec and return ready=false
+        // Same Kimi brain as the first pitch and as the builder.
+        const result = await callKimiJson({
+            systemPrompt: `You are a creative director revising a game pitch mid-conversation. The user just reacted to your pitch — fold their words in and hand back the updated pitch. Maximum conviction in the pitch, zero ego in the revision.
 
 Return ONLY valid JSON in this exact format:
 {
   "ready": true/false,
   "spec": {
     "title": "Catchy Title (2-3 words max)",
-    "description": "2-3 sentences describing core gameplay",
-    "features": ["Feature 1", "Feature 2", "Feature 3"]
+    "structural": "3-5 word structural phrase naming dimension + perspective + genre (e.g. '3D chase-cam racer', 'top-down arena shooter')",
+    "description": "1-2 polished sentences. The FIRST sentence must contain the structural phrase verbatim.",
+    "features": ["Feature 1 (one short sentence)", "Feature 2 (one short sentence)"]
   },
-  "question": "Your follow-up question (only if ready=false)",
-  "aiMessage": "Your response to the user"
+  "question": "One fused question (ONLY in the rare case described below, else null)",
+  "aiMessage": "Your reply to the user — short, warm, decisive. Half a sentence acknowledging the change, no groveling, no re-litigating."
 }
 
-Rules for deciding readiness:
-- If the user has provided clear gameplay mechanics, visual style, and core loop → ready=true
-- If critical details are missing (genre, mechanics, goal, etc.) → ready=false, ask specific question
-- If the user says "that's good" or "let's build it" → ready=true
-- Keep questions focused and specific
-- Update the spec with each iteration based on new info`,
+Rules:
+- ready=true almost always: the pitch is buildable the moment it exists. ready=false ONLY if the user's message contains a genuine contradiction you cannot resolve.
+- NEVER ask about flavor (colors, characters, music, style), genre conventions, or difficulty — infer them with taste. A wrong guess there is a one-wish fix after the game exists.
+- Only ask a question when a choice is BOTH load-bearing (2D vs 3D, camera, core loop — wrong guess forces a rebuild) AND genuinely bimodal with no obvious default. Then ask ONE fused question that leads with your own recommendation.
+- Treat everything the user has said as locked. Revise only what they touched; keep the rest of the spec stable.
+- Never apologize for your taste, never hedge ("maybe", "we could"). State choices as decisions.
+- The structural phrase is the most load-bearing fact — always present, always committed.`,
             messages: [...historyMessages, { role: 'user', content: userMessage }],
             maxTokens: 400,
             temperature: 0.7,

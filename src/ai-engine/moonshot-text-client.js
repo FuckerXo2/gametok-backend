@@ -40,6 +40,29 @@ export function createMoonshotTextClient(env = process.env) {
     });
 }
 
+/**
+ * One-shot JSON call to Kimi. Used by the planning conversation (the pitch the
+ * user reads before hitting Create) so the model that PLANS the game is the same
+ * model that BUILDS it — no translation loss between planner and builder.
+ */
+export async function callKimiJson(
+    { systemPrompt, messages, maxTokens = 400, temperature = 0.8, model = null },
+    env = process.env,
+) {
+    const config = getMoonshotTextConfig(env);
+    if (!config) throw new Error('Moonshot not configured (MOONSHOT_API_KEY missing)');
+    const client = createMoonshotTextClient(env);
+    const res = await client.chat.completions.create({
+        model: model || config.model || 'kimi-k2.7',
+        max_tokens: maxTokens,
+        stream: false,
+        temperature,
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        response_format: { type: 'json_object' },
+    });
+    return JSON.parse(res.choices[0].message.content);
+}
+
 export function maskMoonshotKey(key = '') {
     const value = String(key || '');
     if (value.length <= 10) return value ? '***' : 'missing';
