@@ -68,7 +68,6 @@ export async function uploadGameFolderToR2(jobId, projectRoot) {
                 if (
                     entry.name === '.DS_Store' ||
                     entry.name === 'instructions.txt' ||
-                    entry.name === 'design_brief.md' ||
                     entry.name === 'package.json' ||
                     entry.name === 'package-lock.json' ||
                     entry.name === 'vite.config.js' ||

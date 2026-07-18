@@ -15,12 +15,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * @returns {Promise<void>} Resolves when the Kimi CLI completes successfully.
  */
 export async function runKimiCliAgent(projectRoot, systemPrompt, userPrompt) {
-    // 1. Write prompt contents to instruction files so the CLI agent can read them
+    // 1. Write the full prompt (build rules + game idea, or repair instructions) into a single
+    //    instruction file the CLI agent reads. There is no separate design brief anymore.
     const instructionsPath = path.join(projectRoot, 'instructions.txt');
-    const briefPath = path.join(projectRoot, 'design_brief.md');
-
-    await fs.writeFile(instructionsPath, systemPrompt, 'utf-8');
-    await fs.writeFile(briefPath, userPrompt, 'utf-8');
+    const combined = userPrompt ? `${systemPrompt}\n\n${userPrompt}` : systemPrompt;
+    await fs.writeFile(instructionsPath, combined, 'utf-8');
 
     // Symlink the threejs-skills folder into the project workspace
     const destSkillsPath = path.join(projectRoot, 'threejs-skills');
@@ -29,16 +28,6 @@ export async function runKimiCliAgent(projectRoot, systemPrompt, userPrompt) {
         console.log(`🔗 [Kimi Runner] Created symlink for Three.js skills inside workspace`);
     } catch (err) {
         // If symlink fails (e.g. file exists), check and ignore
-    }
-
-    // Copy the Sketchfab 3D model search tool into the workspace
-    const fetchModelSrc = path.join(__dirname, 'fetch-3d-model.js');
-    const fetchModelDest = path.join(projectRoot, 'fetch-3d-model.js');
-    try {
-        await fs.copyFile(fetchModelSrc, fetchModelDest);
-        console.log(`🔗 [Kimi Runner] Copied fetch-3d-model.js into workspace`);
-    } catch (err) {
-        console.warn(`⚠️ [Kimi Runner] Could not copy fetch-3d-model.js: ${err.message}`);
     }
 
     // 2. Prepare a package.json with a simple dummy build script.
@@ -56,20 +45,22 @@ export async function runKimiCliAgent(projectRoot, systemPrompt, userPrompt) {
 
     // 3. Define the instruction for Kimi CLI
     const instructionPrompt = `
-Read instructions.txt and design_brief.md in this directory.
+Read instructions.txt in this directory.
 Generate a complete, high-quality, mobile-friendly game in this folder based on the specifications.
 CRITICAL Rules:
-1. Do NOT use placeholder assets; use ONLY the real asset URLs mapped in design_brief.md.
-2. Write a standard static HTML/JS/CSS game. Do NOT use Vite, webpack, or any npm package bundlers.
-3. Load any required external libraries (Phaser, Three.js, etc.) via public CDN <script> tags in index.html (e.g. from https://cdnjs.cloudflare.com/ or https://cdn.jsdelivr.net/).
-4. Ensure the main entry script is loaded in index.html (e.g. using <script type="module" src="main.js"></script>).
-5. Put CSS styles in style.css and load it via a link tag in index.html.
-6. If you decide to build a 3D game using Three.js, read the relevant graphics, UI, and gameplay guidelines in the "./threejs-skills" directory to ensure showcase quality.
-7. To find 3D models (characters, vehicles, animals, spaceships, etc.) for your game, run: node fetch-3d-model.js "search query"
-   It searches Sketchfab for downloadable GLB models under 1MB, downloads the best match, and prints a JSON object with a public CDN "url" you can load directly with THREE.GLTFLoader.
-   Example: node fetch-3d-model.js "dragon" → {"url":"https://...glb","name":"Dragon","animated":true}
-   Run this for each 3D character/entity you need. Use the returned URL in your GLTFLoader.load() calls.
-   If the model has animations (animated: true), inspect gltf.animations at runtime and play the best matching clip.
+1. Write a standard static HTML/JS/CSS game. Do NOT use Vite, webpack, or any npm package bundlers.
+2. Load any required external libraries (Phaser, Three.js, etc.) via public CDN <script> tags in index.html (e.g. from https://cdnjs.cloudflare.com/ or https://cdn.jsdelivr.net/).
+3. Ensure the main entry script is loaded in index.html (e.g. using <script type="module" src="main.js"></script>).
+4. Put CSS styles in style.css and load it via a link tag in index.html.
+5. If you decide to build a 3D game using Three.js, read the relevant graphics, UI, and gameplay guidelines in the "./threejs-skills" directory to ensure showcase quality.
+6. ASSETS — optional, but powerful. You have full web access (curl/wget/node). You MAY pull free public-domain / CC0 art assets directly from these libraries to make the game look great, instead of drawing everything in code:
+   - Poly Haven (https://polyhaven.com, JSON API at https://api.polyhaven.com) — CC0 3D models (.glb/.gltf), PBR textures, and HDRI environment maps. Great for realistic lighting and ground/wall/sky.
+   - Quaternius (https://quaternius.com) — CC0 low-poly 3D character/creature/vehicle packs, many with baked animations (.glb). Best source for animated characters.
+   - AmbientCG (https://ambientcg.com, API at https://ambientcg.com/api/v2/full_json) — CC0 PBR material textures (grass, dirt, wood, metal, stone).
+   - Kenney (https://kenney.nl) — CC0 2D sprites/tilesets AND 3D packs, clean and game-ready.
+   - OpenGameArt (https://opengameart.org, filter to CC0/Public Domain) — 2D sprites, tilesets, backgrounds.
+   These are only suggestions — use them when they raise quality, otherwise code-draw. Nothing is mandatory.
+7. VERIFY EVERY ASSET BEFORE USING IT — this is the one hard rule for assets. For each asset URL you intend to load, first confirm it actually works: fetch it and check HTTP 200 + correct content-type, and for a .glb confirm the file begins with the "glTF" magic bytes, for an image confirm it decodes (non-zero dimensions). If an asset fails verification (404, wrong type, corrupt, too large to load quickly), DO NOT ship it — pick another candidate or fall back to drawing that entity in code. Never leave a broken/placeholder asset reference in the final game.
 8. Run "npm run build" to verify everything is set up.
 9. Exit once the build is successful.
 `;

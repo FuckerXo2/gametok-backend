@@ -22,7 +22,6 @@ import assetsRouter from './assets-router.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import { deleteCoverAsset } from './cover-art.js';
-import { getCatalogSummary } from './ai-engine/asset-retrieval.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -5149,14 +5148,6 @@ const start = async () => {
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
-    
-    // Verify the v2 sprite catalog is loaded (also warms the embeddings cache)
-    const summary = getCatalogSummary();
-    if (summary && !summary.startsWith('(catalog unavailable')) {
-      console.log('✅ v2 sprite catalog loaded');
-    } else {
-      console.warn('⚠️  v2 sprite catalog not found — run scripts/v2-build-embeddings.mjs');
-    }
   });
 
   let shuttingDown = false;
