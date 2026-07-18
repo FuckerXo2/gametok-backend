@@ -816,6 +816,7 @@ async function runTemplateRuntimeProbe(page, templateContract = null) {
 export async function verifyGame(htmlString, options = {}) {
     let browser = null;
     const crashes = [];
+    const assetFailures = []; // network-level asset load failures (404 / CORS / expired URL) seen in-sandbox
     const runtimeLane = options?.runtimeLane || null;
     const requireDreamAssets = Boolean(options?.requireDreamAssets);
     const sourceHtml = String(options?.sourceHtml || htmlString || '');
@@ -882,6 +883,38 @@ export async function verifyGame(htmlString, options = {}) {
         page.on('pageerror', err => {
             console.log("💥 Sandbox Caught PageError:", err.message);
             crashes.push(err.message);
+        });
+
+        // Catch assets that fail to actually load in a real browser — a 404 / CORS block / expired
+        // signed URL / wrong content-type on a sprite, model, texture, audio clip, font, or a CDN
+        // library. The generator's own build-time check (curl 200) cannot see these, because CORS,
+        // hotlink protection, expiry and content-type mismatches only surface when the page loads the
+        // asset for real. This is the objective backstop before a broken-asset game ships.
+        const ASSET_EXT = /\.(glb|gltf|bin|hdr|exr|ktx2?|basis|png|jpe?g|webp|gif|svg|mp3|wav|ogg|m4a|aac|woff2?|ttf|otf)(\?|#|$)/i;
+        const isAssetRequest = (resourceType, url) => {
+            if (resourceType === 'image' || resourceType === 'media' || resourceType === 'font'
+                || resourceType === 'script' || resourceType === 'stylesheet') return true;
+            // GLB/GLTF/textures loaded by loaders come through as fetch/xhr/other — match by extension.
+            if ((resourceType === 'fetch' || resourceType === 'xhr' || resourceType === 'other') && ASSET_EXT.test(url)) return true;
+            return false;
+        };
+        const recordAssetFailure = (url, reason, resourceType) => {
+            if (!url || /^(data|blob):/i.test(url)) return;
+            if (assetFailures.some((f) => f.url === url)) return; // dedupe repeated requests
+            if (assetFailures.length >= 8) return; // cap so the repair prompt stays focused
+            console.log(`🖼️ Sandbox: asset failed to load — ${url} (${reason})`);
+            assetFailures.push({ url, reason, resourceType });
+        };
+        page.on('requestfailed', req => {
+            const errorText = req.failure()?.errorText || 'request failed';
+            if (errorText === 'net::ERR_ABORTED') return; // canceled preloads are intentional, not failures
+            if (isAssetRequest(req.resourceType(), req.url())) recordAssetFailure(req.url(), errorText, req.resourceType());
+        });
+        page.on('response', res => {
+            const status = res.status();
+            if (status < 400) return;
+            const req = res.request();
+            if (isAssetRequest(req.resourceType(), req.url())) recordAssetFailure(req.url(), `HTTP ${status}`, req.resourceType());
         });
 
         await loadHtmlAsBrowserPage(page, htmlString);
@@ -1292,6 +1325,14 @@ export async function verifyGame(htmlString, options = {}) {
             crashes.push(`Visible error text detected: ${renderState.bodyText}`);
         }
 
+        // Fold asset-load failures into the crash list so a broken-asset build fails verification and
+        // triggers self-repair (swap the asset for a working one, or code-draw the entity). One
+        // combined entry so the whole list survives even when only crashes[0] reaches the repair prompt.
+        if (assetFailures.length > 0) {
+            const list = assetFailures.map((f) => `  - ${f.url} — ${f.reason} (${f.resourceType})`).join('\n');
+            crashes.push(`${assetFailures.length} asset(s) failed to load in the running game:\n${list}\nThese asset references are broken and must NOT ship. For each: replace it with an asset URL you have verified returns HTTP 200 with the correct content-type, or draw that entity in code instead. Never leave a broken asset reference in the final game.`);
+        }
+
         let screenshotBase64 = null;
         if (crashes.length === 0) {
             try {
@@ -1305,7 +1346,9 @@ export async function verifyGame(htmlString, options = {}) {
         await browser.close();
 
         if (crashes.length > 0) {
-            if (expectsThreeJs && isHeadlessWebglFailure(crashes)) {
+            // A real asset 404 must fail the build even for 3D games — never let the headless-WebGL
+            // bypass swallow a broken-asset failure.
+            if (expectsThreeJs && isHeadlessWebglFailure(crashes) && assetFailures.length === 0) {
                 console.warn('⚠️ Sandbox: WebGL context could not be created in headless mode. Treating this 3D build as verifier-bypassed instead of failed.');
                 return {
                     success: true,
@@ -1315,7 +1358,7 @@ export async function verifyGame(htmlString, options = {}) {
                     screenshot: null,
                 };
             }
-            return { success: false, crashes, error: crashes[0], diagnostics: renderState };
+            return { success: false, crashes, error: crashes[0], diagnostics: renderState, assetFailures };
         } else {
             console.log("✅ Sandbox: Zero Crashes Detected. Game is stable!");
             return { success: true, screenshot: screenshotBase64, diagnostics: renderState };
