@@ -915,9 +915,50 @@ async function classifyAndStoreDraft({ draftId, title = '', prompt = '', htmlPay
     return classification;
 }
 
+/**
+ * Pull a clean, human-readable blurb out of a generation prompt.
+ *
+ * Prompts arrive as a structured blob:
+ *   Multi-Engine AI Creation: <user prompt>
+ *
+ *   Title: <title>
+ *   Description: <the blurb we actually want>
+ *       Features: <list>
+ *
+ * Storing that raw made the feed caption show pipeline scaffolding
+ * ("Multi-Engine AI Creation:", a repeated title, "Description:").
+ */
+export function cleanGameDescription(raw, title = '') {
+    const text = String(raw || '');
+    const SECTIONS = 'Features|Controls|Mechanics|Goal|Objective|How to play|Win condition|Scoring';
+
+    const descMatch = text.match(
+        new RegExp(String.raw`^\s*Description:\s*([\s\S]*?)(?=\n\s*(?:${SECTIONS})\s*:|$)`, 'mi')
+    );
+
+    let out = descMatch ? descMatch[1] : '';
+    if (!out.trim()) {
+        // No structured block — strip the pipeline prefix and any Title: line.
+        out = text
+            .replace(/^Multi-Engine AI Creation:\s*/i, '')
+            .replace(/^\s*Title:.*$/gim, '')
+            .replace(/^\s*Description:\s*/gim, '');
+    }
+
+    out = out.replace(/\s+/g, ' ').trim();
+
+    // Don't echo the title straight back at the reader.
+    const t = String(title || '').trim();
+    if (t && out.toLowerCase().startsWith(t.toLowerCase())) {
+        out = out.slice(t.length).replace(/^[\s:.–—-]+/, '');
+    }
+
+    return out.slice(0, 300).trim();
+}
+
 async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClassification = false }) {
     const globalId = `gm-ai-${String(draftId).substring(0, 8)}`;
-    const description = "Multi-Engine AI Creation: " + draft.prompt;
+    const description = cleanGameDescription(draft.prompt, draft.title);
     const storedClassification = !forceRefreshClassification ? getStoredDraftClassification(draft) : null;
     const classification = storedClassification || await classifyAndStoreDraft({
         draftId,

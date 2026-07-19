@@ -462,6 +462,38 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
 });
 
 // Admin endpoint to check thumbnail status
+// TEMP backfill — strips pipeline scaffolding out of existing descriptions.
+app.post('/api/admin/fix-descriptions', async (req, res) => {
+  const { dryRun } = req.body || {};
+  try {
+    const { cleanGameDescription } = await import('./ai-engine/routes.js');
+    const { rows } = await pool.query(
+      `SELECT g.id, g.name, g.description, ag.prompt, ag.title
+         FROM games g
+         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+        WHERE g.description LIKE 'Multi-Engine AI Creation:%'`
+    );
+
+    let updated = 0;
+    const samples = [];
+    for (const row of rows) {
+      const source = row.prompt || row.description.replace(/^Multi-Engine AI Creation:\s*/i, '');
+      const cleaned = cleanGameDescription(source, row.title || row.name);
+      if (!cleaned || cleaned === row.description) continue;
+      if (samples.length < 5) samples.push({ name: row.name, before: row.description.slice(0, 80), after: cleaned });
+      if (!dryRun) {
+        await pool.query('UPDATE games SET description = $1 WHERE id = $2', [cleaned, row.id]);
+      }
+      updated += 1;
+    }
+
+    res.json({ success: true, dryRun: !!dryRun, matched: rows.length, updated, samples });
+  } catch (e) {
+    console.error('fix-descriptions error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/admin/thumbnail-status', async (req, res) => {
   try {
     // Count total AI games
