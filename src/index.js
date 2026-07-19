@@ -462,6 +462,36 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
 });
 
 // Admin endpoint to check thumbnail status
+// TEMP backfill — re-encodes oversized cover PNGs to right-sized JPEGs.
+app.post('/api/admin/recompress-covers', async (req, res) => {
+  const { limit } = req.body || {};
+  try {
+    const { recompressCoverByUrl } = await import('./cover-art.js');
+    const { rows } = await pool.query(
+      `SELECT DISTINCT thumbnail FROM games
+        WHERE thumbnail LIKE '%/covers/%'
+        ${limit ? `LIMIT ${parseInt(limit, 10)}` : ''}`
+    );
+
+    res.json({ success: true, message: `Recompressing ${rows.length} covers`, total: rows.length });
+
+    let done = 0, failed = 0, before = 0, after = 0;
+    for (const row of rows) {
+      try {
+        const r = await recompressCoverByUrl(row.thumbnail);
+        if (r) { before += r.before; after += r.after; done += 1; }
+      } catch (e) {
+        failed += 1;
+        console.warn('[recompress] failed', row.thumbnail, e.message);
+      }
+    }
+    console.log(`[recompress] done=${done} failed=${failed} ${(before/1048576).toFixed(1)}MB -> ${(after/1048576).toFixed(1)}MB`);
+  } catch (e) {
+    console.error('recompress-covers error:', e);
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+  }
+});
+
 // TEMP backfill — strips pipeline scaffolding out of existing descriptions.
 app.post('/api/admin/fix-descriptions', async (req, res) => {
   const { dryRun } = req.body || {};

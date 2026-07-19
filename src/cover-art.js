@@ -371,6 +371,10 @@ async function callOpenAiImage(prompt, { retries = 3 } = {}) {
                 prompt,
                 size: '1024x1536',
                 quality: 'low',
+                // Default is PNG (~1.9MB). JPEG keeps the download small;
+                // saveCoverBuffer still resizes/re-encodes before upload.
+                output_format: 'jpeg',
+                output_compression: 85,
             });
 
             const b64 = response?.data?.[0]?.b64_json;
@@ -390,17 +394,46 @@ async function callOpenAiImage(prompt, { retries = 3 } = {}) {
 
 // --- Saving -----------------------------------------------------------------
 
+// Covers are displayed at most ~360px wide (feed poster); 720px keeps a
+// retina-sharp image at a fraction of the bytes.
+const COVER_MAX_WIDTH = 720;
+const COVER_MAX_HEIGHT = 1080;
+const COVER_QUALITY = 82;
+
+/**
+ * Normalise any provider's output to a real, right-sized JPEG.
+ *
+ * gpt-image-1 returns ~1.9MB PNGs; those were being uploaded raw under a
+ * .jpg name with an image/jpeg content-type, so the feed was pulling
+ * ~2MB per card. Re-encoding here fixes every provider at once.
+ */
+export async function compressCoverBuffer(buffer) {
+    try {
+        const sharp = await import('sharp').then(m => m.default);
+        return await sharp(buffer)
+            .rotate()
+            .resize(COVER_MAX_WIDTH, COVER_MAX_HEIGHT, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: COVER_QUALITY, mozjpeg: true })
+            .toBuffer();
+    } catch (err) {
+        console.warn('[cover-art] compression failed, storing original:', err.message);
+        return buffer;
+    }
+}
+
 async function saveCoverBuffer(gameId, buffer) {
     const safeId = String(gameId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
     const filename = `${safeId}.jpg`;
-    
+
+    const body = await compressCoverBuffer(buffer);
+
     // Only try R2 if properly configured
     if (process.env.R2_BUCKET_NAME && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
         try {
             const command = new PutObjectCommand({
                 Bucket: process.env.R2_BUCKET_NAME,
                 Key: `covers/${filename}`,
-                Body: buffer,
+                Body: body,
                 ContentType: 'image/jpeg',
                 CacheControl: 'public, max-age=31536000',
             });
@@ -487,6 +520,37 @@ export async function generateAndApplyCover(pool, { draftId, gameId, title, prom
 
     console.log(`[cover-art] ✓ saved ${url} (draft=${draftId})`);
     return url;
+}
+
+/**
+ * Re-encode an already-uploaded cover in place (same key, same URL).
+ * Used to shrink the ~1.9MB PNGs that were stored before compression
+ * was added. Returns { before, after } byte counts, or null if skipped.
+ */
+export async function recompressCoverByUrl(url) {
+    if (!url || !url.includes('/covers/')) return null;
+    if (!process.env.R2_BUCKET_NAME || !process.env.R2_ACCESS_KEY_ID) return null;
+
+    const filename = path.basename(new URL(url).pathname);
+    if (!filename) return null;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    const original = Buffer.from(await res.arrayBuffer());
+
+    const compressed = await compressCoverBuffer(original);
+    // Already small enough — don't churn the object for nothing.
+    if (compressed.length >= original.length) return { before: original.length, after: original.length, skipped: true };
+
+    await s3Client.send(new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: `covers/${filename}`,
+        Body: compressed,
+        ContentType: 'image/jpeg',
+        CacheControl: 'public, max-age=31536000',
+    }));
+
+    return { before: original.length, after: compressed.length };
 }
 
 export async function deleteCoverAsset(url) {
