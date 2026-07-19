@@ -466,7 +466,7 @@ app.post('/api/admin/regenerate-thumbnails', async (req, res) => {
 app.post('/api/admin/fix-descriptions', async (req, res) => {
   const { dryRun } = req.body || {};
   try {
-    const { cleanGameDescription, hasStructuredDescription, generateGameDescription } = await import('./ai-engine/routes.js');
+    const { cleanGameDescription } = await import('./ai-engine/routes.js');
     const { rows } = await pool.query(
       `SELECT g.id, g.name, g.description, ag.prompt, ag.title
          FROM games g
@@ -478,11 +478,8 @@ app.post('/api/admin/fix-descriptions', async (req, res) => {
     const samples = [];
     for (const row of rows) {
       const source = row.prompt || row.description.replace(/^Multi-Engine AI Creation:\s*/i, '');
-      let cleaned = cleanGameDescription(source, row.title || row.name);
-      if (!hasStructuredDescription(source)) {
-        cleaned = (await generateGameDescription({ title: row.title || row.name, prompt: source })) || cleaned;
-      }
-      if (!cleaned || cleaned === row.description) continue;
+      const cleaned = cleanGameDescription(source, row.title || row.name);
+      if (cleaned === row.description) continue;
       if (samples.length < 5) samples.push({ name: row.name, before: row.description.slice(0, 80), after: cleaned });
       if (!dryRun) {
         await pool.query('UPDATE games SET description = $1 WHERE id = $2', [cleaned, row.id]);

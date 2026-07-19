@@ -916,7 +916,7 @@ async function classifyAndStoreDraft({ draftId, title = '', prompt = '', htmlPay
 }
 
 /**
- * Pull a clean, human-readable blurb out of a generation prompt.
+ * Pull the player-facing blurb out of a generation prompt.
  *
  * Prompts arrive as a structured blob:
  *   Multi-Engine AI Creation: <user prompt>
@@ -925,14 +925,11 @@ async function classifyAndStoreDraft({ draftId, title = '', prompt = '', htmlPay
  *   Description: <the blurb we actually want>
  *       Features: <list>
  *
- * Storing that raw made the feed caption show pipeline scaffolding
- * ("Multi-Engine AI Creation:", a repeated title, "Description:").
+ * Only that Description: block is fit to show. Prompts without one are
+ * raw specs, generator instructions, or template scaffolding
+ * ("Published from template: X"), so they return '' and the feed simply
+ * omits the line rather than leaking pipeline internals.
  */
-/** True when a prompt carries a real `Description:` block we can lift verbatim. */
-export function hasStructuredDescription(raw) {
-    return /^\s*Description:\s*\S/mi.test(String(raw || ''));
-}
-
 export function cleanGameDescription(raw, title = '') {
     const text = String(raw || '');
     const SECTIONS = 'Features|Controls|Mechanics|Goal|Objective|How to play|Win condition|Scoring';
@@ -940,75 +937,22 @@ export function cleanGameDescription(raw, title = '') {
     const descMatch = text.match(
         new RegExp(String.raw`^\s*Description:\s*([\s\S]*?)(?=\n\s*(?:${SECTIONS})\s*:|$)`, 'mi')
     );
+    if (!descMatch) return '';
 
-    let out = descMatch ? descMatch[1] : '';
-    if (!out.trim()) {
-        // No structured block — strip the pipeline prefix and any Title: line.
-        out = text
-            .replace(/^Multi-Engine AI Creation:\s*/i, '')
-            .replace(/^\s*Title:.*$/gim, '')
-            .replace(/^\s*Description:\s*/gim, '');
-    }
-
-    // Strip instruction preambles aimed at the generator, not the player.
-    out = out
-        .replace(/^Published from template:.*$/gim, '')
-        .replace(/^Create (?:a|an) [^:]*(?:game|experience)[^:]*from this[^:]*:\s*/i, '')
-        .replace(/^Make (?:a|an) [^:]*(?:game|experience)[^:]*:\s*/i, '');
-
-    out = out.replace(/\s+/g, ' ').trim();
+    let out = descMatch[1].replace(/\s+/g, ' ').trim();
 
     // Don't echo the title straight back at the reader.
     const t = String(title || '').trim();
     if (t && out.toLowerCase().startsWith(t.toLowerCase())) {
-        out = out.slice(t.length).replace(/^[\s:.–—-]+/, '');
+        out = out.slice(t.length).replace(/^[\s:.\u2013\u2014-]+/, '');
     }
 
     return out.slice(0, 300).trim();
 }
 
-/**
- * Write a short player-facing blurb when the prompt has no usable
- * Description: block (raw specs, generator instructions, template
- * scaffolding). Returns '' on any failure so callers can fall back.
- */
-export async function generateGameDescription({ title, prompt }) {
-    // OpenAI rather than DeepSeek: the DeepSeek account returns 402
-    // Insufficient Balance, which this function's catch would swallow into
-    // an empty string, silently leaving scaffolding in the feed.
-    if (!process.env.OPENAI_API_KEY) return '';
-    try {
-        const OpenAI = await import('openai').then(m => m.default);
-        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const res = await client.chat.completions.create({
-            model: 'gpt-4o-mini',
-            temperature: 0.7,
-            max_tokens: 90,
-            messages: [{
-                role: 'user',
-                content: `Write a one-sentence description for a mobile game, for players browsing a game feed.
-
-Game title: ${title}
-Internal notes: ${String(prompt || '').slice(0, 900)}
-
-Rules: max 18 words. Say what the player DOES. Present tense, second person or imperative. No title repetition, no marketing fluff, no quotes, no trailing period-heavy lists. Return ONLY the sentence.`,
-            }],
-        });
-        return String(res.choices?.[0]?.message?.content || '').trim().replace(/^["']|["']$/g, '').slice(0, 200);
-    } catch {
-        return '';
-    }
-}
-
 async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClassification = false }) {
     const globalId = `gm-ai-${String(draftId).substring(0, 8)}`;
-    // Prompts with a Description: block already carry a player-facing blurb.
-    // Anything else is a raw spec or generator instruction, so have the model
-    // write one instead of showing scaffolding in the feed.
-    let description = cleanGameDescription(draft.prompt, draft.title);
-    if (!hasStructuredDescription(draft.prompt)) {
-        description = (await generateGameDescription({ title: draft.title, prompt: draft.prompt })) || description;
-    }
+    const description = cleanGameDescription(draft.prompt, draft.title);
     const storedClassification = !forceRefreshClassification ? getStoredDraftClassification(draft) : null;
     const classification = storedClassification || await classifyAndStoreDraft({
         draftId,
