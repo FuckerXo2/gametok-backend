@@ -973,15 +973,15 @@ export function cleanGameDescription(raw, title = '') {
  * scaffolding). Returns '' on any failure so callers can fall back.
  */
 export async function generateGameDescription({ title, prompt }) {
-    if (!process.env.DEEPSEEK_API_KEY) return '';
+    // OpenAI rather than DeepSeek: the DeepSeek account returns 402
+    // Insufficient Balance, which this function's catch would swallow into
+    // an empty string, silently leaving scaffolding in the feed.
+    if (!process.env.OPENAI_API_KEY) return '';
     try {
         const OpenAI = await import('openai').then(m => m.default);
-        const client = new OpenAI({
-            baseURL: 'https://api.deepseek.com/v1',
-            apiKey: process.env.DEEPSEEK_API_KEY,
-        });
+        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
         const res = await client.chat.completions.create({
-            model: 'deepseek-chat',
+            model: 'gpt-4o-mini',
             temperature: 0.7,
             max_tokens: 90,
             messages: [{
