@@ -13,8 +13,40 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pkg from 'pg';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getMoonshotTextConfig } from './ai-engine/moonshot-text-client.js';
+import { nextNvidiaTextApiKey, getNvidiaTextKeys } from './ai-engine/nvidia-key-pool.js';
 
 const { Pool } = pkg;
+
+/**
+ * Pick a Kimi text client for prompt-writing. Mirrors the game-generator CLI's
+ * provider logic (kimi-cli-auth.js): Moonshot-direct when its key is set (the
+ * paid primary), otherwise NVIDIA-hosted Kimi K2.6 with a rotated key from the
+ * shared NVIDIA pool. Returns null when no provider is configured.
+ */
+async function getKimiTextClient(env = process.env) {
+    const OpenAI = await import('openai').then((m) => m.default);
+    const moonshot = getMoonshotTextConfig(env);
+    if (moonshot) {
+        return {
+            client: new OpenAI({ apiKey: moonshot.apiKey, baseURL: moonshot.baseURL }),
+            model: moonshot.model,
+            provider: 'moonshot',
+        };
+    }
+    const key = nextNvidiaTextApiKey(env) || getNvidiaTextKeys(env)[0];
+    if (key) {
+        return {
+            client: new OpenAI({
+                apiKey: key,
+                baseURL: String(env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, ''),
+            }),
+            model: String(env.NVIDIA_MODEL || 'moonshotai/kimi-k2.6').trim(),
+            provider: 'nvidia',
+        };
+    }
+    return null;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,23 +193,23 @@ CRITICAL: Include the game title "${titleText}" rendered directly in the artwork
 Return ONLY the image generation prompt, no explanations or meta-commentary.`;
 
     try {
-        const OpenAI = await import('openai').then(m => m.default);
-        const client = new OpenAI({
-            baseURL: 'https://api.deepseek.com/v1',
-            apiKey: process.env.DEEPSEEK_API_KEY,
-        });
+        const kimi = await getKimiTextClient();
+        if (!kimi) {
+            throw new Error('no Kimi text provider configured (need MOONSHOT_API_KEY or an NVIDIA key)');
+        }
 
-        const response = await client.chat.completions.create({
-            model: 'deepseek-chat',
+        // NOTE: no `temperature` — Kimi K2.6 rejects custom temperature/top_p
+        // (see ai-engine/moonshot-text-client.js), which would 400 the request.
+        const response = await kimi.client.chat.completions.create({
+            model: kimi.model,
             messages: [{ role: 'user', content: analysisPrompt }],
-            temperature: 0.8,
             max_tokens: 500,
         });
 
         const generatedPrompt = response.choices[0]?.message?.content?.trim();
 
         if (generatedPrompt && generatedPrompt.length > 50) {
-            console.log(`[cover-art] Generated adaptive prompt for "${titleText}"`);
+            console.log(`[cover-art] Generated adaptive prompt (via ${kimi.provider} Kimi) for "${titleText}"`);
             return generatedPrompt;
         }
 
@@ -255,7 +287,8 @@ function buildFallbackPrompt({ title, prompt, classification }) {
 
 /**
  * Build a rich, descriptive prompt for image generation.
- * Uses AI (gpt-4o-mini) to generate truly adaptive prompts.
+ * Uses Kimi K2.6 (NVIDIA-hosted, or Moonshot-direct when configured) to write a
+ * truly adaptive prompt per game; falls back to a template on any failure.
  */
 export async function buildCoverPrompt({ title, prompt, classification }) {
     return await generateAdaptiveThumbnailPrompt({ title, prompt, classification });
