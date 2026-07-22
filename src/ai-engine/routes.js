@@ -793,70 +793,6 @@ function heuristicClassifyGame({ title = '', prompt = '', description = '', html
     };
 }
 
-async function classifyPublishedGame({ title = '', prompt = '', description = '', htmlPayload = '' }) {
-    const heuristic = heuristicClassifyGame({ title, prompt, description, htmlPayload });
-    const htmlSignal = String(htmlPayload || '')
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .slice(0, 1800);
-
-    try {
-        const parsed = await callDeepSeekFlashJson({
-            systemPrompt: `You classify short-form interactive games for a discovery feed.
-Return raw JSON only with this exact schema:
-{
-  "primaryTab": "Explore|Games|Horror|Quiz|Roleplay",
-  "category": "arcade|action|simulation|horror|quiz|puzzle|roleplay|story|creative|tool",
-  "subcategory": "brainrot|casual|satisfying|creative_tool|experimental|meme|arcade|runner|racing|simulator|shooter|platformer|psychological|paranormal|escape|found_footage|cursed_feed|night_shift|trivia|geography|anime|word|memory|impossible|romance|fantasy|school_drama|boyfriend|girlfriend|immersive_world",
-  "interactionType": "arcade_loop|choice_story|drawing_tool|music_toy|quiz_challenge|simulator|horror_vignette|roleplay_story|sandbox|experimental",
-  "tags": ["lowercase-tag"],
-  "confidence": 0.0
-}
-Choose the tab based on the actual experience, not marketing words. Horror is only for genuinely unsettling or fear-driven experiences. Quiz is for question/puzzle/trivia-driven experiences. Roleplay is for character/social/story fantasies. Games is for action/arcade/driving/platformer/simulation play. Explore is for creative tools, experimental pieces, toys, generators, and things that do not fit the other lanes cleanly.`,
-            messages: [{
-                role: 'user',
-                content: JSON.stringify({
-                    title,
-                    prompt,
-                    description,
-                    htmlSignal,
-                    allowedTabs: DISCOVERY_TABS,
-                    allowedCategories: DISCOVERY_CATEGORIES,
-                    allowedSubcategories: DISCOVERY_SUBCATEGORIES,
-                    allowedInteractionTypes: INTERACTION_TYPES,
-                }),
-            }],
-            maxTokens: 220,
-            temperature: 0.1,
-        });
-
-        const primaryTab = DISCOVERY_TABS.includes(parsed?.primaryTab) ? parsed.primaryTab : heuristic.primaryTab;
-        const category = DISCOVERY_CATEGORIES.includes(parsed?.category) ? parsed.category : heuristic.category;
-        const subcategory = DISCOVERY_SUBCATEGORIES.includes(parsed?.subcategory) ? parsed.subcategory : heuristic.subcategory;
-        const interactionType = INTERACTION_TYPES.includes(parsed?.interactionType) ? parsed.interactionType : heuristic.interactionType;
-        const tags = normalizeClassifierTags(parsed?.tags);
-
-        return {
-            primaryTab,
-            category,
-            subcategory,
-            interactionType,
-            tags: tags.length ? tags : heuristic.tags,
-            discoveryChips: deriveDiscoveryChips({
-                primaryTab,
-                subcategory,
-                tags: tags.length ? tags : heuristic.tags,
-            }),
-            confidence: clampClassifierConfidence(parsed?.confidence),
-        };
-    } catch (error) {
-        console.warn('[classifier] Falling back to heuristic classification:', error?.message || error);
-        return heuristic;
-    }
-}
-
 function getStoredDraftClassification(draft = {}) {
     const primaryTab = DISCOVERY_TABS.includes(draft?.primary_tab) ? draft.primary_tab : null;
     const category = DISCOVERY_CATEGORIES.includes(draft?.category) ? draft.category : null;
@@ -877,40 +813,6 @@ function getStoredDraftClassification(draft = {}) {
         discoveryChips,
         confidence: clampClassifierConfidence(draft?.classification_confidence),
     };
-}
-
-async function classifyAndStoreDraft({ draftId, title = '', prompt = '', htmlPayload = '' }) {
-    const description = "Multi-Engine AI Creation: " + prompt;
-    const classification = await classifyPublishedGame({
-        title,
-        prompt,
-        description,
-        htmlPayload,
-    });
-
-    await pool.query(
-        `UPDATE ai_games
-         SET category = $1,
-             subcategory = $2,
-             primary_tab = $3,
-             interaction_type = $4,
-             classification_confidence = $5,
-             classification_tags = $6,
-             discovery_chips = $7
-         WHERE id = $8`,
-        [
-            classification.category,
-            classification.subcategory,
-            classification.primaryTab,
-            classification.interactionType,
-            classification.confidence,
-            JSON.stringify(classification.tags),
-            JSON.stringify(classification.discoveryChips || []),
-            draftId,
-        ]
-    );
-
-    return classification;
 }
 
 /**
@@ -951,26 +853,14 @@ export function cleanGameDescription(raw, title = '') {
 async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClassification = false }) {
     const globalId = `gm-ai-${String(draftId).substring(0, 8)}`;
     const description = cleanGameDescription(draft.prompt, draft.title);
-    const storedClassification = !forceRefreshClassification ? getStoredDraftClassification(draft) : null;
-    const classification = storedClassification || await classifyAndStoreDraft({
-        draftId,
-        title: draft.title,
-        prompt: draft.prompt,
-        htmlPayload: draft.html_payload,
-    });
-
+    // No AI classification anymore (the feed dropped category tabs). Surface any
+    // legacy stored tags a draft already carries; null for anything newer.
+    const classification = getStoredDraftClassification(draft);
     await pool.query(
-        `INSERT INTO games (id, name, description, icon, color, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips, developer, embed_url, thumbnail, preview_video_url, remixed_from, remixed_from_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        `INSERT INTO games (id, name, description, icon, color, developer, embed_url, thumbnail, preview_video_url, remixed_from, remixed_from_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
-            category = EXCLUDED.category,
-            subcategory = EXCLUDED.subcategory,
-            primary_tab = EXCLUDED.primary_tab,
-            interaction_type = EXCLUDED.interaction_type,
-            classification_confidence = EXCLUDED.classification_confidence,
-            classification_tags = EXCLUDED.classification_tags,
-            discovery_chips = EXCLUDED.discovery_chips,
             developer = EXCLUDED.developer,
             thumbnail = EXCLUDED.thumbnail,
             preview_video_url = EXCLUDED.preview_video_url,
@@ -982,13 +872,6 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
             description,
             "✨",
             "#050505",
-            classification.category,
-            classification.subcategory,
-            classification.primaryTab,
-            classification.interactionType,
-            classification.confidence,
-            JSON.stringify(classification.tags),
-            JSON.stringify(classification.discoveryChips || []),
             userId,
             `/api/ai/play/${draftId}`,
             draft.thumbnail,
@@ -6136,20 +6019,14 @@ Please inspect the code files in this directory, fix the bug causing this crash,
     }
 
     // 7. Persist to the existing ai_games row
-    const classification = await classifyPublishedGame({ title: finalTitle, prompt, description: 'Game Generation: ' + prompt, htmlPayload: finalHtml });
     assertJobNotCancelled(jobId);
     await pool.query(
         `UPDATE ai_games
-         SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4,
-             category = $5, subcategory = $6, primary_tab = $7, interaction_type = $8,
-             classification_confidence = $9, classification_tags = $10, discovery_chips = $11,
-             game_url = $13
-         WHERE id = $12`,
-         [finalTitle, finalHtml, rawGameHtml, finalScreenshot,
-          classification.category, classification.subcategory, classification.primaryTab, classification.interactionType,
-          classification.confidence, JSON.stringify(classification.tags), JSON.stringify(classification.discoveryChips || []), jobId, publicGameUrl]
+         SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4, game_url = $5
+         WHERE id = $6`,
+         [finalTitle, finalHtml, rawGameHtml, finalScreenshot, publicGameUrl, jobId]
     );
-    console.log(`✅ [Game-Gen] Complete! "${finalTitle}" saved for job ${jobId} [${classification.primaryTab}/${classification.category}]`);
+    console.log(`✅ [Game-Gen] Complete! "${finalTitle}" saved for job ${jobId}`);
     await recordGenerationTelemetry(jobId, { engine: 'r2-cdn', resultTitle: finalTitle, durationMs: Date.now() - progStartedAt });
     await reportProgress(100, 'complete', 'Game ready!');
     forgetCancelledJob(jobId);
@@ -6700,13 +6577,6 @@ Output ONLY the complete fixed HTML document.`;
 
         // 5. Save with updated edit history (memory for next edit)
         const newHistory = [...editHistory, instructions];
-        const classification = await classifyPublishedGame({
-            title: finalTitle,
-            prompt: parentDraft.prompt || '',
-            description: `Edited AI game: ${instructions}`,
-            htmlPayload: finalHtml,
-        });
-        
         await pool.query(
             `UPDATE ai_games
              SET title = $1,
@@ -6715,15 +6585,8 @@ Output ONLY the complete fixed HTML document.`;
                  artist_code = $4,
                  thumbnail = $5,
                  preview_video_url = $6,
-                 edit_history = $7,
-                 category = $8,
-                 subcategory = $9,
-                 primary_tab = $10,
-                 interaction_type = $11,
-                 classification_confidence = $12,
-                 classification_tags = $13,
-                 discovery_chips = $14
-             WHERE id = $15`,
+                 edit_history = $7
+             WHERE id = $8`,
             [
                 finalTitle,
                 finalHtml,
@@ -6732,18 +6595,11 @@ Output ONLY the complete fixed HTML document.`;
                 finalScreenshot,
                 null,
                 JSON.stringify(newHistory),
-                classification.category,
-                classification.subcategory,
-                classification.primaryTab,
-                classification.interactionType,
-                classification.confidence,
-                JSON.stringify(classification.tags),
-                JSON.stringify(classification.discoveryChips || []),
                 parentDraftId,
             ]
         );
         markEphemeralJob(newJobId, { status: 'complete', draftId: parentDraftId });
-        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} -> updated draft ${parentDraftId} (history now has ${newHistory.length} edits, ${classification.primaryTab}/${classification.category})`);
+        console.log(`✅ [EDIT JOB] Edit complete for job ${newJobId} -> updated draft ${parentDraftId} (history now has ${newHistory.length} edits)`);
 
     } catch (err) {
         console.error("❌ [EDIT JOB] Error:", err);
