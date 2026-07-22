@@ -191,9 +191,12 @@ CRITICAL Rules:
     let provider = auth.provider || 'unknown';
 
     // Budget: how many extra NVIDIA keys we're willing to burn on one generation.
-    // Capped so a global outage doesn't chew the whole pool or stall forever.
+    // Capped so a global outage doesn't chew the whole pool (20+ keys) or stall
+    // forever — each retry is a full CLI re-run. Tune with KIMI_MAX_PROVIDER_RETRIES
+    // (default 3); never more than the pool size.
     const nvidiaKeyCount = getNvidiaTextKeys(runEnv).length;
-    const maxProviderRetries = provider === 'existing' ? 0 : Math.min(nvidiaKeyCount, 3);
+    const retryCap = Math.max(0, Number(process.env.KIMI_MAX_PROVIDER_RETRIES ?? 3) || 0);
+    const maxProviderRetries = provider === 'existing' ? 0 : Math.min(nvidiaKeyCount, retryCap);
 
     console.log(`🤖 [Kimi Runner] Spawning global Kimi CLI (${kimiCmd}, provider "${provider}", ${nvidiaKeyCount} NVIDIA key(s)) in: ${projectRoot}`);
     let { code, output } = await spawnKimiOnce(kimiCmd, kimiArgs, spawnOpts).catch((err) => {
