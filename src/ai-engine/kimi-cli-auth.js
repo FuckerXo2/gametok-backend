@@ -20,6 +20,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { getNvidiaTextKeys, nextNvidiaTextApiKey } from './nvidia-key-pool.js';
 
 /** Where the CLI looks for its config. KIMI_CODE_HOME wins, else ~/.kimi-code. */
 export function resolveKimiHome(env = process.env) {
@@ -34,7 +35,7 @@ export function resolveKimiHome(env = process.env) {
  *   - Kimi Code (api.kimi.com)    → native, so type = "kimi"
  * Valid types: anthropic | openai | kimi | google-genai | openai_responses | vertexai
  */
-export function buildKimiConfigToml({ apiKey, baseUrl, model, providerType }) {
+export function buildKimiConfigToml({ apiKey, baseUrl, model, providerType, contextSize = 262144 }) {
     // The models table key must be the EXACT model name, quoted — the CLI looks
     // up `[models."<default_model>"]` verbatim. Sanitizing the dot out of
     // "kimi-k2.7" produces: 'Model "kimi-k2.7" is not configured in config.toml'.
@@ -52,7 +53,7 @@ base_url = "${baseUrl}"
 [models.${modelKey}]
 provider = "gametok"
 model = "${model}"
-max_context_size = 262144
+max_context_size = ${contextSize}
 `;
 }
 
@@ -78,10 +79,15 @@ export function ensureKimiCliAuth(env = process.env) {
         // No config yet — that's the case we're here to fix.
     }
 
-    // Moonshot key is what this project actually has (MOONSHOT_API_KEY).
-    // KIMI_CODE_API_KEY would be a native Kimi Code platform key.
+    // Provider precedence: Moonshot is the intended primary; NVIDIA's hosted Kimi
+    // is the fallback under it; KIMI_CODE stays as a last-resort native fallback.
+    // NOTE: "fallback" here means BY ABSENCE — if no MOONSHOT_API_KEY is set, we
+    // use NVIDIA. This config is written ONCE per spawn, so a *broken* Moonshot
+    // key does NOT auto-fail-over at request time; it just errors. For the demo,
+    // leave MOONSHOT_API_KEY unset and NVIDIA runs; set it once Moonshot is paid.
     const moonshotKey = String(env.MOONSHOT_API_KEY || '').trim();
     const kimiCodeKey = String(env.KIMI_CODE_API_KEY || env.KIMI_API_KEY || '').trim();
+    const nvidiaKey = nextNvidiaTextApiKey(env) || getNvidiaTextKeys(env)[0] || '';
 
     let settings;
     if (moonshotKey) {
@@ -90,6 +96,17 @@ export function ensureKimiCliAuth(env = process.env) {
             baseUrl: String(env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1').replace(/\/+$/, ''),
             model: String(env.MOONSHOT_MODEL || 'kimi-k2.7').trim(),
             providerType: 'openai', // Moonshot's API is OpenAI-compatible
+            contextSize: Number(env.MOONSHOT_MAX_CONTEXT || 262144),
+        };
+    } else if (nvidiaKey) {
+        // Fallback: NVIDIA API catalog hosts Kimi K2.6, OpenAI-compatible.
+        // Slug + 256K context verified against docs.api.nvidia.com (moonshotai-kimi-k2-6).
+        settings = {
+            apiKey: nvidiaKey,
+            baseUrl: String(env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, ''),
+            model: String(env.NVIDIA_MODEL || 'moonshotai/kimi-k2.6').trim(),
+            providerType: 'openai', // NVIDIA's catalog is OpenAI-compatible
+            contextSize: Number(env.NVIDIA_MAX_CONTEXT || 262144),
         };
     } else if (kimiCodeKey) {
         settings = {
@@ -97,9 +114,10 @@ export function ensureKimiCliAuth(env = process.env) {
             baseUrl: String(env.KIMI_CODE_BASE_URL || 'https://api.kimi.com/coding/v1').replace(/\/+$/, ''),
             model: String(env.MOONSHOT_MODEL || 'kimi-k2.7').trim(),
             providerType: 'kimi',
+            contextSize: Number(env.KIMI_CODE_MAX_CONTEXT || 262144),
         };
     } else {
-        return { ok: false, reason: 'no MOONSHOT_API_KEY or KIMI_CODE_API_KEY in environment' };
+        return { ok: false, reason: 'no NVIDIA_API_KEY, MOONSHOT_API_KEY, or KIMI_CODE_API_KEY in environment' };
     }
 
     try {

@@ -75,7 +75,7 @@ CRITICAL Rules:
         console.log(`🔑 [Kimi Runner] Auth ready: ${auth.reason}`);
     } else {
         console.error(`❌ [Kimi Runner] KIMI CLI IS NOT AUTHENTICATED: ${auth.reason}`);
-        console.error(`   The CLI will fail with "No model configured". Set MOONSHOT_API_KEY.`);
+        console.error(`   The CLI will fail with "No model configured". Set NVIDIA_API_KEY (default) or MOONSHOT_API_KEY.`);
     }
 
     // Determine target kimi executable by checking multiple possible container/system paths
