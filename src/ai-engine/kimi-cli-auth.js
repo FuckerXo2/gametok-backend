@@ -58,66 +58,118 @@ max_context_size = ${contextSize}
 }
 
 /**
- * Write config.toml if the CLI has no credentials yet.
- *
- * Safe to call before every spawn: it never clobbers an existing config that
- * already carries a provider (e.g. a real `kimi login` on a dev machine).
- *
- * @returns {{ ok: boolean, reason: string, configPath?: string }}
+ * Build the settings object for one provider, or null if its key is missing.
+ * `provider`:
+ *   - 'moonshot'  → api.moonshot.ai (the intended primary, once paid)
+ *   - 'nvidia'    → integrate.api.nvidia.com hosted Kimi K2.6 (fallback)
+ *   - 'kimi-code' → api.kimi.com native (last resort)
+ * Each result carries a `.provider` tag so callers can log/branch on it.
  */
-export function ensureKimiCliAuth(env = process.env) {
-    const kimiHome = resolveKimiHome(env);
-    const configPath = path.join(kimiHome, 'config.toml');
-
-    // Respect an existing authenticated config — don't overwrite a real login.
-    try {
-        const existing = fs.readFileSync(configPath, 'utf-8');
-        if (/\[providers\./.test(existing)) {
-            return { ok: true, reason: 'existing config.toml already has a provider', configPath };
-        }
-    } catch {
-        // No config yet — that's the case we're here to fix.
-    }
-
-    // Provider precedence: Moonshot is the intended primary; NVIDIA's hosted Kimi
-    // is the fallback under it; KIMI_CODE stays as a last-resort native fallback.
-    // NOTE: "fallback" here means BY ABSENCE — if no MOONSHOT_API_KEY is set, we
-    // use NVIDIA. This config is written ONCE per spawn, so a *broken* Moonshot
-    // key does NOT auto-fail-over at request time; it just errors. For the demo,
-    // leave MOONSHOT_API_KEY unset and NVIDIA runs; set it once Moonshot is paid.
-    const moonshotKey = String(env.MOONSHOT_API_KEY || '').trim();
-    const kimiCodeKey = String(env.KIMI_CODE_API_KEY || env.KIMI_API_KEY || '').trim();
-    const nvidiaKey = nextNvidiaTextApiKey(env) || getNvidiaTextKeys(env)[0] || '';
-
-    let settings;
-    if (moonshotKey) {
-        settings = {
-            apiKey: moonshotKey,
+function buildProviderSettings(provider, env = process.env) {
+    if (provider === 'moonshot') {
+        const key = String(env.MOONSHOT_API_KEY || '').trim();
+        if (!key) return null;
+        return {
+            provider: 'moonshot',
+            apiKey: key,
             baseUrl: String(env.MOONSHOT_BASE_URL || 'https://api.moonshot.ai/v1').replace(/\/+$/, ''),
             model: String(env.MOONSHOT_MODEL || 'kimi-k2.7').trim(),
             providerType: 'openai', // Moonshot's API is OpenAI-compatible
             contextSize: Number(env.MOONSHOT_MAX_CONTEXT || 262144),
         };
-    } else if (nvidiaKey) {
-        // Fallback: NVIDIA API catalog hosts Kimi K2.6, OpenAI-compatible.
+    }
+    if (provider === 'nvidia') {
+        // NVIDIA API catalog hosts Kimi K2.6, OpenAI-compatible.
         // Slug + 256K context verified against docs.api.nvidia.com (moonshotai-kimi-k2-6).
-        settings = {
-            apiKey: nvidiaKey,
+        const key = nextNvidiaTextApiKey(env) || getNvidiaTextKeys(env)[0] || '';
+        if (!key) return null;
+        return {
+            provider: 'nvidia',
+            apiKey: key,
             baseUrl: String(env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, ''),
             model: String(env.NVIDIA_MODEL || 'moonshotai/kimi-k2.6').trim(),
             providerType: 'openai', // NVIDIA's catalog is OpenAI-compatible
             contextSize: Number(env.NVIDIA_MAX_CONTEXT || 262144),
         };
-    } else if (kimiCodeKey) {
-        settings = {
-            apiKey: kimiCodeKey,
+    }
+    if (provider === 'kimi-code') {
+        const key = String(env.KIMI_CODE_API_KEY || env.KIMI_API_KEY || '').trim();
+        if (!key) return null;
+        return {
+            provider: 'kimi-code',
+            apiKey: key,
             baseUrl: String(env.KIMI_CODE_BASE_URL || 'https://api.kimi.com/coding/v1').replace(/\/+$/, ''),
             model: String(env.MOONSHOT_MODEL || 'kimi-k2.7').trim(),
             providerType: 'kimi',
             contextSize: Number(env.KIMI_CODE_MAX_CONTEXT || 262144),
         };
-    } else {
-        return { ok: false, reason: 'no NVIDIA_API_KEY, MOONSHOT_API_KEY, or KIMI_CODE_API_KEY in environment' };
+    }
+    return null;
+}
+
+/**
+ * Pick the provider settings for a given preference.
+ *
+ * Precedence (preference 'auto'): Moonshot is the intended primary; NVIDIA's
+ * hosted Kimi is the fallback under it; KIMI_CODE is a last-resort native fallback.
+ * NOTE: absence-based — a *broken* Moonshot key still wins here (its presence is
+ * all we can see). The runtime fail-over that recovers from a broken key lives in
+ * the runner (maker-kimi-cli-runner.js): it detects a billing/auth failure and
+ * re-runs with preference 'nvidia'.
+ *
+ * @param {string} preference 'auto' | 'moonshot' | 'nvidia' | 'kimi-code'
+ * @returns {object|null} settings with a `.provider` tag, or null if unavailable
+ */
+export function resolveKimiSettings(env = process.env, preference = 'auto') {
+    if (preference !== 'auto') return buildProviderSettings(preference, env);
+    return (
+        buildProviderSettings('moonshot', env) ||
+        buildProviderSettings('nvidia', env) ||
+        buildProviderSettings('kimi-code', env)
+    );
+}
+
+/** Which fallback providers (other than the one already tried) are configured. */
+export function availableKimiProviders(env = process.env) {
+    return ['moonshot', 'nvidia', 'kimi-code'].filter((p) => buildProviderSettings(p, env));
+}
+
+/**
+ * Write config.toml if the CLI has no credentials yet.
+ *
+ * Safe to call before every spawn: by default it never clobbers an existing
+ * config that already carries a provider (e.g. a real `kimi login` on a dev
+ * machine). Pass `{ force: true }` to overwrite regardless — the runtime
+ * fail-over uses this to swap a broken provider for the fallback mid-run.
+ *
+ * @param {object} env
+ * @param {{ preference?: string, force?: boolean }} opts
+ * @returns {{ ok: boolean, reason: string, configPath?: string, provider?: string }}
+ */
+export function ensureKimiCliAuth(env = process.env, opts = {}) {
+    const { preference = 'auto', force = false } = opts;
+    const kimiHome = resolveKimiHome(env);
+    const configPath = path.join(kimiHome, 'config.toml');
+
+    // Respect an existing authenticated config — don't overwrite a real login —
+    // unless the caller is forcing a specific provider (the fail-over path).
+    if (!force) {
+        try {
+            const existing = fs.readFileSync(configPath, 'utf-8');
+            if (/\[providers\./.test(existing)) {
+                return { ok: true, reason: 'existing config.toml already has a provider', configPath, provider: 'existing' };
+            }
+        } catch {
+            // No config yet — that's the case we're here to fix.
+        }
+    }
+
+    const settings = resolveKimiSettings(env, preference);
+    if (!settings) {
+        const reason = preference === 'auto'
+            ? 'no NVIDIA_API_KEY, MOONSHOT_API_KEY, or KIMI_CODE_API_KEY in environment'
+            : `no credentials configured for provider "${preference}"`;
+        return { ok: false, reason };
     }
 
     try {
@@ -125,8 +177,9 @@ export function ensureKimiCliAuth(env = process.env) {
         fs.writeFileSync(configPath, buildKimiConfigToml(settings), { mode: 0o600 });
         return {
             ok: true,
-            reason: `wrote config.toml (provider type "${settings.providerType}", base_url ${settings.baseUrl}, model ${settings.model})`,
+            reason: `wrote config.toml (provider "${settings.provider}", type "${settings.providerType}", base_url ${settings.baseUrl}, model ${settings.model})`,
             configPath,
+            provider: settings.provider,
         };
     } catch (err) {
         return { ok: false, reason: `failed to write ${configPath}: ${err.message}` };
