@@ -20,14 +20,6 @@ function readPool(env, names = []) {
     return keys;
 }
 
-function readDedicatedPool(env, dedicatedNames = [], fallbackNames = []) {
-    for (const name of dedicatedNames) {
-        const keys = parseKeyList(env[name]);
-        if (keys.length > 0) return keys;
-    }
-    return readPool(env, fallbackNames);
-}
-
 export function getNvidiaImageKeys(env = process.env) {
     // Prefer dedicated image pools, then merge legacy NVIDIA keys (deduped).
     // DeepSeek handles text generation; NVIDIA keys are primarily for FLUX image NIM.
@@ -41,12 +33,16 @@ export function getNvidiaImageKeys(env = process.env) {
 }
 
 export function getNvidiaTextKeys(env = process.env) {
-    // Prefer explicit text pools; otherwise fall back to legacy NVIDIA_API_KEY.
-    return readDedicatedPool(
-        env,
-        ['NIM_TEXT_API_KEYS', 'NVIDIA_TEXT_API_KEYS', 'DREAMSTREAM_NVIDIA_API_KEYS'],
-        ['NVIDIA_API_KEY', 'NIM_API_KEYS', 'NVIDIA_NIM_API_KEY'],
-    );
+    // An nvapi key is fungible — the same key serves both the text (Kimi) and
+    // image (FLUX) NIM endpoints — and each key has its own rate limit. So for
+    // the Kimi CLI we MERGE every NVIDIA key we know about into one rotating
+    // pool (deduped), including the "image" vars, which are just idle nvapi keys
+    // now that cover art runs on OpenAI. More keys = more rate-limit headroom.
+    return readPool(env, [
+        'NIM_TEXT_API_KEYS', 'NVIDIA_TEXT_API_KEYS', 'DREAMSTREAM_NVIDIA_API_KEYS',
+        'NVIDIA_API_KEY', 'NIM_API_KEYS', 'NVIDIA_NIM_API_KEY',
+        'NIM_IMAGE_API_KEYS', 'NVIDIA_IMAGE_API_KEYS',
+    ]);
 }
 
 function nextKey(poolName, keys = []) {

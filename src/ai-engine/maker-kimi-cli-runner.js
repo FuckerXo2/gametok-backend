@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureKimiCliAuth, availableKimiProviders } from './kimi-cli-auth.js';
+import { getNvidiaTextKeys } from './nvidia-key-pool.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -132,11 +133,19 @@ CRITICAL Rules:
 9. Exit once the build is successful.
 `;
 
+    // Give this generation its own KIMI_CODE_HOME so concurrent generations don't
+    // race on a single config.toml — and so each run writes a fresh config,
+    // letting the NVIDIA key rotate per generation across the pool's rate limits.
+    // If the operator set KIMI_CODE_HOME globally (a real `kimi login` on a dev
+    // box), we honor it and the auth layer leaves that login untouched.
+    const kimiHome = process.env.KIMI_CODE_HOME || path.join(projectRoot, '.kimi-home');
+    const runEnv = { ...process.env, KIMI_CODE_HOME: kimiHome };
+
     // The CLI cannot read an API key from the environment — it only reads
     // <KIMI_CODE_HOME>/config.toml (normally written by the interactive `kimi
     // login`). Write that file ourselves, or the spawn below dies with
     // "No model configured" before generating anything.
-    const auth = ensureKimiCliAuth();
+    const auth = ensureKimiCliAuth(runEnv);
     if (auth.ok) {
         console.log(`🔑 [Kimi Runner] Auth ready: ${auth.reason}`);
     } else {
@@ -171,38 +180,43 @@ CRITICAL Rules:
         '--yolo', // Auto-approve file modifications and shell executions (like npm run build)
         '--output-format', 'text'
     ];
-    const spawnOpts = { cwd: projectRoot, env: { ...process.env } };
+    const spawnOpts = { cwd: projectRoot, env: runEnv };
 
-    // The CLI owns the actual API calls, so a billing/auth failure (e.g. an
-    // unpaid Moonshot key) surfaces only AFTER the run, as a non-zero exit with a
-    // telltale error in the output. We can't catch it mid-call, so we fail over
-    // the whole spawn: detect the signature, force the config to NVIDIA, and
-    // re-run once. `provider` here is whichever provider the config was written
-    // with ('existing' when a real login owns the config — we don't override that).
+    // The CLI owns the actual API calls, so a provider failure (an unpaid Moonshot
+    // key, a rate-limited or invalid NVIDIA key) surfaces only AFTER the run, as a
+    // non-zero exit with a telltale error in the output. We can't catch it
+    // mid-call, so we fail over the whole spawn: detect the signature, force the
+    // config to the next NVIDIA key, and re-run. This covers BOTH Moonshot→NVIDIA
+    // and NVIDIA-key→next-NVIDIA-key (a 429 on one key rotates to another).
     let provider = auth.provider || 'unknown';
 
-    console.log(`🤖 [Kimi Runner] Spawning global Kimi CLI (${kimiCmd}, provider "${provider}") in: ${projectRoot}`);
+    // Budget: how many extra NVIDIA keys we're willing to burn on one generation.
+    // Capped so a global outage doesn't chew the whole pool or stall forever.
+    const nvidiaKeyCount = getNvidiaTextKeys(runEnv).length;
+    const maxProviderRetries = provider === 'existing' ? 0 : Math.min(nvidiaKeyCount, 3);
+
+    console.log(`🤖 [Kimi Runner] Spawning global Kimi CLI (${kimiCmd}, provider "${provider}", ${nvidiaKeyCount} NVIDIA key(s)) in: ${projectRoot}`);
     let { code, output } = await spawnKimiOnce(kimiCmd, kimiArgs, spawnOpts).catch((err) => {
         console.error(`❌ [Kimi Runner] Failed to start Kimi CLI process:`, err);
         throw err;
     });
     console.log(`ℹ [Kimi Runner] Kimi CLI exited with code: ${code}`);
 
-    // Fail-over: only when the failure looks like a PROVIDER problem (billing/
-    // auth/quota) — not a plain build error — and NVIDIA is a distinct provider
-    // we haven't already used and have a key for.
-    const canFailOverToNvidia =
+    let retries = 0;
+    // Only retry a PROVIDER-shaped failure (billing/auth/quota) — never a plain
+    // build/codegen error, which another key would just reproduce.
+    while (
         code !== 0 &&
-        provider !== 'nvidia' &&
-        provider !== 'existing' &&
-        availableKimiProviders().includes('nvidia') &&
-        looksLikeProviderFailure(output);
-
-    if (canFailOverToNvidia) {
-        console.warn(`⚠️ [Kimi Runner] Provider "${provider}" hit a billing/auth failure — failing over to NVIDIA and retrying once.`);
-        const nvidiaAuth = ensureKimiCliAuth(process.env, { preference: 'nvidia', force: true });
+        retries < maxProviderRetries &&
+        looksLikeProviderFailure(output) &&
+        availableKimiProviders(runEnv).includes('nvidia')
+    ) {
+        retries += 1;
+        console.warn(`⚠️ [Kimi Runner] Provider "${provider}" hit a billing/auth/rate-limit failure — rotating to next NVIDIA key (retry ${retries}/${maxProviderRetries}).`);
+        const nvidiaAuth = ensureKimiCliAuth(runEnv, { preference: 'nvidia', force: true });
         if (!nvidiaAuth.ok) {
-            throw new Error(`Kimi CLI failed on "${provider}" (exit ${code}) and NVIDIA fail-over could not be configured: ${nvidiaAuth.reason}`);
+            console.error(`❌ [Kimi Runner] Could not configure NVIDIA fail-over: ${nvidiaAuth.reason}`);
+            break;
         }
         console.log(`🔑 [Kimi Runner] Fail-over auth ready: ${nvidiaAuth.reason}`);
         provider = nvidiaAuth.provider || 'nvidia';
@@ -212,9 +226,9 @@ CRITICAL Rules:
             console.error(`❌ [Kimi Runner] Failed to start Kimi CLI process on fail-over:`, err);
             throw err;
         }));
-        console.log(`ℹ [Kimi Runner] Kimi CLI (fail-over) exited with code: ${code}`);
+        console.log(`ℹ [Kimi Runner] Kimi CLI (fail-over ${retries}) exited with code: ${code}`);
     }
 
     if (code === 0) return;
-    throw new Error(`Kimi CLI failed with exit code ${code} (provider "${provider}")`);
+    throw new Error(`Kimi CLI failed with exit code ${code} (provider "${provider}", ${retries} fail-over attempt(s))`);
 }
