@@ -13,6 +13,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +22,77 @@ const __dirname = path.dirname(__filename);
 // ─── Config ───
 const ASSETS_JSON_PATH = path.join(__dirname, 'public/uploads/community-assets.json');
 const UPLOADS_DIR = path.join(__dirname, 'public/uploads');
+
+// ─── R2 re-hosting ───
+// TikTok CDN URLs are signed and expire within hours, so storing them directly
+// leaves the pool dead within a day. Instead we download each video + cover and
+// re-upload to R2, storing the permanent public URL. Mirrors saveCoverBuffer()
+// in src/cover-art.js.
+const R2_READY = Boolean(
+  process.env.R2_BUCKET_NAME &&
+    process.env.R2_ACCESS_KEY_ID &&
+    process.env.R2_SECRET_ACCESS_KEY &&
+    process.env.R2_ACCOUNT_ID,
+);
+const s3Client = R2_READY
+  ? new S3Client({
+      region: 'auto',
+      endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      },
+    })
+  : null;
+const R2_PUBLIC_BASE = (
+  process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`
+).replace(/\/$/, '');
+
+// Download a remote asset (following redirects) and return its bytes, or null.
+async function downloadBuffer(url) {
+  try {
+    const res = await fetch(url, {
+      redirect: 'follow',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Referer: 'https://www.tiktok.com/',
+      },
+    });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+// Upload bytes to R2 under `key`, return the permanent public URL, or null.
+async function uploadToR2(key, buffer, contentType) {
+  if (!s3Client) return null;
+  try {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000',
+      }),
+    );
+    return `${R2_PUBLIC_BASE}/${key}`;
+  } catch (err) {
+    console.error(`   ⚠️  R2 upload failed for ${key}:`, err.message);
+    return null;
+  }
+}
+
+// Download a TikTok media URL and re-host it on R2. Returns the permanent URL,
+// or null if the source is already dead or the upload failed.
+async function rehost(sourceUrl, key, contentType) {
+  const buf = await downloadBuffer(sourceUrl);
+  if (!buf || buf.length === 0) return null;
+  return uploadToR2(key, buf, contentType);
+}
 
 // Parse CLI args
 const args = process.argv.slice(2);
@@ -31,6 +104,9 @@ const getArg = (flag) => {
 const TARGET_COUNT = parseInt(getArg('--count') || '200');
 const MAX_DURATION = parseInt(getArg('--maxdur') || '30'); // seconds
 const CUSTOM_TAGS = getArg('--tags');
+// Optional cap on total videos kept in the pool (0 = unlimited). Newest are kept;
+// used by the recurring auto-refresh so the pool doesn't grow without bound.
+const POOL_CAP = parseInt(getArg('--cap') || '0');
 
 // Actual trending brainrot meme culture hashtags
 const DEFAULT_TAGS = [
@@ -151,6 +227,15 @@ function formatDuration(seconds) {
 async function main() {
   console.log('\n🧠 TikTok Brain Rot Video Fetcher');
   console.log('─'.repeat(50));
+  if (!R2_READY) {
+    console.error(
+      '❌ R2 is not configured (need R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_ACCESS_KEY_ID,\n' +
+        '   R2_SECRET_ACCESS_KEY in the environment / .env). Without it every video\n' +
+        '   would be skipped, since we no longer store raw TikTok URLs. Aborting.',
+    );
+    process.exit(1);
+  }
+  console.log(`☁️  Re-hosting to R2: ${R2_PUBLIC_BASE}`);
   console.log(`📦 Target: ~${TARGET_COUNT} videos (max ${MAX_DURATION}s each)`);
   console.log(`🏷️  Tags: ${SEARCH_TAGS.length} hashtags`);
   console.log(`📂 Output: ${ASSETS_JSON_PATH}`);
@@ -161,6 +246,7 @@ async function main() {
   let totalFetched = 0;
   let totalDupes = 0;
   let totalTooLong = 0;
+  let totalRehostFailed = 0;
   const newAssets = [];
 
   for (const tag of SEARCH_TAGS) {
@@ -180,10 +266,10 @@ async function main() {
       }
 
       for (const video of result.videos) {
-        // Build direct play URL (TikWM provides this)
+        // TikWM's direct play URL — a TikTok CDN link that expires within hours.
         const playUrl = video.play;
         const coverUrl = video.cover || video.origin_cover;
-        
+
         if (!playUrl) continue;
 
         // Skip videos longer than MAX_DURATION seconds
@@ -192,18 +278,36 @@ async function main() {
           continue;
         }
 
-        // Skip duplicates
+        // Skip duplicates (by TikTok source URL, before we re-host).
         if (existingUrls.has(playUrl)) {
           totalDupes++;
           continue;
         }
+        existingUrls.add(playUrl);
+
+        const videoId = video.video_id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const assetId = `tiktok-${videoId}`;
+
+        // Re-host the video on R2. If the source is already dead (403) or the
+        // upload fails, skip it entirely — never store a link we can't serve.
+        const r2VideoUrl = await rehost(playUrl, `videos/${assetId}.mp4`, 'video/mp4');
+        if (!r2VideoUrl) {
+          totalRehostFailed++;
+          continue;
+        }
+
+        // Re-host the cover too (cheap, makes previews instant). Optional — a
+        // missing cover just means the app generates a frame from the video.
+        const r2CoverUrl = coverUrl
+          ? await rehost(coverUrl, `video-covers/${assetId}.jpg`, 'image/jpeg')
+          : null;
 
         const asset = {
-          id: `tiktok-${video.video_id || Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          id: assetId,
           type: 'video',
-          url: playUrl,
-          thumb: coverUrl,
-          thumbnail: coverUrl,
+          url: r2VideoUrl,
+          thumb: r2CoverUrl || undefined,
+          thumbnail: r2CoverUrl || undefined,
           title: (video.title || tag).substring(0, 80),
           label: (video.title || tag).substring(0, 80),
           duration: formatDuration(video.duration),
@@ -212,7 +316,7 @@ async function main() {
         };
 
         newAssets.push(asset);
-        existingUrls.add(playUrl);
+        existingUrls.add(r2VideoUrl);
         tagFetched++;
         totalFetched++;
       }
@@ -232,15 +336,30 @@ async function main() {
     await sleep(500);
   }
 
-  // Merge new assets into existing pool
-  const finalAssets = [...newAssets, ...existingAssets];
+  // Merge new assets into existing pool (newest first).
+  let finalAssets = [...newAssets, ...existingAssets];
+
+  // Optional cap: keep the newest POOL_CAP videos, leave other asset types alone.
+  // (Trimmed videos' R2 objects stay in the bucket — harmless orphans.)
+  let trimmed = 0;
+  if (POOL_CAP > 0) {
+    const videos = finalAssets.filter((a) => a.type === 'video');
+    const others = finalAssets.filter((a) => a.type !== 'video');
+    if (videos.length > POOL_CAP) {
+      trimmed = videos.length - POOL_CAP;
+      finalAssets = [...videos.slice(0, POOL_CAP), ...others];
+    }
+  }
+
   fs.writeFileSync(ASSETS_JSON_PATH, JSON.stringify(finalAssets, null, 2));
 
   console.log('\n' + '═'.repeat(50));
   console.log(`🎉 DONE!`);
-  console.log(`   📥 New videos fetched: ${totalFetched}`);
+  console.log(`   📥 New videos re-hosted: ${totalFetched}`);
   console.log(`   ⏱️  Skipped (too long): ${totalTooLong}`);
   console.log(`   🔁 Duplicates skipped: ${totalDupes}`);
+  console.log(`   💀 Skipped (dead source / upload failed): ${totalRehostFailed}`);
+  if (POOL_CAP > 0) console.log(`   ✂️  Trimmed to cap (${POOL_CAP}): removed ${trimmed} oldest`);
   console.log(`   📦 Total pool size: ${finalAssets.length} assets`);
   console.log(`   💾 Saved to: ${ASSETS_JSON_PATH}`);
   console.log('═'.repeat(50) + '\n');

@@ -1,0 +1,71 @@
+# Auto-refresh the community video pool.
+#
+# Runs the TikTok scraper on a schedule, which downloads fresh clips + covers,
+# re-hosts them to R2 (permanent URLs), and appends them to
+# public/uploads/community-assets.json. The updated file is committed and pushed
+# so Railway redeploys the new pool. Videos live on R2 (durable); the index lives
+# in git (durable) — no ephemeral-disk problem.
+#
+# One-time setup: add these repo secrets (Settings → Secrets and variables →
+# Actions): R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_ACCESS_KEY_ID,
+# R2_SECRET_ACCESS_KEY, R2_PUBLIC_URL.
+
+name: Refresh community videos
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # every Monday 06:00 UTC
+  workflow_dispatch: # manual "Run workflow" button
+    inputs:
+      count:
+        description: How many fresh videos to add
+        default: '60'
+      tags:
+        description: Optional comma-separated search tags (blank = default set)
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-community-videos
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Re-host fresh videos to R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          COUNT: ${{ github.event.inputs.count }}
+          TAGS: ${{ github.event.inputs.tags }}
+        run: |
+          ARGS="--count ${COUNT:-60} --cap 600"
+          if [ -n "$TAGS" ]; then ARGS="$ARGS --tags \"$TAGS\""; fi
+          eval node fetch-tiktok-videos.js $ARGS
+
+      - name: Commit & push updated pool
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/uploads/community-assets.json
+          if git diff --staged --quiet; then
+            echo "No pool changes — nothing to commit."
+          else
+            git commit -m "chore: auto-refresh community videos"
+            git push
+          fi
