@@ -89,19 +89,36 @@ router.post('/upload', upload.single('file'), (req, res) => {
 router.get('/trending', (req, res) => {
   const communityAssets = getCommunityAssets();
   const type = req.query.type;
+
+  // Filter by type (audio = bgm + sfx). No type = everything.
+  let list;
   if (!type) {
-    return res.json({ success: true, assets: communityAssets });
-  }
-
-  // Handle combined bgm and sfx requests
-  let filteredAssets;
-  if (type === 'audio') {
-      filteredAssets = communityAssets.filter(a => a.type === 'bgm' || a.type === 'sfx');
+    list = communityAssets;
+  } else if (type === 'audio') {
+    list = communityAssets.filter((a) => a.type === 'bgm' || a.type === 'sfx');
   } else {
-      filteredAssets = communityAssets.filter(a => a.type === type);
+    list = communityAssets.filter((a) => a.type === type);
   }
 
-  res.json({ success: true, assets: filteredAssets });
+  const total = list.length;
+
+  // Optional pagination. Without ?limit the full list is returned, so existing
+  // callers (and old app builds) are unaffected.
+  const limit = parseInt(req.query.limit, 10);
+  const offset = parseInt(req.query.offset, 10) || 0;
+  if (Number.isFinite(limit) && limit > 0) {
+    const page = list.slice(offset, offset + limit);
+    return res.json({
+      success: true,
+      assets: page,
+      total,
+      offset,
+      limit,
+      hasMore: offset + page.length < total,
+    });
+  }
+
+  res.json({ success: true, assets: list, total });
 });
 
 export default router;
