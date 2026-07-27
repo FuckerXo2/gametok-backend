@@ -412,6 +412,16 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'game_url') THEN
           ALTER TABLE ai_games ADD COLUMN game_url TEXT;
         END IF;
+        -- Play orientation, chosen by the creator in the Forge and fixed for the life of the game.
+        -- Denormalized onto the games table as well so the ~14 feed queries (all SELECT g.* with a
+        -- LEFT JOIN onto ai_games) pick it up without edits. Safe to duplicate because orientation
+        -- is immutable after generation: there is deliberately no edit-orientation affordance.
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'orientation') THEN
+          ALTER TABLE ai_games ADD COLUMN orientation VARCHAR(16) DEFAULT 'portrait';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'orientation') THEN
+          ALTER TABLE games ADD COLUMN orientation VARCHAR(16) DEFAULT 'portrait';
+        END IF;
         -- Make password nullable for OAuth users
         ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
         -- Make username nullable for OAuth users (they pick it during onboarding)

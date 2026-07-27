@@ -1,6 +1,7 @@
 
 import pg from 'pg';
 import puppeteer from 'puppeteer';
+import { viewportFor } from '../src/ai-engine/orientation.js';
 
 const { Pool } = pg;
 
@@ -22,10 +23,10 @@ async function main() {
 
         // Get all AI games that have an HTML payload but no thumbnail
         const draftsResult = await client.query(`
-            SELECT id, title, html_payload 
-            FROM ai_games 
-            WHERE html_payload IS NOT NULL 
-              AND html_payload != '' 
+            SELECT id, title, html_payload, orientation
+            FROM ai_games
+            WHERE html_payload IS NOT NULL
+              AND html_payload != ''
               AND (thumbnail IS NULL OR thumbnail = '')
         `);
 
@@ -38,8 +39,10 @@ async function main() {
             let page = null;
             try {
                 page = await browser.newPage();
-                // Exact mobile dimensions for realistic iOS ratio
-                await page.setViewport({ width: 390, height: 844 });
+                // Exact mobile dimensions for realistic iOS ratio, transposed for landscape games
+                // so the shot matches the box the game actually plays in.
+                const { width, height } = viewportFor(draft.orientation);
+                await page.setViewport({ width, height });
                 
                 // Load HTML and wait 2 seconds for JS execution & drawing
                 await page.setContent(draft.html_payload, { waitUntil: 'load', timeout: 15000 });
@@ -47,7 +50,9 @@ async function main() {
                 
                 // Screenshot canvas area
                 const buffer = await page.screenshot({ type: 'webp', quality: 50 });
-                const base64 = 'data:image/webp;base64,' + buffer.toString('base64');
+                // Buffer.from() required — puppeteer >= 23 returns Uint8Array, whose toString()
+                // ignores 'base64' and comma-joins bytes. See the note in sandbox.js.
+                const base64 = 'data:image/webp;base64,' + Buffer.from(buffer).toString('base64');
                 
                 await client.query(`UPDATE ai_games SET thumbnail = $1 WHERE id = $2`, [base64, draft.id]);
                 

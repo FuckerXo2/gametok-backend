@@ -7,7 +7,20 @@
 // This builder just frames the game idea and the non-asset build rules (engine, controls, layout,
 // juice). It no longer touches the catalog, embeddings, or R2.
 
-export async function buildGamePrompt(userPrompt) {
+// Orientation is stated outright rather than implied. Before this existed the prompt only said
+// "mobile phones inside a WebView", which left the model to guess the aspect ratio — and it guessed
+// portrait, because the "never hardcode 390x844" example read as a portrait hint. A landscape game
+// is played by rotating the WebView's content inside the portrait feed card, so as far as the game
+// is concerned it simply boots into a wide viewport: no orientationchange, no resize, no runtime
+// orientation handling of its own.
+const ORIENTATION_RULES = {
+    portrait: `3. **Responsive Fullscreen (PORTRAIT)**: The viewport is a TALL, NARROW phone screen — roughly 390 wide by 844 high. Design the playfield to run vertically. The game must dynamically fill 100% of the screen: read window width/height dynamically and never hardcode a fixed size. Keep all HUD text, scores, timers, and buttons within a safe area (y ∈ [10%, 90%], x ∈ [5%, 95%]) so they are not cut off. Set html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}.`,
+
+    landscape: `3. **Responsive Fullscreen (LANDSCAPE)**: The viewport is a WIDE, SHORT screen — roughly 844 wide by 390 high. This is a real landscape viewport from the very first frame: do NOT write any rotation, orientationchange, or "please rotate your device" handling, and do NOT assume a portrait phone. Design the playfield to run horizontally (side-scrolling, wide arena, or a track receding into the distance) and use the full width. Vertical space is scarce, so keep the HUD in the CORNERS (score top-left, lives/timer top-right, controls bottom-left and bottom-right) and never in a band across the middle. The game must dynamically fill 100% of the screen: read window width/height dynamically and never hardcode a fixed size. Keep all HUD text, scores, timers, and buttons within a safe area (y ∈ [6%, 94%], x ∈ [4%, 96%]) so they are not cut off. Set html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}.`,
+};
+
+export async function buildGamePrompt(userPrompt, orientation = 'portrait') {
+    const orientationRule = ORIENTATION_RULES[orientation === 'landscape' ? 'landscape' : 'portrait'];
     return {
         system: `You are an expert game developer. Your job is to write a complete, working, mobile-friendly HTML5 web game directly in the project directory using HTML, CSS, and JavaScript.
 
@@ -31,7 +44,7 @@ Load any required game engine/libraries via standard public CDN <script> tags in
    - Move: The player should follow the finger (pointermove/drag/lerp) or tap locations.
    - Act (shoot/jump/flap): Trigger on pointerdown/tap.
 
-3. **Responsive Fullscreen**: The game must dynamically fill 100% of the screen. Read window width/height dynamically; never hardcode a fixed size like 390x844. Keep all HUD text, scores, timers, and buttons within a safe area (y ∈ [10%, 90%], x ∈ [5%, 95%]) so they are not cut off. Set html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}.
+${orientationRule}
 
 4. **Designed Environments**: Environments must look visually appealing (gradients, layers, textured ground, details). Banned: a single flat background color, or plain wireframe grid.
 

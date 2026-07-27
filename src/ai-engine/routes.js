@@ -112,6 +112,7 @@ import {
 } from './maker-foundation-agent.js';
 import { buildKernelScaffold } from './maker-kernel-scaffold.js';
 import { buildGamePrompt } from './maker-game-prompt.js';
+import { normalizeOrientation, DEFAULT_ORIENTATION } from './orientation.js';
 import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
@@ -857,7 +858,7 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
     // legacy stored tags a draft already carries; null for anything newer.
     const classification = getStoredDraftClassification(draft);
     await pool.query(
-        `INSERT INTO games (id, name, description, icon, color, developer, embed_url, thumbnail, preview_video_url, remixed_from, remixed_from_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO games (id, name, description, icon, color, developer, embed_url, thumbnail, preview_video_url, remixed_from, remixed_from_username, orientation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
@@ -865,7 +866,8 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
             thumbnail = EXCLUDED.thumbnail,
             preview_video_url = EXCLUDED.preview_video_url,
             remixed_from = EXCLUDED.remixed_from,
-            remixed_from_username = EXCLUDED.remixed_from_username`,
+            remixed_from_username = EXCLUDED.remixed_from_username,
+            orientation = EXCLUDED.orientation`,
         [
             globalId,
             draft.title,
@@ -878,6 +880,9 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
             null,
             draft.remixed_from || null,
             draft.remixed_from_username || null,
+            // Denormalized off the draft so the feed's `SELECT g.*` queries carry it without edits.
+            // Must be in the ON CONFLICT set too, or a republish keeps a stale value.
+            normalizeOrientation(draft.orientation),
         ]
     );
 
@@ -2167,8 +2172,17 @@ async function ensureGenerationQueueSchema() {
     return generationQueueReadyPromise;
 }
 
-async function findActiveDuplicateGenerationJob(userId, kind, prompt) {
+// `orientation` participates in the dedupe key: the same prompt forged once in portrait and once in
+// landscape is two genuinely different games, and without this the second request would collapse
+// onto the first job and come back in the wrong shape.
+async function findActiveDuplicateGenerationJob(userId, kind, prompt, orientation = null) {
     await ensureGenerationQueueSchema();
+    const params = [userId, kind, prompt];
+    let orientationFilter = '';
+    if (orientation) {
+        params.push(normalizeOrientation(orientation));
+        orientationFilter = `AND COALESCE(NULLIF(payload->>'orientation', ''), '${DEFAULT_ORIENTATION}') = $${params.length}`;
+    }
     const result = await pool.query(
         `SELECT id, status, created_at
          FROM generation_jobs
@@ -2176,9 +2190,10 @@ async function findActiveDuplicateGenerationJob(userId, kind, prompt) {
            AND kind = $2
            AND status IN ('queued', 'running')
            AND lower(trim(prompt)) = lower(trim($3))
+           ${orientationFilter}
          ORDER BY created_at DESC
          LIMIT 1`,
-        [userId, kind, prompt]
+        params
     );
     return result.rows[0] || null;
 }
@@ -2194,8 +2209,11 @@ async function enqueueGenerationJob({
     allowDuplicate = false,
 }) {
     await ensureGenerationQueueSchema();
+    // Orientation rides in the job payload but is written onto the draft row up front, so every
+    // downstream reader (generation, sandbox, edit, remix, publish) can just read the row.
+    const orientation = normalizeOrientation(payload?.orientation);
     if (!allowDuplicate) {
-        const duplicate = await findActiveDuplicateGenerationJob(userId, kind, prompt);
+        const duplicate = await findActiveDuplicateGenerationJob(userId, kind, prompt, orientation);
         if (duplicate) {
             console.log(`🏗️ [GEN QUEUE] Deduped ${kind} job for user ${userId} -> existing ${duplicate.id} (${duplicate.status})`);
             scheduleGenerationWorker(0);
@@ -2207,14 +2225,15 @@ async function enqueueGenerationJob({
     try {
         await client.query('BEGIN');
         await client.query(
-            `INSERT INTO ai_games (id, user_id, prompt, title, html_payload, raw_code, is_draft)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `INSERT INTO ai_games (id, user_id, prompt, title, html_payload, raw_code, is_draft, orientation)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT (id) DO UPDATE
              SET title = EXCLUDED.title,
                  html_payload = '',
                  raw_code = '',
-                 prompt = EXCLUDED.prompt`,
-            [jobId, userId, prompt, safeTitle, '', '', true]
+                 prompt = EXCLUDED.prompt,
+                 orientation = EXCLUDED.orientation`,
+            [jobId, userId, prompt, safeTitle, '', '', true, orientation]
         );
         await client.query(
             `INSERT INTO generation_jobs (id, user_id, kind, status, prompt, payload, max_attempts, progress, phase, status_message)
@@ -5936,12 +5955,12 @@ function startLocalServer(projectRoot) {
 // Self-contained Claude-style job: prompt → Kimi CLI → files → local verification → R2 upload → Redirect HTML payload.
 // Persists to the existing ai_games row and returns the same shape executeDreamJob's non-persist
 // path returns. Throws on failure so executeDreamJob's catch marks the job errored.
-async function runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt }) {
-    console.log(`🎮 [Game-Gen] Generating game for job ${jobId} (R2 CDN assets)`);
+async function runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt, orientation = DEFAULT_ORIENTATION }) {
+    console.log(`🎮 [Game-Gen] Generating game for job ${jobId} (R2 CDN assets, ${orientation})`);
     await reportProgress(12, 'spec', 'Reading your idea...');
 
     // 1. Build the game prompt (asset catalog + CDN base URL are injected here).
-    const { system, user } = await buildGamePrompt(prompt);
+    const { system, user } = await buildGamePrompt(prompt, orientation);
     await writeMakerText(makerWorkspace, 'logs/game-prompt.txt', `${system}\n\n---\n\n${user}`);
 
     // 2. Setup project folder
@@ -5968,7 +5987,7 @@ async function runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgr
     let finalScreenshot = null;
     let sandboxRes = null;
     try {
-        sandboxRes = await verifyGame(localServer.url, { sourceHtml: rawGameHtml });
+        sandboxRes = await verifyGame(localServer.url, { sourceHtml: rawGameHtml, orientation });
         finalScreenshot = sandboxRes?.screenshot || null;
     } catch (verifyErr) {
         console.warn(`[Game-Gen] verify skipped: ${verifyErr?.message || verifyErr}`);
@@ -5989,7 +6008,7 @@ Please inspect the code files in this directory, fix the bug causing this crash,
             const repairedFiles = await snapshotMakerSourceFiles(projectRoot, []);
             await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: repairedFiles }, { title: prompt }, 'r2-cdn').catch(() => {});
             try {
-                const rerun = await verifyGame(localServer.url, { sourceHtml: rawGameHtml });
+                const rerun = await verifyGame(localServer.url, { sourceHtml: rawGameHtml, orientation });
                 finalScreenshot = rerun?.screenshot || null;
                 if (rerun?.success) console.log('✅ [Game-Gen] Kimi self-repair passed sandbox.');
                 else console.log(`⚠️ [Game-Gen] Kimi self-repair still fails sandbox: ${String(rerun?.crashes?.[0] || '').slice(0, 200)}`);
@@ -6040,6 +6059,7 @@ Please inspect the code files in this directory, fix the bug causing this crash,
 
 async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload = {}) {
     const persistToDb = jobPayload?.persistToDb !== false;
+    const orientation = normalizeOrientation(jobPayload?.orientation);
     const progressSink = typeof jobPayload?.onProgress === 'function' ? jobPayload.onProgress : null;
     // Progress that never looks frozen. Real milestones snap the bar forward; between them (the long
     // cold-queue first-byte waits and the multi-minute builder stream, where nothing else updates) a
@@ -6102,7 +6122,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         await reportProgress(5, 'maker_workspace', 'Opening GameTok maker workspace...');
         // The Kimi CLI is the entire builder: it talks to the user's idea, plans,
         // fetches assets, writes the game, and self-verifies. No pre-planning phases.
-        return await runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt });
+        return await runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgress, persistToDb, progStartedAt, orientation });
     } catch (err) {
         stopProgressCreep();
         if (isCancellationError(err)) {
@@ -6220,7 +6240,7 @@ async function snapshotMakerSourceFiles(projectRoot, priorFiles = []) {
  * on a clean build — a failed edit throws and never touches the original game. On success the new
  * main.ts is re-snapshotted into maker_project so edits chain.
  */
-async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerProject, instructions) {
+async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerProject, instructions, orientation = DEFAULT_ORIENTATION) {
     const savedTemplateId = makerProject.architecture || 'canvas-kernel';
     console.log(`🛠️ [MAKER EDIT] job ${newJobId} editing ${savedTemplateId} game ${parentDraftId}: "${instructions}"`);
     const savedFiles = Array.isArray(makerProject.files) ? makerProject.files : [];
@@ -6397,7 +6417,7 @@ async function executeMakerEditJob(newJobId, parentDraftId, parentDraft, makerPr
     setEditProgress(90, 'Testing it still plays…');
     let sandboxRes;
     try {
-        sandboxRes = await verifyGame(finalHtml, {});
+        sandboxRes = await verifyGame(finalHtml, { orientation });
     } catch (e) {
         sandboxRes = { success: false, crashes: [e?.message || String(e)], screenshot: null };
     }
@@ -6432,10 +6452,14 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
         markEphemeralJob(newJobId, { status: 'pending', draftId: parentDraftId });
         
         // 1. Fetch parent draft with all context
-        const parentRes = await pool.query('SELECT prompt, raw_code, html_payload, artist_code, title, edit_history, maker_project FROM ai_games WHERE id = $1', [parentDraftId]);
+        const parentRes = await pool.query('SELECT prompt, raw_code, html_payload, artist_code, title, edit_history, maker_project, orientation FROM ai_games WHERE id = $1', [parentDraftId]);
         if (parentRes.rows.length === 0) throw new Error("Parent draft not found.");
 
         const parentDraft = parentRes.rows[0];
+        // Orientation is read off the row, never taken from the client. An edit must not be able to
+        // reshape a landscape game into a portrait one — the verifier would then check it in the
+        // wrong box and the feed would still rotate it.
+        const orientation = normalizeOrientation(parentDraft.orientation);
 
         // New-architecture (canvas-kernel) games: edit the saved source, not the compiled HTML.
         let savedProject = parentDraft.maker_project;
@@ -6443,7 +6467,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
             try { savedProject = JSON.parse(savedProject); } catch { savedProject = null; }
         }
         if (savedProject && Array.isArray(savedProject.files) && savedProject.files.some((f) => f.path === 'src/main.ts')) {
-            return await executeMakerEditJob(newJobId, parentDraftId, parentDraft, savedProject, instructions);
+            return await executeMakerEditJob(newJobId, parentDraftId, parentDraft, savedProject, instructions, orientation);
         }
         const existingHtml = parentDraft.artist_code
             ? (parentDraft.html_payload || '')
@@ -6491,6 +6515,9 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
             '',
             'Requirements:',
             '- Keep the game playable on mobile.',
+            orientation === 'landscape'
+                ? '- This game is LANDSCAPE: it runs in a WIDE, SHORT viewport (roughly 844x390). Keep the layout horizontal and the HUD in the corners. Do NOT reflow it into a tall portrait layout, and do NOT add rotation or "please rotate your device" handling.'
+                : '- This game is PORTRAIT: it runs in a TALL, NARROW viewport (roughly 390x844). Keep the layout vertical. Do NOT reflow it into a wide landscape layout.',
             '- Preserve the existing game identity unless the instruction explicitly changes it.',
             '- Return the COMPLETE updated HTML document.',
             '- Do not rename the game unless the instruction explicitly asks for it.',
@@ -6530,6 +6557,7 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
             try {
                 sandboxRes = await verifyGame(finalHtml, {
                     runtimeLane: wantsFirstPerson3D(existingHtml, {}) ? 'first_person_threejs' : null,
+                    orientation,
                 });
             } catch (validationError) {
                 sandboxRes = {
@@ -7025,22 +7053,23 @@ router.post('/forge/autoscale/tick', async (req, res) => {
 
 router.post('/dream', async (req, res) => {
     try {
-        const { prompt, attachments } = req.body;
+        const { prompt, attachments, orientation: requestedOrientation } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Expired session');
         const mediaAttachments = sanitizeMediaAttachments(attachments);
+        const orientation = normalizeOrientation(requestedOrientation);
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
         setAssetBaseUrl(req); // Set correct base URL for Kenney assets
 
-        const existingJob = await findActiveDuplicateGenerationJob(userId, 'dream', prompt);
+        const existingJob = await findActiveDuplicateGenerationJob(userId, 'dream', prompt, orientation);
         if (existingJob) {
             console.log(`🧠 [DREAM ROUTE] Deduped to active job ${existingJob.id} (${existingJob.status}) for User[${userId}]`);
             return res.json({ success: true, jobId: existingJob.id, deduped: true });
         }
 
-        console.log(`🧠 [DREAM ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}"`);
+        console.log(`🧠 [DREAM ROUTE] Creating job for User[${userId}] -> Concept: "${prompt}" (${orientation})`);
 
         const jobId = randomUUID();
         await enqueueGenerationJob({
@@ -7049,7 +7078,7 @@ router.post('/dream', async (req, res) => {
             prompt,
             title: JOB_TITLES.dreamPending,
             kind: 'dream',
-            payload: { mediaAttachments },
+            payload: { mediaAttachments, orientation },
             allowDuplicate: true,
         });
 
@@ -7133,7 +7162,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             }
 
             const targetDraftId = ephemeralJob.draftId;
-            const editResult = await pool.query('SELECT title, html_payload, raw_code, game_url, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [targetDraftId]);
+            const editResult = await pool.query('SELECT title, html_payload, raw_code, game_url, thumbnail, orientation, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [targetDraftId]);
             if (editResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Draft not found' });
             }
@@ -7151,11 +7180,12 @@ router.get('/dream/status/:jobId', async (req, res) => {
                 htmlPreview: row.html_payload,
                 gameUrl: row.game_url || null,
                 thumbnail: row.thumbnail,
+                orientation: normalizeOrientation(row.orientation),
                 classification: getStoredDraftClassification(row),
             });
         }
 
-        const result = await pool.query('SELECT title, html_payload, raw_code, game_url, thumbnail, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
+        const result = await pool.query('SELECT title, html_payload, raw_code, game_url, thumbnail, orientation, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
         if (result.rows.length === 0) {
             const pendingBoot = pendingJobBoots.get(jobId);
             if (pendingBoot?.status === 'error') {
@@ -7228,6 +7258,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             htmlPreview: row.html_payload,
             gameUrl: row.game_url || null,
             thumbnail: row.thumbnail,
+            orientation: normalizeOrientation(row.orientation),
             classification: getStoredDraftClassification(row),
             ...(await buildQueueProgressPayload(completeQueueJob || { progress: 100, phase: 'complete', status_message: 'Your game is ready.' }, jobId)),
         });
@@ -7286,7 +7317,7 @@ router.get('/drafts', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE user_id = $1 AND is_draft = true AND (html_payload != '' OR game_url IS NOT NULL) ORDER BY created_at DESC", [userId]);
+        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, orientation, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE user_id = $1 AND is_draft = true AND (html_payload != '' OR game_url IS NOT NULL) ORDER BY created_at DESC", [userId]);
         res.json({ drafts: drafts.rows });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
@@ -7296,7 +7327,7 @@ router.get('/drafts/:id', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const draft = await pool.query("SELECT id, title, prompt, html_payload, game_url, thumbnail, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
+        const draft = await pool.query("SELECT id, title, prompt, html_payload, game_url, thumbnail, orientation, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
         if (draft.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         res.json({ draft: draft.rows[0] });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
@@ -7435,8 +7466,8 @@ router.post('/remix/:sourceId', async (req, res) => {
                 user_id, prompt, title, html_payload, raw_code, artist_code,
                 thumbnail, preview_video_url, category, subcategory, primary_tab,
                 interaction_type, classification_confidence, classification_tags,
-                discovery_chips, privacy, is_draft, remixed_from, remixed_from_username, created_at
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,true,$17,$18,NOW())
+                discovery_chips, privacy, is_draft, remixed_from, remixed_from_username, orientation, created_at
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,true,$17,$18,$19,NOW())
              RETURNING id, title`,
             [
                 userId,
@@ -7457,6 +7488,9 @@ router.post('/remix/:sourceId', async (req, res) => {
                 'public',
                 src.id,
                 creatorName,
+                // A remix inherits the source's orientation — the copied HTML is already built for
+                // that shape, so anything else would point a portrait row at a landscape game.
+                normalizeOrientation(src.orientation),
             ],
         );
         const draft = insertRes.rows[0];
@@ -7558,7 +7592,7 @@ router.get('/admin/games', async (req, res) => {
         if (filter === 'posted') where.push('is_draft = false');
         const whereSql = where.join(' AND ');
         const rows = (await pool.query(
-            `SELECT id, title, prompt, game_url, thumbnail, created_at, is_draft, category FROM ai_games WHERE ${whereSql} ORDER BY created_at DESC LIMIT $${whereParams.length + 1} OFFSET $${whereParams.length + 2}`,
+            `SELECT id, title, prompt, game_url, thumbnail, orientation, created_at, is_draft, category FROM ai_games WHERE ${whereSql} ORDER BY created_at DESC LIMIT $${whereParams.length + 1} OFFSET $${whereParams.length + 2}`,
             [...whereParams, perPage, page * perPage],
         )).rows;
         const total = (await pool.query(`SELECT count(*)::int AS c FROM ai_games WHERE ${whereSql}`, whereParams)).rows[0].c;
@@ -7568,8 +7602,9 @@ router.get('/admin/games', async (req, res) => {
             const id = esc(g.id);
             const thumb = g.thumbnail ? `<img loading="lazy" src="${esc(g.thumbnail)}" alt="">` : `<div class="noimg">🎮</div>`;
             const badge = g.is_draft ? `<span class="b draft">draft</span>` : `<span class="b posted">posted</span>`;
+            const orient = g.orientation === 'landscape' ? `<span class="b land">landscape</span>` : '';
             const when = g.created_at ? new Date(g.created_at).toISOString().slice(0, 16).replace('T', ' ') : '';
-            return `<div class="card" onclick="play('${id}')"><div class="thumb">${thumb}${badge}</div><div class="meta"><div class="title">${esc(g.title || 'Untitled')}</div><div class="prompt">${esc((g.prompt || '').slice(0, 120))}</div><div class="when">${esc(when)}${g.category ? ' · ' + esc(g.category) : ''}</div></div></div>`;
+            return `<div class="card" onclick="play('${id}')"><div class="thumb">${thumb}${badge}${orient}</div><div class="meta"><div class="title">${esc(g.title || 'Untitled')}</div><div class="prompt">${esc((g.prompt || '').slice(0, 120))}</div><div class="when">${esc(when)}${g.category ? ' · ' + esc(g.category) : ''}</div></div></div>`;
         }).join('');
         res.setHeader('Content-Type', 'text/html');
         res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameTok — all games</title><style>
@@ -7585,6 +7620,7 @@ form{display:flex;gap:8px;flex:1;min-width:200px}input[type=search]{flex:1;backg
 .thumb img{width:100%;height:100%;object-fit:cover}.noimg{font-size:32px;opacity:.4}
 .b{position:absolute;top:6px;left:6px;font-size:10px;padding:2px 6px;border-radius:6px;font-weight:700}
 .b.draft{background:#7c3f00;color:#ffd8a8}.b.posted{background:#0d5f3a;color:#a8ffcf}
+.b.land{left:auto;right:6px;background:#2a2a6b;color:#c7c7ff}
 .meta{padding:8px}.title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prompt{color:#9a9ab8;font-size:11px;margin-top:3px;height:28px;overflow:hidden}.when{color:#61617a;font-size:10px;margin-top:4px}
 .pager{display:flex;gap:8px;justify-content:center;align-items:center;padding:20px}.pager a{color:#e6e6ee;background:#20203099;border:1px solid #2c2c40;padding:8px 14px;border-radius:8px;text-decoration:none}

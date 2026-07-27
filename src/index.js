@@ -2899,6 +2899,9 @@ function formatGame(row) {
     classificationTags: Array.isArray(row.classification_tags) ? row.classification_tags : (row.classificationTags || []),
     discoveryChips: Array.isArray(row.discovery_chips) ? row.discovery_chips : (row.discoveryChips || []),
     embedUrl: row.embed_url,
+    // 'portrait' | 'landscape'. Landscape games are played by rotating the WebView's content
+    // inside the portrait feed card — the device never rotates. See ai-engine/orientation.js.
+    orientation: row.orientation === 'landscape' ? 'landscape' : 'portrait',
     creatorId: row.creator_id || row.creatorId || row.developer || null,
     creatorDisplayName: row.creator_display_name || row.creatorDisplayName || null,
     creatorVerified: Boolean(row.creator_verified),

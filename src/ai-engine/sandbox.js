@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { viewportFor } from './orientation.js';
 
 function isLikelyThreeJsBuild(htmlString = '') {
     const source = String(htmlString || '');
@@ -818,6 +819,10 @@ export async function verifyGame(htmlString, options = {}) {
     const crashes = [];
     const assetFailures = []; // network-level asset load failures (404 / CORS / expired URL) seen in-sandbox
     const runtimeLane = options?.runtimeLane || null;
+    // Verify at exactly the box the game will occupy in the feed. For a landscape game that's the
+    // portrait numbers transposed, because the app rotates the WebView's content rather than the
+    // device — so the game genuinely boots into 844x390.
+    const viewport = viewportFor(options?.orientation);
     const requireDreamAssets = Boolean(options?.requireDreamAssets);
     const sourceHtml = String(options?.sourceHtml || htmlString || '');
     const templateInspection = inspectTemplateContractSource(sourceHtml, options?.templateContract || null);
@@ -852,7 +857,7 @@ export async function verifyGame(htmlString, options = {}) {
             ]
         });
         const page = await browser.newPage();
-        await page.setViewport({ width: 390, height: 844 });
+        await page.setViewport({ width: viewport.width, height: viewport.height });
 
         let externalNavigation = null;
         page.on('framenavigated', frame => {
@@ -950,9 +955,13 @@ export async function verifyGame(htmlString, options = {}) {
             console.log(`🔬 [Sandbox Probe] template=${templateRuntimeProbe.templateId} ${probeOk}${loopNote}${templateRuntimeProbe.failures?.length ? ` failures=[${templateRuntimeProbe.failures.join('; ')}]` : ''}`);
         }
 
-        const renderState = await page.evaluate(() => {
-            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 390;
-            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 844;
+        const renderState = await page.evaluate((expectedViewport) => {
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || expectedViewport.width;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || expectedViewport.height;
+            // Cap the backing store at ~2.3x the CSS box (covers a 2x DPR plus slack). Derived from
+            // the live viewport so it transposes with orientation instead of assuming a tall canvas.
+            const maxBackingWidth = Math.round(viewportWidth * 2.3);
+            const maxBackingHeight = Math.round(viewportHeight * 2.3);
             const doc = document.documentElement;
             const body = document.body;
             const canvases = Array.from(document.querySelectorAll('canvas'));
@@ -969,7 +978,7 @@ export async function verifyGame(htmlString, options = {}) {
                     const right = Math.round(rect.right);
                     const bottom = Math.round(rect.bottom);
                     const outside = left < -4 || top < -4 || right > viewportWidth + 4 || bottom > viewportHeight + 4;
-                    const oversizedBackingStore = canvas.width > 1800 || canvas.height > 2600;
+                    const oversizedBackingStore = canvas.width > maxBackingWidth || canvas.height > maxBackingHeight;
                     if (!outside && !oversizedBackingStore) return null;
                     return {
                         index,
@@ -1134,7 +1143,7 @@ export async function verifyGame(htmlString, options = {}) {
                 canvasPixelChecks,
                 bodyText,
             };
-        });
+        }, viewport);
         renderState.templateInspection = templateInspection;
         renderState.assetContractInspection = assetContractInspection;
         renderState.templateRuntimeProbe = templateRuntimeProbe;
@@ -1337,7 +1346,12 @@ export async function verifyGame(htmlString, options = {}) {
         if (crashes.length === 0) {
             try {
                 const buffer = await page.screenshot({ type: 'webp', quality: 50 });
-                screenshotBase64 = 'data:image/webp;base64,' + buffer.toString('base64');
+                // Buffer.from() is load-bearing: puppeteer >= 23 returns a Uint8Array here, not a
+                // node Buffer, and Uint8Array.prototype.toString IGNORES the 'base64' argument and
+                // comma-joins the bytes instead. That silently produced thumbnails of the form
+                // "data:image/webp;base64,82,73,70,70,..." — a data URL that never decodes, so
+                // every generated game shipped a broken thumbnail with no error anywhere.
+                screenshotBase64 = 'data:image/webp;base64,' + Buffer.from(buffer).toString('base64');
             } catch (err) {
                 console.log("Screenshot failed:", err.message);
             }
