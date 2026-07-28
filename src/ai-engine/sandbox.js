@@ -859,13 +859,27 @@ export async function verifyGame(htmlString, options = {}) {
         const page = await browser.newPage();
         await page.setViewport({ width: viewport.width, height: viewport.height });
 
+        // The origin the game itself is served from, when we're verifying a URL rather than a raw
+        // HTML string (the R2/CDN build path serves the project off a local static server and calls
+        // verifyGame(localServer.url)). Loading the game's own index.html fires `framenavigated` on
+        // the main frame, so without this exemption EVERY generation on that path recorded a
+        // phantom "External navigation detected" crash — which flipped success to false and kicked
+        // off a full extra Kimi self-repair run per game, trying to fix a bug that did not exist.
+        // The real intent of this check is a game navigating the top frame away to a third party,
+        // and that is still caught.
+        let ownOrigin = null;
+        if (typeof htmlString === 'string' && /^https?:\/\//i.test(htmlString)) {
+            try { ownOrigin = new URL(htmlString).origin; } catch { ownOrigin = null; }
+        }
         let externalNavigation = null;
         page.on('framenavigated', frame => {
             if (frame !== page.mainFrame()) return;
             const url = frame.url();
-            if (/^https?:\/\//i.test(url)) {
-                externalNavigation = url;
+            if (!/^https?:\/\//i.test(url)) return;
+            if (ownOrigin) {
+                try { if (new URL(url).origin === ownOrigin) return; } catch { /* fall through */ }
             }
+            externalNavigation = url;
         });
 
         // Intercept all console messages to catch crashes

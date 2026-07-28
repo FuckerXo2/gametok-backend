@@ -7382,7 +7382,10 @@ router.post('/publish/:draftId', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Unauthorized');
-        const { title, privacy, html } = req.body || {};
+        // `orientation` and `gameUrl` are only consulted on the create-new branch below. For an
+        // existing draft the row is already the authority on both, and letting a publish call
+        // override them would be a way to reshape a game after it was built and verified.
+        const { title, privacy, html, orientation, gameUrl } = req.body || {};
 
         // Check if draft exists
         const checkRes = await pool.query("SELECT * FROM ai_games WHERE id = $1 AND user_id = $2", [req.params.draftId, userId]);
@@ -7397,10 +7400,21 @@ router.post('/publish/:draftId', async (req, res) => {
             
             console.log('[Publish] Creating new game from template:', title);
             const insertRes = await pool.query(
-                `INSERT INTO ai_games (user_id, title, html_payload, prompt, raw_code, is_draft, privacy, created_at) 
-                 VALUES ($1, $2, $3, $4, $5, false, $6, NOW()) 
+                `INSERT INTO ai_games (user_id, title, html_payload, prompt, raw_code, is_draft, privacy, orientation, game_url, created_at)
+                 VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, NOW())
                  RETURNING *`,
-                [userId, title?.trim() || 'Untitled Game', html, `Published from template: ${title?.trim() || 'Untitled Game'}`, html, privacy || 'public']
+                [
+                    userId,
+                    title?.trim() || 'Untitled Game',
+                    html,
+                    `Published from template: ${title?.trim() || 'Untitled Game'}`,
+                    html,
+                    privacy || 'public',
+                    // Without this a landscape game published through this branch was silently
+                    // stored as portrait, and the feed would then refuse to rotate it.
+                    normalizeOrientation(orientation),
+                    typeof gameUrl === 'string' && /^https:\/\//i.test(gameUrl) ? gameUrl : null,
+                ]
             );
             draft = insertRes.rows[0];
             console.log('[Publish] Game created:', draft.id);
