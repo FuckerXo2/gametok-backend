@@ -28,8 +28,18 @@ aptPkgs = [
 [phases.install]
 cmds = [
     "npm ci",
-    "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash",
-    "ln -sf $HOME/.kimi-code/bin/kimi /usr/local/bin/kimi || ln -sf /root/.kimi-code/bin/kimi /usr/local/bin/kimi || ln -sf /home/nixpacks/.kimi-code/bin/kimi /usr/local/bin/kimi || true"
+    # Install straight into /usr/local so the binary lands at /usr/local/bin/kimi, which is on PATH
+    # for the runtime process. The installer supports this explicitly (KIMI_INSTALL_DIR, default
+    # $HOME/.kimi-code) so there is nothing to guess.
+    #
+    # This replaces a `ln -sf <guess> || ln -sf <guess> || ... || true` chain that could not work:
+    # `ln -sf` exits 0 even when the SOURCE does not exist -- it just creates a dangling symlink.
+    # So the first guess always "succeeded", the fallbacks never ran, `|| true` swallowed anything
+    # left, and the build went green with a broken link. The failure only showed up at runtime as
+    # `spawn kimi ENOENT` on every generation.
+    "curl -fsSL https://code.kimi.com/kimi-code/install.sh | KIMI_INSTALL_DIR=/usr/local bash",
+    # Fail the BUILD if kimi is not actually runnable, rather than shipping and failing per-job.
+    "kimi --version"
 ]
 
 [variables]
