@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { inspect } from 'node:util';
 import pool from '../db.js';
+import { classifyGame, normalizeCategories, setGameCategories } from '../categories.js';
 import { buildPhase2_EditGame, postProcessRawHtml } from './promptRegistry.js';
 import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
 import { verifyGame } from './sandbox.js';
@@ -893,6 +894,26 @@ async function upsertPublishedAIGame({ draftId, userId, draft, forceRefreshClass
         prompt: draft.prompt,
         classification,
     });
+
+    // Discovery categories. Deliberately awaited-but-guarded rather than fire-and-forget: a game
+    // that lands in the feed uncategorised is invisible to category browsing, but a classifier
+    // outage must never block a publish. If the creator picked categories themselves, their choice
+    // is authoritative and the model is not consulted at all.
+    try {
+        const creatorPicked = normalizeCategories(draft.categories);
+        if (creatorPicked.length) {
+            await setGameCategories(pool, globalId, creatorPicked, 'creator');
+        } else {
+            const { categories, source } = await classifyGame({
+                title: draft.title,
+                prompt: draft.prompt,
+                description,
+            });
+            if (categories.length) await setGameCategories(pool, globalId, categories, source);
+        }
+    } catch (e) {
+        console.warn('[categories] could not categorise', globalId, '-', e.message);
+    }
 
     return { globalId, classification };
 }
@@ -7385,7 +7406,9 @@ router.post('/publish/:draftId', async (req, res) => {
         // `orientation` and `gameUrl` are only consulted on the create-new branch below. For an
         // existing draft the row is already the authority on both, and letting a publish call
         // override them would be a way to reshape a game after it was built and verified.
-        const { title, privacy, html, orientation, gameUrl } = req.body || {};
+        // `categories` is the creator's own pick. When present it overrides the classifier
+        // outright — see upsertPublishedAIGame.
+        const { title, privacy, html, orientation, gameUrl, categories } = req.body || {};
 
         // Check if draft exists
         const checkRes = await pool.query("SELECT * FROM ai_games WHERE id = $1 AND user_id = $2", [req.params.draftId, userId]);
@@ -7460,6 +7483,8 @@ router.post('/publish/:draftId', async (req, res) => {
         }
 
         console.log('[Publish] Upserting to games table...');
+        // Carried on the in-memory draft only — there is no categories column on ai_games.
+        draft.categories = normalizeCategories(categories);
         const { globalId, classification } = await upsertPublishedAIGame({
             draftId: draft.id,
             userId,

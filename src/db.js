@@ -430,6 +430,25 @@ export const initDB = async () => {
         NULL;
       END $$;
     `);
+
+    // Discovery categories. Multi-label on purpose — a game can be Action AND Adventure — which is
+    // why this is a join table rather than more columns on `games`. Replaces the old single-bucket
+    // category/subcategory/primary_tab classification (see src/categories.js).
+    //
+    // `source` distinguishes 'ai' / 'heuristic' / 'creator', so a backfill can safely skip anything
+    // the creator chose themselves.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS game_categories (
+        game_id VARCHAR(100) NOT NULL,
+        category VARCHAR(32) NOT NULL,
+        source VARCHAR(16) NOT NULL DEFAULT 'ai',
+        created_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (game_id, category)
+      );
+      CREATE INDEX IF NOT EXISTS idx_game_categories_category ON game_categories (category);
+      CREATE INDEX IF NOT EXISTS idx_game_categories_game ON game_categories (game_id);
+    `);
+
     console.log('✅ Database tables initialized');
   } finally {
     client.release();

@@ -19,6 +19,7 @@ import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } 
 import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startForgeAutoscaler, stopForgeAutoscaler } from './ai.js';
 import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
+import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, classifyGame } from './categories.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import { deleteCoverAsset } from './cover-art.js';
@@ -1762,8 +1763,31 @@ app.get('/api/games', async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const offset = parseInt(req.query.offset) || 0;
   const sort = String(req.query.sort || 'discover').toLowerCase();
+  // Optional discovery category (see src/categories.js). Unknown values are ignored
+  // rather than returning nothing, so a stale link degrades to the full feed.
+  const category = isValidCategory(req.query.category)
+    ? String(req.query.category).trim().toLowerCase()
+    : null;
 
   try {
+    const params = [limit, offset];
+    let categoryFilter = '';
+    if (category) {
+      params.push(category);
+      categoryFilter = `AND EXISTS (
+        SELECT 1 FROM game_categories gc
+        WHERE gc.game_id = g.id AND gc.category = $${params.length}
+      )`;
+    }
+
+    // Every game carries its categories, gathered once here rather than N+1 per row.
+    const categoriesSelect = `
+      COALESCE(
+        (SELECT ARRAY_AGG(gc.category ORDER BY gc.category)
+         FROM game_categories gc WHERE gc.game_id = g.id),
+        ARRAY[]::varchar[]
+      ) AS categories`;
+
     // Exclude multiplayer-only games from main feed
     let result;
     if (sort === 'random') {
@@ -1774,16 +1798,29 @@ app.get('/api/games', async (req, res) => {
            u.display_name AS creator_display_name,
            u.verified AS creator_verified,
            u.avatar AS creator_avatar,
-           u.username AS creator_username
+           u.username AS creator_username,
+           ${categoriesSelect}
          FROM games g
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
-         WHERE g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL
+         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+         ${categoryFilter}
          ORDER BY RANDOM()
          LIMIT $1 OFFSET $2`,
-        [limit, offset]
+        params
       );
     } else {
+      // 'new' is genuinely newest-first. It used to fall through to the discover
+      // branch, so the "New" row on both clients was just backend order relabelled.
+      const orderBy = sort === 'new'
+        ? `g.created_at DESC, COALESCE(g.plays, 0) DESC`
+        : sort === 'trending'
+          ? `COALESCE(sa.recent_activity_score, 0) DESC, COALESCE(g.plays, 0) DESC, g.created_at DESC`
+          : `discover_score DESC,
+             COALESCE(sa.recent_activity_score, 0) DESC,
+             COALESCE(g.plays, 0) DESC,
+             g.created_at DESC`;
+
       result = await pool.query(
         `WITH score_activity AS (
            SELECT
@@ -1806,8 +1843,12 @@ app.get('/api/games', async (req, res) => {
            COALESCE(sa.recent_score_events, 0) AS recent_score_events,
            COALESCE(sa.recent_unique_scorers, 0) AS recent_unique_scorers,
            COALESCE(sa.recent_activity_score, 0) AS recent_activity_score,
+           ${categoriesSelect},
            (
-             COALESCE(g.classification_confidence, 0) * 35 +
+             -- classification_confidence used to sit here weighted 35 — the single
+             -- largest term — but it is NULL for every game published since AI
+             -- classification was removed, so it only ever boosted legacy rows and
+             -- buried new ones. Dropped with the rest of the old taxonomy.
              LEAST(COALESCE(g.plays, 0) / 4000.0, 28) +
              COALESCE(sa.recent_activity_score, 0) +
              CASE
@@ -1821,19 +1862,87 @@ app.get('/api/games', async (req, res) => {
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
-         WHERE g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL
-         ORDER BY
-           discover_score DESC,
-           COALESCE(sa.recent_activity_score, 0) DESC,
-           COALESCE(g.plays, 0) DESC,
-           g.created_at DESC
+         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+         ${categoryFilter}
+         ORDER BY ${orderBy}
          LIMIT $1 OFFSET $2`,
-        [limit, offset]
+        params
       );
     }
-    const countResult = await pool.query('SELECT COUNT(*) FROM games WHERE multiplayer_only = FALSE OR multiplayer_only IS NULL');
+
+    const countParams = category ? [category] : [];
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM games g
+       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+       ${category ? `AND EXISTS (SELECT 1 FROM game_categories gc WHERE gc.game_id = g.id AND gc.category = $1)` : ''}`,
+      countParams
+    );
     res.json({ games: result.rows.map(formatGame), total: parseInt(countResult.rows[0].count) });
   } catch (e) {
+    console.error('[games] list failed:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * One-time (re-runnable) categorisation of the existing catalogue.
+ * Skips anything already categorised, so it can be run in batches and resumed, and never
+ * overwrites a creator's own pick.
+ */
+app.post('/api/admin/backfill-categories', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 25, 200);
+  const dryRun = String(req.query.dryRun || '') === '1';
+  try {
+    const pending = await pool.query(
+      `SELECT g.id, g.name, g.description, ag.prompt
+       FROM games g
+       LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
+       WHERE NOT EXISTS (SELECT 1 FROM game_categories gc WHERE gc.game_id = g.id)
+       ORDER BY g.created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    const results = [];
+    for (const row of pending.rows) {
+      const { categories, source } = await classifyGame({
+        title: row.name,
+        prompt: row.prompt,
+        description: row.description,
+      });
+      if (categories.length && !dryRun) {
+        await setGameCategories(pool, row.id, categories, source);
+      }
+      results.push({ id: row.id, name: row.name, categories, source });
+    }
+
+    const remaining = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM games g
+       WHERE NOT EXISTS (SELECT 1 FROM game_categories gc WHERE gc.game_id = g.id)`
+    );
+    res.json({ processed: results.length, dryRun, remaining: remaining.rows[0].c, results });
+  } catch (e) {
+    console.error('[categories] backfill failed:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** The category nav. Counts let the client hide empty categories. */
+app.get('/api/categories', async (_req, res) => {
+  try {
+    const counts = await pool.query(
+      `SELECT gc.category, COUNT(*)::int AS count
+       FROM game_categories gc
+       JOIN games g ON g.id = gc.game_id
+       WHERE g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL
+       GROUP BY gc.category`
+    );
+    const byCategory = Object.fromEntries(counts.rows.map((r) => [r.category, r.count]));
+    res.json({
+      categories: CATEGORIES.map((c) => ({ ...c, count: byCategory[c.slug] || 0 })),
+    });
+  } catch (e) {
+    console.error('[categories] list failed:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -2891,13 +3000,11 @@ function formatGame(row) {
     color: row.color,
     thumbnail: row.thumbnail,
     previewVideoUrl: row.preview_video_url || row.previewVideoUrl || null,
-    category: row.category,
-    subcategory: row.subcategory || null,
-    primaryTab: row.primary_tab || row.primaryTab || null,
-    interactionType: row.interaction_type || row.interactionType || null,
-    classificationConfidence: row.classification_confidence ?? row.classificationConfidence ?? null,
-    classificationTags: Array.isArray(row.classification_tags) ? row.classification_tags : (row.classificationTags || []),
-    discoveryChips: Array.isArray(row.discovery_chips) ? row.discovery_chips : (row.discoveryChips || []),
+    // Discovery categories — multi-label, from the game_categories join table.
+    // Replaces the old single-bucket category/subcategory/primaryTab/interactionType/
+    // classificationConfidence/classificationTags/discoveryChips fields, which had
+    // stopped being written on publish and are no longer sent to clients.
+    categories: Array.isArray(row.categories) ? row.categories.filter(Boolean) : [],
     embedUrl: row.embed_url,
     // 'portrait' | 'landscape'. Landscape games are played by rotating the WebView's content
     // inside the portrait feed card — the device never rotates. See ai-engine/orientation.js.
