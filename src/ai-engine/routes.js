@@ -7419,6 +7419,33 @@ router.post('/publish/:draftId', async (req, res) => {
             draft = insertRes.rows[0];
             console.log('[Publish] Game created:', draft.id);
         } else {
+            // A remix must actually change something before it can be published. Otherwise the
+            // feed fills with byte-identical copies of other people's games, credited to whoever
+            // tapped Remix. Checked here rather than only in the app because this is the endpoint
+            // that creates the public row.
+            //
+            // Content comparison, not an edit counter: it catches both "never edited" and "edited
+            // and ended up with exactly the same game". The source is looked up by remixed_from,
+            // which the remix INSERT sets.
+            const existing = checkRes.rows[0];
+            if (existing.remixed_from) {
+                const srcRes = await pool.query(
+                    'SELECT html_payload, raw_code FROM ai_games WHERE id = $1',
+                    [existing.remixed_from],
+                );
+                const src = srcRes.rows[0];
+                if (src) {
+                    const unchanged = (a, b) => String(a || '').trim() === String(b || '').trim();
+                    if (unchanged(existing.html_payload, src.html_payload)
+                        && unchanged(existing.raw_code, src.raw_code)) {
+                        return res.status(400).json({
+                            error: 'Make at least one change before publishing this remix.',
+                            code: 'REMIX_UNCHANGED',
+                        });
+                    }
+                }
+            }
+
             // Draft exists, update it
             console.log('[Publish] Updating existing draft:', req.params.draftId);
             if (title && title.trim()) {
