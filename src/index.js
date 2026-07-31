@@ -21,6 +21,7 @@ import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
 import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
 import blogImagesRouter from './blog-images-router.js';
+import { seedPosts } from './seed-posts.js';
 import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, classifyGame } from './categories.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
@@ -5337,6 +5338,9 @@ const runAnonymousTokensMigration = async () => {
 
 const start = async () => {
   await initDB();
+  // Launch posts live in the repo; this inserts any that are missing and
+  // never touches one that already exists.
+  await seedPosts();
   await runMigrations();
   await runGamificationMigrations();
   await runLeaderboardMigration();
