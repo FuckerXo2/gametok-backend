@@ -367,7 +367,7 @@ async function callStableHorde(prompt, { width = 448, height = 576 } = {}) {
 
 // --- Hugging Face SDXL (primary, free) --------------------------------------
 
-async function callHuggingFace(prompt) {
+async function callHuggingFace(prompt, { width = 832, height = 1216 } = {}) {
     const headers = { 'Content-Type': 'application/json' };
     if (process.env.HF_TOKEN) headers['Authorization'] = `Bearer ${process.env.HF_TOKEN}`;
 
@@ -376,7 +376,7 @@ async function callHuggingFace(prompt) {
         headers,
         body: JSON.stringify({
             inputs: prompt,
-            parameters: { width: 832, height: 1216 },
+            parameters: { width, height },
         }),
     });
 
@@ -393,7 +393,7 @@ async function callHuggingFace(prompt) {
 
 // Org tier caps gpt-image-1 at ~5 images/min — retry on 429 instead of
 // immediately falling through to the unreliable free providers.
-async function callOpenAiImage(prompt, { retries = 3 } = {}) {
+async function callOpenAiImage(prompt, { retries = 3, size = '1024x1536' } = {}) {
     const OpenAI = await import('openai').then(m => m.default);
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -402,7 +402,9 @@ async function callOpenAiImage(prompt, { retries = 3 } = {}) {
             const response = await client.images.generate({
                 model: 'gpt-image-1',
                 prompt,
-                size: '1024x1536',
+                // gpt-image-1 only offers 1024x1024 / 1024x1536 / 1536x1024 — there
+                // is no true 16:9, so landscape callers ask for 1536x1024 and crop.
+                size,
                 quality: 'low',
                 // Default is PNG (~1.9MB). JPEG keeps the download small;
                 // saveCoverBuffer still resizes/re-encodes before upload.
@@ -440,13 +442,25 @@ const COVER_QUALITY = 82;
  * .jpg name with an image/jpeg content-type, so the feed was pulling
  * ~2MB per card. Re-encoding here fixes every provider at once.
  */
-export async function compressCoverBuffer(buffer) {
+export async function compressCoverBuffer(buffer, {
+    maxWidth = COVER_MAX_WIDTH,
+    maxHeight = COVER_MAX_HEIGHT,
+    quality = COVER_QUALITY,
+    // 'inside' letterboxes to fit; 'cover' crops to fill. Landscape blog heroes
+    // want an exact aspect, which means cropping.
+    fit = 'inside',
+    // Must be false when cropping to an exact aspect: with it on, sharp refuses
+    // to widen a smaller source but still applies the height cap, so the output
+    // silently comes back the wrong shape (a 1536x1024 source targeted at
+    // 1600x900 yields 1536x900 — 1.71, not 1.78).
+    withoutEnlargement = fit !== 'cover',
+} = {}) {
     try {
         const sharp = await import('sharp').then(m => m.default);
         return await sharp(buffer)
             .rotate()
-            .resize(COVER_MAX_WIDTH, COVER_MAX_HEIGHT, { fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: COVER_QUALITY, mozjpeg: true })
+            .resize(maxWidth, maxHeight, { fit, withoutEnlargement, position: 'attention' })
+            .jpeg({ quality, mozjpeg: true })
             .toBuffer();
     } catch (err) {
         console.warn('[cover-art] compression failed, storing original:', err.message);
@@ -454,18 +468,21 @@ export async function compressCoverBuffer(buffer) {
     }
 }
 
-async function saveCoverBuffer(gameId, buffer) {
+async function saveCoverBuffer(gameId, buffer, { prefix = 'covers', unique = false, compress } = {}) {
     const safeId = String(gameId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
-    const filename = `${safeId}.jpg`;
+    // A game has exactly one cover, so overwriting in place is correct there. A
+    // post has several images, so those need a suffix or they clobber each other.
+    const suffix = unique ? `-${Math.random().toString(36).slice(2, 10)}` : '';
+    const filename = `${safeId}${suffix}.jpg`;
 
-    const body = await compressCoverBuffer(buffer);
+    const body = await compressCoverBuffer(buffer, compress);
 
     // Only try R2 if properly configured
     if (process.env.R2_BUCKET_NAME && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY) {
         try {
             const command = new PutObjectCommand({
                 Bucket: process.env.R2_BUCKET_NAME,
-                Key: `covers/${filename}`,
+                Key: `${prefix}/${filename}`,
                 Body: body,
                 ContentType: 'image/jpeg',
                 CacheControl: 'public, max-age=31536000',
@@ -474,7 +491,7 @@ async function saveCoverBuffer(gameId, buffer) {
             await s3Client.send(command);
             
             const publicUrlBase = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
-            return `${publicUrlBase.replace(/\/$/, '')}/covers/${filename}`;
+            return `${publicUrlBase.replace(/\/$/, '')}/${prefix}/${filename}`;
         } catch (err) {
             console.error('[cover-art] S3/R2 upload failed:', err.message);
         }
@@ -491,28 +508,44 @@ async function saveCoverBuffer(gameId, buffer) {
  * Pipeline: OpenAI gpt-image-1 (paid, reliable) → Hugging Face SDXL → Stable Horde.
  * Requires R2 to be configured — returns null otherwise.
  */
-export async function generateCoverArtImage({ title, prompt, classification, gameId }) {
+export async function generateCoverArtImage({
+    title, prompt, classification, gameId,
+    // Blog imagery opts. `rawPrompt` bypasses buildCoverPrompt entirely — that
+    // path rewrites anything you give it into a game poster with the title
+    // burned in as typography, which is wrong for an article image.
+    rawPrompt = null,
+    openAiSize = '1024x1536',
+    hfSize = { width: 832, height: 1216 },
+    hordeSize = undefined,
+    prefix = 'covers',
+    unique = false,
+    compress = undefined,
+} = {}) {
     if (!process.env.R2_BUCKET_NAME || !process.env.R2_ACCESS_KEY_ID) {
         console.warn('[cover-art] R2 not configured — skipping cover art');
         return null;
     }
 
-    const finalPrompt = await buildCoverPrompt({ title, prompt, classification });
+    const finalPrompt = rawPrompt || await buildCoverPrompt({ title, prompt, classification });
     let buffer;
+    let provider = null;
 
     try {
         console.log('[cover-art] Trying OpenAI gpt-image-1...');
-        buffer = await callOpenAiImage(finalPrompt);
+        buffer = await callOpenAiImage(finalPrompt, { size: openAiSize });
+        provider = 'openai';
     } catch (err) {
         console.warn('[cover-art] OpenAI failed:', err.message);
         try {
             console.log('[cover-art] Trying Hugging Face SDXL...');
-            buffer = await callHuggingFace(finalPrompt);
+            buffer = await callHuggingFace(finalPrompt, hfSize);
+            provider = 'huggingface';
         } catch (err2) {
             console.warn('[cover-art] Hugging Face failed:', err2.message);
             try {
                 console.log('[cover-art] Trying Stable Horde...');
-                buffer = await callStableHorde(finalPrompt);
+                buffer = await callStableHorde(finalPrompt, hordeSize);
+                provider = 'stablehorde';
             } catch (err3) {
                 console.warn('[cover-art] Stable Horde failed:', err3.message);
                 return null;
@@ -525,7 +558,9 @@ export async function generateCoverArtImage({ title, prompt, classification, gam
         return null;
     }
 
-    return await saveCoverBuffer(gameId, buffer);
+    const url = await saveCoverBuffer(gameId, buffer, { prefix, unique, compress });
+    // Existing callers expect a bare URL; only the blog path asks for provider.
+    return prefix === 'covers' ? url : { url, provider };
 }
 
 /**
@@ -561,8 +596,10 @@ export async function generateAndApplyCover(pool, { draftId, gameId, title, prom
  * was added. Returns { before, after } byte counts, or null if skipped.
  */
 export async function recompressCoverByUrl(url) {
-    if (!url || !url.includes('/covers/')) return null;
     if (!process.env.R2_BUCKET_NAME || !process.env.R2_ACCESS_KEY_ID) return null;
+    const managedPrefixes = ['covers', 'blog'];
+    const prefix = managedPrefixes.find((p) => String(url || '').includes(`/${p}/`));
+    if (!prefix) return null;
 
     const filename = path.basename(new URL(url).pathname);
     if (!filename) return null;
@@ -577,7 +614,7 @@ export async function recompressCoverByUrl(url) {
 
     await s3Client.send(new PutObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
-        Key: `covers/${filename}`,
+        Key: `${prefix}/${filename}`,
         Body: compressed,
         ContentType: 'image/jpeg',
         CacheControl: 'public, max-age=31536000',
@@ -599,8 +636,12 @@ export async function deleteCoverAsset(url) {
     const filename = path.basename(pathname);
     if (!filename || filename === '.' || filename === '/') return false;
 
-    const isGeneratedCover = pathname.includes('/uploads/covers/') || pathname.includes('/covers/');
-    if (!isGeneratedCover) return false;
+    // Assets we manage now live under two prefixes: game covers and blog imagery.
+    // Derive which from the URL rather than assuming, or blog objects become
+    // undeletable (and, before this, the delete built an undefined key).
+    const managedPrefixes = ['covers', 'blog'];
+    const prefix = managedPrefixes.find((p) => pathname.includes(`/${p}/`));
+    if (!prefix) return false;
 
     let deleted = false;
     const localPath = path.join(COVER_ROOT, filename);
@@ -617,7 +658,7 @@ export async function deleteCoverAsset(url) {
         try {
             await s3Client.send(new DeleteObjectCommand({
                 Bucket: process.env.R2_BUCKET_NAME,
-                Key: `covers/${filename}`,
+                Key: `${prefix}/${filename}`,
             }));
             deleted = true;
         } catch (err) {
@@ -666,4 +707,7 @@ export const coverArtInternals = {
     callOpenAiImage,
     saveCoverBuffer,
     COVER_ROOT,
+    // Shared so the blog-image router uploads through the same configured
+    // client rather than standing up a second one.
+    s3Client,
 };

@@ -449,6 +449,49 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_game_categories_game ON game_categories (game_id);
     `);
 
+    // Blog posts and announcements. One table with a `kind` discriminator rather
+    // than two: an announcement is a short post that also surfaces as a card on
+    // the home hero, so the home modal's "read the announcement" can resolve to a
+    // real post without a parallel system.
+    //
+    // Body is markdown. It is rendered client-side and MUST be sanitised there —
+    // this column is authored content, not trusted HTML.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        slug VARCHAR(160) UNIQUE NOT NULL,
+        kind VARCHAR(16) NOT NULL DEFAULT 'blog',
+        title TEXT NOT NULL,
+        excerpt TEXT,
+        cover_image TEXT,
+        body_markdown TEXT,
+        author_name VARCHAR(120),
+        author_avatar TEXT,
+        categories TEXT[] DEFAULT '{}',
+        published BOOLEAN DEFAULT FALSE,
+        published_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_posts_published ON posts (published, published_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_posts_kind ON posts (kind);
+      CREATE INDEX IF NOT EXISTS idx_posts_categories ON posts USING GIN (categories);
+    `);
+
+    // Spend log for generated blog imagery. The cover-art pipeline has no cost
+    // accounting of its own, and blog posts use several images each rather than
+    // one per game, so this is the only visibility into what is being spent.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS blog_image_generations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        prompt TEXT,
+        url TEXT,
+        provider VARCHAR(32),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_blog_image_gen_created ON blog_image_generations (created_at DESC);
+    `);
+
     console.log('✅ Database tables initialized');
   } finally {
     client.release();

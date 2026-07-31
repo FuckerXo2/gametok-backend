@@ -19,6 +19,8 @@ import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } 
 import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startForgeAutoscaler, stopForgeAutoscaler } from './ai.js';
 import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
+import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
+import blogImagesRouter from './blog-images-router.js';
 import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, classifyGame } from './categories.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
@@ -45,12 +47,41 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+/**
+ * Every /api/admin/* route was reachable by anyone on the internet — including
+ * ones that mutate the catalogue and ones that spend money per call (cover-art
+ * regeneration, category backfill). This gates the whole prefix in one place
+ * rather than per-route, so a new admin endpoint is protected by default
+ * instead of by remembering.
+ *
+ * Mirrors requireBotAdmin in bot-engine.js: open in local dev when no secret is
+ * set, but refuses to serve in production without one rather than failing open.
+ */
+function requireAdmin(req, res, next) {
+  const secret = process.env.ADMIN_SECRET;
+  if (process.env.NODE_ENV !== 'production' && !secret) return next();
+  if (!secret) {
+    return res.status(403).json({ error: 'ADMIN_SECRET is required in production' });
+  }
+  if (req.headers['x-admin-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+// Registered before the admin routers and route definitions below so it covers
+// all of them, including /api/admin/bots and /api/admin/covers.
+app.use('/api/admin', requireAdmin);
+
 // 🔥 NATIVE AI PIPELINE MOUNT 🔥
 app.use('/api/ai', aiRouter);
 app.use('/api/opengame', openGameRouter);
 
 // Global Media & Assets Pool
 app.use('/api/assets', assetsRouter);
+app.use('/api/posts', postsPublicRouter);
+app.use('/api/admin/posts', postsAdminRouter);
+app.use('/api/admin/blog/images', blogImagesRouter);
 app.use('/api/admin/bots', botRouter);
 app.use('/api/admin/covers', coverArtRouter);
 app.use('/api/presence', presenceRouter);
