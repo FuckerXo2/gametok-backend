@@ -40,17 +40,31 @@ const ASPECTS = {
 };
 
 /**
- * Editorial framing, not game key art. Notably: no instruction to render text,
- * because a headline baked into a hero image can't be edited or translated.
+ * Blog covers are designed key art, not stock photography — the headline is part of
+ * the image, the way a magazine cover or a game poster is. That is what carries the
+ * card: an untitled illustration under a separate text title reads as a stock photo.
+ *
+ * Pass `title` to get it rendered into the artwork. Omit it for a plain illustration
+ * (inline figures inside a post body, where a burned-in headline would be wrong).
  */
-function buildBlogImagePrompt(userPrompt) {
-    return [
-        'Editorial illustration for a technology article.',
+function buildBlogImagePrompt(userPrompt, title) {
+    const parts = [
+        'Bold editorial key art for a technology article, in the style of a premium magazine cover.',
         String(userPrompt || '').trim(),
-        'Cinematic lighting, rich colour, clean composition with a clear focal point.',
-        'Wide landscape framing with room around the subject.',
-        'Absolutely no text, no words, no letters, no numbers, no logos, no watermarks, and no user-interface elements anywhere in the image.',
-    ].filter(Boolean).join(' ');
+        'Cinematic lighting, rich saturated colour, strong graphic composition with a clear focal point.',
+        'Wide landscape framing with deliberate negative space for the headline.',
+    ];
+
+    if (title) {
+        parts.push(
+            `CRITICAL: render the headline "${String(title).trim()}" directly in the artwork as large, bold, professional editorial typography — clean sans-serif, perfectly spelled, high contrast against the background, occupying the negative space as the clear focal point, the way a real magazine cover or game poster sets its title.`,
+            'No other text anywhere in the image: no subtitles, no captions, no logos, no watermarks, no user-interface elements.',
+        );
+    } else {
+        parts.push('Absolutely no text, no words, no letters, no numbers, no logos, no watermarks, and no user-interface elements anywhere in the image.');
+    }
+
+    return parts.join(' ');
 }
 
 async function generationsToday() {
@@ -73,6 +87,8 @@ router.post('/generate', async (req, res) => {
     try {
         const prompt = String(req.body?.prompt || '').trim();
         if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+        // Present → the headline is set into the artwork. Absent → plain illustration.
+        const title = req.body?.title ? String(req.body.title).trim() : null;
 
         const aspect = ASPECTS[req.body?.aspect] ? req.body.aspect : 'wide';
         const spec = ASPECTS[aspect];
@@ -85,7 +101,7 @@ router.post('/generate', async (req, res) => {
         }
 
         const result = await generateCoverArtImage({
-            rawPrompt: buildBlogImagePrompt(prompt),
+            rawPrompt: buildBlogImagePrompt(prompt, title),
             gameId: `blog-${Date.now()}`,
             prefix: 'blog',
             unique: true,

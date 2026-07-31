@@ -6,9 +6,10 @@
 // completely alone, so editing a post in the admin tool later will never be overwritten by a
 // redeploy.
 //
-// Covers: any post without one gets an image generated through the blog image service, using the
-// same OpenAI/R2 credentials the server already has. That happens once, on the run that first
-// inserts the post, and never again.
+// Covers are designed key art with the headline set into the image, the way a magazine cover works
+// — that is what carries the card. Generated once, using the OpenAI/R2 credentials the server
+// already has, either when the post is first inserted or later if it somehow has no cover. An
+// existing cover is never replaced.
 
 import pool from './db.js';
 import { generateCoverArtImage } from './cover-art.js';
@@ -126,13 +127,15 @@ async function ensureCover(post) {
 
     try {
         const result = await generateCoverArtImage({
-            // Raw, so the game-poster rewrite and the title-in-the-artwork
-            // instruction are both bypassed.
+            // Raw, so the cover-art path's game-poster rewrite is bypassed — but we
+            // ask for the headline in the artwork ourselves, magazine-cover style.
             rawPrompt: [
-                'Editorial illustration for a technology article.',
+                'Bold editorial key art for a technology article, in the style of a premium magazine cover.',
                 post.coverPrompt,
-                'Cinematic lighting, rich colour, clean composition with a clear focal point.',
-                'Absolutely no text, no words, no letters, no logos, no watermarks, no user-interface elements.',
+                'Cinematic lighting, rich saturated colour, strong graphic composition.',
+                'Wide landscape framing with deliberate negative space for the headline.',
+                `CRITICAL: render the headline "${post.title}" directly in the artwork as large, bold, professional editorial typography — clean sans-serif, perfectly spelled, high contrast, occupying the negative space as the clear focal point, the way a real magazine cover sets its title.`,
+                'No other text anywhere in the image: no subtitles, no captions, no logos, no watermarks, no user-interface elements.',
             ].join(' '),
             gameId: `blog-${post.slug}`,
             prefix: 'blog',
@@ -161,8 +164,19 @@ export async function seedPosts() {
     for (const post of SEED_POSTS) {
         try {
             // Never touch a post that exists — it may have been edited since.
-            const existing = await pool.query('SELECT id FROM posts WHERE slug = $1', [post.slug]);
-            if (existing.rows.length > 0) continue;
+            const existing = await pool.query('SELECT id, cover_image FROM posts WHERE slug = $1', [post.slug]);
+            if (existing.rows.length > 0) {
+                // Already published. Only fill a missing cover — never touch the
+                // text, which may have been edited since.
+                if (!existing.rows[0].cover_image) {
+                    const url = await ensureCover(post);
+                    if (url) {
+                        await pool.query('UPDATE posts SET cover_image = $2 WHERE id = $1', [existing.rows[0].id, url]);
+                        console.log('[seed-posts] backfilled cover for', post.slug);
+                    }
+                }
+                continue;
+            }
 
             const coverImage = await ensureCover(post);
 
