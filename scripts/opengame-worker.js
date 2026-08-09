@@ -4,11 +4,6 @@ import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import pool, { initDB } from '../src/db.js';
-import {
-  nextNvidiaImageApiKey,
-  nextNvidiaTextApiKey,
-  summarizeNvidiaKeyPools,
-} from '../src/ai-engine/nvidia-key-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,7 +20,7 @@ const OPENGAME_REF = process.env.OPENGAME_REF || '';
 const OPENGAME_JOBS_ROOT = process.env.OPENGAME_JOBS_ROOT || path.join(STORAGE_ROOT, 'opengame-jobs');
 const OPENGAME_PUBLIC_BASE = (process.env.OPENGAME_PUBLIC_BASE || '/opengame-games').replace(/\/+$/, '');
 const R2_PREFIX = String(process.env.OPENGAME_R2_PREFIX || 'opengame-games').replace(/^\/+|\/+$/g, '');
-const DEFAULT_NIM_TOOL_MODEL = 'qwen/qwen3-coder-480b-a35b-instruct';
+const DEFAULT_TOOL_MODEL = process.env.OPENGAME_TOOL_MODEL || '';
 const DEFAULT_OPENGAME_CORE_TOOLS = [
   'read_file',
   'read_many_files',
@@ -182,7 +177,6 @@ async function installOpenGameRuntime() {
 async function patchOpenGameRuntime() {
   let changed = false;
   changed = (await patchFalImageService()) || changed;
-  changed = (await patchNvidiaOpenAICompatTextMessages()) || changed;
   changed = (await patchImageEditModelEnv()) || changed;
   changed = (await patchDisableVideoByDefault()) || changed;
   if (changed) {
@@ -340,74 +334,6 @@ async function patchFalImageService() {
       `}\n\n// ============== Image Service Interface ==============`,
       `${falMethods}\n}\n\n// ============== Image Service Interface ==============`,
     );
-  });
-}
-
-async function patchNvidiaOpenAICompatTextMessages() {
-  return patchFile('packages/core/src/core/openaiContentGenerator/provider/default.ts', (source) => {
-    if (source.includes('GameTok NVIDIA NIM compatibility')) return source;
-
-    let next = source.replace(
-      `    // Default provider doesn't need special enhancements, just pass through all parameters
-    return {
-      ...request, // Preserve all original parameters including sampling params
-    };`,
-      `    // GameTok NVIDIA NIM compatibility: NVIDIA's OpenAI-compatible chat
-    // endpoint rejects text-only content arrays from the upstream Gemini->OpenAI
-    // converter with "unhashable type: 'dict'". For NIM only, flatten those
-    // messages back to plain strings while preserving true multimodal payloads.
-    const normalizedRequest = this.normalizeTextOnlyMessageContent(request);
-    return {
-      ...normalizedRequest, // Preserve all original parameters including sampling params
-    };`,
-    );
-
-    const helper = `
-
-  private normalizeTextOnlyMessageContent(
-    request: OpenAI.Chat.ChatCompletionCreateParams,
-  ): OpenAI.Chat.ChatCompletionCreateParams {
-    const baseUrl = String(this.contentGeneratorConfig.baseUrl || '');
-    if (!baseUrl.includes('integrate.api.nvidia.com')) {
-      return request;
-    }
-
-    return {
-      ...request,
-      messages: request.messages.map((message) => {
-        const content = (message as { content?: unknown }).content;
-        if (!Array.isArray(content)) {
-          return message;
-        }
-
-        const onlyText = content.every((part) => {
-          return (
-            part &&
-            typeof part === 'object' &&
-            (part as { type?: unknown }).type === 'text' &&
-            typeof (part as { text?: unknown }).text === 'string'
-          );
-        });
-
-        if (!onlyText) {
-          return message;
-        }
-
-        return {
-          ...message,
-          content: content.map((part) => (part as { text: string }).text).join(''),
-        } as OpenAI.Chat.ChatCompletionMessageParam;
-      }),
-    };
-  }
-`;
-
-    next = next.replace(
-      `  getDefaultGenerationConfig(): GenerateContentConfig {`,
-      `${helper}\n  getDefaultGenerationConfig(): GenerateContentConfig {`,
-    );
-
-    return next;
   });
 }
 
@@ -719,12 +645,14 @@ function progressFromOutput(text) {
 }
 
 function buildOpenGameEnv() {
-  const requestedReasoningModel = process.env.OPENGAME_REASONING_MODEL || process.env.OPENAI_MODEL || 'moonshotai/kimi-k2.6';
+  const requestedReasoningModel = process.env.OPENGAME_REASONING_MODEL || process.env.OPENAI_MODEL || '';
   const toolCapableReasoningModel =
     /kimi/i.test(requestedReasoningModel)
-      ? (process.env.OPENGAME_TOOL_MODEL || DEFAULT_NIM_TOOL_MODEL)
+      ? (DEFAULT_TOOL_MODEL || requestedReasoningModel)
       : requestedReasoningModel;
-  const reasoningApiKey = process.env.OPENGAME_REASONING_API_KEY || process.env.OPENAI_API_KEY || nextNvidiaTextApiKey() || '';
+  // Deliberately does NOT fall back to OPENAI_API_KEY: OpenAI is image-generation only
+  // in this system. Configure OPENGAME_REASONING_API_KEY explicitly.
+  const reasoningApiKey = process.env.OPENGAME_REASONING_API_KEY || '';
 
   const env = {
     ...process.env,
@@ -732,7 +660,7 @@ function buildOpenGameEnv() {
     GAME_DOCS_DIR: process.env.GAME_DOCS_DIR || path.join(OPENGAME_ROOT, 'agent-test', 'docs'),
     OPENGAME_REASONING_PROVIDER: process.env.OPENGAME_REASONING_PROVIDER || 'openai-compat',
     OPENGAME_REASONING_API_KEY: reasoningApiKey,
-    OPENGAME_REASONING_BASE_URL: process.env.OPENGAME_REASONING_BASE_URL || process.env.OPENAI_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+    OPENGAME_REASONING_BASE_URL: process.env.OPENGAME_REASONING_BASE_URL || process.env.OPENAI_BASE_URL || '',
     OPENGAME_REASONING_MODEL: toolCapableReasoningModel,
     OPENGAME_REQUESTED_REASONING_MODEL: requestedReasoningModel,
     OPENGAME_VIDEO_ENABLED: process.env.OPENGAME_VIDEO_ENABLED || 'false',
@@ -746,13 +674,9 @@ function buildOpenGameEnv() {
     env.OPENGAME_IMAGE_MODEL = process.env.OPENGAME_IMAGE_MODEL || process.env.FAL_IMAGE_MODEL || 'fal-ai/qwen-image';
     env.OPENGAME_IMAGE_EDIT_MODEL = process.env.OPENGAME_IMAGE_EDIT_MODEL || process.env.FAL_IMAGE_EDIT_MODEL || 'fal-ai/qwen-image-edit';
   } else if (!process.env.OPENGAME_IMAGE_API_KEY) {
-    const imageApiKey = nextNvidiaImageApiKey() || reasoningApiKey;
-    if (imageApiKey) {
-      env.OPENGAME_IMAGE_PROVIDER = process.env.OPENGAME_IMAGE_PROVIDER || 'openai-compat';
-      env.OPENGAME_IMAGE_API_KEY = imageApiKey;
-      env.OPENGAME_IMAGE_BASE_URL = process.env.OPENGAME_IMAGE_BASE_URL || env.OPENGAME_REASONING_BASE_URL;
-      env.OPENGAME_IMAGE_MODEL = process.env.OPENGAME_IMAGE_MODEL || 'black-forest-labs/flux.1-schnell';
-    }
+    // No implicit image provider. This used to fall back to an NVIDIA key + FLUX;
+    // both are out of the system, so image generation here must be configured
+    // explicitly via OPENGAME_IMAGE_* or FAL_KEY.
   }
 
   return env;
@@ -880,10 +804,6 @@ async function handleJob(job) {
 
 async function main() {
   console.log(`[OpenGame Worker] Starting ${WORKER_ID}`);
-  const keyPools = summarizeNvidiaKeyPools();
-  console.log(
-    `[OpenGame Worker] NVIDIA key pools text=${keyPools.textKeyCount} image=${keyPools.imageKeyCount} splitImage=${keyPools.hasSplitImagePool} splitText=${keyPools.hasSplitTextPool} legacy=${keyPools.hasLegacyPool}`
-  );
   await initDB();
   await ensureQueueSchema();
   process.on('SIGTERM', () => { stopping = true; });

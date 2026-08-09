@@ -38,10 +38,43 @@ const LOADING_SCREEN_RULE = `
    - Drive it with real progress if your engine exposes it (Phaser's loader events, THREE.LoadingManager, or your own counter over an image/audio preload list). If you have no real number, animate the bar indefinitely rather than faking a percentage that jumps to 100.
    - Add a safety timeout: if loading has not completed after 15 seconds, hide the overlay anyway so a single failed asset can never leave the player stuck on a loading screen.`;
 
-export async function buildGamePrompt(userPrompt, orientation = 'portrait') {
+// The 3D lane only. The skills pack is symlinked into every workspace, but the old wording ("If you
+// decide to build a 3D game... read the relevant guidelines") made reading it optional, so the model
+// usually skipped straight to primitives. When the director has already decided this game is 3D
+// there is nothing to decide, so the reference becomes a hard entry gate with named files.
+const THREEJS_SKILL_GATE = `
+# 3D BUILD GATE — READ BEFORE WRITING ANY THREE.JS CODE
+
+This is a 3D game. Before you write scene code, read these files from the ./threejs-skills directory:
+  - threejs-aaa-graphics-builder/SKILL.md — the production graphics pass
+  - threejs-aaa-graphics-builder/references/visual-scorecard.md — the rubric your screenshot is graded against
+  - threejs-aaa-graphics-builder/references/render-recipes.md — lighting, tone mapping, materials
+  - threejs-aaa-graphics-builder/references/model-recipes.md — building authored shapes instead of primitives
+
+The scorecard lists automatic failures. These will be checked against a screenshot of your running game:
+  - the world is mostly stretched boxes, flat planes, or a sparse arena
+  - the hero/player is default primitives plus a glow
+  - obstacles or rewards are one repeated silhouette
+  - fog, darkness, bloom, or particles are being used to hide missing geometry
+  - the HUD is mostly rectangular debug/stat cards
+
+Build authored forms FIRST, then materials, then lighting, then effects. You cannot make primitives
+look good by adding glow to them.`;
+
+/**
+ * @param {string} userPrompt        The player's raw idea.
+ * @param {string} orientation       'portrait' | 'landscape'.
+ * @param {object} [director]        Output of buildDirectorBrief(): { brief, text }. Optional —
+ *                                   when absent the prompt is exactly what it was before the
+ *                                   director pre-pass existed.
+ */
+export async function buildGamePrompt(userPrompt, orientation = 'portrait', director = null) {
     const isLandscape = orientation === 'landscape';
     const orientationRule = ORIENTATION_RULES[isLandscape ? 'landscape' : 'portrait'];
     const loadingScreenRule = isLandscape ? LOADING_SCREEN_RULE : '';
+    const briefText = director?.text || '';
+    const is3D = director?.brief?.dimension === '3D';
+    const skillGate = is3D ? THREEJS_SKILL_GATE : '';
     return {
         system: `You are an expert game developer. Your job is to write a complete, working, mobile-friendly HTML5 web game directly in the project directory using HTML, CSS, and JavaScript.
 
@@ -75,8 +108,19 @@ ${orientationRule}
 
 7. **Pure JavaScript**: Use standard JS (.js files). No TypeScript.
 ${loadingScreenRule}
+${skillGate}
 `,
-        user: `Create a complete web game based on this description:
+        // With a brief, the brief IS the request — the raw one-liner is preserved inside it as the
+        // player's original idea, so nothing is lost. Without one, this is the pre-director prompt.
+        user: briefText
+            ? `Build the game specified in the design brief below.
+
+The brief is not a suggestion. Its numbers, hex colours, named entities, and required systems are
+the acceptance criteria — a screenshot of your running game will be graded against them. Where the
+brief specifies a value, use that value rather than inventing your own.
+
+${briefText}`
+            : `Create a complete web game based on this description:
 
 ${userPrompt}
 `

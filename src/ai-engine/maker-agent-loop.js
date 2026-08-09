@@ -486,7 +486,7 @@ export function buildMakerAgentInspectionPrompt({
             'Focus on targetedRepairTasks and failed checks below — ignore unrelated contract noise.',
         ]),
         ...(useTools ? [
-            'Use the provided NVIDIA tools to edit files. Do not dump a JSON protocol blob in plain message text.',
+            'Use the provided tools to edit files. Do not dump a JSON protocol blob in plain message text.',
             '',
             'Tool rules:',
             ...getMakerAgentToolInstructionLines(mode),

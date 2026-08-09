@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 
 export const DEEPSEEK_DIRECT_PROVIDER = 'deepseek-direct';
 
-const NVIDIA_DEEPSEEK_PREFIX = 'deepseek-ai/';
+const HOSTED_DEEPSEEK_PREFIX = 'deepseek-ai/';
 
 export function getDeepSeekTextConfig(env = process.env) {
     const apiKey = String(env.DEEPSEEK_API_KEY || '').trim();
@@ -32,7 +32,7 @@ export function createDeepSeekTextClient(env = process.env) {
     return new OpenAI({
         apiKey: config.apiKey,
         baseURL: config.baseURL,
-        timeout: Number(env.DEEPSEEK_API_TIMEOUT_MS || env.NVIDIA_API_TIMEOUT_MS || 900000),
+        timeout: Number(env.DEEPSEEK_API_TIMEOUT_MS || 900000),
     });
 }
 
@@ -42,13 +42,13 @@ export function maskDeepSeekKey(key = '') {
     return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-/** Map NVIDIA NIM model ids to DeepSeek direct API model ids. */
+/** Map vendor-prefixed hosted model ids to DeepSeek direct API model ids. */
 export function resolveDeepSeekModel(model = null, env = process.env) {
     const fallback = getDeepSeekTextConfig(env)?.model || 'deepseek-v4-pro';
     const value = String(model || '').trim();
     if (!value) return fallback;
-    if (value.startsWith(NVIDIA_DEEPSEEK_PREFIX)) {
-        return value.slice(NVIDIA_DEEPSEEK_PREFIX.length);
+    if (value.startsWith(HOSTED_DEEPSEEK_PREFIX)) {
+        return value.slice(HOSTED_DEEPSEEK_PREFIX.length);
     }
     return value;
 }

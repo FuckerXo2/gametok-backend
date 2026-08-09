@@ -23,6 +23,8 @@ import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
 import blogImagesRouter from './blog-images-router.js';
 import { seedPosts } from './seed-posts.js';
 import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, classifyGame } from './categories.js';
+import { backfillGameCategories } from './scripts/backfill-game-categories.js';
+
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import { deleteCoverAsset } from './cover-art.js';
@@ -5350,8 +5352,10 @@ const start = async () => {
   await runMultiplayerMigration();
   await runAnonymousTokensMigration();
   await ensureBotTables();
+  backfillGameCategories().catch((e) => console.warn('[backfill] error:', e.message));
   startGenerationQueueWorker();
   startForgeAutoscaler();
+
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);

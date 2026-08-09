@@ -2,7 +2,6 @@ import express from 'express';
 import http from 'http';
 import OpenAI from 'openai';
 import { randomUUID } from 'crypto';
-import vm from 'vm';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,17 +15,9 @@ import { verifyGame } from './sandbox.js';
 import { setAssetBaseUrl, getAssetRuntimeDiagnostics } from './asset-dictionary.js';
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
-import { findUserBgmAttachment, injectUserMediaAssets, resolveDreamAudioForJob } from './asset-pipeline.js';
 import { formatUnitySpecPromptBlock } from './gametok-unity.js';
-import { selectMakerTemplateContract, summarizeMakerTemplateContract } from './maker-templates.js';
-import { buildMakerDebugProtocol, formatMakerDebugProtocolPromptBlock } from './maker-debug-protocol.js';
 import { loadMakerTemplateScaffold, summarizeMakerTemplateScaffold } from './maker-scaffolds.js';
-import { buildMakerAssetContract, mergeMakerAssetContractIntoPlan, summarizeMakerAssetContract } from './maker-asset-contracts.js';
-import { buildMakerDesignBrief, formatMakerDesignBriefPromptBlock, summarizeMakerDesignBrief } from './maker-design-brief.js';
-import { buildMakerRepairPlaybook } from './maker-repair-playbook.js';
 import { applyDeterministicPreflightRepairs, applyDeterministicStateObjectDedupeRepairs, runMakerPreflightChecks } from './maker-preflight-validator.js';
-import { buildThreeMainTsStubFromFoundation, isThreeFoundation } from './maker-threejs-stub.js';
-import { detectRunnerSacredRegionTelemetry } from './maker-preflight-validator.js';
 import {
     isFreeBuildMode,
     isMakerFactoryMinimalMode,
@@ -34,15 +25,7 @@ import {
     resolveMakerAgentInspectionTurns,
     shouldBlockOnPreflight,
 } from './maker-factory-mode.js';
-import { buildMakerRepairEvolutionGuidance, formatMakerRepairEvolutionPromptBlock, formatMakerRepairProtocolPromptBlock, loadMakerRepairProtocol, matchMakerRepairProtocol, recordMakerRepairOutcome, shouldSkipRepair } from './maker-repair-protocol.js';
-import { buildMakerBenchmarkResult } from './maker-benchmark-results.js';
-import { buildMakerAssetManifest, summarizeMakerAssetManifest } from './maker-asset-manifest.js';
-import { verifyMakerGddCompliance } from './maker-gdd-verification.js';
 import { appendMakerAgentTurn, buildMakerAgentImplementPrompt, buildMakerAgentInspectionPrompt, buildThreeDRulesBlock, parseMakerAgentInspectionResponse, summarizeMakerAgentTurns, summarizeMakerProjectFiles } from './maker-agent-loop.js';
-import { materializeKenney3dModels, kenney3dModelPromptBlock, buildKenneyRetrievalText } from './maker-kenney3d.js';
-import { selectCharacter, resolveCharacterAnimations } from './character-collection.js';
-import { selectItems } from './props-collection.js';
-import { selectBackground } from './background-collection.js';
 import {
     applyMainTsAssetWiringRepairs,
     buildAssetSlotRuntimeHints,
@@ -83,7 +66,6 @@ import {
 } from './moonshot-text-client.js';
 import {
     buildDeepSeekChatOptions,
-    callDeepSeekFlashJson,
     createDeepSeekTextClient,
     DEEPSEEK_DIRECT_PROVIDER,
     getDeepSeekTextConfig,
@@ -94,27 +76,10 @@ import {
     maskDeepSeekKey,
     resolveDeepSeekModel,
 } from './deepseek-text-client.js';
-import { getMakerFileJsonEncodingRuleLines, getMakerFileJsonSchemaExample, normalizeMakerProtocolResponse, validateMakerProtocolJsonPayload } from './maker-agent-response.js';
-import { applyPatchReplacements } from './maker-agent-patches.js';
 import { buildMakerCompileFailureEvidence, buildMakerDecodeFailureEvidence, buildMakerPatchFailureEvidence, restoreMakerFileBackups, runMakerProjectTscCheck } from './maker-project-compile-gate.js';
-import { buildMakerAcceptanceResult, mergeAcceptanceIntoSandboxDiagnostics } from './maker-acceptance.js';
 import { buildForgeAutoscaleReport, runForgeAutoscaleTick, isForgeAutoscaleEnabled } from './forge-autoscale.js';
-import { buildHeuristicQualityIntent } from './maker-intent-fallback.js';
-import {
-    assertFoundationSupported,
-    buildFallbackFoundationSeed,
-    buildFoundationAgentPrompt,
-    buildFoundationDebugChecks,
-    buildMakerAssetContractFromFoundation,
-    buildMakerTemplateContractFromFoundation,
-    normalizeFoundationContract,
-    clampFoundationScope,
-    useDynamicFoundation,
-} from './maker-foundation-agent.js';
-import { buildKernelScaffold } from './maker-kernel-scaffold.js';
 import { buildGamePrompt } from './maker-game-prompt.js';
 import { normalizeOrientation, DEFAULT_ORIENTATION } from './orientation.js';
-import { runFoundationStubPreflight } from './maker-foundation-stub-validator.js';
 import { stripCookingStateLeaksFromSource } from './maker-foundation-safety.js';
 import { formatMakerSystemManual, getMakerSystemManualSummary } from './maker-system-manual.js';
 
@@ -123,163 +88,11 @@ const __dirname = path.dirname(__filename);
 const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
 const GAMETOK_MAKER_ROOT = process.env.GAMETOK_MAKER_ROOT || path.join(STORAGE_ROOT, 'gametok-maker-jobs');
 
-function getRequestOrigin(req) {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    return `${protocol}://${host}`;
-}
-
-function extractJson(text) {
-    let jsonStart = text.indexOf('{');
-    if (text.includes('</thinking>')) {
-        const postThinkingStart = text.indexOf('{', text.indexOf('</thinking>'));
-        if (postThinkingStart !== -1) {
-            jsonStart = postThinkingStart;
-        }
-    }
-    const jsonEnd = text.lastIndexOf('}');
-    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
-        return text.substring(jsonStart, jsonEnd + 1);
-    }
-    return text;
-}
-
-/**
- * Escape raw control characters inside JSON double-quoted string literals.
- * LLM builders often paste multiline find/replace or file content with literal
- * newlines — JSON.parse rejects those as "Bad control character in string literal".
- */
-function escapeControlCharsInJsonStrings(text) {
-    if (!text || typeof text !== 'string') return text;
-
-    let result = '';
-    let inString = false;
-    let escaped = false;
-
-    for (let i = 0; i < text.length; i += 1) {
-        const ch = text[i];
-        const code = ch.charCodeAt(0);
-
-        if (!inString) {
-            result += ch;
-            if (ch === '"') {
-                inString = true;
-            }
-            continue;
-        }
-
-        if (escaped) {
-            result += ch;
-            escaped = false;
-            continue;
-        }
-
-        if (ch === '\\') {
-            result += ch;
-            escaped = true;
-            continue;
-        }
-
-        if (ch === '"') {
-            result += ch;
-            inString = false;
-            continue;
-        }
-
-        if (code >= 0x00 && code <= 0x1f) {
-            if (ch === '\n') {
-                result += '\\n';
-            } else if (ch === '\r') {
-                result += '\\r';
-            } else if (ch === '\t') {
-                result += '\\t';
-            }
-            continue;
-        }
-
-        result += ch;
-    }
-
-    return result;
-}
-
-/**
- * Attempt to repair common LLM JSON mistakes:
- *  - Strip JS-style single-line (//) and multi-line comments
- *  - Replace single-quoted strings with double-quoted strings
- *  - Remove trailing commas before } or ]
- *  - Fix unquoted property names
- *  - Escape control characters inside string values
- */
-function repairJson(text) {
-    if (!text || typeof text !== 'string') return text;
-
-    // First try as-is — maybe it's already valid
-    try { JSON.parse(text); return text; } catch (_) { /* needs repair */ }
-
-    let repaired = text;
-
-    // 1. Strip single-line comments (// ...) but NOT inside strings
-    repaired = repaired.replace(/\/\/[^\n]*/g, '');
-
-    // 2. Strip multi-line comments (/* ... */)
-    repaired = repaired.replace(/\/\*[\s\S]*?\*\//g, '');
-
-    // 3. Replace single-quoted strings with double-quoted strings
-    //    Walk through character by character to handle nested quotes properly
-    try {
-        let result = '';
-        let inDouble = false;
-        let inSingle = false;
-        let escaped = false;
-        for (let i = 0; i < repaired.length; i++) {
-            const ch = repaired[i];
-            if (escaped) {
-                result += ch;
-                escaped = false;
-                continue;
-            }
-            if (ch === '\\') {
-                result += ch;
-                escaped = true;
-                continue;
-            }
-            if (ch === '"' && !inSingle) {
-                inDouble = !inDouble;
-                result += ch;
-            } else if (ch === "'" && !inDouble) {
-                inSingle = !inSingle;
-                result += '"'; // Replace single quote with double quote
-            } else {
-                // If inside a single-quoted string, escape any internal double quotes
-                if (inSingle && ch === '"') {
-                    result += '\\"';
-                } else {
-                    result += ch;
-                }
-            }
-        }
-        repaired = result;
-    } catch (_) { /* keep repaired as-is if quote replacement fails */ }
-
-    // 4. Remove trailing commas before ] or }
-    repaired = repaired.replace(/,\s*([\]}])/g, '$1');
-
-    // 5. Fix unquoted property names: key: -> "key":
-    //    Only outside of string values. This is a best-effort regex.
-    repaired = repaired.replace(/(?<=[\{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '"$1":');
-
-    // 6. Escape raw control characters inside JSON string literals
-    repaired = escapeControlCharsInJsonStrings(repaired);
-
-    // Validate the repair worked
-    try { JSON.parse(repaired); return repaired; } catch (_) { /* return repaired anyway, caller will handle */ }
-    return repaired;
-}
-
 const router = express.Router();
 
-const DEFAULT_KIMI_BUILDER_MODEL = "moonshotai/kimi-k2.7";
+// "moonshotai/" was the NVIDIA-catalog slug prefix; direct Moonshot ids are unprefixed, and
+// k2.7 exists only as the -code variant (see getMoonshotTextConfig).
+const DEFAULT_KIMI_BUILDER_MODEL = "kimi-k2.7-code";
 function resolveDreamModel(envName, fallback) {
     const requested = String(process.env[envName] || '').trim();
     return requested || fallback;
@@ -306,16 +119,6 @@ const DREAM_MODELS = {
     spec: resolveDreamModel('DREAMSTREAM_SPEC_MODEL', DEFAULT_KIMI_BUILDER_MODEL), // Use Kimi for Phase 1 too
     premiumBuilder: BUILDER_FALLBACK_MODELS[0],
 };
-
-function getDreamTextModelLabel() {
-    if (isDeepSeekPrimaryEnabled()) {
-        return getDeepSeekTextConfig()?.model || 'deepseek-v4-pro';
-    }
-    if (isMoonshotPrimaryEnabled()) {
-        return getMoonshotTextConfig()?.model || DEFAULT_KIMI_BUILDER_MODEL;
-    }
-    return DREAM_MODELS.premiumBuilder || DREAM_MODELS.spec;
-}
 
 const DEEPSEEK_MAX_OUTPUT_TOKENS = Math.max(
     4096,
@@ -366,9 +169,6 @@ const BUILDER_CONTINUATION_TIMEOUT_MS = Math.max(30000, Number(process.env.DREAM
 const PHASE1_TIMEOUT_MS = Math.max(60000, Number(process.env.DREAMSTREAM_PHASE1_TIMEOUT_MS || 600000));
 const PHASE1_ATTEMPTS_PER_MODEL = Math.max(1, Math.min(6, Number(process.env.DREAMSTREAM_PHASE1_ATTEMPTS_PER_MODEL || 4)));
 const ALLOW_PHASE1_HEURISTIC_FALLBACK = String(process.env.GAMETOK_ALLOW_PHASE1_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
-function getMakerAgentInspectionTurns(assetSlotCount = 0, options = {}) {
-    return resolveMakerAgentInspectionTurns(assetSlotCount, options);
-}
 const SKIP_TURN1_PRERUN_EVIDENCE = String(process.env.GAMETOK_MAKER_SKIP_TURN1_PRERUN_EVIDENCE || 'true').toLowerCase() !== 'false';
 const SKIP_PHASE3_REPAIR_WHEN_PHASE2_PASSES = String(process.env.GAMETOK_SKIP_PHASE3_WHEN_PHASE2_PASSES || 'true').toLowerCase() !== 'false';
 const MAKER_SANDBOX_REPAIR_ATTEMPTS = Math.max(1, Math.min(5, Number(process.env.GAMETOK_MAKER_SANDBOX_REPAIR_ATTEMPTS || 2)));
@@ -506,80 +306,6 @@ setInterval(() => {
     }
 }, 60 * 1000).unref?.();
 
-async function callAI(systemPrompt, userPrompt, maxTokens = 2000, temperature = 0.3, { overrideModel = null, reasoningEffort = null } = {}) {
-    let raw = '';
-    let extracted = '';
-    let parseError = null;
-    const maxJsonRewriteAttempts = Math.max(1, BUILDER_JSON_REWRITE_ATTEMPTS);
-    // When a lighter/faster model is requested (e.g. flash for Phase 1), pass it as the sole
-    // fallbackModels entry so it wins for both DeepSeek-primary and Moonshot-primary paths.
-    const callFallbackModels = overrideModel
-        ? [overrideModel]
-        : BUILDER_FALLBACK_MODELS;
-
-    for (let attempt = 0; attempt <= maxJsonRewriteAttempts; attempt += 1) {
-        const messages = [
-            { role: "system", content: systemPrompt },
-            {
-                role: "user",
-                content: attempt === 0
-                    ? userPrompt
-                    : buildPhase1JsonRewritePrompt(userPrompt, extracted || raw, parseError),
-            }
-        ];
-        const res = await withNvidiaRetries((currentModel, client, providerTag) => withAbortableTimeout(async (signal) => {
-            const modelToUse = resolveTextModelForProvider(currentModel || DREAM_MODELS.spec, providerTag);
-            const chatOptions = {
-                ...getTextChatOptions(modelToUse, maxTokens, {
-                    providerTag,
-                    stream: useMakerAgentStreaming(),
-                    reasoningEffort,
-                }),
-                messages,
-            };
-            if (!isMoonshotDirectProvider(providerTag) && !isDeepSeekDirectProvider(providerTag)) {
-                chatOptions.temperature = attempt === 0 ? temperature : Math.min(temperature, 0.15);
-            }
-            if (useMakerAgentStreaming()) {
-                const message = await streamChatCompletionToMessage(client, chatOptions, {
-                    signal,
-                    logLabel: `Phase 1 Builder rewrite=${attempt}`,
-                });
-                return { choices: [{ message }] };
-            }
-            return client.chat.completions.create(chatOptions, { signal });
-        }, PHASE1_TIMEOUT_MS, 'Phase 1 Builder'), { label: 'Phase 1 Builder', maxAttempts: PHASE1_ATTEMPTS_PER_MODEL, baseDelayMs: 2000, fallbackModels: callFallbackModels });
-        if (!res || !res.choices || !res.choices[0]) {
-            throw new Error("API Provider Error (Phase 1): " + (res?.error?.message || JSON.stringify(res)));
-        }
-        raw = res.choices[0].message.content || '';
-        extracted = extractJson(raw);
-
-        // Try 1: Direct parse
-        try {
-            return JSON.parse(extracted);
-        } catch (directError) {
-            // Try 2: Repair common LLM quirks (single quotes, trailing commas, comments, unquoted keys)
-            try {
-                const repaired = repairJson(extracted);
-                const parsed = JSON.parse(repaired);
-                console.log(`[callAI] JSON repair succeeded (original error: ${directError.message})`);
-                return parsed;
-            } catch (repairError) {
-                parseError = directError;
-                console.error('[callAI] JSON parse failed. Raw response length:', raw.length);
-                console.error('[callAI] Extracted JSON length:', extracted.length);
-                console.error('[callAI] Last 200 chars of extracted:', extracted.slice(-200));
-                console.error('[callAI] Repair also failed:', repairError.message);
-                if (attempt >= maxJsonRewriteAttempts) break;
-                console.warn(`[callAI] Requesting full JSON rewrite ${attempt + 1}/${maxJsonRewriteAttempts} after parse failure: ${directError.message}`);
-            }
-        }
-    }
-
-    throw new Error(`JSON parse failed after rewrite attempts: ${parseError?.message || 'unknown parse error'}. Response stayed invalid (${extracted.length} chars).`);
-}
-
 const DISCOVERY_TABS = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'];
 const DISCOVERY_CATEGORIES = ['arcade', 'action', 'simulation', 'horror', 'quiz', 'puzzle', 'roleplay', 'story', 'creative', 'tool'];
 const DISCOVERY_SUBCATEGORIES = [
@@ -711,90 +437,6 @@ function deriveDiscoveryChips({ primaryTab = 'Explore', subcategory = '', tags =
     return Array.from(derived).slice(0, 4);
 }
 
-function heuristicClassifyGame({ title = '', prompt = '', description = '', htmlPayload = '' }) {
-    const text = `${title} ${prompt} ${description} ${htmlPayload}`.toLowerCase();
-    const matches = (keywords = []) => keywords.reduce((count, keyword) => count + (text.includes(keyword) ? 1 : 0), 0);
-
-    const horrorScore = matches(['horror', 'scary', 'creepy', 'ghost', 'haunted', 'dark', 'monster', 'fear', 'void', 'survey']);
-    const quizScore = matches(['quiz', 'trivia', 'puzzle', 'question', 'guess', 'memory', 'atlas', 'answer']);
-    const roleplayScore = matches(['romance', 'dating', 'love', 'episode', 'dress', 'fashion', 'anime', 'boyfriend', 'girlfriend', 'story']);
-    const toolScore = matches(['draw', 'mirror draw', 'paint', 'generator', 'tool', 'create pattern', 'lissajous', 'music toy']);
-    const gameScore = matches(['drive', 'driving', 'car', 'runner', 'jump', 'platform', 'enemy', 'score', 'arcade', 'shooter', 'steering']);
-
-    let primaryTab = 'Explore';
-    let category = 'creative';
-    let subcategory = 'experimental';
-    let interactionType = 'experimental';
-    let tags = ['interactive'];
-
-    const ranked = [
-        { tab: 'Horror', score: horrorScore, category: 'horror', interactionType: 'horror_vignette', tags: ['dark', 'story', 'choice'] },
-        { tab: 'Quiz', score: quizScore, category: 'quiz', interactionType: 'quiz_challenge', tags: ['brain', 'trivia', 'puzzle'] },
-        { tab: 'Roleplay', score: roleplayScore, category: 'roleplay', interactionType: 'roleplay_story', tags: ['story', 'social', 'character'] },
-        { tab: 'Games', score: Math.max(gameScore, toolScore > 0 ? 0 : gameScore), category: gameScore > 2 ? 'action' : 'simulation', interactionType: gameScore > 2 ? 'arcade_loop' : 'simulator', tags: ['playable', 'loop', 'interactive'] },
-        { tab: 'Explore', score: toolScore, category: toolScore > 0 ? 'tool' : 'creative', interactionType: toolScore > 0 ? 'drawing_tool' : 'experimental', tags: toolScore > 0 ? ['creative', 'tool', 'playful'] : ['interactive'] },
-    ].sort((a, b) => b.score - a.score);
-
-    if (ranked[0] && ranked[0].score > 0) {
-        primaryTab = ranked[0].tab;
-        category = ranked[0].category;
-        interactionType = ranked[0].interactionType;
-        tags = ranked[0].tags;
-    } else if (text.includes('story') || text.includes('choice') || text.includes('note')) {
-        primaryTab = 'Explore';
-        category = 'story';
-        interactionType = 'choice_story';
-        tags = ['story', 'choice', 'interactive'];
-    }
-
-    if (primaryTab === 'Horror') {
-        if (matches(['camera', 'recording', 'footage', 'vhs', 'tape']) > 0) subcategory = 'found_footage';
-        else if (matches(['feed', 'post', 'message', 'phone', 'survey']) > 0) subcategory = 'cursed_feed';
-        else if (matches(['escape', 'maze', 'door', 'locked', 'room']) > 0) subcategory = 'escape';
-        else if (matches(['ghost', 'spirit', 'haunted', 'ritual', 'paranormal']) > 0) subcategory = 'paranormal';
-        else if (matches(['night', 'shift', 'clerk', 'late', 'work']) > 0) subcategory = 'night_shift';
-        else subcategory = 'psychological';
-    } else if (primaryTab === 'Quiz') {
-        if (matches(['geo', 'map', 'country', 'flag', 'atlas']) > 0) subcategory = 'geography';
-        else if (matches(['anime', 'manga', 'vocaloid', 'character']) > 0) subcategory = 'anime';
-        else if (matches(['word', 'letters', 'spelling', 'anagram']) > 0) subcategory = 'word';
-        else if (matches(['memory', 'remember', 'match']) > 0) subcategory = 'memory';
-        else if (matches(['impossible', 'trick', 'bait', 'backwards']) > 0) subcategory = 'impossible';
-        else subcategory = 'trivia';
-    } else if (primaryTab === 'Roleplay') {
-        if (matches(['boyfriend', 'male lead', 'him']) > 0) subcategory = 'boyfriend';
-        else if (matches(['girlfriend', 'female lead', 'her']) > 0) subcategory = 'girlfriend';
-        else if (matches(['fantasy', 'magic', 'spirit', 'myth']) > 0) subcategory = 'fantasy';
-        else if (matches(['school', 'academy', 'student', 'class']) > 0) subcategory = 'school_drama';
-        else if (matches(['world', 'kingdom', 'universe', 'guild']) > 0) subcategory = 'immersive_world';
-        else subcategory = 'romance';
-    } else if (primaryTab === 'Games') {
-        if (matches(['drive', 'driving', 'car', 'steering', 'drift']) > 0) subcategory = 'racing';
-        else if (matches(['run', 'runner', 'dash', 'speed']) > 0) subcategory = 'runner';
-        else if (matches(['shoot', 'gun', 'enemy', 'fps', 'bullet']) > 0) subcategory = 'shooter';
-        else if (matches(['jump', 'platform', 'obby']) > 0) subcategory = 'platformer';
-        else if (matches(['sim', 'simulator', 'tycoon', 'manage']) > 0) subcategory = 'simulator';
-        else if (matches(['cozy', 'farm', 'merge', 'idle']) > 0) subcategory = 'casual';
-        else subcategory = 'arcade';
-    } else {
-        if (matches(['meme', 'shitpost', 'funny', 'cat tv']) > 0) subcategory = 'meme';
-        else if (matches(['draw', 'mirror draw', 'paint', 'tool']) > 0) subcategory = 'creative_tool';
-        else if (matches(['lissajous', 'pattern', 'harmonic', 'mirror']) > 0) subcategory = 'satisfying';
-        else if (matches(['brainrot', 'absurd', 'chaos']) > 0) subcategory = 'brainrot';
-        else if (matches(['casual', 'light', 'quick']) > 0) subcategory = 'casual';
-        else subcategory = 'experimental';
-    }
-
-    return {
-        primaryTab,
-        category,
-        subcategory,
-        interactionType,
-        tags,
-        confidence: 0.45,
-    };
-}
-
 function getStoredDraftClassification(draft = {}) {
     const primaryTab = DISCOVERY_TABS.includes(draft?.primary_tab) ? draft.primary_tab : null;
     const category = DISCOVERY_CATEGORIES.includes(draft?.category) ? draft.category : null;
@@ -922,31 +564,6 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isRetryableProviderError(error, hasFallbacks = false) {
-    if (hasFallbacks && error?.status === 404) return true;
-    const message = [
-        error?.message,
-        error?.code,
-        error?.cause?.message,
-        error?.cause?.code,
-        String(error || ''),
-    ].filter(Boolean).join(' ').toLowerCase();
-    return Boolean(
-        error?.status >= 500 ||
-        message.includes('timed out') ||
-        message.includes('timeout') ||
-        message.includes('econnreset') ||
-        message.includes('terminated') ||
-        message.includes('und_err_socket') ||
-        message.includes('socket') ||
-        message.includes('other side closed') ||
-        message.includes('fetch failed') ||
-        message.includes('connection error') ||
-        message.includes('overloaded') ||
-        message.includes('rate limit')
-    );
-}
-
 function formatJobLogLabel(label, jobId = null) {
     return jobId ? `${label} job=${jobId}` : label;
 }
@@ -967,7 +584,8 @@ async function withAbortableTimeout(task, timeoutMs, label) {
     }
 }
 
-// NVIDIA removed from the text/game-gen path entirely (2026-07-08): it was never anything but an
+// NVIDIA removed from the text/game-gen path entirely (2026-07-08, re-swept 2026-08-01 after it
+// crept back in through the Kimi CLI's fallback provider): it was never anything but an
 // emergency failover here, and separately 4 other endpoints called it directly with no DeepSeek
 // option at all (see callDeepSeekFlashJson call sites) — that's what produced the hardcoded
 // "Clear tap-friendly controls" filler spec whenever NVIDIA/Llama was slow. DeepSeek direct is now
@@ -975,7 +593,7 @@ async function withAbortableTimeout(task, timeoutMs, label) {
 // this decision — it's off by default and was never NVIDIA). If DeepSeek's API has an outage,
 // generation now fails outright rather than silently degrading through NVIDIA — a deliberate
 // tradeoff, not an oversight.
-async function withNvidiaRetries(task, {
+async function withTextProviderRetries(task, {
     label,
     jobId = null,
     maxAttempts = 2,
@@ -1058,10 +676,6 @@ async function withNvidiaRetries(task, {
     throw new Error(`[${logLabel}] No text provider configured — set GAMETOK_DEEPSEEK_PRIMARY=true with DEEPSEEK_API_KEY (or configure Moonshot primary).`);
 }
 
-function extractText(response) {
-    return response?.choices?.[0]?.message?.content?.trim() || '';
-}
-
 function isDeepSeekV4Model(model) {
     return isDeepSeekV4ModelName(model);
 }
@@ -1081,7 +695,7 @@ function getMaxTokensForModel(model, requestedMaxTokens) {
     return requested;
 }
 
-function getNvidiaChatOptions(model, requestedMaxTokens, { reasoningEffort = null } = {}) {
+function getDefaultChatOptions(model, requestedMaxTokens, { reasoningEffort = null } = {}) {
     const options = {
         model,
         max_tokens: getMaxTokensForModel(model, requestedMaxTokens),
@@ -1117,7 +731,7 @@ function getTextChatOptions(model, requestedMaxTokens, {
         return buildMoonshotChatOptions(resolveMoonshotModel(model), requestedMaxTokens, { hasTools, stream });
     }
 
-    const options = getNvidiaChatOptions(model, requestedMaxTokens, { reasoningEffort });
+    const options = getDefaultChatOptions(model, requestedMaxTokens, { reasoningEffort });
     options.stream = stream;
     if (temperature !== undefined) {
         options.temperature = temperature;
@@ -1146,21 +760,6 @@ function cleanBuilderContinuation(text) {
     return output.trimStart();
 }
 
-function cleanJsonContinuation(text) {
-    return stripMarkdownFences(String(text || ''), 'json').trimStart();
-}
-
-function parseBuilderJsonText(text) {
-    const cleaned = stripMarkdownFences(String(text || ''), 'json');
-    const extracted = extractJson(cleaned);
-    const sanitized = escapeControlCharsInJsonStrings(extracted);
-    try {
-        return JSON.parse(sanitized);
-    } catch (e) {
-        return JSON.parse(repairJson(sanitized));
-    }
-}
-
 function buildBuilderContinuationPrompt(partialHtml) {
     const suffix = partialHtml.slice(-4000);
     return [
@@ -1180,71 +779,6 @@ function buildBuilderContinuationPrompt(partialHtml) {
     ].join('\n');
 }
 
-function buildBuilderJsonContinuationPrompt(partialJson, parseError) {
-    const suffix = String(partialJson || '').slice(-6000);
-    return [
-        'You were generating one valid JSON object for the GameTok maker and your previous response was cut off or incomplete.',
-        'Continue from EXACTLY where the JSON stopped.',
-        'Output ONLY the missing continuation characters.',
-        'Do NOT restart the JSON object.',
-        'Do NOT repeat earlier keys or file contents.',
-        'Do NOT wrap the answer in markdown.',
-        'Do NOT explain anything.',
-        ...getMakerFileJsonEncodingRuleLines(),
-        '',
-        `The parser currently fails with: ${parseError?.message || String(parseError || 'unknown parse error')}`,
-        '',
-        'The current partial JSON ends with this exact suffix:',
-        '```json',
-        suffix,
-        '```',
-        '',
-        'Continue with only the remaining characters needed to finish the same JSON object.'
-    ].join('\n');
-}
-
-function buildBuilderJsonRewritePrompt(originalPrompt, invalidJson, parseError) {
-    return [
-        'Your previous GameTok maker JSON response could not be parsed.',
-        'Return one complete valid JSON object now. No markdown. No commentary.',
-        'Do not continue the broken response. Rewrite the full JSON object from scratch.',
-        'Keep edits targeted and only include complete replacement file contents for files that need changes.',
-        'Prefer protocolVersion 2 patch responses with patches[].replacements find/replace pairs copied from current project files.',
-        'If the safest answer is no edit, return {"patches":[],"notes":["already compliant"],"noEditsNeeded":true}.',
-        ...getMakerFileJsonEncodingRuleLines(),
-        '',
-        `Parser error: ${parseError?.message || String(parseError || 'unknown parse error')}`,
-        '',
-        'Invalid response excerpt:',
-        '```json',
-        String(invalidJson || '').slice(-12000),
-        '```',
-        '',
-        'Original task:',
-        originalPrompt,
-    ].join('\n');
-}
-
-function buildPhase1JsonRewritePrompt(originalPrompt, invalidJson, parseError) {
-    return [
-        'Your previous response was not valid JSON.',
-        'Return one complete valid JSON object now. No markdown. No commentary.',
-        'Do not continue the broken response. Rewrite the full JSON object from scratch.',
-        'Use strict JSON only: double-quoted strings, no comments, no trailing commas, and no unescaped newlines inside strings.',
-        'Keep the same schema requested by the original prompt.',
-        '',
-        `Parser error: ${parseError?.message || String(parseError || 'unknown parse error')}`,
-        '',
-        'Invalid response excerpt:',
-        '```json',
-        String(invalidJson || '').slice(-8000),
-        '```',
-        '',
-        'Original task:',
-        originalPrompt,
-    ].join('\n');
-}
-
 async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, currentModel = null } = {}) {
     assertJobNotCancelled(jobId);
     await assertJobNotCancelledShared(jobId, { force: true });
@@ -1253,7 +787,7 @@ async function requestBuilderMessage(userPrompt, { label, jobId = null, timeoutM
     const logLabel = formatJobLogLabel(label, jobId);
     let lastPartialText = '';
     let lastPartialStopReason = null;
-    const text = await withNvidiaRetries(async (modelParam, client, providerTag) => withAbortableTimeout(async (signal) => {
+    const text = await withTextProviderRetries(async (modelParam, client, providerTag) => withAbortableTimeout(async (signal) => {
         const modelToUse = resolveTextModelForProvider(currentModel || modelParam || DREAM_MODELS.premiumBuilder, providerTag);
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
@@ -1338,7 +872,7 @@ async function requestMakerToolCompletion(messages, {
         console.log(`📌 [${logLabel}] Preferred model ${preferredModel} with fallback chain ${modelsToTry.join('>')}`);
     }
 
-    return withNvidiaRetries(async (modelParam, client, providerTag) => withAbortableTimeout(async (signal) => {
+    return withTextProviderRetries(async (modelParam, client, providerTag) => withAbortableTimeout(async (signal) => {
         const modelToUse = resolveTextModelForProvider(modelParam || preferredModel || DREAM_MODELS.premiumBuilder, providerTag);
         assertJobNotCancelled(jobId);
         await assertJobNotCancelledShared(jobId);
@@ -1465,554 +999,6 @@ async function generateCompleteHtmlWithBuilder(initialPrompt, { label, jobId = n
     }
 
     return html;
-}
-
-async function generateCompleteJsonWithBuilder(initialPrompt, { label, jobId = null, timeoutMs = BUILDER_REQUEST_TIMEOUT_MS, maxAttempts = 2, progressBase = 56, currentModel = null } = {}) {
-    assertJobNotCancelled(jobId);
-    const logLabel = formatJobLogLabel(label, jobId);
-    let lastParseError = null;
-    let lastJsonText = '';
-    for (let rewriteAttempt = 0; rewriteAttempt <= BUILDER_JSON_REWRITE_ATTEMPTS; rewriteAttempt += 1) {
-        const prompt = rewriteAttempt === 0
-            ? initialPrompt
-            : buildBuilderJsonRewritePrompt(initialPrompt, lastJsonText, lastParseError);
-        const currentLabel = rewriteAttempt === 0 ? label : `${label} JSON Rewrite ${rewriteAttempt}`;
-        const currentLogLabel = formatJobLogLabel(currentLabel, jobId);
-        let { text, stopReason } = await requestBuilderMessage(prompt, {
-            label: currentLabel,
-            jobId,
-            timeoutMs,
-            maxAttempts,
-            currentModel,
-        });
-        assertJobNotCancelled(jobId);
-        let jsonText = stripMarkdownFences(text, 'json');
-        lastJsonText = jsonText;
-        console.log(`🧾 [${currentLogLabel}] json stop_reason=${stopReason || 'unknown'} chars=${jsonText.length}`);
-
-        let continuationCount = 0;
-        while (continuationCount <= BUILDER_MAX_CONTINUATIONS) {
-            try {
-                const parsed = parseBuilderJsonText(jsonText);
-                validateMakerProtocolJsonPayload(parsed);
-                return JSON.stringify(parsed);
-            } catch (parseError) {
-                lastParseError = parseError;
-                lastJsonText = jsonText;
-                if (continuationCount >= BUILDER_MAX_CONTINUATIONS) {
-                    break;
-                }
-                continuationCount += 1;
-                console.warn(`⚠️ [${currentLogLabel}] JSON output incomplete or invalid (${parseError.message}). Requesting continuation ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`);
-                if (jobId) {
-                    await updateGenerationJobProgress(
-                        jobId,
-                        Math.min(75, progressBase + continuationCount),
-                        'build_json_continuing',
-                        `Builder JSON was incomplete. Continuing structured output ${continuationCount}/${BUILDER_MAX_CONTINUATIONS}...`
-                    );
-                }
-                const continuation = await requestBuilderMessage(buildBuilderJsonContinuationPrompt(jsonText, parseError), {
-                    label: `${currentLabel} JSON Continue`,
-                    jobId,
-                    timeoutMs: BUILDER_CONTINUATION_TIMEOUT_MS,
-                    maxAttempts: 2,
-                    currentModel,
-                });
-                assertJobNotCancelled(jobId);
-                const continuationText = cleanJsonContinuation(continuation.text);
-                console.log(`🧾 [${formatJobLogLabel(`${currentLabel} JSON Continue`, jobId)}] stop_reason=${continuation.stopReason || 'unknown'} chars=${continuationText.length}`);
-                if (!continuationText) {
-                    break;
-                }
-                jsonText += continuationText;
-            }
-        }
-
-        if (rewriteAttempt < BUILDER_JSON_REWRITE_ATTEMPTS) {
-            console.warn(`⚠️ [${logLabel}] JSON remained invalid (${lastParseError?.message || 'unknown parse error'}). Requesting full JSON rewrite ${rewriteAttempt + 1}/${BUILDER_JSON_REWRITE_ATTEMPTS}...`);
-            if (jobId) {
-                await updateGenerationJobProgress(
-                    jobId,
-                    Math.min(78, progressBase + BUILDER_MAX_CONTINUATIONS + rewriteAttempt + 1),
-                    'build_json_rewriting',
-                    `Builder JSON stayed invalid. Asking for a clean structured rewrite ${rewriteAttempt + 1}/${BUILDER_JSON_REWRITE_ATTEMPTS}...`
-                );
-            }
-        }
-    }
-
-    const error = new Error(`Builder JSON remained invalid after continuation/rewrite recovery: ${lastParseError?.message || 'unknown parse error'}`);
-    error.partialText = lastJsonText;
-    error.parseError = lastParseError;
-    throw error;
-}
-
-function extractInlineScripts(html) {
-    const scripts = [];
-    const regex = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-        if (/src\s*=/.test(match[1] || '')) {
-            continue;
-        }
-        scripts.push(match[2] || '');
-    }
-    return scripts;
-}
-
-function validateJavaScriptSyntax(source, label) {
-    try {
-        new vm.Script(source, { filename: label });
-    } catch (error) {
-        throw new Error(`${label} syntax error: ${error.message}`);
-    }
-}
-
-function validateGeneratedBuild(artistCode, engineHtml, compiledHtml) {
-    if (engineHtml.includes('TODO_ENGINE')) {
-        throw new Error('engine-html validation error: scaffold TODO markers were left in the final output');
-    }
-    validateJavaScriptSyntax(artistCode, 'artist-code.js');
-    const engineScripts = extractInlineScripts(engineHtml);
-    engineScripts.forEach((script, index) => validateJavaScriptSyntax(script, `engine-inline-${index + 1}.js`));
-    const compiledScripts = extractInlineScripts(compiledHtml);
-    compiledScripts.forEach((script, index) => validateJavaScriptSyntax(script, `compiled-inline-${index + 1}.js`));
-}
-
-function validateRuntimeLaneContract(runtimeLane, html) {
-    if (runtimeLane !== 'first_person_threejs' && runtimeLane !== 'third_person_threejs') {
-        return;
-    }
-
-    const source = String(html || '');
-    if (!source) {
-        throw new Error(`${runtimeLane} validation error: empty HTML output`);
-    }
-
-    if (!/three(\.min)?\.js/i.test(source) && !/\bTHREE\./.test(source)) {
-        throw new Error(`${runtimeLane} validation error: missing Three.js runtime`);
-    }
-    if (!/PerspectiveCamera/i.test(source)) {
-        throw new Error(`${runtimeLane} validation error: missing THREE.PerspectiveCamera`);
-    }
-    if (!/WebGLRenderer/i.test(source)) {
-        throw new Error(`${runtimeLane} validation error: missing THREE.WebGLRenderer`);
-    }
-    if (/OrthographicCamera/i.test(source)) {
-        throw new Error(`${runtimeLane} validation error: used OrthographicCamera instead of perspective 3D`);
-    }
-    if (runtimeLane === 'first_person_threejs' && !/camera\.rotation|camera\.lookAt|yaw|pitch|lookDelta|lookSensitivity/i.test(source)) {
-        throw new Error('first-person 3D validation error: missing first-person look/camera control logic');
-    }
-    if (runtimeLane === 'third_person_threejs') {
-        const hasVisiblePlayer = /player(Mesh|Group|Body|Vehicle)|vehicle(Mesh|Group|Body)|hero(Mesh|Group|Body)|car(Mesh|Group|Body)|scene\.add\s*\(\s*(player|vehicle|hero|car)/i.test(source);
-        const hasFollowCamera = /followCamera|chaseCamera|cameraOffset|cameraTarget|camera\.lookAt|lerp\s*\(|over[-_ ]?the[-_ ]?shoulder|third[-_ ]?person/i.test(source);
-        if (!hasVisiblePlayer) {
-            throw new Error('third-person 3D validation error: missing visible player/vehicle mesh or group');
-        }
-        if (!hasFollowCamera) {
-            throw new Error('third-person 3D validation error: missing chase/follow camera logic');
-        }
-    }
-    if (!/pointerdown/i.test(source)) {
-        throw new Error('first-person 3D validation error: missing pointerdown-based start/input flow');
-    }
-    if (/onclick\s*=|addEventListener\(\s*['"]click['"]/i.test(source) && !/pointerdown/i.test(source)) {
-        throw new Error('first-person 3D validation error: relies on click without pointerdown fallback');
-    }
-    const hasRenderLoop = /requestAnimationFrame|renderer\.render\s*\(|function\s+animate\s*\(|const\s+animate\s*=\s*\(/i.test(source);
-    const geometryCount = (source.match(/new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry|SphereGeometry|CapsuleGeometry|BufferGeometry|RingGeometry|TorusGeometry|ConeGeometry)/gi) || []).length;
-    const sceneAddCount = (source.match(/scene\.add\s*\(/gi) || []).length;
-    const hasSceneGeometry =
-        /new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry|SphereGeometry|CapsuleGeometry|BufferGeometry)/i.test(source) &&
-        /scene\.add\s*\(/i.test(source);
-    const hasWorldBuilder =
-        /buildWorld|buildTrack|createTrack|spawnTrack|spawnRoad|createRoad|spawnRoadSegment|createRoadSegment|spawnObstacles|spawnEnemies|spawnEnemy|createRoom|createCorridor|createArena|createLevel|world\s*=\s*\{[^}]*walls/i.test(source) ||
-        (geometryCount >= 3 && sceneAddCount >= 5 && /road|track|lane|barrier|wall|floor|ground|checkpoint|obstacle/i.test(source));
-    const hasLight = /AmbientLight|DirectionalLight|PointLight|HemisphereLight|SpotLight/i.test(source);
-    const hasMovementState = /moveX|moveY|velocity|player\.position|camera\.position|yaw|pitch/i.test(source);
-
-    if (!hasRenderLoop) {
-        throw new Error(`${runtimeLane} validation error: missing active render loop`);
-    }
-    if (!hasSceneGeometry) {
-        throw new Error(`${runtimeLane} validation error: missing real scene geometry added to the world`);
-    }
-    if (!hasWorldBuilder) {
-        throw new Error(`${runtimeLane} validation error: missing world-construction logic`);
-    }
-    if (!hasLight) {
-        throw new Error(`${runtimeLane} validation error: missing scene lighting`);
-    }
-    if (!hasMovementState) {
-        throw new Error(`${runtimeLane} validation error: missing playable movement/camera state`);
-    }
-}
-
-function validateControlRigContract(specSheet, html) {
-    const controlRig = specSheet?.controlRig;
-    if (!controlRig) {
-        return;
-    }
-
-    const source = String(html || '');
-    if (!source) {
-        throw new Error(`${controlRig} validation error: empty HTML output`);
-    }
-
-    if (controlRig === 'cockpit_driver') {
-        const hasSteeringUi = /steering wheel|steering-pad|steer-pad|id=["'][^"']*steer|class=["'][^"']*steer|STEER/i.test(source);
-        const hasThrottleUi = /ACCEL|THROTTLE|GAS|PEDAL|id=["'][^"']*accel|id=["'][^"']*throttle|class=["'][^"']*accel/i.test(source);
-        const hasBrakeUi = /BRAKE|id=["'][^"']*brake|class=["'][^"']*brake/i.test(source);
-        const hasDrivingState = /speed|steering|throttle|brake|laneOffset|roadScroll|dashboard/i.test(source);
-        const hasCockpitHud = /dashboard|speedometer|rpm|km\/h|cockpit/i.test(source);
-
-        if (!hasSteeringUi) {
-            throw new Error('cockpit-driver validation error: missing visible steering control');
-        }
-        if (!hasThrottleUi) {
-            throw new Error('cockpit-driver validation error: missing visible accelerate/throttle control');
-        }
-        if (!hasBrakeUi) {
-            throw new Error('cockpit-driver validation error: missing visible brake control');
-        }
-        if (!hasDrivingState) {
-            throw new Error('cockpit-driver validation error: missing driving-state logic (speed/steering/throttle/brake)');
-        }
-        if (!hasCockpitHud) {
-            throw new Error('cockpit-driver validation error: missing cockpit/dashboard HUD language');
-        }
-        return;
-    }
-
-    if (controlRig === 'chase_camera_driver') {
-        const hasDriveControls = /STEER|ACCEL|THROTTLE|GAS|BRAKE|DRIFT|BOOST|steering|throttle|brake|drift/i.test(source);
-        const hasVehicleState = /vehicle|car|speed|steering|throttle|brake|drift|wheel/i.test(source);
-        const hasChaseCamera = /chaseCamera|followCamera|cameraOffset|cameraTarget|camera\.lookAt|lerp\s*\(|third[-_ ]?person/i.test(source);
-        if (!hasDriveControls) {
-            throw new Error('chase-camera-driver validation error: missing visible driving controls');
-        }
-        if (!hasVehicleState) {
-            throw new Error('chase-camera-driver validation error: missing vehicle driving-state logic');
-        }
-        if (!hasChaseCamera) {
-            throw new Error('chase-camera-driver validation error: missing chase/follow camera logic');
-        }
-        return;
-    }
-
-    if (controlRig === 'third_person_joystick') {
-        const hasMovementUi = /joystick|thumbpad|move pad|move-zone|movement zone|move stick|left-pad|virtual joystick|MOVE/i.test(source);
-        const hasActionUi = /ACTION|ATTACK|INTERACT|FIRE|SHOOT|id=["'][^"']*(action|attack|interact|fire)|class=["'][^"']*(action|attack|interact|fire)/i.test(source);
-        const hasFollowCamera = /chaseCamera|followCamera|cameraOffset|cameraTarget|camera\.lookAt|lerp\s*\(|third[-_ ]?person/i.test(source);
-        if (!hasMovementUi) {
-            throw new Error('third-person-joystick validation error: missing visible movement control');
-        }
-        if (!hasActionUi) {
-            throw new Error('third-person-joystick validation error: missing visible action/interact/attack control');
-        }
-        if (!hasFollowCamera) {
-            throw new Error('third-person-joystick validation error: missing follow camera logic');
-        }
-        return;
-    }
-
-    if (controlRig === 'move_and_fire') {
-        const hasMovementUi = /joystick|thumbpad|move pad|move-zone|movement zone|move stick|left-pad|virtual joystick|MOVE/i.test(source);
-        const hasFireUi = /FIRE|SHOOT|ATTACK|BLAST|id=["'][^"']*fire|class=["'][^"']*fire|id=["'][^"']*attack|class=["'][^"']*attack/i.test(source);
-        const hasCombatState = /projectile|bullet|shotCooldown|fireCooldown|enemyHit|damage|impact|attack/i.test(source);
-        const hasCombatFeedback = /knockback|hit spark|muzzle flash|impact|enemy.*hp|damage pop|death burst|screen shake/i.test(source);
-
-        if (!hasMovementUi) {
-            throw new Error('move-and-fire validation error: missing visible movement control');
-        }
-        if (!hasFireUi) {
-            throw new Error('move-and-fire validation error: missing visible fire/attack control');
-        }
-        if (!hasCombatState) {
-            throw new Error('move-and-fire validation error: missing combat-state logic (projectiles/fire cooldown/damage)');
-        }
-        if (!hasCombatFeedback) {
-            throw new Error('move-and-fire validation error: missing readable combat feedback');
-        }
-        return;
-    }
-
-    if (controlRig === 'lane_swipe_runner') {
-        const hasLaneState = /laneIndex|targetLane|currentLane|laneWidth|lanes|runner\.lane/i.test(source);
-        const hasRunnerMotion = /auto[- ]?run|forwardSpeed|scrollSpeed|distance|trackScroll|runnerSpeed/i.test(source);
-        const hasSwipeOrRunnerControls = /swipe|JUMP|SLIDE|BOOST|lane change|jump button|slide button/i.test(source);
-        const hasLaneObstacles = /obstacle.*lane|coin line|pickup line|spawnTrack|track chunk|lane obstacle/i.test(source);
-
-        if (!hasLaneState) {
-            throw new Error('lane-swipe-runner validation error: missing discrete lane-state logic');
-        }
-        if (!hasRunnerMotion) {
-            throw new Error('lane-swipe-runner validation error: missing automatic forward runner motion');
-        }
-        if (!hasSwipeOrRunnerControls) {
-            throw new Error('lane-swipe-runner validation error: missing swipe/jump/slide control language');
-        }
-        if (!hasLaneObstacles) {
-            throw new Error('lane-swipe-runner validation error: missing lane-based obstacle or pickup structure');
-        }
-        return;
-    }
-
-    if (controlRig === 'binary_choice_story') {
-        const hasPromptText = /question|prompt|note|message|letter|answer|continue|read|watching|stay|leave|yes|no/i.test(source);
-        const hasChoiceUi = /<button|YES|NO|CONTINUE|OPEN|READ|ANSWER|STAY|LEAVE|choice/i.test(source);
-        const hasSceneState = /phase|selectedChoice|revealProgress|tension|advancePhase|handleChoice|restartExperience/i.test(source);
-        const hasAtmosphereLayer = /vignette|grain|noise|flicker|glow|ambient|texture|overlay|shadow|gradient/i.test(source);
-
-        if (!hasPromptText) {
-            throw new Error('binary-choice-story validation error: missing readable prompt or focal text');
-        }
-        if (!hasChoiceUi) {
-            throw new Error('binary-choice-story validation error: missing visible choice or continue control');
-        }
-        if (!hasSceneState) {
-            throw new Error('binary-choice-story validation error: missing scene-phase or reveal-state logic');
-        }
-        if (!hasAtmosphereLayer) {
-            throw new Error('binary-choice-story validation error: missing atmospheric scene treatment');
-        }
-        return;
-    }
-
-    if (controlRig === 'drag_drop_toybox') {
-        const hasToyboxZones = /ingredient|tool|shelf|pantry|tray|source zone|workbench|station|cauldron|machine|altar|lab/i.test(source);
-        const hasSystemState = /selectedItems|phase|progress|result|canCombine|revealResult|runReaction|resetToybox|addIngredient/i.test(source);
-        const hasTriggerUi = /MIX|COMBINE|FUSE|COOK|BREW|REVEAL|RESET|button/i.test(source);
-        const hasReactionFeedback = /bubble|spark|glow|shake|progress|reaction|reveal|transform|result modal|result card/i.test(source);
-
-        if (!hasToyboxZones) {
-            throw new Error('drag-drop-toybox validation error: missing readable source/workbench/result zones');
-        }
-        if (!hasSystemState) {
-            throw new Error('drag-drop-toybox validation error: missing toybox system-state logic');
-        }
-        if (!hasTriggerUi) {
-            throw new Error('drag-drop-toybox validation error: missing combine/reveal trigger control');
-        }
-        if (!hasReactionFeedback) {
-            throw new Error('drag-drop-toybox validation error: missing reaction or reveal feedback');
-        }
-    }
-}
-
-function validateCapabilityContracts(specSheet, html) {
-    const capabilities = Array.isArray(specSheet?.capabilities)
-        ? specSheet.capabilities.map((capability) => capability?.id).filter(Boolean)
-        : [];
-    if (capabilities.length === 0) return;
-
-    const hasCapability = (id) => capabilities.includes(id);
-    const source = String(html || '');
-    const fail = (id, message) => {
-        throw new Error(`${id} capability validation error: ${message}`);
-    };
-
-    if (hasCapability('chase_camera_driver')) {
-        if (!/chaseCamera|followCamera|cameraOffset|cameraTarget|camera\.lookAt|third[-_ ]?person/i.test(source)) {
-            fail('chase_camera_driver', 'missing chase/follow camera logic');
-        }
-        if (!/vehicle|car|player(Mesh|Group|Body)|speed|steering|throttle|brake|drift/i.test(source)) {
-            fail('chase_camera_driver', 'missing visible vehicle/player driving state');
-        }
-    }
-
-    if (hasCapability('touch_driving_controls')) {
-        if (!/STEER|ACCEL|GAS|THROTTLE|BRAKE|DRIFT|BOOST|steer|throttle|brake/i.test(source)) {
-            fail('touch_driving_controls', 'missing visible steering, accelerate/gas, brake, or drift controls');
-        }
-    }
-
-    if (hasCapability('projectile_ballistics')) {
-        if (!/angle|power|trajectory|gravity|projectile|velocity|vx|vy|arc/i.test(source)) {
-            fail('projectile_ballistics', 'missing angle/power projectile physics');
-        }
-    }
-
-    if (hasCapability('turn_based_duel')) {
-        if (!/turn|YOUR TURN|ENEMY TURN|currentTurn|playerTurn|enemyTurn/i.test(source)) {
-            fail('turn_based_duel', 'missing explicit turn state or turn label');
-        }
-    }
-
-    if (hasCapability('weapon_cards')) {
-        if (!/weapon|card|selectedWeapon|CHOOSE WEAPON|ammo|hail|pogo|wrecking/i.test(source)) {
-            fail('weapon_cards', 'missing weapon cards or selected weapon state');
-        }
-    }
-
-    if (hasCapability('rope_path_puzzle')) {
-        if (!/rope|path|line|arm|drag|pointermove|goal|gem|target/i.test(source)) {
-            fail('rope_path_puzzle', 'missing draggable rope/path and goal interaction');
-        }
-    }
-
-    if (hasCapability('survival_stats')) {
-        if (!/health|hunger|fire|thirst|stamina|sanity|day/i.test(source)) {
-            fail('survival_stats', 'missing survival meters or day/status UI');
-        }
-    }
-
-    if (hasCapability('inventory_hotbar')) {
-        if (!/inventory|hotbar|slot|selectedItem|itemSlots|tool/i.test(source)) {
-            fail('inventory_hotbar', 'missing inventory or hotbar state');
-        }
-    }
-
-    if (hasCapability('brush_canvas')) {
-        if (!/pointermove|draw|brush|stroke|lineTo|canvas|clear/i.test(source)) {
-            fail('brush_canvas', 'missing real pointer drawing/brush canvas behavior');
-        }
-    }
-
-    if (hasCapability('decorate_surface')) {
-        if (!/decorate|surface|target|nail|painting|canvas|selectedColor|pattern|finish/i.test(source)) {
-            fail('decorate_surface', 'missing editable decoration target or selected style state');
-        }
-    }
-
-    if (hasCapability('palette_unlocks')) {
-        if (!/locked|unlock|palette|color|pattern|finish|decor/i.test(source)) {
-            fail('palette_unlocks', 'missing locked/unlocked palette or cosmetic options');
-        }
-    }
-
-    if (hasCapability('shop_economy')) {
-        if (!/coin|cash|money|sell|buy|shop|price|currency|unlock/i.test(source)) {
-            fail('shop_economy', 'missing currency and buy/sell/unlock loop');
-        }
-    }
-
-    if (hasCapability('bubble_grid')) {
-        if (!/bubble|grid|match|pop|row|col|color/i.test(source)) {
-            fail('bubble_grid', 'missing bubble grid or match/pop state');
-        }
-    }
-
-    if (hasCapability('aim_trajectory')) {
-        if (!/trajectory|aim|guide|dashed|arc|bounce|lineTo|reticle/i.test(source)) {
-            fail('aim_trajectory', 'missing visible aim trajectory or guide logic');
-        }
-    }
-
-    if (hasCapability('image_slice_puzzle')) {
-        if (!/slice|piece|puzzle|image|panel|next puzzle|progress/i.test(source)) {
-            fail('image_slice_puzzle', 'missing image slice/puzzle progress structure');
-        }
-    }
-}
-
-function validateFirstFrameContract(specSheet, html) {
-    const runtimeLane = specSheet?.runtimeLane;
-    const source = String(html || '');
-    if (!runtimeLane || !source) {
-        return;
-    }
-
-    if (runtimeLane === 'first_person_threejs') {
-        const hasForegroundOrHud = /dashboard|cockpit|crosshair|speedometer|hud|weapon/i.test(source);
-        const hasImmediateWorldRead = /floor|road|runway|wall|corridor|skyline|lane line|landmark|pickup|enemy/i.test(source);
-        const hasWorldMeshes =
-            /scene\.add\s*\([^)]*(floor|ground|wall|corridor|room|crate|barrel|enemy|pickup)/i.test(source) ||
-            /new\s+THREE\.(PlaneGeometry|BoxGeometry|CylinderGeometry)/i.test(source);
-        if (!hasForegroundOrHud || !hasImmediateWorldRead || !hasWorldMeshes) {
-            throw new Error('first-frame validation error: first-person lane is missing immediate foreground/HUD, world-read cues, or real world meshes');
-        }
-        return;
-    }
-
-    if (runtimeLane === 'third_person_threejs') {
-        const hasVisiblePlayer = /player|hero|vehicle|car/i.test(source);
-        const hasWorldDepth = /floor|ground|road|arena|lane|wall|landmark|checkpoint|pickup|enemy|hazard/i.test(source);
-        const hasFollowCue = /chase|follow|third[-_ ]?person|camera\.lookAt|cameraOffset|cameraTarget/i.test(source);
-        if (!hasVisiblePlayer || !hasWorldDepth || !hasFollowCue) {
-            throw new Error('first-frame validation error: third-person lane is missing visible player/vehicle, world depth, or follow-camera cue');
-        }
-        return;
-    }
-
-    if (runtimeLane === 'endless_runner_vertical') {
-        const hasRunner = /runner|player/i.test(source);
-        const hasLaneRead = /lane|laneWidth|lane marker|track stripe|three lanes/i.test(source);
-        const hasEarlyTarget = /coin|obstacle|train|barrier/i.test(source);
-        if (!hasRunner || !hasLaneRead || !hasEarlyTarget) {
-            throw new Error('first-frame validation error: runner lane is missing runner, lanes, or early obstacle/pickup read');
-        }
-        return;
-    }
-
-    if (runtimeLane === 'single_room_shooter') {
-        const hasHero = /hero|player|survivor|soldier/i.test(source);
-        const hasRoom = /room|wall|floor|cover|bunker|crate|barrel|terminal/i.test(source);
-        const hasControls = /joystick|thumbpad|move pad|FIRE|SHOOT|ATTACK/i.test(source);
-        if (!hasHero || !hasRoom || !hasControls) {
-            throw new Error('first-frame validation error: room shooter is missing immediate hero/room/control readability');
-        }
-        return;
-    }
-
-    if (runtimeLane === 'story_horror_vignette') {
-        const hasPrompt = /question|prompt|note|message|letter|answer|continue|read|yes|no/i.test(source);
-        const hasAtmosphere = /vignette|grain|noise|flicker|glow|ambient|texture|overlay|shadow|gradient/i.test(source);
-        if (!hasPrompt || !hasAtmosphere) {
-            throw new Error('first-frame validation error: story/horror vignette is missing immediate focal prompt or atmosphere');
-        }
-        return;
-    }
-
-    if (runtimeLane === 'simulation_toybox') {
-        const hasCenterpiece = /cauldron|machine|altar|workbench|station|pot|vessel|core/i.test(source);
-        const hasSourceZone = /ingredient|tool|shelf|pantry|tray|toolbar|card row/i.test(source);
-        const hasActionCue = /MIX|COMBINE|FUSE|COOK|BREW|REVEAL|ready/i.test(source);
-        if (!hasCenterpiece || !hasSourceZone || !hasActionCue) {
-            throw new Error('first-frame validation error: simulation toybox is missing immediate centerpiece/source/action readability');
-        }
-        return;
-    }
-}
-
-function buildControlRigRepairInstruction(controlRig) {
-    if (controlRig === 'cockpit_driver') {
-        return 'This game MUST preserve a cockpit-driving control rig with visible steering, accelerate, and brake controls plus dashboard-style HUD instrumentation.';
-    }
-    if (controlRig === 'chase_camera_driver') {
-        return 'This game MUST preserve a chase-camera driving rig with a visible vehicle, follow camera, steering, accelerate, brake, and drift/boost feedback.';
-    }
-    if (controlRig === 'third_person_joystick') {
-        return 'This game MUST preserve a third-person character rig with a visible hero, follow camera, left movement control, action/interact button, and readable world objectives.';
-    }
-    if (controlRig === 'move_and_fire') {
-        return 'This game MUST preserve a move-and-fire control rig with a visible movement pad or joystick, a visible fire/attack control, real projectile or attack logic, and readable hit feedback.';
-    }
-    if (controlRig === 'lane_swipe_runner') {
-        return 'This game MUST preserve a lane-swipe runner control rig with automatic forward motion, discrete lane logic, and visible swipe/jump/slide behavior or clearly labeled runner controls.';
-    }
-    if (controlRig === 'binary_choice_story') {
-        return 'This game MUST preserve a minimal story/horror interaction with a readable prompt, visible choice or continue controls, atmospheric scene treatment, and real phase/reveal changes after interaction.';
-    }
-    if (controlRig === 'drag_drop_toybox') {
-        return 'This game MUST preserve a simulation/toybox interaction with clear source and workbench zones, visible combine/reveal controls, central object reaction feedback, and a real result/reveal state.';
-    }
-    return 'Preserve the intended control fantasy.';
-}
-
-function buildFirstFrameRepairInstruction(specSheet) {
-    const checklist = Array.isArray(specSheet?.firstFrameChecklist) && specSheet.firstFrameChecklist.length > 0
-        ? specSheet.firstFrameChecklist.map((item) => `- ${item}`).join('\n')
-        : '- show a readable focal object and lane-defining cue immediately';
-
-    return [
-        'The first rendered frame must look authored immediately.',
-        'These first-frame items must already be visible when the game boots:',
-        checklist,
-        'Do not leave the player on a blank, muddy, or under-staged opening frame while waiting for later transitions.'
-    ].join('\n');
 }
 
 
@@ -2416,18 +1402,6 @@ async function updateGenerationJobProgress(jobId, progress, phase, statusMessage
     );
 }
 
-async function updateGenerationJobBenchmarkResult(jobId, benchmarkResult) {
-    if (!benchmarkResult) return;
-    await ensureGenerationQueueSchema();
-    await pool.query(
-        `UPDATE generation_jobs
-         SET payload = jsonb_set(COALESCE(payload, '{}'::jsonb), '{benchmarkResult}', $2::jsonb, true),
-             updated_at = NOW()
-         WHERE id = $1`,
-        [jobId, JSON.stringify(benchmarkResult)]
-    );
-}
-
 function getQueueProgressPayload(queueJob, queueMetrics = null) {
     if (!queueJob) return {};
     const payload = {
@@ -2826,63 +1800,6 @@ function makerSafeFileName(value, fallback = 'job') {
         .slice(0, 120) || fallback;
 }
 
-function summarizeMakerAssets(generatedAssets = null) {
-    const productionManifest = generatedAssets?.makerAssetManifest || generatedAssets?.manifest?.makerAssetManifest || null;
-    if (productionManifest) return summarizeMakerAssetManifest(productionManifest);
-
-    if (!generatedAssets) return summarizeMakerAssetManifest(null);
-
-    const summarizeAsset = (asset = {}) => ({
-        id: asset.id || asset.key || null,
-        key: asset.key || asset.id || null,
-        role: asset.role || asset.category || null,
-        category: asset.category || null,
-        type: asset.type || asset.kind || null,
-        kind: asset.kind || null,
-        width: asset.width || null,
-        height: asset.height || null,
-        transparent: asset.transparent !== false,
-        gameplayRole: asset.gameplayRole || asset.roleInGameplay || null,
-        hasEmbeddedImage: Boolean(asset.url || (asset.key && generatedAssets.assets?.[asset.key])),
-        bytesApprox: Math.round(String(asset.url || generatedAssets.assets?.[asset.key] || '').length * 0.75),
-    });
-
-    return {
-        version: 2,
-        assets: Array.isArray(generatedAssets.assetPack) ? generatedAssets.assetPack.map(summarizeAsset) : [],
-        slots: [],
-        missingRequiredSlots: [],
-        animations: Array.isArray(generatedAssets.animations) ? generatedAssets.animations : [],
-        audio: generatedAssets.audio || { sfx: [], music: [] },
-        tilesets: Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [],
-        productionContract: generatedAssets.productionContract || generatedAssets.manifest?.productionContract || null,
-        artDirection: generatedAssets.assetPlan?.artDirection || generatedAssets.manifest?.artDirection || null,
-        quality: null,
-        errors: Array.isArray(generatedAssets.errors) ? generatedAssets.errors : [],
-    };
-}
-
-function hasGeneratedVisualAssets(generatedAssets = null) {
-    return Boolean(generatedAssets?.assets && Object.keys(generatedAssets.assets).length > 0);
-}
-
-function attachMakerAssetManifest(generatedAssets = null, context = {}) {
-    const manifest = buildMakerAssetManifest({
-        generatedAssets,
-        assetContract: context.assetContract || null,
-        templateContract: context.templateContract || null,
-        qualityIntent: context.qualityIntent || {},
-        errors: context.errors || [],
-    });
-    if (!generatedAssets) return { makerAssetManifest: manifest };
-    generatedAssets.makerAssetManifest = manifest;
-    generatedAssets.manifest = {
-        ...(generatedAssets.manifest || {}),
-        makerAssetManifest: manifest,
-    };
-    return generatedAssets;
-}
-
 async function writeMakerJson(workspace, fileName, value) {
     await fs.promises.writeFile(
         path.join(workspace, fileName),
@@ -2893,31 +1810,6 @@ async function writeMakerJson(workspace, fileName, value) {
 
 async function writeMakerText(workspace, fileName, value) {
     await fs.promises.writeFile(path.join(workspace, fileName), String(value || ''), 'utf8');
-}
-
-async function writeMakerAssetRuntimeFiles(workspace, generatedAssets = null) {
-    if (!workspace || !generatedAssets) return;
-    if (generatedAssets.materializedAssetPack) {
-        await writeMakerJson(workspace, 'asset-pack.json', generatedAssets.materializedAssetPack);
-    }
-    if (generatedAssets.materializedAssetWiringReport) {
-        await writeMakerJson(workspace, 'asset-wiring-report.json', generatedAssets.materializedAssetWiringReport);
-    }
-    await writeMakerJson(workspace, 'animations.json', {
-        version: 1,
-        source: 'gametok-native-maker',
-        animations: Array.isArray(generatedAssets.animations) ? generatedAssets.animations : [],
-    });
-    await writeMakerJson(workspace, 'tilesets.json', {
-        version: 1,
-        source: 'gametok-native-maker',
-        tilesets: Array.isArray(generatedAssets.tilesets) ? generatedAssets.tilesets : [],
-    });
-}
-
-async function analyzeAndWriteMakerAssetQuality(_workspace, _generatedAssets = null, _assetContract = null) {
-    // Asset-quality analysis removed with the 2D image-gen teardown; there is no generated art to grade.
-    return null;
 }
 
 async function createGameTokMakerWorkspace(jobId, prompt, mediaAttachments = []) {
@@ -2990,451 +1882,6 @@ async function createGameTokMakerWorkspace(jobId, prompt, mediaAttachments = [])
     ].join('\n'));
 
     return { workspace, contract };
-}
-
-function buildMakerPlan(qualityIntent = {}, prompt = '', templateContract = null) {
-    const playable = qualityIntent.playableExperience || {};
-    return {
-        version: 1,
-        title: qualityIntent.title || 'Untitled Game',
-        prompt,
-        templateContract: summarizeMakerTemplateContract(templateContract),
-        classification: templateContract?.classification || null,
-        userIntent: qualityIntent.userIntent || '',
-        firstTenSeconds: playable.firstTenSeconds || [],
-        coreLoop: playable.coreLoop || '',
-        primaryMechanic: playable.primaryMechanic || '',
-        winCondition: playable.winCondition || '',
-        loseCondition: playable.loseCondition || '',
-        technicalRequirements: qualityIntent.technicalRequirements || {},
-        artDirection: qualityIntent.artDirection || {},
-        controls: qualityIntent.mobileControls || [],
-        playerActions: qualityIntent.playerActions || [],
-        entities: qualityIntent.entityRules || [],
-        mustExist: qualityIntent.mustExist || [],
-        feelRules: qualityIntent.feelRules || [],
-        failureModesToAvoid: qualityIntent.failureModesToAvoid || [],
-        visualAssets: qualityIntent.visualAssets || {},
-        audioNeeds: qualityIntent.audioNeeds || {},
-        acceptanceChecks: [
-            ...(Array.isArray(qualityIntent.mustExist) ? qualityIntent.mustExist : []),
-            'Boots without runtime crashes in the sandbox.',
-            'Fits inside a 390x844 mobile viewport.',
-            'Uses code-rendered HUD and controls.',
-        ],
-    };
-}
-
-function splitHtmlIntoProjectFiles(html) {
-    const files = [];
-    let styleIndex = 0;
-    let scriptIndex = 0;
-    let projectHtml = String(html || '');
-
-    projectHtml = projectHtml.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_match, css) => {
-        styleIndex += 1;
-        const filePath = `src/style-${styleIndex}.css`;
-        files.push({ path: filePath, kind: 'css', content: String(css || '').trim() + '\n' });
-        return `<link rel="stylesheet" href="./${filePath}">`;
-    });
-
-    projectHtml = projectHtml.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, js) => {
-        if (/\bsrc\s*=/.test(attrs || '')) return match;
-        const code = String(js || '').trim();
-        if (!code) return '';
-        scriptIndex += 1;
-        const filePath = `src/script-${scriptIndex}.js`;
-        files.push({ path: filePath, kind: 'js', content: code + '\n' });
-        return `<script${attrs || ''} src="./${filePath}"></script>`;
-    });
-
-    return { html: projectHtml, files };
-}
-
-async function materializeMakerProject(workspace, rawHtml, { title = 'GameTok Game', generatedAssets = null } = {}) {
-    const projectRoot = path.join(workspace, 'project');
-    const srcRoot = path.join(projectRoot, 'src');
-    const distRoot = path.join(projectRoot, 'dist');
-    await fs.promises.rm(projectRoot, { recursive: true, force: true });
-    await fs.promises.mkdir(srcRoot, { recursive: true });
-    await fs.promises.mkdir(distRoot, { recursive: true });
-
-    const split = splitHtmlIntoProjectFiles(rawHtml);
-    await fs.promises.writeFile(path.join(projectRoot, 'index.html'), split.html, 'utf8');
-    for (const file of split.files) {
-        const destination = path.join(projectRoot, file.path);
-        await fs.promises.mkdir(path.dirname(destination), { recursive: true });
-        await fs.promises.writeFile(destination, sanitizeMakerMainTsContent(file.content, file.path), 'utf8');
-    }
-
-    await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
-        name: makerSafeFileName(title, 'gametok-game').toLowerCase(),
-        private: true,
-        type: 'module',
-        scripts: {
-            build: 'node build.mjs',
-        },
-    }, null, 2), 'utf8');
-
-    await fs.promises.writeFile(path.join(projectRoot, 'build.mjs'), [
-        "import fs from 'node:fs/promises';",
-        "import path from 'node:path';",
-        "const root = process.cwd();",
-        "const dist = path.join(root, 'dist');",
-        "await fs.rm(dist, { recursive: true, force: true });",
-        "await fs.mkdir(dist, { recursive: true });",
-        "await fs.cp(path.join(root, 'index.html'), path.join(dist, 'index.html'));",
-        "await fs.cp(path.join(root, 'src'), path.join(dist, 'src'), { recursive: true });",
-        "console.log('Built static GameTok artifact to dist/index.html');",
-        '',
-    ].join('\n'), 'utf8');
-
-    const materializedAssets = null; // 2D image asset pack removed; nothing to materialize into the project.
-
-    await writeMakerJson(workspace, 'project-files.json', {
-        version: 1,
-        projectRoot,
-        sourceIndex: path.join(projectRoot, 'index.html'),
-        buildCommand: 'npm run build',
-        artifact: path.join(distRoot, 'index.html'),
-        files: [
-            { path: 'index.html', kind: 'html', bytes: Buffer.byteLength(split.html, 'utf8') },
-            ...split.files.map((file) => ({
-                path: file.path,
-                kind: file.kind,
-                bytes: Buffer.byteLength(file.content, 'utf8'),
-            })),
-            { path: 'package.json', kind: 'manifest' },
-            { path: 'build.mjs', kind: 'build_script' },
-        ],
-        assetSummary: summarizeMakerAssets(generatedAssets),
-        materializedAssets: materializedAssets?.wiringReport || null,
-    });
-
-    await fs.promises.copyFile(path.join(projectRoot, 'index.html'), path.join(distRoot, 'index.html'));
-    await fs.promises.cp(srcRoot, path.join(distRoot, 'src'), { recursive: true });
-    return {
-        projectRoot,
-        sourceIndex: path.join(projectRoot, 'index.html'),
-        distIndex: path.join(distRoot, 'index.html'),
-        files: split.files,
-    };
-}
-
-async function writeMakerBuilderMaps(workspace, projectBuild, phase = 'initial_build', { generatedAssets = null } = {}) {
-    if (!workspace || !projectBuild) return null;
-    const warnings = [];
-    if (hasGeneratedVisualAssets(generatedAssets) && (!Array.isArray(projectBuild.usedAssetMap) || projectBuild.usedAssetMap.length === 0)) {
-        warnings.push({
-            id: 'builder_asset_map_missing',
-            message: 'Generated assets exist but builder returned an empty usedAssetMap.',
-        });
-    }
-    if (!Array.isArray(projectBuild.gameSystemMap) || projectBuild.gameSystemMap.length === 0) {
-        warnings.push({
-            id: 'builder_system_map_missing',
-            message: 'Builder returned an empty gameSystemMap.',
-        });
-    }
-    const maps = {
-        version: 1,
-        source: 'gametok-maker-builder-tool-use-map',
-        phase,
-        at: new Date().toISOString(),
-        usedAssetMap: Array.isArray(projectBuild.usedAssetMap) ? projectBuild.usedAssetMap : [],
-        gameSystemMap: Array.isArray(projectBuild.gameSystemMap) ? projectBuild.gameSystemMap : [],
-        warnings,
-        notes: Array.isArray(projectBuild.notes) ? projectBuild.notes : [],
-    };
-    await writeMakerJson(workspace, `builder-maps-${phase}.json`, maps);
-    await writeMakerJson(workspace, 'builder-maps.json', maps);
-    return maps;
-}
-
-function buildMakerProjectFromScaffold(templateScaffold = null, { templateContract = null } = {}) {
-    if (!templateScaffold || !Array.isArray(templateScaffold.files) || templateScaffold.files.length === 0) {
-        return null;
-    }
-    // Accept all scaffold files — new TypeScript/Vite templates live at root level,
-    // old templates used a project/ prefix. Support both.
-    let projectFiles = templateScaffold.files
-        .filter((file) => String(file?.sourcePath || file?.path || '').startsWith('project/'))
-        .map((file) => ({
-            path: file.path,
-            content: file.content,
-        }));
-    if (projectFiles.length === 0) {
-        // New-style templates: files are at root (index.html, src/main.ts, package.json, etc.)
-        projectFiles = templateScaffold.files
-            .filter((file) => {
-                const p = String(file?.path || '');
-                // Skip template-api.md and other non-project docs
-                return p && !p.endsWith('template-api.md');
-            })
-            .map((file) => ({
-                path: file.path,
-                content: file.content,
-            }));
-    }
-    if (projectFiles.length === 0) {
-        return null;
-    }
-    return {
-        source: 'gametok-native-scaffold-file-loop',
-        assetRequests: [],
-        files: projectFiles,
-        usedAssetMap: [],
-        gameSystemMap: [
-            {
-                system: 'template_scaffold',
-                state: Array.isArray(templateContract?.requiredState) ? templateContract.requiredState : [],
-                functions: Array.isArray(templateContract?.requiredFunctions) ? templateContract.requiredFunctions : [],
-                files: projectFiles.map((file) => file.path).filter(Boolean),
-            },
-        ],
-        notes: [
-            `Started from ${templateContract?.templateId || 'selected'} scaffold.`,
-            'Primary build path is multi-turn file-agent edits over materialized files.',
-        ],
-    };
-}
-
-function mergeDreamAssetBundles(baseBundle = null, extraBundle = null) {
-    if (!extraBundle) return baseBundle;
-    if (!baseBundle) return extraBundle;
-
-    const byKey = (items = []) => Array.from(new Map(
-        items.filter(Boolean).map((item) => [item.key || item.id || JSON.stringify(item), item])
-    ).values());
-    const baseManifest = Array.isArray(baseBundle.manifest?.assets) ? baseBundle.manifest.assets : [];
-    const extraManifest = Array.isArray(extraBundle.manifest?.assets) ? extraBundle.manifest.assets : [];
-    const animations = byKey([...(baseBundle.animations || []), ...(extraBundle.animations || [])]);
-    const audio = baseBundle.audio || extraBundle.audio || { sfx: [], music: [] };
-    const tilesets = byKey([...(baseBundle.tilesets || []), ...(extraBundle.tilesets || [])]);
-    const assetPack = byKey([...(baseBundle.assetPack || []), ...(extraBundle.assetPack || [])]);
-    const manifestAssets = byKey([...baseManifest, ...extraManifest]);
-
-    return {
-        ...baseBundle,
-        assets: {
-            ...(baseBundle.assets || {}),
-            ...(extraBundle.assets || {}),
-        },
-        assetPlan: {
-            ...(baseBundle.assetPlan || {}),
-            requestedDuringBuild: [
-                ...((baseBundle.assetPlan && baseBundle.assetPlan.requestedDuringBuild) || []),
-                ...((extraBundle.assetPlan && extraBundle.assetPlan.imageRequests) || []),
-            ],
-        },
-        manifest: {
-            ...(baseBundle.manifest || {}),
-            assets: manifestAssets,
-            animations,
-            audio,
-            tilesets,
-        },
-        assetPack,
-        animations,
-        audio,
-        tilesets,
-        errors: [
-            ...(Array.isArray(baseBundle.errors) ? baseBundle.errors : []),
-            ...(Array.isArray(extraBundle.errors) ? extraBundle.errors : []),
-        ].filter(Boolean),
-    };
-}
-
-function buildMakerAssetIntegrationPrompt({ qualityIntent = {}, prompt = '', projectFiles = [], generatedAssets = null, requestedAssets = [], templateContract = null, debugProtocol = null, assetContract = null, designBrief = '' }) {
-    const isPhaser = templateContract?.id?.includes('phaser');
-
-    return [
-        'You are updating a native GameTok maker project after the backend fulfilled extra asset requests.',
-        '',
-        'Return JSON only. No markdown. No commentary.',
-        'Schema:',
-        JSON.stringify(getMakerFileJsonSchemaExample({
-            actions: undefined,
-            diagnosis: undefined,
-            noEditsNeeded: undefined,
-        }), null, 2),
-        '',
-        ...getMakerFileJsonEncodingRuleLines(),
-        '',
-        'Task:',
-        '- Treat the GameTok maker GDD as mandatory. This pass is only successful if the updated files still satisfy Section 0-5.',
-        '- Edit only files needed to use the newly generated assets.',
-        '- Valid paths are index.html and existing src/**/*.css, src/**/*.ts, src/**/*.js, src/**/*.json files.',
-        '- Protected scaffold/runtime files are read-only: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, src/scenes/Preloader.ts, Base*.ts files, package.json, tsconfig.json, and vite.config.ts.',
-        '- Use patches[].replacements find/replace pairs copied exactly from the current project files.',
-        '- Do not append duplicate implementations of an existing function or class method. Modify the existing function in place; TypeScript TS2393 is a hard failure.',
-        '- Do not redeclare scaffold-owned BaseGameScene/BaseArenaScene fields such as player, enemies, enemyMeleeTriggers, decorations, obstacles, playerBullets, enemyBullets, ySortGroup, worldWidth, or worldHeight. Use inherited groups as-is, or name custom arrays sliceTargets/customEnemies/etc.',
-        ...(isPhaser ? [
-            '- CRITICAL (OPENGAME PROTOCOL): You have been provided with production-ready assets generated by the FLUX Artist Agent.',
-            '- You MUST map these assets to Phaser Sprites. Do NOT invent procedural placeholder graphics or use `graphics.fillCircle`. Your only job is to wire up the generated textures.',
-            '- If any code uses `this.add.dom`, `scene.add.dom`, DOMElement, or createFromHTML, the Phaser GameConfig MUST keep `dom: { createContainer: true }`.',
-            '- Do not add unsupported Phaser ScaleConfig fields such as `maxWidth`, `maxHeight`, `minWidth`, or `minHeight`; use width, height, mode, autoCenter, and CSS/container sizing instead.',
-        ] : [
-            '- CRITICAL: You have been provided with production-ready assets generated by the FLUX Artist Agent.',
-            '- You MUST wire these generated textures into the template\'s renderer. Do NOT invent procedural placeholder graphics if an asset exists for it.'
-        ]),
-        '- Use the asset keys from DREAM_ASSET_PACK / DreamAssets. Do not paste data URLs into source files.',
-        '- DreamAssets.getImage(key) returns a data URL string, not an HTMLImageElement. For canvas drawing, create `const img = new Image(); img.onload = ...; img.src = dataUrl;` or use DreamAssets.loadImageElement(key). Never assign `.onload` to the string returned by getImage(), and never pass asset-pack records/data URLs to ctx.drawImage.',
-        '- Do not declare DREAM_ASSETS, DREAM_ASSET_PACK, DREAM_ANIMATIONS, DREAM_TILESETS, DREAM_AUDIO_MANIFEST, or DreamAssets in src/main.ts. The scaffold already provides runtime globals and TypeScript declarations.',
-        '- If TypeScript needs access to runtime globals, use window.DREAM_ASSETS, window.DREAM_ASSET_PACK, window.DreamAssets, or `(window as any)` instead of adding `declare global` blocks.',
-        '- Respect the asset quality summary. Do not wire assets with fatal quality issues into live gameplay.',
-        '- Prefer player/enemy/item/prop/background assets for actual gameplay visuals.',
-        '- If frame_sequence animations exist, connect them through DREAM_ANIMATIONS, DreamAssets.createAnimations(), DreamAssets.animationsFor(), DreamAssets.applyTween(), or manual frame cycling.',
-        '- If tilesets exist, connect them through DREAM_TILESETS, DreamAssets.firstTileset(), DreamAssets.getTileset(), or tileset image keys.',
-        '- Prefer the template asset contract slots over ad hoc asset choices.',
-        '- Keep gameplay geometry and HUD code-rendered. Do not turn terrain, labels, buttons, meters, or hitboxes into baked images.',
-        '- Preserve the existing gameplay and mobile layout.',
-        '- Keep the project inside the selected native template contract. Do not remove required state, required functions, or first-frame behavior.',
-        '',
-        'Original user prompt:',
-        prompt,
-        '',
-        formatMakerDesignBriefPromptBlock(designBrief),
-        '',
-        'Operational plan:',
-        JSON.stringify(buildMakerPlan(qualityIntent, prompt, templateContract), null, 2),
-        '',
-        'Selected native template contract:',
-        JSON.stringify(templateContract || null, null, 2),
-        '',
-        formatMakerDebugProtocolPromptBlock(debugProtocol),
-        '',
-        'Template asset contract:',
-        JSON.stringify(assetContract || null, null, 2),
-        '',
-        'Assets requested by builder and now generated:',
-        JSON.stringify(requestedAssets, null, 2),
-        '',
-        'Updated asset summary:',
-        JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
-        '',
-        'Asset quality summary:',
-        JSON.stringify(null, null, 2),
-        '',
-        'Structured asset tool contract:',
-        JSON.stringify(({}), null, 2),
-        '',
-        'Current project files:',
-        JSON.stringify(projectFiles, null, 2),
-    ].join('\n');
-}
-
-async function materializeMakerProjectFiles(workspace, projectBuild, { title = 'GameTok Game', generatedAssets = null } = {}) {
-    const projectRoot = path.join(workspace, 'project');
-    const srcRoot = path.join(projectRoot, 'src');
-    const distRoot = path.join(projectRoot, 'dist');
-    await fs.promises.rm(projectRoot, { recursive: true, force: true });
-    await fs.promises.mkdir(srcRoot, { recursive: true });
-    await fs.promises.mkdir(distRoot, { recursive: true });
-
-    const files = [];
-    const seen = new Set();
-    for (const file of projectBuild.files) {
-        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, file.path);
-        if (seen.has(cleanPath)) {
-            throw new Error(`Duplicate project file returned by builder: ${cleanPath}`);
-        }
-        seen.add(cleanPath);
-        const content = sanitizeMakerMainTsContent(file.content, cleanPath);
-        await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
-        await fs.promises.writeFile(absolutePath, content, 'utf8');
-        files.push({
-            path: cleanPath,
-            kind: cleanPath.endsWith('.css') ? 'css' : cleanPath.endsWith('.js') ? 'js' : cleanPath.endsWith('.json') ? 'json' : 'html',
-            bytes: Buffer.byteLength(content, 'utf8'),
-        });
-    }
-    if (!seen.has('index.html')) {
-        throw new Error('Project build response did not include index.html.');
-    }
-
-    if (!seen.has('package.json')) {
-        await fs.promises.writeFile(path.join(projectRoot, 'package.json'), JSON.stringify({
-            name: makerSafeFileName(title, 'gametok-game').toLowerCase(),
-            private: true,
-            type: 'module',
-            scripts: {
-                build: 'node build.mjs',
-            },
-        }, null, 2), 'utf8');
-
-        await fs.promises.writeFile(path.join(projectRoot, 'build.mjs'), [
-            "import fs from 'node:fs/promises';",
-            "import path from 'node:path';",
-            "const root = process.cwd();",
-            "const dist = path.join(root, 'dist');",
-            "await fs.rm(dist, { recursive: true, force: true });",
-            "await fs.mkdir(dist, { recursive: true });",
-            "await fs.cp(path.join(root, 'index.html'), path.join(dist, 'index.html'));",
-            "await fs.cp(path.join(root, 'src'), path.join(dist, 'src'), { recursive: true });",
-            "console.log('Built static GameTok artifact to dist/index.html');",
-            '',
-        ].join('\n'), 'utf8');
-    }
-
-    const materializedAssets = null; // 2D image asset pack removed; nothing to materialize into the project.
-
-    const manifestFiles = [...files];
-    manifestFiles.push(
-        { path: 'public/assets/asset-pack.json', kind: 'asset_manifest' },
-        { path: 'public/assets/animations.json', kind: 'asset_manifest' },
-        { path: 'public/assets/audio-manifest.json', kind: 'asset_manifest' },
-        { path: 'public/assets/asset-wiring-report.json', kind: 'asset_manifest' },
-    );
-    if (!seen.has('package.json')) {
-        manifestFiles.push({ path: 'package.json', kind: 'manifest' });
-        manifestFiles.push({ path: 'build.mjs', kind: 'build_script' });
-    }
-
-    await writeMakerJson(workspace, 'project-files.json', {
-        version: 2,
-        mode: 'file-native',
-        projectRoot,
-        sourceIndex: path.join(projectRoot, 'index.html'),
-        buildCommand: 'npm run build',
-        artifact: path.join(distRoot, 'index.html'),
-        files: manifestFiles,
-        notes: projectBuild.notes || [],
-        usedAssetMap: projectBuild.usedAssetMap || [],
-        gameSystemMap: projectBuild.gameSystemMap || [],
-        assetSummary: summarizeMakerAssets(generatedAssets),
-        materializedAssets: materializedAssets?.wiringReport || null,
-    });
-
-    await rebuildMakerProjectDistWithAutoRepair(projectRoot);
-    return {
-        projectRoot,
-        sourceIndex: path.join(projectRoot, 'index.html'),
-        distIndex: path.join(distRoot, 'index.html'),
-        files,
-        mode: 'file-native',
-    };
-}
-
-async function loadMakerProjectFromWorkspace(workspace) {
-    try {
-        const manifestRaw = await fs.promises.readFile(path.join(workspace, 'project-files.json'), 'utf8');
-        const manifest = JSON.parse(manifestRaw);
-        const projectRoot = manifest?.projectRoot;
-        if (!projectRoot || !fs.existsSync(path.join(projectRoot, 'index.html'))) {
-            return null;
-        }
-        return {
-            projectRoot,
-            sourceIndex: manifest.sourceIndex || path.join(projectRoot, 'index.html'),
-            distIndex: manifest.artifact || path.join(projectRoot, 'dist', 'index.html'),
-            files: Array.isArray(manifest.files) ? manifest.files : [],
-            mode: manifest.mode || 'file-native',
-            manifest,
-        };
-    } catch {
-        return null;
-    }
 }
 
 function safeMakerProjectPath(projectRoot, relativePath) {
@@ -3593,107 +2040,6 @@ async function normalizeMakerProjectRuntimeDeclarations(projectRoot) {
     await visit(srcRoot);
 }
 
-// Faithful, UNtruncated snapshot of the editable project files, so a known-good build can be restored
-// if a later turn breaks it. Distinct from readMakerProjectFiles below, which truncates for prompt budgets
-// (and so must never be used to restore — it would write back corrupted, half-a-file content).
-async function snapshotMakerProjectFiles(projectRoot) {
-    const files = [];
-    const collect = async (directory, prefix) => {
-        let entries = [];
-        try { entries = await fs.promises.readdir(directory, { withFileTypes: true }); } catch { return; }
-        for (const entry of entries) {
-            const absolute = path.join(directory, entry.name);
-            const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-            if (entry.isDirectory()) {
-                await collect(absolute, relative);
-            } else if (entry.isFile() && /\.(css|js|json|ts|tsx)$/i.test(entry.name)) {
-                try { files.push({ path: relative, content: await fs.promises.readFile(absolute, 'utf8') }); } catch { /* skip */ }
-            }
-        }
-    };
-    await collect(path.join(projectRoot, 'src'), 'src');
-    try { files.push({ path: 'index.html', content: await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf8') }); } catch { /* none */ }
-    return files;
-}
-
-async function restoreMakerProjectFiles(projectRoot, snapshot) {
-    if (!Array.isArray(snapshot)) return 0;
-    let restored = 0;
-    for (const file of snapshot) {
-        if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') continue;
-        try {
-            const { absolutePath } = safeMakerProjectPath(projectRoot, file.path);
-            await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
-            await fs.promises.writeFile(absolutePath, file.content, 'utf8');
-            restored += 1;
-        } catch { /* skip unwritable */ }
-    }
-    return restored;
-}
-
-async function readMakerProjectFiles(projectRoot) {
-    let manifest = null;
-    try {
-        const manifestRaw = await fs.promises.readFile(path.join(path.dirname(projectRoot), 'project-files.json'), 'utf8');
-        manifest = JSON.parse(manifestRaw);
-    } catch {
-        manifest = null;
-    }
-
-    const manifestPaths = Array.isArray(manifest?.files)
-        ? manifest.files
-            .map((file) => file?.path)
-            .filter((filePath) => filePath === 'index.html' || /^src\/.+\.(css|js|json|ts|tsx)$/.test(filePath || '') || /^public\/assets\/(?:asset-pack|animations|audio-manifest|asset-wiring-report)\.json$/.test(filePath || ''))
-        : [];
-    const paths = new Set(['index.html', ...manifestPaths]);
-
-    async function collectProjectFiles(directory, prefix) {
-        let entries = [];
-        try {
-            entries = await fs.promises.readdir(directory, { withFileTypes: true });
-        } catch {
-            return;
-        }
-        for (const entry of entries) {
-            const absolute = path.join(directory, entry.name);
-            const relative = `${prefix}/${entry.name}`;
-            if (entry.isDirectory()) {
-                await collectProjectFiles(absolute, relative);
-            } else if (entry.isFile() && /\.(css|js|json|ts|tsx)$/i.test(entry.name)) {
-                paths.add(relative);
-            }
-        }
-    }
-    await collectProjectFiles(path.join(projectRoot, 'src'), 'src');
-    await collectProjectFiles(path.join(projectRoot, 'public', 'assets'), 'public/assets');
-
-    const files = [];
-    let totalChars = 0;
-    for (const relativePath of Array.from(paths).sort()) {
-        const { absolutePath, cleanPath } = safeMakerProjectPath(projectRoot, relativePath);
-        try {
-            let content = await fs.promises.readFile(absolutePath, 'utf8');
-            const maxFileChars = cleanPath === 'index.html' ? 40000 : 70000;
-            if (content.length > maxFileChars) {
-                content = `${content.slice(0, maxFileChars)}\n/* [GameTok note: file truncated in repair prompt] */`;
-            }
-            totalChars += content.length;
-            if (totalChars > 180000) {
-                files.push({
-                    path: cleanPath,
-                    truncated: true,
-                    content: content.slice(0, Math.max(8000, 180000 - (totalChars - content.length))),
-                });
-                break;
-            }
-            files.push({ path: cleanPath, content });
-        } catch {
-            // Ignore stale manifest entries.
-        }
-    }
-    return files;
-}
-
 function isProtectedMakerRuntimeFile(cleanPath = '') {
     return [
         /^src\/(?:bootstrap|assetLoader|assetKeys|dreamModels)\.ts$/,
@@ -3703,504 +2049,6 @@ function isProtectedMakerRuntimeFile(cleanPath = '') {
         /^(?:package|tsconfig|vite\.config)\.json$/,
         /^vite\.config\.ts$/,
     ].some((pattern) => pattern.test(cleanPath));
-}
-
-function directRepairTaskForFailure(failure = '', templateId = null) {
-    const text = String(failure || '');
-    if (/Missing probe method:\s*(\w+)/i.test(text)) {
-        const method = text.match(/Missing probe method:\s*(\w+)/i)?.[1] || 'probe method';
-        return `Restore window.__GAMETOK_TEMPLATE_PROBE__.${method}() and connect it to live gameplay state.`;
-    }
-    if (/angle|power|trajectory signature|setAim/i.test(text)) {
-        return 'setAim() does not change trajectory signature.';
-    }
-    if (/fire\(\).*active projectile|fire\(\).*projectile/i.test(text)) {
-        return 'fire() does not create an active projectile.';
-    }
-    if (/updateProjectile\(\).*move|projectile.*did not move|during flight/i.test(text)) {
-        return 'updateProjectile() does not move the projectile during flight.';
-    }
-    if (/shot resolution.*health.*terrain.*turn|resolution did not change|turn-state evidence/i.test(text)) {
-        return 'shot resolution does not damage health, deform terrain, change turns, or finish the round.';
-    }
-    if (/probeDeformTerrain|sampled terrain|terrain height/i.test(text)) {
-        return 'probeDeformTerrain() does not mutate terrain data.';
-    }
-    if (/move\(\).*player|move\(\).*position|player position/i.test(text)) {
-        return 'move() does not change the player position.';
-    }
-    if (/spawnEnemyNearPlayer/i.test(text)) {
-        return 'spawnEnemyNearPlayer() does not create a visible enemy.';
-    }
-    if (/spawnEnemy\(\)/i.test(text)) {
-        return 'spawnEnemy() does not increase enemy count.';
-    }
-    if (/attack\(\).*projectile|attack object/i.test(text)) {
-        return 'attack() does not create a projectile or attack object.';
-    }
-    if (/combat probe|score|health-state|enemy.*progression/i.test(text)) {
-        return 'combat step does not change score, enemy state, projectile state, or health.';
-    }
-    if (/primaryAction\(\)/i.test(text)) {
-        return 'primaryAction() does not mutate generic arcade gameplay state.';
-    }
-    if (/spawnThreat\(\)/i.test(text)) {
-        return 'spawnThreat() does not increase live threat/entity count.';
-    }
-    if (/generic arcade|objective state/i.test(text)) {
-        return 'generic arcade step() does not progress score, health, or objective state.';
-    }
-    if (/addBody\(\)/i.test(text)) {
-        return 'addBody() does not increase simulation body count.';
-    }
-    if (/start\(\).*running simulation/i.test(text)) {
-        return 'start() does not switch simulation into running mode.';
-    }
-    if (/step\(\).*goal object|physics/i.test(text)) {
-        return 'step() does not advance simulated physics state.';
-    }
-    if (/goal.*target|win.*computed|result/i.test(text) && templateId === 'canvas-simulation') {
-        return 'checkGoal() does not compute win/fail from live simulation state.';
-    }
-    if (/select\(\).*selected tile/i.test(text)) {
-        return 'select() does not update selected tile state.';
-    }
-    if (/grid signature|move\(\).*grid/i.test(text)) {
-        return 'move() does not change the grid signature.';
-    }
-    if (/resolve\(\).*score|goal progress/i.test(text)) {
-        return 'resolve() does not change score or goal progress.';
-    }
-    if (/board|tile|grid/i.test(text) && templateId === 'canvas-grid-puzzle') {
-        return 'grid puzzle state is decorative instead of driven by board data.';
-    }
-    if (/jump\(\).*upward velocity/i.test(text)) {
-        return 'jump() does not give upward velocity.';
-    }
-    if (/collectNearest|collectible/i.test(text) && templateId === 'phaser-platformer') {
-        return 'collectNearest() does not change score or collectible state.';
-    }
-    if (/platform|fall through|collision/i.test(text) && templateId === 'phaser-platformer') {
-        return 'platform collision is not connected to player physics.';
-    }
-    if (/slide\(\).*sliding/i.test(text)) {
-        return 'slide() does not enter sliding state.';
-    }
-    if (/spawnObstacle/i.test(text)) {
-        return 'spawnObstacle() does not increase obstacle count.';
-    }
-    if (/distance|runner|collectible|obstacle/i.test(text) && templateId === 'canvas-runner') {
-        return 'runner update loop does not advance distance, score, obstacles, or collectibles.';
-    }
-    if (/choice|choose\(\)|node|history|meters/i.test(text)) {
-        return 'choose() does not change story node, history, or meters.';
-    }
-    if (/forceEnding/i.test(text)) {
-        return 'forceEnding() does not reach an ending state.';
-    }
-    if (/reset\(\)/i.test(text)) {
-        return 'reset() does not restore initial playable state.';
-    }
-    if (/asset pack ignored|never references DreamAssets|DREAM_ASSET_PACK/i.test(text)) {
-        return 'Generated asset pack exists but the game source never loads it.';
-    }
-    if (/drawImage|HTMLImageElement|asset-pack records|manifest\/data objects|loaded image elements/i.test(text)) {
-        return 'Canvas drawImage is receiving an asset-pack record or data URL instead of a preloaded HTMLImageElement.';
-    }
-    if (/state properties not declared|Did you mean|TS2551/i.test(text)) {
-        return 'Source references a misspelled state property. Use the existing declared state key or add the missing key to the state initializer.';
-    }
-    if (/Duplicate function implementation|TS2393/i.test(text)) {
-        return 'Source contains duplicate function or class method implementations. Keep one implementation per function name in the same scope.';
-    }
-    if (/trail|buns|ghosting|graphics\.clear/i.test(text)) {
-        return 'The game is drawing active objects using raw graphics without clearing the buffer, causing snail trails. Rewrite the entity to use Sprites and Arcade Physics.';
-    }
-    if (/required asset slots|not referenced|not consumed|required roles/i.test(text)) {
-        return 'Required generated asset slots are not connected to gameplay renderers.';
-    }
-    if (/Acceptance gate/i.test(text)) {
-        return 'The game boots, but final acceptance did not prove the core playable loop strongly enough.';
-    }
-    if (templateId) {
-        return `Repair the ${templateId} failed gameplay contract: ${text || 'unknown probe failure'}`;
-    }
-    return text || 'Repair the failed maker contract check.';
-}
-
-function buildTargetedRepairTasks(sandboxDiagnostics = null) {
-    const diagnostics = sandboxDiagnostics || {};
-    const tasks = [];
-    const failedChecks = Array.isArray(diagnostics.failedContractChecks) ? diagnostics.failedContractChecks : [];
-
-    for (const check of failedChecks) {
-        if (!check) continue;
-        if (check.id === 'template_runtime_probe') {
-            const failures = Array.isArray(check.failures) ? check.failures : [];
-            for (const failure of failures) {
-                tasks.push({
-                    priority: 'fatal',
-                    source: 'template_runtime_probe',
-                    templateId: check.templateId || diagnostics.templateRuntimeProbe?.templateId || null,
-                    failure: String(failure || ''),
-                    directRepairTask: directRepairTaskForFailure(failure, check.templateId || diagnostics.templateRuntimeProbe?.templateId || null),
-                    repair: 'Fix the live gameplay implementation so the named probe method proves real state progression. Preserve the probe API and make the visible game state match the probe snapshot.',
-                });
-            }
-        } else if (check.id === 'template_required_functions') {
-            tasks.push({
-                priority: 'fatal',
-                source: 'template_contract',
-                templateId: check.templateId || null,
-                failure: `Missing required functions: ${(check.missingFunctions || []).join(', ')}`,
-                directRepairTask: 'Required template functions are missing from the project.',
-                repair: 'Restore the selected scaffold structure and required function names. Do not replace the native template with a generic implementation.',
-            });
-        } else if (check.id === 'asset_image_ui_violation') {
-            tasks.push({
-                priority: 'major',
-                source: 'asset_contract',
-                templateId: check.templateId || null,
-                failure: check.message || 'Generated images used for UI/HUD controls.',
-                directRepairTask: 'Generated image assets are being used for HUD/UI instead of gameplay art.',
-                repair: 'Move HUD, labels, buttons, meters, sliders, and controls back to DOM/canvas code. Use generated images only for approved gameplay art slots.',
-            });
-        } else if (check.id === 'asset_pack_ignored') {
-            tasks.push({
-                priority: 'major',
-                source: 'asset_contract',
-                templateId: check.templateId || null,
-                failure: check.message || 'Generated asset pack is ignored.',
-                directRepairTask: 'Generated asset pack exists but the game source never loads it.',
-                repair: 'Read DREAM_ASSET_PACK and use DreamAssets helpers for player, enemies, backgrounds, props, items, or effects. Keep code-rendered fallback art only behind missing-asset branches.',
-            });
-        } else if (check.id === 'asset_required_slots_unreferenced' || check.id === 'asset_required_roles_unused') {
-            const missing = (check.missingSlots || check.missingRoles || []).join(', ');
-            tasks.push({
-                priority: 'major',
-                source: 'asset_contract',
-                templateId: check.templateId || null,
-                failure: check.message || `Required asset slots unused: ${missing}`,
-                directRepairTask: `Required generated asset slots are not connected to gameplay renderers${missing ? `: ${missing}` : ''}.`,
-                repair: 'For each missing required slot, find the matching entry in DREAM_ASSET_PACK by role/key and render it through DreamAssets. Use the generated player/enemy/background assets before procedural placeholders.',
-            });
-        } else if (String(check.id || '').startsWith('preflight_threejs_')) {
-            tasks.push({
-                priority: 'fatal',
-                source: 'threejs_survival_contract',
-                templateId: check.templateId || 'threejs-kernel',
-                failure: check.message || 'Three.js survival preflight failed.',
-                directRepairTask: check.message || 'Repair the threejs-kernel survival contract in src/main.ts.',
-                repair: check.repair || 'Patch src/main.ts so the Three.js game has no Phase 2 TODOs, initializes every read obstacle array, preserves runner functions, and uses one consistent obstacle state for spawn/collision/reset/probe.',
-            });
-        } else if (String(check.id || '').startsWith('preflight_')) {
-            tasks.push({
-                priority: check.severity === 'critical' ? 'fatal' : 'major',
-                source: 'opengame_preflight',
-                templateId: check.templateId || null,
-                failure: check.message || 'Maker preflight check failed.',
-                directRepairTask: check.message || directRepairTaskForFailure(check.repair || check.id, check.templateId || null),
-                repair: check.repair || 'Fix this deterministic preflight issue before running build or sandbox checks again.',
-            });
-        } else if (check.id === 'asset_animations_unused') {
-            const keys = (check.animationKeys || []).slice(0, 8).join(', ');
-            tasks.push({
-                priority: 'major',
-                source: 'asset_contract',
-                templateId: check.templateId || null,
-                failure: check.message || `Generated animation frames unused: ${keys}`,
-                directRepairTask: `Generated frame_sequence animations are not connected to sprites${keys ? `: ${keys}` : ''}.`,
-                repair: 'Use DREAM_ANIMATIONS through DreamAssets.createAnimations()/animationsFor()/applyTween in Phaser, or manually cycle the listed frame keys in canvas renderers. Attach player/enemy animation frames to the matching gameplay entities.',
-            });
-        } else if (check.id === 'asset_tilesets_unused') {
-            const keys = (check.tilesetKeys || []).slice(0, 8).join(', ');
-            tasks.push({
-                priority: 'major',
-                source: 'asset_contract',
-                templateId: check.templateId || null,
-                failure: check.message || `Generated tileset unused: ${keys}`,
-                directRepairTask: `Generated 7x7 tileset is not connected to tile/terrain rendering${keys ? `: ${keys}` : ''}.`,
-                repair: 'Use DREAM_TILESETS or DreamAssets.firstTileset()/getTileset() to load the generated tileset image for visual tile terrain while keeping collision geometry code-defined.',
-            });
-        } else if (String(check.id || '').startsWith('asset_') || String(check.id || '').startsWith('tileset_') || String(check.id || '').startsWith('animation_')) {
-            tasks.push({
-                priority: 'major',
-                source: 'asset_quality',
-                templateId: check.templateId || null,
-                failure: check.message || 'Generated asset quality/manifest check failed.',
-                directRepairTask: `Generated asset ${check.assetKey || check.key || ''} failed quality or manifest checks.`.trim(),
-                repair: 'Do not rely on the broken generated asset key. Use another valid generated asset for the role, or switch that role to intentional code-rendered fallback art while preserving gameplay.',
-            });
-        } else if (check.message) {
-            tasks.push({
-                priority: 'major',
-                source: check.id || 'contract_check',
-                templateId: check.templateId || null,
-                failure: check.message,
-                directRepairTask: directRepairTaskForFailure(check.message, check.templateId || null),
-                repair: 'Repair the underlying gameplay contract violation without deleting diagnostics or probe hooks.',
-            });
-        }
-    }
-
-    const runtimeProbe = diagnostics.templateRuntimeProbe;
-    if (runtimeProbe && runtimeProbe.success === false && tasks.length === 0) {
-        for (const failure of runtimeProbe.failures || []) {
-            tasks.push({
-                priority: 'fatal',
-                source: 'template_runtime_probe',
-                templateId: runtimeProbe.templateId || null,
-                failure: String(failure || ''),
-                directRepairTask: directRepairTaskForFailure(failure, runtimeProbe.templateId || null),
-                repair: 'Repair the required gameplay behavior until this probe passes.',
-            });
-        }
-    }
-
-    if (Array.isArray(diagnostics.canvasIssues) && diagnostics.canvasIssues.length > 0) {
-        tasks.push({
-            priority: 'fatal',
-            source: 'viewport_probe',
-            failure: `Canvas sizing issues: ${diagnostics.canvasIssues.map((issue) => `canvas#${issue.index}`).join(', ')}`,
-            directRepairTask: 'Canvas dimensions or backing store exceed the mobile safe viewport.',
-            repair: 'Clamp canvas dimensions and backing store to the GameTok safe viewport and recompute sizing on resize.',
-        });
-    }
-
-    if (Array.isArray(diagnostics.visibleOutOfBoundsElements) && diagnostics.visibleOutOfBoundsElements.length > 0) {
-        tasks.push({
-            priority: 'fatal',
-            source: 'viewport_probe',
-            failure: 'Important HUD/control elements are outside the phone viewport.',
-            directRepairTask: 'HUD or controls are outside the visible phone viewport.',
-            repair: 'Move HUD and touch controls into the visible safe rectangle. Do not place controls under native chrome.',
-        });
-    }
-
-    if (Number(diagnostics.horizontalOverflow || 0) > 4) {
-        tasks.push({
-            priority: 'fatal',
-            source: 'viewport_probe',
-            failure: `Horizontal overflow: ${diagnostics.horizontalOverflow}px.`,
-            directRepairTask: 'Page has horizontal overflow on the phone viewport.',
-            repair: 'Remove fixed oversized widths and fit all root/canvas/control elements within window.innerWidth.',
-        });
-    }
-
-    return tasks.map((task, index) => ({
-        ...task,
-        id: task.id || `GT-REPAIR-${String(index + 1).padStart(3, '0')}`,
-    }));
-}
-
-function buildMakerFileRepairPrompt({ qualityIntent = {}, prompt = '', crash = '', projectFiles = [], generatedAssets = null, sandboxDiagnostics = null, templateContract = null, debugProtocol = null, assetContract = null, designBrief = '', repairProtocolMatches = [], repairEvolutionGuidance = [] }) {
-    const isPhaser = templateContract?.id?.includes('phaser');
-    const targetedRepairTasks = buildTargetedRepairTasks(sandboxDiagnostics);
-    const repairPlaybook = buildMakerRepairPlaybook(targetedRepairTasks);
-    return [
-        'You are repairing a GameTok native maker project after sandbox verification found a runtime crash.',
-        '',
-        'Return one strict JSON object only. No markdown formatting blocks (```). No commentary.',
-        'Protocol schema:',
-        JSON.stringify(getMakerFileJsonSchemaExample({
-            diagnosis: {
-                errorCode: 'string',
-                messagePattern: 'string',
-                rootCause: 'string',
-                matchedProtocolRuleIds: ['string'],
-            },
-        }), null, 2),
-        '',
-        'Rules:',
-        ...getMakerFileJsonEncodingRuleLines(),
-        ...(isPhaser ? [
-            '- CRITICAL ARCHITECTURE RULE (OPENGAME PROTOCOL): NEVER use `Phaser.GameObjects.Graphics` (or raw canvas `ctx.arc()`) to render active gameplay entities (players, enemies, projectiles).',
-            '- You MUST use Sprites and Arcade Physics bodies (`this.physics.add.sprite`).',
-            '- Use texture keys loaded from public/assets/asset-pack.json. Never pass asset-pack records, Image objects, or data URLs to Phaser sprite/image constructors.',
-            '- If any UI helper uses `this.add.dom`, `scene.add.dom`, DOMElement, or createFromHTML, keep `dom: { createContainer: true }` in the Phaser GameConfig.',
-            '- Never add unsupported Phaser ScaleConfig fields such as `maxWidth`, `maxHeight`, `minWidth`, or `minHeight`; use CSS/container constraints instead.',
-            '- If you absolutely must use Graphics for UI, background, or drawing, you MUST call `graphics.clear()` at the beginning of every `update()` loop frame to prevent ghosting and trails.'
-        ] : [
-            '- CRITICAL ARCHITECTURE RULE: Use the provided DREAM_ASSET_PACK images for active gameplay entities instead of drawing raw shapes with ctx.arc().',
-            '- If you must use raw graphics or canvas drawing for dynamic UI/entities, ensure you clear the background/buffer each frame to prevent ghosting and trails.',
-            '- For ctx.drawImage, pass only preloaded HTMLImageElement/ImageBitmap/Canvas-like objects. Never pass DreamAssets.getImage(), DREAM_ASSET_PACK entries, asset-pack records, or raw data URL strings.'
-        ]),
-        '- Protected scaffold/runtime files are read-only: src/bootstrap.ts, src/assetLoader.ts, src/types/global.d.ts, src/scenes/Preloader.ts, Base*.ts files, package.json, tsconfig.json, and vite.config.ts.',
-        '- Do not append duplicate implementations of an existing function or class method. Modify the existing function in place; TypeScript TS2393 is a hard failure.',
-        '- Do not redeclare scaffold-owned BaseGameScene/BaseArenaScene fields such as player, enemies, enemyMeleeTriggers, decorations, obstacles, playerBullets, enemyBullets, ySortGroup, worldWidth, or worldHeight. Use inherited groups as-is, or name custom arrays sliceTargets/customEnemies/etc.',
-        '- Repair against the GameTok maker GDD, not just the crash string. Preserve all six GDD sections in the implementation.',
-        '- If a repair conflicts with the GDD, satisfy the GDD and explain the constrained repair in notes.',
-        '- Edit only the files that need changes.',
-        '- Valid paths are index.html and existing src/*.css, src/*.ts, src/*.js, src/*.json files.',
-        '- Use patches[].replacements find/replace pairs copied exactly from the current project files.',
-        '- Preserve the user game idea and current mechanics.',
-        '- Keep HUD, labels, buttons, meters, and controls code-rendered, not baked into AI images.',
-        '- Keep the game mobile-first inside a 390x844 webview. Reserve top space for GameTok chrome.',
-        '- Do not navigate to external websites, call window.location, submit forms, or open popups.',
-        '- Do not add remote dependencies unless the existing project already uses that dependency.',
-        '- For canvas games, use canvas.getContext("2d"). HTMLCanvasElement does not have getCanvasContext().',
-        '- DreamAssets.getImage(key) returns a data URL string. Do not set `.onload`, `.onerror`, `.width`, or `.height` on that string. Convert it with `const img = new Image(); img.onload = ...; img.src = dataUrl;` or call DreamAssets.loadImageElement(key).',
-        '- Do not add `declare global`, `declare const`, or `declare interface Window` declarations for DREAM_ASSETS, DREAM_ASSET_PACK, DREAM_ANIMATIONS, DREAM_TILESETS, DREAM_AUDIO_MANIFEST, or DreamAssets inside src/main.ts. The scaffold owns those declarations.',
-        '- If TypeScript reports TS2687 for DreamAssets/DREAM_ASSETS/DREAM_ASSET_PACK, remove the duplicate declarations from gameplay files and use the existing window globals.',
-        '- Fix the crash first. Then fix obvious viewport/control issues if they caused or hide the crash.',
-        '- If the crash says the generated asset pack was ignored, update the game source to use DreamAssets, DREAM_ASSETS, or DREAM_ASSET_PACK for real gameplay visuals.',
-        '- If generated assets exist, use them for the player, enemies, props, items, or backgrounds. Do not keep placeholder-only art unless no relevant asset exists.',
-        '- If the asset quality report flags an asset as fatal, do not use that key. Use another valid asset or code-rendered fallback for that role.',
-        '- If generated animation frames exist, wire DREAM_ANIMATIONS into player/enemy sprites or canvas frame cycling.',
-        '- If generated tilesets exist, wire DREAM_TILESETS into terrain/tile drawing while keeping collision data code-defined.',
-        '- If sandboxDiagnostics.templateRuntimeProbe failed, repair the exact required probe behavior. Do not remove the probe API to hide the failure.',
-        '- Template probe failures are gameplay contract failures: fix live state, controls, collisions, scoring, or reset behavior until the probe passes.',
-        '- Respect the template asset contract: never replace HUD, controls, terrain collision, or hitboxes with AI images.',
-        '- Preserve the selected native template contract. Required state, required functions, first-frame behavior, and acceptance checks still apply after the fix.',
-        '',
-        'DreamAssets API contract available at runtime after post-processing:',
-        '- window.DREAM_ASSETS: object of generated image data URLs by key.',
-        '- window.DREAM_ASSET_PACK: structured asset manifest with role/category/key/type/transparent metadata.',
-        '- DreamAssets.getImage(key): returns a generated image data URL.',
-        '- DreamAssets.loadImageElement(key): returns a Promise<HTMLImageElement> for canvas drawImage usage.',
-        '- DreamAssets.firstByRole(role): finds the first asset for roles like player, enemy, item, prop, background, environment, ui.',
-        '- DreamAssets.preloadPhaser(scene): loads generated image assets into Phaser.',
-        '- DreamAssets.addSprite(scene, roleOrKey, x, y, options): adds a Phaser sprite from a role or key.',
-        '- DreamAssets.addBackgroundCover(scene, roleOrKey, width, height): adds a generated background image as a cover layer.',
-        '- DreamAssets.firstTileset(): returns the first generated 7x7 tileset manifest.',
-        '- DreamAssets.getTileset(key): returns a generated tileset manifest by key.',
-        '- DreamAssets.safeRect(width, height): returns the GameTok chrome-safe playable rectangle.',
-        '',
-        `Crash: ${crash}`,
-        '',
-        'Targeted repair tasks:',
-        JSON.stringify(targetedRepairTasks, null, 2),
-        '',
-        'Repair playbook:',
-        JSON.stringify(repairPlaybook, null, 2),
-        '',
-        'Known maker repair protocol matches:',
-        JSON.stringify(repairProtocolMatches || [], null, 2),
-        '',
-        formatMakerRepairProtocolPromptBlock(repairProtocolMatches),
-        '',
-        formatMakerRepairEvolutionPromptBlock(repairEvolutionGuidance),
-        '',
-        'Repair task policy:',
-        '- Address every fatal targeted repair task before cosmetic changes.',
-        '- A template_runtime_probe task is not optional. Make the named probe method prove real gameplay state progression.',
-        '- Do not satisfy probes with fake hardcoded snapshots. The visible game and the probe snapshot must reflect the same live state.',
-        '- Keep repairs small and file-local when possible.',
-        '- Use matching playbook recipes as proven repair patterns, but adapt them to the current project files instead of rewriting from scratch.',
-        '',
-        'Sandbox diagnostics:',
-        JSON.stringify(sandboxDiagnostics || null, null, 2),
-        '',
-        'Asset summary:',
-        JSON.stringify(summarizeMakerAssets(generatedAssets), null, 2),
-        '',
-        'Asset quality summary:',
-        JSON.stringify(null, null, 2),
-        '',
-        'Structured asset tool contract:',
-        JSON.stringify(({}), null, 2),
-        '',
-        'Original user prompt:',
-        prompt,
-        '',
-        formatMakerDesignBriefPromptBlock(designBrief),
-        '',
-        'Selected native template contract:',
-        JSON.stringify(templateContract || null, null, 2),
-        '',
-        formatMakerDebugProtocolPromptBlock(debugProtocol),
-        '',
-        'Template asset contract:',
-        JSON.stringify(assetContract || null, null, 2),
-        '',
-        'Operational spec:',
-        JSON.stringify({
-            title: qualityIntent.title || null,
-            playableExperience: qualityIntent.playableExperience || null,
-            mobileControls: qualityIntent.mobileControls || [],
-            playerActions: qualityIntent.playerActions || [],
-            entityRules: qualityIntent.entityRules || [],
-            mustExist: qualityIntent.mustExist || [],
-            feelRules: qualityIntent.feelRules || [],
-            failureModesToAvoid: qualityIntent.failureModesToAvoid || [],
-            technicalRequirements: qualityIntent.technicalRequirements || {},
-        }, null, 2),
-        '',
-        'Current project files:',
-        JSON.stringify(projectFiles, null, 2),
-    ].join('\n');
-}
-
-function parseMakerFileRepairResponse(text) {
-    const parsed = parseBuilderJsonText(text);
-    return normalizeMakerProtocolResponse(parsed, { requireEdits: true });
-}
-
-async function resolveMakerProtocolEdits(projectRoot, inspection) {
-    const edits = [];
-
-    for (const file of inspection.files || []) {
-        edits.push(file);
-    }
-
-    for (const patch of inspection.patches || []) {
-        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, patch.path);
-        if (isProtectedMakerRuntimeFile(cleanPath)) {
-            console.warn(`[Maker Agent] Skipping protected runtime file patch: ${cleanPath}`);
-            continue;
-        }
-        const currentContent = await fs.promises.readFile(absolutePath, 'utf8');
-        const patched = applyPatchReplacements(currentContent, patch.replacements, { path: cleanPath });
-        edits.push({
-            path: cleanPath,
-            content: sanitizeMakerMainTsContent(patched.content, cleanPath),
-            patchReplacements: patched.applied,
-        });
-    }
-
-    return edits;
-}
-
-async function applyMakerFileEdits(projectRoot, edits, { compileGate = false } = {}) {
-    const applied = [];
-    const backups = new Map();
-    const touchedPaths = [];
-
-    for (const edit of edits) {
-        const { cleanPath, absolutePath } = safeMakerProjectPath(projectRoot, edit.path);
-        if (isProtectedMakerRuntimeFile(cleanPath)) {
-            console.warn(`[Maker Agent] Skipping protected runtime file edit: ${cleanPath}`);
-            continue;
-        }
-        if (!backups.has(absolutePath)) {
-            try {
-                backups.set(absolutePath, await fs.promises.readFile(absolutePath, 'utf8'));
-            } catch {
-                backups.set(absolutePath, null);
-            }
-        }
-        const content = sanitizeMakerMainTsContent(edit.content, cleanPath);
-        await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
-        await fs.promises.writeFile(absolutePath, content, 'utf8');
-        touchedPaths.push(absolutePath);
-        applied.push({
-            path: cleanPath,
-            bytes: Buffer.byteLength(content, 'utf8'),
-            patchReplacements: Array.isArray(edit.patchReplacements) ? edit.patchReplacements.length : 0,
-        });
-    }
-
-    if (compileGate && touchedPaths.length > 0) {
-        try {
-            await runMakerProjectTscCheck(projectRoot);
-        } catch (error) {
-            await restoreMakerFileBackups(backups);
-            console.warn(`[Maker Agent] Rejected ${touchedPaths.length} file edit(s) after tsc failure; restored previous sources.`);
-            throw error;
-        }
-    }
-
-    return applied;
 }
 
 function lineStartIndexes(content = '') {
@@ -4695,258 +2543,6 @@ async function assembleMakerProjectHtmlWithAutoRepair(projectRoot) {
     }
 }
 
-async function runMakerProjectEvidence({ workspace, projectRoot, generatedAssets, templateContract, assetContract, turnNumber, phase = 'agent', allowedKeys = null, foundationLane = null }) {
-    try {
-        const packKeys = allowedKeys || [...new Set([
-            ...await readProjectAssetPackKeys(projectRoot),
-            ...collectAllowedAssetPackKeys({ generatedAssets }),
-        ])].sort();
-
-        // EDIT-graft: for threejs_runner, rebuild main.ts as the CANONICAL engine
-        // (state/input/loop/render/reset/probe) with ONLY the model's EDIT region
-        // (the five themed gameplay functions) grafted in. Everything the model
-        // wrote outside the EDIT markers — stray HUD IIFEs, duplicate probes, a
-        // broken reset — is discarded in favor of the canonical engine. Runs BEFORE
-        // preflight/build so the canonical runtime is what actually ships, killing
-        // the blank-canvas + reset() crash class at the source.
-        const _foundation = templateContract?.foundation || null;
-        if (_foundation && isThreeFoundation(_foundation)) {
-            try {
-                const mainTsPath = path.join(projectRoot, 'src', 'main.ts');
-                const generatedMain = await fs.promises.readFile(mainTsPath, 'utf8');
-                // EXPERIMENT READOUT: measure whether the model held the engine contract
-                // ON ITS OWN (raw output, before the graft fixes it). With implement
-                // reasoning bumped low→high, drift=false here means a frontier model at
-                // full power no longer needs the graft — the signal that we can start
-                // loosening the guardrails. The graft below still runs as the safety net.
-                try {
-                    const rawDrift = detectRunnerSacredRegionTelemetry(generatedMain, { templateContract, foundationLane });
-                    if (rawDrift.runner) {
-                        console.log(`🧪 [Raw Model Contract job=${path.basename(workspace || '')}] phase=${phase} turn=${turnNumber} heldEngineOnOwn=${!rawDrift.drift} markers=${rawDrift.markersPresent}${rawDrift.reasons.length ? ` reasons=[${rawDrift.reasons.join(',')}]` : ''}`);
-                    }
-                } catch { /* measurement only */ }
-            } catch (graftError) {
-                console.warn(`🔧 [Engine Graft] failed (non-fatal): ${graftError?.message || graftError}`);
-            }
-        }
-
-        let preflight = await runMakerPreflightChecks({
-            projectRoot,
-            generatedAssets,
-            assetContract,
-            templateContract,
-            foundationLane,
-            freeBuild: isFreeBuildMode(),
-        });
-        // P3: make threejs_runner sacred-region + obstacle-consistency telemetry visible
-        // in the job log (preflight-report.json lives on ephemeral disk we can't see).
-        const _sacred = preflight.evidence?.sacredRegion;
-        if (_sacred?.runner) {
-            const _obstacleIssues = (preflight.issues || [])
-                .filter((issue) => String(issue.id || '').startsWith('preflight_threejs_obstacle'))
-                .map((issue) => `${issue.id}${Array.isArray(issue.holders) ? `(${issue.holders.join('/')})` : ''}`);
-            console.log(
-                `🧭 [Maker Preflight job=${path.basename(workspace || '')}] threejs_runner phase=${phase} turn=${turnNumber} `
-                + `markers=${_sacred.markersPresent} drift=${_sacred.drift}`
-                + `${_sacred.reasons.length ? ` reasons=[${_sacred.reasons.join(',')}]` : ''} `
-                + `obstacleChecks=[${_obstacleIssues.join('; ') || 'none'}] `
-                + `willBlock=${shouldBlockOnPreflight(preflight, isMakerFactoryMinimalMode())}`,
-            );
-        }
-        await writeMakerJson(workspace, 'preflight-report.json', {
-            phase,
-            turnNumber,
-            at: new Date().toISOString(),
-            ...preflight,
-        });
-        const factoryMinimal = isMakerFactoryMinimalMode();
-        if (!preflight.success) {
-            const preflightRepairs = await applyDeterministicPreflightRepairs(projectRoot, preflight, {
-                generatedAssets,
-                assetContract,
-                allowedKeys: packKeys,
-                foundationLane: foundationLane || assetContract?.lane || templateContract?.lane || null,
-                foundationRequiredState: templateContract?.foundation?.requiredState || [],
-                factoryMinimal,
-            });
-            if (preflightRepairs.length > 0) {
-                console.warn(`[Maker AutoRepair] Applied deterministic preflight fixes: ${preflightRepairs.map((entry) => `${entry.path}:${entry.type}${entry.keys ? `(${entry.keys.join(',')})` : ''}`).join(', ')}`);
-                preflight = await runMakerPreflightChecks({
-                    projectRoot,
-                    generatedAssets,
-                    assetContract,
-                    templateContract,
-                    foundationLane,
-                    freeBuild: isFreeBuildMode(),
-                });
-                await writeMakerJson(workspace, 'preflight-report-after-repair.json', {
-                    phase,
-                    turnNumber,
-                    at: new Date().toISOString(),
-                    repairs: preflightRepairs,
-                    factoryMinimal,
-                    ...preflight,
-                });
-            }
-        }
-        if (shouldBlockOnPreflight(preflight, factoryMinimal)) {
-            const diagnostics = {
-                preflight,
-                failedContractChecks: preflight.issues.map((issue) => ({
-                    id: issue.id,
-                    severity: issue.severity,
-                    message: issue.message,
-                    repair: issue.repair,
-                    missingSlots: issue.missingSlots || [],
-                })),
-            };
-            const evidence = {
-                phase,
-                success: false,
-                crashes: preflight.issues
-                    .filter((issue) => issue.severity === 'critical')
-                    .map((issue) => `PREFLIGHT ERROR: ${issue.message}`)
-                    .slice(0, 8),
-                diagnostics,
-                targetedRepairTasks: buildTargetedRepairTasks(diagnostics),
-            };
-            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
-            await writeMakerJson(workspace, 'debug-loop-trace.json', {
-                phase,
-                turnNumber,
-                at: new Date().toISOString(),
-                lastEvidence: evidence,
-            });
-            return evidence;
-        }
-        if (!preflight.success && factoryMinimal) {
-            const preview = preflight.issues
-                .filter((issue) => issue.severity === 'critical')
-                .filter((issue) => !shouldBlockOnPreflight({ issues: [issue] }, true))
-                .slice(0, 3)
-                .map((issue) => issue.id || issue.message)
-                .join(', ');
-            console.warn(`[Maker Factory] minimal mode: ${preflight.issues.length} preflight issue(s) non-blocking${preview ? ` (${preview})` : ''}; proceeding to build + sandbox`);
-        }
-        await rebuildMakerProjectDistWithAutoRepair(projectRoot);
-        const assembledHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
-        const probeHtml = postProcessRawHtml(assembledHtml, generatedAssets);
-        const sandboxOptions = {
-            requireDreamAssets: hasGeneratedVisualAssets(generatedAssets),
-            sourceHtml: assembledHtml,
-            templateContract,
-            assetContract,
-        };
-        let sandbox = await verifyGame(probeHtml, sandboxOptions);
-        const sandboxMissingAssetRole = !sandbox.success && (sandbox.diagnostics?.failedContractChecks || []).some(
-            (check) => check.id === 'asset_required_roles_unused'
-                && (check.missingRoles || []).some((role) => role === 'item' || role === 'obstacle' || role === 'prop'),
-        );
-        if (sandboxMissingAssetRole) {
-            const itemWiringRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
-                allowedKeys: packKeys,
-                assetContract,
-                generatedAssets,
-            });
-            const assetRoleRepairs = (itemWiringRepairs[0]?.repairs || []);
-            if (assetRoleRepairs.includes('injected_collectible_item_rendering')
-                || assetRoleRepairs.includes('injected_prop_rendering')
-                || assetRoleRepairs.includes('injected_obstacle_rendering')
-                || assetRoleRepairs.includes('injected_obstacle_prop_rendering')) {
-                console.warn('[Maker AutoRepair] Injected role rendering after sandbox miss; re-verifying...');
-                await rebuildMakerProjectDistWithAutoRepair(projectRoot);
-                const retryHtml = await assembleMakerProjectHtmlWithAutoRepair(projectRoot);
-                const retryProbe = postProcessRawHtml(retryHtml, generatedAssets);
-                sandbox = await verifyGame(retryProbe, {
-                    ...sandboxOptions,
-                    sourceHtml: retryHtml,
-                });
-            }
-        }
-        const evidence = {
-            phase,
-            success: Boolean(sandbox.success),
-            crashes: Array.isArray(sandbox.crashes) ? sandbox.crashes.slice(0, 8) : [],
-            diagnostics: {
-                ...(sandbox.diagnostics || {}),
-                failedContractChecks: Array.isArray(sandbox.diagnostics?.failedContractChecks)
-                    ? sandbox.diagnostics.failedContractChecks.slice(0, 10)
-                    : [],
-                templateRuntimeProbe: sandbox.diagnostics?.templateRuntimeProbe || null,
-                assetContractInspection: sandbox.diagnostics?.assetContractInspection || null,
-                horizontalOverflow: sandbox.diagnostics?.horizontalOverflow || 0,
-                canvasIssues: sandbox.diagnostics?.canvasIssues || [],
-                visibleOutOfBoundsElements: sandbox.diagnostics?.visibleOutOfBoundsElements || [],
-                preflight,
-                factoryMinimal,
-            },
-            targetedRepairTasks: sandbox.success ? [] : buildTargetedRepairTasks(sandbox.diagnostics || null),
-        };
-        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
-        await writeMakerJson(workspace, 'debug-loop-trace.json', {
-            phase,
-            turnNumber,
-            at: new Date().toISOString(),
-            lastEvidence: evidence,
-        });
-        return evidence;
-    } catch (error) {
-        const isBuildError = error.code === 'TSC_FAILED' || error.code === 'VITE_BUILD_FAILED';
-        const crashes = isBuildError && Array.isArray(error.buildErrors) && error.buildErrors.length > 0
-            ? error.buildErrors.map(e => `BUILD ERROR: ${e}`)
-            : [error.message || String(error)];
-
-        const evidence = {
-            phase,
-            success: false,
-            crashes,
-            diagnostics: isBuildError ? {
-                buildFailure: {
-                    type: error.code,
-                    errors: error.buildErrors || [],
-                    rawOutput: error.rawOutput || null,
-                },
-                failedContractChecks: [{
-                    id: 'build_compilation_failed',
-                    message: `The project does not compile. Fix all TypeScript/build errors before the sandbox can test it.`,
-                }],
-            } : null,
-            targetedRepairTasks: isBuildError
-                ? (error.buildErrors || []).slice(0, 8).map(e => ({
-                    task: 'fix_build_error',
-                    description: e,
-                    severity: 'critical',
-                }))
-                : [],
-        };
-        await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, evidence);
-        await writeMakerJson(workspace, 'debug-loop-trace.json', {
-            phase,
-            turnNumber,
-            at: new Date().toISOString(),
-            lastEvidence: evidence,
-        });
-        return evidence;
-    }
-}
-
-// Detect a "hollow" game: it builds and renders (so it passes the render/asset gate) but the builder
-// left the core loop unimplemented — the stub's "implement the loop here" TODO survived, or main.ts
-// barely grew past the empty stub. Such a game is a screensaver, not a playable game. Returns a short
-// reason string when hollow, else null.
-async function detectHollowMakerGame(projectRoot, stubMainLen = 0) {
-    try {
-        const main = await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8');
-        if (/TODO:?\s*Phase 2 agent implements/i.test(main)) return 'core_loop_todo_present';
-        if (stubMainLen > 0 && main.length < Math.round(stubMainLen * 1.4)) {
-            return `near_stub_size(${main.length}<${Math.round(stubMainLen * 1.4)})`;
-        }
-        return null;
-    } catch {
-        return null; // unreadable -> don't block
-    }
-}
-
 // Module files the 3D multi-file scaffold ships with. Anything else under the gameplay dirs is
 // model-authored. If NONE of the model's own modules are reachable from main.ts's import graph,
 // the builder wrote its whole game into files that nothing imports (dead code) — so the generic
@@ -4957,779 +2553,6 @@ const SEED_THREE_SCAFFOLD_MODULES = new Set([
     'src/entities/Player.ts', 'src/entities/Pickups.ts',
     'src/systems/Camera.ts', 'src/systems/Hud.ts',
 ]);
-
-function resolveRelativeTsImport(fromDir, spec) {
-    const base = path.resolve(fromDir, spec);
-    for (const cand of [base, `${base}.ts`, `${base}.js`, path.join(base, 'index.ts')]) {
-        try { if (fs.existsSync(cand) && fs.statSync(cand).isFile()) return cand; } catch { /* ignore */ }
-    }
-    return null;
-}
-
-// Walk the import graph from src/main.ts and report model-authored gameplay modules that nothing
-// imports. Returns { authoredOrphans: string[], authoredWired: number }. When authoredWired === 0
-// but authoredOrphans is non-empty, the model's game is entirely unwired (the starter scene ships).
-async function detectUnwiredModelModules(projectRoot) {
-    const result = { authoredOrphans: [], authoredWired: 0 };
-    try {
-        const srcDir = path.join(projectRoot, 'src');
-        const entry = path.join(srcDir, 'main.ts');
-        if (!fs.existsSync(entry)) return result;
-        const reachable = new Set();
-        const stack = [entry];
-        const importRe = /(?:import|export)[^'"]*?['"]([^'"]+)['"]/g;
-        while (stack.length) {
-            const file = stack.pop();
-            if (reachable.has(file)) continue;
-            reachable.add(file);
-            let text;
-            try { text = await fs.promises.readFile(file, 'utf8'); } catch { continue; }
-            let m;
-            while ((m = importRe.exec(text)) !== null) {
-                const spec = m[1];
-                if (!spec.startsWith('.')) continue; // skip packages (three, addons) + bare specifiers
-                const resolved = resolveRelativeTsImport(path.dirname(file), spec);
-                if (resolved) stack.push(resolved);
-            }
-        }
-        for (const dir of ['game', 'systems', 'entities', 'world', 'core']) {
-            let names;
-            try { names = await fs.promises.readdir(path.join(srcDir, dir)); } catch { continue; }
-            for (const name of names) {
-                if (!name.endsWith('.ts')) continue;
-                const rel = `src/${dir}/${name}`;
-                if (SEED_THREE_SCAFFOLD_MODULES.has(rel)) continue; // seed placeholder, not model-authored
-                if (reachable.has(path.join(srcDir, dir, name))) result.authoredWired += 1;
-                else result.authoredOrphans.push(rel);
-            }
-        }
-    } catch { /* detection only — never block on error */ }
-    return result;
-}
-
-async function runMakerAgentInspectionTurns({
-    workspace,
-    projectRoot,
-    turns,
-    jobId,
-    prompt,
-    qualityIntent,
-    generatedAssets,
-    templateContract,
-    assetContract,
-    debugProtocol,
-    designBrief,
-    builderMaps = null,
-    assetQuality = null,
-    maxTurns = getMakerAgentInspectionTurns((assetContract?.slots || []).length, {
-        freeBuild3D: isFreeBuildMode()
-            && (templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation)),
-        // Kenney-only 2D always has 0 asset slots, so the slot proxy would give even a complex
-        // platformer only 2 turns; canvas-kernel IS the 2D lane, so floor its repair budget.
-        phaser2d: templateContract?.templateId === 'canvas-kernel',
-    }),
-    reportProgress = null,
-}) {
-    const isPhaser2D = templateContract?.templateId === 'canvas-kernel';
-    const objectives = [
-        'Implement turn 1: wire core loop (input, timers, cooking flow, asset rendering) incrementally in src/main.ts. Draw generated background full-bleed on frame 1.',
-        'Implement turn 2: finish remaining gameplay systems, probe methods, visual polish, and cohesive UI styling. Keep resolveBackgroundImage() drawing artist background art.',
-        'Repair pass only: fix targetedRepairTasks and failed checks from latest evidence with apply_patch/write_file. Stop reading after one src/main.ts pass.',
-    ];
-    const implementTurns = resolveMakerAgentImplementTurns(maxTurns);
-    // Single source of truth for the lane (canvas-2d vs three.js-3D). Use THIS everywhere in the loop
-    // instead of re-detecting ad hoc — that ad-hoc detection is exactly how 3D rules/prompts/gates leaked
-    // onto 2D games and vice versa. Lane-specific behavior branches on `makerLane`; never default to "both".
-    const isThreeJsLane = templateContract?.templateId === 'threejs-kernel' || isThreeFoundation(templateContract?.foundation);
-    const makerLane = isThreeJsLane ? 'threejs' : 'canvas';
-    console.log(`🛠️ [Phase 2 job=${jobId}] Agent loop policy: turns 1-${implementTurns}=implement, turns ${implementTurns + 1}-${maxTurns}=repair if needed (maxTurns=${maxTurns}, factoryMinimal=${isMakerFactoryMinimalMode() ? 'on' : 'off'}, skipTurn1PreRun=${SKIP_TURN1_PRERUN_EVIDENCE})`);
-    // 2D asset pack removed: no generated images to materialize or wire into the project.
-    const phase2AllowedAssetKeys = [];
-    const phase2AssetSlotHints = [];
-
-    // Disabled: Using Native Three.js with public CDNs instead of custom catalog base64 injection.
-    let kenney3dBlock = '';
-    let kenney3dModelKeys = [];
-
-    // 2D Phaser 
-    // Disabled: Using Native Phaser 3 with public CDNs instead of custom catalog base64 injection.
-    let phaser2dBlock = '';
-    let phaser2dHasGround = false; // flag to enforce ground rendering if tiles are provided
-    let modelUsageForceRetries = 0;
-
-    // Capture the empty stub size before any agent edits, so we can tell a real implementation from
-    // a barely-touched stub at the acceptance gate below.
-    let stubMainLen = 0;
-    try {
-        stubMainLen = (await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8')).length;
-    } catch { /* stub unreadable; size-based hollow check disabled */ }
-    let hollowForceRetries = 0;
-    let groundFillForceRetries = 0; // 2D: ground provided but tileGround() never called — force ONE fill turn
-    let totalModelEdits = 0;
-    let lastRunEvidence = null;
-    // Snapshot of the most recent turn whose build+sandbox actually PASSED. A later turn (e.g. the
-    // bonus visual-polish turn) must never be able to discard a working game — if it throws, we fall
-    // back to this.
-    let lastGoodEvidence = null;
-    let lastGoodFiles = null;
-    let lastGoodTurn = 0;
-    for (let turnNumber = 1; turnNumber <= maxTurns; turnNumber += 1) {
-        assertJobNotCancelled(jobId);
-        let preRunEvidence = null;
-        if (!(turnNumber === 1 && SKIP_TURN1_PRERUN_EVIDENCE)) {
-            preRunEvidence = await runMakerProjectEvidence({
-                workspace,
-                projectRoot,
-                generatedAssets,
-                templateContract,
-                assetContract,
-                turnNumber: `${turnNumber}-pre`,
-                phase: 'before_file_agent_turn',
-                allowedKeys: phase2AllowedAssetKeys,
-                foundationLane: assetContract?.lane || templateContract?.lane || null,
-            });
-            lastRunEvidence = preRunEvidence;
-        } else {
-            console.log(`🛠️ [Phase 2 job=${jobId}] Skipping turn ${turnNumber} pre-run sandbox (stub expected incomplete until agent edits)`);
-        }
-        const projectFiles = await readMakerProjectFiles(projectRoot);
-        const objective = objectives[Math.min(turnNumber - 1, objectives.length - 1)] || objectives[objectives.length - 1];
-        const makerAgentUsesTools = useMakerAgentTools();
-        const turnMode = resolveMakerAgentTurnMode(turnNumber, { maxTurns });
-        const allowedAssetKeys = [...new Set([
-            ...await readProjectAssetPackKeys(projectRoot),
-            ...collectAllowedAssetPackKeys({ generatedAssets }),
-        ])].sort();
-        const assetSlotHints = buildAssetSlotRuntimeHints({ assetContract, generatedAssets });
-        const isImplementTurn = turnMode === MAKER_AGENT_TURN_MODE_IMPLEMENT;
-        const promptText = isImplementTurn
-            ? buildMakerAgentImplementPrompt({
-                prompt,
-                qualityIntent,
-                projectFiles,
-                templateContract,
-                designBrief,
-                objective,
-                allowedAssetKeys,
-                assetSlotHints,
-                userMedia: generatedAssets?.userMedia || null,
-                kenney3dBlock,
-                phaser2dBlock,
-            })
-            : buildMakerAgentInspectionPrompt({
-                prompt,
-                qualityIntent,
-                projectFiles,
-                templateContract,
-                assetContract,
-                debugProtocol,
-                designBrief,
-                generatedAssetsSummary: summarizeMakerAssets(generatedAssets),
-                assetQualitySummary: null,
-                builderMaps,
-                loopHistory: summarizeMakerAgentTurns(turns),
-                lastRunEvidence,
-                turnNumber,
-                objective,
-                transport: makerAgentUsesTools ? 'tools' : 'json',
-                mode: turnMode,
-                allowedAssetKeys,
-                assetSlotHints,
-                userMedia: generatedAssets?.userMedia || null,
-            });
-        await writeMakerText(workspace, `logs/agent-inspection-prompt-${turnNumber}.txt`, promptText);
-        if (isImplementTurn) {
-            console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] implement prompt_chars=${promptText.length} timeout=${Math.round(MAKER_IMPLEMENT_TIMEOUT_MS / 1000)}s max_tokens=${MAKER_IMPLEMENT_MAX_TOKENS} models=${MAKER_IMPLEMENT_FALLBACK_MODELS.join('>')}`);
-        } else {
-            console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] repair prompt_chars=${promptText.length} timeout=${Math.round(BUILDER_REQUEST_TIMEOUT_MS / 1000)}s max_tokens=${MAKER_TOOL_MAX_TOKENS}`);
-        }
-        try {
-            let inspection;
-            let applied = [];
-            let runEvidence;
-
-            if (makerAgentUsesTools) {
-                const implementToolBudgetHint = isImplementTurn && allowedAssetKeys.length > 40
-                    ? ` toolBudget=scaled(${allowedAssetKeys.length} keys)`
-                    : '';
-                console.log(`🛠️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] mode=${turnMode} assetKeys=${allowedAssetKeys.length}${implementToolBudgetHint}`);
-                let stickyImplementModel = null;
-                const toolTurn = await runMakerAgentToolTurn({
-                    userPrompt: promptText,
-                    projectRoot,
-                    mode: turnMode,
-                    assetKeyCount: allowedAssetKeys.length,
-                    requestCompletion: (messages) => requestMakerToolCompletion(messages, {
-                        label: `Phase 2 File Agent Turn ${turnNumber}`,
-                        jobId,
-                        timeoutMs: isImplementTurn ? MAKER_IMPLEMENT_TIMEOUT_MS : BUILDER_REQUEST_TIMEOUT_MS,
-                        maxAttempts: 2,
-                        maxTokens: isImplementTurn ? MAKER_IMPLEMENT_MAX_TOKENS : MAKER_TOOL_MAX_TOKENS,
-                        preferredModel: stickyImplementModel,
-                        fallbackModels: isImplementTurn ? MAKER_IMPLEMENT_FALLBACK_MODELS : null,
-                        reasoningEffort: isImplementTurn ? MAKER_IMPLEMENT_REASONING_EFFORT : (isFreeBuildMode() ? 'medium' : null),
-                        mode: turnMode,
-                        onResolvedModel: (model) => {
-                            if (!stickyImplementModel) {
-                                console.log(`📌 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Sticky implement model: ${model}`);
-                            }
-                            stickyImplementModel = model;
-                        },
-                    }),
-                    onEditApplied: async (edit, meta) => {
-                        const tscNote = edit.tool === 'apply_patch' || edit.tool === 'write_file' ? ' (tsc checked)' : '';
-                        console.log(`✏️ [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] ${edit.tool} ${edit.path} bytes=${edit.bytes} round=${meta.round} call=${meta.toolCall}${tscNote}`);
-                        if (jobId && typeof reportProgress === 'function') {
-                            await reportProgress(
-                                Math.min(72, 56 + meta.toolCall),
-                                'build',
-                                `Live edit: ${edit.tool} ${edit.path}${tscNote}`,
-                            );
-                        }
-                    },
-                    helpers: {
-                        safeMakerProjectPath,
-                        isProtectedMakerRuntimeFile,
-                        sanitizeMakerMainTsContent,
-                        runTscCheck: (root) => runMakerProjectTscCheck(root, { timeoutMs: 45_000 }),
-                    },
-                });
-                await writeMakerJson(workspace, `logs/agent-tool-turn-${turnNumber}.json`, toolTurn.log);
-                inspection = {
-                    patches: [],
-                    files: [],
-                    noEditsNeeded: toolTurn.noEditsNeeded,
-                    notes: toolTurn.notes,
-                };
-                applied = toolTurn.editsApplied;
-                if (turnMode === MAKER_AGENT_TURN_MODE_REPAIR && applied.length === 0) {
-                    const rescueDedupe = await dedupeMakerMainTsState(projectRoot);
-                    if (rescueDedupe.length > 0) {
-                        console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Repair rescue: deduped duplicate state keys (${rescueDedupe[0].removed.join(', ')})`);
-                        applied.push({ path: 'src/main.ts', tool: 'auto_repair', bytes: 0 });
-                    }
-                    const mainBefore = await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8').catch(() => '');
-                    const dtHookStripped = stripGtWiringDtUpdateHooks(mainBefore);
-                    if (dtHookStripped !== mainBefore) {
-                        await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), dtHookStripped, 'utf8');
-                        console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Repair rescue: stripped __gtUpdate* dt hooks (TS2448)`);
-                        applied.push({ path: 'src/main.ts', tool: 'auto_repair', bytes: 0 });
-                    }
-                }
-                if (applied.length > 0) {
-                    const keyNormalize = await normalizeMainTsAssetKeys(projectRoot, allowedAssetKeys);
-                    if (keyNormalize.changed) {
-                        console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Normalized asset key casing in src/main.ts`);
-                    }
-                    const wiringRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
-                        allowedKeys: allowedAssetKeys,
-                        assetContract,
-                        generatedAssets,
-                    });
-                    if (wiringRepairs.length > 0) {
-                        console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Auto-repaired asset wiring in src/main.ts (${wiringRepairs[0]?.repairs?.join(', ') || 'ok'})`);
-                    }
-                    const dedupeRepair = applyDeterministicStateObjectDedupeRepairs(
-                        await fs.promises.readFile(path.join(projectRoot, 'src', 'main.ts'), 'utf8').catch(() => ''),
-                    );
-                    if (dedupeRepair.removed.length > 0) {
-                        await fs.promises.writeFile(path.join(projectRoot, 'src', 'main.ts'), dedupeRepair.content, 'utf8');
-                        console.log(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Deduped duplicate state keys: ${dedupeRepair.removed.join(', ')}`);
-                    }
-                    try {
-                        await runMakerProjectTscCheck(projectRoot);
-                    } catch (compileError) {
-                        let compileErrorResolved = false;
-                        const buildRepairs = await applyDeterministicMakerBuildRepairs(projectRoot, compileError.buildErrors || []);
-                        if (buildRepairs.length > 0) {
-                            console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Auto-fixed compile errors: ${buildRepairs.map((entry) => entry.type).join(', ')}`);
-                            try {
-                                await runMakerProjectTscCheck(projectRoot);
-                                compileErrorResolved = true;
-                            } catch (retryError) {
-                                compileError = retryError;
-                            }
-                        }
-                        if (!compileErrorResolved) {
-                            runEvidence = buildMakerCompileFailureEvidence(compileError, {
-                                phase: 'after_file_agent_turn',
-                                turnNumber,
-                            });
-                            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-                            lastRunEvidence = runEvidence;
-                            await appendMakerAgentTurn(workspace, turns, {
-                                phase: 'file_inspection',
-                                objective,
-                                status: 'needs_followup',
-                                model: DREAM_MODELS.premiumBuilder,
-                                filesRead: summarizeMakerProjectFiles(projectFiles),
-                                editsApplied: applied,
-                                targetedRepairTasks: runEvidence.targetedRepairTasks || [],
-                                sandbox: runEvidence,
-                                notes: inspection.notes,
-                                error: compileError.message,
-                            });
-                            continue;
-                        }
-                    }
-                }
-                if (jobId && typeof reportProgress === 'function') {
-                    await reportProgress(
-                        Math.min(73, 68 + turnNumber),
-                        'verify',
-                        `Running sandbox + build checks (agent turn ${turnNumber})...`,
-                    );
-                }
-                runEvidence = await runMakerProjectEvidence({
-                    workspace,
-                    projectRoot,
-                    generatedAssets,
-                    templateContract,
-                    assetContract,
-                    turnNumber,
-                    phase: 'after_file_agent_turn',
-                    allowedKeys: allowedAssetKeys,
-                    foundationLane: assetContract?.lane || templateContract?.lane || null,
-                });
-            } else {
-                const responseText = await generateCompleteJsonWithBuilder(promptText, {
-                    label: `Phase 2 File Agent Turn ${turnNumber}`,
-                    jobId,
-                    timeoutMs: BUILDER_REQUEST_TIMEOUT_MS,
-                    maxAttempts: 2,
-                });
-                await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}.txt`, responseText);
-                try {
-                    inspection = parseMakerAgentInspectionResponse(responseText);
-                } catch (decodeError) {
-                    console.warn(`[Maker Agent] Turn ${turnNumber} file payload decode failed: ${decodeError.message}`);
-                    const decodeEvidence = buildMakerDecodeFailureEvidence(decodeError, {
-                        phase: 'after_file_agent_turn',
-                        turnNumber,
-                    });
-                    lastRunEvidence = decodeEvidence;
-                    await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, decodeEvidence);
-                    await appendMakerAgentTurn(workspace, turns, {
-                        phase: 'file_inspection',
-                        objective,
-                        status: 'needs_followup',
-                        model: DREAM_MODELS.premiumBuilder,
-                        filesRead: summarizeMakerProjectFiles(projectFiles),
-                        editsApplied: [],
-                        targetedRepairTasks: decodeEvidence.targetedRepairTasks || [],
-                        sandbox: decodeEvidence,
-                        notes: [],
-                        error: decodeError.message,
-                    });
-                    continue;
-                }
-                const hasProtocolEdits = (inspection.patches?.length > 0) || (inspection.files?.length > 0);
-                if (hasProtocolEdits) {
-                    try {
-                        const pendingEdits = await resolveMakerProtocolEdits(projectRoot, inspection);
-                        if (pendingEdits.length === 0) {
-                            runEvidence = await runMakerProjectEvidence({
-                                workspace,
-                                projectRoot,
-                                generatedAssets,
-                                templateContract,
-                                assetContract,
-                                turnNumber,
-                                phase: 'after_file_agent_turn',
-                            });
-                        } else {
-                            applied = await applyMakerFileEdits(projectRoot, pendingEdits, { compileGate: true });
-                            runEvidence = await runMakerProjectEvidence({
-                                workspace,
-                                projectRoot,
-                                generatedAssets,
-                                templateContract,
-                                assetContract,
-                                turnNumber,
-                                phase: 'after_file_agent_turn',
-                            });
-                        }
-                    } catch (applyError) {
-                        if (applyError.code === 'TSC_FAILED') {
-                            runEvidence = buildMakerCompileFailureEvidence(applyError, {
-                                phase: 'after_file_agent_turn',
-                                turnNumber,
-                            });
-                            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-                        } else if (/Patch for /.test(applyError.message || '')) {
-                            console.warn(`[Maker Agent] Turn ${turnNumber} patch apply failed: ${applyError.message}`);
-                            runEvidence = buildMakerPatchFailureEvidence(applyError, {
-                                phase: 'after_file_agent_turn',
-                                turnNumber,
-                            });
-                            await writeMakerJson(workspace, `agent-run-evidence-${turnNumber}.json`, runEvidence);
-                        } else {
-                            throw applyError;
-                        }
-                    }
-                } else {
-                    runEvidence = await runMakerProjectEvidence({
-                        workspace,
-                        projectRoot,
-                        generatedAssets,
-                        templateContract,
-                        assetContract,
-                        turnNumber,
-                        phase: 'after_file_agent_turn',
-                    });
-                }
-            }
-            const stalledOnAssetRole = runEvidence?.success === false
-                && applied.length === 0
-                && (runEvidence?.diagnostics?.failedContractChecks || []).some(
-                    (check) => check.id === 'asset_required_roles_unused'
-                        && (check.missingRoles || []).some((role) => role === 'item' || role === 'obstacle' || role === 'prop'),
-                );
-            if (stalledOnAssetRole) {
-                const rescueRepairs = await applyMainTsAssetWiringRepairs(projectRoot, {
-                    allowedKeys: allowedAssetKeys,
-                    assetContract,
-                    generatedAssets,
-                });
-                const rescueRepairIds = rescueRepairs[0]?.repairs || [];
-                if (rescueRepairIds.includes('injected_collectible_item_rendering')
-                    || rescueRepairIds.includes('injected_prop_rendering')
-                    || rescueRepairIds.includes('injected_obstacle_rendering')
-                    || rescueRepairIds.includes('injected_obstacle_prop_rendering')) {
-                    console.warn(`🔧 [Phase 2 File Agent Turn ${turnNumber} job=${jobId}] Agent stalled on asset role — applied deterministic wiring`);
-                    runEvidence = await runMakerProjectEvidence({
-                        workspace,
-                        projectRoot,
-                        generatedAssets,
-                        templateContract,
-                        assetContract,
-                        turnNumber,
-                        phase: 'after_item_role_rescue',
-                        allowedKeys: allowedAssetKeys,
-                        foundationLane: templateContract?.lane || assetContract?.lane || null,
-                    });
-                }
-            }
-            lastRunEvidence = runEvidence;
-            // Capture a snapshot of the passing build BEFORE any later branch (e.g. the polish-turn
-            // forcing below) mutates runEvidence.success to false to drive another turn.
-            if (runEvidence?.success === true) {
-                lastGoodEvidence = { ...runEvidence };
-                // Snapshot the actual passing files too — if a later (polish/repair) turn breaks the build
-                // and can't recover, we restore THIS instead of failing the whole job.
-                try { lastGoodFiles = await snapshotMakerProjectFiles(projectRoot); lastGoodTurn = turnNumber; } catch { /* snapshot is best-effort */ }
-            }
-            await appendMakerAgentTurn(workspace, turns, {
-                phase: 'file_inspection',
-                objective,
-                status: runEvidence?.success === false ? 'needs_followup' : 'complete',
-                model: DREAM_MODELS.premiumBuilder,
-                filesRead: summarizeMakerProjectFiles(projectFiles),
-                editsApplied: applied,
-                targetedRepairTasks: runEvidence?.targetedRepairTasks || [],
-                sandbox: runEvidence,
-                notes: inspection.notes,
-            });
-            totalModelEdits += Array.isArray(applied) ? applied.length : 0;
-            if (runEvidence?.success) {
-                // Multi-file 3D keeps main.ts a THIN entry by design, so its size is meaningless —
-                // the real "hollow" signal is whether the model wired its OWN modules into the import
-                // graph at all. Everything else keeps the size/TODO heuristic.
-                const multiFile3D = isFreeBuildMode() && templateContract?.templateId === 'threejs-kernel';
-                let hollowReason = null;
-                let unwiredModules = null;
-                let bareSeed = false;
-                if (multiFile3D) {
-                    // FIRST: did the model build ANYTHING? If it made zero edits across Phase 2, the
-                    // bare placeholder scaffold is what ships (grid "ground" + marker pickups) — never
-                    // accept that. (The unwired check below only fires when modules WERE written.)
-                    if (totalModelEdits === 0) {
-                        bareSeed = true;
-                        hollowReason = 'bare_seed_no_model_edits';
-                    } else {
-                        const unwired = await detectUnwiredModelModules(projectRoot);
-                        if (unwired.authoredOrphans.length > 0 && unwired.authoredWired === 0) {
-                            unwiredModules = unwired.authoredOrphans;
-                            hollowReason = `unwired_modules(${unwired.authoredOrphans.slice(0, 6).join(',')})`;
-                        }
-                    }
-                } else {
-                    hollowReason = await detectHollowMakerGame(projectRoot, stubMainLen);
-                }
-                // Kenney models were inlined but the builder ignored them (hand-built boxes instead)?
-                // Detect "models present, loadModel() never called" and force ONE turn to use them.
-                let modelsUnused = false;
-                if (kenney3dModelKeys.length > 0 && modelUsageForceRetries < 1 && turnNumber < maxTurns && !hollowReason) {
-                    try {
-                        const freshFiles = await readMakerProjectFiles(projectRoot);
-                        modelsUnused = !freshFiles.some((f) => /loadModel\s*\(/.test(f.content || ''));
-                    } catch { /* unreadable — don't force */ }
-                }
-                // 2D analog of modelsUnused: real ground tiles/backdrop were provided but the builder
-                // never tiled the floor (tileGround / tile(ctx,'tiles',…)). Unlike 3D models (best-effort,
-                // a procedural box still looks fine), an untiled 2D world ships a flat-color VOID — the #1
-                // "looks unfinished next to competitors" failure. So this one is ENFORCED: force ONE turn.
-                let groundUnfilled = false;
-                if (phaser2dHasGround && groundFillForceRetries < 1 && turnNumber < maxTurns && !hollowReason) {
-                    try {
-                        const freshFiles = await readMakerProjectFiles(projectRoot);
-                        const code = freshFiles.map((f) => f.content || '').join('\n');
-                        groundUnfilled = !/\btileGround\s*\(/.test(code)
-                            && !/\btile\s*\(\s*[^,]+,\s*['"]tiles['"]/.test(code);
-                    } catch { /* unreadable — don't force */ }
-                }
-                if (hollowReason && turnNumber < maxTurns && hollowForceRetries < 1) {
-                    // It renders, but there is no game (or the game is dead code). Don't accept —
-                    // force another turn with explicit feedback.
-                    hollowForceRetries += 1;
-                    const directRepairTask = bareSeed
-                        ? (isThreeJsLane
-                        ? `You have written NO game code — every tool call was a read, zero files edited. What ships right now is the BARE PLACEHOLDER scaffold: a wireframe grid with marker pickups (it looks like "walking on the ground collecting coins"), NOT the game in the prompt. BUILD THE GAME NOW: write src/game/Game.ts and your own modules (player, enemies, obstacles, systems) to implement the actual loop the foundation describes — create the player, spawn entities, handle input, collisions, scoring, win/lose, and add it all to the scene. The seed src/world/World.ts + src/entities/Player.ts/Pickups.ts are PLACEHOLDERS to replace. Stop reading and start writing files.`
-                        : `You have written NO game code — every tool call was a read, zero files edited. What ships right now is the bare placeholder stub, NOT the game in the prompt. This is a NATIVE PHASER 3 game: BUILD IT NOW by implementing the full loop in src/main.ts — the Phaser scene, preload, create, update, physics, spawning/entities, collisions, scoring, win/lose. There are no src/game or src/entities modules in this scaffold — it is single-file. Stop reading and start writing src/main.ts.`)
-                        : unwiredModules
-                        ? `The project builds, but YOUR game modules are DEAD CODE — nothing imports them, so what actually ships is the generic STARTER scene (a blue character standing in an empty green field), NOT the game in the prompt. Orphaned files no one imports: ${unwiredModules.join(', ')}. This is a WIRING bug: rewrite src/game/Game.ts (and src/main.ts if needed) to import and USE your modules — build your real world/arena from them, create the player + entities from YOUR files, add them to the scene, and drive them in the update loop. The starter src/world/World.ts and src/entities/Player.ts are placeholders; stop using them and use yours instead. tsc must stay clean after wiring.`
-                        : `The game builds and renders but implements NO gameplay — it is still essentially the empty stub (${hollowReason}). Implement the FULL interactive loop the foundation describes (state object, input handlers, spawning, movement, scoring, win/lose) across the game's modules. A background plus a few static objects is NOT a game.`;
-                    const hollowTask = {
-                        id: bareSeed ? 'no_game_built' : unwiredModules ? 'modules_not_wired' : 'gameplay_loop_unimplemented',
-                        directRepairTask,
-                    };
-                    runEvidence.success = false;
-                    runEvidence.targetedRepairTasks = [hollowTask, ...(runEvidence.targetedRepairTasks || [])];
-                    lastRunEvidence = runEvidence;
-                    console.warn(`🫥 [Phase 2 job=${jobId}] Turn ${turnNumber} renders but is HOLLOW (${hollowReason}) — forcing another turn`);
-                } else if (groundUnfilled && turnNumber < maxTurns && groundFillForceRetries < 1) {
-                    // Game works, but the world is a flat void — real ground art went unused. Force a fill turn.
-                    groundFillForceRetries += 1;
-                    const groundTask = {
-                        id: 'world_ground_unfilled',
-                        directRepairTask: `Your game loop works, but the WORLD IS EMPTY — you never tiled the floor, so it ships as a flat color/gradient void (the #1 thing that makes a game look unfinished next to competitors). Real ground art is provided. You MUST edit src/main.ts this turn: (1) import { tileGround, scatterProps } from './sprite.ts'; (2) as the FIRST draw call every frame, before any entities, call tileGround(ctx, canvas.width, canvas.height) to fill the entire floor with real ground tiles (pass originX/originY if your world scrolls); (3) if item/prop sprites exist, pick ~6-12 fixed scatter positions ONCE at init (away from the player spawn) and draw them each frame with scatterProps(ctx, propList) so the arena reads as a real place. Only fall back to a solid fill if tileGround returns false. Do NOT break the existing game loop — only add the world layer underneath it.`,
-                    };
-                    runEvidence.success = false;
-                    runEvidence.targetedRepairTasks = [groundTask, ...(runEvidence.targetedRepairTasks || [])];
-                    lastRunEvidence = runEvidence;
-                    console.warn(`🌍 [Phase 2 job=${jobId}] Turn ${turnNumber} ships an UNFILLED world (ground provided but tileGround/tile never called) — forcing a fill turn`);
-                } else {
-                    if (modelsUnused) {
-                        // Best-effort, NOT forced. Kenney models are upside-only: a hand-built
-                        // procedural box-car always renders and looks fine, whereas FORCING loadModel
-                        // traded that guaranteed-good car for one that silently breaks on a bad/invented
-                        // key (e.g. loadModel('raceCarRed') when the real key is 'kenney3d/<id>.glb') —
-                        // shipping a debug placeholder no blind verifier can catch. So we never burn a
-                        // repair turn or fail the build over unused models; loadModel itself degrades
-                        // gracefully (see threeAssets) when the builder DOES try a model with a bad key.
-                        console.log(`🧩 [Phase 2 job=${jobId}] ${kenney3dModelKeys.length} Kenney models available but builder used procedural geometry — shipping as-is (best-effort; models are optional).`);
-                    }
-                    if (bareSeed) {
-                        // The model never wrote a line of game code — the bare placeholder scaffold is all
-                        // that exists. Never ship that as the requested game; fail so it retries clean.
-                        throw new Error(`Phase 2 builder wrote NO game code after ${turnNumber} turn(s) — only the bare placeholder scaffold exists (grid + marker pickups), not the requested game.`);
-                    }
-                    if (unwiredModules) {
-                        // Static, WebGL-independent proof the WRONG scene ships. Never ship a mislabeled
-                        // decoy (the meadow stub masquerading as the requested game) — fail and retry instead.
-                        throw new Error(`Phase 2 builder left its game unwired after ${turnNumber} turn(s): the shipped scene is the generic starter, not the requested game. Orphaned modules: ${unwiredModules.join(', ')}.`);
-                    }
-                    if (hollowReason) {
-                        console.warn(`⚠️ [Phase 2 job=${jobId}] Shipping a thin game (${hollowReason}) — no turns left to deepen it`);
-                    }
-                    if (isImplementTurn && turnNumber < implementTurns) {
-                        const polishTask = {
-                            id: 'visual_polish_required',
-                            // Lane-branched: a 2D canvas game has no Three.js scene/Hud.ts/bloom/lights, so
-                            // the 3D wording below used to be nonsense for it (and pushed it to flail — see
-                            // the Weird Quiz job that broke its CSS chasing "premium HUD" guidance).
-                            directRepairTask: isThreeJsLane
-                                ? `Your game loop works and compiles! Now use write_file to upgrade visuals — toward CINEMATIC DEPTH, not brightness. You MUST edit files this turn — do NOT just read. Specifically: (1) Rewrite src/systems/Hud.ts with a premium CSS HUD that fits the game's art direction — clean panels, readable type, subtle gradients/shadows. Match the game's palette; do NOT bolt on generic sci-fi neon unless the concept is sci-fi. (2) Strengthen MOOD and CONTRAST: set the scene's time-of-day/lighting to whatever flatters the subject (a city racer wants dusk/night with lit windows + wet reflective asphalt, not flat daylight), deepen shadows, add atmosphere (fog matched to sky, gentle vignette). (3) Make emissive ACCENTS glow via the existing bloom — headlights, tail-lights, signs, pickups, edge trims ONLY. CRITICAL: never set whole bodies, the road, the ground, or large surfaces emissive, never use bright/white fog, never stack max-emissive + dense glow. A washed-out over-bright frame is WORSE than a plain one — if unsure, err DARKER and more saturated. (4) Add tasteful particle/VFX touches (sparks, dust, speed lines) and a few colored point/rim lights to separate silhouettes from the background. Do NOT break the existing game loop — only ENHANCE visuals. Start writing immediately.`
-                                : isPhaser2D
-                                ? `Your game loop works and compiles! Now use write_file to upgrade visuals so it looks DESIGNED, not programmer-art. You MUST edit files this turn — do NOT just read. This is a NATIVE PHASER 3 game using REAL SPRITE ASSETS. Specifically: (1) Ensure all game entities are drawn using Phaser Sprites. (2) Polish the HUD, buttons and panels in src/styles.css (DOM/CSS) or with native Phaser UI to match the game's palette. KEEP CSS VALID. (3) Strengthen MOOD with tasteful code-drawn VFX (sparks, thrust particles, subtle screen shake) around the real sprites. (4) Ensure the background is rendering beautifully using Phaser TileSprites or Graphics. Do NOT break the existing game loop — only ENHANCE visuals. Start writing immediately.`
-                                : `Your game loop works and compiles! Now use write_file to upgrade visuals so it looks DESIGNED, not programmer-art. You MUST edit files this turn — do NOT just read. This is a NATIVE PHASER 3 game. Specifically: (1) Polish the HUD, buttons and panels to match the game's palette. (2) Strengthen MOOD with a polished background, a gentle vignette and color cohesion, plus tasteful feedback (sparkles on success, a small shake on failure, floating score). Do NOT break the existing game loop — only ENHANCE visuals. Start writing immediately.`,
-                        };
-                        runEvidence.success = false;
-                        runEvidence.targetedRepairTasks = [polishTask];
-                        lastRunEvidence = runEvidence;
-                        console.log(`🌟 [Phase 2 job=${jobId}] Sandbox/build passed on turn ${turnNumber}, but continuing to Turn ${turnNumber+1} for AAA Visual Polish`);
-                    } else {
-                        console.log(`✅ [Phase 2 job=${jobId}] Sandbox/build passed after turn ${turnNumber} — skipping remaining agent turns`);
-                        break;
-                    }
-                }
-            }
-            if (isImplementTurn && turnNumber < maxTurns && turnNumber <= implementTurns) {
-                const failurePreview = (runEvidence?.targetedRepairTasks || [])
-                    .slice(0, 3)
-                    .map((task) => task.directRepairTask || task.description || task.id || task.task)
-                    .filter(Boolean)
-                    .join(' | ')
-                    || (runEvidence?.crashes || []).slice(0, 2).join(' | ')
-                    || 'sandbox/build checks still failing';
-                console.log(`🔧 [Phase 2 job=${jobId}] Implement turn ${turnNumber} incomplete — continuing with turn ${turnNumber + 1}. Focus: ${failurePreview}`);
-            } else if (turnNumber === implementTurns && maxTurns > implementTurns) {
-                const failurePreview = (runEvidence?.targetedRepairTasks || [])
-                    .slice(0, 3)
-                    .map((task) => task.directRepairTask || task.description || task.id || task.task)
-                    .filter(Boolean)
-                    .join(' | ')
-                    || (runEvidence?.crashes || []).slice(0, 2).join(' | ')
-                    || 'sandbox/build checks still failing';
-                console.log(`🔧 [Phase 2 job=${jobId}] Implement turns exhausted — running repair turn ${turnNumber + 1}/${maxTurns}. Focus: ${failurePreview}`);
-            }
-            if ((inspection.noEditsNeeded || applied.length === 0) && turnNumber >= maxTurns) {
-                break;
-            }
-        } catch (error) {
-            console.error(`[Maker Agent] Inspection turn ${turnNumber} failed: ${error.message}`);
-            await appendMakerAgentTurn(workspace, turns, {
-                phase: 'file_inspection',
-                objective,
-                status: 'failed',
-                model: DREAM_MODELS.premiumBuilder,
-                filesRead: summarizeMakerProjectFiles(projectFiles),
-                error: error.message,
-            });
-            if (error.partialText) {
-                await writeMakerText(workspace, `logs/agent-inspection-response-${turnNumber}-invalid.txt`, error.partialText);
-            }
-            // Safety net: if an EARLIER turn already produced a passing build+sandbox, never fail the
-            // whole job because a later (bonus/polish) turn threw. Ship the last good build instead.
-            if (lastGoodEvidence?.success === true) {
-                console.warn(`🛟 [Phase 2 job=${jobId}] Turn ${turnNumber} threw (${error.message}) but a prior turn already produced a passing build — shipping that build instead of failing the job.`);
-                lastRunEvidence = lastGoodEvidence;
-                break;
-            }
-            throw new Error(`Phase 2 file agent turn ${turnNumber} failed: ${error.message}`);
-        }
-    }
-
-    if (lastRunEvidence?.success !== true) {
-        const preThrowErrors = [
-            ...(lastRunEvidence?.diagnostics?.buildFailure?.errors || []),
-            ...(lastRunEvidence?.crashes || []),
-        ].map((entry) => String(entry || ''));
-        const needsStateDedupe = preThrowErrors.some((entry) => /TS1117/.test(entry))
-            || preThrowErrors.some((entry) => /duplicate state|multiple properties with the same name/i.test(entry));
-        const needsGtDtStrip = preThrowErrors.some((entry) => /TS2448:.*\b'dt'\b/.test(entry));
-        if (needsGtDtStrip) {
-            const mainPath = path.join(projectRoot, 'src', 'main.ts');
-            const before = await fs.promises.readFile(mainPath, 'utf8').catch(() => null);
-            if (before != null) {
-                const stripped = stripGtWiringDtUpdateHooks(before);
-                if (stripped !== before) {
-                    await fs.promises.writeFile(mainPath, stripped, 'utf8');
-                    console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: stripped __gtUpdate* dt hooks (TS2448)`);
-                    try {
-                        lastRunEvidence = await runMakerProjectEvidence({
-                            workspace,
-                            projectRoot,
-                            generatedAssets,
-                            templateContract,
-                            assetContract,
-                            turnNumber: `${maxTurns}-final-dt-rescue`,
-                            phase: 'after_final_dt_hook_strip',
-                            allowedKeys: phase2AllowedAssetKeys,
-                            foundationLane: templateContract?.lane || assetContract?.lane || null,
-                        });
-                    } catch (rescueError) {
-                        console.warn(`🔧 [Phase 2 job=${jobId}] Final dt-hook rescue failed: ${rescueError.message}`);
-                    }
-                }
-            }
-        }
-        // Vite MISSING_EXPORT (a type imported as a value) — tsc passed so the model never saw it and
-        // gets stranded. Deterministically convert the offending imports to type-only, then rebuild.
-        if (lastRunEvidence?.success !== true && preThrowErrors.some((entry) => /is not exported by/i.test(entry))) {
-            const typeImportRepairs = await applyDeterministicMakerBuildRepairs(projectRoot, preThrowErrors);
-            if (typeImportRepairs.length > 0) {
-                console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: type-only import fix (${typeImportRepairs.map((r) => `${r.path}: ${r.from}`).join('; ')})`);
-                try {
-                    lastRunEvidence = await runMakerProjectEvidence({
-                        workspace,
-                        projectRoot,
-                        generatedAssets,
-                        templateContract,
-                        assetContract,
-                        turnNumber: `${maxTurns}-final-type-import-rescue`,
-                        phase: 'after_final_type_import_fix',
-                        allowedKeys: phase2AllowedAssetKeys,
-                        foundationLane: templateContract?.lane || assetContract?.lane || null,
-                    });
-                } catch (rescueError) {
-                    console.warn(`🔧 [Phase 2 job=${jobId}] Final type-import rescue failed: ${rescueError.message}`);
-                }
-            }
-        }
-        const dedupeRepairs = await dedupeMakerMainTsState(projectRoot);
-        if (needsStateDedupe || dedupeRepairs.length > 0) {
-            if (dedupeRepairs.length > 0) {
-                console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: deduped duplicate state keys (${dedupeRepairs[0].removed.join(', ')})`);
-                try {
-                    lastRunEvidence = await runMakerProjectEvidence({
-                        workspace,
-                        projectRoot,
-                        generatedAssets,
-                        templateContract,
-                        assetContract,
-                        turnNumber: `${maxTurns}-final-rescue`,
-                        phase: 'after_final_state_dedupe',
-                        allowedKeys: phase2AllowedAssetKeys,
-                        foundationLane: templateContract?.lane || assetContract?.lane || null,
-                    });
-                } catch (rescueError) {
-                    console.warn(`🔧 [Phase 2 job=${jobId}] Final state dedupe rescue failed: ${rescueError.message}`);
-                }
-            } else if (needsStateDedupe) {
-                console.warn(`🔧 [Phase 2 job=${jobId}] Final rescue: TS1117 reported but no duplicate state keys found to remove`);
-            }
-        }
-        if (lastRunEvidence?.success !== true) {
-            const crashSummary = (lastRunEvidence?.crashes || []).slice(0, 2).join(' | ')
-                || (lastRunEvidence?.diagnostics?.buildFailure?.errors || []).slice(0, 2).join(' | ')
-                || 'build or sandbox checks still failing';
-            // DIAGNOSTIC (single-file 3D): on failure, dump the TODO/function + state lines of
-            // main.ts so we can see whether the model left a TODO unimplemented (e.g. setupScene
-            // never set refs.player). Ephemeral storage is gone after this throw.
-            try {
-                const _tplId = templateContract?.templateId || templateContract?.foundation?.foundationId || '';
-                const _lane = String(templateContract?.foundation?.lane || '').toLowerCase();
-                const _isThree = _tplId === 'threejs-kernel' || _lane.includes('threejs') || _lane.includes('runner') || _lane.includes('racer');
-                if (_isThree) {
-                    try {
-                        const _src = await fs.promises.readFile(path.join(projectRoot, 'src/main.ts'), 'utf8');
-                        const _todoCount = (_src.match(/TODO Phase 2/g) || []).length;
-                        const _hasSacred = _src.includes('GAMETOK:SACRED START');
-                        // P5: ephemeral storage is wiped after this throw, so retain the source
-                        // in the durable job log. Emit it as ONE single-line JSON string (newlines
-                        // escaped) so Railway cannot split + interleave it with other concurrent
-                        // logs — the previous multi-line dump was unreadable. Keep the FULL file
-                        // (capped high) so the end — where probe/reset/loop live — is included.
-                        const RETAIN_MAX = 40000;
-                        const _retained = _src.length > RETAIN_MAX
-                            ? `${_src.slice(0, RETAIN_MAX)}\n/* …truncated ${_src.length - RETAIN_MAX} chars */`
-                            : _src;
-                        console.error(
-                            `🗄️ [3D SOURCE job=${jobId}] ${_src.length} chars, ${_todoCount} TODO Phase 2, sacredMarkers=${_hasSacred} :: ${JSON.stringify(_retained)}`,
-                        );
-                    } catch (_e) {
-                        console.error(`🗄️ [3D SOURCE job=${jobId}] could not read src/main.ts: ${_e.message}`);
-                    }
-                }
-            } catch (_diagErr) { /* diagnostic only — never block the real throw */ }
-            // NEVER throw away a working game: if an earlier turn produced a passing build+sandbox, the
-            // on-disk files are now a LATER turn's broken state (e.g. a forced polish turn that broke the
-            // CSS build and the repair turn couldn't read the file to fix it). Restore that earlier passing
-            // snapshot and ship it instead of failing the whole job.
-            if (lastGoodEvidence?.success === true && Array.isArray(lastGoodFiles) && lastGoodFiles.length > 0) {
-                const restored = await restoreMakerProjectFiles(projectRoot, lastGoodFiles).catch(() => 0);
-                if (restored > 0) {
-                    console.warn(`🛟 [Phase 2 job=${jobId}] Final build failed after polish/repair, but turn ${lastGoodTurn} had a PASSING build — restored ${restored} file(s) and shipping that working version instead of failing.`);
-                    lastRunEvidence = lastGoodEvidence;
-                    return lastRunEvidence;
-                }
-            }
-            throw new Error(`Phase 2 file agent finished without a passing project after ${maxTurns} turn(s) (implement + ${Math.max(0, maxTurns - 1)} repair): ${crashSummary}`);
-        }
-    }
-    return lastRunEvidence;
-}
 
 async function assembleMakerProjectHtml(projectRoot) {
     try {
@@ -5826,17 +2649,6 @@ async function rebuildMakerProjectDist(projectRoot) {
     console.log(`[Vite Build] ✅ Build succeeded`);
 }
 
-async function replaceAsync(input, regex, replacer) {
-    const replacements = [];
-    input.replace(regex, (...args) => {
-        replacements.push(Promise.resolve(replacer(...args)));
-        return '';
-    });
-    const resolved = await Promise.all(replacements);
-    let index = 0;
-    return input.replace(regex, () => resolved[index++]);
-}
-
 async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
     if (!token) {
         return null;
@@ -5910,14 +2722,6 @@ async function persistEditableMakerSource(jobId, makerProject, qualityIntent = {
     }
 }
 
-// Game generation flow: the simplified static file path — R2 CDN
-// assets, no scaffold/foundation/contract machinery. buildGamePrompt() already injects the
-// R2 asset catalog (themed by prompt) and the correct CDN base URL, so the model emits complete
-// static files (HTML/JS/CSS) that run standalone.
-function useGameGenerationFlow() {
-    return String(process.env.GAMETOK_CLAUDE_STYLE || 'true').toLowerCase() !== 'false';
-}
-
 function startLocalServer(projectRoot) {
     return new Promise((resolve, reject) => {
         const mimeTypes = {
@@ -5973,6 +2777,50 @@ function startLocalServer(projectRoot) {
     });
 }
 
+/**
+ * Full in-memory snapshot of a generated project, used to roll back a polish turn that made things
+ * worse. snapshotMakerSourceFiles() is not usable for this: it only looks at index.html and src/**,
+ * while the CLI writes main.js and style.css at the project root.
+ *
+ * This exists because a critique-driven repair turn is allowed to fail. It re-runs the builder on a
+ * game that already boots, and a builder that misunderstands a defect can return a broken one. The
+ * rule is that a passing build is never traded for a failing one.
+ */
+async function snapshotProjectDir(projectRoot, { maxBytes = 6_000_000 } = {}) {
+    const files = [];
+    let total = 0;
+    const walk = async (relDir, depth = 0) => {
+        if (depth > 4 || total > maxBytes) return;
+        let entries = [];
+        try { entries = await fs.promises.readdir(path.join(projectRoot, relDir || '.'), { withFileTypes: true }); }
+        catch { return; }
+        for (const ent of entries) {
+            if (total > maxBytes) return;
+            // .kimi-home holds the CLI's config/session state and threejs-skills is a symlink out of
+            // the workspace — neither is part of the game, and restoring either would be wrong.
+            if (ent.name.startsWith('.') || ent.name === 'node_modules' || ent.name === 'threejs-skills') continue;
+            const rel = relDir ? `${relDir}/${ent.name}` : ent.name;
+            if (ent.isDirectory()) { await walk(rel, depth + 1); continue; }
+            if (ent.isSymbolicLink()) continue;
+            try {
+                const content = await fs.promises.readFile(path.join(projectRoot, rel));
+                total += content.length;
+                files.push({ path: rel, content });
+            } catch { /* unreadable — skip */ }
+        }
+    };
+    await walk('', 0);
+    return files;
+}
+
+async function restoreProjectDir(projectRoot, snapshot) {
+    for (const file of snapshot) {
+        const full = path.join(projectRoot, file.path);
+        await fs.promises.mkdir(path.dirname(full), { recursive: true }).catch(() => {});
+        await fs.promises.writeFile(full, file.content).catch(() => {});
+    }
+}
+
 // Self-contained Claude-style job: prompt → Kimi CLI → files → local verification → R2 upload → Redirect HTML payload.
 // Persists to the existing ai_games row and returns the same shape executeDreamJob's non-persist
 // path returns. Throws on failure so executeDreamJob's catch marks the job errored.
@@ -5980,35 +2828,45 @@ async function runGameGenerationJob({ jobId, prompt, makerWorkspace, reportProgr
     console.log(`🎮 [Game-Gen] Generating game for job ${jobId} (R2 CDN assets, ${orientation})`);
     await reportProgress(12, 'spec', 'Reading your idea...');
 
-    // 1. Build the game prompt (asset catalog + CDN base URL are injected here).
-    const { system, user } = await buildGamePrompt(prompt, orientation);
+    // 1. DIRECTOR PRE-PASS — expand the player's one-liner into a full art-directed brief before the
+    //    builder ever runs. Without this the builder receives three words and falls back to its
+    //    defaults, and its defaults are untextured primitives. Soft-fails to the plain prompt.
+    const { buildDirectorBrief } = await import('./maker-director-brief.js');
+    await reportProgress(16, 'spec', 'Art-directing your game...');
+    const director = await buildDirectorBrief(prompt, { orientation });
+    if (director) {
+        await writeMakerText(makerWorkspace, 'logs/director-brief.md', director.text);
+        await writeMakerText(makerWorkspace, 'logs/director-brief.json', JSON.stringify(director.brief, null, 2));
+    }
+
+    // 2. Build the game prompt (the brief becomes the request when the director produced one).
+    const { system, user } = await buildGamePrompt(prompt, orientation, director);
     await writeMakerText(makerWorkspace, 'logs/game-prompt.txt', `${system}\n\n---\n\n${user}`);
 
     // 2. Setup project folder
     const projectRoot = path.join(makerWorkspace, 'game-project');
     await fs.promises.mkdir(projectRoot, { recursive: true });
 
-    // 3. Execute Kimi Code CLI globally to generate and build the game files autonomously.
-    await reportProgress(30, 'build', 'Writing the game with Kimi CLI...');
-    const { runKimiCliAgent } = await import('./maker-kimi-cli-runner.js');
-    await runKimiCliAgent(projectRoot, system, user);
+    // 3. Execute GameTok AI Generation Loop (DeepSeek-V4-Flash / Qwen3.8-Max + Hardened Sandbox)
+    await reportProgress(30, 'build', 'Writing the game with GameTok AI Pipeline...');
+    const { runGameTokGenerationLoop } = await import('./gametok-generation-loop.js');
+    const finalGameState = await runGameTokGenerationLoop({ prompt, attachments: [] });
 
-    // Snapshot the files and save the editable source to DB
-    const finalFiles = await snapshotMakerSourceFiles(projectRoot, []);
-    console.log(`📝 [Game-Gen] Kimi CLI wrote files: ${finalFiles.map((f) => f.path).join(', ')}`);
-    await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: finalFiles }, { title: prompt }, 'r2-cdn').catch(() => {});
+    let rawGameHtml = finalGameState.currentCode;
+    if (rawGameHtml) {
+        await fs.promises.writeFile(path.join(projectRoot, 'index.html'), rawGameHtml, 'utf-8');
+    }
 
-    // 4. Spin up local static HTTP server for Puppeteer verification
-    await reportProgress(60, 'build', 'Setting up local sandbox test environment...');
-    const localServer = await startLocalServer(projectRoot);
-    const rawGameHtml = await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf-8').catch(() => '');
 
     // 5. Sandbox verify. If it crashes, run Kimi CLI self-repair.
+    //    captureCritiqueFrames asks for the PNG pairs the visual critic grades in step 5b; it costs
+    //    ~2.5s of extra hold time in a browser that is already open.
     await reportProgress(80, 'verify', 'Testing the game...');
+    const verifyOptions = { sourceHtml: rawGameHtml, orientation, captureCritiqueFrames: true };
     let finalScreenshot = null;
     let sandboxRes = null;
     try {
-        sandboxRes = await verifyGame(localServer.url, { sourceHtml: rawGameHtml, orientation });
+        sandboxRes = await verifyGame(localServer.url, verifyOptions);
         finalScreenshot = sandboxRes?.screenshot || null;
     } catch (verifyErr) {
         console.warn(`[Game-Gen] verify skipped: ${verifyErr?.message || verifyErr}`);
@@ -6026,10 +2884,12 @@ Please inspect the code files in this directory, fix the bug causing this crash,
 `;
         try {
             await runKimiCliAgent(projectRoot, system, repairPrompt);
-            const repairedFiles = await snapshotMakerSourceFiles(projectRoot, []);
+            const repairedFiles = await snapshotMakerSourceFiles(projectRoot, [], { includeRootGameFiles: true });
             await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: repairedFiles }, { title: prompt }, 'r2-cdn').catch(() => {});
+            rawGameHtml = await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf-8').catch(() => rawGameHtml);
             try {
-                const rerun = await verifyGame(localServer.url, { sourceHtml: rawGameHtml, orientation });
+                const rerun = await verifyGame(localServer.url, { ...verifyOptions, sourceHtml: rawGameHtml });
+                sandboxRes = rerun || sandboxRes;
                 finalScreenshot = rerun?.screenshot || null;
                 if (rerun?.success) console.log('✅ [Game-Gen] Kimi self-repair passed sandbox.');
                 else console.log(`⚠️ [Game-Gen] Kimi self-repair still fails sandbox: ${String(rerun?.crashes?.[0] || '').slice(0, 200)}`);
@@ -6038,6 +2898,100 @@ Please inspect the code files in this directory, fix the bug causing this crash,
             }
         } catch (repairErr) {
             console.error('⚠️ [Game-Gen] Kimi self-repair failed, shipping original build.', repairErr);
+        }
+    }
+
+    // 5b. VISUAL CRITIQUE LOOP — the part of the pipeline that actually looks at the game.
+    //
+    // Up to this point "no crashes" was the entire quality bar, which is how flat-shaded primitives
+    // on an empty plane kept shipping. Here a vision model grades real frames from the running game
+    // against the director's brief and the visual scorecard, and the builder gets one or two turns
+    // to fix the defects it names.
+    //
+    // Three hard constraints on this loop, in order of importance:
+    //   - It never trades a working build for a broken one. Every turn is snapshotted first and
+    //     rolled back if the result crashes or loses its frames.
+    //   - It is budgeted in wall-clock time, not just turns. Each turn is a full CLI re-run.
+    //   - It is entirely optional: no MOONSHOT_API_KEY, no critic, no change to the old behaviour.
+    let critiqueLog = [];
+    const criticEnabled = String(process.env.GAMETOK_VISUAL_CRITIC || 'true').toLowerCase() !== 'false';
+    if (criticEnabled && sandboxRes?.success && !sandboxRes?.bypassed) {
+        const { probeProjectSource, critiqueBuild, formatCritiqueForRepair } = await import('./maker-visual-critic.js');
+        // 3D games get an extra turn: they have more ways to look wrong and more of them are fixable.
+        const is3D = director?.brief?.dimension === '3D';
+        const maxTurns = Number(process.env.GAMETOK_CRITIC_MAX_TURNS ?? (is3D ? 2 : 1));
+        const budgetMs = Number(process.env.GAMETOK_CRITIC_BUDGET_MS || 6 * 60 * 1000);
+        const loopStartedAt = Date.now();
+
+        for (let turn = 1; turn <= maxTurns; turn += 1) {
+            const frames = Array.isArray(sandboxRes?.critiqueFrames) ? sandboxRes.critiqueFrames : [];
+            if (frames.length === 0) {
+                console.log('👁️  [Game-Gen] No frames captured (headless WebGL bypass?) — skipping the critique pass.');
+                break;
+            }
+
+            await reportProgress(84, 'verify', turn === 1 ? 'Reviewing how it looks...' : 'Re-reviewing the art pass...');
+            const sourceProbe = await probeProjectSource(projectRoot).catch(() => null);
+            const critique = await critiqueBuild({ frames, brief: director, sourceProbe, orientation });
+            if (!critique) break; // critic unavailable — no opinion, ship what we have
+
+            critiqueLog.push({ turn, average: critique.average, verdict: critique.verdict, defects: critique.defects, scores: critique.scores });
+            await writeMakerText(makerWorkspace, `logs/critique-${turn}.json`, JSON.stringify(critique, null, 2)).catch(() => {});
+
+            if (critique.verdict === 'ship') {
+                console.log(`✅ [Game-Gen] Critic passed the build on turn ${turn} (avg ${critique.average}/3).`);
+                break;
+            }
+
+            const repairInstructions = formatCritiqueForRepair(critique);
+            if (!repairInstructions) {
+                console.log('👁️  [Game-Gen] Critic found only minor defects — shipping.');
+                break;
+            }
+            if (Date.now() - loopStartedAt > budgetMs) {
+                console.log(`⏱️  [Game-Gen] Critique budget spent (${Math.round((Date.now() - loopStartedAt) / 1000)}s) — shipping turn-${turn} build with ${critique.defects.length} defect(s) outstanding.`);
+                break;
+            }
+
+            console.log(`🎨 [Game-Gen] Critic turn ${turn}: avg ${critique.average}/3, ${critique.criticalCount} critical — running an art pass.`);
+            await reportProgress(86, 'build', 'Improving the visuals...');
+
+            // Snapshot BEFORE handing a working game to another builder turn. A past polish pass in
+            // this codebase threw away an already-passing build; that must not be possible here.
+            const goodBuild = await snapshotProjectDir(projectRoot);
+            const goodHtml = rawGameHtml;
+            const goodScreenshot = finalScreenshot;
+            const goodSandbox = sandboxRes;
+
+            try {
+                await runKimiCliAgent(projectRoot, system, repairInstructions);
+                const polishedHtml = await fs.promises.readFile(path.join(projectRoot, 'index.html'), 'utf-8').catch(() => '');
+                const rerun = await verifyGame(localServer.url, { ...verifyOptions, sourceHtml: polishedHtml });
+                const keptFrames = Array.isArray(rerun?.critiqueFrames) ? rerun.critiqueFrames.length : 0;
+
+                if (rerun?.success && !rerun?.bypassed && keptFrames > 0) {
+                    sandboxRes = rerun;
+                    rawGameHtml = polishedHtml || rawGameHtml;
+                    finalScreenshot = rerun.screenshot || finalScreenshot;
+                    const polishedFiles = await snapshotMakerSourceFiles(projectRoot, [], { includeRootGameFiles: true });
+                    await persistEditableMakerSource(persistToDb ? jobId : null, { projectRoot, files: polishedFiles }, { title: prompt }, 'r2-cdn').catch(() => {});
+                    console.log(`✅ [Game-Gen] Art pass ${turn} kept — build still verifies.`);
+                } else {
+                    console.warn(`↩️  [Game-Gen] Art pass ${turn} broke the build (${String(rerun?.crashes?.[0] || 'no frames captured').slice(0, 160)}) — rolling back to the last working version.`);
+                    await restoreProjectDir(projectRoot, goodBuild);
+                    rawGameHtml = goodHtml;
+                    finalScreenshot = goodScreenshot;
+                    sandboxRes = goodSandbox;
+                    break;
+                }
+            } catch (polishErr) {
+                console.warn(`↩️  [Game-Gen] Art pass ${turn} failed to run (${polishErr?.message || polishErr}) — rolling back.`);
+                await restoreProjectDir(projectRoot, goodBuild).catch(() => {});
+                rawGameHtml = goodHtml;
+                finalScreenshot = goodScreenshot;
+                sandboxRes = goodSandbox;
+                break;
+            }
         }
     }
 
@@ -6066,8 +3020,14 @@ Please inspect the code files in this directory, fix the bug causing this crash,
          WHERE id = $6`,
          [finalTitle, finalHtml, rawGameHtml, finalScreenshot, publicGameUrl, jobId]
     );
-    console.log(`✅ [Game-Gen] Complete! "${finalTitle}" saved for job ${jobId}`);
-    await recordGenerationTelemetry(jobId, { engine: 'r2-cdn', resultTitle: finalTitle, durationMs: Date.now() - progStartedAt });
+    const lastCritique = critiqueLog[critiqueLog.length - 1] || null;
+    console.log(`✅ [Game-Gen] Complete! "${finalTitle}" saved for job ${jobId}${lastCritique ? ` · critic avg ${lastCritique.average}/3 after ${critiqueLog.length} pass(es), ${lastCritique.defects.length} defect(s) outstanding` : ''}`);
+    await recordGenerationTelemetry(jobId, {
+        engine: 'r2-cdn',
+        dimension: director?.brief?.dimension || null,
+        resultTitle: finalTitle,
+        durationMs: Date.now() - progStartedAt,
+    });
     await reportProgress(100, 'complete', 'Game ready!');
     forgetCancelledJob(jobId);
     pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId])
@@ -6226,7 +3186,26 @@ function computeMakerSourceDiagnostics(files = []) {
 
 // src/world and src/core — saving only main.ts would lose the game and leave the editor reconstructing
 // the bare placeholder scaffold. priorFiles re-reads any path that existed before, even outside src/.
-async function snapshotMakerSourceFiles(projectRoot, priorFiles = []) {
+// Files the Kimi CLI lane writes at the project ROOT that are scaffolding, not game source. The
+// package.json is the dummy `"build": "echo 'Build successful'"` stub the runner writes so the agent
+// has something to verify against, and instructions.txt is the prompt itself — persisting either as
+// "the game's source" would be actively misleading in the editor and the source inspector.
+const ROOT_SNAPSHOT_EXCLUDES = new Set(['package.json', 'package-lock.json', 'instructions.txt']);
+
+/**
+ * @param {string} projectRoot
+ * @param {Array}  priorFiles              Paths to re-read even if they live outside src/.
+ * @param {object} [options]
+ * @param {boolean} [options.includeRootGameFiles]
+ *        Also capture game source sitting at the project root (main.js, style.css, js/*.js …).
+ *        Off by default: the kernel lanes keep their game under src/ and reconstruct the rest of the
+ *        project from a scaffold, so sweeping in root files there would persist build config that
+ *        the editor would later write back over the scaffold's own copy.
+ *        The Kimi CLI lane is the opposite — it is TOLD to write index.html + main.js + style.css at
+ *        the root, so without this flag the "editable source" it saved was the HTML shell alone,
+ *        with the entire game logic missing.
+ */
+async function snapshotMakerSourceFiles(projectRoot, priorFiles = [], options = {}) {
     const files = [];
     const seen = new Set();
     const pushFile = async (rel) => {
@@ -6250,6 +3229,27 @@ async function snapshotMakerSourceFiles(projectRoot, priorFiles = []) {
         }
     };
     await walkSrc('src');
+
+    if (options.includeRootGameFiles) {
+        const walkRoot = async (relDir, depth) => {
+            if (depth > 2) return;
+            let entries = [];
+            try { entries = await fs.promises.readdir(path.join(projectRoot, relDir || '.'), { withFileTypes: true }); }
+            catch { return; }
+            for (const ent of entries) {
+                // src/ is already covered above; .kimi-home is CLI session state; threejs-skills is a
+                // symlink to the shared skills pack, not part of the game.
+                if (ent.name.startsWith('.') || ent.name === 'node_modules' || ent.name === 'src' || ent.name === 'threejs-skills') continue;
+                const rel = relDir ? `${relDir}/${ent.name}` : ent.name;
+                if (ent.isDirectory()) { await walkRoot(rel, depth + 1); continue; }
+                if (ent.isSymbolicLink()) continue;
+                if (!relDir && ROOT_SNAPSHOT_EXCLUDES.has(ent.name)) continue;
+                if (/\.(js|mjs|jsx|ts|tsx|css|json|glsl|vert|frag|html)$/i.test(ent.name)) await pushFile(rel);
+            }
+        };
+        await walkRoot('', 0);
+    }
+
     return files;
 }
 
@@ -6490,6 +3490,17 @@ async function executeEditJob(newJobId, parentDraftId, instructions, mediaAttach
         if (savedProject && Array.isArray(savedProject.files) && savedProject.files.some((f) => f.path === 'src/main.ts')) {
             return await executeMakerEditJob(newJobId, parentDraftId, parentDraft, savedProject, instructions, orientation);
         }
+
+        // Games from the Kimi CLI lane are SERVED from their uploaded R2 folder via game_url — the
+        // player never loads html_payload. The HTML-string editor below rewrites html_payload and
+        // raw_code and stops there: it re-uploads nothing, so the edit is invisible in the feed, and
+        // for a multi-file game it would be editing the shell while the logic sits untouched in
+        // main.js. Both failure modes are silent, which is worse than refusing. Editing these needs
+        // its own path: rebuild the project from savedProject.files, run a CLI edit turn, re-verify,
+        // and re-upload to R2 with a fresh game_url.
+        if (savedProject?.architecture === 'r2-cdn') {
+            throw new Error('Editing is not supported yet for games built by the CLI lane — the game is served from its uploaded folder, so an edit here would not change what players see. Please generate a new game instead.');
+        }
         const existingHtml = parentDraft.artist_code
             ? (parentDraft.html_payload || '')
             : (parentDraft.raw_code || parentDraft.html_payload || '');
@@ -6706,66 +3717,6 @@ router.post('/generate-asset', async (req, res) => {
     }
 });
 
-router.post('/narrative/chat', async (req, res) => {
-    try {
-        const token = req.headers.authorization?.replace('Bearer ', '');
-        if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        await getUserIdFromToken(token, 'Expired session');
-
-        const messages = Array.isArray(req.body?.messages)
-            ? req.body.messages
-                .filter((message) => ['ai', 'user'].includes(message?.role) && typeof message?.text === 'string')
-                .slice(-14)
-                .map((message) => ({
-                    role: message.role === 'ai' ? 'assistant' : 'user',
-                    content: message.text.slice(0, 1200),
-                }))
-            : [];
-
-        if (messages.length === 0) {
-            return res.status(400).json({ error: 'Messages are required' });
-        }
-
-        const systemPrompt = [
-            'You are Dream Forge AI inside GameTok.',
-            'You are not a generic chatbot. Your job is to help the user shape a playable narrative game by chatting naturally.',
-            'Respond like a sharp creative director: warm, concise, specific, and useful.',
-            'If the user is confused, acknowledge it and ask one better question. Do not continue a rigid questionnaire.',
-            'When enough detail exists, summarize what you can build and invite them to forge it.',
-            'Always output JSON only with this shape:',
-            '{"reply":"short chat response","brief":"complete game brief for the builder","ready":false}',
-            'The brief should be a builder-ready prompt for an interactive narrative game with setting, player role, mechanics, choices, tone, and ending direction.',
-        ].join('\n');
-
-        let parsed;
-        try {
-            parsed = await callDeepSeekFlashJson({
-                systemPrompt,
-                messages,
-                maxTokens: 900,
-                temperature: 0.55,
-            });
-        } catch (error) {
-            console.warn('[NARRATIVE CHAT] Falling back after model failure:', error?.message || error);
-            parsed = {
-                reply: 'I’m with you. Tell me the world you want, the player role, and what should make it playable.',
-                brief: '',
-                ready: false,
-            };
-        }
-
-        res.json({
-            success: true,
-            reply: String(parsed.reply || '').slice(0, 1200),
-            brief: String(parsed.brief || '').slice(0, 5000),
-            ready: Boolean(parsed.ready),
-        });
-    } catch (error) {
-        console.error('[NARRATIVE CHAT] Error:', error);
-        res.status(error.statusCode || error.status || 500).json({ error: error.message || 'Narrative chat failed' });
-    }
-});
-
 function buildFallbackGameSpec(prompt) {
     const cleanPrompt = String(prompt || '').trim();
     const lowerPrompt = cleanPrompt.toLowerCase();
@@ -6909,7 +3860,7 @@ router.post('/interpret-edit', async (req, res) => {
         let intent = fallback;
         let usedFallback = false;
         try {
-            const parsed = await callDeepSeekFlashJson({
+            const parsed = await callKimiJson({
                 systemPrompt: `You are the in-chat edit assistant inside GameTok's Dream Forge. You are having a short, friendly CONVERSATION with a user who wants to change their EXISTING game. Talk like a sharp, encouraging game-dev buddy: actually react to what they say — answer their questions, riff with them, confirm, or ask ONE clarifying question. Never invent a brand-new game.
 
 Return ONLY valid JSON in this exact format:
@@ -7289,50 +4240,6 @@ router.get('/dream/status/:jobId', async (req, res) => {
     }
 });
 
-// Retry a failed job
-router.post('/dream/retry/:jobId', async (req, res) => {
-    try {
-        const { jobId } = req.params;
-        const token = req.headers.authorization?.replace('Bearer ', '');
-        if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        const userId = await getUserIdFromToken(token, 'Expired session');
-
-        // Get the original job details
-        const jobResult = await pool.query(
-            'SELECT prompt, user_id FROM ai_games WHERE id = $1',
-            [jobId]
-        );
-
-        if (jobResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Job not found' });
-        }
-
-        const job = jobResult.rows[0];
-        if (String(job.user_id) !== String(userId)) {
-            return res.status(403).json({ error: 'Not your job' });
-        }
-
-        // Create a new job with the same prompt
-        const newJobId = randomUUID();
-        console.log(`🔄 [RETRY] User[${userId}] retrying failed job ${jobId} as ${newJobId}`);
-
-        await enqueueGenerationJob({
-            jobId: newJobId,
-            userId,
-            prompt: job.prompt,
-            title: JOB_TITLES.dreamPending,
-            kind: 'dream',
-            payload: { mediaAttachments: [] },
-            allowDuplicate: true,
-        });
-
-        res.json({ success: true, jobId: newJobId });
-    } catch (error) {
-        console.error('[RETRY] Error:', error);
-        res.status(500).json({ error: error.message || 'Retry failed' });
-    }
-});
-
 router.get('/drafts', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
@@ -7566,55 +4473,6 @@ router.post('/remix/:sourceId', async (req, res) => {
         console.error('[Remix] Error:', e);
         res.status(e.statusCode || 500).json({ error: e.message });
     }
-});
-
-router.post('/reclassify-published', async (req, res) => {
-    try {
-        const token = req.headers.authorization?.replace('Bearer ', '');
-        if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        const userId = await getUserIdFromToken(token, 'Unauthorized');
-        const limit = Math.min(50, Math.max(1, Number(req.body?.limit || 20)));
-        const draftId = req.body?.draftId ? String(req.body.draftId) : null;
-
-        const params = [userId];
-        let whereClause = "WHERE user_id = $1 AND is_draft = false AND (html_payload != '' OR game_url IS NOT NULL)";
-        if (draftId) {
-            params.push(draftId);
-            whereClause += ` AND id = $${params.length}`;
-        }
-        params.push(limit);
-
-        const draftsRes = await pool.query(
-            `SELECT id, title, prompt, html_payload, game_url, thumbnail, preview_video_url
-             FROM ai_games
-             ${whereClause}
-             ORDER BY created_at DESC
-             LIMIT $${params.length}`,
-            params
-        );
-
-        if (!draftsRes.rows.length) {
-            return res.json({ success: true, updated: [], count: 0 });
-        }
-
-        const updated = [];
-        for (const draft of draftsRes.rows) {
-            const { globalId, classification } = await upsertPublishedAIGame({
-                draftId: draft.id,
-                userId,
-                draft,
-                forceRefreshClassification: true,
-            });
-            updated.push({
-                draftId: draft.id,
-                gameId: globalId,
-                title: draft.title,
-                classification,
-            });
-        }
-
-        res.json({ success: true, count: updated.length, updated });
-    } catch (e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
 // Injected into every served game so the host page can pause the game loop

@@ -944,7 +944,7 @@ async function appendImplementFileSnapshot(projectRoot, messages, { skipIfReadFi
 }
 
 /**
- * Multi-turn NVIDIA tool session for one file-agent inspection turn.
+ * Multi-turn tool session for one file-agent inspection turn.
  * Applies edits immediately so follow-up tool calls see updated files.
  */
 export async function runMakerAgentToolTurn({
@@ -971,7 +971,7 @@ export async function runMakerAgentToolTurn({
 
     const messages = [{ role: 'user', content: String(userPrompt || '') }];
     const log = {
-        transport: 'nvidia_tools',
+        transport: 'native_tools',
         mode,
         rounds: 0,
         toolCalls: 0,

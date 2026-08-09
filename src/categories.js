@@ -12,7 +12,8 @@
 //
 // Sub-navigation inside a category is New and Trending only — there are no sub-genres.
 
-import { callKimiJson } from './ai-engine/moonshot-text-client.js';
+import { callDeepSeekFlashJson } from './ai-engine/deepseek-text-client.js';
+
 
 /** The canonical set. `slug` is what the API and URLs use; `label` is what people see. */
 export const CATEGORIES = [
@@ -101,12 +102,13 @@ export async function classifyGame({ title, prompt, description } = {}) {
     if (!text.trim()) return { categories: [], source: 'none' };
 
     try {
-        const result = await callKimiJson({
+        const result = await callDeepSeekFlashJson({
             systemPrompt: SYSTEM_PROMPT,
             messages: [{ role: 'user', content: text }],
             maxTokens: 120,
             temperature: 0.2,
         });
+
         const categories = normalizeCategories(result?.categories);
         if (categories.length) return { categories, source: 'ai' };
     } catch (e) {

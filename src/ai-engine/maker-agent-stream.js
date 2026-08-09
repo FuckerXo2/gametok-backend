@@ -164,7 +164,7 @@ function buildStallError({
 }
 
 /**
- * Stream an NVIDIA chat completion and assemble the final assistant message.
+ * Stream a chat completion and assemble the final assistant message.
  * Aborts early when no bytes arrive within firstByteMs, or when idle for stallMs mid-stream.
  */
 export async function streamChatCompletionToMessage(client, createOptions, {

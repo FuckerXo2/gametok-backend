@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Step 2 golden path: highway swipe + gas prompt.
- * - Run generations: npm run golden:highway (needs NVIDIA + DeepSeek env)
+ * - Run generations: npm run golden:highway (needs the text-provider env configured)
  * - Audit a finished job workspace: npm run golden:highway -- --audit <jobId>
  * - Audit Railway log export: npm run golden:highway -- --logs /path/to.log
  */
@@ -186,10 +186,6 @@ async function appendResult(outDir, entry) {
 
 async function runOneGeneration(prompt, outDir) {
     const missing = [];
-    const nvidiaOk = process.env.NVIDIA_API_KEY
-        || process.env.NIM_API_KEYS
-        || process.env.NVIDIA_NIM_API_KEYS;
-    if (!nvidiaOk) missing.push('NVIDIA_API_KEY (or NIM_API_KEYS) for sprite/background art');
     const hasDeepSeek = process.env.DEEPSEEK_API_KEY;
     if (!hasDeepSeek) missing.push('DEEPSEEK_API_KEY');
     if (hasDeepSeek && String(process.env.GAMETOK_DEEPSEEK_PRIMARY || 'true').toLowerCase() !== 'true') {

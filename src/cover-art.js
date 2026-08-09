@@ -14,15 +14,13 @@ import { fileURLToPath } from 'url';
 import pkg from 'pg';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getMoonshotTextConfig } from './ai-engine/moonshot-text-client.js';
-import { nextNvidiaTextApiKey, getNvidiaTextKeys } from './ai-engine/nvidia-key-pool.js';
 
 const { Pool } = pkg;
 
 /**
  * Pick a Kimi text client for prompt-writing. Mirrors the game-generator CLI's
- * provider logic (kimi-cli-auth.js): Moonshot-direct when its key is set (the
- * paid primary), otherwise NVIDIA-hosted Kimi K2.6 with a rotated key from the
- * shared NVIDIA pool. Returns null when no provider is configured.
+ * provider logic (kimi-cli-auth.js): Moonshot-direct only. Returns null when no
+ * provider is configured — callers must fail rather than substitute a model.
  */
 async function getKimiTextClient(env = process.env) {
     const OpenAI = await import('openai').then((m) => m.default);
@@ -32,17 +30,6 @@ async function getKimiTextClient(env = process.env) {
             client: new OpenAI({ apiKey: moonshot.apiKey, baseURL: moonshot.baseURL }),
             model: moonshot.model,
             provider: 'moonshot',
-        };
-    }
-    const key = nextNvidiaTextApiKey(env) || getNvidiaTextKeys(env)[0];
-    if (key) {
-        return {
-            client: new OpenAI({
-                apiKey: key,
-                baseURL: String(env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, ''),
-            }),
-            model: String(env.NVIDIA_MODEL || 'moonshotai/kimi-k2.6').trim(),
-            provider: 'nvidia',
         };
     }
     return null;
@@ -195,7 +182,7 @@ Return ONLY the image generation prompt, no explanations or meta-commentary.`;
     try {
         const kimi = await getKimiTextClient();
         if (!kimi) {
-            throw new Error('no Kimi text provider configured (need MOONSHOT_API_KEY or an NVIDIA key)');
+            throw new Error('no Kimi text provider configured (set MOONSHOT_API_KEY)');
         }
 
         // NOTE: no `temperature` — Kimi K2.6 rejects custom temperature/top_p
@@ -287,7 +274,7 @@ function buildFallbackPrompt({ title, prompt, classification }) {
 
 /**
  * Build a rich, descriptive prompt for image generation.
- * Uses Kimi K2.6 (NVIDIA-hosted, or Moonshot-direct when configured) to write a
+ * Uses Moonshot-direct Kimi to write a
  * truly adaptive prompt per game; falls back to a template on any failure.
  */
 export async function buildCoverPrompt({ title, prompt, classification }) {

@@ -287,7 +287,7 @@ function buildAIAssetsBlock(generatedAssets = null) {
   };
 
   return `AI-GENERATED CUSTOM VISUAL ASSETS:
-- These assets were generated specifically for THIS game using NVIDIA FLUX AI.
+- These assets were generated specifically for THIS game.
 - They are injected into the final HTML before your game runs.
 - You MUST use these assets as your PRIMARY visual assets for the game.
 - Load them by key from window.DREAM_ASSETS or window.DREAM_ASSET_PACK.

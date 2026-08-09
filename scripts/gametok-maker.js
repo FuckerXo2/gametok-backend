@@ -40,16 +40,12 @@ function validateGenerationEnv({ userId, jobId, dbBacked = false } = {}) {
     const missing = [];
     const needsDb = Boolean(jobId || dbBacked);
     if (needsDb && !hasDatabaseEnv()) missing.push('DATABASE_URL or PGHOST/PGDATABASE/PGUSER');
-    if (!process.env.NVIDIA_API_KEY && !process.env.NIM_API_KEYS && !process.env.NVIDIA_NIM_API_KEYS) {
-        missing.push('NVIDIA_API_KEY (or NIM_API_KEYS) for generated art');
-    }
     if (dbBacked && !jobId && !userId && !process.env.GAMETOK_MAKER_USER_ID) missing.push('GAMETOK_MAKER_USER_ID or --user-id');
     return {
         ok: missing.length === 0,
         missing,
         values: {
             database: hasDatabaseEnv() ? 'configured' : needsDb ? 'missing' : 'not required',
-            nvidia: process.env.NVIDIA_API_KEY ? 'configured' : 'missing',
             userId: (userId || process.env.GAMETOK_MAKER_USER_ID || jobId) ? 'configured' : dbBacked ? 'missing' : 'not required',
             makerRoot: process.env.GAMETOK_MAKER_OUT_DIR || defaultOutDir(),
         },
@@ -59,7 +55,6 @@ function validateGenerationEnv({ userId, jobId, dbBacked = false } = {}) {
 function printEnvStatus(status) {
     console.log(chalk.blue.bold('\n🌍 Environment Status:'));
     console.log(`  Database:       ${status.values.database === 'configured' ? chalk.green('✔ configured') : chalk.red('✖ ' + status.values.database)}`);
-    console.log(`  NVIDIA NIM key: ${status.values.nvidia === 'configured' ? chalk.green('✔ configured') : chalk.red('✖ missing')}`);
     console.log(`  Maker user:     ${status.values.userId === 'configured' ? chalk.green('✔ configured') : chalk.gray('not required')}`);
     console.log(`  Default output: ${chalk.cyan(status.values.makerRoot)}\n`);
     if (!status.ok) {
