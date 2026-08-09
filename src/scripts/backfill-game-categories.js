@@ -5,15 +5,15 @@
  * keyword matching + DeepSeek Flash classification to populate game_categories join table.
  */
 
-import { getPool } from '../db.js';
+import pool from '../db.js';
 import { heuristicCategories, setGameCategories } from '../categories.js';
 
 export async function backfillGameCategories() {
-    const pool = getPool();
     if (!pool) {
         console.warn('[backfill] Database pool not configured');
         return;
     }
+
 
     try {
         console.log('🔄 Starting backfill of game categories...');
