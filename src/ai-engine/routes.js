@@ -10,8 +10,23 @@ import { inspect } from 'node:util';
 import pool from '../db.js';
 import { classifyGame, normalizeCategories, setGameCategories } from '../categories.js';
 import { buildPhase2_EditGame, postProcessRawHtml } from './promptRegistry.js';
-import { normalizeDreamSpec, wantsFirstPerson3D, inferRuntimeLaneFromPrompt } from './spec-normalizer.js';
-import { verifyGame } from './sandbox.js';
+import { HermesHeadlessOrchestrator } from './hermes-headless-orchestrator.js';
+
+const _fallbackOrchestrator = new HermesHeadlessOrchestrator();
+
+export async function verifyGame(html, opts = {}) {
+    const code = typeof html === 'string' && html.startsWith('<') ? html : (opts.sourceHtml || '');
+    const res = await _fallbackOrchestrator.runNativeSandboxTest(code, opts);
+    return {
+        success: res.passed,
+        bypassed: Boolean(res.bypassed),
+        crashes: res.errors || [],
+        durationMs: res.durationMs,
+        screenshot: null,
+        critiqueFrames: []
+    };
+}
+
 import { setAssetBaseUrl, getAssetRuntimeDiagnostics } from './asset-dictionary.js';
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
