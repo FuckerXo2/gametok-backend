@@ -28,6 +28,8 @@ import { backfillGameCategories } from './scripts/backfill-game-categories.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import { deleteCoverAsset } from './cover-art.js';
+import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +51,12 @@ const server = createServer(app);
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Render / Cloud Health Check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
 
 /**
  * Every /api/admin/* route was reachable by anyone on the internet — including
@@ -81,12 +89,15 @@ app.use('/api/ai', aiRouter);
 app.use('/api/opengame', openGameRouter);
 
 // Global Media & Assets Pool
+app.use('/admin/assets', adminAssetsRouter);
+app.use('/api/admin/assets', adminAssetsRouter);
 app.use('/api/assets', assetsRouter);
 app.use('/api/posts', postsPublicRouter);
 app.use('/api/admin/posts', postsAdminRouter);
 app.use('/api/admin/blog/images', blogImagesRouter);
 app.use('/api/admin/bots', botRouter);
 app.use('/api/admin/covers', coverArtRouter);
+
 app.use('/api/presence', presenceRouter);
 app.use('/api/score-lobbies', scoreLobbyRouter);
 for (const uploadRoot of STATIC_UPLOAD_ROOTS) {
@@ -3054,12 +3065,11 @@ function formatGame(row) {
     saves: row.save_count || 0,
     fileSize: row.file_size,
     createdAt: row.created_at,
-    recentScoreEvents: row.recent_score_events ?? row.recentScoreEvents ?? 0,
-    recentUniqueScorers: row.recent_unique_scorers ?? row.recentUniqueScorers ?? 0,
-    recentActivityScore: row.recent_activity_score ?? row.recentActivityScore ?? 0,
-    discoverScore: row.discover_score ?? row.discoverScore ?? null
+    discoverScore: row.discover_score ?? row.discoverScore ?? null,
+    manifestJson: row.manifest_json || null
   };
 }
+
 
 
 // ============================================
