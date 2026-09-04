@@ -3,5 +3,7 @@
 
 import aiRoutes from './ai-engine/routes.js';
 export { startGenerationQueueWorker, stopGenerationQueueWorker } from './ai-engine/routes.js';
-export { startForgeAutoscaler, stopForgeAutoscaler } from './ai-engine/forge-autoscale.js';
+export function startForgeAutoscaler() {}
+export function stopForgeAutoscaler() {}
 export default aiRoutes;
+

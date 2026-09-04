@@ -13,27 +13,33 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pkg from 'pg';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { getMoonshotTextConfig } from './ai-engine/moonshot-text-client.js';
+import { createDeepSeekTextClient, getDeepSeekTextConfig } from './ai-engine/deepseek-text-client.js';
 
 const { Pool } = pkg;
 
 /**
- * Pick a Kimi text client for prompt-writing. Mirrors the game-generator CLI's
- * provider logic (kimi-cli-auth.js): Moonshot-direct only. Returns null when no
- * provider is configured — callers must fail rather than substitute a model.
+ * Pick a text client for prompt-writing (DeepSeek or OpenAI).
  */
-async function getKimiTextClient(env = process.env) {
+async function getPromptTextClient(env = process.env) {
     const OpenAI = await import('openai').then((m) => m.default);
-    const moonshot = getMoonshotTextConfig(env);
-    if (moonshot) {
+    const deepseekConfig = getDeepSeekTextConfig(env);
+    if (deepseekConfig) {
         return {
-            client: new OpenAI({ apiKey: moonshot.apiKey, baseURL: moonshot.baseURL }),
-            model: moonshot.model,
-            provider: 'moonshot',
+            client: createDeepSeekTextClient(env),
+            model: env.GAMETOK_FLASH_MODEL || 'deepseek-v4-flash',
+            provider: 'deepseek',
+        };
+    }
+    if (env.OPENAI_API_KEY) {
+        return {
+            client: new OpenAI({ apiKey: env.OPENAI_API_KEY }),
+            model: 'gpt-4o-mini',
+            provider: 'openai',
         };
     }
     return null;
 }
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -180,15 +186,13 @@ CRITICAL: Include the game title "${titleText}" rendered directly in the artwork
 Return ONLY the image generation prompt, no explanations or meta-commentary.`;
 
     try {
-        const kimi = await getKimiTextClient();
-        if (!kimi) {
-            throw new Error('no Kimi text provider configured (set MOONSHOT_API_KEY)');
+        const textClient = await getPromptTextClient();
+        if (!textClient) {
+            throw new Error('no text provider configured (set DEEPSEEK_API_KEY or OPENAI_API_KEY)');
         }
 
-        // NOTE: no `temperature` — Kimi K2.6 rejects custom temperature/top_p
-        // (see ai-engine/moonshot-text-client.js), which would 400 the request.
-        const response = await kimi.client.chat.completions.create({
-            model: kimi.model,
+        const response = await textClient.client.chat.completions.create({
+            model: textClient.model,
             messages: [{ role: 'user', content: analysisPrompt }],
             max_tokens: 500,
         });
@@ -196,7 +200,7 @@ Return ONLY the image generation prompt, no explanations or meta-commentary.`;
         const generatedPrompt = response.choices[0]?.message?.content?.trim();
 
         if (generatedPrompt && generatedPrompt.length > 50) {
-            console.log(`[cover-art] Generated adaptive prompt (via ${kimi.provider} Kimi) for "${titleText}"`);
+            console.log(`[cover-art] Generated adaptive prompt (via ${textClient.provider}) for "${titleText}"`);
             return generatedPrompt;
         }
 
@@ -205,6 +209,7 @@ Return ONLY the image generation prompt, no explanations or meta-commentary.`;
         console.warn(`[cover-art] AI prompt generation failed: ${error.message}, falling back to template`);
         return buildFallbackPrompt({ title, prompt, classification });
     }
+
 }
 
 /**

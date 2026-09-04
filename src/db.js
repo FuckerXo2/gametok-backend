@@ -1,13 +1,16 @@
 // PostgreSQL Database Connection
+import 'dotenv/config';
 import pg from 'pg';
+
 
 const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: (process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('sslmode=require') || process.env.DATABASE_URL.includes('neon.tech') || process.env.DATABASE_URL.includes('railway') || process.env.DATABASE_URL.includes('render.com'))) || process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   connectionTimeoutMillis: 10000,
 });
+
 
 // Initialize database tables
 export const initDB = async () => {

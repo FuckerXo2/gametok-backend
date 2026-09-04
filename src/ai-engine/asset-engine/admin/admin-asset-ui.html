@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameTok Admin Asset Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        :root {
+            --bg-base: #0a0c10;
+            --bg-surface: #12161f;
+            --bg-card: #181e2b;
+            --bg-card-hover: #1f2738;
+            --border: #263042;
+            --border-focus: #00e5ff;
+            --text-primary: #f0f4fc;
+            --text-secondary: #8a99b5;
+            --text-muted: #53627c;
+            --accent: #00e5ff;
+            --accent-glow: rgba(0, 229, 255, 0.15);
+            --success: #00e676;
+            --warning: #ffab00;
+            --danger: #ff5252;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header */
+        header {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #00e5ff, #7c4dff);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: #000;
+        }
+
+        .brand-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 16px;
+        }
+
+        .stat-badge {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-val {
+            font-weight: 700;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            background: var(--bg-card);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--accent);
+            color: #000;
+        }
+
+        /* Main Content */
+        main {
+            padding: 24px 28px;
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Ingestion Studio Section */
+        .ingest-container {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 24px;
+        }
+
+        .dropzone-box {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--bg-surface);
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 280px;
+        }
+
+        .dropzone-box:hover, .dropzone-box.dragover {
+            border-color: var(--accent);
+            background: var(--bg-card);
+        }
+
+        .drop-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            color: var(--accent);
+        }
+
+        .drop-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .drop-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: #000;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            transition: opacity 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover { opacity: 0.9; }
+        .btn-secondary {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        .btn-secondary:hover { background: var(--bg-card-hover); }
+
+        .meta-panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .meta-title {
+            font-size: 15px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-control {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent);
+        }
+
+        /* Ingestion Queue */
+        .queue-container {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-top: 24px;
+        }
+
+        .queue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .queue-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .queue-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .queue-item-name {
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending { background: #2a2e3d; color: #a0aec0; }
+        .status-processing { background: rgba(0, 229, 255, 0.2); color: var(--accent); }
+        .status-success { background: rgba(0, 230, 118, 0.2); color: var(--success); }
+        .status-error { background: rgba(255, 82, 82, 0.2); color: var(--danger); }
+
+        /* Asset Grid */
+        .controls-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 12px 18px;
+            border-radius: var(--radius-lg);
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 16px;
+        }
+
+        .asset-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+
+        .asset-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+
+        .asset-thumb-box {
+            background: radial-gradient(circle at center, #1f2738 0%, #0d1117 100%);
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .asset-thumb-img {
+            max-width: 85%;
+            max-height: 85%;
+            object-fit: contain;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+        }
+
+        .asset-details {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .asset-name {
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: -0.3px;
+        }
+
+        .badge-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 3px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+        }
+
+        .badge-accent {
+            background: var(--accent-glow);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .asset-stats-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* 3D Inspector Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            width: 1000px;
+            max-width: 95vw;
+            height: 700px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            position: relative;
+        }
+
+        #inspector-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .inspector-sidebar {
+            background: var(--bg-card);
+            border-left: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .close-btn:hover { color: var(--text-primary); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="brand">
+        <div class="brand-icon">GT</div>
+        <div>
+            <div class="brand-title">GameTok Asset Core</div>
+            <div class="brand-subtitle">Universal Deterministic 3D Ingestor</div>
+        </div>
+    </div>
+
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('catalog')">3D Asset Catalog</button>
+        <button class="tab-btn" onclick="switchTab('ingest')">Batch Ingestion Studio</button>
+        <button class="tab-btn" onclick="switchTab('motion')">Motion Library (.gtanim)</button>
+    </div>
+
+    <div class="header-stats">
+        <div class="stat-badge">3D Models: <span class="stat-val" id="stat-total-models">0</span></div>
+        <div class="stat-badge">Motion Tracks: <span class="stat-val" id="stat-total-anims">0</span></div>
+    </div>
+</header>
+
+<main>
+    <!-- TAB 1: 3D ASSET CATALOG -->
+    <div id="tab-catalog" class="tab-content active">
+        <div class="controls-bar">
+            <div class="filter-group">
+                <input type="text" id="search-input" class="form-control" style="width: 260px;" placeholder="Search concept, tag, or name..." oninput="debounceSearch()">
+                <select id="filter-category" class="form-control" onchange="loadCatalog()">
+                    <option value="">All Categories</option>
+                    <option value="characters">Characters</option>
+                    <option value="weapons">Weapons</option>
+                    <option value="props">Props</option>
+                    <option value="environment">Environment</option>
+                    <option value="vehicles">Vehicles</option>
+                    <option value="creatures">Creatures</option>
+                </select>
+                <select id="filter-rig" class="form-control" onchange="loadCatalog()">
+                    <option value="">Any Rig Profile</option>
+                    <option value="humanoid_standard">Humanoid Standard</option>
+                    <option value="quadruped_standard">Quadruped</option>
+                    <option value="unrigged">Unrigged Mesh</option>
+                </select>
+            </div>
+            <button class="btn btn-secondary" onclick="loadCatalog()">↻ Refresh Catalog</button>
+        </div>
+
+        <div id="asset-grid" class="asset-grid">
+            <!-- Rendered dynamically -->
+        </div>
+    </div>
+
+    <!-- TAB 2: INGESTION STUDIO -->
+    <div id="tab-ingest" class="tab-content">
+        <div class="ingest-container">
+            <div>
+                <div class="dropzone-box" id="dropzone" onclick="document.getElementById('file-input').click()">
+                    <div class="drop-icon">📦</div>
+                    <div class="drop-title">Drop 3D assets or folders here</div>
+                    <div class="drop-subtitle">Supports .GLB, .GLTF, .FBX, .OBJ (Single files or batch folders)</div>
+                    <button class="btn" type="button">Select Files or Folder</button>
+                    <input type="file" id="file-input" multiple style="display: none;" onchange="handleFileSelect(event)">
+                </div>
+
+                <div class="queue-container" id="queue-box" style="display: none;">
+                    <div class="queue-header">
+                        <div class="meta-title">Ingestion Queue (<span id="queue-count">0</span> files)</div>
+                        <button class="btn" id="start-ingest-btn" onclick="startBatchIngestion()">⚡ Run Universal Ingestion</button>
+                    </div>
+                    <div class="queue-list" id="queue-list"></div>
+                </div>
+            </div>
+
+            <!-- Ingestion Metadata Config -->
+            <div class="meta-panel">
+                <div class="meta-title">Batch Ingestion Metadata</div>
+
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="meta-category" class="form-control">
+                        <option value="characters">Characters</option>
+                        <option value="weapons">Weapons</option>
+                        <option value="props" selected>Props</option>
+                        <option value="environment">Environment</option>
+                        <option value="vehicles">Vehicles</option>
+                        <option value="creatures">Creatures</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Subcategory (Optional)</label>
+                    <input type="text" id="meta-subcategory" class="form-control" placeholder="e.g. medieval_armor">
+                </div>
+
+                <div class="form-group">
+                    <label>Art Style</label>
+                    <select id="meta-style" class="form-control">
+                        <option value="stylized" selected>Stylized</option>
+                        <option value="low-poly">Low Poly</option>
+                        <option value="realistic">Realistic</option>
+                        <option value="pixel-art">Pixel Art</option>
+                        <option value="voxel">Voxel</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Target Type</label>
+                    <select id="meta-type" class="form-control">
+                        <option value="3d_model" selected>3D Character / Mesh</option>
+                        <option value="standalone_animation">Standalone Motion Track (.gtanim)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Tags (Comma separated)</label>
+                    <input type="text" id="meta-tags" class="form-control" placeholder="knight, paladin, dark">
+                </div>
+
+                <div class="form-group">
+                    <label>License</label>
+                    <select id="meta-license" class="form-control">
+                        <option value="GameTok-Curated" selected>GameTok-Curated</option>
+                        <option value="CC0">CC0 Public Domain</option>
+                        <option value="CC-BY">CC-BY 4.0</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: MOTION LIBRARY -->
+    <div id="tab-motion" class="tab-content">
+        <div class="controls-bar">
+            <div class="filter-group">
+                <select id="filter-motion-rig" class="form-control" onchange="loadAnimations()">
+                    <option value="humanoid_standard_v1">Humanoid Standard (v1)</option>
+                    <option value="quadruped_standard_v1">Quadruped (v1)</option>
+                </select>
+            </div>
+            <button class="btn btn-secondary" onclick="loadAnimations()">↻ Refresh Motion Tracks</button>
+        </div>
+
+        <div id="motion-grid" class="asset-grid">
+            <!-- Rendered dynamically -->
+        </div>
+    </div>
+</main>
+
+<!-- 3D INSPECTOR MODAL -->
+<div id="inspector-modal" class="modal-overlay" onclick="closeInspector(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="brand-title" id="modal-asset-name">3D Asset Inspector</div>
+            <button class="close-btn" onclick="closeInspector()">✕</button>
+        </div>
+        <div class="modal-body">
+            <canvas id="inspector-canvas"></canvas>
+            <div class="inspector-sidebar">
+                <div class="meta-title">Technical Specifications</div>
+                <div id="inspector-specs" class="asset-stats-text"></div>
+                <div class="form-group" style="margin-top: 10px;">
+                    <label>Embedded Animations</label>
+                    <select id="inspector-anim-select" class="form-control" onchange="playSelectedClip()"></select>
+                </div>
+                <button class="btn btn-secondary" style="width: 100%; margin-top: auto;" onclick="copyCurrentCdnUrl()">📋 Copy CDN URL</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedFiles = [];
+let activeAssetForModal = null;
+let inspectorScene, inspectorCamera, inspectorRenderer, inspectorControls, inspectorMixer, currentAction;
+
+// Tab Switcher
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tabId).classList.add('active');
+
+    if (tabId === 'catalog') loadCatalog();
+    if (tabId === 'motion') loadAnimations();
+}
+
+// Drag and Drop
+const dropzone = document.getElementById('dropzone');
+['dragenter', 'dragover'].forEach(name => {
+    dropzone.addEventListener(name, (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+});
+['dragleave', 'drop'].forEach(name => {
+    dropzone.addEventListener(name, (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); });
+});
+
+dropzone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    if (dt.files && dt.files.length > 0) {
+        addFilesToQueue(Array.from(dt.files));
+    }
+});
+
+function handleFileSelect(e) {
+    if (e.target.files) addFilesToQueue(Array.from(e.target.files));
+}
+
+function addFilesToQueue(files) {
+    selectedFiles = selectedFiles.concat(files);
+    renderQueue();
+}
+
+function renderQueue() {
+    const queueBox = document.getElementById('queue-box');
+    const queueList = document.getElementById('queue-list');
+    const queueCount = document.getElementById('queue-count');
+
+    if (selectedFiles.length === 0) {
+        queueBox.style.display = 'none';
+        return;
+    }
+
+    queueBox.style.display = 'block';
+    queueCount.innerText = selectedFiles.length;
+    queueList.innerHTML = selectedFiles.map((f, i) => `
+        <div class="queue-item" id="queue-item-${i}">
+            <div class="queue-item-name">
+                <span>📄</span>
+                <span>${f.name}</span>
+                <span class="badge">${(f.size / (1024 * 1024)).toFixed(2)} MB</span>
+            </div>
+            <span class="status-badge status-pending" id="status-${i}">Ready</span>
+        </div>
+    `).join('');
+}
+
+async function startBatchIngestion() {
+    if (selectedFiles.length === 0) return;
+    const btn = document.getElementById('start-ingest-btn');
+    btn.disabled = true;
+    btn.innerText = '⏳ Ingesting...';
+
+    const formData = new FormData();
+    selectedFiles.forEach(f => formData.append('files', f));
+    formData.append('category', document.getElementById('meta-category').value);
+    formData.append('subcategory', document.getElementById('meta-subcategory').value);
+    formData.append('style', document.getElementById('meta-style').value);
+    formData.append('targetType', document.getElementById('meta-type').value);
+    formData.append('tags', document.getElementById('meta-tags').value);
+    formData.append('license', document.getElementById('meta-license').value);
+
+    try {
+        const res = await fetch('/api/admin/assets/upload', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            selectedFiles.forEach((_, i) => {
+                const badge = document.getElementById(`status-${i}`);
+                if (badge) {
+                    badge.className = 'status-badge status-success';
+                    badge.innerText = 'Cataloged';
+                }
+            });
+            alert(`🎉 Ingestion Succeeded! Cataloged ${data.ingestedCount} assets into R2 and PostgreSQL.`);
+            selectedFiles = [];
+            loadStats();
+        } else {
+            alert('❌ Ingestion Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('❌ Ingestion Network Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = '⚡ Run Universal Ingestion';
+    }
+}
+
+// Load Catalog
+let searchTimer = null;
+function debounceSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadCatalog, 300);
+}
+
+async function loadCatalog() {
+    const q = document.getElementById('search-input').value;
+    const cat = document.getElementById('filter-category').value;
+    const rig = document.getElementById('filter-rig').value;
+
+    const params = new URLSearchParams();
+    if (q) params.append('query', q);
+    if (cat) params.append('category', cat);
+    if (rig) params.append('rig_type', rig);
+
+    const res = await fetch('/api/admin/assets/list?' + params.toString());
+    const data = await res.json();
+
+    const grid = document.getElementById('asset-grid');
+    if (!data.assets || data.assets.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No assets match current filters.</div>';
+        return;
+    }
+
+    grid.innerHTML = data.assets.map(a => `
+        <div class="asset-card">
+            <div class="asset-thumb-box" onclick="openInspector('${a.id}')">
+                <img src="${a.thumbnail_url || 'https://via.placeholder.com/512?text=3D+Asset'}" class="asset-thumb-img" alt="${a.name}">
+            </div>
+            <div class="asset-details">
+                <div class="asset-name">${a.name}</div>
+                <div class="badge-row">
+                    <span class="badge badge-accent">${(a.format || 'GLB').toUpperCase()}</span>
+                    <span class="badge">${a.style || 'stylized'}</span>
+                    <span class="badge">${a.is_rigged ? (a.rig_type || 'Rigged') : 'Unrigged'}</span>
+                </div>
+                <div class="asset-stats-text">
+                    Scale: ${(a.suggested_scale || 1.0).toFixed(2)}x • Clips: ${(a.embedded_animation_names || []).length}
+                </div>
+                <div class="card-actions">
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="openInspector('${a.id}')">🔍 Inspect 3D</button>
+                    <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${a.cdn_url}'); alert('Copied CDN URL!');">📋 Copy</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    window.__CURRENT_ASSETS__ = data.assets;
+}
+
+// Load Animations
+async function loadAnimations() {
+    const rig = document.getElementById('filter-motion-rig').value;
+    const res = await fetch(`/api/admin/assets/animations?rig_target=${rig}`);
+    const data = await res.json();
+
+    const grid = document.getElementById('motion-grid');
+    if (!data.animations || data.animations.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No motion tracks cataloged.</div>';
+        return;
+    }
+
+    grid.innerHTML = data.animations.map(m => `
+        <div class="asset-card">
+            <div class="asset-details">
+                <div class="asset-name">🎬 ${m.name}</div>
+                <div class="badge-row">
+                    <span class="badge badge-accent">.GTANIM</span>
+                    <span class="badge">${m.category}</span>
+                    <span class="badge">${m.action}</span>
+                </div>
+                <div class="asset-stats-text">Duration: ${m.duration_seconds}s • Rig: ${m.rig_target}</div>
+                <div class="card-actions">
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="navigator.clipboard.writeText('${m.cdn_url}'); alert('Copied Motion URL!');">📋 Copy Motion URL</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 3D Inspector Modal
+function init3DInspector() {
+    const canvas = document.getElementById('inspector-canvas');
+    inspectorRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    inspectorRenderer.setSize(700, 600);
+    inspectorRenderer.outputEncoding = THREE.sRGBEncoding;
+
+    inspectorScene = new THREE.Scene();
+    inspectorCamera = new THREE.PerspectiveCamera(45, 700 / 600, 0.1, 100);
+    inspectorCamera.position.set(2, 2, 3);
+
+    inspectorControls = new THREE.OrbitControls(inspectorCamera, canvas);
+    inspectorControls.enableDamping = true;
+
+    // Lighting
+    inspectorScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+    dir.position.set(5, 10, 7);
+    inspectorScene.add(dir);
+
+    // Floor grid
+    const grid = new THREE.GridHelper(10, 10, 0x00e5ff, 0x263042);
+    inspectorScene.add(grid);
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (inspectorMixer) inspectorMixer.update(0.016);
+        inspectorControls.update();
+        inspectorRenderer.render(inspectorScene, inspectorCamera);
+    }
+    animate();
+}
+
+function openInspector(assetId) {
+    const asset = (window.__CURRENT_ASSETS__ || []).find(a => a.id === assetId);
+    if (!asset) return;
+    activeAssetForModal = asset;
+
+    document.getElementById('modal-asset-name').innerText = `3D Inspector: ${asset.name}`;
+    document.getElementById('inspector-modal').classList.add('active');
+
+    if (!inspectorRenderer) init3DInspector();
+
+    // Clear previous models
+    for (let i = inspectorScene.children.length - 1; i >= 0; i--) {
+        const obj = inspectorScene.children[i];
+        if (obj.isGroup || obj.isMesh) inspectorScene.remove(obj);
+    }
+
+    const specsBox = document.getElementById('inspector-specs');
+    specsBox.innerHTML = `
+        <div>• <b>Asset ID</b>: ${asset.id}</div>
+        <div>• <b>Category</b>: ${asset.category}</div>
+        <div>• <b>Format</b>: ${asset.format}</div>
+        <div>• <b>Rig Type</b>: ${asset.rig_type}</div>
+        <div>• <b>Bone Count</b>: ${asset.bone_count || 0}</div>
+        <div>• <b>Suggested Scale</b>: ${asset.suggested_scale}x</div>
+        <div>• <b>License</b>: ${asset.license}</div>
+    `;
+
+    const animSelect = document.getElementById('inspector-anim-select');
+    animSelect.innerHTML = '<option value="">(None / Rest Pose)</option>';
+
+    const loader = new THREE.GLTFLoader();
+    loader.load(asset.cdn_url, (gltf) => {
+        const model = gltf.scene;
+        inspectorScene.add(model);
+
+        if (gltf.animations && gltf.animations.length > 0) {
+            inspectorMixer = new THREE.AnimationMixer(model);
+            gltf.animations.forEach((clip, idx) => {
+                animSelect.innerHTML += `<option value="${idx}">${clip.name || 'Clip ' + idx}</option>`;
+            });
+            window.__MODAL_GLTF_CLIPS__ = gltf.animations;
+        }
+    });
+}
+
+function playSelectedClip() {
+    const idx = document.getElementById('inspector-anim-select').value;
+    if (!inspectorMixer || idx === '') {
+        if (currentAction) currentAction.stop();
+        return;
+    }
+    const clip = window.__MODAL_GLTF_CLIPS__[Number(idx)];
+    if (clip) {
+        if (currentAction) currentAction.stop();
+        currentAction = inspectorMixer.clipAction(clip);
+        currentAction.play();
+    }
+}
+
+function copyCurrentCdnUrl() {
+    if (activeAssetForModal) {
+        navigator.clipboard.writeText(activeAssetForModal.cdn_url);
+        alert('Copied CDN URL: ' + activeAssetForModal.cdn_url);
+    }
+}
+
+function closeInspector(e) {
+    if (e && e.target && e.target.id !== 'inspector-modal' && !e.target.classList.contains('close-btn')) return;
+    document.getElementById('inspector-modal').classList.remove('active');
+    if (currentAction) currentAction.stop();
+}
+
+async function loadStats() {
+    try {
+        const res = await fetch('/api/admin/assets/stats');
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('stat-total-models').innerText = data.stats.total3dAssets;
+            document.getElementById('stat-total-anims').innerText = data.stats.totalAnimations;
+        }
+    } catch {}
+}
+
+// Initial Load
+loadStats();
+loadCatalog();
+</script>
+</body>
+</html>
