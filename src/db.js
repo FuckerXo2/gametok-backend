@@ -518,6 +518,7 @@ export const runMigrations = async () => {
       );
       
       CREATE INDEX IF NOT EXISTS idx_game_progress_user_game ON game_progress(user_id, game_id);
+
     `);
     console.log('✅ Game progress table ready');
   } catch (e) {
