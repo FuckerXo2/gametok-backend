@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: gametok-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20.10.0
+      - key: PORT
+        value: 3000
+      - key: GAMETOK_DEEPSEEK_PRIMARY
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        value: acb5def369b69f492571d42e56057f1a
+      - key: R2_BUCKET_NAME
+        value: gametok-games-assets
+      - key: R2_PUBLIC_URL
+        value: https://pub-b7694276c8f54290854b276638a93b62.r2.dev
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
