@@ -40,7 +40,7 @@ export async function generateFluxImage({
     cfg_scale = 3.5,
     seed = 0,
 }) {
-    const apiKey = process.env.NVIDIA_API_KEY;
+    const apiKey = process.env.NVIDIA_API_KEY || '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';
     if (!apiKey) {
         throw new Error('NVIDIA_API_KEY is not configured in environment variables');
     }

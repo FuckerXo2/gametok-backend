@@ -22,7 +22,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: NVIDIA_API_KEY
-        sync: false
+        value: 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
       - key: R2_ACCOUNT_ID
         value: acb5def369b69f492571d42e56057f1a
       - key: R2_BUCKET_NAME
