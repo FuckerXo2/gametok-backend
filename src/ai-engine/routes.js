@@ -1001,13 +1001,13 @@ async function getUserIdFromToken(token, invalidMessage = 'Expired session') {
         error.statusCode = 401;
         throw error;
     }
-    const sessionRes = await pool.query('SELECT user_id FROM sessions WHERE token = $1', [token]);
-    if (sessionRes.rows.length === 0) {
+    const userRes = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+    if (userRes.rows.length === 0) {
         const error = new Error(invalidMessage);
         error.statusCode = 401;
         throw error;
     }
-    return sessionRes.rows[0].user_id;
+    return userRes.rows[0].id;
 }
 
 function extractHtmlTitle(html) {
