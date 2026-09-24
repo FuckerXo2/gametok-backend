@@ -14,6 +14,7 @@ import { normalizeOrientation, DEFAULT_ORIENTATION } from './orientation.js';
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { generateFluxImage, generateAndUploadFluxImage } from './nvidia-flux-client.js';
+import { directVisualDirections } from './ai-art-director.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1155,11 +1156,12 @@ router.post('/generate-image', async (req, res) => {
 
 router.post('/generate-asset', async (req, res) => {
     try {
-        const { prompt } = req.body;
+        const { prompt, styleModifier } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-        const assetPrompt = `Isolated 2D game asset sprite, ${prompt}, colorful vibrant clean edges, video game item prop, high quality, dark neutral background, centered`;
-        console.log(`🎮 [NVIDIA Flux] Generating game asset for: "${prompt}"`);
+        const styleClause = styleModifier ? `, ${styleModifier}` : ', colorful vibrant clean edges';
+        const assetPrompt = `Isolated 2D game asset sprite, ${prompt}${styleClause}, video game item prop, high quality, dark neutral background, centered`;
+        console.log(`🎮 [NVIDIA Flux] Generating game asset for: "${prompt}" (Style: ${styleModifier || 'default'})`);
         const result = await generateAndUploadFluxImage({
             prompt: assetPrompt,
             steps: 25,
@@ -1183,92 +1185,9 @@ router.post('/generate-visual-directions', async (req, res) => {
         const { prompt, gameTitle = 'Game' } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-        console.log(`🌟 [Visual Directions] Generating concept art directions for "${prompt}"...`);
-
-        // 4 distinct stylistic archetypes customized for the concept
-        const archetypes = [
-            {
-                name: 'Neon Cyber',
-                tagline: 'Fast & Electric',
-                themeType: 'cyber',
-                icon: 'flash',
-                colors: ['#0A0017', '#7928CA', '#FF0080', '#00DFD8'],
-                modifier: 'cyberpunk neon aesthetic, glowing ultraviolet and cyan lighting, sleek futuristic high-tech surfaces, octane render',
-                instruction: 'Use an electric cyberpunk visual direction with glowing neon accents, high-contrast dark tones, and sleek futuristic UI elements.',
-            },
-            {
-                name: 'Vibrant Arcade',
-                tagline: 'Bold & Punchy',
-                themeType: 'arcade',
-                icon: 'game-controller',
-                colors: ['#1A0B2E', '#9333EA', '#EC4899', '#FACC15'],
-                modifier: 'vibrant 3D arcade video game concept art, candy-gloss materials, colorful lighting, clean readable forms, studio lighting',
-                instruction: 'Use a bold retro-modern arcade art direction with saturated punchy colors, glossy materials, and clean readable shapes.',
-            },
-            {
-                name: 'Epic Mythic',
-                tagline: 'Mysterious & Grand',
-                themeType: 'fantasy',
-                icon: 'sparkles',
-                colors: ['#0F172A', '#1E1B4B', '#0369A1', '#F59E0B'],
-                modifier: 'epic mythical fantasy concept art, atmospheric golden volumetric lighting, cinematic scale, ancient mystical details, masterpiece',
-                instruction: 'Use an epic fantasy visual direction with rich atmospheric depth, dramatic lighting, and intricate mythical details.',
-            },
-            {
-                name: 'Minimal Clay',
-                tagline: 'Clean & Stylized',
-                themeType: 'nature',
-                icon: 'shapes-outline',
-                colors: ['#022C22', '#065F46', '#10B981', '#A7F3D0'],
-                modifier: 'clean stylized low-poly 3D clay toy aesthetic, soft rim lighting, minimalist composition, smooth tactile textures, blender render',
-                instruction: 'Use a clean stylized clay visual direction with smooth surfaces, charming proportions, and soft natural lighting.',
-            },
-        ];
-
-        // Concurrently generate concept art for each archetype using NVIDIA Flux
-        const directionPromises = archetypes.map(async (arch, index) => {
-            const imagePrompt = `Video game concept art of ${prompt}, ${arch.modifier}, 1:1 square ratio, centered composition, high visual fidelity, concept artwork`;
-            try {
-                const fluxResult = await generateAndUploadFluxImage({
-                    prompt: imagePrompt,
-                    width: 1024,
-                    height: 1024,
-                    steps: 25,
-                    cfg_scale: 3.5,
-                    prefix: 'visual-directions',
-                });
-                return {
-                    id: `direction-${Date.now()}-${index + 1}`,
-                    name: arch.name,
-                    tagline: arch.tagline,
-                    description: `A stylized interpretation of ${prompt} featuring ${arch.tagline.toLowerCase()} visual energy.`,
-                    icon: arch.icon,
-                    colors: arch.colors,
-                    instruction: arch.instruction,
-                    themeType: arch.themeType,
-                    imageUrl: fluxResult.imageUrl,
-                };
-            } catch (imgErr) {
-                console.warn(`[Visual Directions] Flux generation failed for ${arch.name}:`, imgErr.message);
-                return {
-                    id: `direction-${Date.now()}-${index + 1}`,
-                    name: arch.name,
-                    tagline: arch.tagline,
-                    description: `A stylized interpretation of ${prompt} featuring ${arch.tagline.toLowerCase()} visual energy.`,
-                    icon: arch.icon,
-                    colors: arch.colors,
-                    instruction: arch.instruction,
-                    themeType: arch.themeType,
-                };
-            }
-        });
-
-        const directions = await Promise.all(directionPromises);
-        res.json({
-            success: true,
-            prompt,
-            directions,
-        });
+        console.log(`🌟 [Visual Directions] AI Art Director conceptualizing directions for "${prompt}"...`);
+        const result = await directVisualDirections({ prompt, gameTitle });
+        res.json(result);
     } catch (err) {
         console.error('❌ [Visual Directions] Generation error:', err.message);
         res.status(500).json({ error: err.message || 'Visual direction generation failed' });
