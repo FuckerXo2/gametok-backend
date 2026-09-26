@@ -18,9 +18,8 @@ import path from 'node:path';
 import os from 'node:os';
 import puppeteer from 'puppeteer';
 import { SharedGameState } from './shared-game-state.js';
-import { callDeepSeekFlashJson } from './deepseek-text-client.js';
-import { callQwenMultimodal } from './qwen-multimodal-client.js';
-import { evaluateMidLoopHandoff, MODEL_DEEPSEEK_FLASH, MODEL_QWEN_MAX } from './model-router.js';
+import { callQwenJson, callQwenMultimodal } from './qwen-multimodal-client.js';
+import { evaluateMidLoopHandoff, MODEL_QWEN_MAX } from './model-router.js';
 import { viewportFor } from './orientation.js';
 import { THREEJS_PERFORMANCE_SKILL_ID, THREEJS_PERFORMANCE_SKILL_CONTENT } from './threejs-performance-skill.js';
 
@@ -275,11 +274,20 @@ export class HermesHeadlessOrchestrator {
             await Promise.race([navPromise, timeoutPromise]);
             await new Promise(r => setTimeout(r, 1000));
 
+            let screenshotBase64 = null;
+            if (errors.length === 0) {
+                try {
+                    screenshotBase64 = await page.screenshot({ encoding: 'base64', type: 'webp', quality: 80 });
+                } catch {}
+            }
+
             return {
                 passed: errors.length === 0,
                 errors,
+                screenshot: screenshotBase64,
                 durationMs: Date.now() - startTime
             };
+
         } catch (err) {
             errors.push(err.message);
             return {

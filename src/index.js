@@ -33,7 +33,7 @@ import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-route
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
+const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || (fs.existsSync('/app') ? '/app/storage' : path.join(__dirname, '../storage'));
 const STATIC_UPLOAD_ROOTS = [
   path.join(__dirname, '../public/uploads'),
   STORAGE_ROOT,
@@ -3066,7 +3066,9 @@ function formatGame(row) {
     fileSize: row.file_size,
     createdAt: row.created_at,
     discoverScore: row.discover_score ?? row.discoverScore ?? null,
-    manifestJson: row.manifest_json || null
+    manifestJson: row.manifest_json || null,
+    runtime: row.runtime || 'web',
+    gameScript: row.script_payload || null,
   };
 }
 

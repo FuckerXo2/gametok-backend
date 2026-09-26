@@ -11,6 +11,10 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
 });
 
+pool.on('error', (err) => {
+  console.warn('⚠️ [pg pool] Idle client disconnect/error (handled):', err.message);
+});
+
 
 // Initialize database tables
 export const initDB = async () => {
@@ -340,6 +344,19 @@ export const initDB = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'remixed_from_username') THEN
           ALTER TABLE games ADD COLUMN remixed_from_username VARCHAR(64);
+        END IF;
+        -- Native Engine Dual-Runtime Support: 'web' (default legacy) vs 'native' (Metal C++ QuickJS)
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'runtime') THEN
+          ALTER TABLE games ADD COLUMN runtime VARCHAR(32) DEFAULT 'web';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'script_payload') THEN
+          ALTER TABLE games ADD COLUMN script_payload TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'runtime') THEN
+          ALTER TABLE ai_games ADD COLUMN runtime VARCHAR(32) DEFAULT 'web';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'script_payload') THEN
+          ALTER TABLE ai_games ADD COLUMN script_payload TEXT;
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_events') THEN
           CREATE TABLE search_events (

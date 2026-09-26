@@ -14,6 +14,15 @@ const mimeTypes = {
     '.svg': 'image/svg+xml',
     '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.glb': 'model/gltf-binary',
+    '.gltf': 'model/gltf+json',
+    '.bin': 'application/octet-stream',
+    '.wasm': 'application/wasm',
+    '.mp4': 'video/mp4',
+    '.m4a': 'audio/mp4',
+    '.webp': 'image/webp',
+    '.coffee': 'text/coffeescript',
 };
 
 function getMimeType(filePath) {
@@ -72,6 +81,7 @@ export async function uploadGameFolderToR2(jobId, projectRoot) {
                     entry.name === 'package-lock.json' ||
                     entry.name === 'vite.config.js' ||
                     entry.name === 'vite.config.ts' ||
+                    entry.name.endsWith('.zip') ||
                     entry.name.startsWith('.')
                 ) {
                     continue;

@@ -63,3 +63,39 @@ export async function callQwenMultimodal({ systemPrompt, messages = [], temperat
         usage: response.usage || null,
     };
 }
+
+/**
+ * Call Qwen (via DashScope or OpenRouter) requesting JSON output
+ * @param {{ systemPrompt: string, messages: Array<any>, temperature?: number, maxTokens?: number, model?: string }} args 
+ * @param {object} env 
+ */
+export async function callQwenJson({ systemPrompt, messages = [], temperature = 0.3, maxTokens = 8192, model = null }, env = process.env) {
+    const config = getQwenConfig(env);
+    if (!config) {
+        throw new Error('Qwen API key missing (set QWEN_API_KEY, DASHSCOPE_API_KEY, or OPENROUTER_API_KEY)');
+    }
+
+    const client = createQwenClient(env);
+    const formattedMessages = systemPrompt 
+        ? [{ role: 'system', content: systemPrompt }, ...messages]
+        : [...messages];
+
+    const response = await client.chat.completions.create({
+        model: model || config.model,
+        messages: formattedMessages,
+        temperature,
+        max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices?.[0]?.message?.content || '{}';
+    try {
+        return JSON.parse(content);
+    } catch (e) {
+        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+            return JSON.parse(jsonMatch[1]);
+        }
+        throw e;
+    }
+}

@@ -18,7 +18,7 @@ import { directVisualDirections } from './ai-art-director.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || '/app/storage';
+const STORAGE_ROOT = process.env.ASSET_STORAGE_ROOT || (fs.existsSync('/app') ? '/app/storage' : path.join(__dirname, '../../storage'));
 const GAMETOK_JOBS_ROOT = process.env.GAMETOK_MAKER_ROOT || path.join(STORAGE_ROOT, 'gametok-jobs');
 
 const router = express.Router();
@@ -310,7 +310,7 @@ async function upsertPublishedAIGame({ draftId, userId, draft }) {
     const description = cleanGameDescription(draft.prompt, draft.title);
     const classification = getStoredDraftClassification(draft);
     await pool.query(
-        `INSERT INTO games (id, name, description, icon, color, developer, embed_url, thumbnail, preview_video_url, remixed_from, remixed_from_username, orientation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `INSERT INTO games (id, name, description, icon, color, developer, embed_url, thumbnail, preview_video_url, remixed_from, remixed_from_username, orientation, runtime, script_payload) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
@@ -319,7 +319,9 @@ async function upsertPublishedAIGame({ draftId, userId, draft }) {
             preview_video_url = EXCLUDED.preview_video_url,
             remixed_from = EXCLUDED.remixed_from,
             remixed_from_username = EXCLUDED.remixed_from_username,
-            orientation = EXCLUDED.orientation`,
+            orientation = EXCLUDED.orientation,
+            runtime = EXCLUDED.runtime,
+            script_payload = EXCLUDED.script_payload`,
         [
             globalId,
             draft.title,
@@ -333,6 +335,8 @@ async function upsertPublishedAIGame({ draftId, userId, draft }) {
             draft.remixed_from || null,
             draft.remixed_from_username || null,
             normalizeOrientation(draft.orientation),
+            draft.runtime || 'web',
+            draft.script_payload || (draft.runtime === 'native' ? draft.raw_code : null),
         ]
     );
 
@@ -1039,32 +1043,44 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     await fs.promises.mkdir(jobDir, { recursive: true });
 
     try {
+        const runtime = jobPayload?.runtime === 'web' ? 'web' : 'native';
         assertJobNotCancelled(jobId);
-        console.log(`🧠 [HERMES DREAM JOB] Starting generation for: "${prompt}" (orientation: ${orientation})`);
+        console.log(`🧠 [HERMES DREAM JOB] Starting generation for: "${prompt}" (runtime: ${runtime}, orientation: ${orientation})`);
         await reportProgress(10, 'starting', 'Hermes is initializing...');
 
         // 1. Run the Multi-Model Hermes Generation Loop
-        await reportProgress(25, 'generating', 'DeepSeek & Qwen are designing your 3D game...');
+        await reportProgress(25, 'generating', runtime === 'native' ? 'Generating 120 FPS Native Game script...' : 'Qwen is designing your 3D game...');
         const finalGameState = await runGameTokGenerationLoop({
             prompt,
             orientation,
+            runtime,
             attachments: mediaAttachments,
             maxAttempts: 5,
         }, orchestrator);
 
-        let finalHtml = finalGameState.currentCode || '';
-        if (!finalHtml || finalGameState.status === 'failed_needs_review') {
-            throw new Error(`Generation failed to produce valid HTML (Status: ${finalGameState.status})`);
+        let finalCode = finalGameState.currentCode || '';
+        if (!finalCode || finalGameState.status === 'failed_needs_review') {
+            throw new Error(`Generation failed to produce valid code (Status: ${finalGameState.status})`);
         }
 
-        await reportProgress(75, 'verifying', 'Testing game in Hermes sandbox...');
-        const verifyRes = await verifyGame(finalHtml, { orientation, timeoutMs: 12000 });
-        if (!verifyRes.success && !verifyRes.bypassed) {
-            console.warn(`⚠️ [HERMES DREAM JOB] Game sandbox had warnings/errors:`, verifyRes.crashes);
+        let finalScript = runtime === 'native' ? finalCode : null;
+        let finalHtml = runtime === 'web' ? finalCode : `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${finalGameState.metadata?.title || prompt}</title><style>body{margin:0;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;}</style></head><body><div style="text-align:center"><h2>${finalGameState.metadata?.title || prompt}</h2><p>This is a native GameTok Metal engine game. Open in the GameTOK mobile app to play at 120 FPS.</p></div></body></html>`;
+
+        if (runtime === 'web') {
+            await reportProgress(75, 'verifying', 'Testing game in Hermes sandbox...');
+            const verifyRes = await verifyGame(finalHtml, { orientation, timeoutMs: 12000 });
+            if (!verifyRes.success && !verifyRes.bypassed) {
+                console.warn(`⚠️ [HERMES DREAM JOB] Game sandbox had warnings/errors:`, verifyRes.crashes);
+            }
+        } else {
+            await reportProgress(75, 'verifying', 'Verifying native QuickJS syntax...');
         }
 
         // 2. Save project files
         await fs.promises.writeFile(path.join(jobDir, 'index.html'), finalHtml, 'utf-8');
+        if (finalScript) {
+            await fs.promises.writeFile(path.join(jobDir, 'game.js'), finalScript, 'utf-8');
+        }
 
         // 3. Upload to Cloudflare R2
         await reportProgress(88, 'uploading', 'Deploying game to Cloudflare R2 CDN...');
@@ -1075,21 +1091,21 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             console.warn(`⚠️ [HERMES DREAM JOB] R2 upload failed, serving inline HTML:`, uploadErr.message);
         }
 
-        const finalTitle = extractHtmlTitle(finalHtml) || (prompt ? prompt.slice(0, 40) : 'GameTok Game');
+        const finalTitle = finalGameState.metadata?.title || (runtime === 'web' ? extractHtmlTitle(finalHtml) : null) || (prompt ? prompt.slice(0, 40) : 'GameTok Game');
 
         if (!persistToDb) {
             await reportProgress(100, 'complete', 'Game ready!');
             forgetCancelledJob(jobId);
-            return { jobId, title: finalTitle, html: finalHtml, gameUrl: publicGameUrl };
+            return { jobId, title: finalTitle, html: finalHtml, script: finalScript, runtime, gameUrl: publicGameUrl };
         }
 
         // 4. Save to Database
         assertJobNotCancelled(jobId);
         await pool.query(
             `UPDATE ai_games
-             SET title = $1, html_payload = $2, raw_code = $3, thumbnail = $4, game_url = $5
-             WHERE id = $6`,
-            [finalTitle, finalHtml, finalHtml, null, publicGameUrl, jobId]
+             SET title = $1, html_payload = $2, raw_code = $3, script_payload = $4, runtime = $5, thumbnail = $6, game_url = $7
+             WHERE id = $8`,
+            [finalTitle, finalHtml, finalCode, finalScript, runtime, null, publicGameUrl, jobId]
         );
 
         await recordGenerationTelemetry(jobId, {
@@ -1196,12 +1212,13 @@ router.post('/generate-visual-directions', async (req, res) => {
 
 router.post('/dream', async (req, res) => {
     try {
-        const { prompt, attachments, orientation: requestedOrientation } = req.body;
+        const { prompt, attachments, orientation: requestedOrientation, runtime: requestedRuntime } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Expired session');
         const mediaAttachments = sanitizeMediaAttachments(attachments);
         const orientation = normalizeOrientation(requestedOrientation);
+        const runtime = requestedRuntime === 'web' ? 'web' : 'native';
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
@@ -1211,7 +1228,7 @@ router.post('/dream', async (req, res) => {
             return res.json({ success: true, jobId: existingJob.id, deduped: true });
         }
 
-        console.log(`🧠 [DREAM ROUTE] Creating Hermes job for User[${userId}] -> Concept: "${prompt}" (${orientation})`);
+        console.log(`🧠 [DREAM ROUTE] Creating Hermes job for User[${userId}] -> Concept: "${prompt}" (runtime: ${runtime}, ${orientation})`);
 
         const jobId = randomUUID();
         await enqueueGenerationJob({
@@ -1220,7 +1237,7 @@ router.post('/dream', async (req, res) => {
             prompt,
             title: JOB_TITLES.dreamPending,
             kind: 'dream',
-            payload: { mediaAttachments, orientation },
+            payload: { mediaAttachments, orientation, runtime },
             allowDuplicate: true,
         });
 
@@ -1287,7 +1304,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
             return res.json({ success: false, status: 'canceled', error: ephemeralJob?.error || 'Generation cancelled by user' });
         }
 
-        const result = await pool.query('SELECT title, html_payload, raw_code, game_url, thumbnail, orientation, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
+        const result = await pool.query('SELECT title, html_payload, raw_code, script_payload, runtime, game_url, thumbnail, orientation, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1', [jobId]);
         if (result.rows.length === 0) {
             const pendingBoot = pendingJobBoots.get(jobId);
             if (pendingBoot?.status === 'error') {
@@ -1312,7 +1329,7 @@ router.get('/dream/status/:jobId', async (req, res) => {
         
         const row = result.rows[0];
         
-        if ((!row.html_payload || row.html_payload === '') && !row.game_url) {
+        if ((!row.html_payload || row.html_payload === '') && !row.game_url && !row.script_payload) {
             if (row.title && row.title.startsWith('CANCELLED:')) {
                 return res.json({ success: false, status: 'canceled', error: row.title.replace('CANCELLED: ', '') });
             }
@@ -1342,6 +1359,8 @@ router.get('/dream/status/:jobId', async (req, res) => {
             draftId: jobId,
             title: row.title,
             htmlPreview: row.html_payload,
+            runtime: row.runtime || 'web',
+            gameScript: row.script_payload || (row.runtime === 'native' ? row.raw_code : null),
             gameUrl: row.game_url || null,
             thumbnail: row.thumbnail,
             orientation: normalizeOrientation(row.orientation),
@@ -1395,27 +1414,29 @@ router.post('/publish/:draftId', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Unauthorized');
-        const { title, privacy, html, orientation, gameUrl, categories } = req.body || {};
+        const { title, privacy, html, orientation, gameUrl, categories, runtime, gameScript } = req.body || {};
 
         const checkRes = await pool.query("SELECT * FROM ai_games WHERE id = $1 AND user_id = $2", [req.params.draftId, userId]);
         
         let draft;
         if (checkRes.rows.length === 0) {
-            if (!html) {
-                return res.status(400).json({ error: 'HTML payload required for new games' });
+            if (!html && !gameScript) {
+                return res.status(400).json({ error: 'Payload required for new games' });
             }
             
             console.log('[Publish] Creating new game:', title);
             const insertRes = await pool.query(
-                `INSERT INTO ai_games (user_id, title, html_payload, prompt, raw_code, is_draft, privacy, orientation, game_url, created_at)
-                 VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, NOW())
+                `INSERT INTO ai_games (user_id, title, html_payload, script_payload, runtime, prompt, raw_code, is_draft, privacy, orientation, game_url, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, NOW())
                  RETURNING *`,
                 [
                     userId,
                     title?.trim() || 'Untitled Game',
-                    html,
+                    html || '',
+                    gameScript || null,
+                    runtime || (gameScript ? 'native' : 'web'),
                     `Published: ${title?.trim() || 'Untitled Game'}`,
-                    html,
+                    gameScript || html || '',
                     privacy || 'public',
                     normalizeOrientation(orientation),
                     typeof gameUrl === 'string' && /^https:\/\//i.test(gameUrl) ? gameUrl : null,
@@ -1426,14 +1447,15 @@ router.post('/publish/:draftId', async (req, res) => {
             const existing = checkRes.rows[0];
             if (existing.remixed_from) {
                 const srcRes = await pool.query(
-                    'SELECT html_payload, raw_code FROM ai_games WHERE id = $1',
+                    'SELECT html_payload, raw_code, script_payload FROM ai_games WHERE id = $1',
                     [existing.remixed_from],
                 );
                 const src = srcRes.rows[0];
                 if (src) {
                     const unchanged = (a, b) => String(a || '').trim() === String(b || '').trim();
                     if (unchanged(existing.html_payload, src.html_payload)
-                        && unchanged(existing.raw_code, src.raw_code)) {
+                        && unchanged(existing.raw_code, src.raw_code)
+                        && unchanged(existing.script_payload, src.script_payload)) {
                         return res.status(400).json({
                             error: 'Make at least one change before publishing this remix.',
                             code: 'REMIX_UNCHANGED',
@@ -1445,6 +1467,9 @@ router.post('/publish/:draftId', async (req, res) => {
             console.log('[Publish] Updating existing draft:', req.params.draftId);
             if (title && title.trim()) {
                 await pool.query("UPDATE ai_games SET title = $1 WHERE id = $2 AND user_id = $3", [title.trim().substring(0, 255), req.params.draftId, userId]);
+            }
+            if (gameScript) {
+                await pool.query("UPDATE ai_games SET script_payload = $1, runtime = $2 WHERE id = $3", [gameScript, runtime || 'native', req.params.draftId]);
             }
 
             const publishRes = await pool.query(
