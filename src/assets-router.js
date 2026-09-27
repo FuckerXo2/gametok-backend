@@ -46,10 +46,10 @@ const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
 const CATEGORIES = [
   { id: 'my_assets', label: 'My Assets', chips: [] },
   { id: 'trending', label: 'Trending', chips: [] },
-  { id: 'packs', label: 'Packs', chips: ['phaser', 'minecraft', 'clash', 'fighter', 'food', 'furniture', 'rpg', 'space', 'fnaf', 'sanrio'] },
-  { id: 'characters', label: 'Characters', chips: ['minecraft', 'clash', 'fighter', 'phaser', 'sanrio', 'fnaf', 'animal', 'robot', 'zombie', 'dragon', 'style:pixel', 'style:3d_render', 'style:cartoon'] },
+  { id: 'packs', label: 'Packs', chips: ['pixel_frog', 'phaser', 'minecraft', 'clash', 'fighter', 'food', 'furniture', 'rpg', 'space', 'fnaf', 'sanrio'] },
+  { id: 'characters', label: 'Characters', chips: ['pixel_frog', 'minecraft', 'clash', 'fighter', 'phaser', 'sanrio', 'fnaf', 'animal', 'robot', 'zombie', 'dragon', 'style:pixel', 'style:3d_render', 'style:cartoon'] },
   { id: 'backgrounds', label: 'Backgrounds', chips: ['pixel', 'space', 'dungeon', 'cavern', 'underwater', 'sunset', 'minecraft', 'cyberpunk', 'horror'] },
-  { id: 'objects', label: 'Objects', chips: ['food', 'furniture', 'weapon', 'spaceship', 'loot', 'coin', 'gem', 'shield', 'potion', 'style:pixel', 'style:3d_render'] },
+  { id: 'objects', label: 'Objects', chips: ['pixel_frog', 'food', 'furniture', 'weapon', 'spaceship', 'loot', 'coin', 'gem', 'shield', 'potion', 'style:pixel', 'style:3d_render'] },
   { id: 'icons', label: 'Icons', chips: ['medal', 'badge', 'star', 'achievement', 'action', 'symbol'] },
   { id: 'ui', label: 'UI', chips: ['hud', 'joystick', 'button', 'frame', 'heart'] },
   { id: 'effects', label: 'Effects', chips: ['explosion', 'fire', 'laser', 'sparkle', 'plasma', 'bullet'] },
