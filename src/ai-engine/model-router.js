@@ -6,16 +6,17 @@
  * vision model (Qwen3.8-Max) is only invoked when visual understanding is required.
  */
 
-export const MODEL_QWEN_MAX = 'qwen3.8-max';
-export const MODEL_DEEPSEEK_FLASH = 'qwen3.8-max'; // Alias for backwards-compat
+export const MODEL_GEMINI_FLASH = 'gemini-3.7-flash';
+export const MODEL_QWEN_MAX = 'gemini-3.7-flash'; // Alias
+export const MODEL_DEEPSEEK_FLASH = 'gemini-3.7-flash'; // Alias
 
 /**
  * Determine initial model owner for job intake (§4)
  * @param {{ prompt: string, attachments?: Array<any>, hasVisualContext?: boolean }} jobData 
- * @returns {'qwen3.8-max'}
+ * @returns {'gemini-3.7-flash'}
  */
 export function determineInitialModel(jobData = {}) {
-    return MODEL_QWEN_MAX;
+    return MODEL_GEMINI_FLASH;
 }
 
 /**

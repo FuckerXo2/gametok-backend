@@ -10,7 +10,8 @@
  */
 
 import { SharedGameState } from './shared-game-state.js';
-import { determineInitialModel, evaluateMidLoopHandoff, MODEL_QWEN_MAX } from './model-router.js';
+import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
+import { callGeminiFlashJson } from './gemini-client.js';
 import { callQwenJson, callQwenMultimodal } from './qwen-multimodal-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 
@@ -207,18 +208,18 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
             }
         }
 
-        // Generate code from model owner (Qwen)
+        // Generate code from model owner (Gemini 3.7 Flash)
         let generatedCode = '';
-        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Qwen (${gameState.currentModelOwner})...`);
+        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Gemini (${gameState.currentModelOwner})...`);
 
         try {
-            const response = await callQwenJson({
+            const response = await callGeminiFlashJson({
                 systemPrompt,
                 messages: [{ role: 'user', content: userPrompt }],
                 maxTokens: 8192,
                 temperature: 0.3
             }).catch(async (e) => {
-                console.warn(`[GameTok Loop] Qwen model call warning:`, e.message);
+                console.warn(`[GameTok Loop] Gemini model call warning:`, e.message);
                 if (runtime === 'native') {
                     return {
                         title: gameState.prompt ? gameState.prompt.slice(0, 32) : 'Cyber Dash JS',
@@ -238,8 +239,8 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
                 generatedCode = typeof response === 'string' ? response : (response.html || response.code || JSON.stringify(response));
             }
         } catch (err) {
-            console.error(`💥 [GameTok Loop] Qwen generation error:`, err.message);
-            gameState.recordAttempt({ passed: false, error: `Qwen error: ${err.message}` });
+            console.error(`💥 [GameTok Loop] Gemini generation error:`, err.message);
+            gameState.recordAttempt({ passed: false, error: `Gemini error: ${err.message}` });
             continue;
         }
 

@@ -1049,7 +1049,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         await reportProgress(10, 'starting', 'Hermes is initializing...');
 
         // 1. Run the Multi-Model Hermes Generation Loop
-        await reportProgress(25, 'generating', runtime === 'native' ? 'Generating 120 FPS Native Game script...' : 'Qwen is designing your 3D game...');
+        await reportProgress(25, 'generating', runtime === 'native' ? 'Generating 120 FPS Native Game script...' : 'Gemini is designing your 3D game...');
         const finalGameState = await runGameTokGenerationLoop({
             prompt,
             orientation,
