@@ -509,7 +509,24 @@ export const initDB = async () => {
         provider VARCHAR(32),
         created_at TIMESTAMP DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS idx_blog_image_gen_created ON blog_image_generations (created_at DESC);
+      CREATE TABLE IF NOT EXISTS community_assets (
+        id VARCHAR(100) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        style VARCHAR(50) DEFAULT 'style:realistic',
+        tags TEXT[] DEFAULT '{}',
+        image_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        uses_count INTEGER DEFAULT 0,
+        creator_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        is_transparent BOOLEAN DEFAULT TRUE,
+        is_system BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_community_assets_cat_uses ON community_assets (category, uses_count DESC);
+      CREATE INDEX IF NOT EXISTS idx_community_assets_uses ON community_assets (uses_count DESC);
+      CREATE INDEX IF NOT EXISTS idx_community_assets_style ON community_assets (style);
+      CREATE INDEX IF NOT EXISTS idx_community_assets_tags ON community_assets USING GIN (tags);
     `);
 
     console.log('✅ Database tables initialized');

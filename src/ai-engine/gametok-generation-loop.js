@@ -124,7 +124,7 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
     const initialModel = determineInitialModel(jobParams);
     const orientation = normalizeOrientation(jobParams.orientation);
     const landscapeMode = isLandscape(orientation);
-    const runtime = (jobParams.runtime === 'web') ? 'web' : 'native';
+    const runtime = (jobParams.runtime === 'native') ? 'native' : 'web';
 
     const gameState = new SharedGameState({
         prompt: jobParams.prompt || 'Create an interactive 3D game',
