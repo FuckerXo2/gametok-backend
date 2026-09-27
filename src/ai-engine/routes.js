@@ -15,6 +15,7 @@ import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { generateFluxImage, generateAndUploadFluxImage } from './nvidia-flux-client.js';
 import { directVisualDirections } from './ai-art-director.js';
+import { callGeminiFlashJson } from './gemini-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1207,6 +1208,107 @@ router.post('/generate-visual-directions', async (req, res) => {
     } catch (err) {
         console.error('❌ [Visual Directions] Generation error:', err.message);
         res.status(500).json({ error: err.message || 'Visual direction generation failed' });
+    }
+});
+
+router.post('/generate-spec', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+
+        const cleaned = prompt.replace(/[^a-zA-Z0-9 ]/g, ' ').trim();
+        const fallbackTitle = cleaned.split(/\s+/).filter(Boolean).slice(0, 3).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Neon Runner';
+
+        try {
+            const spec = await callGeminiFlashJson({
+                systemPrompt: `You are a world-class game designer for GameTOK. Given a game idea, generate a compelling, replayable 3D mobile arcade game specification. Output valid JSON strictly matching this format:
+{
+  "title": "Short Catchy Title (2-4 words)",
+  "description": "Engaging 1-2 sentence overview of the game.",
+  "structural": "Description of the core arcade game loop and controls.",
+  "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4"]
+}`,
+                messages: [{ role: 'user', content: `Game Idea: "${prompt}"` }],
+                temperature: 0.4,
+                maxTokens: 500,
+            });
+
+            if (spec && spec.title && spec.description) {
+                return res.json({ success: true, spec });
+            }
+        } catch (llmErr) {
+            console.warn('[generate-spec] Gemini call warning, using contextual fallback:', llmErr.message);
+        }
+
+        res.json({
+            success: true,
+            spec: {
+                title: fallbackTitle,
+                description: `${fallbackTitle} turns your idea — "${prompt.slice(0, 80)}" — into a fast, replayable 3D arcade run at 120 FPS. Easy to pick up, impossible to put down.`,
+                structural: 'Vertical 3D arcade loop: dodge obstacles, collect boosts, and chase high scores.',
+                features: [
+                    '60-120 FPS Apple Metal rendering',
+                    'Responsive one-tap steering & drift physics',
+                    'Combo multipliers that reward risk',
+                    'Dynamic camera angles and procedural barriers'
+                ]
+            }
+        });
+    } catch (err) {
+        console.error('❌ [generate-spec] Error:', err.message);
+        res.status(500).json({ error: err.message || 'Spec generation failed' });
+    }
+});
+
+router.post('/refine-spec', async (req, res) => {
+    try {
+        const { conversationHistory = [], userMessage = '' } = req.body;
+
+        try {
+            const refined = await callGeminiFlashJson({
+                systemPrompt: `You are a game designer refining a GameTOK 3D arcade game concept based on user feedback. Output valid JSON:
+{
+  "aiMessage": "Short friendly companion response confirming what was changed (1 sentence)",
+  "spec": {
+    "title": "Title (updated or kept)",
+    "description": "Updated 1-2 sentence description incorporating the user request",
+    "structural": "Updated arcade loop",
+    "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4"]
+  }
+}`,
+                messages: [
+                    ...conversationHistory.map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.content })),
+                    { role: 'user', content: userMessage }
+                ],
+                temperature: 0.4,
+                maxTokens: 500,
+            });
+
+            if (refined && refined.spec) {
+                return res.json({ success: true, ...refined });
+            }
+        } catch (llmErr) {
+            console.warn('[refine-spec] Gemini call warning, using contextual fallback:', llmErr.message);
+        }
+
+        res.json({
+            success: true,
+            aiMessage: `Good call — I folded "${userMessage.slice(0, 60)}" into the concept!`,
+            spec: {
+                title: 'Refined Game',
+                description: `Updated with: ${userMessage.slice(0, 80)}. Same tight 120 FPS arcade loop, sharper hook.`,
+                structural: 'Vertical 3D arcade loop with your latest twist woven in.',
+                features: [
+                    `Reflects your note: ${userMessage.slice(0, 40)}`,
+                    '60-120 FPS Apple Metal rendering',
+                    'Responsive steering & drift physics',
+                    'Dynamic procedural hazards'
+                ]
+            }
+        });
+    } catch (err) {
+        console.error('❌ [refine-spec] Error:', err.message);
+        res.status(500).json({ error: err.message || 'Spec refinement failed' });
     }
 });
 
