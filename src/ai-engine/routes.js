@@ -14,7 +14,7 @@ import { normalizeOrientation, DEFAULT_ORIENTATION } from './orientation.js';
 import { notifyGameReady, notifyGameFailed } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { generateFluxImage, generateAndUploadFluxImage } from './nvidia-flux-client.js';
-import { directVisualDirections } from './ai-art-director.js';
+import { directVisualDirections, directPerspectives } from './ai-art-director.js';
 import { callGeminiFlashJson } from './gemini-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1208,6 +1208,20 @@ router.post('/generate-visual-directions', async (req, res) => {
     } catch (err) {
         console.error('❌ [Visual Directions] Generation error:', err.message);
         res.status(500).json({ error: err.message || 'Visual direction generation failed' });
+    }
+});
+
+router.post('/generate-perspectives', async (req, res) => {
+    try {
+        const { prompt, gameTitle = 'Game', selectedDirection } = req.body;
+        if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+
+        console.log(`🎥 [Camera Perspectives] Generating 4 perspectives for "${prompt}"...`);
+        const result = await directPerspectives({ prompt, gameTitle, selectedDirection });
+        res.json(result);
+    } catch (err) {
+        console.error('❌ [Camera Perspectives] Generation error:', err.message);
+        res.status(500).json({ error: err.message || 'Camera perspective generation failed' });
     }
 });
 

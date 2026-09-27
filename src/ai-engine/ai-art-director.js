@@ -15,261 +15,33 @@ import { getQwenConfig, createQwenClient } from './qwen-multimodal-client.js';
 import { generateAndUploadFluxImage } from './nvidia-flux-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
 
-const SYSTEM_PROMPT = `You are a world-class Game Art Director.
+const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title and concept prompt.
 Your task is to invent exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to that game concept.
 
 Rules:
-- NEVER output generic out-of-context styles (e.g. NEVER suggest neon cyberpunk for a cute kids/animal game).
+- NEVER output generic out-of-context styles or default to clay/cute styles unless the game explicitly asks for it.
 - Each direction must feel like a genuine, thoughtful creative pitch for that exact game world.
-- Ensure diversity in mediums (e.g. tactile claymation, hand-painted watercolor, cel-shaded anime, retro pixel, stylized 3D, dark fantasy oil, comic book, etc.) appropriate to the game.
+- Ensure diversity in mediums (e.g. 16-Bit Masterpiece Pixel Art, High-Octane Cel-Shaded Anime, Stylized Low-Poly 3D, Vibrant Neo-Arcade, Hand-Inked Graphic Novel, Moody Dark Fantasy, Retro Synthwave, Clean Vector 2D, etc.) appropriate to the game genre.
+- The modifier MUST be structured for generating an authentic IN-GAME PLAYABLE SCREENSHOT (with game HUD, player character/vehicle, environment, and clean game graphics), NOT generic poster art.
 
 You MUST respond with valid JSON strictly matching this schema:
 {
   "directions": [
     {
-      "name": "Creative Style Title (e.g. Pastel Claymation)",
-      "tagline": "2-3 word punchy tagline (e.g. Tactile & Soft)",
+      "name": "Creative Style Title (e.g. 16-Bit Neo Pixel)",
+      "tagline": "2-3 word punchy tagline (e.g. Crisp & Retro)",
       "icon": "Ionicons icon name: sparkles | color-palette | flame | water | paw | leaf | flash | shapes-outline | rocket | game-controller | heart | skull | car | planet | bulb",
       "colors": ["#hex1", "#hex2", "#hex3", "#hex4"],
-      "modifier": "Detailed visual style prompt for FLUX concept art (e.g. tactile claymation, warm soft rim lighting, stop-motion felt textures, high fidelity, 8k octane render)",
+      "modifier": "in-game screenshot of playable video game, authentic HUD, crisp rendering, high visual fidelity",
       "instruction": "Clear instructions for the game code builder describing colors, UI styling, and aesthetic atmosphere"
     }
   ]
 }`;
 
 /**
- * Intelligent contextual fallback when LLM is unavailable or unkeyed
+ * Removed hardcoded regex archetypes. Directions must always be generated dynamically by Gemini 3.7 Flash.
  */
-function generateContextualArchetypes(prompt = '', gameTitle = '') {
-    const text = `${prompt} ${gameTitle}`.toLowerCase();
-
-    // Cute / Kids / Friendly / Cozy (e.g. teletubbies, pet, animal, farm, cooking)
-    if (/teletubb|cute|peppa|baby|kid|pet|puppy|kitty|cat|dog|farm|cozy|cake|candy|baking|fluffy|pastel|whimsical/i.test(text)) {
-        return [
-            {
-                name: 'Pastel Claymation',
-                tagline: 'Tactile & Charming',
-                icon: 'shapes-outline',
-                colors: ['#FEF08A', '#F472B6', '#6EE7B7', '#93C5FD'],
-                modifier: 'charming stop-motion claymation, soft tactile polymer clay figures, warm sunny lighting, miniature diorama depth of field, handcrafted cute aesthetic',
-                instruction: 'Use a tactile pastel claymation aesthetic with soft rounded UI, gentle sunny lighting, and cheerful vibrant pastel colors.',
-            },
-            {
-                name: 'Storybook Watercolor',
-                tagline: 'Warm & Hand-Drawn',
-                icon: 'color-palette',
-                colors: ['#FDE047', '#FB923C', '#4ADE80', '#60A5FA'],
-                modifier: 'children storybook watercolor illustration, gentle ink outlines, soft paper texture, warm wholesome atmosphere, whimsical picture book art',
-                instruction: 'Use a hand-painted storybook watercolor direction with soft illustrated borders, gentle pastels, and cozy wholesome textures.',
-            },
-            {
-                name: 'Felt & Yarn Craft',
-                tagline: 'Fuzzy & Playful',
-                icon: 'sparkles',
-                colors: ['#F43F5E', '#A855F7', '#38BDF8', '#FACC15'],
-                modifier: 'handcrafted felt toybox aesthetic, soft fuzzy yarn textures, stitch details, warm cozy studio lighting, charming handcrafted world',
-                instruction: 'Use a warm felt and fabric craft visual direction with stitch details, button accents, and soft tactile materials.',
-            },
-            {
-                name: 'Retro 90s Cartoon',
-                tagline: 'Bright & Bouncy',
-                icon: 'game-controller',
-                colors: ['#EF4444', '#F59E0B', '#10B981', '#3B82F6'],
-                modifier: 'vibrant 90s Saturday morning cartoon cel animation, clean bold outlines, flat saturated primary colors, expressive energetic poses, retro animation cel',
-                instruction: 'Use a vibrant Saturday morning cartoon style with bold black outlines, snappy bouncy animations, and punchy primary colors.',
-            },
-        ];
-    }
-
-    // Racing / Fast / Driving / Speed
-    if (/rac|car|drift|speed|highway|drive|turbo|vehicle|kart|formula/i.test(text)) {
-        return [
-            {
-                name: 'Midnight Horizon',
-                tagline: 'Slick & Atmospheric',
-                icon: 'car',
-                colors: ['#090D16', '#1E293B', '#38BDF8', '#F43F5E'],
-                modifier: 'cinematic midnight street racing concept art, wet reflective asphalt, vivid headlight bloom, motion blur, moody volumetric mist, photorealistic Unreal Engine 5 render',
-                instruction: 'Use a sleek cinematic night-racing theme with high-contrast road reflections, dynamic headlight glows, and dark modern UI.',
-            },
-            {
-                name: 'Vibrant Arcade',
-                tagline: 'Fast & Punchy',
-                icon: 'flash',
-                colors: ['#18002E', '#9333EA', '#EC4899', '#FBBF24'],
-                modifier: 'retro-modern arcade racing concept art, glossy candy-lacquer sports car, vibrant sun-drenched coastal highway, bold saturated lighting, Sega Outrun aesthetic',
-                instruction: 'Use an energetic retro arcade racing style with vibrant sunset gradients, bold readable gauges, and high-energy color pops.',
-            },
-            {
-                name: 'Cel-Shaded Manga',
-                tagline: 'Sharp & Stylized',
-                icon: 'speedometer',
-                colors: ['#0A0A0A', '#DC2626', '#FFFFFF', '#2563EB'],
-                modifier: 'high-octane anime racing manga art style, dynamic speed lines, bold ink hatching, stylized smoke and drift tire sparks, Initial D aesthetic',
-                instruction: 'Use a dynamic cel-shaded manga racing aesthetic with high-contrast comic ink lines, speed streaks, and bold action callouts.',
-            },
-            {
-                name: 'Low-Poly Rally',
-                tagline: 'Retro & Clean',
-                icon: 'shapes-outline',
-                colors: ['#14532D', '#15803D', '#F97316', '#FEF08A'],
-                modifier: 'clean stylized low-poly 3D racing game art, faceted geometry, vibrant environmental lighting, crisp dirt road, Art of Rally aesthetic',
-                instruction: 'Use a minimalist low-poly 3D racing style with flat shaded surfaces, clean geometric cars, and a crisp vibrant landscape.',
-            },
-        ];
-    }
-
-    // Horror / Spooky / Dark / Zombie
-    if (/horror|spook|dark|ghost|zombie|haunt|scary|nightmare|shadow|blood|abandon/i.test(text)) {
-        return [
-            {
-                name: 'Cursed VHS',
-                tagline: 'Raw & Analog',
-                icon: 'skull',
-                colors: ['#050505', '#171717', '#991B1B', '#E5E5E5'],
-                modifier: 'gritty found-footage psychological horror, analog VHS scanlines, eerie flashlight beam illuminating dark corridors, heavy grain, unsettling atmosphere',
-                instruction: 'Use an analog VHS found-footage horror aesthetic with CRT distortion lines, harsh shadows, and unsettling high-contrast red accents.',
-            },
-            {
-                name: 'Gothic Noir',
-                tagline: 'Shadow & Mystery',
-                icon: 'skull-outline',
-                colors: ['#09090B', '#18181B', '#71717A', '#F43F5E'],
-                modifier: 'dark gothic graphic novel art, high contrast ink shadows, chiaroscuro lighting, brooding Victorian silhouettes, Bloodborne atmosphere',
-                instruction: 'Use a moody gothic noir art direction with deep ink shadows, subtle crimson accents, and atmospheric fog effects.',
-            },
-            {
-                name: 'Eldritch Mist',
-                tagline: 'Ancient & Unreal',
-                icon: 'sparkles',
-                colors: ['#022C22', '#064E3B', '#10B981', '#047857'],
-                modifier: 'Lovecraftian psychological horror concept art, sickly bioluminescent green fog, sunken cyclopean ruins, haunting atmospheric depth, cinematic masterpiece',
-                instruction: 'Use an eerie eldritch horror theme with sickly green bioluminescence, heavy atmospheric haze, and dark decayed surfaces.',
-            },
-            {
-                name: 'Retro Survival Pixel',
-                tagline: 'Gritty & Nostalgic',
-                icon: 'game-controller',
-                colors: ['#1C1917', '#44403C', '#DC2626', '#E7E5E4'],
-                modifier: 'detailed 32-bit survival horror pixel art, dingy industrial corridors, flickering emergency lights, dithering shadows, Resident Evil 1 PS1 aesthetic',
-                instruction: 'Use a 32-bit retro survival horror pixel aesthetic with dithered lighting, claustrophobic camera framing, and dingy textures.',
-            },
-        ];
-    }
-
-    // Sci-Fi / Space / Cyber
-    if (/space|cyber|future|robot|alien|galaxy|star|ship|laser|neon/i.test(text)) {
-        return [
-            {
-                name: 'Neon Cyber',
-                tagline: 'High-Tech & Electric',
-                icon: 'flash',
-                colors: ['#050814', '#7928CA', '#00DFD8', '#FF0080'],
-                modifier: 'cyberpunk sci-fi concept art, glowing volumetric neon lighting, wet chrome reflections, holographic UI overlays, high-tech dystopian city, 8k octane render',
-                instruction: 'Use a futuristic cyberpunk visual direction with glowing neon accents, high-contrast dark tones, and sleek holographic UI elements.',
-            },
-            {
-                name: 'Deep Cosmos',
-                tagline: 'Vast & Mysterious',
-                icon: 'planet',
-                colors: ['#030712', '#1E1B4B', '#6366F1', '#38BDF8'],
-                modifier: 'epic deep space astronomy concept art, glowing cosmic nebula, starry background, distant ringed planets, majestic cinematic scale, Hubble photography aesthetic',
-                instruction: 'Use an expansive deep-space visual direction with glowing nebulae, starlight particles, and deep cosmic indigo tones.',
-            },
-            {
-                name: 'Retro 80s Cassette Futurism',
-                tagline: 'Vintage Sci-Fi',
-                icon: 'game-controller',
-                colors: ['#1E293B', '#0284C7', '#F59E0B', '#EF4444'],
-                modifier: '70s and 80s retro sci-fi cassette futurism art, analog computer displays, bulky spacecraft hull, Chris Foss illustration style, warm vintage lighting',
-                instruction: 'Use a retro cassette-futurism sci-fi aesthetic with industrial orange accents, matte panels, and analog telemetry displays.',
-            },
-            {
-                name: 'Clean Mecha Manga',
-                tagline: 'Sharp & Industrial',
-                icon: 'shapes-outline',
-                colors: ['#0F172A', '#334155', '#38BDF8', '#E2E8F0'],
-                modifier: 'clean stylized mecha anime concept art, crisp panel lining, industrial white and blue spacecraft armor, technical decals, studio lighting',
-                instruction: 'Use a crisp mecha sci-fi direction with technical panel lines, industrial geometric silhouettes, and precise cyan accents.',
-            },
-        ];
-    }
-
-    // Fantasy / Magic / Medieval / RPG
-    if (/fantasy|magic|dragon|sword|castle|rpg|knight|dungeon|wizard/i.test(text)) {
-        return [
-            {
-                name: 'Epic Mythic',
-                tagline: 'Grand & Legendary',
-                icon: 'sparkles',
-                colors: ['#0F172A', '#1E1B4B', '#0369A1', '#F59E0B'],
-                modifier: 'epic mythical fantasy concept art, atmospheric golden volumetric lighting, towering ancient ruins, magical particles, cinematic scale, digital oil masterpiece',
-                instruction: 'Use an epic fantasy visual direction with rich atmospheric depth, dramatic lighting, and intricate mythical details.',
-            },
-            {
-                name: 'Enchanted Forest',
-                tagline: 'Whimsical & Glowing',
-                icon: 'leaf',
-                colors: ['#022C22', '#065F46', '#10B981', '#FDE047'],
-                modifier: 'enchanted magical forest fantasy concept art, glowing fairy lights, moss-covered ancient trees, soft mystical twilight, Studio Ghibli inspired aesthetic',
-                instruction: 'Use a lush enchanted forest aesthetic with soft magical bioluminescence, verdant greens, and warm fairy glows.',
-            },
-            {
-                name: 'Dark Gothic Citadel',
-                tagline: 'Brooding & Ancient',
-                icon: 'shield',
-                colors: ['#09090B', '#27272A', '#78350F', '#D97706'],
-                modifier: 'dark fantasy gothic fortress art, torchlit stone corridors, ancient heraldry, brooding misty battlements, Dark Souls art direction',
-                instruction: 'Use a dark gothic medieval aesthetic with weathered stone textures, flickering torchlight, and rich amber highlights.',
-            },
-            {
-                name: 'Stylized Low-Poly Adventure',
-                tagline: 'Crisp & Charming',
-                icon: 'shapes-outline',
-                colors: ['#065F46', '#0284C7', '#F59E0B', '#FEF08A'],
-                modifier: 'clean stylized low-poly fantasy adventure, bright cheerful lighting, faceted terrain, charming toybox knight, Zelda Wind Waker aesthetic',
-                instruction: 'Use a stylized low-poly adventure style with clean geometric forms, vibrant saturated colors, and welcoming daylight.',
-            },
-        ];
-    }
-
-    // Default general game concepts
-    return [
-        {
-            name: 'Vibrant Arcade 3D',
-            tagline: 'Bold & Punchy',
-            icon: 'game-controller',
-            colors: ['#1A0B2E', '#9333EA', '#EC4899', '#FACC15'],
-            modifier: `vibrant stylized 3D video game concept art of ${prompt}, glossy candy materials, clean readable shapes, playful studio lighting, Unreal Engine 5`,
-            instruction: 'Use a bold retro-modern arcade art direction with saturated punchy colors, glossy materials, and clean readable shapes.',
-        },
-        {
-            name: 'Hand-Crafted Stylized',
-            tagline: 'Tactile & Warm',
-            icon: 'shapes-outline',
-            colors: ['#022C22', '#065F46', '#10B981', '#FEF08A'],
-            modifier: `stylized tactile handcrafted toy diorama concept art of ${prompt}, soft clay and wooden textures, warm natural lighting, miniature depth of field`,
-            instruction: 'Use a clean stylized tactile visual direction with smooth surfaces, charming proportions, and soft natural lighting.',
-        },
-        {
-            name: 'Cinematic Modern',
-            tagline: 'Sleek & Immersive',
-            icon: 'sparkles',
-            colors: ['#090D16', '#1E293B', '#38BDF8', '#F43F5E'],
-            modifier: `cinematic concept art of ${prompt}, atmospheric volumetric lighting, rich textural detail, widescreen composition, digital painting masterpiece`,
-            instruction: 'Use a sleek cinematic visual direction with dramatic lighting contrasts and refined modern UI elements.',
-        },
-        {
-            name: 'Retro Pixel Master',
-            tagline: 'Crisp & Nostalgic',
-            icon: 'color-palette',
-            colors: ['#111827', '#4F46E5', '#06B6D4', '#F43F5E'],
-            modifier: `masterpiece 16-bit pixel art of ${prompt}, rich vibrant color palette, intricate pixel shading, crisp clean sprites, modern neo-retro arcade aesthetic`,
-            instruction: 'Use a rich modern 16-bit neo-retro pixel aesthetic with vibrant colors and crisp nostalgic styling.',
-        },
-    ];
-}
 
 /**
  * Call LLM to invent 4 custom directions tailored specifically to the game
@@ -352,9 +124,7 @@ async function callLLMForDirections(prompt, gameTitle) {
         }
     }
 
-    // 4. Contextual smart fallback
-    console.log(`🎨 [AI Art Director] Using contextual semantic director for "${prompt}"`);
-    return generateContextualArchetypes(prompt, gameTitle);
+    throw new Error(`AI Art Director failed to generate visual directions dynamically for "${prompt}"`);
 }
 
 function inferThemeType(name = '', modifier = '') {
@@ -385,14 +155,13 @@ export async function directVisualDirections({ prompt, gameTitle = 'Game' }) {
     // 1. LLM invents the 4 styles tailored specifically to the game
     const directionsPlan = await callLLMForDirections(prompt, gameTitle);
 
-    // 2. Concurrently attempt FLUX concept art with a fast 4s timeout per card so UI never hangs
+    // 2. Concurrently attempt FLUX concept art with a fast 4.5s timeout per card so UI never hangs
     const directionPromises = directionsPlan.map(async (dir, index) => {
-        const imagePrompt = `Video game concept art of ${prompt}, ${dir.modifier}, 1:1 square ratio, centered composition, high visual fidelity, concept artwork`;
+        const imagePrompt = `In-game screenshot, playable video game viewport, authentic game HUD, game engine render of ${prompt}, ${dir.modifier}, 1:1 square ratio, crisp game UI, clean graphics`;
         const themeType = dir.themeType || inferThemeType(dir.name, dir.modifier);
         
         let imageUrl = null;
         try {
-            // Give Flux up to 4.5 seconds so fast cached/NVIDIA runs succeed, but slow runs don't lock the client
             const fluxTimeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Flux timeout')), 4500));
             const fluxResult = await Promise.race([
                 generateAndUploadFluxImage({
@@ -410,7 +179,6 @@ export async function directVisualDirections({ prompt, gameTitle = 'Game' }) {
                 imageUrl = fluxResult.imageUrl;
             }
         } catch (imgErr) {
-            // Soft failure: the card will render with its bespoke theme gradient & icon
             console.log(`ℹ️ [AI Art Director] Using dynamic styling for "${dir.name}" (${imgErr.message})`);
         }
 
@@ -436,3 +204,107 @@ export async function directVisualDirections({ prompt, gameTitle = 'Game' }) {
         directions,
     };
 }
+
+const PERSPECTIVE_SYSTEM_PROMPT = `You are a world-class Game Designer and Technical Camera Director.
+The user has chosen a game concept and a visual art direction.
+Your task is to invent exactly 4 DISTINCT, LOGICAL, and EXCITING camera/view perspectives specifically tailored to this game genre and visual style.
+
+Critical Rules:
+- Analyze whether this game is naturally 2D, 2.5D, or 3D (e.g. Card battlers, 2D platformers, flappy birds, match-3 puzzles, roguelikes, 3D racers, space dogfights, FPS, etc.).
+- NEVER suggest an irrelevant perspective (e.g. NEVER suggest a 3D chase cam for a flat 2D game or card game).
+- For 2D games, provide perspectives like: "Classic Flat 2D Side-View", "2.5D Layered Parallax", "Dynamic Zoom Action Cam", "Vertical Scrolling Stage", "Tabletop Overhead", etc.
+- For 3D or Isometric games, provide perspectives like: "Isometric 3/4 Dihedral", "Top-Down Tactical", "Third-Person Follow Cam", "First-Person Cockpit/POV", "Dynamic Cinematic Cam", etc.
+- Each perspective must specify its dimension: "2D", "2.5D", or "3D".
+- cameraInstruction MUST be exact technical instructions for the Three.js / Canvas2D / Metal engine on how to set up the camera.
+
+You MUST respond with valid JSON strictly matching this schema:
+{
+  "perspectives": [
+    {
+      "name": "Perspective Name (e.g. Classic Flat 2D Side-View)",
+      "tagline": "2-3 word punchy tagline (e.g. Pure Retro Readability)",
+      "dimension": "2D",
+      "icon": "eye",
+      "cameraInstruction": "Technical camera setup details for game runtime",
+      "modifier": "camera angle description for in-game screenshot render (e.g. flat horizontal side-scrolling 2D plane viewport)"
+    }
+  ]
+}`;
+
+/**
+ * Step 2: Direct 4 camera perspectives tailored to the game and chosen style
+ */
+export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection }) {
+    if (!prompt) throw new Error('Prompt is required');
+
+    const styleName = selectedDirection?.name || 'Selected Visual Style';
+    const styleModifier = selectedDirection?.modifier || '';
+
+    console.log(`🎥 [Camera Perspective] Generating 4 perspectives for "${prompt}" (Style: ${styleName})...`);
+
+    const parsed = await callGeminiFlashJson({
+        systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
+        messages: [
+            {
+                role: 'user',
+                content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}`,
+            },
+        ],
+        temperature: 0.7,
+        maxTokens: 1500,
+    });
+
+    if (!parsed || !Array.isArray(parsed.perspectives) || parsed.perspectives.length < 4) {
+        throw new Error(`Gemini failed to dynamically conceptualize 4 camera perspectives for "${prompt}"`);
+    }
+
+    const perspectivesPlan = parsed.perspectives.slice(0, 4);
+
+    // Concurrently render in-game screenshot previews from each perspective
+    const perspectivePromises = perspectivesPlan.map(async (p, index) => {
+        const imagePrompt = `In-game screenshot, playable video game viewport, authentic game HUD, game engine render of ${prompt} viewed from ${p.modifier || p.name}, rendered in ${styleModifier || styleName}, 1:1 square ratio, crisp game UI`;
+
+        let imageUrl = null;
+        try {
+            const fluxTimeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Flux timeout')), 4500));
+            const fluxResult = await Promise.race([
+                generateAndUploadFluxImage({
+                    prompt: imagePrompt,
+                    width: 768,
+                    height: 768,
+                    steps: 16,
+                    cfg_scale: 3.5,
+                    prefix: 'camera-perspectives',
+                }),
+                fluxTimeoutPromise
+            ]);
+
+            if (fluxResult?.imageUrl) {
+                imageUrl = fluxResult.imageUrl;
+            }
+        } catch (imgErr) {
+            console.log(`ℹ️ [Camera Perspective] Thumbnail generated via styling for "${p.name}" (${imgErr.message})`);
+        }
+
+        return {
+            id: `perspective-${Date.now()}-${index + 1}`,
+            name: p.name,
+            tagline: p.tagline || 'Camera Perspective',
+            dimension: p.dimension || '3D',
+            icon: p.icon || 'videocam',
+            cameraInstruction: p.cameraInstruction || `Set camera rig to ${p.name}`,
+            modifier: p.modifier,
+            imageUrl,
+        };
+    });
+
+    const perspectives = await Promise.all(perspectivePromises);
+    return {
+        success: true,
+        prompt,
+        gameTitle,
+        selectedDirection,
+        perspectives,
+    };
+}
+
