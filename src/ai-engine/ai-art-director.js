@@ -13,6 +13,7 @@
 import OpenAI from 'openai';
 import { getQwenConfig, createQwenClient } from './qwen-multimodal-client.js';
 import { generateAndUploadFluxImage } from './nvidia-flux-client.js';
+import { callGeminiFlashJson } from './gemini-client.js';
 
 const SYSTEM_PROMPT = `You are a world-class Game Art Director.
 The user will provide a game title and concept prompt.
@@ -271,10 +272,30 @@ function generateContextualArchetypes(prompt = '', gameTitle = '') {
 }
 
 /**
- * Call LLM to invent 4 custom directions
+ * Call LLM to invent 4 custom directions tailored specifically to the game
  */
 async function callLLMForDirections(prompt, gameTitle) {
-    // 1. Try Qwen if configured
+    // 1. Try Gemini 3.7 Flash first (ultra-fast, highly creative, reliable)
+    try {
+        console.log(`🧠 [AI Art Director] Prompting Gemini 3.7 Flash for visual directions...`);
+        const parsed = await callGeminiFlashJson({
+            systemPrompt: SYSTEM_PROMPT,
+            messages: [
+                { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}` },
+            ],
+            temperature: 0.7,
+            maxTokens: 1500,
+        });
+
+        if (parsed && Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
+            console.log(`✅ [AI Art Director] Gemini 3.7 Flash conceptualized 4 directions:`, parsed.directions.map(d => d.name));
+            return parsed.directions.slice(0, 4);
+        }
+    } catch (geminiErr) {
+        console.warn(`⚠️ [AI Art Director] Gemini 3.7 Flash call failed, trying backup:`, geminiErr.message);
+    }
+
+    // 2. Try Qwen if configured
     const qwenConfig = getQwenConfig();
     if (qwenConfig) {
         try {
@@ -300,7 +321,7 @@ async function callLLMForDirections(prompt, gameTitle) {
         }
     }
 
-    // 2. Try NVIDIA NIM LLM if NVIDIA_API_KEY is present
+    // 3. Try NVIDIA NIM LLM if NVIDIA_API_KEY is present
     const nvidiaKey = process.env.NVIDIA_API_KEY;
     if (nvidiaKey) {
         try {
@@ -308,7 +329,7 @@ async function callLLMForDirections(prompt, gameTitle) {
             const nimClient = new OpenAI({
                 apiKey: nvidiaKey,
                 baseURL: 'https://integrate.api.nvidia.com/v1',
-                timeout: 30000,
+                timeout: 10000,
             });
 
             const response = await nimClient.chat.completions.create({
@@ -331,61 +352,80 @@ async function callLLMForDirections(prompt, gameTitle) {
         }
     }
 
-    // 3. Contextual smart fallback
+    // 4. Contextual smart fallback
     console.log(`🎨 [AI Art Director] Using contextual semantic director for "${prompt}"`);
     return generateContextualArchetypes(prompt, gameTitle);
 }
 
+function inferThemeType(name = '', modifier = '') {
+    const combined = `${name} ${modifier}`.toLowerCase();
+    if (/coral|reef|pink.*sea|tropical.*fish/i.test(combined)) return 'coral';
+    if (/abyss|deep.*ocean|trench|sapphire/i.test(combined)) return 'ocean';
+    if (/marine|cartoon.*fish|aquatic|aquarium/i.test(combined)) return 'marine';
+    if (/atlantis|sunken.*palace|golden.*temple/i.test(combined)) return 'atlantis';
+    if (/cyber|neon|synth|hologram|tokyo|glitch|future/i.test(combined)) return 'cyber';
+    if (/void|space|cosm|galaxy|planet|orbit|nebula|star/i.test(combined)) return 'void';
+    if (/arcade|pixel|16-bit|8-bit|retro|voxel/i.test(combined)) return 'arcade';
+    if (/sci-fi|mecha|station|laser|tech/i.test(combined)) return 'scifi';
+    if (/fantasy|citadel|castle|medieval|knight|magic/i.test(combined)) return 'fantasy';
+    if (/forest|grove|nature|mushroom|wood|plant/i.test(combined)) return 'nature';
+    if (/dark|gothic|shadow|horror|spooky|vampire|skull/i.test(combined)) return 'dark';
+    if (/celestial|sun|ethereal|radiant|angel|cloud/i.test(combined)) return 'celestial';
+    return 'arcade';
+}
+
 /**
- * Main Entry Point: Direct 4 visual styles and generate FLUX concept art
+ * Main Entry Point: Direct 4 visual styles and generate concept art
  */
 export async function directVisualDirections({ prompt, gameTitle = 'Game' }) {
     if (!prompt) throw new Error('Prompt is required');
 
     console.log(`✨ [AI Art Director] Directing styles for: "${prompt}" (Title: ${gameTitle})`);
 
-    // 1. LLM invents the 4 styles tailored to the game
+    // 1. LLM invents the 4 styles tailored specifically to the game
     const directionsPlan = await callLLMForDirections(prompt, gameTitle);
 
-    // 2. Concurrently dispatch to FLUX to generate concept art for each direction
+    // 2. Concurrently attempt FLUX concept art with a fast 4s timeout per card so UI never hangs
     const directionPromises = directionsPlan.map(async (dir, index) => {
         const imagePrompt = `Video game concept art of ${prompt}, ${dir.modifier}, 1:1 square ratio, centered composition, high visual fidelity, concept artwork`;
+        const themeType = dir.themeType || inferThemeType(dir.name, dir.modifier);
         
+        let imageUrl = null;
         try {
-            const fluxResult = await generateAndUploadFluxImage({
-                prompt: imagePrompt,
-                width: 1024,
-                height: 1024,
-                steps: 25,
-                cfg_scale: 3.5,
-                prefix: 'visual-directions',
-            });
+            // Give Flux up to 4.5 seconds so fast cached/NVIDIA runs succeed, but slow runs don't lock the client
+            const fluxTimeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Flux timeout')), 4500));
+            const fluxResult = await Promise.race([
+                generateAndUploadFluxImage({
+                    prompt: imagePrompt,
+                    width: 768,
+                    height: 768,
+                    steps: 16,
+                    cfg_scale: 3.5,
+                    prefix: 'visual-directions',
+                }),
+                fluxTimeoutPromise
+            ]);
 
-            return {
-                id: `direction-${Date.now()}-${index + 1}`,
-                name: dir.name,
-                tagline: dir.tagline || 'Visual Direction',
-                description: `A stylized interpretation of ${prompt} directed in ${dir.name.toLowerCase()} aesthetic.`,
-                icon: dir.icon || 'sparkles',
-                colors: dir.colors || ['#000000', '#333333', '#666666', '#FFFFFF'],
-                instruction: dir.instruction || `Use a ${dir.name} visual aesthetic with cohesive colors and clean UI.`,
-                modifier: dir.modifier,
-                imageUrl: fluxResult.imageUrl,
-            };
+            if (fluxResult?.imageUrl) {
+                imageUrl = fluxResult.imageUrl;
+            }
         } catch (imgErr) {
-            console.warn(`[AI Art Director] Flux image generation failed for "${dir.name}":`, imgErr.message);
-            return {
-                id: `direction-${Date.now()}-${index + 1}`,
-                name: dir.name,
-                tagline: dir.tagline || 'Visual Direction',
-                description: `A stylized interpretation of ${prompt} directed in ${dir.name.toLowerCase()} aesthetic.`,
-                icon: dir.icon || 'sparkles',
-                colors: dir.colors || ['#000000', '#333333', '#666666', '#FFFFFF'],
-                instruction: dir.instruction || `Use a ${dir.name} visual aesthetic with cohesive colors and clean UI.`,
-                modifier: dir.modifier,
-                imageUrl: null,
-            };
+            // Soft failure: the card will render with its bespoke theme gradient & icon
+            console.log(`ℹ️ [AI Art Director] Using dynamic styling for "${dir.name}" (${imgErr.message})`);
         }
+
+        return {
+            id: `direction-${Date.now()}-${index + 1}`,
+            name: dir.name,
+            tagline: dir.tagline || 'Visual Direction',
+            description: dir.description || `A stylized interpretation of ${prompt} directed in ${dir.name.toLowerCase()} aesthetic.`,
+            icon: dir.icon || 'sparkles',
+            colors: dir.colors && dir.colors.length >= 3 ? dir.colors : ['#0F172A', '#38BDF8', '#818CF8', '#F43F5E'],
+            instruction: dir.instruction || `Use a ${dir.name} visual aesthetic with cohesive colors and clean UI.`,
+            modifier: dir.modifier,
+            themeType,
+            imageUrl,
+        };
     });
 
     const directions = await Promise.all(directionPromises);
