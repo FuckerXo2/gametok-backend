@@ -153,6 +153,54 @@ async function sendExpoPushToUsers(userIds, title, body, data = {}) {
   return tickets;
 }
 
+async function sendPushToTokenOrUser({ userId, pushToken, title, body, data = {} }) {
+  const tokens = new Set();
+  if (pushToken && Expo.isExpoPushToken(pushToken)) {
+    tokens.add(pushToken);
+  }
+  if (userId) {
+    try {
+      const userTokens = await db.getPushTokens([userId]);
+      if (Array.isArray(userTokens)) {
+        for (const t of userTokens) {
+          if (Expo.isExpoPushToken(t)) tokens.add(t);
+        }
+      }
+    } catch (e) {
+      console.warn('[Notifications] Failed to fetch user tokens:', e.message);
+    }
+  }
+
+  const tokenList = Array.from(tokens);
+  if (tokenList.length === 0) {
+    console.log('[Notifications] No valid Expo tokens to send to');
+    return [];
+  }
+
+  const messages = tokenList.map((token) => ({
+    to: token,
+    sound: 'default',
+    title,
+    body,
+    data,
+    badge: 1,
+    channelId: 'default',
+  }));
+
+  const tickets = [];
+  for (const chunk of expo.chunkPushNotifications(messages)) {
+    try {
+      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      tickets.push(...ticketChunk);
+    } catch (error) {
+      console.error('[Notifications] Error sending push chunk:', error);
+    }
+  }
+
+  console.log(`[Notifications] Sent ${tickets.length} push notification(s) for "${title}"`);
+  return tickets;
+}
+
 async function notifyUser(userId, payload, ruleOverrides = {}) {
   if (!userId || !payload?.title || !payload?.body) return { sent: false, reason: 'invalid_payload' };
 
@@ -584,6 +632,7 @@ async function sendFriendsPlayingNotifications() {
 }
 
 export {
+  sendPushToTokenOrUser,
   sendPushNotification,
   notifyUser,
   notifyLike,

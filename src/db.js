@@ -536,8 +536,24 @@ export const runMigrations = async () => {
       
       CREATE INDEX IF NOT EXISTS idx_game_progress_user_game ON game_progress(user_id, game_id);
 
+      CREATE TABLE IF NOT EXISTS forge_sessions (
+        id VARCHAR(128) PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        prompt TEXT,
+        game_title VARCHAR(255),
+        journey_view VARCHAR(64),
+        visual_directions JSONB DEFAULT '[]'::jsonb,
+        selected_direction JSONB,
+        perspectives JSONB DEFAULT '[]'::jsonb,
+        selected_perspective JSONB,
+        status VARCHAR(32) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_forge_sessions_user ON forge_sessions(user_id);
     `);
-    console.log('✅ Game progress table ready');
+    console.log('✅ Game progress & forge sessions tables ready');
   } catch (e) {
     console.log('Game progress migration:', e.message);
   } finally {
