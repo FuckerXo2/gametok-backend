@@ -13,6 +13,7 @@
 import OpenAI from 'openai';
 import { getQwenConfig, createQwenClient } from './qwen-multimodal-client.js';
 import { generateAndUploadFluxImage } from './nvidia-flux-client.js';
+import { generateGameScreenshotImage } from './openai-image-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
@@ -155,28 +156,26 @@ export async function directVisualDirections({ prompt, gameTitle = 'Game' }) {
     // 1. LLM invents the 4 styles tailored specifically to the game
     const directionsPlan = await callLLMForDirections(prompt, gameTitle);
 
-    // 2. Concurrently attempt FLUX concept art with a fast 4.5s timeout per card so UI never hangs
+    // 2. Concurrently render in-game screenshot cards using OpenAI gpt-image-2.5-flare (Low/Fast quality)
     const directionPromises = directionsPlan.map(async (dir, index) => {
         const imagePrompt = `In-game screenshot, playable video game viewport, authentic game HUD, game engine render of ${prompt}, ${dir.modifier}, 1:1 square ratio, crisp game UI, clean graphics`;
         const themeType = dir.themeType || inferThemeType(dir.name, dir.modifier);
         
         let imageUrl = null;
         try {
-            const fluxTimeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Flux timeout')), 4500));
-            const fluxResult = await Promise.race([
-                generateAndUploadFluxImage({
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Image timeout')), 7500));
+            const imgResult = await Promise.race([
+                generateGameScreenshotImage({
                     prompt: imagePrompt,
-                    width: 768,
-                    height: 768,
-                    steps: 16,
-                    cfg_scale: 3.5,
+                    size: '512x512',
+                    quality: 'low',
                     prefix: 'visual-directions',
                 }),
-                fluxTimeoutPromise
+                timeoutPromise
             ]);
 
-            if (fluxResult?.imageUrl) {
-                imageUrl = fluxResult.imageUrl;
+            if (imgResult?.imageUrl) {
+                imageUrl = imgResult.imageUrl;
             }
         } catch (imgErr) {
             console.log(`ℹ️ [AI Art Director] Using dynamic styling for "${dir.name}" (${imgErr.message})`);
@@ -266,21 +265,19 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
 
         let imageUrl = null;
         try {
-            const fluxTimeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Flux timeout')), 4500));
-            const fluxResult = await Promise.race([
-                generateAndUploadFluxImage({
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Image timeout')), 7500));
+            const imgResult = await Promise.race([
+                generateGameScreenshotImage({
                     prompt: imagePrompt,
-                    width: 768,
-                    height: 768,
-                    steps: 16,
-                    cfg_scale: 3.5,
+                    size: '512x512',
+                    quality: 'low',
                     prefix: 'camera-perspectives',
                 }),
-                fluxTimeoutPromise
+                timeoutPromise
             ]);
 
-            if (fluxResult?.imageUrl) {
-                imageUrl = fluxResult.imageUrl;
+            if (imgResult?.imageUrl) {
+                imageUrl = imgResult.imageUrl;
             }
         } catch (imgErr) {
             console.log(`ℹ️ [Camera Perspective] Thumbnail generated via styling for "${p.name}" (${imgErr.message})`);
