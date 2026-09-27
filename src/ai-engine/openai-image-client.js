@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { generateAndUploadFluxImage } from './nvidia-flux-client.js';
 
 let s3Client = null;
 function getS3Client() {
@@ -44,8 +43,8 @@ async function uploadBufferToR2(buffer, prefix = 'game-images', mimeType = 'imag
 }
 
 /**
- * Generate game screenshot card using OpenAI gpt-image-2.5-flare (Low/Fast quality).
- * Seamlessly falls back to FLUX if credits are exhausted.
+ * Generate game screenshot card strictly using OpenAI gpt-image-2.5-flare (Low/Fast quality).
+ * NO FALLBACKS: If OpenAI fails or has no credits, throws error directly.
  */
 export async function generateGameScreenshotImage({
     prompt,
@@ -55,53 +54,32 @@ export async function generateGameScreenshotImage({
 }) {
     const apiKey = process.env.OPENAI_API_KEY;
 
-    if (apiKey) {
-        try {
-            console.log(`⚡ [OpenAI Image] Generating with gpt-image-2.5-flare (${quality}, ${size})...`);
-            const openai = new OpenAI({ apiKey, timeout: 8000 });
-
-            const response = await openai.images.generate({
-                model: 'gpt-image-2.5-flare',
-                prompt,
-                n: 1,
-                size,
-            });
-
-            const imageData = response?.data?.[0];
-            if (imageData?.b64_json) {
-                const buffer = Buffer.from(imageData.b64_json, 'base64');
-                const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
-                return { imageUrl, source: 'gpt-image-2.5-flare' };
-            } else if (imageData?.url) {
-                // Fetch image buffer and upload to R2 for permanent CDN persistence
-                const imgRes = await fetch(imageData.url);
-                const arrayBuffer = await imgRes.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
-                return { imageUrl, source: 'gpt-image-2.5-flare' };
-            }
-        } catch (openaiErr) {
-            console.warn(`⚠️ [OpenAI Image] gpt-image-2.5-flare failed (${openaiErr.message}). Checking fallback...`);
-        }
+    if (!apiKey) {
+        throw new Error('OPENAI_API_KEY is not configured in environment variables');
     }
 
-    // Fallback: If OpenAI key has no credits or times out, try FLUX
-    try {
-        console.log(`🎨 [Image Generator] Trying backup generator for "${prompt.slice(0, 50)}..."`);
-        const fluxRes = await generateAndUploadFluxImage({
-            prompt,
-            width: 768,
-            height: 768,
-            steps: 12,
-            cfg_scale: 3.5,
-            prefix,
-        });
-        if (fluxRes?.imageUrl) {
-            return { imageUrl: fluxRes.imageUrl, source: 'flux' };
-        }
-    } catch (fluxErr) {
-        console.warn(`⚠️ [Image Generator] Backup generator error: ${fluxErr.message}`);
+    console.log(`⚡ [OpenAI Image] Generating with gpt-image-2.5-flare (${quality}, ${size})...`);
+    const openai = new OpenAI({ apiKey, timeout: 15000 });
+
+    const response = await openai.images.generate({
+        model: 'gpt-image-2.5-flare',
+        prompt,
+        n: 1,
+        size,
+    });
+
+    const imageData = response?.data?.[0];
+    if (imageData?.b64_json) {
+        const buffer = Buffer.from(imageData.b64_json, 'base64');
+        const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
+        return { imageUrl, source: 'gpt-image-2.5-flare' };
+    } else if (imageData?.url) {
+        const imgRes = await fetch(imageData.url);
+        const arrayBuffer = await imgRes.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
+        return { imageUrl, source: 'gpt-image-2.5-flare' };
     }
 
-    return { imageUrl: null, source: 'none' };
+    throw new Error('OpenAI gpt-image-2.5-flare returned no image data');
 }

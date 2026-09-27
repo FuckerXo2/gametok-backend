@@ -11,8 +11,6 @@
  */
 
 import OpenAI from 'openai';
-import { getQwenConfig, createQwenClient } from './qwen-multimodal-client.js';
-import { generateAndUploadFluxImage } from './nvidia-flux-client.js';
 import { generateGameScreenshotImage } from './openai-image-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
 
