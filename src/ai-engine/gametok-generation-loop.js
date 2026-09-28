@@ -14,6 +14,8 @@ import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } fro
 import { callGeminiFlashJson } from './gemini-client.js';
 import { callQwenJson, callQwenMultimodal } from './qwen-multimodal-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
+import { matchAssetsForPrompt } from './asset-catalog.js';
+import { detectPerspectiveRequirement } from './ai-art-director.js';
 
 const DEFAULT_NATIVE_GAME_SCRIPT = `
 (function() {
@@ -137,6 +139,62 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
     console.log(`🚀 [GameTok Loop] Starting job ${gameState.jobId} (${runtime}, ${orientation}) with model: ${gameState.currentModelOwner}`);
     gameState.status = 'in_progress';
 
+    // Asset preparation & discovery
+    const attachments = Array.isArray(jobParams.attachments) ? jobParams.attachments : [];
+    let audioAsset = jobParams.selectedAudio || attachments.find(a => a.type?.startsWith('audio') || a.role === 'background_music' || a.role === 'sound_effect') || null;
+    let videoAsset = jobParams.selectedVideo || attachments.find(a => a.type?.startsWith('video') || a.role === 'background' || a.role === 'video_backdrop') || null;
+    let spriteAsset = jobParams.selectedMeme || attachments.find(a => a.type?.startsWith('image') || a.role === 'player' || a.role === 'character' || a.role === 'meme') || null;
+    let model3dAsset = jobParams.selected3DModel || attachments.find(a => a.type?.includes('model') || a.type?.includes('gltf') || a.type?.includes('glb') || a.role === 'model3d') || null;
+
+    // Check if user did NOT select any assets -> intelligent catalog matching or pure procedural
+    const hasExplicitAssets = Boolean(audioAsset || videoAsset || spriteAsset || model3dAsset);
+    let matchedCatalog = null;
+    if (!hasExplicitAssets) {
+        matchedCatalog = matchAssetsForPrompt(gameState.prompt);
+        if (matchedCatalog.isPureProcedural) {
+            console.log(`🎨 [GameTok Loop] Concept "${gameState.prompt}" identified as purely procedural.`);
+        } else {
+            if (!audioAsset && matchedCatalog.audio) audioAsset = matchedCatalog.audio;
+            if (!videoAsset && matchedCatalog.video) videoAsset = matchedCatalog.video;
+            if (!spriteAsset && matchedCatalog.sprite) spriteAsset = matchedCatalog.sprite;
+            if (!model3dAsset && matchedCatalog.model3d) model3dAsset = matchedCatalog.model3d;
+        }
+    }
+
+    // Camera perspective resolution & auto-lock
+    let perspectiveSpec = jobParams.selectedPerspective;
+    if (!perspectiveSpec) {
+        const req = detectPerspectiveRequirement(gameState.prompt);
+        if (!req.requiresSelection && req.defaultPerspective) {
+            perspectiveSpec = req.defaultPerspective;
+        }
+    }
+
+    let assetSpecPrompt = `\n\n--- ACTIVE ASSET & CAMERA DIRECTIVES ---`;
+    if (matchedCatalog?.isPureProcedural) {
+        assetSpecPrompt += `\nMODE: PURE PROCEDURAL. Do NOT use external assets. Synthesize all shapes, particles, and audio tones procedurally with Web Audio API.`;
+    } else {
+        if (audioAsset) {
+            assetSpecPrompt += `\nAUDIO BGM: "${audioAsset.url}" (Title: ${audioAsset.title || audioAsset.label || 'BGM'}). Play on first touch gesture, loop=true, volume=0.35. Always provide procedural Web Audio fallback.`;
+        }
+        if (videoAsset) {
+            assetSpecPrompt += `\nVIDEO BACKDROP: "${videoAsset.url}" (Title: ${videoAsset.title || videoAsset.label || 'Backdrop'}). Render as background underlay <video autoplay loop muted playsinline>. Make WebGL/Canvas transparent (renderer.setClearColor(0x000000, 0)).`;
+        }
+        if (spriteAsset) {
+            assetSpecPrompt += `\nSPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to player/collectable entity. Add procedural fallback mesh on error.`;
+        }
+        if (model3dAsset) {
+            assetSpecPrompt += `\n3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via THREE.GLTFLoader, normalize bounding box scale, play animation mixer if present. Fall back to procedural Three.js mesh if load fails.`;
+        }
+    }
+    if (perspectiveSpec) {
+        assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;
+    }
+    if (jobParams.selectedDirection) {
+        assetSpecPrompt += `\nVISUAL STYLE: ${jobParams.selectedDirection.name}. ${jobParams.selectedDirection.instruction || jobParams.selectedDirection.modifier}`;
+    }
+    assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any asset fails to load, catch the error and instantly fall back to procedural geometry / Web Audio synth. The game MUST NEVER crash or freeze!`;
+
     let toolCallCount = 0;
 
     while (gameState.attemptCount < gameState.maxAttempts) {
@@ -157,7 +215,7 @@ CRITICAL ARCHITECTURE RULES:
    - engine.destroyEntity(id): Removes entity from the scene.
    - engine.setPosition(id, x, y, z): Updates entity position.
    - engine.setRotation(id, rx, ry, rz): Updates entity Euler angles in radians.
-   - engine.setScale(id, sx, sy, sz): Updates entity 3D scale.
+   - engine.setScale(id, sx, sz, sz): Updates entity 3D scale.
    - engine.setColor(id, r, g, b, a): Updates entity color/tint.
    - engine.clearEntities(): Wipes all entities.
    - engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ): Directs 3D perspective camera.
@@ -185,7 +243,7 @@ CRITICAL ARCHITECTURE RULES:
      "thumbnailPrompt": "Midjourney style prompt for cover art"
    }`;
 
-            userPrompt = `Build a high-performance native 3D GameTok JavaScript game for prompt: "${gameState.prompt}"`;
+            userPrompt = `Build a high-performance native 3D GameTok JavaScript game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
             if (gameState.errorHistory.length > 0) {
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
                 userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return the corrected JSON.`;
@@ -201,7 +259,7 @@ Orientation: ${orientation.toUpperCase()}. ${orientationRules}
 You MUST output valid, runnable HTML containing all JS code in a single file.
 ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
 
-            userPrompt = `Build a playable 3D Three.js game for prompt: "${gameState.prompt}"`;
+            userPrompt = `Build a playable 3D Three.js game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
             if (gameState.errorHistory.length > 0) {
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
                 userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return the corrected complete game HTML.`;

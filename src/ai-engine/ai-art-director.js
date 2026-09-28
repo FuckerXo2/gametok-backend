@@ -13,14 +13,16 @@
 import OpenAI from 'openai';
 import { generateGameScreenshotImage } from './openai-image-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
+import { matchAssetsForPrompt, isConceptPureProcedural } from './asset-catalog.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
-The user will provide a game title and concept prompt.
-Your task is to invent exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to that game concept.
+The user will provide a game title, concept prompt, and any attached or selected assets.
+Your task is to invent exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to that game concept and its assets.
 
 Rules:
 - NEVER output generic out-of-context styles or default to clay/cute styles unless the game explicitly asks for it.
 - Each direction must feel like a genuine, thoughtful creative pitch for that exact game world.
+- If assets (videos, stickers, 3D models, audio) are active, ensure the visual styling complements, incorporates, and frames them gracefully.
 - Ensure diversity in mediums (e.g. 16-Bit Masterpiece Pixel Art, High-Octane Cel-Shaded Anime, Stylized Low-Poly 3D, Vibrant Neo-Arcade, Hand-Inked Graphic Novel, Moody Dark Fantasy, Retro Synthwave, Clean Vector 2D, etc.) appropriate to the game genre.
 - The modifier MUST be structured for generating an authentic IN-GAME PLAYABLE SCREENSHOT (with game HUD, player character/vehicle, environment, and clean game graphics), NOT generic poster art.
 
@@ -39,20 +41,31 @@ You MUST respond with valid JSON strictly matching this schema:
 }`;
 
 /**
- * Removed hardcoded regex archetypes. Directions must always be generated dynamically by Gemini 3.7 Flash.
+ * Call LLM to invent 4 custom directions tailored specifically to the game and its assets
  */
+async function callLLMForDirections(prompt, gameTitle, selectedAssets = []) {
+    let assetContext = '';
+    if (Array.isArray(selectedAssets) && selectedAssets.length > 0) {
+        assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type || 'asset'}: ${a.label || a.title || a.url}`).join('\n');
+    } else {
+        const auto = matchAssetsForPrompt(prompt);
+        if (auto.isPureProcedural) {
+            assetContext = '\nGame Aesthetic Note: Pure procedural concept (no external assets needed). Emphasize clean procedural geometry and styling.';
+        } else if (auto.video || auto.audio || auto.sprite || auto.model3d) {
+            const list = [auto.video?.title, auto.audio?.title, auto.sprite?.title, auto.model3d?.name].filter(Boolean);
+            if (list.length > 0) {
+                assetContext = `\nRecommended Asset Alignment: [${list.join(', ')}]`;
+            }
+        }
+    }
 
-/**
- * Call LLM to invent 4 custom directions tailored specifically to the game
- */
-async function callLLMForDirections(prompt, gameTitle) {
-    // 1. Try Gemini 3.7 Flash first (ultra-fast, highly creative, reliable)
+    // 1. Try Gemini 3.8 Flash first (ultra-fast, highly creative, reliable)
     try {
-        console.log(`🧠 [AI Art Director] Prompting Gemini 3.7 Flash for visual directions...`);
+        console.log(`🧠 [AI Art Director] Prompting Gemini 3.8 Flash for visual directions...`);
         const parsed = await callGeminiFlashJson({
             systemPrompt: SYSTEM_PROMPT,
             messages: [
-                { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}` },
+                { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
             ],
             temperature: 0.7,
             maxTokens: 1500,
@@ -146,13 +159,13 @@ function inferThemeType(name = '', modifier = '') {
 /**
  * Main Entry Point: Direct 4 visual styles and generate concept art
  */
-export async function directVisualDirections({ prompt, gameTitle = 'Game' }) {
+export async function directVisualDirections({ prompt, gameTitle = 'Game', selectedAssets = [] }) {
     if (!prompt) throw new Error('Prompt is required');
 
-    console.log(`✨ [AI Art Director] Directing styles for: "${prompt}" (Title: ${gameTitle})`);
+    console.log(`✨ [AI Art Director] Directing styles for: "${prompt}" (Title: ${gameTitle}, Assets: ${selectedAssets?.length || 0})`);
 
     // 1. LLM invents the 4 styles tailored specifically to the game
-    const directionsPlan = await callLLMForDirections(prompt, gameTitle);
+    const directionsPlan = await callLLMForDirections(prompt, gameTitle, selectedAssets);
 
     // 2. Concurrently render in-game screenshot cards using OpenAI gpt-image-2.5-flare (Low/Fast quality)
     const directionPromises = directionsPlan.map(async (dir, index) => {
@@ -229,13 +242,146 @@ You MUST respond with valid JSON strictly matching this schema:
 }`;
 
 /**
- * Step 2: Direct 4 camera perspectives tailored to the game and chosen style
+ * Evaluates whether perspective selection should be bypassed or auto-locked.
+ * Bypasses selection when:
+ * 1. User prompt already specifies camera perspective (e.g. top-down, first-person, side-scroller, isometric).
+ * 2. Genre is inherently 2D / fixed-grid (e.g. Match-3, Candy Crush, 2048, Sudoku, Solitaire, Cards, Flappy Bird).
  */
-export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection }) {
+export function detectPerspectiveRequirement(prompt = '', gameTitle = '') {
+    const text = `${prompt} ${gameTitle}`.toLowerCase();
+
+    // 1. Explicit camera stated by user in prompt
+    if (text.includes('first person') || text.includes('first-person') || text.includes('fps') || text.includes('cockpit') || text.includes('pov')) {
+        return {
+            requiresSelection: false,
+            reason: 'User explicitly requested first-person view',
+            defaultPerspective: {
+                id: `perspective-${Date.now()}-fp`,
+                name: 'First-Person POV Cockpit',
+                tagline: 'Immersive Cockpit',
+                dimension: '3D',
+                icon: 'eye',
+                cameraInstruction: 'First-person perspective camera attached to player eye height with pointer/touch look rotation',
+                modifier: 'first-person cockpit POV viewport looking forward',
+                imageUrl: null,
+            }
+        };
+    }
+
+    if (text.includes('top down') || text.includes('top-down') || text.includes('birds eye') || text.includes("bird's eye") || text.includes('overhead')) {
+        return {
+            requiresSelection: false,
+            reason: 'User explicitly requested top-down view',
+            defaultPerspective: {
+                id: `perspective-${Date.now()}-td`,
+                name: 'Top-Down Tactical View',
+                tagline: 'Direct Overhead View',
+                dimension: '2.5D',
+                icon: 'airplane',
+                cameraInstruction: 'Camera positioned directly above player (Y=20, Z=5) looking straight down at the playfield',
+                modifier: 'top-down bird-eye tactical camera viewport',
+                imageUrl: null,
+            }
+        };
+    }
+
+    if (text.includes('side scroll') || text.includes('side-scroll') || text.includes('sidescroll') || text.includes('platformer')) {
+        return {
+            requiresSelection: false,
+            reason: 'User requested side-scrolling platformer view',
+            defaultPerspective: {
+                id: `perspective-${Date.now()}-ss`,
+                name: 'Classic Flat 2D Side-View',
+                tagline: 'Side-Scrolling Platform',
+                dimension: '2D',
+                icon: 'walk',
+                cameraInstruction: 'Orthographic camera following player on X and Y axes with fixed Z depth',
+                modifier: 'horizontal side-scrolling 2D plane viewport',
+                imageUrl: null,
+            }
+        };
+    }
+
+    if (text.includes('isometric') || text.includes('dihedral') || text.includes('3/4 view')) {
+        return {
+            requiresSelection: false,
+            reason: 'User explicitly requested isometric view',
+            defaultPerspective: {
+                id: `perspective-${Date.now()}-iso`,
+                name: 'Isometric 3/4 Dihedral',
+                tagline: 'Angled Tactical View',
+                dimension: '3D',
+                icon: 'cube',
+                cameraInstruction: 'Camera positioned at 45-degree azimuth and 35.264-degree elevation with telephoto projection',
+                modifier: 'isometric 3/4 angled camera viewport with clean grid lines',
+                imageUrl: null,
+            }
+        };
+    }
+
+    // 2. Inherent 2D / Fixed-Grid Genres (Candy Crush, 2048, Cards, Sudoku, etc.)
+    const fixed2DKeywords = [
+        'candy crush', 'match-3', 'match 3', 'gem match', 'tile match', 'bubble shooter',
+        '2048', 'sliding tile', 'sudoku', 'crossword', 'wordle', 'trivia', 'quiz',
+        'tic tac toe', 'tictactoe', 'connect 4', 'connect four', 'minesweeper',
+        'solitaire', 'blackjack', 'poker', 'card game', 'card battler', 'chess', 'checkers',
+        'flappy', 'flappy bird', 'brick breaker', 'breakout', 'pong', 'pinball',
+        'idle clicker', 'cookie clicker', 'tap tap', 'piano tiles'
+    ];
+
+    if (fixed2DKeywords.some(kw => text.includes(kw))) {
+        return {
+            requiresSelection: false,
+            reason: 'Inherent 2D / fixed-grid puzzle genre (no 3D camera needed)',
+            defaultPerspective: {
+                id: `perspective-${Date.now()}-2d-board`,
+                name: 'Classic 2D Board View',
+                tagline: 'Direct Orthogonal View',
+                dimension: '2D',
+                icon: 'grid',
+                cameraInstruction: 'Fixed 2D Orthographic Camera directly facing the game board and interactive grid',
+                modifier: 'flat 2D orthographic board viewport with clean UI and high readability',
+                imageUrl: null,
+            }
+        };
+    }
+
+    return {
+        requiresSelection: true,
+        reason: 'Dynamic 3D genre requiring tailored camera perspective options',
+        defaultPerspective: null,
+    };
+}
+
+/**
+ * Step 2: Direct 4 camera perspectives tailored to the game, chosen style, and assets
+ */
+export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [] }) {
     if (!prompt) throw new Error('Prompt is required');
+
+    // 1. Check if camera perspective is already explicit or fixed by genre (e.g. Candy Crush)
+    const perspectiveRequirement = detectPerspectiveRequirement(prompt, gameTitle);
+    if (!perspectiveRequirement.requiresSelection && perspectiveRequirement.defaultPerspective) {
+        console.log(`🎥 [Camera Perspective] Auto-locking perspective for "${prompt}": ${perspectiveRequirement.defaultPerspective.name} (${perspectiveRequirement.reason}). Skipping picker.`);
+        return {
+            success: true,
+            requiresSelection: false,
+            reason: perspectiveRequirement.reason,
+            defaultPerspective: perspectiveRequirement.defaultPerspective,
+            perspectives: [perspectiveRequirement.defaultPerspective],
+            prompt,
+            gameTitle,
+            selectedDirection,
+        };
+    }
 
     const styleName = selectedDirection?.name || 'Selected Visual Style';
     const styleModifier = selectedDirection?.modifier || '';
+
+    let assetContext = '';
+    if (Array.isArray(selectedAssets) && selectedAssets.length > 0) {
+        assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type}: ${a.label || a.title || a.url}`).join('\n') + '\nFrame camera perspectives around these active assets.';
+    }
 
     console.log(`🎥 [Camera Perspective] Generating 4 perspectives for "${prompt}" (Style: ${styleName})...`);
 
@@ -244,7 +390,7 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
         messages: [
             {
                 role: 'user',
-                content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}`,
+                content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}`,
             },
         ],
         temperature: 0.7,

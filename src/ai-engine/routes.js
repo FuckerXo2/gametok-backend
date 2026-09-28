@@ -996,6 +996,11 @@ function sanitizeMediaAttachments(rawAttachments = []) {
                 url,
                 type: String(attachment.type || 'image/png'),
                 role: String(attachment.role || 'reference'),
+                label: attachment.label ? String(attachment.label) : undefined,
+                title: attachment.title ? String(attachment.title) : undefined,
+                instruction: attachment.instruction ? String(attachment.instruction) : undefined,
+                category: attachment.category ? String(attachment.category) : undefined,
+                genre: attachment.genre ? String(attachment.genre) : undefined,
             };
         })
         .filter(Boolean);
@@ -1056,6 +1061,13 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             orientation,
             runtime,
             attachments: mediaAttachments,
+            selectedAudio: jobPayload?.selectedAudio || null,
+            selectedVideo: jobPayload?.selectedVideo || null,
+            selectedMeme: jobPayload?.selectedMeme || null,
+            selected3DModel: jobPayload?.selected3DModel || null,
+            selectedDirection: jobPayload?.selectedDirection || null,
+            selectedPerspective: jobPayload?.selectedPerspective || null,
+            dimension: jobPayload?.dimension || null,
             maxAttempts: 5,
         }, orchestrator);
 
@@ -1294,7 +1306,9 @@ router.post('/generate-visual-directions', async (req, res) => {
         }
 
         console.log(`🌟 [Visual Directions] AI Art Director conceptualizing directions for "${prompt}"...`);
-        const result = await directVisualDirections({ prompt, gameTitle });
+        const { attachments: rawAttachments = [] } = req.body;
+        const selectedAssets = sanitizeMediaAttachments(rawAttachments);
+        const result = await directVisualDirections({ prompt, gameTitle, selectedAssets });
 
         const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         saveForgeSession(activeSessionId, {
@@ -1335,7 +1349,7 @@ router.post('/generate-visual-directions', async (req, res) => {
 
 router.post('/generate-perspectives', async (req, res) => {
     try {
-        const { prompt, gameTitle = 'Game', selectedDirection, sessionId, pushToken } = req.body;
+        const { prompt, gameTitle = 'Game', selectedDirection, attachments: rawAttachments = [], sessionId, pushToken } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
         let userId = null;
@@ -1350,8 +1364,9 @@ router.post('/generate-perspectives', async (req, res) => {
             }
         }
 
-        console.log(`🎥 [Camera Perspectives] Generating 4 perspectives for "${prompt}"...`);
-        const result = await directPerspectives({ prompt, gameTitle, selectedDirection });
+        console.log(`🎥 [Camera Perspectives] Directing perspectives for "${prompt}"...`);
+        const selectedAssets = sanitizeMediaAttachments(rawAttachments);
+        const result = await directPerspectives({ prompt, gameTitle, selectedDirection, selectedAssets });
 
         const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         saveForgeSession(activeSessionId, {
@@ -1360,26 +1375,29 @@ router.post('/generate-perspectives', async (req, res) => {
             prompt,
             gameTitle,
             selectedDirection,
-            journeyView: 'perspective',
+            journeyView: result.requiresSelection ? 'perspective' : 'building',
             perspectives: result.perspectives,
+            selectedPerspective: result.defaultPerspective || null,
             isPerspectivesReady: true,
             updatedAt: Date.now(),
         }).catch(e => console.warn('[Forge Session] save error:', e.message));
 
-        sendPushToTokenOrUser({
-            userId,
-            pushToken,
-            title: 'Camera angles ready! 🎥',
-            body: `Choose your camera perspective for "${gameTitle || prompt}"`,
-            data: {
-                type: 'creation',
-                action: 'perspectives_ready',
-                journeyView: 'perspective',
-                sessionId: activeSessionId,
-                prompt,
-                gameTitle,
-            }
-        }).catch(err => console.warn('[Camera Perspectives] Push notification error:', err.message));
+        if (result.requiresSelection) {
+            sendPushToTokenOrUser({
+                userId,
+                pushToken,
+                title: 'Camera angles ready! 🎥',
+                body: `Choose your camera perspective for "${gameTitle || prompt}"`,
+                data: {
+                    type: 'creation',
+                    action: 'perspectives_ready',
+                    journeyView: 'perspective',
+                    sessionId: activeSessionId,
+                    prompt,
+                    gameTitle,
+                }
+            }).catch(err => console.warn('[Camera Perspectives] Push notification error:', err.message));
+        }
 
         res.json({
             ...result,
@@ -1494,7 +1512,19 @@ router.post('/refine-spec', async (req, res) => {
 
 router.post('/dream', async (req, res) => {
     try {
-        const { prompt, attachments, orientation: requestedOrientation, runtime: requestedRuntime } = req.body;
+        const {
+            prompt,
+            attachments,
+            orientation: requestedOrientation,
+            runtime: requestedRuntime,
+            selectedAudio,
+            selectedVideo,
+            selectedMeme,
+            selected3DModel,
+            selectedDirection,
+            selectedPerspective,
+            dimension,
+        } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Expired session');
@@ -1519,7 +1549,18 @@ router.post('/dream', async (req, res) => {
             prompt,
             title: JOB_TITLES.dreamPending,
             kind: 'dream',
-            payload: { mediaAttachments, orientation, runtime },
+            payload: {
+                mediaAttachments,
+                orientation,
+                runtime,
+                selectedAudio: selectedAudio || null,
+                selectedVideo: selectedVideo || null,
+                selectedMeme: selectedMeme || null,
+                selected3DModel: selected3DModel || null,
+                selectedDirection: selectedDirection || null,
+                selectedPerspective: selectedPerspective || null,
+                dimension: dimension || null,
+            },
             allowDuplicate: true,
         });
 

@@ -22,6 +22,7 @@ import { callQwenJson, callQwenMultimodal } from './qwen-multimodal-client.js';
 import { evaluateMidLoopHandoff, MODEL_QWEN_MAX } from './model-router.js';
 import { viewportFor } from './orientation.js';
 import { THREEJS_PERFORMANCE_SKILL_ID, THREEJS_PERFORMANCE_SKILL_CONTENT } from './threejs-performance-skill.js';
+import { ASSET_INTELLIGENCE_SKILL_ID, ASSET_INTELLIGENCE_SKILL_CONTENT } from './asset-intelligence-skill.js';
 
 
 const HERMES_HOME = process.env.HERMES_HOME || path.join(process.cwd(), 'storage', '.hermes');
@@ -43,6 +44,14 @@ export class HermesHeadlessOrchestrator {
             id: THREEJS_PERFORMANCE_SKILL_ID,
             name: 'threejs_performance_rapier_wasm',
             content: THREEJS_PERFORMANCE_SKILL_CONTENT,
+            status: 'active'
+        });
+
+        // Pre-load foundational Asset Intelligence, Procedural Fallback & Camera Rigging Skill
+        this.activeSkills.set(ASSET_INTELLIGENCE_SKILL_ID, {
+            id: ASSET_INTELLIGENCE_SKILL_ID,
+            name: 'asset_intelligence_procedural_perspective',
+            content: ASSET_INTELLIGENCE_SKILL_CONTENT,
             status: 'active'
         });
         
