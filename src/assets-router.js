@@ -80,7 +80,7 @@ router.get('/packs', async (req, res) => {
 
       if (search && search.trim()) {
         const searchTerm = `%${search.trim().toLowerCase()}%`;
-        whereClauses.push(`(LOWER(title) LIKE $${paramIndex} OR LOWER(description) LIKE $${paramIndex})`);
+        whereClauses.push(`(LOWER(title) LIKE $${paramIndex} OR LOWER(description) LIKE $${paramIndex} OR LOWER(id) LIKE $${paramIndex})`);
         queryParams.push(searchTerm);
         paramIndex++;
       }
