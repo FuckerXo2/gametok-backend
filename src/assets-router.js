@@ -382,6 +382,10 @@ router.get('/trending', async (req, res) => {
 // ─── BACKGROUND VIDEO LOOPS SYSTEM ───
 
 const VIDEO_CATEGORIES = [
+  { id: 'my_videos', label: 'My Videos', chips: [] },
+  { id: 'brainrot', label: 'Brainrot', chips: ['italian', 'tung_tung', 'brr_brr', 'tralalero', 'skibidi', 'sigma', 'ohio', 'mewing'] },
+  { id: 'parkour', label: 'Parkour', chips: ['subway_surfers', 'minecraft', 'roblox', 'speedrun', 'stunt', 'loop'] },
+  { id: 'memes', label: 'Memes', chips: ['cursed', 'npc', 'viral', 'funny', 'compilation'] },
   { id: 'trending', label: 'Trending', chips: [] },
   { id: 'synthwave', label: 'Synthwave', chips: ['neon', 'grid', 'retro', '80s', 'outrun', 'horizon'] },
   { id: 'space', label: 'Space', chips: ['warp', 'stars', 'galaxy', 'nebula', 'hyperspace', 'orbit'] },
@@ -390,7 +394,6 @@ const VIDEO_CATEGORIES = [
   { id: 'atmosphere', label: 'Atmosphere', chips: ['fog', 'dungeon', 'underwater', 'torches', 'clouds', 'dark'] },
   { id: 'nature', label: 'Nature', chips: ['forest', 'waterfall', 'mountains', 'night', 'ocean', 'sunset'] },
   { id: 'abstract', label: 'Abstract', chips: ['fluid', 'gradient', 'waves', 'geometric', 'minimal', 'vj'] },
-  { id: 'my_videos', label: 'My Videos', chips: [] },
 ];
 
 // GET /api/assets/videos/categories
