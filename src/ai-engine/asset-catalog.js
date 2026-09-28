@@ -169,93 +169,30 @@ export const CURATED_3D_MODELS = [
 ];
 
 /**
- * Detect if a game concept is best executed purely procedurally without external assets
- * (e.g. minimalist geometry, math puzzles, sandbox physics, wireframe, particles)
+ * Format catalog summary for Hermes and Gemini AI reasoning
+ * The AI evaluates the prompt and dynamically selects fitting catalog assets,
+ * plans the game loop around them, or chooses pure procedural generation.
  */
-export function isConceptPureProcedural(prompt = '') {
-    const p = String(prompt || '').toLowerCase();
-    const proceduralKeywords = [
-        'procedural', 'pure code', 'wireframe', 'vector', 'geometry dash', 'geometric',
-        'math game', 'calculator', 'falling sand', 'conway', 'game of life', 'particle toy',
-        'abstract', 'minimalist', 'clean shapes', 'neon lines', 'oscilloscope', 'fractal',
-        'cube puzzle', '2048', 'sliding tile', 'sudoku', 'matrix effect'
-    ];
-    return proceduralKeywords.some(kw => p.includes(kw));
-}
-
-/**
- * Intelligently match catalog assets when the user hasn't explicitly picked assets
- * @param {string} prompt 
- * @param {object} context 
- * @returns {{ audio: object | null, video: object | null, sprite: object | null, model3d: object | null, isPureProcedural: boolean }}
- */
-export function matchAssetsForPrompt(prompt = '', context = {}) {
-    const p = String(prompt || '').toLowerCase();
-
-    // Check if the game should be purely procedural
-    if (isConceptPureProcedural(p)) {
-        return {
-            audio: null,
-            video: null,
-            sprite: null,
-            model3d: null,
-            isPureProcedural: true,
-            guidance: 'Purely procedural game. Synthesize all graphics (shapes, gradients, particles) and Web Audio tones procedurally with zero external asset dependencies.'
-        };
-    }
-
-    // 1. Audio Match
-    let matchedAudio = null;
-    if (p.includes('pixel') || p.includes('8-bit') || p.includes('retro') || p.includes('arcade') || p.includes('platformer')) {
-        matchedAudio = CURATED_AUDIO_CATALOG.find(a => a.genre === 'arcade');
-    } else if (p.includes('race') || p.includes('car') || p.includes('drift') || p.includes('cyber') || p.includes('synth') || p.includes('neon') || p.includes('phonk')) {
-        matchedAudio = CURATED_AUDIO_CATALOG.find(a => a.genre === 'synthwave');
-    } else if (p.includes('fight') || p.includes('battle') || p.includes('combat') || p.includes('action') || p.includes('boss') || p.includes('shoot')) {
-        matchedAudio = CURATED_AUDIO_CATALOG.find(a => a.genre === 'action');
-    } else if (p.includes('puzzle') || p.includes('match') || p.includes('zen') || p.includes('chill') || p.includes('relax') || p.includes('lofi') || p.includes('board') || p.includes('card')) {
-        matchedAudio = CURATED_AUDIO_CATALOG.find(a => a.genre === 'chill');
-    } else {
-        matchedAudio = CURATED_AUDIO_CATALOG[0]; // Default energetic chiptune
-    }
-
-    // 2. Video Backdrop Match (only if prompt asks for runner, parkour, brainrot, highway, or space background)
-    let matchedVideo = null;
-    if (p.includes('subway') || p.includes('train') || p.includes('parkour') || p.includes('brainrot') || p.includes('skibidi') || p.includes('sigma')) {
-        matchedVideo = CURATED_VIDEO_CATALOG[0]; // Subway parkour
-    } else if (p.includes('minecraft') || p.includes('speedrun') || p.includes('roblox')) {
-        matchedVideo = CURATED_VIDEO_CATALOG[1]; // Minecraft parkour
-    } else if (p.includes('highway') || p.includes('neon drive') || p.includes('synthwave')) {
-        matchedVideo = CURATED_VIDEO_CATALOG[2]; // Synthwave highway
-    } else if (p.includes('space warp') || p.includes('hyperspace') || p.includes('galaxy run')) {
-        matchedVideo = CURATED_VIDEO_CATALOG[3]; // Hyperspace tunnel
-    }
-
-    // 3. 2D Sprite Match
-    let matchedSprite = null;
-    if (p.includes('frog') || p.includes('ninja') || p.includes('hop')) {
-        matchedSprite = CURATED_SPRITE_PACKS[0];
-    } else if (p.includes('fox') || p.includes('foxy') || p.includes('cute animal') || p.includes('forest')) {
-        matchedSprite = CURATED_SPRITE_PACKS[1];
-    } else if (p.includes('robot') || p.includes('brawler') || p.includes('fighter')) {
-        matchedSprite = CURATED_SPRITE_PACKS[2];
-    }
-
-    // 4. 3D Model Match (if 3D game indicated)
-    let matched3DModel = null;
-    if (p.includes('car') || p.includes('drive') || p.includes('racing') || p.includes('sedan') || p.includes('drift')) {
-        matched3DModel = CURATED_3D_MODELS[0];
-    } else if (p.includes('space') || p.includes('ship') || p.includes('flight') || p.includes('fly') || p.includes('jet')) {
-        matched3DModel = CURATED_3D_MODELS[2];
-    } else if (p.includes('3d runner') || p.includes('adventurer') || p.includes('humanoid')) {
-        matched3DModel = CURATED_3D_MODELS[1];
-    }
-
-    return {
-        audio: matchedAudio,
-        video: matchedVideo,
-        sprite: matchedSprite,
-        model3d: matched3DModel,
-        isPureProcedural: false,
-        guidance: 'Intelligently matched catalog assets based on concept theme. Blend these assets with procedural fallback support.'
-    };
+export function getCatalogSummary() {
+    return `
+AVAILABLE ASSET CATALOG (Use if appropriate to the concept; or build 100% procedurally if concept is abstract/pure code):
+- Audio BGM:
+  * Chiptune Retro Loop: "${CURATED_AUDIO_CATALOG[0].url}" (Genre: 8-bit arcade platformer)
+  * Synthwave Neon Drift: "${CURATED_AUDIO_CATALOG[2].url}" (Genre: Cyberpunk / racing / phonk)
+  * High-Energy Combat Beat: "${CURATED_AUDIO_CATALOG[3].url}" (Genre: Action / shooter / boss)
+  * Lofi Ambient Loop: "${CURATED_AUDIO_CATALOG[4].url}" (Genre: Chill / puzzle / zen)
+- Video Backdrops (for background underlay video runner/parkour):
+  * Subway Surfers Parkour: "${CURATED_VIDEO_CATALOG[0].url}"
+  * Minecraft Parkour Speedrun: "${CURATED_VIDEO_CATALOG[1].url}"
+  * Synthwave Neon Highway: "${CURATED_VIDEO_CATALOG[2].url}"
+  * Hyperspace Warp Tunnel: "${CURATED_VIDEO_CATALOG[3].url}"
+- 2D Character Sprites:
+  * Ninja Frog: "${CURATED_SPRITE_PACKS[0].idleUrl}"
+  * SunnyLand Foxy: "${CURATED_SPRITE_PACKS[1].idleUrl}"
+  * Toon Robot Fighter: "${CURATED_SPRITE_PACKS[2].idleUrl}"
+- 3D GLB Models:
+  * Sports Sedan Racer: "${CURATED_3D_MODELS[0].url}"
+  * Blocky Character: "${CURATED_3D_MODELS[1].url}"
+  * Star Fighter Scout: "${CURATED_3D_MODELS[2].url}"
+`;
 }

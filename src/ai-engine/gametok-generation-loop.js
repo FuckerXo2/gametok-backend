@@ -14,8 +14,7 @@ import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } fro
 import { callGeminiFlashJson } from './gemini-client.js';
 import { callQwenJson, callQwenMultimodal } from './qwen-multimodal-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
-import { matchAssetsForPrompt } from './asset-catalog.js';
-import { detectPerspectiveRequirement } from './ai-art-director.js';
+import { getCatalogSummary } from './asset-catalog.js';
 
 const DEFAULT_NATIVE_GAME_SCRIPT = `
 (function() {
@@ -146,46 +145,26 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
     let spriteAsset = jobParams.selectedMeme || attachments.find(a => a.type?.startsWith('image') || a.role === 'player' || a.role === 'character' || a.role === 'meme') || null;
     let model3dAsset = jobParams.selected3DModel || attachments.find(a => a.type?.includes('model') || a.type?.includes('gltf') || a.type?.includes('glb') || a.role === 'model3d') || null;
 
-    // Check if user did NOT select any assets -> intelligent catalog matching or pure procedural
+    // Check if user did NOT select any assets -> supply catalog summary for Gemini to choose or go purely procedural
     const hasExplicitAssets = Boolean(audioAsset || videoAsset || spriteAsset || model3dAsset);
-    let matchedCatalog = null;
-    if (!hasExplicitAssets) {
-        matchedCatalog = matchAssetsForPrompt(gameState.prompt);
-        if (matchedCatalog.isPureProcedural) {
-            console.log(`🎨 [GameTok Loop] Concept "${gameState.prompt}" identified as purely procedural.`);
-        } else {
-            if (!audioAsset && matchedCatalog.audio) audioAsset = matchedCatalog.audio;
-            if (!videoAsset && matchedCatalog.video) videoAsset = matchedCatalog.video;
-            if (!spriteAsset && matchedCatalog.sprite) spriteAsset = matchedCatalog.sprite;
-            if (!model3dAsset && matchedCatalog.model3d) model3dAsset = matchedCatalog.model3d;
-        }
-    }
-
-    // Camera perspective resolution & auto-lock
-    let perspectiveSpec = jobParams.selectedPerspective;
-    if (!perspectiveSpec) {
-        const req = detectPerspectiveRequirement(gameState.prompt);
-        if (!req.requiresSelection && req.defaultPerspective) {
-            perspectiveSpec = req.defaultPerspective;
-        }
-    }
+    let perspectiveSpec = jobParams.selectedPerspective || null;
 
     let assetSpecPrompt = `\n\n--- ACTIVE ASSET & CAMERA DIRECTIVES ---`;
-    if (matchedCatalog?.isPureProcedural) {
-        assetSpecPrompt += `\nMODE: PURE PROCEDURAL. Do NOT use external assets. Synthesize all shapes, particles, and audio tones procedurally with Web Audio API.`;
-    } else {
+    if (hasExplicitAssets) {
         if (audioAsset) {
-            assetSpecPrompt += `\nAUDIO BGM: "${audioAsset.url}" (Title: ${audioAsset.title || audioAsset.label || 'BGM'}). Play on first touch gesture, loop=true, volume=0.35. Always provide procedural Web Audio fallback.`;
+            assetSpecPrompt += `\nSELECTED AUDIO BGM: "${audioAsset.url}" (Title: ${audioAsset.title || audioAsset.label || 'BGM'}). Play on first touch gesture, loop=true, volume=0.35. Always provide procedural Web Audio fallback.`;
         }
         if (videoAsset) {
-            assetSpecPrompt += `\nVIDEO BACKDROP: "${videoAsset.url}" (Title: ${videoAsset.title || videoAsset.label || 'Backdrop'}). Render as background underlay <video autoplay loop muted playsinline>. Make WebGL/Canvas transparent (renderer.setClearColor(0x000000, 0)).`;
+            assetSpecPrompt += `\nSELECTED VIDEO BACKDROP: "${videoAsset.url}" (Title: ${videoAsset.title || videoAsset.label || 'Backdrop'}). Render as background underlay <video autoplay loop muted playsinline>. Make WebGL/Canvas transparent (renderer.setClearColor(0x000000, 0)).`;
         }
         if (spriteAsset) {
-            assetSpecPrompt += `\nSPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to player/collectable entity. Add procedural fallback mesh on error.`;
+            assetSpecPrompt += `\nSELECTED SPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to player/collectable entity. Add procedural fallback mesh on error.`;
         }
         if (model3dAsset) {
-            assetSpecPrompt += `\n3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via THREE.GLTFLoader, normalize bounding box scale, play animation mixer if present. Fall back to procedural Three.js mesh if load fails.`;
+            assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via THREE.GLTFLoader, normalize bounding box scale, play animation mixer if present. Fall back to procedural Three.js mesh if load fails.`;
         }
+    } else {
+        assetSpecPrompt += `\nNO EXPLICIT ASSETS SELECTED BY USER.\n${getCatalogSummary()}\nAI INSTRUCTION: Decide whether this concept benefits from any of the catalog assets above, OR if it is best executed 100% procedurally (e.g. geometry, math puzzles, sandbox physics, wireframe vector) with zero external asset dependencies.`;
     }
     if (perspectiveSpec) {
         assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;

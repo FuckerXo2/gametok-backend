@@ -13,7 +13,6 @@
 import OpenAI from 'openai';
 import { generateGameScreenshotImage } from './openai-image-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
-import { matchAssetsForPrompt, isConceptPureProcedural } from './asset-catalog.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title, concept prompt, and any attached or selected assets.
@@ -47,16 +46,6 @@ async function callLLMForDirections(prompt, gameTitle, selectedAssets = []) {
     let assetContext = '';
     if (Array.isArray(selectedAssets) && selectedAssets.length > 0) {
         assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type || 'asset'}: ${a.label || a.title || a.url}`).join('\n');
-    } else {
-        const auto = matchAssetsForPrompt(prompt);
-        if (auto.isPureProcedural) {
-            assetContext = '\nGame Aesthetic Note: Pure procedural concept (no external assets needed). Emphasize clean procedural geometry and styling.';
-        } else if (auto.video || auto.audio || auto.sprite || auto.model3d) {
-            const list = [auto.video?.title, auto.audio?.title, auto.sprite?.title, auto.model3d?.name].filter(Boolean);
-            if (list.length > 0) {
-                assetContext = `\nRecommended Asset Alignment: [${list.join(', ')}]`;
-            }
-        }
     }
 
     // 1. Try Gemini 3.8 Flash first (ultra-fast, highly creative, reliable)
@@ -216,164 +205,56 @@ export async function directVisualDirections({ prompt, gameTitle = 'Game', selec
 }
 
 const PERSPECTIVE_SYSTEM_PROMPT = `You are a world-class Game Designer and Technical Camera Director.
-The user has chosen a game concept and a visual art direction.
-Your task is to invent exactly 4 DISTINCT, LOGICAL, and EXCITING camera/view perspectives specifically tailored to this game genre and visual style.
+The user has chosen a game concept, visual art direction, and optional assets.
+Your task is to analyze the game concept and determine whether camera perspective selection is needed, or if it should be locked automatically.
 
-Critical Rules:
-- Analyze whether this game is naturally 2D, 2.5D, or 3D (e.g. Card battlers, 2D platformers, flappy birds, match-3 puzzles, roguelikes, 3D racers, space dogfights, FPS, etc.).
-- NEVER suggest an irrelevant perspective (e.g. NEVER suggest a 3D chase cam for a flat 2D game or card game).
-- For 2D games, provide perspectives like: "Classic Flat 2D Side-View", "2.5D Layered Parallax", "Dynamic Zoom Action Cam", "Vertical Scrolling Stage", "Tabletop Overhead", etc.
-- For 3D or Isometric games, provide perspectives like: "Isometric 3/4 Dihedral", "Top-Down Tactical", "Third-Person Follow Cam", "First-Person Cockpit/POV", "Dynamic Cinematic Cam", etc.
-- Each perspective must specify its dimension: "2D", "2.5D", or "3D".
-- cameraInstruction MUST be exact technical instructions for the Three.js / Canvas2D / Metal engine on how to set up the camera.
+CRITICAL AI REASONING & DECISION RULES:
+1. AUTO-LOCK PERSPECTIVE (requiresSelection = false):
+   - Does the user's prompt ALREADY explicitly specify the camera angle (e.g. "first-person view", "top-down shooter", "side-scrolling platformer", "isometric builder")?
+   - OR is this game an inherently fixed 2D / flat grid / board game (such as match-3, candy crush style, card games, sudoku, tile puzzles, 2D boards, flappy clones) where multi-angle 3D camera selection makes zero sense and would confuse the player?
+   - In either case: set "requiresSelection": false, explain your reasoning in "reason", and provide the single locked perspective in "defaultPerspective".
+   - Set "perspectives" to contain just that single perspective.
+
+2. DYNAMIC PERSPECTIVE SELECTION (requiresSelection = true):
+   - If the game is a dynamic 3D experience (such as 3D runners, driving/racing, flight simulators, arena brawlers, or 3D adventure) where multiple camera angles genuinely alter the gameplay experience:
+   - Set "requiresSelection": true.
+   - Invent exactly 4 DISTINCT, LOGICAL, and EXCITING camera perspectives tailored specifically to the game mechanics and active assets.
+   - Frame the angles specifically around active character models, player vehicle, or background video.
+
+3. PERSPECTIVE SPECIFICATIONS:
+   - Each perspective must specify its dimension: "2D", "2.5D", or "3D".
+   - cameraInstruction MUST be exact technical instructions for setting up the camera in the game engine.
 
 You MUST respond with valid JSON strictly matching this schema:
 {
+  "requiresSelection": boolean,
+  "reason": "Detailed reasoning on why perspective was locked or why multiple choices are offered",
+  "defaultPerspective": {
+    "name": "Perspective Name (e.g. Classic 2D Board View)",
+    "tagline": "2-3 word punchy tagline",
+    "dimension": "2D" | "2.5D" | "3D",
+    "icon": "Ionicons icon name: eye | airplane | walk | cube | videocam | grid",
+    "cameraInstruction": "Technical camera setup details for game runtime",
+    "modifier": "camera angle description for in-game screenshot render"
+  },
   "perspectives": [
     {
-      "name": "Perspective Name (e.g. Classic Flat 2D Side-View)",
-      "tagline": "2-3 word punchy tagline (e.g. Pure Retro Readability)",
-      "dimension": "2D",
-      "icon": "eye",
+      "name": "Perspective Name",
+      "tagline": "2-3 word punchy tagline",
+      "dimension": "2D" | "2.5D" | "3D",
+      "icon": "Ionicons icon name",
       "cameraInstruction": "Technical camera setup details for game runtime",
-      "modifier": "camera angle description for in-game screenshot render (e.g. flat horizontal side-scrolling 2D plane viewport)"
+      "modifier": "camera angle description for in-game screenshot render"
     }
   ]
 }`;
 
 /**
- * Evaluates whether perspective selection should be bypassed or auto-locked.
- * Bypasses selection when:
- * 1. User prompt already specifies camera perspective (e.g. top-down, first-person, side-scroller, isometric).
- * 2. Genre is inherently 2D / fixed-grid (e.g. Match-3, Candy Crush, 2048, Sudoku, Solitaire, Cards, Flappy Bird).
- */
-export function detectPerspectiveRequirement(prompt = '', gameTitle = '') {
-    const text = `${prompt} ${gameTitle}`.toLowerCase();
-
-    // 1. Explicit camera stated by user in prompt
-    if (text.includes('first person') || text.includes('first-person') || text.includes('fps') || text.includes('cockpit') || text.includes('pov')) {
-        return {
-            requiresSelection: false,
-            reason: 'User explicitly requested first-person view',
-            defaultPerspective: {
-                id: `perspective-${Date.now()}-fp`,
-                name: 'First-Person POV Cockpit',
-                tagline: 'Immersive Cockpit',
-                dimension: '3D',
-                icon: 'eye',
-                cameraInstruction: 'First-person perspective camera attached to player eye height with pointer/touch look rotation',
-                modifier: 'first-person cockpit POV viewport looking forward',
-                imageUrl: null,
-            }
-        };
-    }
-
-    if (text.includes('top down') || text.includes('top-down') || text.includes('birds eye') || text.includes("bird's eye") || text.includes('overhead')) {
-        return {
-            requiresSelection: false,
-            reason: 'User explicitly requested top-down view',
-            defaultPerspective: {
-                id: `perspective-${Date.now()}-td`,
-                name: 'Top-Down Tactical View',
-                tagline: 'Direct Overhead View',
-                dimension: '2.5D',
-                icon: 'airplane',
-                cameraInstruction: 'Camera positioned directly above player (Y=20, Z=5) looking straight down at the playfield',
-                modifier: 'top-down bird-eye tactical camera viewport',
-                imageUrl: null,
-            }
-        };
-    }
-
-    if (text.includes('side scroll') || text.includes('side-scroll') || text.includes('sidescroll') || text.includes('platformer')) {
-        return {
-            requiresSelection: false,
-            reason: 'User requested side-scrolling platformer view',
-            defaultPerspective: {
-                id: `perspective-${Date.now()}-ss`,
-                name: 'Classic Flat 2D Side-View',
-                tagline: 'Side-Scrolling Platform',
-                dimension: '2D',
-                icon: 'walk',
-                cameraInstruction: 'Orthographic camera following player on X and Y axes with fixed Z depth',
-                modifier: 'horizontal side-scrolling 2D plane viewport',
-                imageUrl: null,
-            }
-        };
-    }
-
-    if (text.includes('isometric') || text.includes('dihedral') || text.includes('3/4 view')) {
-        return {
-            requiresSelection: false,
-            reason: 'User explicitly requested isometric view',
-            defaultPerspective: {
-                id: `perspective-${Date.now()}-iso`,
-                name: 'Isometric 3/4 Dihedral',
-                tagline: 'Angled Tactical View',
-                dimension: '3D',
-                icon: 'cube',
-                cameraInstruction: 'Camera positioned at 45-degree azimuth and 35.264-degree elevation with telephoto projection',
-                modifier: 'isometric 3/4 angled camera viewport with clean grid lines',
-                imageUrl: null,
-            }
-        };
-    }
-
-    // 2. Inherent 2D / Fixed-Grid Genres (Candy Crush, 2048, Cards, Sudoku, etc.)
-    const fixed2DKeywords = [
-        'candy crush', 'match-3', 'match 3', 'gem match', 'tile match', 'bubble shooter',
-        '2048', 'sliding tile', 'sudoku', 'crossword', 'wordle', 'trivia', 'quiz',
-        'tic tac toe', 'tictactoe', 'connect 4', 'connect four', 'minesweeper',
-        'solitaire', 'blackjack', 'poker', 'card game', 'card battler', 'chess', 'checkers',
-        'flappy', 'flappy bird', 'brick breaker', 'breakout', 'pong', 'pinball',
-        'idle clicker', 'cookie clicker', 'tap tap', 'piano tiles'
-    ];
-
-    if (fixed2DKeywords.some(kw => text.includes(kw))) {
-        return {
-            requiresSelection: false,
-            reason: 'Inherent 2D / fixed-grid puzzle genre (no 3D camera needed)',
-            defaultPerspective: {
-                id: `perspective-${Date.now()}-2d-board`,
-                name: 'Classic 2D Board View',
-                tagline: 'Direct Orthogonal View',
-                dimension: '2D',
-                icon: 'grid',
-                cameraInstruction: 'Fixed 2D Orthographic Camera directly facing the game board and interactive grid',
-                modifier: 'flat 2D orthographic board viewport with clean UI and high readability',
-                imageUrl: null,
-            }
-        };
-    }
-
-    return {
-        requiresSelection: true,
-        reason: 'Dynamic 3D genre requiring tailored camera perspective options',
-        defaultPerspective: null,
-    };
-}
-
-/**
- * Step 2: Direct 4 camera perspectives tailored to the game, chosen style, and assets
+ * Step 2: Direct camera perspectives tailored to the game, chosen style, and assets
+ * Uses Gemini 3.8 Flash AI reasoning to decide whether to offer choices or auto-lock.
  */
 export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [] }) {
     if (!prompt) throw new Error('Prompt is required');
-
-    // 1. Check if camera perspective is already explicit or fixed by genre (e.g. Candy Crush)
-    const perspectiveRequirement = detectPerspectiveRequirement(prompt, gameTitle);
-    if (!perspectiveRequirement.requiresSelection && perspectiveRequirement.defaultPerspective) {
-        console.log(`🎥 [Camera Perspective] Auto-locking perspective for "${prompt}": ${perspectiveRequirement.defaultPerspective.name} (${perspectiveRequirement.reason}). Skipping picker.`);
-        return {
-            success: true,
-            requiresSelection: false,
-            reason: perspectiveRequirement.reason,
-            defaultPerspective: perspectiveRequirement.defaultPerspective,
-            perspectives: [perspectiveRequirement.defaultPerspective],
-            prompt,
-            gameTitle,
-            selectedDirection,
-        };
-    }
 
     const styleName = selectedDirection?.name || 'Selected Visual Style';
     const styleModifier = selectedDirection?.modifier || '';
@@ -383,7 +264,7 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
         assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type}: ${a.label || a.title || a.url}`).join('\n') + '\nFrame camera perspectives around these active assets.';
     }
 
-    console.log(`🎥 [Camera Perspective] Generating 4 perspectives for "${prompt}" (Style: ${styleName})...`);
+    console.log(`🎥 [Camera Perspective] Prompting Gemini 3.8 Flash to evaluate perspectives for "${prompt}" (Style: ${styleName})...`);
 
     const parsed = await callGeminiFlashJson({
         systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
@@ -397,8 +278,38 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
         maxTokens: 1500,
     });
 
-    if (!parsed || !Array.isArray(parsed.perspectives) || parsed.perspectives.length < 4) {
-        throw new Error(`Gemini failed to dynamically conceptualize 4 camera perspectives for "${prompt}"`);
+    if (!parsed) {
+        throw new Error(`Gemini failed to evaluate camera perspectives for "${prompt}"`);
+    }
+
+    // If Gemini AI determined that perspective selection should be bypassed (user already specified it or inherent 2D/grid genre):
+    if (parsed.requiresSelection === false && parsed.defaultPerspective) {
+        console.log(`🎥 [Camera Perspective] AI determined perspective is locked for "${prompt}": ${parsed.defaultPerspective.name} (${parsed.reason}). Skipping picker.`);
+        const locked = {
+            id: `perspective-${Date.now()}-locked`,
+            name: parsed.defaultPerspective.name,
+            tagline: parsed.defaultPerspective.tagline || 'Direct View',
+            dimension: parsed.defaultPerspective.dimension || '2D',
+            icon: parsed.defaultPerspective.icon || 'grid',
+            cameraInstruction: parsed.defaultPerspective.cameraInstruction || 'Fixed camera setup',
+            modifier: parsed.defaultPerspective.modifier || 'gameplay viewport',
+            imageUrl: null,
+        };
+
+        return {
+            success: true,
+            requiresSelection: false,
+            reason: parsed.reason,
+            defaultPerspective: locked,
+            perspectives: [locked],
+            prompt,
+            gameTitle,
+            selectedDirection,
+        };
+    }
+
+    if (!Array.isArray(parsed.perspectives) || parsed.perspectives.length < 4) {
+        throw new Error(`Gemini failed to conceptualize 4 camera perspectives for "${prompt}"`);
     }
 
     const perspectivesPlan = parsed.perspectives.slice(0, 4);
