@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
-export const GEMINI_FLASH_MODEL = 'gemini-3.7-flash';
-export const GEMINI_FALLBACK_MODEL = 'gemini-3.8-flash';
+export const GEMINI_FLASH_MODEL = 'gemini-3.8-flash';
+export const GEMINI_FALLBACK_MODEL = 'gemini-3.7-flash';
 
 const DEFAULT_KEY_B64 = 'QVEuQWI4Uk42S0FmSHUxUERNMjN5ZlRvMjFHZXRKY1B3NTE5MW9ZZWt5dVZjMDZZQXo2OWc=';
 
@@ -71,8 +71,13 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
     try {
         return await executeCall(targetModel);
     } catch (err) {
-        if (targetModel === GEMINI_FLASH_MODEL && (err.status === 503 || err.message?.includes('high demand') || err.message?.includes('UNAVAILABLE'))) {
-            console.warn(`[Gemini Client] ${GEMINI_FLASH_MODEL} busy, failing over to ${GEMINI_FALLBACK_MODEL}...`);
+        const isTemporaryIssue = err.status === 503 || err.status === 429 || 
+            String(err.message).includes('high demand') || 
+            String(err.message).includes('UNAVAILABLE') || 
+            String(err.message).includes('503');
+
+        if (targetModel === GEMINI_FLASH_MODEL && isTemporaryIssue) {
+            console.warn(`[Gemini Client] ${GEMINI_FLASH_MODEL} busy (${err.status || err.message}), failing over to ${GEMINI_FALLBACK_MODEL}...`);
             return await executeCall(GEMINI_FALLBACK_MODEL);
         }
         throw err;

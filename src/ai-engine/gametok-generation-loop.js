@@ -208,7 +208,7 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
             }
         }
 
-        // Generate code from model owner (Gemini 3.7 Flash)
+        // Generate code from model owner (Gemini 3.8 Flash)
         let generatedCode = '';
         console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Gemini (${gameState.currentModelOwner})...`);
 
