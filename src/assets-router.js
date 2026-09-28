@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateCoverArtImage } from './cover-art.js';
 
 const { Pool } = pg;
@@ -11,6 +12,19 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: (process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('sslmode=require') || process.env.DATABASE_URL.includes('neon.tech') || process.env.DATABASE_URL.includes('railway') || process.env.DATABASE_URL.includes('render.com'))) || process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
+
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gametok-games-assets';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev';
+const s3Client = process.env.R2_ACCOUNT_ID
+  ? new S3Client({
+      region: 'auto',
+      endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      },
+    })
+  : null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -362,6 +376,171 @@ router.get('/trending', async (req, res) => {
     }
   } catch (e) {
     res.json({ success: true, assets: [], total: 0 });
+  }
+});
+
+// ─── BACKGROUND VIDEO LOOPS SYSTEM ───
+
+const VIDEO_CATEGORIES = [
+  { id: 'trending', label: 'Trending', chips: [] },
+  { id: 'synthwave', label: 'Synthwave', chips: ['neon', 'grid', 'retro', '80s', 'outrun', 'horizon'] },
+  { id: 'space', label: 'Space', chips: ['warp', 'stars', 'galaxy', 'nebula', 'hyperspace', 'orbit'] },
+  { id: 'cyberpunk', label: 'Cyberpunk', chips: ['rain', 'city', 'matrix', 'tunnel', 'hologram', 'speed'] },
+  { id: 'particles', label: 'Particles', chips: ['dust', 'sparks', 'fire', 'light', 'magic', 'energy'] },
+  { id: 'atmosphere', label: 'Atmosphere', chips: ['fog', 'dungeon', 'underwater', 'torches', 'clouds', 'dark'] },
+  { id: 'nature', label: 'Nature', chips: ['forest', 'waterfall', 'mountains', 'night', 'ocean', 'sunset'] },
+  { id: 'abstract', label: 'Abstract', chips: ['fluid', 'gradient', 'waves', 'geometric', 'minimal', 'vj'] },
+  { id: 'my_videos', label: 'My Videos', chips: [] },
+];
+
+// GET /api/assets/videos/categories
+router.get('/videos/categories', (req, res) => {
+  res.json({ success: true, categories: VIDEO_CATEGORIES });
+});
+
+// GET /api/assets/videos
+router.get('/videos', async (req, res) => {
+  try {
+    const { category, tag, search, creator_id, limit = 30, offset = 0 } = req.query;
+    const client = await pool.connect();
+    try {
+      let whereClauses = [];
+      let queryParams = [];
+      let paramIndex = 1;
+
+      if (category && category !== 'trending' && category !== 'my_videos') {
+        whereClauses.push(`category = $${paramIndex++}`);
+        queryParams.push(category);
+      } else if (category === 'my_videos') {
+        if (creator_id) {
+          whereClauses.push(`creator_id = $${paramIndex++}`);
+          queryParams.push(creator_id);
+        } else {
+          return res.json({ success: true, videos: [], total: 0, hasMore: false });
+        }
+      }
+
+      if (tag) {
+        whereClauses.push(`$${paramIndex++} = ANY(tags)`);
+        queryParams.push(tag);
+      }
+
+      if (search && search.trim()) {
+        const searchTerm = `%${search.trim().toLowerCase()}%`;
+        whereClauses.push(`(LOWER(title) LIKE $${paramIndex} OR array_to_string(tags, ' ') ILIKE $${paramIndex})`);
+        queryParams.push(searchTerm);
+        paramIndex++;
+      }
+
+      const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+      const countRes = await client.query(`SELECT COUNT(*) FROM community_background_videos ${whereSQL}`, queryParams);
+      const total = parseInt(countRes.rows[0].count, 10);
+
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 100);
+      const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
+
+      const querySQL = `
+        SELECT id, title, category, tags, video_url, thumbnail_url, duration, aspect_ratio, uses_count, created_at
+        FROM community_background_videos
+        ${whereSQL}
+        ORDER BY uses_count DESC, id ASC
+        LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+      `;
+      queryParams.push(limitNum, offsetNum);
+
+      const result = await client.query(querySQL, queryParams);
+      res.json({
+        success: true,
+        videos: result.rows,
+        total,
+        hasMore: offsetNum + result.rows.length < total,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error fetching background videos:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/assets/videos/use
+router.post('/videos/use', async (req, res) => {
+  const { videoId } = req.body;
+  if (!videoId) return res.status(400).json({ success: false, error: 'Missing videoId' });
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query(`UPDATE community_background_videos SET uses_count = uses_count + 1 WHERE id = $1`, [videoId]);
+      res.json({ success: true });
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/assets/videos/upload
+router.post('/videos/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No video file uploaded' });
+    }
+
+    const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, '');
+    const creatorId = req.body.creator_id || null;
+    const category = req.body.category || 'abstract';
+
+    let videoUrl = '';
+    const videoId = `user-video-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+
+    if (s3Client) {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const r2Key = `videos/user/${videoId}.mp4`;
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: r2Key,
+          Body: fileBuffer,
+          ContentType: req.file.mimetype || 'video/mp4',
+          CacheControl: 'public, max-age=31536000',
+        })
+      );
+      videoUrl = `${R2_PUBLIC_URL}/${r2Key}`;
+      try { fs.unlinkSync(req.file.path); } catch {}
+    } else {
+      const serverUrl = req.protocol + '://' + req.get('host');
+      videoUrl = `${serverUrl}/uploads/video/${req.file.filename}`;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query(`
+        INSERT INTO community_background_videos (id, title, category, tags, video_url, thumbnail_url, duration, aspect_ratio, uses_count, creator_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9)
+      `, [videoId, title, category, ['user_uploaded', category], videoUrl, videoUrl, '00:10', '16:9', creatorId]);
+    } finally {
+      client.release();
+    }
+
+    res.json({
+      success: true,
+      video: {
+        id: videoId,
+        title,
+        category,
+        tags: ['user_uploaded', category],
+        video_url: videoUrl,
+        thumbnail_url: videoUrl,
+        duration: '00:10',
+        aspect_ratio: '16:9',
+        uses_count: 1,
+      }
+    });
+  } catch (error) {
+    console.error('Video upload error:', error);
+    res.status(500).json({ success: false, error: 'Failed to upload video' });
   }
 });
 
