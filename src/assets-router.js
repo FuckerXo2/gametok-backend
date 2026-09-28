@@ -53,7 +53,8 @@ const CATEGORIES = [
   { id: 'icons', label: 'Icons', chips: ['medal', 'badge', 'star', 'achievement', 'action', 'symbol'] },
   { id: 'ui', label: 'UI', chips: ['hud', 'joystick', 'button', 'frame', 'heart'] },
   { id: 'effects', label: 'Effects', chips: ['explosion', 'fire', 'laser', 'sparkle', 'plasma', 'bullet'] },
-  { id: 'portraits', label: 'Portraits', chips: ['hero', 'villain', 'monster', 'avatar'] }
+  { id: 'portraits', label: 'Portraits', chips: ['hero', 'villain', 'monster', 'avatar'] },
+  { id: 'memes', label: 'Memes', chips: ['style:realistic', 'sticker', 'style:cartoon', 'character', 'animal', 'cat', 'style:3d_render', 'style:flat_vector', 'horror', 'style:minimalist', 'style:digital_art', 'el_gato', 'doge', 'pepe', 'trollface'] }
 ];
 
 // GET /api/assets/categories
