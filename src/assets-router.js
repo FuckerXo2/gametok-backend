@@ -383,10 +383,10 @@ router.get('/trending', async (req, res) => {
 
 const VIDEO_CATEGORIES = [
   { id: 'my_videos', label: 'My Videos', chips: [] },
+  { id: 'trending', label: 'Trending', chips: [] },
   { id: 'brainrot', label: 'Brainrot', chips: ['italian', 'tung_tung', 'brr_brr', 'tralalero', 'skibidi', 'sigma', 'ohio', 'mewing'] },
   { id: 'parkour', label: 'Parkour', chips: ['subway_surfers', 'minecraft', 'roblox', 'speedrun', 'stunt', 'loop'] },
   { id: 'memes', label: 'Memes', chips: ['cursed', 'npc', 'viral', 'funny', 'compilation'] },
-  { id: 'trending', label: 'Trending', chips: [] },
   { id: 'synthwave', label: 'Synthwave', chips: ['neon', 'grid', 'retro', '80s', 'outrun', 'horizon'] },
   { id: 'space', label: 'Space', chips: ['warp', 'stars', 'galaxy', 'nebula', 'hyperspace', 'orbit'] },
   { id: 'cyberpunk', label: 'Cyberpunk', chips: ['rain', 'city', 'matrix', 'tunnel', 'hologram', 'speed'] },
