@@ -140,27 +140,39 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
 
     // Asset preparation & discovery
     const attachments = Array.isArray(jobParams.attachments) ? jobParams.attachments : [];
-    let audioAsset = jobParams.selectedAudio || attachments.find(a => a.type?.startsWith('audio') || a.role === 'background_music' || a.role === 'sound_effect') || null;
-    let videoAsset = jobParams.selectedVideo || attachments.find(a => a.type?.startsWith('video') || a.role === 'background' || a.role === 'video_backdrop') || null;
-    let spriteAsset = jobParams.selectedMeme || attachments.find(a => a.type?.startsWith('image') || a.role === 'player' || a.role === 'character' || a.role === 'meme') || null;
-    let model3dAsset = jobParams.selected3DModel || attachments.find(a => a.type?.includes('model') || a.type?.includes('gltf') || a.type?.includes('glb') || a.role === 'model3d') || null;
+    let audioAsset = jobParams.selectedAudio || null;
+    let videoAsset = jobParams.selectedVideo || null;
+    let spriteAsset = jobParams.selectedMeme || null;
+    let model3dAsset = jobParams.selected3DModel || null;
 
-    // Check if user did NOT select any assets -> supply catalog summary for Gemini to choose or go purely procedural
-    const hasExplicitAssets = Boolean(audioAsset || videoAsset || spriteAsset || model3dAsset);
+    const hasAttachments = attachments.length > 0;
+    const hasDirectAssets = Boolean(audioAsset || videoAsset || spriteAsset || model3dAsset);
+    const hasExplicitAssets = hasAttachments || hasDirectAssets;
     let perspectiveSpec = jobParams.selectedPerspective || null;
 
     let assetSpecPrompt = `\n\n--- ACTIVE ASSET & CAMERA DIRECTIVES ---`;
     if (hasExplicitAssets) {
-        if (audioAsset) {
+        if (hasAttachments) {
+            assetSpecPrompt += `\nUSER ATTACHED ASSETS (${attachments.length} items):`;
+            attachments.forEach((att, idx) => {
+                const role = att.role || 'game asset';
+                const type = att.type || 'media';
+                const title = att.title || att.name || att.label || `Asset #${idx + 1}`;
+                const url = att.url || att.idleUrl;
+                const note = att.instruction ? ` | User Note: "${att.instruction}"` : '';
+                assetSpecPrompt += `\n  [${idx + 1}] (${type.toUpperCase()} / Role: ${role.toUpperCase()}) "${title}": ${url}${note}`;
+            });
+        }
+        if (audioAsset && !attachments.some(a => a.url === audioAsset.url)) {
             assetSpecPrompt += `\nSELECTED AUDIO BGM: "${audioAsset.url}" (Title: ${audioAsset.title || audioAsset.label || 'BGM'}). Play on first touch gesture, loop=true, volume=0.35. Always provide procedural Web Audio fallback.`;
         }
-        if (videoAsset) {
+        if (videoAsset && !attachments.some(a => a.url === videoAsset.url)) {
             assetSpecPrompt += `\nSELECTED VIDEO BACKDROP: "${videoAsset.url}" (Title: ${videoAsset.title || videoAsset.label || 'Backdrop'}). Render as background underlay <video autoplay loop muted playsinline>. Make WebGL/Canvas transparent (renderer.setClearColor(0x000000, 0)).`;
         }
-        if (spriteAsset) {
+        if (spriteAsset && !attachments.some(a => (a.url || a.idleUrl) === (spriteAsset.url || spriteAsset.idleUrl))) {
             assetSpecPrompt += `\nSELECTED SPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to player/collectable entity. Add procedural fallback mesh on error.`;
         }
-        if (model3dAsset) {
+        if (model3dAsset && !attachments.some(a => a.url === model3dAsset.url)) {
             assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via THREE.GLTFLoader, normalize bounding box scale, play animation mixer if present. Fall back to procedural Three.js mesh if load fails.`;
         }
     } else {

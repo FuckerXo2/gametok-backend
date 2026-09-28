@@ -18,9 +18,10 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '../..');
 
 // Base URL for audio assets
-const DEFAULT_BASE = process.env.RAILWAY_PUBLIC_DOMAIN 
-  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
-  : 'http://localhost:3000';
+const DEFAULT_BASE = process.env.RENDER_EXTERNAL_URL 
+  || (process.env.RENDER_EXTERNAL_HOSTNAME ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` : null)
+  || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null)
+  || 'http://localhost:3000';
 
 function cleanBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '');

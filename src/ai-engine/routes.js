@@ -47,14 +47,16 @@ const JOB_TITLES = {
 
 const pendingJobBoots = new Map();
 const cancelledJobs = new Map();
-const GENERATION_WORKER_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
+const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_INSTANCE_ID);
 const IS_RAILWAY = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_REPLICA_ID);
+const IS_CLOUD = Boolean(IS_RENDER || IS_RAILWAY);
+const GENERATION_WORKER_ID = `${process.env.RENDER_INSTANCE_ID || process.env.RAILWAY_REPLICA_ID || (IS_RENDER ? 'render' : (process.env.HOSTNAME || 'local'))}-${process.pid}`;
 const GENERATION_WORKER_ENABLED = process.env.GENERATION_WORKER_ENABLED !== 'false';
 const GENERATION_BURST_CONCURRENCY = process.env.GENERATION_BURST_CONCURRENCY !== 'false';
-const GENERATION_JOB_MAX_CONCURRENCY = Math.max(1, Math.min(32, Number(process.env.GENERATION_JOB_MAX_CONCURRENCY || (IS_RAILWAY ? 24 : 8))));
+const GENERATION_JOB_MAX_CONCURRENCY = Math.max(1, Math.min(32, Number(process.env.GENERATION_JOB_MAX_CONCURRENCY || (IS_CLOUD ? 24 : 8))));
 const GENERATION_JOB_CONCURRENCY = Math.min(
     GENERATION_JOB_MAX_CONCURRENCY,
-    Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || (IS_RAILWAY ? 8 : 1)))
+    Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || (IS_CLOUD ? 8 : 1)))
 );
 const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_POLL_MS || 3000));
 const GENERATION_JOB_MAX_ATTEMPTS = Math.max(1, Number(process.env.GENERATION_JOB_MAX_ATTEMPTS || 1));
