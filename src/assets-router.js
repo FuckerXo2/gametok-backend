@@ -46,7 +46,7 @@ const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
 const CATEGORIES = [
   { id: 'my_assets', label: 'My Assets', chips: [] },
   { id: 'trending', label: 'Trending', chips: [] },
-  { id: 'packs', label: 'Packs', chips: ['ninja_frog', 'foxy', 'gothicvania', 'fighter', 'platform_enemies', 'space_fleet', 'arcade_monsters', 'food', 'furniture', 'minecraft', 'rpg', 'animals'] },
+  { id: 'packs', label: 'Packs', chips: ['all', 'characters', 'effects', 'vehicles', 'fantasy', 'sci-fi', 'ui', 'nature', 'modern-urban', 'tiles-terrain'] },
   { id: 'characters', label: 'Characters', chips: ['ninja_frog', 'foxy', 'gothicvania', 'fighter', 'platform_enemies', 'minecraft', 'arcade_monsters', 'animal', 'style:pixel', 'style:cartoon'] },
   { id: 'backgrounds', label: 'Backgrounds', chips: ['pixel', 'space', 'dungeon', 'cavern', 'sunset', 'cyberpunk'] },
   { id: 'objects', label: 'Objects', chips: ['fruit', 'food', 'furniture', 'weapon', 'space_fleet', 'loot', 'coin', 'gem', 'style:pixel'] },
@@ -59,6 +59,61 @@ const CATEGORIES = [
 // GET /api/assets/categories
 router.get('/categories', (req, res) => {
   res.json({ success: true, categories: CATEGORIES });
+});
+
+// GET /api/assets/packs
+// Query params: genre, search, limit, offset
+router.get('/packs', async (req, res) => {
+  try {
+    const { genre, search, limit = 50, offset = 0 } = req.query;
+    const client = await pool.connect();
+    try {
+      let whereClauses = [];
+      let queryParams = [];
+      let paramIndex = 1;
+
+      if (genre && genre !== 'all') {
+        whereClauses.push(`genre = $${paramIndex++}`);
+        queryParams.push(genre);
+      }
+
+      if (search && search.trim()) {
+        const searchTerm = `%${search.trim().toLowerCase()}%`;
+        whereClauses.push(`(LOWER(title) LIKE $${paramIndex} OR LOWER(description) LIKE $${paramIndex})`);
+        queryParams.push(searchTerm);
+        paramIndex++;
+      }
+
+      const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+      
+      const countRes = await client.query(
+        `SELECT COUNT(*) FROM community_asset_packs ${whereSQL}`,
+        queryParams
+      );
+      const total = parseInt(countRes.rows[0].count, 10);
+
+      const packsRes = await client.query(
+        `SELECT id, title, genre, description, cover_url as "coverUrl", count, tag, ids_prefix as "idsPrefix"
+         FROM community_asset_packs
+         ${whereSQL}
+         ORDER BY count DESC, id ASC
+         LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
+        [...queryParams, limit, offset]
+      );
+
+      res.json({
+        success: true,
+        packs: packsRes.rows,
+        total,
+        hasMore: offset + packsRes.rows.length < total,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error fetching asset packs:', err);
+    res.status(500).json({ error: 'Failed to fetch asset packs' });
+  }
 });
 
 // GET /api/assets
