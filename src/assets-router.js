@@ -46,10 +46,10 @@ const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
 const CATEGORIES = [
   { id: 'my_assets', label: 'My Assets', chips: [] },
   { id: 'trending', label: 'Trending', chips: [] },
-  { id: 'packs', label: 'Packs', chips: ['pixel_frog', 'phaser', 'minecraft', 'clash', 'fighter', 'food', 'furniture', 'rpg', 'space', 'fnaf', 'sanrio'] },
-  { id: 'characters', label: 'Characters', chips: ['pixel_frog', 'minecraft', 'clash', 'fighter', 'phaser', 'sanrio', 'fnaf', 'animal', 'robot', 'zombie', 'dragon', 'style:pixel', 'style:3d_render', 'style:cartoon'] },
-  { id: 'backgrounds', label: 'Backgrounds', chips: ['pixel', 'space', 'dungeon', 'cavern', 'underwater', 'sunset', 'minecraft', 'cyberpunk', 'horror'] },
-  { id: 'objects', label: 'Objects', chips: ['pixel_frog', 'food', 'furniture', 'weapon', 'spaceship', 'loot', 'coin', 'gem', 'shield', 'potion', 'style:pixel', 'style:3d_render'] },
+  { id: 'packs', label: 'Packs', chips: ['ninja_frog', 'foxy', 'gothicvania', 'fighter', 'platform_enemies', 'space_fleet', 'arcade_monsters', 'food', 'furniture', 'minecraft', 'rpg', 'animals'] },
+  { id: 'characters', label: 'Characters', chips: ['ninja_frog', 'foxy', 'gothicvania', 'fighter', 'platform_enemies', 'minecraft', 'arcade_monsters', 'animal', 'style:pixel', 'style:cartoon'] },
+  { id: 'backgrounds', label: 'Backgrounds', chips: ['pixel', 'space', 'dungeon', 'cavern', 'sunset', 'cyberpunk'] },
+  { id: 'objects', label: 'Objects', chips: ['fruit', 'food', 'furniture', 'weapon', 'space_fleet', 'loot', 'coin', 'gem', 'style:pixel'] },
   { id: 'icons', label: 'Icons', chips: ['medal', 'badge', 'star', 'achievement', 'action', 'symbol'] },
   { id: 'ui', label: 'UI', chips: ['hud', 'joystick', 'button', 'frame', 'heart'] },
   { id: 'effects', label: 'Effects', chips: ['explosion', 'fire', 'laser', 'sparkle', 'plasma', 'bullet'] },
@@ -62,10 +62,10 @@ router.get('/categories', (req, res) => {
 });
 
 // GET /api/assets
-// Query params: category, style, tag, search, creator_id, limit, offset
+// Query params: category, style, tag, search, idsPrefix, creator_id, limit, offset
 router.get('/', async (req, res) => {
   try {
-    const { category, style, tag, search, creator_id, limit = 30, offset = 0 } = req.query;
+    const { category, style, tag, search, idsPrefix, prefix, creator_id, limit = 30, offset = 0 } = req.query;
     const client = await pool.connect();
 
     try {
@@ -94,6 +94,12 @@ router.get('/', async (req, res) => {
       if (tag) {
         whereClauses.push(`$${paramIndex++} = ANY(tags)`);
         queryParams.push(tag);
+      }
+
+      const idFilter = idsPrefix || prefix;
+      if (idFilter) {
+        whereClauses.push(`id LIKE $${paramIndex++}`);
+        queryParams.push(`${idFilter}%`);
       }
 
       if (search && search.trim()) {
