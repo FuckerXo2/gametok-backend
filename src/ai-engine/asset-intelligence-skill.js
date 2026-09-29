@@ -135,11 +135,23 @@ When the user has selected or attached assets, weave them directly into the core
 
 ---
 
-## 4. Visual Direction Harmonization
-- Visual directions and art styles must be designed around the active assets:
-  - If a 16-bit pixel sprite is used, the visual direction must feature crisp pixel art, retro color banding, and arcade HUD styling.
+## 4. Visual Direction & Asset Interplay (The Two-Way Rule)
+
+### A. When Assets Are Selected or Attached (Asset-First / Anchor-Driven)
+- When specific audio, video backdrops, sprites/memes, or 3D models are attached by the user:
+  - **The Assets are the Visual Anchor**: The visual style, lighting, shaders, color palette, and UI MUST be planned AROUND the assets.
+  - If a 16-bit pixel sprite is used, the visual direction MUST feature crisp pixel art, retro color banding, and arcade HUD styling.
   - If a sticker or cartoon meme is used, the visual direction should feature cel-shading, bold outlines, and playful vibrant colors.
   - If a dark cyberpunk highway video is used, the visual direction must emphasize glowing neon emissives, rain reflections, and dark contrast.
+  - If a low-poly or stylized 3D model is attached, the world geometry and lighting must match that exact polygonal fidelity.
+
+### B. When No Assets Are Selected (Vision-First / Style-Driven)
+- When the user starts with an open prompt without attached assets:
+  - **The Creative Vision Dictates the Style First**: The AI first establishes the visual atmosphere, color palette, and art direction (e.g. cozy pastel watercolor, minimalist vector, gritty gothic dark fantasy).
+  - **Assets are Planned AROUND the Style**:
+    - The AI queries the asset catalog for items that match the established visual style (e.g., cozy lo-fi jazz for a pastel coffee shop).
+    - **Rejection & Procedural Rule**: If catalog assets clash with the planned style (e.g., catalog only has heavy metal audio or neon cyber models), the AI **rejects them** and constructs everything *purely procedurally* in Three.js/Canvas and Web Audio.
+    - An aesthetic vision must NEVER be corrupted by shoehorning mismatched catalog assets.
 
 ---
 

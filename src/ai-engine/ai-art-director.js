@@ -21,7 +21,9 @@ Your task is to invent exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art
 Rules:
 - NEVER output generic out-of-context styles or default to clay/cute styles unless the game explicitly asks for it.
 - Each direction must feel like a genuine, thoughtful creative pitch for that exact game world.
-- If assets (videos, stickers, 3D models, audio) are active, ensure the visual styling complements, incorporates, and frames them gracefully.
+- THE TWO-WAY ASSET & STYLE PRINCIPLE:
+  1. If user assets (3D models, sprites, videos, audio) ARE active: The assets are the visual anchors. Derive the color palette, lighting atmosphere, rendering fidelity, and UI to harmonize directly with those assets.
+  2. If NO assets are provided: Establish a strong, unified creative vision first. The game code will either query matching catalog assets or generate everything procedurally so the aesthetic is never compromised.
 - Ensure diversity in mediums (e.g. 16-Bit Masterpiece Pixel Art, High-Octane Cel-Shaded Anime, Stylized Low-Poly 3D, Vibrant Neo-Arcade, Hand-Inked Graphic Novel, Moody Dark Fantasy, Retro Synthwave, Clean Vector 2D, etc.) appropriate to the game genre.
 - The modifier MUST be structured for generating an authentic IN-GAME PLAYABLE SCREENSHOT (with game HUD, player character/vehicle, environment, and clean game graphics), NOT generic poster art.
 
@@ -79,7 +81,7 @@ async function callLLMForDirections(prompt, gameTitle, selectedAssets = []) {
                 response_format: { type: 'json_object' },
                 messages: [
                     { role: 'system', content: SYSTEM_PROMPT },
-                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}` },
+                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
                 ],
                 temperature: 0.7,
                 max_tokens: 1500,
@@ -110,7 +112,7 @@ async function callLLMForDirections(prompt, gameTitle, selectedAssets = []) {
                 response_format: { type: 'json_object' },
                 messages: [
                     { role: 'system', content: SYSTEM_PROMPT },
-                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}` },
+                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
                 ],
                 temperature: 0.7,
                 max_tokens: 1500,
