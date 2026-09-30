@@ -144,25 +144,27 @@ CRITICAL ARCHITECTURE RULES:
 1. PURE JAVASCRIPT ONLY: Do NOT output HTML, CSS, <html>, <script>, DOM elements, window, document, or requestAnimationFrame. The code runs directly in QuickJS C++.
 2. NATIVE ENGINE GLOBAL BINDINGS:
    - engine.spawnEntity(type, x, y, z, scale, r, g, b): Spawns 3D entity. type: 'cube' (boxes, obstacles, walls), 'sphere' (coins, gems, orbs, planets), 'plane' (floors, platforms). Returns entityId (number).
+   - engine.spawnModel(assetUrl, x, y, z): Spawns 3D character/object mesh (GLB/GLTF from Cloudflare R2 URL or local path). Returns entityId (number).
    - engine.destroyEntity(id): Removes entity from the scene.
    - engine.setPosition(id, x, y, z): Updates entity position.
    - engine.setRotation(id, rx, ry, rz): Updates entity Euler angles in radians.
-   - engine.setScale(id, sx, sz, sz): Updates entity 3D scale.
+   - engine.setScale(id, sx, sy, sz): Updates entity 3D scale.
    - engine.setColor(id, r, g, b, a): Updates entity color/tint.
    - engine.clearEntities(): Wipes all entities.
-   - engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ): Directs 3D perspective camera.
+   - engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ): Directs 3D perspective camera (combat tracking, chase, or isometric).
    - engine.setVehicle(x, y, z, yaw, isDrifting): (Optional) Controls player vehicle in driving/racing games.
    - engine.getVehicle(): Returns { x, y, z, yaw, speed, isDrifting }.
    - engine.log(message): Prints debug info to console.
 3. MANDATORY LIFECYCLE CALLBACK:
    You MUST define a global function:
    globalThis.onGameEvent = function(event, data) { ... }
-   - event === 'input': data = { steer: -1.0 to 1.0, throttle: 0 or 1, drift: 0 or 1, brake: 0 or 1 }
-   - event === 'action': data = { name: 'LEFT' | 'RIGHT' | 'DRIFT' | 'GAS' | 'JUMP', pressed: boolean }
+   - event === 'input': data = { dirX: -1.0 to 1.0, dirY: -1.0 to 1.0, steer: -1.0 to 1.0, throttle: 0 or 1, drift: 0 or 1, brake: 0 or 1 }
+   - event === 'action': data = { name: 'PUNCH' | 'KICK' | 'BLOCK' | 'SPECIAL' | 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'JUMP' | 'DRIFT' | 'GAS', pressed: boolean }
    - event === 'update': data = { dt: number } where dt is delta-time in seconds (e.g. 0.0083 at 120 FPS or 0.0166 at 60 FPS).
-     ALWAYS multiply speed and turning by dt! Example: posX += Math.sin(yaw) * speed * dt;
-4. GAMEPLAY FEEL:
-   - Smooth acceleration, responsive steering, drift mechanics with score multipliers.
+     ALWAYS multiply velocity, attacks, and animations by dt! Example: posX += velX * dt;
+4. GAMEPLAY FEEL & GENRE LOGIC:
+   - For Fighting Games: Spawn both fighter models (e.g. Scorpion and Green Lantern), track health bars (P1 Health, P2 Health), process punch/kick hitboxes, knockback velocity, hit animations, block state, special projectiles (Scorpion's spear / Green Lantern's construct energy), dynamic camera framing keeping both fighters in view.
+   - For Racing/Runner Games: Smooth acceleration, responsive steering, drift mechanics with score multipliers.
    - Procedural track boundaries, collectible gems or obstacles ahead of the player.
 5. OUTPUT FORMAT:
    Return valid JSON with:
