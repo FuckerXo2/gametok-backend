@@ -10,10 +10,8 @@
  * Then concurrently dispatches to FLUX.1-dev to paint high-fidelity concept art cards.
  */
 
-import OpenAI from 'openai';
 import { generateGameScreenshotImage } from './openai-image-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
-import { getQwenConfig, createQwenClient } from './qwen-multimodal-client.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title, concept prompt, and any attached or selected assets.
@@ -51,111 +49,22 @@ async function callLLMForDirections(prompt, gameTitle, selectedAssets = []) {
         assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type || 'asset'}: ${a.label || a.title || a.url}`).join('\n');
     }
 
-    // 1. Try Gemini 3.8 Flash first (ultra-fast, highly creative, reliable)
-    try {
-        console.log(`🧠 [AI Art Director] Prompting Gemini 3.8 Flash for visual directions...`);
-        const parsed = await callGeminiFlashJson({
-            systemPrompt: SYSTEM_PROMPT,
-            messages: [
-                { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
-            ],
-            temperature: 0.7,
-            maxTokens: 1500,
-        });
+    console.log(`🧠 [AI Art Director] Prompting Gemini Flash for visual directions...`);
+    const parsed = await callGeminiFlashJson({
+        systemPrompt: SYSTEM_PROMPT,
+        messages: [
+            { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
+        ],
+        temperature: 0.7,
+        maxTokens: 1500,
+    });
 
-        if (parsed && Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
-            console.log(`✅ [AI Art Director] Gemini 3.7 Flash conceptualized 4 directions:`, parsed.directions.map(d => d.name));
-            return parsed.directions.slice(0, 4);
-        }
-    } catch (geminiErr) {
-        console.warn(`⚠️ [AI Art Director] Gemini 3.7 Flash call failed, trying backup:`, geminiErr.message);
+    if (parsed && Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
+        console.log(`✅ [AI Art Director] Gemini conceptualized 4 directions:`, parsed.directions.map(d => d.name));
+        return parsed.directions.slice(0, 4);
     }
 
-    // 2. Try Qwen if configured
-    const qwenConfig = getQwenConfig();
-    if (qwenConfig) {
-        try {
-            console.log(`🧠 [AI Art Director] Prompting Qwen (${qwenConfig.model}) for visual directions...`);
-            const client = createQwenClient();
-            const response = await client.chat.completions.create({
-                model: qwenConfig.model,
-                response_format: { type: 'json_object' },
-                messages: [
-                    { role: 'system', content: SYSTEM_PROMPT },
-                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
-                ],
-                temperature: 0.7,
-                max_tokens: 1500,
-            });
-
-            const parsed = JSON.parse(response.choices?.[0]?.message?.content || '{}');
-            if (Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
-                return parsed.directions.slice(0, 4);
-            }
-        } catch (err) {
-            console.warn(`⚠️ [AI Art Director] Qwen call failed, trying backup:`, err.message);
-        }
-    }
-
-    // 3. Try OpenAI (gpt-4o-mini) if OPENAI_API_KEY is present
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (openaiKey) {
-        try {
-            console.log(`🧠 [AI Art Director] Prompting OpenAI (gpt-4o-mini) for visual directions...`);
-            const oaiClient = new OpenAI({ apiKey: openaiKey, timeout: 15000 });
-            const response = await oaiClient.chat.completions.create({
-                model: 'gpt-4o-mini',
-                response_format: { type: 'json_object' },
-                messages: [
-                    { role: 'system', content: SYSTEM_PROMPT },
-                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
-                ],
-                temperature: 0.7,
-                max_tokens: 1500,
-            });
-
-            const parsed = JSON.parse(response.choices?.[0]?.message?.content || '{}');
-            if (Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
-                console.log(`✅ [AI Art Director] OpenAI (gpt-4o-mini) conceptualized 4 directions:`, parsed.directions.map(d => d.name));
-                return parsed.directions.slice(0, 4);
-            }
-        } catch (oaiErr) {
-            console.warn(`⚠️ [AI Art Director] OpenAI fallback failed:`, oaiErr.message);
-        }
-    }
-
-    // 4. Try NVIDIA NIM LLM if NVIDIA_API_KEY is present
-    const nvidiaKey = process.env.NVIDIA_API_KEY;
-    if (nvidiaKey) {
-        try {
-            console.log(`🧠 [AI Art Director] Prompting NVIDIA NIM LLM for visual directions...`);
-            const nimClient = new OpenAI({
-                apiKey: nvidiaKey,
-                baseURL: 'https://integrate.api.nvidia.com/v1',
-                timeout: 10000,
-            });
-
-            const response = await nimClient.chat.completions.create({
-                model: 'meta/llama-3.3-70b-instruct',
-                response_format: { type: 'json_object' },
-                messages: [
-                    { role: 'system', content: SYSTEM_PROMPT },
-                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
-                ],
-                temperature: 0.7,
-                max_tokens: 1500,
-            });
-
-            const parsed = JSON.parse(response.choices?.[0]?.message?.content || '{}');
-            if (Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
-                return parsed.directions.slice(0, 4);
-            }
-        } catch (nimErr) {
-            console.warn(`⚠️ [AI Art Director] NVIDIA NIM LLM failed:`, nimErr.message);
-        }
-    }
-
-    throw new Error(`AI Art Director failed to generate visual directions dynamically for "${prompt}"`);
+    throw new Error(`Gemini failed to return 4 visual directions for "${prompt}"`);
 }
 
 function inferThemeType(name = '', modifier = '') {
@@ -290,39 +199,18 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
         assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type}: ${a.label || a.title || a.url}`).join('\n') + '\nFrame camera perspectives around these active assets.';
     }
 
-    let parsed = null;
-    try {
-        console.log(`🎥 [Camera Perspective] Prompting Gemini 3.8 Flash to evaluate perspectives for "${prompt}" (Style: ${styleName})...`);
-        parsed = await callGeminiFlashJson({
-            systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
-            messages: [
-                {
-                    role: 'user',
-                    content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}`,
-                },
-            ],
-            temperature: 0.7,
-            maxTokens: 1500,
-        });
-    } catch (geminiErr) {
-        console.warn(`⚠️ [Camera Perspective] Gemini failed, trying OpenAI:`, geminiErr.message);
-        if (process.env.OPENAI_API_KEY) {
-            try {
-                const oaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 15000 });
-                const res = await oaiClient.chat.completions.create({
-                    model: 'gpt-4o-mini',
-                    response_format: { type: 'json_object' },
-                    messages: [
-                        { role: 'system', content: PERSPECTIVE_SYSTEM_PROMPT },
-                        { role: 'user', content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}` },
-                    ],
-                });
-                parsed = JSON.parse(res.choices?.[0]?.message?.content || '{}');
-            } catch (oaiErr) {
-                console.warn(`⚠️ [Camera Perspective] OpenAI fallback failed:`, oaiErr.message);
-            }
-        }
-    }
+    console.log(`🎥 [Camera Perspective] Prompting Gemini Flash to evaluate perspectives for "${prompt}" (Style: ${styleName})...`);
+    const parsed = await callGeminiFlashJson({
+        systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
+        messages: [
+            {
+                role: 'user',
+                content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}`,
+            },
+        ],
+        temperature: 0.7,
+        maxTokens: 1500,
+    });
 
     if (!parsed) {
         throw new Error(`Failed to evaluate camera perspectives for "${prompt}"`);
