@@ -18,7 +18,7 @@ function getS3Client() {
     return s3Client;
 }
 
-async function uploadBufferToR2(buffer, prefix = 'game-images', mimeType = 'image/png') {
+export async function uploadBufferToR2(buffer, prefix = 'game-images', mimeType = 'image/png') {
     const client = getS3Client();
     if (client && process.env.R2_BUCKET_NAME) {
         const ext = mimeType.includes('jpeg') ? 'jpg' : 'png';

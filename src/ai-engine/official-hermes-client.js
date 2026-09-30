@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { callGeminiFlashJson } from './gemini-client.js';
 
+import { uploadBufferToR2 } from './openai-image-client.js';
+
 let cachedHermesBin = null;
 
 /**
@@ -45,8 +47,7 @@ export async function executeHermesAgent(prompt, options = {}) {
     const provider = options.provider || process.env.HERMES_PROVIDER || 'gemini';
 
     if (!hermesBin) {
-        console.warn('⚠️ [Hermes Bridge] Official hermes CLI not found in PATH, using direct AI engine execution.');
-        return null;
+        throw new Error('Official hermes CLI not found in PATH');
     }
 
     const args = [
@@ -56,11 +57,15 @@ export async function executeHermesAgent(prompt, options = {}) {
         '-m', model,
     ];
 
+    if (options.toolsets) {
+        args.push('-t', options.toolsets);
+    }
+
     if (options.skills) {
         args.push('--skills', options.skills);
     }
 
-    console.log(`☤ [Hermes Agent] Executing official Nous Hermes Agent (${model})...`);
+    console.log(`☤ [Hermes Agent] Executing official Nous Hermes Agent (${model}${options.toolsets ? `, toolsets: ${options.toolsets}` : ''})...`);
 
     return new Promise((resolve, reject) => {
         const env = {
@@ -70,16 +75,51 @@ export async function executeHermesAgent(prompt, options = {}) {
             PATH: `${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
         };
 
-        execFile(hermesBin, args, { env, timeout: 60000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+        execFile(hermesBin, args, { env, timeout: 180000, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
             if (error) {
-                console.warn(`⚠️ [Hermes Agent] CLI execution error: ${error.message} (${stderr?.slice(0, 200)})`);
-                return resolve(null); // Fallback to direct client
+                console.error(`⚠️ [Hermes Agent] CLI execution error: ${error.message} (${stderr?.slice(0, 300)})`);
+                return reject(new Error(`Hermes Agent execution failed: ${error.message}`));
             }
 
             const output = (stdout || '').trim();
             resolve(output);
         });
     });
+}
+
+/**
+ * Scan Hermes cache directory for images generated during this session
+ */
+export function getHermesGeneratedImagesSince(timestamp) {
+    const cacheDir = path.join(os.homedir(), '.hermes', 'cache', 'images');
+    if (!fs.existsSync(cacheDir)) return [];
+    try {
+        const files = fs.readdirSync(cacheDir)
+            .map(file => {
+                const fullPath = path.join(cacheDir, file);
+                const stat = fs.statSync(fullPath);
+                return { path: fullPath, mtime: stat.mtimeMs };
+            })
+            .filter(f => f.mtime >= timestamp)
+            .sort((a, b) => a.mtime - b.mtime);
+        return files.map(f => f.path);
+    } catch (_) {
+        return [];
+    }
+}
+
+/**
+ * Upload a locally generated image file to Cloudflare R2
+ */
+export async function uploadLocalImageFileToR2(filePath, prefix = 'visual-directions') {
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    try {
+        const buffer = fs.readFileSync(filePath);
+        return await uploadBufferToR2(buffer, prefix, 'image/png');
+    } catch (err) {
+        console.error(`⚠️ [Hermes Bridge] Failed to upload local image to R2:`, err.message);
+        return null;
+    }
 }
 
 /**
