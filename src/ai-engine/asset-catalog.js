@@ -165,6 +165,20 @@ export const CURATED_3D_MODELS = [
         category: 'space',
         url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/3d/kenney/space/craft-speeder-a.glb',
         tags: ['spaceship', 'aircraft', 'fly', 'space', 'shooter', 'galaxy', 'sci-fi'],
+    },
+    {
+        id: 'char-scorpion',
+        name: 'Scorpion (Mortal Kombat)',
+        category: 'character',
+        url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/characters/scorpion.glb',
+        tags: ['scorpion', 'ninja', 'fighter', 'mortal kombat', 'warrior', 'combat', 'martial arts'],
+    },
+    {
+        id: 'char-green-lantern',
+        name: 'Hal Jordan (Green Lantern)',
+        category: 'character',
+        url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/characters/hal_jordan_green_lantern.glb',
+        tags: ['green lantern', 'hal jordan', 'superhero', 'dc', 'fighter', 'energy', 'hero'],
     }
 ];
 
@@ -194,5 +208,17 @@ AVAILABLE ASSET CATALOG (Use if appropriate to the concept; or build 100% proced
   * Sports Sedan Racer: "${CURATED_3D_MODELS[0].url}"
   * Blocky Character: "${CURATED_3D_MODELS[1].url}"
   * Star Fighter Scout: "${CURATED_3D_MODELS[2].url}"
+  * Scorpion (Mortal Kombat): "${CURATED_3D_MODELS[3].url}"
+  * Hal Jordan (Green Lantern): "${CURATED_3D_MODELS[4].url}"
+- 3D Humanoid Motion Library (2,457 UE5/Mixamo-standard Skeletal MoCap Clips):
+  * Root path: "/animations/{bucket}/{sub_bucket}/{name}.glb"
+  * Buckets available:
+    - combat (swords_blades, guns_ranged, melee_unarmed, magic_spells)
+    - locomotion (basic, jumps_leaps, crouch_stealth, parkour_climbing, monster_stylized)
+    - idles_stances (standing_relaxed, combat_ready, crouch_ground, seated)
+    - reactions (hits_impacts, deaths_defeats, knockdowns_falls, agony_injury)
+    - emotes_social (dances, cheers_victory, gestures_talk, taunts_attitude)
+    - sports_activities (soccer, golf, baseball, fitness_gym, lifestyle_interact)
+  * Usage Rule: For 3D games with humanoid characters, pick 3-5 animation URLs matching the gameplay states (idle, walk/run, attack/action, hit, win/die) and bind them with THREE.AnimationMixer.
 `;
 }

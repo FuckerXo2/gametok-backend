@@ -14,3 +14,6 @@ public/assets/
 v2-catalog/staging/**/*.png
 v2-catalog/staging/**/*.json
 !v2-catalog/staging/*/_*.json
+gametok.db
+storage/gametok-jobs/
+storage/rigged_cache/

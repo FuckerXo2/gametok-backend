@@ -165,16 +165,12 @@ export async function directVisualDirections({ prompt, gameTitle = 'Game', selec
         
         let imageUrl = null;
         try {
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Image timeout')), 7500));
-            const imgResult = await Promise.race([
-                generateGameScreenshotImage({
-                    prompt: imagePrompt,
-                    size: '512x512',
-                    quality: 'low',
-                    prefix: 'visual-directions',
-                }),
-                timeoutPromise
-            ]);
+            const imgResult = await generateGameScreenshotImage({
+                prompt: imagePrompt,
+                size: '1024x1024',
+                quality: 'low',
+                prefix: 'visual-directions',
+            });
 
             if (imgResult?.imageUrl) {
                 imageUrl = imgResult.imageUrl;
@@ -322,16 +318,12 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
 
         let imageUrl = null;
         try {
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Image timeout')), 7500));
-            const imgResult = await Promise.race([
-                generateGameScreenshotImage({
-                    prompt: imagePrompt,
-                    size: '512x512',
-                    quality: 'low',
-                    prefix: 'camera-perspectives',
-                }),
-                timeoutPromise
-            ]);
+            const imgResult = await generateGameScreenshotImage({
+                prompt: imagePrompt,
+                size: '1024x1024',
+                quality: 'low',
+                prefix: 'camera-perspectives',
+            });
 
             if (imgResult?.imageUrl) {
                 imageUrl = imgResult.imageUrl;

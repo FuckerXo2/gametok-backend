@@ -112,6 +112,12 @@ for (const previewRoot of GAME_PREVIEW_ROOTS) {
 }
 app.use('/opengame-games', express.static(path.join(STORAGE_ROOT, 'opengame-games')));
 
+// Serve 3D animation library
+const ANIMATIONS_DIR = path.resolve(__dirname, '../../Mixamo Full Motion Pack for UE5 (GLB)');
+if (fs.existsSync(ANIMATIONS_DIR)) {
+  app.use('/animations', express.static(ANIMATIONS_DIR));
+}
+
 // Health check / API entry point
 app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'GameTOK API', version: '2.0.0' });

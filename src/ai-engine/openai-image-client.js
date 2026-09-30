@@ -48,7 +48,7 @@ async function uploadBufferToR2(buffer, prefix = 'game-images', mimeType = 'imag
  */
 export async function generateGameScreenshotImage({
     prompt,
-    size = '512x512',
+    size = '1024x1024',
     quality = 'low',
     prefix = 'game-screens',
 }) {
@@ -59,7 +59,7 @@ export async function generateGameScreenshotImage({
     }
 
     console.log(`⚡ [OpenAI Image] Generating with gpt-image-2.5-flare (${quality}, ${size})...`);
-    const openai = new OpenAI({ apiKey, timeout: 15000 });
+    const openai = new OpenAI({ apiKey, timeout: 30000 });
 
     const response = await openai.images.generate({
         model: 'gpt-image-2.5-flare',
