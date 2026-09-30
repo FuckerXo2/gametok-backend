@@ -56,16 +56,12 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
             max_tokens: maxTokens,
         });
 
-        const content = response.choices?.[0]?.message?.content || '{}';
-        try {
-            return JSON.parse(content);
-        } catch (e) {
-            const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[1]);
-            }
-            throw e;
+        let content = (response.choices?.[0]?.message?.content || '{}').trim();
+        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+            content = jsonMatch[1].trim();
         }
+        return JSON.parse(content);
     }
 
     try {
@@ -74,10 +70,12 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
         const isTemporaryIssue = err.status === 503 || err.status === 429 || 
             String(err.message).includes('high demand') || 
             String(err.message).includes('UNAVAILABLE') || 
-            String(err.message).includes('503');
+            String(err.message).includes('503') ||
+            String(err.message).includes('429');
 
         if (targetModel === GEMINI_FLASH_MODEL && isTemporaryIssue) {
-            console.warn(`[Gemini Client] ${GEMINI_FLASH_MODEL} busy (${err.status || err.message}), failing over to ${GEMINI_FALLBACK_MODEL}...`);
+            console.warn(`[Gemini Client] Rate limit / high demand on ${GEMINI_FLASH_MODEL} (${err.status || err.message}), waiting 1.5s then trying ${GEMINI_FALLBACK_MODEL}...`);
+            await new Promise(r => setTimeout(r, 1500));
             return await executeCall(GEMINI_FALLBACK_MODEL);
         }
         throw err;

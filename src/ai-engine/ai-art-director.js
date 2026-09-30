@@ -84,16 +84,26 @@ function inferThemeType(name = '', modifier = '') {
     return 'arcade';
 }
 
+const inflightVisualDirections = new Map();
+
 /**
  * Main Entry Point: Direct 4 visual styles and generate concept art
  */
 export async function directVisualDirections({ prompt, gameTitle = 'Game', selectedAssets = [] }) {
     if (!prompt) throw new Error('Prompt is required');
 
-    console.log(`✨ [AI Art Director] Directing styles for: "${prompt}" (Title: ${gameTitle}, Assets: ${selectedAssets?.length || 0})`);
+    const cacheKey = `${prompt.trim().toLowerCase()}`;
+    if (inflightVisualDirections.has(cacheKey)) {
+        console.log(`✨ [AI Art Director] Reusing in-flight request for: "${prompt}"`);
+        return inflightVisualDirections.get(cacheKey);
+    }
 
-    // 1. LLM invents the 4 styles tailored specifically to the game
-    const directionsPlan = await callLLMForDirections(prompt, gameTitle, selectedAssets);
+    const task = (async () => {
+        try {
+            console.log(`✨ [AI Art Director] Directing styles for: "${prompt}" (Title: ${gameTitle}, Assets: ${selectedAssets?.length || 0})`);
+
+            // 1. LLM invents the 4 styles tailored specifically to the game
+            const directionsPlan = await callLLMForDirections(prompt, gameTitle, selectedAssets);
 
     // 2. Concurrently render in-game screenshot cards using OpenAI gpt-image-2.5-flare (Low/Fast quality)
     const directionPromises = directionsPlan.map(async (dir, index) => {
@@ -130,13 +140,20 @@ export async function directVisualDirections({ prompt, gameTitle = 'Game', selec
         };
     });
 
-    const directions = await Promise.all(directionPromises);
-    return {
-        success: true,
-        prompt,
-        gameTitle,
-        directions,
-    };
+        const directions = await Promise.all(directionPromises);
+        return {
+            success: true,
+            prompt,
+            gameTitle,
+            directions,
+        };
+    } finally {
+        inflightVisualDirections.delete(cacheKey);
+    }
+    })();
+
+    inflightVisualDirections.set(cacheKey, task);
+    return task;
 }
 
 const PERSPECTIVE_SYSTEM_PROMPT = `You are a world-class Game Designer and Technical Camera Director.
