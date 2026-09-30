@@ -12,69 +12,10 @@
 import { SharedGameState } from './shared-game-state.js';
 import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
 import { callGeminiFlashJson } from './gemini-client.js';
-import { callQwenJson, callQwenMultimodal } from './qwen-multimodal-client.js';
+import { executeHermesAgent, extractJsonFromHermes } from './official-hermes-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
 
-const DEFAULT_NATIVE_GAME_SCRIPT = `
-(function() {
-  var posX = 0.0;
-  var posY = 0.0;
-  var posZ = 0.0;
-  var yaw = 0.0;
-  var speed = 18.0;
-  var targetSpeed = 18.0;
-  var steerInput = 0.0;
-  var isDrifting = false;
-  var driftBoostTimer = 0.0;
-  var score = 0;
-  var multiplier = 1;
-
-  function onGameEvent(event, data) {
-    if (event === 'input') {
-      steerInput = (data && typeof data.steer === 'number') ? data.steer : 0.0;
-      if (data && data.throttle > 0.1) {
-        targetSpeed = 40.0;
-      } else {
-        targetSpeed = 18.0;
-      }
-      isDrifting = Boolean(data && data.drift > 0.5);
-    } else if (event === 'action') {
-      if (data && data.name === 'DRIFT') isDrifting = Boolean(data.pressed);
-      if (data && data.name === 'GAS') targetSpeed = data.pressed ? 40.0 : 18.0;
-      if (data && data.name === 'LEFT') steerInput = data.pressed ? -1.0 : (steerInput < 0 ? 0.0 : steerInput);
-      if (data && data.name === 'RIGHT') steerInput = data.pressed ? 1.0 : (steerInput > 0 ? 0.0 : steerInput);
-    } else if (event === 'update') {
-      var dt = (data && data.dt) || 0.016;
-      if (dt > 0.05) dt = 0.05;
-
-      speed += (targetSpeed - speed) * 4.0 * dt;
-      if (isDrifting) {
-        speed *= (1.0 - 0.2 * dt);
-        driftBoostTimer += dt;
-        multiplier = Math.min(5, 1 + Math.floor(driftBoostTimer * 2));
-        score += Math.floor(100 * multiplier * dt);
-      } else {
-        driftBoostTimer = 0;
-        multiplier = 1;
-        score += Math.floor(10 * dt);
-      }
-
-      var turnRate = isDrifting ? 3.4 : 2.0;
-      yaw += steerInput * turnRate * dt;
-
-      posX += Math.sin(yaw) * speed * dt;
-      posZ += Math.cos(yaw) * speed * dt;
-
-      if (typeof engine !== 'undefined' && engine.setVehicle) {
-        engine.setVehicle(posX, posY, posZ, yaw, isDrifting);
-      }
-    }
-  }
-
-  globalThis.onGameEvent = onGameEvent;
-})();
-`;
 
 function testNativeScript(code) {
   try {
@@ -257,39 +198,40 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
             }
         }
 
-        // Generate code from model owner (Gemini 3.8 Flash)
+        // Generate code via Official Hermes Agent (powered by Gemini)
         let generatedCode = '';
-        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Gemini (${gameState.currentModelOwner})...`);
+        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Official Hermes Agent...`);
 
         try {
-            const response = await callGeminiFlashJson({
-                systemPrompt,
-                messages: [{ role: 'user', content: userPrompt }],
-                maxTokens: 8192,
-                temperature: 0.3
-            }).catch(async (e) => {
-                console.warn(`[GameTok Loop] Gemini model call warning:`, e.message);
-                if (runtime === 'native') {
-                    return {
-                        title: gameState.prompt ? gameState.prompt.slice(0, 32) : 'Cyber Dash JS',
-                        runtime: 'native',
-                        gameScript: DEFAULT_NATIVE_GAME_SCRIPT,
-                        thumbnailPrompt: 'Cyberpunk racing car speeding on a neon track'
-                    };
-                }
-                return { html: `<html lang="en"><head><script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script></head><body><script>const scene=new THREE.Scene();const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,1000);const renderer=new THREE.WebGLRenderer();renderer.setSize(window.innerWidth,window.innerHeight);document.body.appendChild(renderer.domElement);const geometry=new THREE.BoxGeometry();const material=new THREE.MeshBasicMaterial({color:0x00ff00});const cube=new THREE.Mesh(geometry,material);scene.add(cube);camera.position.z=5;function animate(){requestAnimationFrame(animate);cube.rotation.x+=0.01;cube.rotation.y+=0.01;renderer.render(scene,camera);}animate();</script></body></html>` };
-            });
+            let response = null;
+            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nRespond with valid JSON.`;
+            const hermesOutput = await executeHermesAgent(hermesPrompt);
+            if (hermesOutput) {
+                response = extractJsonFromHermes(hermesOutput);
+            }
+
+            if (!response) {
+                console.log(`🤖 [GameTok Loop] Hermes raw output not parsed or null, executing Gemini 3.8 Flash direct...`);
+                response = await callGeminiFlashJson({
+                    systemPrompt,
+                    messages: [{ role: 'user', content: userPrompt }],
+                    maxTokens: 8192,
+                    temperature: 0.3
+                });
+            }
 
             if (runtime === 'native') {
-                generatedCode = response.gameScript || response.code || (typeof response === 'string' ? response : DEFAULT_NATIVE_GAME_SCRIPT);
+                generatedCode = response.gameScript || response.code || (typeof response === 'string' ? response : '');
+                if (!generatedCode) throw new Error('No gameScript generated by model');
                 if (response.title) gameState.metadata.title = response.title;
                 if (response.thumbnailPrompt) gameState.metadata.thumbnailPrompt = response.thumbnailPrompt;
             } else {
                 generatedCode = typeof response === 'string' ? response : (response.html || response.code || JSON.stringify(response));
+                if (!generatedCode) throw new Error('No HTML game code generated by model');
             }
         } catch (err) {
-            console.error(`💥 [GameTok Loop] Gemini generation error:`, err.message);
-            gameState.recordAttempt({ passed: false, error: `Gemini error: ${err.message}` });
+            console.error(`💥 [GameTok Loop] Generation error:`, err.message);
+            gameState.recordAttempt({ passed: false, error: `Generation error: ${err.message}` });
             continue;
         }
 

@@ -12,6 +12,7 @@
 
 import { generateGameScreenshotImage } from './openai-image-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
+import { executeHermesAgent, extractJsonFromHermes } from './official-hermes-client.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title, concept prompt, and any attached or selected assets.
@@ -47,6 +48,17 @@ async function callLLMForDirections(prompt, gameTitle, selectedAssets = []) {
     let assetContext = '';
     if (Array.isArray(selectedAssets) && selectedAssets.length > 0) {
         assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type || 'asset'}: ${a.label || a.title || a.url}`).join('\n');
+    }
+
+    // 1. Try official Nous Research Hermes Agent
+    const hermesPrompt = `${SYSTEM_PROMPT}\n\nGame Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}\n\nRespond with valid JSON containing "directions" array.`;
+    const hermesOutput = await executeHermesAgent(hermesPrompt);
+    if (hermesOutput) {
+        const parsed = extractJsonFromHermes(hermesOutput);
+        if (parsed && Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
+            console.log(`✅ [AI Art Director] Official Hermes Agent conceptualized 4 directions:`, parsed.directions.map(d => d.name));
+            return parsed.directions.slice(0, 4);
+        }
     }
 
     console.log(`🧠 [AI Art Director] Prompting Gemini Flash for visual directions...`);
@@ -199,18 +211,28 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
         assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type}: ${a.label || a.title || a.url}`).join('\n') + '\nFrame camera perspectives around these active assets.';
     }
 
-    console.log(`🎥 [Camera Perspective] Prompting Gemini Flash to evaluate perspectives for "${prompt}" (Style: ${styleName})...`);
-    const parsed = await callGeminiFlashJson({
-        systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
-        messages: [
-            {
-                role: 'user',
-                content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}`,
-            },
-        ],
-        temperature: 0.7,
-        maxTokens: 1500,
-    });
+    // 1. Try official Nous Research Hermes Agent
+    let parsed = null;
+    const hermesPrompt = `${PERSPECTIVE_SYSTEM_PROMPT}\n\nGame Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}\n\nRespond with valid JSON matching the schema.`;
+    const hermesOutput = await executeHermesAgent(hermesPrompt);
+    if (hermesOutput) {
+        parsed = extractJsonFromHermes(hermesOutput);
+    }
+
+    if (!parsed) {
+        console.log(`🎥 [Camera Perspective] Prompting Gemini Flash to evaluate perspectives for "${prompt}" (Style: ${styleName})...`);
+        parsed = await callGeminiFlashJson({
+            systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
+            messages: [
+                {
+                    role: 'user',
+                    content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}`,
+                },
+            ],
+            temperature: 0.7,
+            maxTokens: 1500,
+        });
+    }
 
     if (!parsed) {
         throw new Error(`Failed to evaluate camera perspectives for "${prompt}"`);
