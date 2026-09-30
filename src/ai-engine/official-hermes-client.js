@@ -72,7 +72,7 @@ export async function executeHermesAgent(prompt, options = {}) {
             ...process.env,
             GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
             OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-            PATH: `${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
+            PATH: `/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
         };
 
         execFile(hermesBin, args, { env, timeout: 180000, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {

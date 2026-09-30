@@ -213,13 +213,7 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
             }
 
             if (!response) {
-                console.log(`🤖 [GameTok Loop] Hermes raw output not parsed or null, executing Gemini 3.8 Flash direct...`);
-                response = await callGeminiFlashJson({
-                    systemPrompt,
-                    messages: [{ role: 'user', content: userPrompt }],
-                    maxTokens: 8192,
-                    temperature: 0.3
-                });
+                throw new Error('Hermes Agent failed to produce valid JSON output');
             }
 
             if (runtime === 'native') {
