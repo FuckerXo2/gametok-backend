@@ -51,16 +51,40 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
     async function executeCall(m) {
         const response = await client.chat.completions.create({
             model: m,
+            response_format: { type: 'json_object' },
             messages: formattedMessages,
             temperature,
             max_tokens: maxTokens,
         });
 
         let content = (response.choices?.[0]?.message?.content || '{}').trim();
-        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-            content = jsonMatch[1].trim();
+        
+        // 1. Strip markdown fences if present
+        if (content.startsWith('```')) {
+            content = content.replace(/^```(?:json)?\s*/i, '');
+            content = content.replace(/\s*```\s*$/i, '');
+            content = content.trim();
         }
+        
+        // 2. Direct parse attempt
+        try {
+            return JSON.parse(content);
+        } catch (_) {}
+
+        // 3. Extract outermost JSON object { ... }
+        const startObj = content.indexOf('{');
+        const endObj = content.lastIndexOf('}');
+        if (startObj !== -1 && endObj > startObj) {
+            return JSON.parse(content.slice(startObj, endObj + 1));
+        }
+
+        // 4. Extract outermost JSON array [ ... ]
+        const startArr = content.indexOf('[');
+        const endArr = content.lastIndexOf(']');
+        if (startArr !== -1 && endArr > startArr) {
+            return JSON.parse(content.slice(startArr, endArr + 1));
+        }
+
         return JSON.parse(content);
     }
 
