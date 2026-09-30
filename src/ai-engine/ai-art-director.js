@@ -13,6 +13,7 @@
 import OpenAI from 'openai';
 import { generateGameScreenshotImage } from './openai-image-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
+import { getQwenConfig, createQwenClient } from './qwen-multimodal-client.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title, concept prompt, and any attached or selected assets.
@@ -96,7 +97,34 @@ async function callLLMForDirections(prompt, gameTitle, selectedAssets = []) {
         }
     }
 
-    // 3. Try NVIDIA NIM LLM if NVIDIA_API_KEY is present
+    // 3. Try OpenAI (gpt-4o-mini) if OPENAI_API_KEY is present
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (openaiKey) {
+        try {
+            console.log(`🧠 [AI Art Director] Prompting OpenAI (gpt-4o-mini) for visual directions...`);
+            const oaiClient = new OpenAI({ apiKey: openaiKey, timeout: 15000 });
+            const response = await oaiClient.chat.completions.create({
+                model: 'gpt-4o-mini',
+                response_format: { type: 'json_object' },
+                messages: [
+                    { role: 'system', content: SYSTEM_PROMPT },
+                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}` },
+                ],
+                temperature: 0.7,
+                max_tokens: 1500,
+            });
+
+            const parsed = JSON.parse(response.choices?.[0]?.message?.content || '{}');
+            if (Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
+                console.log(`✅ [AI Art Director] OpenAI (gpt-4o-mini) conceptualized 4 directions:`, parsed.directions.map(d => d.name));
+                return parsed.directions.slice(0, 4);
+            }
+        } catch (oaiErr) {
+            console.warn(`⚠️ [AI Art Director] OpenAI fallback failed:`, oaiErr.message);
+        }
+    }
+
+    // 4. Try NVIDIA NIM LLM if NVIDIA_API_KEY is present
     const nvidiaKey = process.env.NVIDIA_API_KEY;
     if (nvidiaKey) {
         try {
@@ -262,22 +290,42 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
         assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type}: ${a.label || a.title || a.url}`).join('\n') + '\nFrame camera perspectives around these active assets.';
     }
 
-    console.log(`🎥 [Camera Perspective] Prompting Gemini 3.8 Flash to evaluate perspectives for "${prompt}" (Style: ${styleName})...`);
-
-    const parsed = await callGeminiFlashJson({
-        systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
-        messages: [
-            {
-                role: 'user',
-                content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}`,
-            },
-        ],
-        temperature: 0.7,
-        maxTokens: 1500,
-    });
+    let parsed = null;
+    try {
+        console.log(`🎥 [Camera Perspective] Prompting Gemini 3.8 Flash to evaluate perspectives for "${prompt}" (Style: ${styleName})...`);
+        parsed = await callGeminiFlashJson({
+            systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
+            messages: [
+                {
+                    role: 'user',
+                    content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}`,
+                },
+            ],
+            temperature: 0.7,
+            maxTokens: 1500,
+        });
+    } catch (geminiErr) {
+        console.warn(`⚠️ [Camera Perspective] Gemini failed, trying OpenAI:`, geminiErr.message);
+        if (process.env.OPENAI_API_KEY) {
+            try {
+                const oaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 15000 });
+                const res = await oaiClient.chat.completions.create({
+                    model: 'gpt-4o-mini',
+                    response_format: { type: 'json_object' },
+                    messages: [
+                        { role: 'system', content: PERSPECTIVE_SYSTEM_PROMPT },
+                        { role: 'user', content: `Game Title: ${gameTitle}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}` },
+                    ],
+                });
+                parsed = JSON.parse(res.choices?.[0]?.message?.content || '{}');
+            } catch (oaiErr) {
+                console.warn(`⚠️ [Camera Perspective] OpenAI fallback failed:`, oaiErr.message);
+            }
+        }
+    }
 
     if (!parsed) {
-        throw new Error(`Gemini failed to evaluate camera perspectives for "${prompt}"`);
+        throw new Error(`Failed to evaluate camera perspectives for "${prompt}"`);
     }
 
     // If Gemini AI determined that perspective selection should be bypassed (user already specified it or inherent 2D/grid genre):
