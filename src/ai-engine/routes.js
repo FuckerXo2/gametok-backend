@@ -1229,25 +1229,31 @@ export async function saveForgeSession(sessionId, data) {
 
     try {
         await pool.query(`
-            INSERT INTO forge_sessions (id, user_id, prompt, game_title, journey_view, visual_directions, selected_direction, perspectives, selected_perspective, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, NOW())
+            INSERT INTO forge_sessions (id, user_id, prompt, game_title, journey_view, visual_directions, selected_direction, perspectives, selected_perspective, step, phase, status_message, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, NOW())
             ON CONFLICT (id) DO UPDATE SET
                 journey_view = EXCLUDED.journey_view,
                 visual_directions = COALESCE(EXCLUDED.visual_directions, forge_sessions.visual_directions),
                 selected_direction = COALESCE(EXCLUDED.selected_direction, forge_sessions.selected_direction),
                 perspectives = COALESCE(EXCLUDED.perspectives, forge_sessions.perspectives),
                 selected_perspective = COALESCE(EXCLUDED.selected_perspective, forge_sessions.selected_perspective),
+                step = COALESCE(EXCLUDED.step, forge_sessions.step),
+                phase = COALESCE(EXCLUDED.phase, forge_sessions.phase),
+                status_message = COALESCE(EXCLUDED.status_message, forge_sessions.status_message),
                 updated_at = NOW();
         `, [
             sessionId,
-            data.userId || null,
-            data.prompt || null,
-            data.gameTitle || null,
-            data.journeyView || 'understanding',
+            updated.userId || null,
+            updated.prompt || null,
+            updated.gameTitle || null,
+            updated.journeyView || 'understanding',
             JSON.stringify(updated.visualDirections || []),
             updated.selectedDirection ? JSON.stringify(updated.selectedDirection) : null,
             JSON.stringify(updated.perspectives || []),
             updated.selectedPerspective ? JSON.stringify(updated.selectedPerspective) : null,
+            typeof updated.step === 'number' ? updated.step : 0,
+            updated.phase || null,
+            updated.statusMessage || null,
         ]);
     } catch (e) {
         console.warn('[Forge Sessions DB] Write error:', e.message);
@@ -1273,6 +1279,9 @@ export async function getForgeSession(sessionId) {
                 selectedDirection: row.selected_direction,
                 perspectives: row.perspectives || [],
                 selectedPerspective: row.selected_perspective,
+                step: row.step ?? 0,
+                phase: row.phase || null,
+                statusMessage: row.status_message || null,
                 updatedAt: new Date(row.updated_at).getTime(),
             };
             forgeSessionsCache.set(sessionId, session);
@@ -1315,13 +1324,40 @@ router.post('/generate-visual-directions', async (req, res) => {
             }
         }
 
-        console.log(`🌟 [Visual Directions] AI Art Director conceptualizing directions for "${prompt}"...`);
+        const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        await saveForgeSession(activeSessionId, {
+            sessionId: activeSessionId,
+            userId,
+            prompt,
+            gameTitle,
+            journeyView: 'understanding',
+            step: 0,
+            phase: 'analyzing',
+            statusMessage: 'Analyzing your game idea and core vision...',
+            updatedAt: Date.now(),
+        }).catch(e => console.warn('[Forge Session] Initial save error:', e.message));
+
+        const onProgress = async ({ step, phase, message }) => {
+            try {
+                await saveForgeSession(activeSessionId, {
+                    sessionId: activeSessionId,
+                    step,
+                    phase,
+                    statusMessage: message,
+                    updatedAt: Date.now(),
+                });
+            } catch (e) {
+                console.warn('[Forge Session] Progress update error:', e.message);
+            }
+        };
+
+        console.log(`🌟 [Visual Directions] AI Art Director conceptualizing directions for "${prompt}" (Session: ${activeSessionId})...`);
         const { attachments: rawAttachments = [] } = req.body;
         const selectedAssets = sanitizeMediaAttachments(rawAttachments);
-        const result = await directVisualDirections({ prompt, gameTitle, selectedAssets });
+        const result = await directVisualDirections({ prompt, gameTitle, selectedAssets, onProgress });
 
-        const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        saveForgeSession(activeSessionId, {
+        await saveForgeSession(activeSessionId, {
             sessionId: activeSessionId,
             userId,
             prompt,
@@ -1329,6 +1365,9 @@ router.post('/generate-visual-directions', async (req, res) => {
             journeyView: 'directions',
             visualDirections: result.directions,
             isDirectionsReady: true,
+            step: 4,
+            phase: 'ready',
+            statusMessage: 'Visual directions ready!',
             updatedAt: Date.now(),
         }).catch(e => console.warn('[Forge Session] save error:', e.message));
 
@@ -1374,12 +1413,40 @@ router.post('/generate-perspectives', async (req, res) => {
             }
         }
 
-        console.log(`🎥 [Camera Perspectives] Directing perspectives for "${prompt}"...`);
-        const selectedAssets = sanitizeMediaAttachments(rawAttachments);
-        const result = await directPerspectives({ prompt, gameTitle, selectedDirection, selectedAssets });
-
         const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        saveForgeSession(activeSessionId, {
+
+        await saveForgeSession(activeSessionId, {
+            sessionId: activeSessionId,
+            userId,
+            prompt,
+            gameTitle,
+            selectedDirection,
+            journeyView: 'perspective-understanding',
+            step: 0,
+            phase: 'analyzing',
+            statusMessage: 'Analyzing gameplay space & movement...',
+            updatedAt: Date.now(),
+        }).catch(e => console.warn('[Forge Session] Initial save error:', e.message));
+
+        const onProgress = async ({ step, phase, message }) => {
+            try {
+                await saveForgeSession(activeSessionId, {
+                    sessionId: activeSessionId,
+                    step,
+                    phase,
+                    statusMessage: message,
+                    updatedAt: Date.now(),
+                });
+            } catch (e) {
+                console.warn('[Forge Session] Progress update error:', e.message);
+            }
+        };
+
+        console.log(`🎥 [Camera Perspectives] Directing perspectives for "${prompt}" (Session: ${activeSessionId})...`);
+        const selectedAssets = sanitizeMediaAttachments(rawAttachments);
+        const result = await directPerspectives({ prompt, gameTitle, selectedDirection, selectedAssets, onProgress });
+
+        await saveForgeSession(activeSessionId, {
             sessionId: activeSessionId,
             userId,
             prompt,
@@ -1389,6 +1456,9 @@ router.post('/generate-perspectives', async (req, res) => {
             perspectives: result.perspectives,
             selectedPerspective: result.defaultPerspective || null,
             isPerspectivesReady: true,
+            step: 3,
+            phase: 'ready',
+            statusMessage: 'Camera perspectives ready!',
             updatedAt: Date.now(),
         }).catch(e => console.warn('[Forge Session] save error:', e.message));
 

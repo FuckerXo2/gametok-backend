@@ -579,6 +579,10 @@ export const runMigrations = async () => {
         updated_at TIMESTAMP DEFAULT NOW()
       );
 
+      ALTER TABLE forge_sessions ADD COLUMN IF NOT EXISTS step INTEGER DEFAULT 0;
+      ALTER TABLE forge_sessions ADD COLUMN IF NOT EXISTS status_message TEXT;
+      ALTER TABLE forge_sessions ADD COLUMN IF NOT EXISTS phase VARCHAR(64);
+
       CREATE INDEX IF NOT EXISTS idx_forge_sessions_user ON forge_sessions(user_id);
     `);
     console.log('✅ Game progress & forge sessions tables ready');
