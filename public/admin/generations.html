@@ -76,8 +76,10 @@
   <div class="empty" id="empty" style="display:none">No generations yet.</div>
 
 <script>
-  // Forward an optional ?key= (matches ADMIN_KEY on the server, if set) to the API.
-  const KEY = new URLSearchParams(location.search).get('key');
+  // Forward optional ?key= (saved to localStorage for persistent convenience)
+  const urlKey = new URLSearchParams(location.search).get('key');
+  if (urlKey) localStorage.setItem('gametok_admin_key', urlKey);
+  const KEY = urlKey || localStorage.getItem('gametok_admin_key') || '';
   const apiUrl = '/api/admin/generation-logs?limit=200' + (KEY ? '&key=' + encodeURIComponent(KEY) : '');
   const statsUrl = '/api/admin/generation-stats' + (KEY ? '?key=' + encodeURIComponent(KEY) : '');
   let all = [];

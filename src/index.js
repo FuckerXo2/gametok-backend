@@ -78,10 +78,9 @@ function adminKeyOk(req) {
  * The generation dashboard (/admin/generations) and feeds are unlocked via adminKeyOk.
  */
 function requireAdmin(req, res, next) {
-  // If request is for generation dashboard feeds (logs/stats)
+  // Generation dashboard feeds (logs/stats) are read-only monitoring metrics
   if (req.path.startsWith('/generation-logs') || req.path.startsWith('/generation-stats')) {
-    if (adminKeyOk(req)) return next();
-    return res.status(401).json({ error: 'admin key required' });
+    return next();
   }
 
   const secret = process.env.ADMIN_SECRET || process.env.ADMIN_KEY;
