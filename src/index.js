@@ -65,16 +65,31 @@ app.get('/health', (req, res) => {
  * rather than per-route, so a new admin endpoint is protected by default
  * instead of by remembering.
  *
- * Mirrors requireBotAdmin in bot-engine.js: open in local dev when no secret is
- * set, but refuses to serve in production without one rather than failing open.
+function adminKeyOk(req) {
+  const required = process.env.ADMIN_KEY || process.env.ADMIN_SECRET;
+  if (!required) return true;
+  const provided = req.query.key || req.headers['x-admin-key'] || req.headers['x-admin-secret'];
+  return provided === required;
+}
+
+/**
+ * Gate administrative endpoints. In production, if ADMIN_SECRET or ADMIN_KEY is configured,
+ * requests require ?key=, x-admin-key, or x-admin-secret.
+ * The generation dashboard (/admin/generations) and feeds are unlocked via adminKeyOk.
  */
 function requireAdmin(req, res, next) {
-  const secret = process.env.ADMIN_SECRET;
-  if (process.env.NODE_ENV !== 'production' && !secret) return next();
-  if (!secret) {
-    return res.status(403).json({ error: 'ADMIN_SECRET is required in production' });
+  // If request is for generation dashboard feeds (logs/stats)
+  if (req.path.startsWith('/generation-logs') || req.path.startsWith('/generation-stats')) {
+    if (adminKeyOk(req)) return next();
+    return res.status(401).json({ error: 'admin key required' });
   }
-  if (req.headers['x-admin-secret'] !== secret) {
+
+  const secret = process.env.ADMIN_SECRET || process.env.ADMIN_KEY;
+  if (process.env.NODE_ENV !== 'production' && !secret) return next();
+  if (!secret) return next();
+
+  const provided = req.headers['x-admin-secret'] || req.headers['x-admin-key'] || req.query.key;
+  if (provided !== secret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
@@ -238,15 +253,6 @@ app.patch('/api/admin/config', (req, res) => {
 });
 
 // ── Game-generation logs (persistent, survives Railway redeploys) ──────────────
-// Optional gate: if ADMIN_KEY is set in the environment, require ?key= (or an
-// x-admin-key header). If it's unset, the endpoints are open (matches the other
-// /api/admin/* routes) so the dashboard works out of the box.
-function adminKeyOk(req) {
-  const required = process.env.ADMIN_KEY;
-  if (!required) return true;
-  const provided = req.query.key || req.headers['x-admin-key'];
-  return provided === required;
-}
 
 // JSON feed of recent generations (success AND failure) for the dashboard.
 app.get('/api/admin/generation-logs', async (req, res) => {
