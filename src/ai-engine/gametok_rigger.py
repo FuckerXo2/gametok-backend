@@ -7,9 +7,19 @@ via the official Blender MCP server.
 
 import os
 import sys
-import math
+def get_default_skeleton():
+    candidate_paths = [
+        os.environ.get("SKELETON_PATH"),
+        os.path.abspath(os.path.join(os.getcwd(), "storage/skeletons/ue5_master_skeleton.fbx")),
+        "/app/storage/skeletons/ue5_master_skeleton.fbx",
+        "/Users/abiolalimitless/gameidea/gametok-backend/storage/skeletons/ue5_master_skeleton.fbx",
+    ]
+    for p in candidate_paths:
+        if p and os.path.exists(p):
+            return os.path.abspath(p)
+    return candidate_paths[1]
 
-DEFAULT_SKELETON = "/Users/abiolalimitless/gameidea/gametok-backend/storage/skeletons/ue5_master_skeleton.fbx"
+DEFAULT_SKELETON = get_default_skeleton()
 
 def rig_character(mesh_path: str, output_path: str, skeleton_path: str = None) -> dict:
     """
