@@ -10,9 +10,11 @@ import sys
 def get_default_skeleton():
     candidate_paths = [
         os.environ.get("SKELETON_PATH"),
+        os.path.abspath(os.path.join(os.getcwd(), "storage/skeletons/ue5_master_skeleton.glb")),
+        "/app/storage/skeletons/ue5_master_skeleton.glb",
+        "/Users/abiolalimitless/gameidea/gametok-backend/storage/skeletons/ue5_master_skeleton.glb",
         os.path.abspath(os.path.join(os.getcwd(), "storage/skeletons/ue5_master_skeleton.fbx")),
         "/app/storage/skeletons/ue5_master_skeleton.fbx",
-        "/Users/abiolalimitless/gameidea/gametok-backend/storage/skeletons/ue5_master_skeleton.fbx",
     ]
     for p in candidate_paths:
         if p and os.path.exists(p):

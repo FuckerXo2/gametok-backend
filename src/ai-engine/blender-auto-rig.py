@@ -34,7 +34,7 @@ def run_auto_rig():
     output_path = os.path.abspath(custom_args[1])
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    default_skeleton = os.path.abspath(os.path.join(script_dir, '../../storage/skeletons/ue5_master_skeleton.fbx'))
+    default_skeleton = os.path.abspath(os.path.join(script_dir, '../../storage/skeletons/ue5_master_skeleton.glb'))
     skeleton_path = os.path.abspath(custom_args[2]) if len(custom_args) > 2 else default_skeleton
 
     print(f"\n🦾 [Blender Auto-Rigger] Starting headless pipeline...")
