@@ -255,7 +255,6 @@ app.patch('/api/admin/config', (req, res) => {
 
 // JSON feed of recent generations (success AND failure) for the dashboard.
 app.get('/api/admin/generation-logs', async (req, res) => {
-  if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
   try {
     try {
       await pool.query(`
@@ -314,7 +313,6 @@ app.get('/api/admin/generation-logs', async (req, res) => {
 // capped (recent N rows), so counting rows client-side pegs "Total" at the
 // fetch limit forever — these stats come straight from the full table.
 app.get('/api/admin/generation-stats', async (req, res) => {
-  if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
   try {
     try {
       await pool.query(`
