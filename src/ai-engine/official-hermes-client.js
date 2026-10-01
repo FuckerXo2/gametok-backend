@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, execSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,25 +12,59 @@ let cachedHermesBin = null;
  * Locate official Nous Research Hermes Agent binary on the system
  */
 export function getHermesBinaryPath() {
-    if (cachedHermesBin) return cachedHermesBin;
+    if (cachedHermesBin && fs.existsSync(cachedHermesBin)) return cachedHermesBin;
 
     const candidates = [
         path.join(os.homedir(), '.local', 'bin', 'hermes'),
+        path.join(os.homedir(), '.hermes', 'hermes-agent', '.hermes', 'bin', 'hermes'),
         path.join(os.homedir(), '.hermes', 'hermes-agent', 'bin', 'hermes'),
         path.join(os.homedir(), '.hermes', 'bin', 'hermes'),
         '/usr/local/bin/hermes',
-        'hermes',
+        '/usr/bin/hermes',
     ];
 
     for (const bin of candidates) {
         try {
-            if (bin === 'hermes' || fs.existsSync(bin)) {
+            if (fs.existsSync(bin)) {
                 cachedHermesBin = bin;
                 return bin;
             }
         } catch (_) {}
     }
 
+    try {
+        const which = execSync('which hermes 2>/dev/null', { encoding: 'utf-8' }).trim();
+        if (which && fs.existsSync(which)) {
+            cachedHermesBin = which;
+            return which;
+        }
+    } catch (_) {}
+
+    return null;
+}
+
+/**
+ * Auto-install official Nous Research Hermes Agent CLI if missing
+ */
+export function ensureHermesInstalled() {
+    let bin = getHermesBinaryPath();
+    if (bin) return bin;
+
+    console.log('📦 [Hermes Installer] Official Nous Research Hermes Agent CLI not found on disk. Installing now...');
+    try {
+        execSync('curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-browser --skip-computer-use', {
+            stdio: 'inherit',
+            timeout: 240000,
+            env: { ...process.env, PATH: `${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}` }
+        });
+        bin = getHermesBinaryPath();
+        if (bin) {
+            console.log(`✅ [Hermes Installer] Successfully installed Hermes Agent at: ${bin}`);
+            return bin;
+        }
+    } catch (e) {
+        console.error('❌ [Hermes Installer] Automated installation failed:', e.message);
+    }
     return null;
 }
 
@@ -42,12 +76,12 @@ export function getHermesBinaryPath() {
  * @param {object} options
  */
 export async function executeHermesAgent(prompt, options = {}) {
-    const hermesBin = getHermesBinaryPath();
+    let hermesBin = getHermesBinaryPath() || ensureHermesInstalled();
     const model = options.model || process.env.HERMES_MODEL || 'gemini-3.8-flash';
     const provider = options.provider || process.env.HERMES_PROVIDER || 'gemini';
 
     if (!hermesBin) {
-        throw new Error('Official hermes CLI not found in PATH');
+        throw new Error('Official hermes CLI not found in PATH and automated installation failed');
     }
 
     const args = [

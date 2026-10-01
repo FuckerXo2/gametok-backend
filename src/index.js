@@ -2,11 +2,20 @@
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
+import os from 'os';
+import { execSync } from 'child_process';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { JwksClient } from 'jwks-rsa';
 import fs from 'fs';
 import path from 'path';
+
+// Augment PATH so official Hermes Agent CLI is visible to all child processes
+const localBin = path.join(os.homedir(), '.local', 'bin');
+const hermesAgentBin = path.join(os.homedir(), '.hermes', 'hermes-agent', '.hermes', 'bin');
+const hermesBin = path.join(os.homedir(), '.hermes', 'bin');
+process.env.PATH = `${localBin}:${hermesAgentBin}:${hermesBin}:${process.env.PATH || ''}`;
+
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import pool, { initDB, runMigrations, runGamificationMigrations, runLeaderboardMigration, runDeletedGamesMigration, runCoinConfigMigration, runStoriesMigration } from './db.js';
@@ -5417,6 +5426,14 @@ const start = async () => {
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
+    try {
+      const hermesCheck = execSync('which hermes 2>/dev/null || true', { encoding: 'utf-8' }).trim();
+      if (hermesCheck) {
+        console.log(`☤ [Hermes CLI] Detected at ${hermesCheck}`);
+      } else {
+        console.log(`ℹ️ [Hermes CLI] Not yet in PATH at startup (will auto-install on demand if needed)`);
+      }
+    } catch (_) {}
   });
 
   let shuttingDown = false;
