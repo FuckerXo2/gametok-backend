@@ -14,7 +14,16 @@ let cachedHermesBin = null;
 export function getHermesBinaryPath() {
     if (cachedHermesBin && fs.existsSync(cachedHermesBin)) return cachedHermesBin;
 
+    const projectRoot = process.cwd();
     const candidates = [
+        path.join(projectRoot, '.hermes', 'hermes-agent', '.hermes', 'bin', 'hermes'),
+        path.join(projectRoot, '.hermes', 'bin', 'hermes'),
+        path.join(projectRoot, 'node_modules', '.bin', 'hermes'),
+        path.join(__dirname, '../../.hermes', 'hermes-agent', '.hermes', 'bin', 'hermes'),
+        path.join(__dirname, '../../node_modules', '.bin', 'hermes'),
+        '/opt/render/.local/bin/hermes',
+        '/opt/render/.hermes/hermes-agent/.hermes/bin/hermes',
+        '/opt/render/.hermes/bin/hermes',
         path.join(os.homedir(), '.local', 'bin', 'hermes'),
         path.join(os.homedir(), '.hermes', 'hermes-agent', '.hermes', 'bin', 'hermes'),
         path.join(os.homedir(), '.hermes', 'hermes-agent', 'bin', 'hermes'),
@@ -33,7 +42,7 @@ export function getHermesBinaryPath() {
     }
 
     try {
-        const which = execSync('which hermes 2>/dev/null', { encoding: 'utf-8' }).trim();
+        const which = execSync('which hermes 2>/dev/null', { encoding: 'utf-8', env: process.env }).trim();
         if (which && fs.existsSync(which)) {
             cachedHermesBin = which;
             return which;
@@ -50,17 +59,31 @@ export function ensureHermesInstalled() {
     let bin = getHermesBinaryPath();
     if (bin) return bin;
 
+    const projectRoot = process.cwd();
+    const hermesHome = path.join(projectRoot, '.hermes');
+    const hermesDir = path.join(hermesHome, 'hermes-agent');
+
     console.log('📦 [Hermes Installer] Official Nous Research Hermes Agent CLI not found on disk. Installing now...');
     try {
-        execSync('export UV_PYTHON_DOWNLOADS=manual; curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-browser --skip-computer-use', {
+        execSync(`export UV_PYTHON_DOWNLOADS=manual; export HERMES_HOME="${hermesHome}"; curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-browser --skip-computer-use --hermes-home "${hermesHome}" --dir "${hermesDir}"`, {
             stdio: 'inherit',
             timeout: 240000,
             env: {
                 ...process.env,
                 UV_PYTHON_DOWNLOADS: 'manual',
-                PATH: `${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
+                HERMES_HOME: hermesHome,
+                PATH: `${path.join(hermesDir, '.hermes', 'bin')}:${path.join(projectRoot, 'node_modules', '.bin')}:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
             }
         });
+        try {
+            const symlinkTarget = path.join(projectRoot, 'node_modules', '.bin', 'hermes');
+            const builtBin = path.join(hermesDir, '.hermes', 'bin', 'hermes');
+            if (fs.existsSync(builtBin)) {
+                fs.mkdirSync(path.dirname(symlinkTarget), { recursive: true });
+                fs.symlinkSync(builtBin, symlinkTarget);
+            }
+        } catch (_) {}
+
         bin = getHermesBinaryPath();
         if (bin) {
             console.log(`✅ [Hermes Installer] Successfully installed Hermes Agent at: ${bin}`);

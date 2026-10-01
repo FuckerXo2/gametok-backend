@@ -11,10 +11,14 @@ import fs from 'fs';
 import path from 'path';
 
 // Augment PATH so official Hermes Agent CLI is visible to all child processes
+const projectHermesBin = path.join(process.cwd(), '.hermes', 'hermes-agent', '.hermes', 'bin');
+const projectHermesHomeBin = path.join(process.cwd(), '.hermes', 'bin');
+const projectNodeBin = path.join(process.cwd(), 'node_modules', '.bin');
 const localBin = path.join(os.homedir(), '.local', 'bin');
 const hermesAgentBin = path.join(os.homedir(), '.hermes', 'hermes-agent', '.hermes', 'bin');
 const hermesBin = path.join(os.homedir(), '.hermes', 'bin');
-process.env.PATH = `${localBin}:${hermesAgentBin}:${hermesBin}:${process.env.PATH || ''}`;
+process.env.PATH = `${projectHermesBin}:${projectHermesHomeBin}:${projectNodeBin}:${localBin}:${hermesAgentBin}:${hermesBin}:/opt/render/.local/bin:/opt/render/.hermes/hermes-agent/.hermes/bin:${process.env.PATH || ''}`;
+process.env.HERMES_HOME = process.env.HERMES_HOME || path.join(process.cwd(), '.hermes');
 process.env.UV_PYTHON_DOWNLOADS = 'manual';
 
 import { fileURLToPath } from 'url';
@@ -37,8 +41,8 @@ import { backfillGameCategories } from './scripts/backfill-game-categories.js';
 
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
-import { deleteCoverAsset } from './cover-art.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
+import { getHermesBinaryPath } from './ai-engine/official-hermes-client.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -5428,9 +5432,9 @@ const start = async () => {
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
     try {
-      const hermesCheck = execSync('which hermes 2>/dev/null || true', { encoding: 'utf-8' }).trim();
+      const hermesCheck = getHermesBinaryPath() || execSync('which hermes 2>/dev/null || true', { encoding: 'utf-8', env: process.env }).trim();
       if (hermesCheck) {
-        console.log(`☤ [Hermes CLI] Detected at ${hermesCheck}`);
+        console.log(`☤ [Hermes CLI] Active and ready at: ${hermesCheck}`);
       } else {
         console.log(`ℹ️ [Hermes CLI] Not yet in PATH at startup (will auto-install on demand if needed)`);
       }
