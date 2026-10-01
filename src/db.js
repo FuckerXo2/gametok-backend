@@ -294,6 +294,17 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_ai_games_user ON ai_games(user_id);
       CREATE INDEX IF NOT EXISTS idx_generation_jobs_claim ON generation_jobs(status, run_after, created_at);
       CREATE INDEX IF NOT EXISTS idx_generation_jobs_user_created ON generation_jobs(user_id, created_at DESC);
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS phase VARCHAR(64) DEFAULT 'queued';
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS status_message TEXT;
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS dimension VARCHAR(8);
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS lane VARCHAR(64);
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS engine VARCHAR(32);
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS result_title TEXT;
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS log TEXT;
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_usd NUMERIC(8,4) DEFAULT 0;
+      ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_breakdown JSONB DEFAULT '{}'::jsonb;
       
       -- Insert initial scan progress row
       INSERT INTO scan_progress (id) VALUES (1) ON CONFLICT (id) DO NOTHING;

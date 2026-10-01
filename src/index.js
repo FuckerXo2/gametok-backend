@@ -258,6 +258,18 @@ app.patch('/api/admin/config', (req, res) => {
 app.get('/api/admin/generation-logs', async (req, res) => {
   if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
   try {
+    try {
+      await pool.query(`
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_usd NUMERIC(8,4) DEFAULT 0;
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_breakdown JSONB DEFAULT '{}'::jsonb;
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS dimension VARCHAR(8);
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS lane VARCHAR(64);
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS engine VARCHAR(32);
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS result_title TEXT;
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
+      `);
+    } catch (_) {}
+
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
     const status = typeof req.query.status === 'string' ? req.query.status : null;
     const result = await pool.query(
@@ -295,7 +307,7 @@ app.get('/api/admin/generation-logs', async (req, res) => {
     })));
   } catch (e) {
     console.error('[generation-logs] query failed:', e);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: e.message || 'Server error' });
   }
 });
 
@@ -305,6 +317,14 @@ app.get('/api/admin/generation-logs', async (req, res) => {
 app.get('/api/admin/generation-stats', async (req, res) => {
   if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
   try {
+    try {
+      await pool.query(`
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_usd NUMERIC(8,4) DEFAULT 0;
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_breakdown JSONB DEFAULT '{}'::jsonb;
+        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
+      `);
+    } catch (_) {}
+
     const result = await pool.query(
       `SELECT
          count(*)::int                                                          AS total,
@@ -338,7 +358,7 @@ app.get('/api/admin/generation-stats', async (req, res) => {
     });
   } catch (e) {
     console.error('[generation-stats] query failed:', e);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: e.message || 'Server error' });
   }
 });
 
