@@ -52,10 +52,14 @@ export function ensureHermesInstalled() {
 
     console.log('📦 [Hermes Installer] Official Nous Research Hermes Agent CLI not found on disk. Installing now...');
     try {
-        execSync('curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-browser --skip-computer-use', {
+        execSync('export UV_PYTHON_DOWNLOADS=manual; curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-browser --skip-computer-use', {
             stdio: 'inherit',
             timeout: 240000,
-            env: { ...process.env, PATH: `${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}` }
+            env: {
+                ...process.env,
+                UV_PYTHON_DOWNLOADS: 'manual',
+                PATH: `${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
+            }
         });
         bin = getHermesBinaryPath();
         if (bin) {

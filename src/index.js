@@ -15,6 +15,7 @@ const localBin = path.join(os.homedir(), '.local', 'bin');
 const hermesAgentBin = path.join(os.homedir(), '.hermes', 'hermes-agent', '.hermes', 'bin');
 const hermesBin = path.join(os.homedir(), '.hermes', 'bin');
 process.env.PATH = `${localBin}:${hermesAgentBin}:${hermesBin}:${process.env.PATH || ''}`;
+process.env.UV_PYTHON_DOWNLOADS = 'manual';
 
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';

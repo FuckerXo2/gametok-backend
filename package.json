@@ -4,7 +4,7 @@
   "description": "GameTok API backend",
   "main": "src/index.js",
   "scripts": {
-    "postinstall": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-browser --skip-computer-use || true",
+    "postinstall": "export UV_PYTHON_DOWNLOADS=manual; curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-browser --skip-computer-use || true",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "build:catalog": "node src/ai-engine/build-catalog.js",
