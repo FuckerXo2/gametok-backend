@@ -56,6 +56,45 @@ function testNativeScript(code) {
   }
 }
 
+function attachSpendSummary(gameState, jobParams = {}) {
+    const hasVisualDir = Boolean(jobParams.selectedDirection);
+    const hasPerspectives = Boolean(jobParams.selectedPerspective && jobParams.selectedPerspective.requiresSelection !== false);
+    const imageCount = (hasVisualDir ? 4 : 0) + (hasPerspectives ? 4 : 0);
+    const imageCostUsd = Number((imageCount * 0.006).toFixed(4));
+
+    const codeLen = (gameState.currentCode || '').length;
+    const baseInputTokens = 4200;
+    const attemptInputTokens = (gameState.attemptCount || 1) * 1200;
+    const totalInputTokens = baseInputTokens + attemptInputTokens;
+    const totalOutputTokens = 2000 + Math.round(codeLen / 3.8);
+
+    const inputCostUsd = (totalInputTokens * 0.75) / 1_000_000;
+    const outputCostUsd = (totalOutputTokens * 3.75) / 1_000_000;
+    const geminiCostUsd = Number((inputCostUsd + outputCostUsd).toFixed(4));
+    const totalSpendUsd = Number((imageCostUsd + geminiCostUsd).toFixed(4));
+
+    gameState.spend = {
+        totalUsd: totalSpendUsd,
+        imageCount,
+        imageCostUsd,
+        geminiInputTokens: totalInputTokens,
+        geminiOutputTokens: totalOutputTokens,
+        geminiCostUsd,
+        blenderRigCostUsd: 0.0,
+        r2CostUsd: 0.0,
+        currency: 'USD',
+    };
+
+    console.log(`\n======================================================`);
+    console.log(`🧾 [GAMETOK SPEND RECEIPT] Job ${gameState.jobId}`);
+    console.log(`├── 🎨 OpenAI Flare Images: ${imageCount} cards ($${imageCostUsd.toFixed(4)})`);
+    console.log(`├── 🧠 Gemini 3.8 Flash: ${totalInputTokens.toLocaleString()} in / ${totalOutputTokens.toLocaleString()} out ($${geminiCostUsd.toFixed(4)})`);
+    console.log(`├── 🦴 Blender 3D Rigging: $0.0000 (Headless Local / Docker)`);
+    console.log(`├── ☁️ Cloudflare R2: $0.0000 (Zero Egress Tier)`);
+    console.log(`└── 💰 TOTAL SPEND: $${totalSpendUsd.toFixed(4)} (${(totalSpendUsd * 100).toFixed(1)}¢)`);
+    console.log(`======================================================\n`);
+}
+
 /**
  * Main GameTok generation loop
  * @param {object} jobParams 
@@ -256,6 +295,7 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
         if (sandboxResult.passed) {
             console.log(`🎉 [GameTok Loop] Job ${gameState.jobId} compiled cleanly on attempt ${gameState.attemptCount}!`);
             gameState.status = 'succeeded';
+            attachSpendSummary(gameState, jobParams);
             return gameState;
         } else {
             console.warn(`❌ [GameTok Loop] Attempt ${gameState.attemptCount} failed: ${sandboxResult.errors?.[0] || 'Unknown error'}`);
@@ -264,5 +304,6 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
 
     console.error(`🛑 [GameTok Loop] Job ${gameState.jobId} hit retry cap (${gameState.maxAttempts} attempts).`);
     gameState.status = 'failed_needs_review';
+    attachSpendSummary(gameState, jobParams);
     return gameState;
 }

@@ -257,6 +257,7 @@ app.get('/api/admin/generation-logs', async (req, res) => {
     const result = await pool.query(
       `SELECT j.id, j.user_id, j.status, j.prompt, j.error, j.phase, j.attempts,
               j.dimension, j.lane, j.engine, j.result_title, j.duration_ms,
+              j.spend_usd, j.spend_breakdown,
               j.created_at, j.completed_at,
               u.username, u.display_name
          FROM generation_jobs j
@@ -281,6 +282,8 @@ app.get('/api/admin/generation-logs', async (req, res) => {
       engine: r.engine,
       resultTitle: r.result_title,
       durationMs: r.duration_ms,
+      spendUsd: r.spend_usd != null ? Number(r.spend_usd) : 0,
+      spendBreakdown: r.spend_breakdown || null,
       createdAt: r.created_at,
       completedAt: r.completed_at,
     })));
@@ -304,7 +307,10 @@ app.get('/api/admin/generation-stats', async (req, res) => {
          count(*) FILTER (WHERE status IN ('running', 'queued'))::int           AS running,
          count(*) FILTER (WHERE status = 'canceled')::int                       AS canceled,
          avg(duration_ms) FILTER (WHERE status = 'complete'
-                                  AND duration_ms IS NOT NULL)                  AS avg_build_ms
+                                  AND duration_ms IS NOT NULL)                  AS avg_build_ms,
+         coalesce(sum(spend_usd), 0)::numeric(10,4)                            AS total_spend_usd,
+         coalesce(avg(spend_usd) FILTER (WHERE status = 'complete' AND spend_usd > 0), 0)::numeric(10,4) AS avg_cost_per_game,
+         coalesce(sum(spend_usd) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours'), 0)::numeric(10,4) AS today_spend_usd
        FROM generation_jobs
        WHERE kind = 'dream'`,
     );
@@ -320,6 +326,9 @@ app.get('/api/admin/generation-stats', async (req, res) => {
       canceled: r.canceled || 0,
       successRate: finished ? Math.round((succeeded / finished) * 100) : 0,
       avgBuildMs: r.avg_build_ms != null ? Math.round(Number(r.avg_build_ms)) : null,
+      totalSpendUsd: Number(r.total_spend_usd || 0),
+      avgCostPerGame: Number(r.avg_cost_per_game || 0),
+      todaySpendUsd: Number(r.today_spend_usd || 0),
     });
   } catch (e) {
     console.error('[generation-stats] query failed:', e);
@@ -335,6 +344,7 @@ app.get('/api/admin/generation-logs/:id', async (req, res) => {
     const result = await pool.query(
       `SELECT j.id, j.status, j.prompt, j.error, j.phase, j.attempts,
               j.dimension, j.lane, j.engine, j.result_title, j.duration_ms,
+              j.spend_usd, j.spend_breakdown,
               j.created_at, j.completed_at, j.log,
               u.username, u.display_name
          FROM generation_jobs j
@@ -348,6 +358,8 @@ app.get('/api/admin/generation-logs/:id', async (req, res) => {
       id: r.id, status: r.status, prompt: r.prompt, error: r.error, phase: r.phase,
       attempts: r.attempts, dimension: r.dimension, lane: r.lane, engine: r.engine,
       resultTitle: r.result_title, durationMs: r.duration_ms,
+      spendUsd: r.spend_usd != null ? Number(r.spend_usd) : 0,
+      spendBreakdown: r.spend_breakdown || null,
       createdAt: r.created_at, completedAt: r.completed_at,
       username: r.display_name || r.username || null,
       log: r.log || null,

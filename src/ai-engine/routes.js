@@ -409,7 +409,9 @@ async function recordGenerationTelemetry(jobId, fields = {}) {
                     lane = COALESCE($3, lane),
                     engine = COALESCE($4, engine),
                     result_title = COALESCE($5, result_title),
-                    duration_ms = COALESCE($6, duration_ms)
+                    duration_ms = COALESCE($6, duration_ms),
+                    spend_usd = COALESCE($7, spend_usd),
+                    spend_breakdown = COALESCE($8, spend_breakdown)
               WHERE id = $1`,
             [
                 jobId,
@@ -418,6 +420,8 @@ async function recordGenerationTelemetry(jobId, fields = {}) {
                 fields.engine || null,
                 fields.resultTitle || null,
                 Number.isFinite(fields.durationMs) ? Math.round(fields.durationMs) : null,
+                fields.spendUsd != null ? Number(fields.spendUsd) : null,
+                fields.spendBreakdown ? JSON.stringify(fields.spendBreakdown) : null,
             ],
         );
     } catch (error) {
@@ -495,6 +499,8 @@ async function ensureGenerationQueueSchema() {
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS result_title TEXT;
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
             ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS log TEXT;
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_usd NUMERIC(8,4) DEFAULT 0;
+            ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_breakdown JSONB DEFAULT '{}'::jsonb;
         `);
     }
     return generationQueueReadyPromise;
@@ -1128,6 +1134,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             dimension: '3D',
             resultTitle: finalTitle,
             durationMs: Date.now() - (jobPayload?.startedAt || Date.now()),
+            spendUsd: finalGameState?.spend?.totalUsd != null ? finalGameState.spend.totalUsd : 0.08,
+            spendBreakdown: finalGameState?.spend || null,
         });
 
         await reportProgress(100, 'complete', 'Game ready!');

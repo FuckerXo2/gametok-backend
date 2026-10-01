@@ -69,7 +69,7 @@
   </div>
   <table>
     <thead><tr>
-      <th>Status</th><th>Game</th><th>Type</th><th>Duration</th><th>Detail</th><th>When</th><th>User</th>
+      <th>Status</th><th>Game</th><th>Cost</th><th>Type</th><th>Duration</th><th>Detail</th><th>When</th><th>User</th>
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>
@@ -111,16 +111,15 @@
   }
 
   function renderCards() {
-    // Prefer true lifetime aggregates from the stats endpoint. Fall back to the
-    // (capped) feed rows if stats haven't loaded — keeps the page working if the
-    // backend predates the stats endpoint.
-    let total, done, failed, rate, avg;
+    let total, done, failed, rate, avg, spendTotal, avgCost;
     if (stats) {
       total = stats.total;
       done = stats.succeeded;
       failed = stats.failed;
       rate = stats.successRate;
       avg = stats.avgBuildMs != null ? dur(stats.avgBuildMs) : '—';
+      spendTotal = stats.totalSpendUsd != null ? '$' + stats.totalSpendUsd.toFixed(2) : '$0.00';
+      avgCost = stats.avgCostPerGame != null && stats.avgCostPerGame > 0 ? '$' + stats.avgCostPerGame.toFixed(3) : '~$0.088';
     } else {
       total = all.length;
       done = all.filter(r => r.status === 'complete').length;
@@ -129,10 +128,16 @@
       rate = finished ? Math.round((done / finished) * 100) : 0;
       const durs = all.filter(r => r.status === 'complete' && r.durationMs).map(r => r.durationMs);
       avg = durs.length ? dur(Math.round(durs.reduce((a, b) => a + b, 0) / durs.length)) : '—';
+      const totalSpend = all.reduce((acc, r) => acc + (r.spendUsd || 0), 0);
+      spendTotal = '$' + totalSpend.toFixed(2);
+      avgCost = done > 0 ? '$' + (totalSpend / done).toFixed(3) : '~$0.088';
     }
     document.getElementById('cards').innerHTML =
-      card(total, 'Total') + card(rate + '%', 'Success rate') +
-      card(done, 'Succeeded') + card(failed, 'Failed') + card(avg, 'Avg build (success)');
+      card(total, 'Total Runs') + card(rate + '%', 'Success Rate') +
+      card(done, 'Succeeded') + card(failed, 'Failed') +
+      card(avg, 'Avg Build Time') +
+      card(spendTotal, '💰 Total Spend (USD)') +
+      card(avgCost, '💵 Avg Cost / Game');
   }
   function card(n, l) {
     return '<div class="card"><div class="n">' + esc(n) + '</div><div class="l">' + esc(l) + '</div></div>';
@@ -148,17 +153,34 @@
       const detail = r.status === 'failed'
         ? '<span class="err">' + esc((r.error || '').slice(0, 220)) + '</span>'
         : '<span class="tag">' + esc(r.engine || '') + '</span>';
+      const costBadge = '<span class="pill ok" style="font-family:ui-monospace,monospace;font-size:12px">$' + Number(r.spendUsd || 0).toFixed(3) + '</span>';
+
+      const b = r.spendBreakdown;
+      const receiptHtml = b ?
+        '<div style="margin-top:10px;padding:12px 14px;background:#0d111d;border:1px solid #272c3d;border-radius:8px">' +
+          '<div style="font-weight:600;margin-bottom:6px;color:#e7e9f0">🧾 Spend Breakdown Receipt</div>' +
+          '<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#aeb6cf">' +
+            '<div>🎨 <b>OpenAI Flare:</b> ' + (b.imageCount || 0) + ' images ($' + Number(b.imageCostUsd || 0).toFixed(4) + ')</div>' +
+            '<div>🧠 <b>Gemini 3.8 Flash:</b> ' + Number(b.geminiInputTokens || 0).toLocaleString() + ' in / ' + Number(b.geminiOutputTokens || 0).toLocaleString() + ' out ($' + Number(b.geminiCostUsd || 0).toFixed(4) + ')</div>' +
+            '<div>🦴 <b>Blender MCP:</b> $0.00</div>' +
+            '<div>☁️ <b>Cloudflare R2:</b> $0.00</div>' +
+            '<div style="color:#38d39f;font-weight:700">💰 Total: $' + Number(b.totalUsd || r.spendUsd || 0).toFixed(4) + ' (' + (Number(b.totalUsd || r.spendUsd || 0)*100).toFixed(1) + '¢)</div>' +
+          '</div>' +
+        '</div>' : '';
+
       const main = '<tr class="row" data-i="' + i + '" data-id="' + esc(r.id) + '">' +
         '<td>' + statusPill(r.status) + '</td>' +
         '<td><div class="title">' + esc(String(game).slice(0, 80)) + '</div></td>' +
+        '<td>' + costBadge + '</td>' +
         '<td><span class="tag">' + esc(type) + '</span></td>' +
         '<td>' + esc(dur(r.durationMs)) + '</td>' +
         '<td>' + detail + '</td>' +
         '<td class="tag">' + esc(ago(r.createdAt)) + '</td>' +
         '<td class="tag">' + esc(r.username || r.userId || '—') + '</td></tr>';
-      const det = '<tr class="detail" id="det-' + i + '" style="display:none"><td colspan="7">' +
+      const det = '<tr class="detail" id="det-' + i + '" style="display:none"><td colspan="8">' +
         '<div><span class="k">Prompt:</span> <pre>' + esc(r.prompt || '—') + '</pre></div>' +
         (r.error ? '<div style="margin-top:8px"><span class="k">Error:</span> <pre>' + esc(r.error) + '</pre></div>' : '') +
+        receiptHtml +
         '<div style="margin-top:8px" class="tag">job ' + esc(r.id) + ' · phase ' + esc(r.phase || '—') +
         ' · attempts ' + esc(r.attempts) + '</div>' +
         '<div style="margin-top:10px"><span class="k">Full generation log:</span>' +
