@@ -59,33 +59,45 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
 
         let content = (response.choices?.[0]?.message?.content || '{}').trim();
         
-        // 1. Strip markdown fences if present
-        if (content.startsWith('```')) {
-            content = content.replace(/^```(?:json)?\s*/i, '');
-            content = content.replace(/\s*```\s*$/i, '');
-            content = content.trim();
-        }
-        
-        // 2. Direct parse attempt
-        try {
-            return JSON.parse(content);
-        } catch (_) {}
+        function cleanAndParse(raw) {
+            if (!raw) return null;
+            let str = raw.trim();
+            if (str.startsWith('```')) {
+                str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+            }
+            // 1. Direct try
+            try { return JSON.parse(str); } catch (_) {}
 
-        // 3. Extract outermost JSON object { ... }
-        const startObj = content.indexOf('{');
-        const endObj = content.lastIndexOf('}');
-        if (startObj !== -1 && endObj > startObj) {
-            return JSON.parse(content.slice(startObj, endObj + 1));
+            // 2. Strip trailing commas before closing braces/brackets
+            let sanitized = str.replace(/,\s*([\]}])/g, '$1');
+            try { return JSON.parse(sanitized); } catch (_) {}
+
+            // 3. Extract outermost object
+            const startObj = sanitized.indexOf('{');
+            const endObj = sanitized.lastIndexOf('}');
+            if (startObj !== -1 && endObj > startObj) {
+                try {
+                    return JSON.parse(sanitized.slice(startObj, endObj + 1));
+                } catch (_) {}
+            }
+
+            // 4. Extract outermost array
+            const startArr = sanitized.indexOf('[');
+            const endArr = sanitized.lastIndexOf(']');
+            if (startArr !== -1 && endArr > startArr) {
+                try {
+                    return JSON.parse(sanitized.slice(startArr, endArr + 1));
+                } catch (_) {}
+            }
+
+            // Final fallback: try raw substring
+            if (startObj !== -1 && endObj > startObj) {
+                return JSON.parse(str.slice(startObj, endObj + 1));
+            }
+            return JSON.parse(str);
         }
 
-        // 4. Extract outermost JSON array [ ... ]
-        const startArr = content.indexOf('[');
-        const endArr = content.lastIndexOf(']');
-        if (startArr !== -1 && endArr > startArr) {
-            return JSON.parse(content.slice(startArr, endArr + 1));
-        }
-
-        return JSON.parse(content);
+        return cleanAndParse(content);
     }
 
     try {

@@ -175,21 +175,27 @@ export function extractJsonFromHermes(rawText) {
         return JSON.parse(content);
     } catch (_) {}
 
-    // 3. Outermost object { ... }
-    const startObj = content.indexOf('{');
-    const endObj = content.lastIndexOf('}');
+    // 3. Strip trailing commas before closing braces/brackets (common LLM JSON quirk)
+    const sanitized = content.replace(/,\s*([\]}])/g, '$1');
+    try {
+        return JSON.parse(sanitized);
+    } catch (_) {}
+
+    // 4. Outermost object { ... }
+    const startObj = sanitized.indexOf('{');
+    const endObj = sanitized.lastIndexOf('}');
     if (startObj !== -1 && endObj > startObj) {
         try {
-            return JSON.parse(content.slice(startObj, endObj + 1));
+            return JSON.parse(sanitized.slice(startObj, endObj + 1));
         } catch (_) {}
     }
 
-    // 4. Outermost array [ ... ]
-    const startArr = content.indexOf('[');
-    const endArr = content.lastIndexOf(']');
+    // 5. Outermost array [ ... ]
+    const startArr = sanitized.indexOf('[');
+    const endArr = sanitized.lastIndexOf(']');
     if (startArr !== -1 && endArr > startArr) {
         try {
-            return JSON.parse(content.slice(startArr, endArr + 1));
+            return JSON.parse(sanitized.slice(startArr, endArr + 1));
         } catch (_) {}
     }
 
