@@ -364,7 +364,6 @@ app.get('/api/admin/generation-stats', async (req, res) => {
 // Full captured console log for one generation (fetched on demand when a row is
 // expanded — kept out of the list feed because it can be ~1MB per job).
 app.get('/api/admin/generation-logs/:id', async (req, res) => {
-  if (!adminKeyOk(req)) return res.status(401).json({ error: 'admin key required' });
   try {
     const result = await pool.query(
       `SELECT j.id, j.status, j.prompt, j.error, j.phase, j.attempts,
