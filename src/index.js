@@ -64,7 +64,7 @@ app.get('/health', (req, res) => {
  * regeneration, category backfill). This gates the whole prefix in one place
  * rather than per-route, so a new admin endpoint is protected by default
  * instead of by remembering.
- *
+ */
 function adminKeyOk(req) {
   const required = process.env.ADMIN_KEY || process.env.ADMIN_SECRET;
   if (!required) return true;
