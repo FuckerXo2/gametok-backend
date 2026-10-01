@@ -180,9 +180,18 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
         let userPrompt = '';
 
         if (runtime === 'native') {
+            const nativeOrientationRules = landscapeMode
+                ? `VIEWPORT ORIENTATION: LANDSCAPE (Wide Aspect 16:9 / 19.5:9 widescreen).
+- Camera Framing: Position camera for widescreen horizontal breadth (aspect ratio > 2.0). Set camera back along Z/Y to frame horizontal movement across the X-axis (e.g. side-view fighting arena where fighters strafe left/right, wide racing track with sweeping turns).
+- Controls Safe Zone: Left/Right thumb controls sit at screen edges; keep the center 60% of the screen open for character action.`
+                : `VIEWPORT ORIENTATION: PORTRAIT (Vertical Aspect 9:16 mobile / TikTok style).
+- Camera Framing: Deep forward Z-axis perspective or elevated 3rd-person chase camera. Action flows vertically (e.g. forward track runner, top-down arena).
+- Controls Safe Zone: Thumb controls sit at the bottom 25%; keep the upper 75% open for deep 3D perspective visuals.`;
+
             systemPrompt = `You are an expert game developer building high-speed procedural 3D games for the GameTok Native C++ / Apple Metal Engine.
 Runtime: Native C++ QuickJS.
 Orientation: ${orientation.toUpperCase()}.
+${nativeOrientationRules}
 
 CRITICAL ARCHITECTURE RULES:
 1. PURE JAVASCRIPT ONLY: Do NOT output HTML, CSS, <html>, <script>, DOM elements, window, document, or requestAnimationFrame. The code runs directly in QuickJS C++.
