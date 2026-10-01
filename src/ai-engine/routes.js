@@ -1452,9 +1452,9 @@ router.post('/generate-perspectives', async (req, res) => {
             prompt,
             gameTitle,
             selectedDirection,
-            journeyView: result.requiresSelection ? 'perspective' : 'building',
+            journeyView: 'perspective',
             perspectives: result.perspectives,
-            selectedPerspective: result.defaultPerspective || null,
+            selectedPerspective: result.perspectives?.[0] || null,
             isPerspectivesReady: true,
             step: 3,
             phase: 'ready',
@@ -1462,22 +1462,20 @@ router.post('/generate-perspectives', async (req, res) => {
             updatedAt: Date.now(),
         }).catch(e => console.warn('[Forge Session] save error:', e.message));
 
-        if (result.requiresSelection) {
-            sendPushToTokenOrUser({
-                userId,
-                pushToken,
-                title: 'Camera angles ready! 🎥',
-                body: `Choose your camera perspective for "${gameTitle || prompt}"`,
-                data: {
-                    type: 'creation',
-                    action: 'perspectives_ready',
-                    journeyView: 'perspective',
-                    sessionId: activeSessionId,
-                    prompt,
-                    gameTitle,
-                }
-            }).catch(err => console.warn('[Camera Perspectives] Push notification error:', err.message));
-        }
+        sendPushToTokenOrUser({
+            userId,
+            pushToken,
+            title: 'Camera angles ready! 🎥',
+            body: `Choose your camera perspective for "${gameTitle || prompt}"`,
+            data: {
+                type: 'creation',
+                action: 'perspectives_ready',
+                journeyView: 'perspective',
+                sessionId: activeSessionId,
+                prompt,
+                gameTitle,
+            }
+        }).catch(err => console.warn('[Camera Perspectives] Push notification error:', err.message));
 
         res.json({
             ...result,
