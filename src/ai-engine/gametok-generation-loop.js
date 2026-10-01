@@ -123,7 +123,12 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
         assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;
     }
     if (jobParams.selectedDirection) {
-        assetSpecPrompt += `\nVISUAL STYLE: ${jobParams.selectedDirection.name}. ${jobParams.selectedDirection.instruction || jobParams.selectedDirection.modifier}`;
+        const dir = jobParams.selectedDirection;
+        const imgRef = dir.imageUrl || dir.image_path || dir.image || '';
+        assetSpecPrompt += `\nVISUAL STYLE: ${dir.name}. ${dir.instruction || dir.modifier || ''}`;
+        if (imgRef) {
+            assetSpecPrompt += `\nSELECTED VISUAL DIRECTION PREVIEW IMAGE: "${imgRef}". Gemini: use your multimodal vision to visually inspect this reference image. Replicate its 3D arena architecture, lighting mood, color tones, floor material, and background set pieces directly in procedural code so the 3D game world matches what is shown in the image.`;
+        }
     }
     assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any asset fails to load, catch the error and instantly fall back to procedural geometry / Web Audio synth. The game MUST NEVER crash or freeze!`;
 
