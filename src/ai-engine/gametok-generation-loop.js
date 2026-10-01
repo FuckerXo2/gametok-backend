@@ -153,7 +153,11 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
             assetSpecPrompt += `\nSELECTED SPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to player/collectable entity. Add procedural fallback mesh on error.`;
         }
         if (model3dAsset && !attachments.some(a => a.url === model3dAsset.url)) {
-            assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via THREE.GLTFLoader, normalize bounding box scale, play animation mixer if present. Fall back to procedural Three.js mesh if load fails.`;
+            if (runtime === 'native') {
+                assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via engine.spawnModel("${model3dAsset.url}", x, y, z).`;
+            } else {
+                assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via THREE.GLTFLoader, normalize bounding box scale, play animation mixer if present. Fall back to procedural Three.js mesh if load fails.`;
+            }
         }
     } else {
         assetSpecPrompt += `\nNO EXPLICIT ASSETS SELECTED BY USER.\n${getCatalogSummary()}\nAI INSTRUCTION: Decide whether this concept benefits from any of the catalog assets above, OR if it is best executed 100% procedurally (e.g. geometry, math puzzles, sandbox physics, wireframe vector) with zero external asset dependencies.`;
