@@ -1057,7 +1057,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     await fs.promises.mkdir(jobDir, { recursive: true });
 
     try {
-        const runtime = jobPayload?.runtime === 'native' ? 'native' : 'web';
+        const runtime = jobPayload?.runtime === 'web' ? 'web' : 'native';
         assertJobNotCancelled(jobId);
         console.log(`🧠 [HERMES DREAM JOB] Starting generation for: "${prompt}" (runtime: ${runtime}, orientation: ${orientation})`);
         await reportProgress(10, 'starting', 'Hermes is initializing...');
@@ -1613,7 +1613,7 @@ router.post('/dream', async (req, res) => {
         const userId = await getUserIdFromToken(token, 'Expired session');
         const mediaAttachments = sanitizeMediaAttachments(attachments);
         const orientation = normalizeOrientation(requestedOrientation);
-        const runtime = requestedRuntime === 'native' ? 'native' : 'web';
+        const runtime = requestedRuntime === 'web' ? 'web' : 'native';
 
         if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
