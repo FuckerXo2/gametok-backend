@@ -103,12 +103,12 @@ function inferThemeType(name = '', modifier = '') {
  * Fully unified pipeline: Hermes conceptualizes the directions AND fires all 4 image_generate
  * tool calls in parallel to OpenAI (gpt-image-2.5-flare), then uploads the results to Cloudflare R2.
  */
-export async function directVisualDirections({ prompt, gameTitle = 'Game', selectedAssets = [], onProgress }) {
+export async function directVisualDirections({ prompt, gameTitle = 'Game', selectedAssets = [], onProgress, sessionId }) {
     if (!prompt) throw new Error('Prompt is required');
 
     onProgress?.({ step: 0, phase: 'analyzing', message: 'Analyzing your game idea and core vision...' });
 
-    console.log(`✨ [AI Art Director] Hermes directing styles & firing parallel image generation for: "${prompt}" (Title: ${gameTitle}, Assets: ${selectedAssets?.length || 0})`);
+    console.log(`✨ [AI Art Director] Hermes directing styles & firing parallel image generation for: "${prompt}" (Title: ${gameTitle}, Assets: ${selectedAssets?.length || 0}${sessionId ? `, Session: ${sessionId}` : ''})`);
 
     let assetContext = '';
     if (Array.isArray(selectedAssets) && selectedAssets.length > 0) {
@@ -145,6 +145,7 @@ TASK:
     try {
         const hermesOutput = await executeHermesAgent(hermesPrompt, {
             toolsets: 'image_gen,file',
+            sessionId,
         });
         parsed = extractJsonFromHermes(hermesOutput);
     } catch (hermesErr) {
@@ -259,7 +260,7 @@ You MUST respond with valid JSON strictly matching this schema:
  * Fully unified pipeline: Hermes conceptualizes 4 camera perspective angles in the chosen visual style
  * and generates authentic in-game screenshot previews from each camera perspective.
  */
-export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [], onProgress }) {
+export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [], onProgress, sessionId }) {
     if (!prompt) throw new Error('Prompt is required');
 
     onProgress?.({ step: 0, phase: 'analyzing', message: 'Analyzing gameplay space & movement...' });
@@ -267,7 +268,7 @@ export async function directPerspectives({ prompt, gameTitle = 'Game', selectedD
     const styleName = selectedDirection?.name || 'Selected Visual Style';
     const styleModifier = selectedDirection?.modifier || '';
 
-    console.log(`🎥 [Camera Perspective] Hermes directing 4 perspectives for: "${prompt}" (Style: ${styleName})`);
+    console.log(`🎥 [Camera Perspective] Hermes directing 4 perspectives for: "${prompt}" (Style: ${styleName}${sessionId ? `, Session: ${sessionId}` : ''})`);
 
     let assetContext = '';
     if (Array.isArray(selectedAssets) && selectedAssets.length > 0) {
@@ -296,6 +297,7 @@ TASK:
     try {
         const hermesOutput = await executeHermesAgent(hermesPrompt, {
             toolsets: 'image_gen,file',
+            sessionId,
         });
         parsed = extractJsonFromHermes(hermesOutput);
     } catch (hermesErr) {

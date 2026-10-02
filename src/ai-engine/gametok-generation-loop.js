@@ -279,7 +279,11 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
         try {
             let response = null;
             const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nRespond with valid JSON.`;
-            const hermesOutput = await executeHermesAgent(hermesPrompt);
+            const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
+            const hermesOutput = await executeHermesAgent(hermesPrompt, {
+                toolsets: 'file,terminal',
+                sessionId,
+            });
             if (hermesOutput) {
                 response = extractJsonFromHermes(hermesOutput);
             }

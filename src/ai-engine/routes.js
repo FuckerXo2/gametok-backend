@@ -1065,6 +1065,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         // 1. Run the Multi-Model Hermes Generation Loop
         await reportProgress(25, 'generating', runtime === 'native' ? 'Generating 120 FPS Native Game script...' : 'Gemini is designing your 3D game...');
         const finalGameState = await runGameTokGenerationLoop({
+            jobId,
+            sessionId: jobPayload?.sessionId || null,
             prompt,
             orientation,
             runtime,
@@ -1355,7 +1357,7 @@ router.post('/generate-visual-directions', async (req, res) => {
         console.log(`🌟 [Visual Directions] AI Art Director conceptualizing directions for "${prompt}" (Session: ${activeSessionId})...`);
         const { attachments: rawAttachments = [] } = req.body;
         const selectedAssets = sanitizeMediaAttachments(rawAttachments);
-        const result = await directVisualDirections({ prompt, gameTitle, selectedAssets, onProgress });
+        const result = await directVisualDirections({ prompt, gameTitle, selectedAssets, onProgress, sessionId: activeSessionId });
 
         await saveForgeSession(activeSessionId, {
             sessionId: activeSessionId,
@@ -1444,7 +1446,7 @@ router.post('/generate-perspectives', async (req, res) => {
 
         console.log(`🎥 [Camera Perspectives] Directing perspectives for "${prompt}" (Session: ${activeSessionId})...`);
         const selectedAssets = sanitizeMediaAttachments(rawAttachments);
-        const result = await directPerspectives({ prompt, gameTitle, selectedDirection, selectedAssets, onProgress });
+        const result = await directPerspectives({ prompt, gameTitle, selectedDirection, selectedAssets, onProgress, sessionId: activeSessionId });
 
         await saveForgeSession(activeSessionId, {
             sessionId: activeSessionId,
@@ -1602,6 +1604,7 @@ router.post('/dream', async (req, res) => {
             selectedDirection,
             selectedPerspective,
             dimension,
+            sessionId,
         } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -1618,7 +1621,7 @@ router.post('/dream', async (req, res) => {
             return res.json({ success: true, jobId: existingJob.id, deduped: true });
         }
 
-        console.log(`🧠 [DREAM ROUTE] Creating Hermes job for User[${userId}] -> Concept: "${prompt}" (runtime: ${runtime}, ${orientation})`);
+        console.log(`🧠 [DREAM ROUTE] Creating Hermes job for User[${userId}] -> Concept: "${prompt}" (runtime: ${runtime}, ${orientation}${sessionId ? `, Session: ${sessionId}` : ''})`);
 
         const jobId = randomUUID();
         await enqueueGenerationJob({
@@ -1628,6 +1631,7 @@ router.post('/dream', async (req, res) => {
             title: JOB_TITLES.dreamPending,
             kind: 'dream',
             payload: {
+                sessionId: sessionId || null,
                 mediaAttachments,
                 orientation,
                 runtime,

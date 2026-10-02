@@ -1,4 +1,4 @@
-import { execFile, execSync } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,6 +11,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let cachedHermesBin = null;
+
+const sessionConversationCache = new Map();
+
+/**
+ * Retrieve continuous multi-turn conversation history for a session
+ */
+export function getSessionHistory(sessionId) {
+    if (!sessionId) return [];
+    return sessionConversationCache.get(sessionId) || [];
+}
+
+/**
+ * Record a turn in the continuous session
+ */
+export function appendSessionTurn(sessionId, role, content) {
+    if (!sessionId || !content) return;
+    const history = getSessionHistory(sessionId);
+    history.push({ role, content, timestamp: Date.now() });
+    sessionConversationCache.set(sessionId, history);
+}
+
+/**
+ * Clear a session
+ */
+export function clearSessionHistory(sessionId) {
+    if (sessionId) sessionConversationCache.delete(sessionId);
+}
 
 /**
  * Locate official Nous Research Hermes Agent binary on the system
@@ -100,8 +127,7 @@ export function ensureHermesInstalled() {
 }
 
 /**
- * Execute official Nous Research Hermes Agent in one-shot mode (-z)
- * Returns the final text response from Hermes
+ * Execute official Nous Research Hermes Agent with live stdout streaming and session continuity
  *
  * @param {string} prompt
  * @param {object} options
@@ -110,13 +136,23 @@ export async function executeHermesAgent(prompt, options = {}) {
     let hermesBin = getHermesBinaryPath() || ensureHermesInstalled();
     const model = options.model || process.env.HERMES_MODEL || 'gemini-3.8-flash';
     const provider = options.provider || process.env.HERMES_PROVIDER || 'gemini';
+    const sessionId = options.sessionId || null;
 
     if (!hermesBin) {
         throw new Error('Official hermes CLI not found in PATH and automated installation failed');
     }
 
+    let fullPrompt = prompt;
+    if (sessionId) {
+        const history = getSessionHistory(sessionId);
+        if (history.length > 0) {
+            const historyText = history.map(turn => `[${turn.role.toUpperCase()} TURN]:\n${turn.content}`).join('\n\n');
+            fullPrompt = `[CONTINUOUS AGENT SESSION HISTORY]:\n${historyText}\n\n[USER ACTION / NEXT TURN]:\n${prompt}`;
+        }
+    }
+
     const args = [
-        '-z', prompt,
+        '-z', fullPrompt,
         '--yolo',
         '--provider', provider,
         '-m', model,
@@ -130,7 +166,7 @@ export async function executeHermesAgent(prompt, options = {}) {
         args.push('--skills', options.skills);
     }
 
-    console.log(`☤ [Hermes Agent] Executing official Nous Hermes Agent (${model}${options.toolsets ? `, toolsets: ${options.toolsets}` : ''})...`);
+    console.log(`☤ [Hermes Agent] Launching live session (${model}${options.toolsets ? `, toolsets: ${options.toolsets}` : ''}${sessionId ? `, session: ${sessionId}` : ''})...`);
 
     return new Promise((resolve, reject) => {
         const env = {
@@ -140,14 +176,46 @@ export async function executeHermesAgent(prompt, options = {}) {
             PATH: `${path.dirname(hermesBin)}:/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
         };
 
-        execFile(hermesBin, args, { env, timeout: 180000, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`⚠️ [Hermes Agent] CLI execution error: ${error.message} (${stderr?.slice(0, 300)})`);
-                return reject(new Error(`Hermes Agent execution failed: ${error.message}`));
-            }
+        const child = spawn(hermesBin, args, { env });
+        let stdout = '';
+        let stderr = '';
 
-            const output = (stdout || '').trim();
+        child.stdout.on('data', (chunk) => {
+            const str = chunk.toString();
+            stdout += str;
+            const lines = str.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed) console.log(`☤ [Hermes]: ${trimmed}`);
+            }
+        });
+
+        child.stderr.on('data', (chunk) => {
+            const str = chunk.toString();
+            stderr += str;
+            const lines = str.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed) console.log(`☤ [Hermes Trace]: ${trimmed}`);
+            }
+        });
+
+        child.on('close', (code) => {
+            const output = stdout.trim();
+            if (code !== 0 && !output) {
+                console.error(`⚠️ [Hermes Agent] CLI process exited with code ${code} (${stderr.slice(0, 300)})`);
+                return reject(new Error(`Hermes Agent execution failed with code ${code}: ${stderr.slice(0, 200)}`));
+            }
+            if (sessionId && output) {
+                appendSessionTurn(sessionId, 'user', prompt);
+                appendSessionTurn(sessionId, 'assistant', output);
+            }
             resolve(output);
+        });
+
+        child.on('error', (err) => {
+            console.error(`⚠️ [Hermes Agent] Spawn error:`, err.message);
+            reject(err);
         });
     });
 }
@@ -156,21 +224,30 @@ export async function executeHermesAgent(prompt, options = {}) {
  * Scan Hermes cache directory for images generated during this session
  */
 export function getHermesGeneratedImagesSince(timestamp) {
-    const cacheDir = path.join(os.homedir(), '.hermes', 'cache', 'images');
-    if (!fs.existsSync(cacheDir)) return [];
-    try {
-        const files = fs.readdirSync(cacheDir)
-            .map(file => {
-                const fullPath = path.join(cacheDir, file);
-                const stat = fs.statSync(fullPath);
-                return { path: fullPath, mtime: stat.mtimeMs };
-            })
-            .filter(f => f.mtime >= timestamp)
-            .sort((a, b) => a.mtime - b.mtime);
-        return files.map(f => f.path);
-    } catch (_) {
-        return [];
+    const candidateDirs = [
+        path.join(os.homedir(), '.hermes', 'cache', 'images'),
+        path.join(process.cwd(), '.hermes', 'cache', 'images'),
+        process.env.HERMES_HOME ? path.join(process.env.HERMES_HOME, 'cache', 'images') : null,
+        '/opt/render/project/src/.hermes/cache/images',
+    ].filter(Boolean);
+
+    const foundFiles = [];
+    for (const cacheDir of candidateDirs) {
+        if (!fs.existsSync(cacheDir)) continue;
+        try {
+            const files = fs.readdirSync(cacheDir)
+                .map(file => {
+                    const fullPath = path.join(cacheDir, file);
+                    const stat = fs.statSync(fullPath);
+                    return { path: fullPath, mtime: stat.mtimeMs };
+                })
+                .filter(f => f.mtime >= timestamp);
+            foundFiles.push(...files);
+        } catch (_) {}
     }
+
+    foundFiles.sort((a, b) => a.mtime - b.mtime);
+    return Array.from(new Set(foundFiles.map(f => f.path)));
 }
 
 /**
