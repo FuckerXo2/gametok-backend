@@ -1359,6 +1359,7 @@ router.post('/generate-visual-directions', async (req, res) => {
         const selectedAssets = sanitizeMediaAttachments(rawAttachments);
         const result = await directVisualDirections({ prompt, gameTitle, selectedAssets, onProgress, sessionId: activeSessionId });
 
+        const hasAllVisualImages = Array.isArray(result.directions) && result.directions.length === 4 && result.directions.every(d => Boolean(d.imageUrl));
         await saveForgeSession(activeSessionId, {
             sessionId: activeSessionId,
             userId,
@@ -1366,7 +1367,7 @@ router.post('/generate-visual-directions', async (req, res) => {
             gameTitle,
             journeyView: 'directions',
             visualDirections: result.directions,
-            isDirectionsReady: true,
+            isDirectionsReady: hasAllVisualImages,
             step: 4,
             phase: 'ready',
             statusMessage: 'Visual directions ready!',
@@ -1448,6 +1449,7 @@ router.post('/generate-perspectives', async (req, res) => {
         const selectedAssets = sanitizeMediaAttachments(rawAttachments);
         const result = await directPerspectives({ prompt, gameTitle, selectedDirection, selectedAssets, onProgress, sessionId: activeSessionId });
 
+        const hasAllPerspectiveImages = Array.isArray(result.perspectives) && result.perspectives.length === 4 && result.perspectives.every(p => Boolean(p.imageUrl));
         await saveForgeSession(activeSessionId, {
             sessionId: activeSessionId,
             userId,
@@ -1457,7 +1459,7 @@ router.post('/generate-perspectives', async (req, res) => {
             journeyView: 'perspective',
             perspectives: result.perspectives,
             selectedPerspective: result.perspectives?.[0] || null,
-            isPerspectivesReady: true,
+            isPerspectivesReady: hasAllPerspectiveImages,
             step: 3,
             phase: 'ready',
             statusMessage: 'Camera perspectives ready!',

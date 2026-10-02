@@ -99,6 +99,65 @@ function inferThemeType(name = '', modifier = '') {
 }
 
 /**
+ * Robust guaranteed screenshot generator with retries and fallback
+ */
+async function generateGuaranteedScreenshotImage({ prompt, styleName, prefix = 'visual-directions' }) {
+    const imagePrompt = `In-game screenshot of playable video game, authentic game HUD, ${prompt}, ${styleName}, crisp rendering, 1:1 aspect ratio, high visual fidelity`;
+    
+    // Attempt 1: OpenAI
+    try {
+        const imgRes = await generateGameScreenshotImage({
+            prompt: imagePrompt,
+            size: '1024x1024',
+            prefix,
+        });
+        if (imgRes?.imageUrl) return imgRes.imageUrl;
+    } catch (err) {
+        console.warn(`⚠️ [Image Gen] OpenAI attempt 1 failed (${err.message}) for "${styleName}"`);
+    }
+
+    // Attempt 2: Flux
+    try {
+        const fluxRes = await generateFluxImage({ prompt: imagePrompt });
+        if (fluxRes?.buffer) {
+            const url = await uploadBufferToR2(fluxRes.buffer, prefix, 'image/png');
+            if (url) return url;
+        }
+    } catch (err) {
+        console.warn(`⚠️ [Image Gen] Flux attempt failed (${err.message}) for "${styleName}"`);
+    }
+
+    // Attempt 3: Retry OpenAI with simplified prompt
+    try {
+        await new Promise(r => setTimeout(r, 600));
+        const imgRes = await generateGameScreenshotImage({
+            prompt: `Video game screenshot, ${prompt}, ${styleName}, 4k resolution, clean HUD`,
+            size: '1024x1024',
+            prefix,
+        });
+        if (imgRes?.imageUrl) return imgRes.imageUrl;
+    } catch (err) {
+        console.warn(`⚠️ [Image Gen] OpenAI attempt 2 failed (${err.message}) for "${styleName}"`);
+    }
+
+    // Attempt 4: Pollinations AI reliable generator
+    try {
+        const encodedPrompt = encodeURIComponent(`video game screenshot, ${prompt}, ${styleName}, sharp graphics, gaming UI`);
+        const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+        const res = await fetch(pollUrl);
+        if (res.ok) {
+            const buffer = Buffer.from(await res.arrayBuffer());
+            const url = await uploadBufferToR2(buffer, prefix, 'image/jpeg');
+            if (url) return url;
+        }
+    } catch (err) {
+        console.error(`❌ [Image Gen] Pollinations fallback failed for "${styleName}":`, err.message);
+    }
+
+    return null;
+}
+
+/**
  * Main Entry Point: Direct 4 visual styles and generate concept art
  * Fully unified pipeline: Hermes conceptualizes the directions AND fires all 4 image_generate
  * tool calls in parallel to OpenAI (gpt-image-2.5-flare), then uploads the results to Cloudflare R2.
@@ -184,25 +243,18 @@ TASK:
             console.log(`☁️ [AI Art Director] Uploaded Hermes image to R2 (${dir.name}): ${imageUrl}`);
         }
 
-        // If Hermes didn't generate image or localPath is missing, generate real in-game screenshot via OpenAI / Flux
+        // If Hermes didn't generate image or localPath is missing, generate real in-game screenshot via OpenAI / Flux / Pollinations
         if (!imageUrl) {
-            console.log(`🎨 [AI Art Director] Generating real concept screenshot for "${dir.name}"...`);
-            const imagePrompt = `In-game screenshot of playable video game, authentic game HUD, ${prompt}, ${dir.modifier || dir.name}, crisp rendering, 1:1 aspect ratio, high visual fidelity`;
-            try {
-                const imgRes = await generateGameScreenshotImage({
-                    prompt: imagePrompt,
-                    size: '1024x1024',
-                    prefix: 'visual-directions',
-                });
-                imageUrl = imgRes.imageUrl;
-            } catch (imgErr) {
-                console.warn(`⚠️ [OpenAI Image] failed (${imgErr.message}), generating with Flux...`);
-                try {
-                    const fluxRes = await generateFluxImage({ prompt: imagePrompt });
-                    imageUrl = await uploadBufferToR2(fluxRes.buffer, 'visual-directions', 'image/png');
-                } catch (fluxErr) {
-                    console.error(`❌ [Image Generation] All image providers failed for "${dir.name}":`, fluxErr.message);
-                }
+            console.log(`🎨 [AI Art Director] Generating concept screenshot for "${dir.name}"...`);
+            imageUrl = await generateGuaranteedScreenshotImage({
+                prompt,
+                styleName: `${dir.name} - ${dir.modifier || ''}`,
+                prefix: 'visual-directions',
+            });
+            if (imageUrl) {
+                console.log(`✅ [AI Art Director] Successfully acquired image for "${dir.name}": ${imageUrl}`);
+            } else {
+                console.error(`❌ [AI Art Director] Failed to acquire image for "${dir.name}"`);
             }
         }
 
@@ -338,25 +390,18 @@ TASK:
             console.log(`☁️ [Camera Perspective] Uploaded Hermes perspective image to R2 (${p.name}): ${imageUrl}`);
         }
 
-        // If Hermes didn't generate image or localPath is missing, generate real in-game screenshot via OpenAI / Flux
+        // If Hermes didn't generate image or localPath is missing, generate real in-game screenshot via OpenAI / Flux / Pollinations
         if (!imageUrl) {
             console.log(`🎨 [Camera Perspective] Generating perspective screenshot for "${p.name}"...`);
-            const imagePrompt = `In-game screenshot of playable video game, authentic game HUD, ${prompt}, viewed from ${p.name} camera perspective, ${styleName}, ${p.modifier || ''}, crisp 3D rendering, 1:1 aspect ratio`;
-            try {
-                const imgRes = await generateGameScreenshotImage({
-                    prompt: imagePrompt,
-                    size: '1024x1024',
-                    prefix: 'camera-perspectives',
-                });
-                imageUrl = imgRes.imageUrl;
-            } catch (imgErr) {
-                console.warn(`⚠️ [OpenAI Image] failed (${imgErr.message}), generating with Flux...`);
-                try {
-                    const fluxRes = await generateFluxImage({ prompt: imagePrompt });
-                    imageUrl = await uploadBufferToR2(fluxRes.buffer, 'camera-perspectives', 'image/png');
-                } catch (fluxErr) {
-                    console.error(`❌ [Image Generation] All image providers failed for "${p.name}":`, fluxErr.message);
-                }
+            imageUrl = await generateGuaranteedScreenshotImage({
+                prompt: `In-game screenshot of playable video game, authentic game HUD, ${prompt}, viewed from ${p.name} camera perspective`,
+                styleName: `${styleName} - ${p.modifier || ''}`,
+                prefix: 'camera-perspectives',
+            });
+            if (imageUrl) {
+                console.log(`✅ [Camera Perspective] Successfully acquired image for "${p.name}": ${imageUrl}`);
+            } else {
+                console.error(`❌ [Camera Perspective] Failed to acquire image for "${p.name}"`);
             }
         }
 
