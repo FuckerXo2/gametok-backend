@@ -6,7 +6,14 @@ import { fileURLToPath } from 'url';
 import { universalAssetIngestor } from '../ingestor/universal-asset-ingestor.js';
 import { AnimationIngestor } from '../ingestor/animation-ingestor.js';
 import { searchAssetCatalog, searchAnimationCatalog } from '../asset-search.js';
-import { getInMemoryAssets, getInMemoryAnimations } from '../asset-metadata-schema.js';
+import { 
+    getInMemoryAssets, 
+    getInMemoryAnimations, 
+    getCharacterCategories, 
+    addCharacterCategory, 
+    deleteCharacterCategory, 
+    updateAssetCharacterCategory 
+} from '../asset-metadata-schema.js';
 import pool from '../../../db.js';
 
 
@@ -30,6 +37,80 @@ router.get(['/', '/ui'], (req, res) => {
         res.sendFile(UI_HTML_PATH);
     } else {
         res.status(404).send('Admin UI not found.');
+    }
+});
+
+/**
+ * GET /api/admin/assets/character-categories
+ */
+router.get('/character-categories', async (req, res) => {
+    try {
+        const categories = await getCharacterCategories();
+        res.json({ success: true, count: categories.length, categories });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * POST /api/admin/assets/character-categories
+ */
+router.post('/character-categories', async (req, res) => {
+    try {
+        const { id, name, label, description } = req.body;
+        if (!name && !label) {
+            return res.status(400).json({ success: false, error: 'Name or label is required' });
+        }
+        const created = await addCharacterCategory({ id, name, label, description });
+        res.json({ success: true, category: created });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * DELETE /api/admin/assets/character-categories/:id
+ */
+router.delete('/character-categories/:id', async (req, res) => {
+    try {
+        const result = await deleteCharacterCategory(req.params.id);
+        res.json({ success: true, result });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * GET /api/admin/assets/characters
+ */
+router.get('/characters', async (req, res) => {
+    try {
+        let characters = [];
+        try {
+            const result = await pool.query(
+                "SELECT * FROM asset_catalog WHERE category = 'characters' OR is_rigged = true ORDER BY created_at DESC"
+            );
+            characters = result.rows;
+        } catch {
+            characters = getInMemoryAssets().filter(a => a.category === 'characters' || a.is_rigged);
+        }
+        res.json({ success: true, count: characters.length, characters });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * PATCH /api/admin/assets/:id/category
+ */
+router.patch('/:id/category', async (req, res) => {
+    try {
+        const { category } = req.body;
+        if (!category) return res.status(400).json({ success: false, error: 'Category is required' });
+        const result = await updateAssetCharacterCategory(req.params.id, category);
+        res.json({ success: true, result });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
@@ -128,8 +209,10 @@ router.post('/upload', upload.array('files', 50), async (req, res) => {
         }
 
         const {
-            category = 'props',
+            category = 'characters',
             subcategory,
+            archetype,
+            name,
             style = 'stylized',
             targetType = '3d_model',
             rigTarget = 'humanoid_standard_v1',
@@ -141,17 +224,33 @@ router.post('/upload', upload.array('files', 50), async (req, res) => {
             tags = ''
         } = req.body;
 
-        const parsedTags = typeof tags === 'string' 
-            ? tags.split(',').map(t => t.trim()).filter(Boolean)
-            : Array.isArray(tags) ? tags : [];
-
         const results = [];
         const errors = [];
+
+        function autoDetectArchetype(fn) {
+            const lower = (fn || '').toLowerCase();
+            if (/spider|batman|super|hero|iron|hulk|homelander|avenger|flash|superman|captain|lantern/i.test(lower)) return 'superheroes';
+            if (/goblin|venom|joker|thanos|villain|nemesis|boss|bane|carnage/i.test(lower)) return 'villains';
+            if (/gta|franklin|cj|trevor|npc|citizen|cop|pedestrian|civilian|worker/i.test(lower)) return 'street_citizens_npcs';
+            if (/scorpion|subzero|fighter|boxing|ninja|karate|clash|warrior|brawler/i.test(lower)) return 'fighters';
+            if (/zombie|monster|creature|orc|demon|alien|undead|beast/i.test(lower)) return 'monsters_creatures';
+            return 'street_citizens_npcs';
+        }
 
         for (const file of files) {
             try {
                 const filename = file.originalname;
                 const ext = path.extname(filename).toLowerCase();
+                const baseTitle = path.basename(filename, ext).replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const detectedArchetype = archetype || subcategory || autoDetectArchetype(filename);
+
+                const parsedTags = typeof tags === 'string' && tags.trim().length > 0
+                    ? tags.split(',').map(t => t.trim()).filter(Boolean)
+                    : [path.basename(filename, ext).toLowerCase(), detectedArchetype, 'character', 'rigged'];
+
+                if (detectedArchetype && !parsedTags.includes(detectedArchetype)) {
+                    parsedTags.push(detectedArchetype);
+                }
 
                 // Check for zip archives
                 if (ext === '.zip') {
@@ -166,7 +265,8 @@ router.post('/upload', upload.array('files', 50), async (req, res) => {
                     buffer: file.buffer,
                     filename,
                     category,
-                    subcategory: subcategory || null,
+                    subcategory: detectedArchetype || null,
+                    name: name || baseTitle,
                     style,
                     targetType: isStandaloneAnim ? 'standalone_animation' : '3d_model',
                     animationMetadata: {

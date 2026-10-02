@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
 
 export const GEMINI_FLASH_MODEL = 'gemini-3.8-flash';
-export const GEMINI_FALLBACK_MODEL = 'gemini-3.7-flash';
 
 const DEFAULT_KEY_B64 = 'QVEuQWI4Uk42S0FmSHUxUERNMjN5ZlRvMjFHZXRKY1B3NTE5MW9ZZWt5dVZjMDZZQXo2OWc=';
 
@@ -100,20 +99,5 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
         return cleanAndParse(content);
     }
 
-    try {
-        return await executeCall(targetModel);
-    } catch (err) {
-        const isTemporaryIssue = err.status === 503 || err.status === 429 || 
-            String(err.message).includes('high demand') || 
-            String(err.message).includes('UNAVAILABLE') || 
-            String(err.message).includes('503') ||
-            String(err.message).includes('429');
-
-        if (targetModel === GEMINI_FLASH_MODEL && isTemporaryIssue) {
-            console.warn(`[Gemini Client] Rate limit / high demand on ${GEMINI_FLASH_MODEL} (${err.status || err.message}), waiting 1.5s then trying ${GEMINI_FALLBACK_MODEL}...`);
-            await new Promise(r => setTimeout(r, 1500));
-            return await executeCall(GEMINI_FALLBACK_MODEL);
-        }
-        throw err;
-    }
+    return await executeCall(targetModel);
 }

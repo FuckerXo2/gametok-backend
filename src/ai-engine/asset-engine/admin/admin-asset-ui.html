@@ -150,9 +150,57 @@
 
         /* Ingestion Studio Section */
         .ingest-container {
-            display: grid;
-            grid-template-columns: 1fr 340px;
-            gap: 24px;
+            max-width: 960px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .auto-pipeline-card {
+            background: rgba(0, 229, 255, 0.05);
+            border: 1px solid rgba(0, 229, 255, 0.25);
+            border-radius: var(--radius-md);
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .pipeline-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .pipeline-icon {
+            font-size: 28px;
+        }
+
+        .pipeline-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .pipeline-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 3px;
+            line-height: 1.4;
+        }
+
+        .pipeline-badge {
+            background: rgba(0, 229, 255, 0.15);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 20px;
+            white-space: nowrap;
         }
 
         .dropzone-box {
@@ -313,6 +361,57 @@
         .status-processing { background: rgba(0, 229, 255, 0.2); color: var(--accent); }
         .status-success { background: rgba(0, 230, 118, 0.2); color: var(--success); }
         .status-error { background: rgba(255, 82, 82, 0.2); color: var(--danger); }
+
+        /* Category Chips & Manager */
+        .cat-chip {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 7px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .cat-chip:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        .cat-chip.active {
+            background: rgba(0, 229, 255, 0.12);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .cat-chip .cat-count {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .char-category-select {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 10px;
+            width: 100%;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.15s ease;
+        }
+        .char-category-select:hover, .char-category-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+        }
 
         /* Asset Grid */
         .controls-bar {
@@ -504,6 +603,7 @@
 
     <div class="nav-tabs">
         <button class="tab-btn active" onclick="switchTab('catalog')">3D Asset Catalog</button>
+        <button class="tab-btn" onclick="switchTab('characters')">👤 Characters & Categories</button>
         <button class="tab-btn" onclick="switchTab('ingest')">Batch Ingestion Studio</button>
         <button class="tab-btn" onclick="switchTab('motion')">Motion Library (.gtanim)</button>
     </div>
@@ -547,78 +647,87 @@
     <!-- TAB 2: INGESTION STUDIO -->
     <div id="tab-ingest" class="tab-content">
         <div class="ingest-container">
-            <div>
-                <div class="dropzone-box" id="dropzone" onclick="document.getElementById('file-input').click()">
-                    <div class="drop-icon">📦</div>
-                    <div class="drop-title">Drop 3D assets or folders here</div>
-                    <div class="drop-subtitle">Supports .GLB, .GLTF, .FBX, .OBJ (Single files or batch folders)</div>
-                    <button class="btn" type="button">Select Files or Folder</button>
-                    <input type="file" id="file-input" multiple style="display: none;" onchange="handleFileSelect(event)">
-                </div>
-
-                <div class="queue-container" id="queue-box" style="display: none;">
-                    <div class="queue-header">
-                        <div class="meta-title">Ingestion Queue (<span id="queue-count">0</span> files)</div>
-                        <button class="btn" id="start-ingest-btn" onclick="startBatchIngestion()">⚡ Run Universal Ingestion</button>
+            <!-- Autonomous Info Banner -->
+            <div class="auto-pipeline-card">
+                <div class="pipeline-header">
+                    <span class="pipeline-icon">🦾</span>
+                    <div>
+                        <div class="pipeline-title">Autonomous 3D Character Ingestion & Auto-Rigging</div>
+                        <div class="pipeline-desc">
+                            Drop raw unrigged humanoid models (Homelander, Franklin GTA V, Spider-Man, Scorpion, etc.).
+                            Headless Blender on Render automatically inspects, binds to the <strong>UE5 Master Skeleton</strong>, renders thumbnails, and uploads ready-to-use models to Cloudflare R2.
+                        </div>
                     </div>
-                    <div class="queue-list" id="queue-list"></div>
+                </div>
+                <div class="pipeline-badge">Zero Metadata Required</div>
+            </div>
+
+            <!-- Full Width Dropzone -->
+            <div class="dropzone-box" id="dropzone" onclick="document.getElementById('file-input').click()">
+                <div class="drop-icon">📦</div>
+                <div class="drop-title">Drop 3D models or folders here</div>
+                <div class="drop-subtitle">Supports .GLB, .GLTF, .FBX, .OBJ (Single files or batch folders)</div>
+                <button class="btn" type="button" style="margin-top: 12px;">Select 3D Files</button>
+                <input type="file" id="file-input" multiple style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+
+            <!-- Queue Box -->
+            <div class="queue-container" id="queue-box" style="display: none;">
+                <div class="queue-header">
+                    <div class="meta-title">Ingestion Queue (<span id="queue-count">0</span> models ready)</div>
+                    <button class="btn" id="start-ingest-btn" onclick="startBatchIngestion()">⚡ Upload & Auto-Rig All</button>
+                </div>
+                <div class="queue-list" id="queue-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: CHARACTERS & CATEGORY MANAGER -->
+    <div id="tab-characters" class="tab-content">
+        <!-- Category Manager Box -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px 24px; margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <div style="font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+                        <span>📂</span> Character Categories & Archetypes
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
+                        Hermes filters these categories when creating games (e.g. superhero games select from Superheroes, street heist games select from Urban & GTA Legends).
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="toggleAddCategoryForm()">➕ Add New Category</button>
+            </div>
+
+            <!-- New Category Input Form (Collapsible) -->
+            <div id="add-category-box" style="display: none; background: var(--bg-surface); border: 1px dashed var(--accent); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 16px;">
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="new-cat-label" class="form-control" style="width: 220px;" placeholder="Category Name (e.g. Anime)">
+                    <input type="text" id="new-cat-desc" class="form-control" style="flex: 1; min-width: 260px;" placeholder="Description (e.g. Goku, Naruto, Shonen heroes)">
+                    <button class="btn" onclick="saveNewCategory()">💾 Save Category</button>
+                    <button class="btn btn-secondary" onclick="toggleAddCategoryForm()">Cancel</button>
                 </div>
             </div>
 
-            <!-- Ingestion Metadata Config -->
-            <div class="meta-panel">
-                <div class="meta-title">Batch Ingestion Metadata</div>
-
-                <div class="form-group">
-                    <label>Category</label>
-                    <select id="meta-category" class="form-control">
-                        <option value="characters">Characters</option>
-                        <option value="weapons">Weapons</option>
-                        <option value="props" selected>Props</option>
-                        <option value="environment">Environment</option>
-                        <option value="vehicles">Vehicles</option>
-                        <option value="creatures">Creatures</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Subcategory (Optional)</label>
-                    <input type="text" id="meta-subcategory" class="form-control" placeholder="e.g. medieval_armor">
-                </div>
-
-                <div class="form-group">
-                    <label>Art Style</label>
-                    <select id="meta-style" class="form-control">
-                        <option value="stylized" selected>Stylized</option>
-                        <option value="low-poly">Low Poly</option>
-                        <option value="realistic">Realistic</option>
-                        <option value="pixel-art">Pixel Art</option>
-                        <option value="voxel">Voxel</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Target Type</label>
-                    <select id="meta-type" class="form-control">
-                        <option value="3d_model" selected>3D Character / Mesh</option>
-                        <option value="standalone_animation">Standalone Motion Track (.gtanim)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Tags (Comma separated)</label>
-                    <input type="text" id="meta-tags" class="form-control" placeholder="knight, paladin, dark">
-                </div>
-
-                <div class="form-group">
-                    <label>License</label>
-                    <select id="meta-license" class="form-control">
-                        <option value="GameTok-Curated" selected>GameTok-Curated</option>
-                        <option value="CC0">CC0 Public Domain</option>
-                        <option value="CC-BY">CC-BY 4.0</option>
-                    </select>
-                </div>
+            <!-- Category Pills Filter Bar -->
+            <div id="category-pills" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <!-- Populated dynamically -->
             </div>
+        </div>
+
+        <!-- Character Roster Controls -->
+        <div class="controls-bar" style="margin-bottom: 16px;">
+            <div class="filter-group">
+                <input type="text" id="character-search-input" class="form-control" style="width: 280px;" placeholder="Search character name or tag..." oninput="filterCharactersList()">
+                <select id="filter-character-archetype" class="form-control" onchange="filterCharactersList()">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            <button class="btn btn-secondary" onclick="loadCharacters()">↻ Refresh Characters</button>
+        </div>
+
+        <!-- Character Cards Grid -->
+        <div id="character-grid" class="asset-grid">
+            <!-- Populated dynamically -->
         </div>
     </div>
 
@@ -676,6 +785,7 @@ function switchTab(tabId) {
     document.getElementById('tab-' + tabId).classList.add('active');
 
     if (tabId === 'catalog') loadCatalog();
+    if (tabId === 'characters') { loadCharacterCategories(); loadCharacters(); }
     if (tabId === 'motion') loadAnimations();
 }
 
@@ -732,16 +842,10 @@ async function startBatchIngestion() {
     if (selectedFiles.length === 0) return;
     const btn = document.getElementById('start-ingest-btn');
     btn.disabled = true;
-    btn.innerText = '⏳ Ingesting...';
+    btn.innerText = '⏳ Ingesting & Auto-Rigging...';
 
     const formData = new FormData();
     selectedFiles.forEach(f => formData.append('files', f));
-    formData.append('category', document.getElementById('meta-category').value);
-    formData.append('subcategory', document.getElementById('meta-subcategory').value);
-    formData.append('style', document.getElementById('meta-style').value);
-    formData.append('targetType', document.getElementById('meta-type').value);
-    formData.append('tags', document.getElementById('meta-tags').value);
-    formData.append('license', document.getElementById('meta-license').value);
 
     try {
         const res = await fetch('/api/admin/assets/upload', {
@@ -755,12 +859,13 @@ async function startBatchIngestion() {
                 const badge = document.getElementById(`status-${i}`);
                 if (badge) {
                     badge.className = 'status-badge status-success';
-                    badge.innerText = 'Cataloged';
+                    badge.innerText = 'Rigged & Ready';
                 }
             });
-            alert(`🎉 Ingestion Succeeded! Cataloged ${data.ingestedCount} assets into R2 and PostgreSQL.`);
+            alert(`🎉 Ingestion Complete! Auto-rigged and uploaded ${data.ingestedCount} models to Cloudflare R2.`);
             selectedFiles = [];
             loadStats();
+            loadCatalog();
         } else {
             alert('❌ Ingestion Error: ' + (data.error || 'Unknown error'));
         }
@@ -768,7 +873,7 @@ async function startBatchIngestion() {
         alert('❌ Ingestion Network Error: ' + e.message);
     } finally {
         btn.disabled = false;
-        btn.innerText = '⚡ Run Universal Ingestion';
+        btn.innerText = '⚡ Upload & Auto-Rig All';
     }
 }
 
@@ -822,6 +927,210 @@ async function loadCatalog() {
     `).join('');
 
     window.__CURRENT_ASSETS__ = data.assets;
+}
+
+// ==========================================
+// CHARACTER VAULT & CATEGORY MANAGER
+// ==========================================
+let allCharacterCategories = [];
+let allLoadedCharacters = [];
+let currentCategoryFilter = '';
+
+function toggleAddCategoryForm() {
+    const box = document.getElementById('add-category-box');
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    if (box.style.display === 'block') {
+        document.getElementById('new-cat-label').focus();
+    }
+}
+
+async function loadCharacterCategories() {
+    try {
+        const res = await fetch('/api/admin/assets/character-categories');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.categories)) {
+            allCharacterCategories = data.categories;
+            renderCategoryPills();
+            populateCategoryDropdowns();
+        }
+    } catch (e) {
+        console.warn('Could not load categories:', e);
+    }
+}
+
+function renderCategoryPills() {
+    const container = document.getElementById('category-pills');
+    if (!container) return;
+
+    // Count characters per category
+    const counts = {};
+    allLoadedCharacters.forEach(c => {
+        const cat = c.subcategory || 'unassigned';
+        counts[cat] = (counts[cat] || 0) + 1;
+    });
+
+    let pillsHtml = `
+        <div class="cat-chip ${currentCategoryFilter === '' ? 'active' : ''}" onclick="selectCategoryFilter('')">
+            <span>✨ All Characters</span>
+            <span class="cat-count">${allLoadedCharacters.length}</span>
+        </div>
+    `;
+
+    pillsHtml += allCharacterCategories.map(cat => {
+        const count = counts[cat.id] || 0;
+        const isActive = currentCategoryFilter === cat.id;
+        return `
+            <div class="cat-chip ${isActive ? 'active' : ''}" onclick="selectCategoryFilter('${cat.id}')">
+                <span>${cat.label || cat.name}</span>
+                <span class="cat-count">${count}</span>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = pillsHtml;
+}
+
+function populateCategoryDropdowns() {
+    const filterSelect = document.getElementById('filter-character-archetype');
+    if (filterSelect) {
+        filterSelect.innerHTML = `<option value="">All Categories (${allCharacterCategories.length})</option>` +
+            allCharacterCategories.map(c => `<option value="${c.id}">${c.label || c.name}</option>`).join('');
+        filterSelect.value = currentCategoryFilter;
+    }
+}
+
+function selectCategoryFilter(catId) {
+    currentCategoryFilter = catId;
+    const filterSelect = document.getElementById('filter-character-archetype');
+    if (filterSelect) filterSelect.value = catId;
+    renderCategoryPills();
+    filterCharactersList();
+}
+
+async function saveNewCategory() {
+    const label = document.getElementById('new-cat-label').value.trim();
+    const desc = document.getElementById('new-cat-desc').value.trim();
+    if (!label) {
+        alert('Please enter a category name.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/assets/character-categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: label, label, description: desc })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('new-cat-label').value = '';
+            document.getElementById('new-cat-desc').value = '';
+            toggleAddCategoryForm();
+            await loadCharacterCategories();
+            filterCharactersList();
+            alert(`🎉 Created category: "${label}"!`);
+        } else {
+            alert('❌ Failed to create category: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('❌ Network error: ' + e.message);
+    }
+}
+
+async function loadCharacters() {
+    try {
+        const res = await fetch('/api/admin/assets/characters');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.characters)) {
+            allLoadedCharacters = data.characters;
+            renderCategoryPills();
+            filterCharactersList();
+        }
+    } catch (e) {
+        console.warn('Could not load characters:', e);
+    }
+}
+
+function filterCharactersList() {
+    const q = (document.getElementById('character-search-input')?.value || '').toLowerCase();
+    const cat = document.getElementById('filter-character-archetype')?.value || currentCategoryFilter;
+
+    let filtered = allLoadedCharacters;
+    if (cat) {
+        filtered = filtered.filter(c => (c.subcategory || '') === cat);
+    }
+    if (q) {
+        filtered = filtered.filter(c => 
+            (c.name || '').toLowerCase().includes(q) || 
+            (c.subcategory || '').toLowerCase().includes(q) ||
+            (c.tags || []).some(t => t.toLowerCase().includes(q))
+        );
+    }
+
+    const grid = document.getElementById('character-grid');
+    if (!grid) return;
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 50px;">No characters match this filter. Upload some above!</div>';
+        return;
+    }
+
+    grid.innerHTML = filtered.map(c => {
+        const currentCat = c.subcategory || 'street_citizens_npcs';
+        const categoryOptions = allCharacterCategories.map(cat => 
+            `<option value="${cat.id}" ${cat.id === currentCat ? 'selected' : ''}>${cat.label || cat.name}</option>`
+        ).join('');
+
+        return `
+            <div class="asset-card">
+                <div class="asset-thumb-box" onclick="openInspector('${c.id}')">
+                    <img src="${c.thumbnail_url || 'https://via.placeholder.com/512?text=Character'}" class="asset-thumb-img" alt="${c.name}">
+                </div>
+                <div class="asset-details">
+                    <div class="asset-name" style="font-size: 14px; font-weight: 700;">${c.name}</div>
+                    
+                    <div style="margin: 8px 0;">
+                        <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px;">Assigned Category:</label>
+                        <select class="char-category-select" onchange="changeCharacterCategory('${c.id}', this.value)">
+                            ${categoryOptions}
+                        </select>
+                    </div>
+
+                    <div class="badge-row">
+                        <span class="badge badge-accent">✅ UE5 Rigged (${c.bone_count || 100}b)</span>
+                        <span class="badge">${(c.file_size_bytes / (1024*1024)).toFixed(1)} MB</span>
+                    </div>
+
+                    <div class="card-actions" style="margin-top: 10px;">
+                        <button class="btn btn-secondary" style="flex: 1;" onclick="openInspector('${c.id}')">🔍 Inspect 3D</button>
+                        <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${c.cdn_url}'); alert('Copied R2 CDN URL!');">📋 Copy</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function changeCharacterCategory(assetId, newCategory) {
+    try {
+        const res = await fetch(`/api/admin/assets/${assetId}/category`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: newCategory })
+        });
+        const data = await res.json();
+        if (data.success) {
+            // Update local memory
+            const char = allLoadedCharacters.find(c => c.id === assetId);
+            if (char) char.subcategory = newCategory;
+            renderCategoryPills();
+            console.log(`Updated character ${assetId} to category ${newCategory}`);
+        } else {
+            alert('Failed to update category: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Network error updating category: ' + e.message);
+    }
 }
 
 // Load Animations

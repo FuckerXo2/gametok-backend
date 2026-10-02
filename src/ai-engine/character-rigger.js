@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
-const SKELETON_PATH = path.join(__dirname, '../../storage/skeletons/ue5_master_skeleton.glb');
+const SKELETON_PATH = path.join(__dirname, '../../storage/skeletons/ue5_master_skeleton.fbx');
 const RIGGED_CACHE_DIR = path.join(__dirname, '../../storage/models3d/rigged');
 const AUTO_RIG_SCRIPT = path.join(__dirname, 'blender-auto-rig.py');
 

@@ -172,6 +172,8 @@ export async function executeHermesAgent(prompt, options = {}) {
     return new Promise((resolve, reject) => {
         const env = {
             ...process.env,
+            BLENDER_MCP_HOST: process.env.BLENDER_MCP_HOST || '127.0.0.1',
+            BLENDER_MCP_PORT: process.env.BLENDER_MCP_PORT || '9876',
             GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
             OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
             PATH: `${path.dirname(hermesBin)}:/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,

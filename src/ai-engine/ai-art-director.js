@@ -2,19 +2,14 @@
  * AI Art Director
  * 
  * Dynamically conceptualizes 4 tailored visual art directions for ANY game prompt.
- * Seamlessly interfaces with:
- * 1. Qwen (DashScope / OpenRouter / QWEN_API_KEY) when keys are provided.
- * 2. NVIDIA NIM LLM (Llama 3.3 / Mixtral) using existing NVIDIA_API_KEY.
- * 3. Smart contextual semantic fallbacks (no hardcoded static archetypes).
- * 
- * Then concurrently dispatches to FLUX.1-dev to paint high-fidelity concept art cards.
+ * Uses Hermes Agent powered by Gemini 3.8 Flash to conceptualize directions and
+ * render high-fidelity concept art screenshot cards.
  */
 
 import fs from 'fs';
 import { executeHermesAgent, extractJsonFromHermes, uploadLocalImageFileToR2, getHermesGeneratedImagesSince } from './official-hermes-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
-import { generateGameScreenshotImage, uploadBufferToR2 } from './openai-image-client.js';
-import { generateFluxImage } from './nvidia-flux-client.js';
+import { generateConceptCardImage } from './openai-image-client.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title, concept prompt, and any attached or selected assets.
@@ -27,17 +22,29 @@ Rules:
   1. If user assets (3D models, sprites, videos, audio) ARE active: The assets are the visual anchors. Derive the color palette, lighting atmosphere, rendering fidelity, and UI to harmonize directly with those assets.
   2. If NO assets are provided: Establish a strong, unified creative vision first. The game code will either query matching catalog assets or generate everything procedurally so the aesthetic is never compromised.
 - Ensure diversity in mediums (e.g. 16-Bit Masterpiece Pixel Art, High-Octane Cel-Shaded Anime, Stylized Low-Poly 3D, Vibrant Neo-Arcade, Hand-Inked Graphic Novel, Moody Dark Fantasy, Retro Synthwave, Clean Vector 2D, etc.) appropriate to the game genre.
-- The modifier MUST be structured for generating an authentic IN-GAME PLAYABLE SCREENSHOT (with game HUD, player character/vehicle, environment, and clean game graphics), NOT generic poster art.
+- The modifier MUST be structured for generating an authentic visual concept preview (with game HUD, player character/vehicle, environment, and clean game graphics), NOT generic poster art.
+- PERSPECTIVE AUTONOMY (HERMES SKILL):
+  You must autonomously evaluate whether this game concept needs user camera perspective selection (requiresPerspectiveSelection: true) or has an inherent fixed view (requiresPerspectiveSelection: false):
+  - Set requiresPerspectiveSelection to FALSE if the game mechanics operate on a fixed flat 2D plane or fixed vantage point (e.g. Match-3 / Candy Crush, tile puzzles, card/deck games, tabletop board games, trivia, word games, or explicit 2D platformers). In this case, provide the optimal defaultPerspective.
+  - Set requiresPerspectiveSelection to TRUE if the game features 3D navigation, spatial depth, racing, action, or where camera perspective fundamentally changes the gameplay experience.
 
 You MUST respond with valid JSON strictly matching this schema:
 {
+  "requiresPerspectiveSelection": true,
+  "perspectiveRationale": "Clear explanation of whether camera selection is needed or if the game has an inherent fixed view",
+  "defaultPerspective": {
+    "name": "Top-Down 2D Grid",
+    "dimension": "2D",
+    "cameraInstruction": "Fixed top-down orthographic camera focused directly on the 2D playfield",
+    "modifier": "top-down 2D view"
+  },
   "directions": [
     {
       "name": "Creative Style Title (e.g. 16-Bit Neo Pixel)",
       "tagline": "2-3 word punchy tagline (e.g. Crisp & Retro)",
       "icon": "Ionicons icon name: sparkles | color-palette | flame | water | paw | leaf | flash | shapes-outline | rocket | game-controller | heart | skull | car | planet | bulb",
       "colors": ["#hex1", "#hex2", "#hex3", "#hex4"],
-      "modifier": "in-game screenshot of playable video game, authentic HUD, crisp rendering, high visual fidelity",
+      "modifier": "visual concept preview of playable video game, authentic HUD, crisp rendering, high visual fidelity",
       "instruction": "Clear instructions for the game code builder describing colors, UI styling, and aesthetic atmosphere"
     }
   ]
@@ -99,62 +106,22 @@ function inferThemeType(name = '', modifier = '') {
 }
 
 /**
- * Robust guaranteed screenshot generator with retries and fallback
+ * Visual style concept card generator using OpenAI gpt-image-2.5-flare.
+ * NO FALLBACKS: If image generation fails, logs error and returns null.
  */
-async function generateGuaranteedScreenshotImage({ prompt, styleName, prefix = 'visual-directions' }) {
-    const imagePrompt = `In-game screenshot of playable video game, authentic game HUD, ${prompt}, ${styleName}, crisp rendering, 1:1 aspect ratio, high visual fidelity`;
-    
-    // Attempt 1: OpenAI
+async function generateConceptCard({ prompt, styleName, prefix = 'visual-directions' }) {
+    const imagePrompt = `Video game visual concept preview, ${prompt}, art style: ${styleName}, clean UI HUD mockup, 1:1 aspect ratio, high visual fidelity`;
     try {
-        const imgRes = await generateGameScreenshotImage({
+        const imgRes = await generateConceptCardImage({
             prompt: imagePrompt,
             size: '1024x1024',
             prefix,
         });
-        if (imgRes?.imageUrl) return imgRes.imageUrl;
+        return imgRes?.imageUrl || null;
     } catch (err) {
-        console.warn(`⚠️ [Image Gen] OpenAI attempt 1 failed (${err.message}) for "${styleName}"`);
+        console.error(`❌ [Concept Card Gen] Image generation failed (${err.message}) for "${styleName}"`);
+        return null;
     }
-
-    // Attempt 2: Flux
-    try {
-        const fluxRes = await generateFluxImage({ prompt: imagePrompt });
-        if (fluxRes?.buffer) {
-            const url = await uploadBufferToR2(fluxRes.buffer, prefix, 'image/png');
-            if (url) return url;
-        }
-    } catch (err) {
-        console.warn(`⚠️ [Image Gen] Flux attempt failed (${err.message}) for "${styleName}"`);
-    }
-
-    // Attempt 3: Retry OpenAI with simplified prompt
-    try {
-        await new Promise(r => setTimeout(r, 600));
-        const imgRes = await generateGameScreenshotImage({
-            prompt: `Video game screenshot, ${prompt}, ${styleName}, 4k resolution, clean HUD`,
-            size: '1024x1024',
-            prefix,
-        });
-        if (imgRes?.imageUrl) return imgRes.imageUrl;
-    } catch (err) {
-        console.warn(`⚠️ [Image Gen] OpenAI attempt 2 failed (${err.message}) for "${styleName}"`);
-    }
-
-    // Attempt 4: Pollinations AI reliable generator
-    try {
-        const encodedPrompt = encodeURIComponent(`video game screenshot, ${prompt}, ${styleName}, sharp graphics, gaming UI`);
-        const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
-        const res = await fetch(pollUrl);
-        if (res.ok) {
-            const buffer = Buffer.from(await res.arrayBuffer());
-            const url = await uploadBufferToR2(buffer, prefix, 'image/jpeg');
-            if (url) return url;
-        }
-    } catch (err) {
-        console.error(`❌ [Image Gen] Pollinations fallback failed for "${styleName}":`, err.message);
-    }
-
-    return null;
 }
 
 /**
@@ -243,18 +210,18 @@ TASK:
             console.log(`☁️ [AI Art Director] Uploaded Hermes image to R2 (${dir.name}): ${imageUrl}`);
         }
 
-        // If Hermes didn't generate image or localPath is missing, generate real in-game screenshot via OpenAI / Flux / Pollinations
+        // If Hermes didn't generate image or localPath is missing, generate concept card via OpenAI
         if (!imageUrl) {
-            console.log(`🎨 [AI Art Director] Generating concept screenshot for "${dir.name}"...`);
-            imageUrl = await generateGuaranteedScreenshotImage({
+            console.log(`🎨 [AI Art Director] Generating concept preview card for "${dir.name}"...`);
+            imageUrl = await generateConceptCard({
                 prompt,
                 styleName: `${dir.name} - ${dir.modifier || ''}`,
                 prefix: 'visual-directions',
             });
             if (imageUrl) {
-                console.log(`✅ [AI Art Director] Successfully acquired image for "${dir.name}": ${imageUrl}`);
+                console.log(`✅ [AI Art Director] Successfully acquired preview card for "${dir.name}": ${imageUrl}`);
             } else {
-                console.error(`❌ [AI Art Director] Failed to acquire image for "${dir.name}"`);
+                console.error(`❌ [AI Art Director] Failed to acquire preview card for "${dir.name}"`);
             }
         }
 
@@ -276,12 +243,77 @@ TASK:
 
     onProgress?.({ step: 4, phase: 'ready', message: 'All set! Choose your visual direction to begin building.' });
 
+    // Hermes Agent's autonomous determination
+    let requiresPerspectiveSelection = true;
+    let perspectiveRationale = '';
+    let defaultPerspective = null;
+
+    if (parsed && typeof parsed.requiresPerspectiveSelection === 'boolean') {
+        requiresPerspectiveSelection = parsed.requiresPerspectiveSelection;
+        perspectiveRationale = parsed.perspectiveRationale || '';
+        defaultPerspective = parsed.defaultPerspective || null;
+    } else {
+        const isFixed = isFixedPerspectiveGame(prompt, gameTitle, selectedAssets);
+        requiresPerspectiveSelection = !isFixed;
+        perspectiveRationale = isFixed ? 'Game mechanics operate on a fixed 2D viewport.' : 'Game benefits from user camera angle selection.';
+    }
+
+    if (!requiresPerspectiveSelection && !defaultPerspective) {
+        defaultPerspective = {
+            id: 'perspective-fixed-2d-1',
+            name: 'Top-Down 2D Grid',
+            tagline: 'Direct Overhead',
+            dimension: '2D',
+            icon: 'grid',
+            cameraInstruction: 'Fixed 2D top-down camera with centered viewport',
+            modifier: 'top-down 2D view',
+            imageUrl: directions[0]?.imageUrl || null,
+        };
+    }
+
     return {
         success: true,
         prompt,
         gameTitle,
+        requiresPerspectiveSelection,
+        perspectiveRationale,
+        defaultPerspective,
         directions,
     };
+}
+
+/**
+ * Determine if a game concept is inherently 2D or has a fixed camera perspective
+ * (e.g. Candy Crush, Match-3, 2D platformer, card games, puzzles).
+ * These games DO NOT need a separate 3D camera perspective picker or extra image generation!
+ */
+export function isFixedPerspectiveGame(prompt = '', gameTitle = '', selectedAssets = []) {
+    const text = `${prompt} ${gameTitle}`.toLowerCase();
+    const fixedPatterns = [
+        /match[-\s]?3/i,
+        /candy[-\s]?crush/i,
+        /grid[-\s]?puzzle/i,
+        /tile[-\s]?(match|puzzle|connect)/i,
+        /tetris/i,
+        /2048/i,
+        /flappy/i,
+        /side[-\s]?scroll/i,
+        /2d\s+(platform|runner|shooter|fighter|arcade|game)/i,
+        /platformer/i,
+        /doodle[-\s]?jump/i,
+        /card[-\s]?(game|deck|battle)/i,
+        /solitaire|poker|blackjack/i,
+        /board[-\s]?game/i,
+        /chess|checkers/i,
+        /trivia|wordle|word[-\s]?game|crossword/i,
+        /top[-\s]?down\s+2d/i,
+        /tower[-\s]?defense/i,
+        /clicker|idle[-\s]?game|tap[-\s]?game/i,
+        /visual[-\s]?novel/i,
+        /bubble[-\s]?shooter/i,
+        /brick[-\s]?breaker|breakout|pong/i,
+    ];
+    return fixedPatterns.some(pattern => pattern.test(text));
 }
 
 const PERSPECTIVE_SYSTEM_PROMPT = `You are a world-class Game Designer and Technical Camera Director.
@@ -311,9 +343,74 @@ You MUST respond with valid JSON strictly matching this schema:
  * Step 2: Direct camera perspectives tailored to the game, chosen style, and assets
  * Fully unified pipeline: Hermes conceptualizes 4 camera perspective angles in the chosen visual style
  * and generates authentic in-game screenshot previews from each camera perspective.
+ * 
+ * SMART BYPASS: For 2D/grid/puzzle games, instantly returns fixed 2D perspectives anchored
+ * to the selected visual style image without firing a second round of image generation!
  */
-export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [], onProgress, sessionId }) {
+export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [], onProgress, sessionId, requiresPerspectiveSelection }) {
     if (!prompt) throw new Error('Prompt is required');
+
+    const anchorImage = selectedDirection?.imageUrl || null;
+    const isFixed = requiresPerspectiveSelection === false || isFixedPerspectiveGame(prompt, gameTitle, selectedAssets);
+
+    if (isFixed) {
+        console.log(`⏩ [Camera Perspective] Fixed 2D perspective confirmed for "${prompt}". Bypassing second generation cycle!`);
+        onProgress?.({ step: 1, phase: 'camera_rigs', message: 'Configuring fixed 2D viewport...' });
+        onProgress?.({ step: 3, phase: 'ready', message: 'Camera perspective locked for 2D gameplay!' });
+
+        const fixedPerspectives = [
+            {
+                id: `perspective-fixed-2d-1`,
+                name: 'Top-Down 2D View',
+                tagline: 'Direct Overhead',
+                dimension: '2D',
+                icon: 'grid',
+                cameraInstruction: 'Fixed 2D top-down camera with centered viewport',
+                modifier: 'top-down 2D view',
+                imageUrl: anchorImage,
+            },
+            {
+                id: `perspective-fixed-2d-2`,
+                name: 'Classic Arcade 2D',
+                tagline: 'Clean Viewport',
+                dimension: '2D',
+                icon: 'tablet-landscape',
+                cameraInstruction: 'Full-screen 2D orthogonal playfield',
+                modifier: 'classic arcade 2D view',
+                imageUrl: anchorImage,
+            },
+            {
+                id: `perspective-fixed-2d-3`,
+                name: 'Isometric 2.5D Angle',
+                tagline: 'Subtle Depth',
+                dimension: '2.5D',
+                icon: 'cube',
+                cameraInstruction: 'Tilted 30-degree isometric view with depth parallax',
+                modifier: 'isometric 2.5D view',
+                imageUrl: anchorImage,
+            },
+            {
+                id: `perspective-fixed-2d-4`,
+                name: 'Dynamic Zoom 2D',
+                tagline: 'Action Focused',
+                dimension: '2D',
+                icon: 'scan',
+                cameraInstruction: 'Reactive 2D camera with subtle screen zoom on matches and combos',
+                modifier: 'dynamic zoom 2D view',
+                imageUrl: anchorImage,
+            },
+        ];
+
+        return {
+            success: true,
+            prompt,
+            gameTitle,
+            selectedDirection,
+            requiresPerspectiveSelection: false,
+            perspectives: fixedPerspectives,
+            selectedPerspective: fixedPerspectives[0],
+        };
+    }
 
     onProgress?.({ step: 0, phase: 'analyzing', message: 'Analyzing gameplay space & movement...' });
 
@@ -390,18 +487,24 @@ TASK:
             console.log(`☁️ [Camera Perspective] Uploaded Hermes perspective image to R2 (${p.name}): ${imageUrl}`);
         }
 
-        // If Hermes didn't generate image or localPath is missing, generate real in-game screenshot via OpenAI / Flux / Pollinations
+        // If Hermes didn't generate image or localPath is missing, generate perspective preview card via OpenAI
         if (!imageUrl) {
-            console.log(`🎨 [Camera Perspective] Generating perspective screenshot for "${p.name}"...`);
-            imageUrl = await generateGuaranteedScreenshotImage({
-                prompt: `In-game screenshot of playable video game, authentic game HUD, ${prompt}, viewed from ${p.name} camera perspective`,
-                styleName: `${styleName} - ${p.modifier || ''}`,
+            console.log(`🎨 [Camera Perspective] Generating perspective preview card for "${p.name}"...`);
+            const colorHint = selectedDirection?.colors?.length ? ` Palette: ${selectedDirection.colors.join(', ')}.` : '';
+            const styleDetails = selectedDirection?.instruction || selectedDirection?.modifier || '';
+            imageUrl = await generateConceptCard({
+                prompt: `In-game view of ${prompt}, rendered in ${styleName} visual style (${styleDetails}), viewed from ${p.name} camera perspective (${p.modifier || ''}).${colorHint}`,
+                styleName: `${styleName} - ${p.name}`,
                 prefix: 'camera-perspectives',
             });
+            if (!imageUrl && anchorImage) {
+                console.log(`🖼️ [Camera Perspective] Anchoring to chosen visual style image for "${p.name}"`);
+                imageUrl = anchorImage;
+            }
             if (imageUrl) {
-                console.log(`✅ [Camera Perspective] Successfully acquired image for "${p.name}": ${imageUrl}`);
+                console.log(`✅ [Camera Perspective] Successfully acquired preview card for "${p.name}": ${imageUrl}`);
             } else {
-                console.error(`❌ [Camera Perspective] Failed to acquire image for "${p.name}"`);
+                console.error(`❌ [Camera Perspective] Failed to acquire preview card for "${p.name}"`);
             }
         }
 

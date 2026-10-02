@@ -43,6 +43,14 @@ export async function initAssetCatalogSchema() {
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
 
+            CREATE TABLE IF NOT EXISTS character_categories (
+                id VARCHAR(64) PRIMARY KEY,
+                name VARCHAR(64) NOT NULL,
+                label VARCHAR(128) NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+
             CREATE TABLE IF NOT EXISTS animation_catalog (
                 id VARCHAR(64) PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -143,4 +151,89 @@ export function getInMemoryAnimations() {
 
 export function addInMemoryAnimation(anim) {
     inMemoryAnimationCatalog.set(anim.id, anim);
+}
+
+export const DEFAULT_CHARACTER_CATEGORIES = [
+    { id: 'superheroes', name: 'superheroes', label: 'Superheroes', description: 'Spider-Man, Homelander, Batman, Hal Jordan' },
+    { id: 'urban_gangsters_gta', name: 'urban_gangsters_gta', label: 'Urban & GTA Legends', description: 'Franklin GTA V, CJ, Trevor, Street Hustlers' },
+    { id: 'anime', name: 'anime', label: 'Anime & Manga', description: 'Shonen Heroes, Ninjas, Anime Fighters' },
+    { id: 'sports_athletes', name: 'sports_athletes', label: 'Sports & Athletes', description: 'Footballers, Basketball Players, Boxers, Racers' },
+    { id: 'historical_figures', name: 'historical_figures', label: 'Historical Figures', description: 'Samurai, Medieval Knights, Ancient Kings, Gladiators' },
+    { id: 'fighters_martial_artists', name: 'fighters_martial_artists', label: 'Fighters & Martial Artists', description: 'Scorpion, Sub-Zero, Ninjas, Street Brawlers' },
+    { id: 'villains', name: 'villains', label: 'Villains & Bosses', description: 'Green Goblin, Venom, Joker, Criminal Masterminds' },
+    { id: 'soldiers_military', name: 'soldiers_military', label: 'Military & Tactical', description: 'Special Ops, Soldiers, Tactical Operators' },
+    { id: 'monsters_zombies_creatures', name: 'monsters_zombies_creatures', label: 'Monsters & Zombies', description: 'Zombies, Undead, Beasts, Orcs, Aliens' },
+    { id: 'civilians_pedestrians', name: 'civilians_pedestrians', label: 'Civilians & Pedestrians', description: 'City Crowds, Bystanders, Regular People' }
+];
+
+const inMemoryCategories = new Map(DEFAULT_CHARACTER_CATEGORIES.map(c => [c.id, c]));
+
+export async function getCharacterCategories() {
+    try {
+        await initAssetCatalogSchema();
+        const res = await pool.query('SELECT * FROM character_categories ORDER BY created_at ASC');
+        if (res.rows.length === 0) {
+            // Seed defaults into database
+            for (const cat of DEFAULT_CHARACTER_CATEGORIES) {
+                await pool.query(
+                    'INSERT INTO character_categories (id, name, label, description) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
+                    [cat.id, cat.name, cat.label, cat.description]
+                ).catch(() => {});
+            }
+            return DEFAULT_CHARACTER_CATEGORIES;
+        }
+        return res.rows;
+    } catch {
+        return Array.from(inMemoryCategories.values());
+    }
+}
+
+export async function addCharacterCategory({ id, name, label, description }) {
+    const cleanId = (id || name || '').toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const categoryRecord = {
+        id: cleanId,
+        name: name || cleanId,
+        label: label || cleanId,
+        description: description || ''
+    };
+    inMemoryCategories.set(cleanId, categoryRecord);
+
+    try {
+        await initAssetCatalogSchema();
+        await pool.query(
+            'INSERT INTO character_categories (id, name, label, description) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label, description = EXCLUDED.description',
+            [categoryRecord.id, categoryRecord.name, categoryRecord.label, categoryRecord.description]
+        );
+    } catch (e) {
+        console.warn(`⚠️ [Asset Schema] DB save category error (${e.message}), stored in-memory.`);
+    }
+    return categoryRecord;
+}
+
+export async function deleteCharacterCategory(id) {
+    inMemoryCategories.delete(id);
+    try {
+        await pool.query('DELETE FROM character_categories WHERE id = $1', [id]);
+    } catch {}
+    return { success: true, id };
+}
+
+export async function updateAssetCharacterCategory(assetId, newCategory) {
+    // Update in memory
+    for (const [key, asset] of inMemoryAssetCatalog.entries()) {
+        if (asset.id === assetId) {
+            asset.subcategory = newCategory;
+            if (!asset.tags.includes(newCategory)) asset.tags.push(newCategory);
+        }
+    }
+
+    try {
+        await pool.query(
+            'UPDATE asset_catalog SET subcategory = $1, tags = array_append(tags, $1), updated_at = NOW() WHERE id = $2',
+            [newCategory, assetId]
+        );
+        return { success: true, assetId, subcategory: newCategory };
+    } catch (e) {
+        return { success: true, assetId, subcategory: newCategory, cached: true };
+    }
 }

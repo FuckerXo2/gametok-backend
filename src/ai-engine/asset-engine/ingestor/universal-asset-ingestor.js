@@ -75,6 +75,44 @@ export class UniversalAssetIngestor {
             style: params.style
         });
 
+        // 1b. Auto-Rig unrigged characters via Headless Blender on Render
+        const isLikelyCharacter = params.category === 'characters' || !params.category || params.category === 'props';
+        if (isLikelyCharacter && !processed.rigging?.isRigged) {
+            console.log(`🦾 [Universal Ingestor] Unrigged 3D mesh detected: "${filename}". Triggering Headless Blender Auto-Rigger on Render...`);
+            try {
+                const { ensureCharacterRigged } = await import('../../character-rigger.js');
+                const os = await import('node:os');
+                const fsPromises = await import('node:fs/promises');
+                const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'ingest-rig-'));
+                const inputTempPath = path.join(tempDir, filename);
+                await fsPromises.writeFile(inputTempPath, buffer);
+
+                const rigResult = await ensureCharacterRigged(inputTempPath, { outputDir: tempDir });
+                if (rigResult.success && rigResult.hasBones) {
+                    const riggedBuffer = await fsPromises.readFile(rigResult.riggedPath);
+                    const { inspectGlbBuffer } = await import('../deterministic-3d-parser.js');
+                    const reInspection = inspectGlbBuffer(riggedBuffer);
+
+                    processed.canonicalBuffer = riggedBuffer;
+                    processed.canonicalRuntimeFormat = 'glb';
+                    processed.mimeType = 'model/gltf-binary';
+                    processed.sha256 = reInspection.sha256;
+                    processed.fileSizeBytes = riggedBuffer.length;
+                    processed.rigging = reInspection.rigging;
+                    processed.spatial = reInspection.spatial;
+                    processed.structure = reInspection.structure;
+                    console.log(`🎉 [Universal Ingestor] Auto-rigged "${filename}" to UE5 Master Skeleton (Bones: ${reInspection.rigging.boneCount})!`);
+                } else {
+                    console.warn(`⚠️ [Universal Ingestor] Auto-rigging could not be completed for "${filename}": ${rigResult.warning || 'Unknown error'}`);
+                }
+
+                // Cleanup temp dir
+                await fsPromises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+            } catch (rigErr) {
+                console.error(`💥 [Universal Ingestor] Auto-rig error for "${filename}":`, rigErr.message);
+            }
+        }
+
         // 2. Handle Standalone Animation Clips (e.g. Mixamo FBX motion track)
         if (processed.isStandaloneAnimation || params.targetType === 'standalone_animation') {
             const animMeta = params.animationMetadata || {};
@@ -92,7 +130,7 @@ export class UniversalAssetIngestor {
         }
 
         // 3. Upload Canonical Runtime Asset to Cloudflare R2
-        const category = params.category || 'props';
+        const category = processed.rigging?.isRigged ? 'characters' : (params.category || 'characters');
         const assetId = `gt_${category}_${processed.sha256.substring(0, 12)}`;
         const r2Key = `assets/3d/${category}/${assetId}.${processed.canonicalRuntimeFormat}`;
 

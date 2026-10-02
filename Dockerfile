@@ -53,12 +53,20 @@ COPY . .
 # Setup Blender add-on and GameTok rigger module in Linux Blender user paths
 RUN mkdir -p /root/.config/blender/5.2/scripts/addons \
     && mkdir -p /root/.config/blender/5.2/scripts/modules \
-    && cp src/ai-engine/gametok_rigger.py /root/.config/blender/5.2/scripts/modules/
+    && cp src/ai-engine/gametok_rigger.py /root/.config/blender/5.2/scripts/modules/ \
+    && cp -r src/ai-engine/blender_mcp_addon /root/.config/blender/5.2/scripts/addons/
 
-# Configure Blender online access and preferences
+# Install Hermes Blender Plugin
+RUN hermes plugins install /app/src/ai-engine/hermes-plugin-blender || true
+
+# Configure Blender online access, enable add-on, and save preferences
 RUN blender --background --python-expr "
 import bpy
 bpy.context.preferences.system.use_online_access = True
+try:
+    bpy.ops.preferences.addon_enable(module='blender_mcp_addon')
+except Exception as e:
+    print('Addon enable deferred:', e)
 bpy.ops.wm.save_userpref()
 "
 

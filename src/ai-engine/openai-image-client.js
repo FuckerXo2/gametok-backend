@@ -43,14 +43,14 @@ export async function uploadBufferToR2(buffer, prefix = 'game-images', mimeType 
 }
 
 /**
- * Generate game screenshot card strictly using OpenAI gpt-image-2.5-flare (Low/Fast quality).
+ * Generate visual style concept preview card strictly using OpenAI gpt-image-2.5-flare (Low/Fast quality).
  * NO FALLBACKS: If OpenAI fails or has no credits, throws error directly.
  */
-export async function generateGameScreenshotImage({
+export async function generateConceptCardImage({
     prompt,
     size = '1024x1024',
     quality = 'low',
-    prefix = 'game-screens',
+    prefix = 'concept-cards',
 }) {
     const apiKey = process.env.OPENAI_API_KEY;
 
@@ -83,3 +83,5 @@ export async function generateGameScreenshotImage({
 
     throw new Error('OpenAI gpt-image-2.5-flare returned no image data');
 }
+
+export const generateGameScreenshotImage = generateConceptCardImage;

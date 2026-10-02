@@ -147,20 +147,16 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
             assetSpecPrompt += `\nSELECTED AUDIO BGM: "${audioAsset.url}" (Title: ${audioAsset.title || audioAsset.label || 'BGM'}). Play on first touch gesture, loop=true, volume=0.35. Always provide procedural Web Audio fallback.`;
         }
         if (videoAsset && !attachments.some(a => a.url === videoAsset.url)) {
-            assetSpecPrompt += `\nSELECTED VIDEO BACKDROP: "${videoAsset.url}" (Title: ${videoAsset.title || videoAsset.label || 'Backdrop'}). Render as background underlay <video autoplay loop muted playsinline>. Make WebGL/Canvas transparent (renderer.setClearColor(0x000000, 0)).`;
+            assetSpecPrompt += `\nSELECTED VIDEO BACKDROP: "${videoAsset.url}" (Title: ${videoAsset.title || videoAsset.label || 'Backdrop'}). Render as 3D background plane in scene.`;
         }
         if (spriteAsset && !attachments.some(a => (a.url || a.idleUrl) === (spriteAsset.url || spriteAsset.idleUrl))) {
-            assetSpecPrompt += `\nSELECTED SPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to player/collectable entity. Add procedural fallback mesh on error.`;
+            assetSpecPrompt += `\nSELECTED SPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to entity or spawn procedural fallback entity on error.`;
         }
         if (model3dAsset && !attachments.some(a => a.url === model3dAsset.url)) {
-            if (runtime === 'native') {
-                assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via engine.spawnModel("${model3dAsset.url}", x, y, z).`;
-            } else {
-                assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via THREE.GLTFLoader, normalize bounding box scale, play animation mixer if present. Fall back to procedural Three.js mesh if load fails.`;
-            }
+            assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via engine.spawnModel("${model3dAsset.url}", x, y, z). Bind standard animations using engine.playAnimation(entityId, animUrl).`;
         }
     } else {
-        assetSpecPrompt += `\nNO EXPLICIT ASSETS SELECTED BY USER.\n${getCatalogSummary()}\nAI INSTRUCTION: Decide whether this concept benefits from any of the catalog assets above, OR if it is best executed 100% procedurally (e.g. geometry, math puzzles, sandbox physics, wireframe vector) with zero external asset dependencies.`;
+        assetSpecPrompt += `\nNO EXPLICIT ASSETS SELECTED BY USER.\n${getCatalogSummary()}\nAI INSTRUCTION: Decide whether this concept benefits from any of the catalog assets above (characters, Mixamo animations), OR if it is best executed 100% procedurally (e.g. geometric arena, math puzzles, sandbox physics, wireframe vector) using engine.spawnEntity.`;
     }
     if (perspectiveSpec) {
         assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;
@@ -173,7 +169,7 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
             assetSpecPrompt += `\nSELECTED VISUAL DIRECTION PREVIEW IMAGE: "${imgRef}". Gemini: use your multimodal vision to visually inspect this reference image. Replicate its 3D arena architecture, lighting mood, color tones, floor material, and background set pieces directly in procedural code so the 3D game world matches what is shown in the image.`;
         }
     }
-    assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any asset fails to load, catch the error and instantly fall back to procedural geometry / Web Audio synth. The game MUST NEVER crash or freeze!`;
+    assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any asset fails to load, catch the error and instantly fall back to procedural geometry (engine.spawnEntity('cube' | 'sphere' | 'plane', ...)). The game MUST NEVER crash or freeze!`;
 
     let toolCallCount = 0;
 
@@ -183,9 +179,8 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
         let systemPrompt = '';
         let userPrompt = '';
 
-        if (runtime === 'native') {
-            const nativeOrientationRules = landscapeMode
-                ? `VIEWPORT ORIENTATION: LANDSCAPE (Wide Aspect 16:9 / 19.5:9 widescreen).
+        const nativeOrientationRules = landscapeMode
+            ? `VIEWPORT ORIENTATION: LANDSCAPE (Wide Aspect 16:9 / 19.5:9 widescreen).
 - Camera Framing: Position camera for widescreen horizontal breadth (aspect ratio > 2.0). Set camera back along Z/Y to frame horizontal movement across the X-axis (e.g. side-view fighting arena where fighters strafe left/right, wide racing track with sweeping turns).
 - Controls Safe Zone: Left/Right thumb controls sit at screen edges; keep the center 60% of the screen open for character action.`
                 : `VIEWPORT ORIENTATION: PORTRAIT (Vertical Aspect 9:16 mobile / TikTok style).
@@ -254,23 +249,6 @@ CRITICAL ARCHITECTURE RULES:
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
                 userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return the corrected JSON.`;
             }
-        } else {
-            // Legacy Web HTML5 Three.js
-            const orientationRules = landscapeMode
-                ? `Viewport is LANDSCAPE (844px wide by 390px high). Design playfield horizontally. Keep HUD in top/bottom corners (safe area x: 4-96%, y: 6-94%).`
-                : `Viewport is PORTRAIT (390px wide by 844px high). Keep playfield vertical.`;
-
-            systemPrompt = `You are an expert Three.js & TypeScript game developer building procedural, self-contained single-file HTML games.
-Orientation: ${orientation.toUpperCase()}. ${orientationRules}
-You MUST output valid, runnable HTML containing all JS code in a single file.
-${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
-
-            userPrompt = `Build a playable 3D Three.js game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
-            if (gameState.errorHistory.length > 0) {
-                const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
-                userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return the corrected complete game HTML.`;
-            }
-        }
 
         // Generate code via Official Hermes Agent (powered by Gemini)
         let generatedCode = '';
@@ -292,21 +270,16 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
                 throw new Error('Hermes Agent failed to produce valid JSON output');
             }
 
-            if (runtime === 'native') {
-                generatedCode = response.gameScript || response.code || (typeof response === 'string' ? response : '');
-                if (!generatedCode) throw new Error('No gameScript generated by model');
-                if (response.title) gameState.metadata.title = response.title;
-                if (response.thumbnailPrompt) gameState.metadata.thumbnailPrompt = response.thumbnailPrompt;
-                if (response.controls) {
-                    gameState.metadata.controls = response.controls;
-                    const controlsJson = typeof response.controls === 'string' ? response.controls : JSON.stringify(response.controls);
-                    if (!generatedCode.includes('// @controls:')) {
-                        generatedCode = `// @controls: ${controlsJson}\n` + generatedCode;
-                    }
+            generatedCode = response.gameScript || response.code || (typeof response === 'string' ? response : '');
+            if (!generatedCode) throw new Error('No gameScript generated by model');
+            if (response.title) gameState.metadata.title = response.title;
+            if (response.thumbnailPrompt) gameState.metadata.thumbnailPrompt = response.thumbnailPrompt;
+            if (response.controls) {
+                gameState.metadata.controls = response.controls;
+                const controlsJson = typeof response.controls === 'string' ? response.controls : JSON.stringify(response.controls);
+                if (!generatedCode.includes('// @controls:')) {
+                    generatedCode = `// @controls: ${controlsJson}\n` + generatedCode;
                 }
-            } else {
-                generatedCode = typeof response === 'string' ? response : (response.html || response.code || JSON.stringify(response));
-                if (!generatedCode) throw new Error('No HTML game code generated by model');
             }
         } catch (err) {
             console.error(`💥 [GameTok Loop] Generation error:`, err.message);
@@ -317,17 +290,9 @@ ${skillsText ? `\n--- REUSABLE SKILLS ---\n${skillsText}\n` : ''}`;
         toolCallCount += 1;
         gameState.updateCode(generatedCode, gameState.currentModelOwner, `Attempt ${gameState.attemptCount + 1}`);
 
-        // Sandbox Verification
-        let sandboxResult;
-        if (runtime === 'native') {
-            console.log(`🔬 [GameTok Loop] Running QuickJS native syntax sandbox attempt ${gameState.attemptCount + 1}...`);
-            sandboxResult = testNativeScript(generatedCode);
-        } else {
-            console.log(`🔬 [GameTok Loop] Running Hermes browser sandbox attempt ${gameState.attemptCount + 1} (${orientation})...`);
-            sandboxResult = hermes 
-                ? await hermes.runNativeSandboxTest(generatedCode, { timeoutMs: 12000, orientation })
-                : { passed: true, errors: [], durationMs: 10 };
-        }
+        // QuickJS Native Syntax Sandbox Verification
+        console.log(`🔬 [GameTok Loop] Running QuickJS native syntax sandbox attempt ${gameState.attemptCount + 1}...`);
+        const sandboxResult = testNativeScript(generatedCode);
 
         gameState.recordAttempt(sandboxResult);
 

@@ -17,3 +17,8 @@ v2-catalog/staging/**/*.json
 gametok.db
 storage/gametok-jobs/
 storage/rigged_cache/
+storage/characters/
+storage/animations/
+storage/models3d/
+__pycache__/
+*.pyc

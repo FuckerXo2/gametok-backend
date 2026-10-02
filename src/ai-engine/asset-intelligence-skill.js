@@ -3,7 +3,8 @@
  * 
  * Foundational skill loaded into Hermes Agent for EVERY game generation job.
  * Guides how Hermes and Gemini 3.8 Flash use explicitly selected assets, discover catalog assets,
- * fall back gracefully to procedural generation, align visual direction, and choose camera perspectives.
+ * fall back gracefully to procedural generation, align visual direction, and choose camera perspectives
+ * inside the GameTok Native C++ QuickJS / Metal / Filament Engine.
  */
 
 export const ASSET_INTELLIGENCE_SKILL_ID = 'asset_intelligence_procedural_perspective';
@@ -11,172 +12,109 @@ export const ASSET_INTELLIGENCE_SKILL_ID = 'asset_intelligence_procedural_perspe
 export const ASSET_INTELLIGENCE_SKILL_CONTENT = `
 # Skill: Asset Intelligence, Procedural Fallback & Adaptive Camera Rigging
 
-## 1. Selected Asset Integration (Audio, Video, Memes, Sprites, 3D Models)
+## 1. Selected Asset Integration (Audio, 3D Characters, Animations)
 
-When the user has selected or attached assets, weave them directly into the core game loop:
+When the user has selected or attached assets, weave them directly into the GameTok Native Engine lifecycle:
 
-### A. Audio Assets (BGM & SFX)
-- **Background Music (BGM)**:
-  - Create audio element: \`const bgm = new Audio(bgmUrl); bgm.loop = true; bgm.volume = 0.35;\`
-  - Mobile Browser Autoplay Protection: NEVER call \`bgm.play()\` at script top level without user interaction.
-  - Unlock on first user touch:
+### A. 3D Character Models & R2 GLB Assets
+- When 3D model assets are provided (e.g., characters from R2 or local vault):
+  - Spawn the character mesh via \`engine.spawnModel(modelUrl, x, y, z)\`:
     \`\`\`js
-    let audioUnlocked = false;
-    function unlockAudio() {
-        if (audioUnlocked) return;
-        audioUnlocked = true;
-        bgm.play().catch(() => {});
-    }
-    ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(ev => window.addEventListener(ev, unlockAudio, { once: true }));
+    const playerEntityId = engine.spawnModel(characterGlbUrl, 0, 0, 0);
+    engine.setScale(playerEntityId, 1.0, 1.0, 1.0);
     \`\`\`
-- **Sound Effects (SFX)**:
-  - Wire SFX to exact game events: \`onJump()\`, \`onCollect()\`, \`onDamage()\`, \`onScore()\`, \`onGameOver()\`.
-  - Clone or create instances so rapid sounds don't cut each other off:
-    \`\`\`js
-    function playSfx(url) {
-        const sfx = new Audio(url);
-        sfx.volume = 0.75;
-        sfx.play().catch(() => {});
-    }
-    \`\`\`
+  - Rigged humanoid characters are weighted to the UE5 Master Skeleton and support all standard Mixamo animations.
 
-### B. Video Backdrops (Brainrot, Parkour, Subway Surfers, Synthwave)
-- When a background video is selected or attached:
-  - Render an underlay \`<video>\` element with CSS:
-    \`\`\`html
-    <video id="bgVideo" src="..." autoplay loop muted playsinline 
-           style="position: fixed; inset: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; pointer-events: none;"></video>
-    \`\`\`
-  - Make the Three.js or Canvas renderer completely transparent so the game action plays on top of the moving video:
-    \`\`\`js
-    renderer.setClearColor(0x000000, 0); // Transparent WebGL background
-    \`\`\`
+### B. MoCap Skeletal Animations (.glb)
+- Bind animations from the GameTok Core Animation Library directly to the spawned entity:
+  \`\`\`js
+  // Play idle on spawn
+  engine.playAnimation(playerEntityId, 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/fight_idle.glb', { loop: true });
 
-### C. 2D Sprites, Memes & Stickers
-- When stickers, meme images, or character sprites are selected:
-  - For Three.js: Load texture via \`new THREE.TextureLoader().load(url, texture => { ... })\` and apply to a \`THREE.Sprite\` or billboard plane mesh:
-    \`\`\`js
-    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(2, 2, 1);
-    scene.add(sprite);
-    \`\`\`
-  - For 2D Canvas: Draw via \`ctx.drawImage(img, x, y, width, height)\`.
+  // Switch to attack / walk / hit when actions occur
+  function triggerAttack() {
+      engine.playAnimation(playerEntityId, 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/punch.glb', { loop: false, blendDuration: 0.1 });
+  }
+  \`\`\`
 
-### D. 3D Models & Skeletal Animations (GLTF/GLB)
-- When 3D model assets are provided:
-  - Import GLTF Loader: \`<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>\`
-  - Load and auto-normalize bounding box scale:
-    \`\`\`js
-    const loader = new THREE.GLTFLoader();
-    loader.load(modelUrl, (gltf) => {
-        const model = gltf.scene;
-        const box = new THREE.Box3().setFromObject(model);
-        const size = box.getSize(new THREE.Vector3());
-        const maxAxis = Math.max(size.x, size.y, size.z) || 1;
-        model.scale.setScalar(2.0 / maxAxis); // Normalize to ~2 units
-        scene.add(model);
-        
-        // Skeletal Animation Mixer
-        if (gltf.animations && gltf.animations.length > 0) {
-            const mixer = new THREE.AnimationMixer(model);
-            const action = mixer.clipAction(gltf.animations[0]);
-            action.play();
-            // Call mixer.update(dt) in animate()
-        }
-    }, undefined, (err) => {
-        // Fallback to procedural mesh if 3D model fails to load
-        createProceduralCharacter();
-    });
-    \`\`\`
+### C. Procedural Primitives & Arena Construction
+- Build world geometry (floors, arena walls, platforms, obstacles, projectiles) using \`engine.spawnEntity\`:
+  \`\`\`js
+  // Arena floor: large flat plane
+  const floorId = engine.spawnEntity('plane', 0, 0, 0, 20.0, 0.1, 0.1, 0.15);
+  
+  // Neon boundary walls: scaled cubes
+  const wallLeft = engine.spawnEntity('cube', -10, 2, 0, 4.0, 0.0, 0.8, 1.0);
+  \`\`\`
 
 ---
 
 ## 2. Unselected Assets: Intelligent Catalog Matching
 - If the user hasn't explicitly picked assets:
   - Inspect the game genre and theme.
-  - Automatically match fitting catalog assets:
-    - 8-Bit / Retro $\rightarrow$ Chiptune BGM + blip SFX.
-    - Racing / Cyberpunk $\rightarrow$ Synthwave / Phonk BGM.
-    - Relaxed / Zen / Puzzle $\rightarrow$ Lofi Ambient BGM.
-    - Combat / Action $\rightarrow$ High-Energy arcade beat.
+  - Automatically match fitting catalog characters and animations by Archetype:
+    - **superheroes**: Spider-Man, Homelander (flying, leaping, combat)
+    - **fighters**: Scorpion, Hal Jordan (martial arts, special moves, netherrealm clash)
+    - **street_citizens_npcs**: Franklin GTA V (urban open world, NPC pedestrians, driving)
+    - **villains**: Green Goblin, Venom (boss battles, nemesis showdowns)
+    - **monsters_creatures**: Zombies (survival horror, wave defense)
 
 ---
 
-## 3. Pure Procedural Autonomy ("Do Its Own Shit") & Graceful Fallbacks
+## 3. Pure Procedural Autonomy & Graceful Fallbacks
 
-### A. Non-Blocking Asset Loading & Procedural Substitutes
+### A. Non-Blocking Asset Resilience
 - **NEVER let missing or slow assets break the game.**
-- If an image, texture, sound, or 3D model fails to load, times out, or has CORS errors:
-  - **Procedural Mesh Fallback**: Instantly substitute vibrant procedural Three.js primitives (\`THREE.BoxGeometry\`, \`THREE.SphereGeometry\`, \`THREE.CylinderGeometry\`) with stylish glowing materials (\`THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.2, metalness: 0.8 })\`).
-  - **Procedural Sound Fallback**: Instantly synthesize Web Audio API tones:
+- If an asset URL is unreachable or loading fails:
+  - **Procedural Mesh Fallback**: Instantly substitute with vibrant procedural engine primitives (\`cube\`, \`sphere\`, \`plane\`) with glowing colors:
     \`\`\`js
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function synthBeep(freq = 440, duration = 0.15, type = 'sine') {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
-    }
+    // Fallback: procedural combat dummy
+    const fallbackPlayerId = engine.spawnEntity('cube', 0, 1, 0, 1.5, 0.0, 1.0, 0.8);
     \`\`\`
 
 ### B. Purely Procedural Games (Zero External Assets)
-- Concepts like geometry dash, abstract math puzzles, falling sand, wireframe vector arcade, Conway's Game of Life, or particle physics **do not need any external assets**.
-- For these concepts, generate 100% pure procedural code:
-  - Procedural vector lines, glowing canvas gradients, custom shader uniforms, and mathematical particle systems.
-  - Generates zero network requests, loads instantly, and runs at locked 120 FPS.
+- Concepts like geometry dodgers, abstract neon arenas, physics puzzles, or wireframe vector combat can be built 100% procedurally with \`engine.spawnEntity\`.
+- Generates zero network requests, loads instantly, and runs at locked 120 FPS on Metal / Filament.
 
 ---
 
-## 4. Visual Direction & Asset Interplay (The Two-Way Rule)
+## 4. Autonomous Camera Perspective Skill & Decision Matrix
 
-### A. When Assets Are Selected or Attached (Asset-First / Anchor-Driven)
-- When specific audio, video backdrops, sprites/memes, or 3D models are attached by the user:
-  - **The Assets are the Visual Anchor**: The visual style, lighting, shaders, color palette, and UI MUST be planned AROUND the assets.
-  - If a 16-bit pixel sprite is used, the visual direction MUST feature crisp pixel art, retro color banding, and arcade HUD styling.
-  - If a sticker or cartoon meme is used, the visual direction should feature cel-shading, bold outlines, and playful vibrant colors.
-  - If a dark cyberpunk highway video is used, the visual direction must emphasize glowing neon emissives, rain reflections, and dark contrast.
-  - If a low-poly or stylized 3D model is attached, the world geometry and lighting must match that exact polygonal fidelity.
+Hermes possesses full creative autonomy to determine whether a game concept needs user camera selection or has an inherent fixed view:
 
-### B. When No Assets Are Selected (Vision-First / Style-Driven)
-- When the user starts with an open prompt without attached assets:
-  - **The Creative Vision Dictates the Style First**: The AI first establishes the visual atmosphere, color palette, and art direction (e.g. cozy pastel watercolor, minimalist vector, gritty gothic dark fantasy).
-  - **Assets are Planned AROUND the Style**:
-    - The AI queries the asset catalog for items that match the established visual style (e.g., cozy lo-fi jazz for a pastel coffee shop).
-    - **Rejection & Procedural Rule**: If catalog assets clash with the planned style (e.g., catalog only has heavy metal audio or neon cyber models), the AI **rejects them** and constructs everything *purely procedurally* in Three.js/Canvas and Web Audio.
-    - An aesthetic vision must NEVER be corrupted by shoehorning mismatched catalog assets.
+### A. Autonomous Evaluation of Perspective Need
+1. **Fixed Perspective Concepts (NO camera choice needed)**:
+   - When the game mechanics strictly require a flat 2D plane or fixed vantage point:
+     - Match-3 / Candy Crush / Tile Connect (swapping grid tiles)
+     - Card / Deck / Tabletop games (Poker, Blackjack, Solitaire)
+     - Board games & Puzzles (Chess, Checkers, Wordle, Trivia)
+     - Explicit 2D platformers or endless side-scrollers
+   - **Hermes Action**: Hermes immediately locks \`requiresPerspectiveSelection = false\`. Hermes configures the optimal fixed 2D/top-down viewport (\`engine.setCamera(0, 10, 0, 0, 0, 0)\`), does NOT prompt the user with a redundant camera picker, and builds the game directly.
 
----
+2. **Variable Perspective Concepts (ASK the user)**:
+   - When the gameplay space has 3D depth, spatial navigation, or where different viewports fundamentally offer distinct gameplay experiences (e.g. 3D racing, third-person action, first-person cockpit, isometric diorama, or creative puzzle concepts like connecting neon dots in 3D):
+   - **Hermes Action**: Hermes flags \`requiresPerspectiveSelection = true\`. Hermes conceptualizes 4 distinct camera angles tailored to the game, generates 4 preview images anchored strictly to the user's chosen visual style and color scheme, sends them to the user, and once the user selects their favorite angle, builds the game from that exact POV.
 
-## 5. Adaptive Camera & Perspective Decision Matrix
+### B. Core Camera Rigs in Native Engine
+1. **Fighting Games (Side-View Dynamic Framing)**:
+   \`\`\`js
+   const midX = (p1.x + p2.x) * 0.5;
+   const dist = Math.max(6, Math.abs(p1.x - p2.x) + 3);
+   engine.setCamera(midX, 2.5, dist, midX, 1.5, 0);
+   \`\`\`
 
-### A. Rule 1: Explicit User Camera Intent
-- If the user's prompt or title already mentions the perspective:
-  - Examples: "top down shooter", "first-person runner", "side scroller platformer", "isometric village", "bird's eye view".
-  - **LOCK THIS PERSPECTIVE IMMEDIATELY.** Do not suggest conflicting cameras or override user intent.
+2. **Third-Person Chase Cam (Runners, Action, Racing)**:
+   \`\`\`js
+   engine.setCamera(player.x, player.y + 3.5, player.z - 7.0, player.x, player.y + 1.0, player.z + 5.0);
+   \`\`\`
 
-### B. Rule 2: Inherent 2D / Fixed-Grid Genres
-- Genres such as:
-  - **Match-3 / Candy Crush clones**
-  - **2048 / Sliding Block puzzles**
-  - **Sudoku, Crossword, Wordle, Trivia**
-  - **Solitaire, Poker, Blackjack, Card Battlers**
-  - **Tic-Tac-Toe, Connect Four, Chess, Checkers**
-  - **Flappy Bird, Brick Breaker / Breakout, Pong**
-- **ARE INHERENTLY 2D FLAT.**
-- NEVER assign a 3D orbit or first-person camera to these games. Lock them to an **Orthographic 2D Camera / Flat Stage Viewport**.
+3. **Top-Down / Isometric Arena (Tactical, Arcade, Survival)**:
+   \`\`\`js
+   engine.setCamera(player.x, player.y + 12.0, player.z - 10.0, player.x, player.y, player.z);
+   \`\`\`
 
-### C. Rule 3: Dynamic 3D Action Games
-- For dynamic 3D games (runners, racing, flight, 3D platformers):
-  - **Third-Person Follow Cam**: Best for character/vehicle runners. Camera placed behind and slightly above the player (e.g. \`camera.position.set(player.x, player.y + 4, player.z + 8); camera.lookAt(player.x, player.y + 1, player.z - 5);\`).
-  - **Isometric 3/4 Dihedral**: Best for tactical action, city building, and action RPGs. Camera tilted at 30° - 45° with orthographic or long telephoto projection.
-  - **First-Person POV**: Best for cockpits, mazes, and FPS games. Camera placed at player eye level with smooth mouse/touch yaw-pitch rotation.
-  - **Asset-Aware Framing**: Frame the camera angle specifically so character models and animations are centered and clearly readable.
+4. **Fixed 2D / Grid Viewport (Match-3, Candy Crush, Puzzles)**:
+   \`\`\`js
+   engine.setCamera(0, 14.0, 0.001, 0, 0, 0);
+   \`\`\`
 `;

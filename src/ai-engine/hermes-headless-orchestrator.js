@@ -21,7 +21,7 @@ import { SharedGameState } from './shared-game-state.js';
 import { callQwenJson, callQwenMultimodal } from './qwen-multimodal-client.js';
 import { evaluateMidLoopHandoff, MODEL_QWEN_MAX } from './model-router.js';
 import { viewportFor } from './orientation.js';
-import { THREEJS_PERFORMANCE_SKILL_ID, THREEJS_PERFORMANCE_SKILL_CONTENT } from './threejs-performance-skill.js';
+import { NATIVE_PERFORMANCE_SKILL_ID, NATIVE_PERFORMANCE_SKILL_CONTENT } from './native-performance-skill.js';
 import { ASSET_INTELLIGENCE_SKILL_ID, ASSET_INTELLIGENCE_SKILL_CONTENT } from './asset-intelligence-skill.js';
 
 
@@ -39,11 +39,11 @@ export class HermesHeadlessOrchestrator {
         this.archivedSkills = new Map(); // Stale / archived skills
         this.isSingleWriterOwner = false;
 
-        // Pre-load foundational Three.js Performance & Rapier WASM Physics Skill
-        this.activeSkills.set(THREEJS_PERFORMANCE_SKILL_ID, {
-            id: THREEJS_PERFORMANCE_SKILL_ID,
-            name: 'threejs_performance_rapier_wasm',
-            content: THREEJS_PERFORMANCE_SKILL_CONTENT,
+        // Pre-load foundational Native C++ QuickJS Performance & Engine Skill
+        this.activeSkills.set(NATIVE_PERFORMANCE_SKILL_ID, {
+            id: NATIVE_PERFORMANCE_SKILL_ID,
+            name: 'gametok_native_quickjs_metal',
+            content: NATIVE_PERFORMANCE_SKILL_CONTENT,
             status: 'active'
         });
 
