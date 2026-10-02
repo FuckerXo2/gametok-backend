@@ -2,9 +2,13 @@ import { execFile, execSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { callGeminiFlashJson } from './gemini-client.js';
 
 import { uploadBufferToR2 } from './openai-image-client.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let cachedHermesBin = null;
 
@@ -133,7 +137,7 @@ export async function executeHermesAgent(prompt, options = {}) {
             ...process.env,
             GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
             OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-            PATH: `/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
+            PATH: `${path.dirname(hermesBin)}:/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
         };
 
         execFile(hermesBin, args, { env, timeout: 180000, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
