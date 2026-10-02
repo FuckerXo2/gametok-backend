@@ -1785,7 +1785,7 @@ router.get('/drafts', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const drafts = await pool.query("SELECT id, title, prompt, thumbnail, orientation, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE user_id = $1 AND is_draft = true AND (html_payload != '' OR game_url IS NOT NULL) ORDER BY created_at DESC", [userId]);
+        const drafts = await pool.query("SELECT id, title, prompt, html_payload, raw_code, script_payload, runtime, thumbnail, orientation, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE user_id = $1 AND is_draft = true AND (html_payload != '' OR game_url IS NOT NULL OR script_payload IS NOT NULL) ORDER BY created_at DESC", [userId]);
         res.json({ drafts: drafts.rows });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
@@ -1795,7 +1795,7 @@ router.get('/drafts/:id', async (req, res) => {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Auth failed' });
         const userId = await getUserIdFromToken(token, 'Invalid token');
-        const draft = await pool.query("SELECT id, title, prompt, html_payload, game_url, thumbnail, orientation, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
+        const draft = await pool.query("SELECT id, title, prompt, html_payload, raw_code, script_payload, runtime, game_url, thumbnail, orientation, created_at, category, subcategory, primary_tab, interaction_type, classification_confidence, classification_tags, discovery_chips FROM ai_games WHERE id = $1 AND user_id = $2 AND is_draft = true", [req.params.id, userId]);
         if (draft.rows.length === 0) return res.status(404).json({ error: 'Draft not found' });
         res.json({ draft: draft.rows[0] });
     } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
