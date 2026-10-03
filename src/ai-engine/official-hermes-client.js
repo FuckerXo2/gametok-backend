@@ -132,7 +132,7 @@ export function ensureHermesInstalled() {
  * @param {string} prompt
  * @param {object} options
  */
-export async function executeHermesAgent(prompt, options = {}) {
+async function _spawnHermesProcess(prompt, options = {}) {
     let hermesBin = getHermesBinaryPath() || ensureHermesInstalled();
     const model = options.model || process.env.HERMES_MODEL || 'gemini-3.8-flash';
     const provider = options.provider || process.env.HERMES_PROVIDER || 'gemini';
@@ -221,6 +221,19 @@ export async function executeHermesAgent(prompt, options = {}) {
             reject(err);
         });
     });
+}
+
+export async function executeHermesAgent(prompt, options = {}) {
+    const requestedModel = options.model || process.env.HERMES_MODEL || 'gemini-3.8-flash';
+    try {
+        return await _spawnHermesProcess(prompt, { ...options, model: requestedModel });
+    } catch (err) {
+        if (requestedModel === 'gemini-3.8-flash' && !options.model) {
+            console.warn(`⚠️ [Hermes Agent] Primary model gemini-3.8-flash failed (${err.message}), retrying with gemini-3.7-flash...`);
+            return await _spawnHermesProcess(prompt, { ...options, model: 'gemini-3.7-flash' });
+        }
+        throw err;
+    }
 }
 
 /**
