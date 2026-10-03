@@ -156,7 +156,6 @@ async function _spawnHermesProcess(prompt, options = {}) {
         '--yolo',
         '--provider', provider,
         '-m', model,
-        '--reasoning-effort', options.reasoningEffort || process.env.HERMES_REASONING_EFFORT || 'medium',
     ];
 
     if (options.toolsets) {
