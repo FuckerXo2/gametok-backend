@@ -333,3 +333,80 @@ export function extractJsonFromHermes(rawText) {
 
     return null;
 }
+
+/**
+ * Clean and extract pure JavaScript game code and embedded header directives (@title, @controls, etc.)
+ * Eliminates the JSON escaping anti-pattern completely.
+ */
+export function extractScriptWithMetadata(rawText, defaultOrientation = 'portrait') {
+    if (!rawText) return null;
+    let content = rawText.trim();
+
+    // 1. If wrapped in markdown code fence (```javascript ... ``` or ```js ... ``` or ``` ... ```), extract inner code
+    const fenceMatch = content.match(/```(?:javascript|js)?\s*([\s\S]*?)```/i);
+    if (fenceMatch) {
+        content = fenceMatch[1].trim();
+    }
+
+    // 2. Extract header directives
+    let title = 'Untitled GameTok Game';
+    let orientation = defaultOrientation;
+    let controls = null;
+    let thumbnailPrompt = '';
+
+    const titleMatch = content.match(/^\/\/\s*@title:\s*(.+)$/m);
+    if (titleMatch) title = titleMatch[1].trim();
+
+    const orientMatch = content.match(/^\/\/\s*@orientation:\s*(.+)$/m);
+    if (orientMatch) orientation = orientMatch[1].trim().toLowerCase();
+
+    const thumbMatch = content.match(/^\/\/\s*@thumbnail:\s*(.+)$/m);
+    if (thumbMatch) thumbnailPrompt = thumbMatch[1].trim();
+
+    const controlsMatch = content.match(/^\/\/\s*@controls:\s*(\{.*\})$/m);
+    if (controlsMatch) {
+        try {
+            controls = JSON.parse(controlsMatch[1].trim());
+        } catch (_) {}
+    }
+
+    // 3. Fallback: If Hermes still returned a legacy JSON object { title, gameScript }
+    if (!titleMatch && content.startsWith('{') && content.endsWith('}')) {
+        try {
+            const parsed = JSON.parse(content);
+            if (parsed.gameScript || parsed.code) {
+                return {
+                    title: parsed.title || title,
+                    orientation: parsed.orientation || orientation,
+                    controls: parsed.controls || controls,
+                    thumbnailPrompt: parsed.thumbnailPrompt || thumbnailPrompt,
+                    gameScript: parsed.gameScript || parsed.code
+                };
+            }
+        } catch (_) {
+            const scriptRegexMatch = content.match(/"gameScript"\s*:\s*"([\s\S]*?)"(?:\s*,\s*"\w+"|\s*})/);
+            if (scriptRegexMatch) {
+                return {
+                    title,
+                    orientation,
+                    controls,
+                    thumbnailPrompt,
+                    gameScript: scriptRegexMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+                };
+            }
+        }
+    }
+
+    // 4. Return pure JavaScript with metadata
+    if (content.length > 20) {
+        return {
+            title,
+            orientation,
+            controls,
+            thumbnailPrompt,
+            gameScript: content
+        };
+    }
+
+    return null;
+}

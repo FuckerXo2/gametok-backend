@@ -322,7 +322,7 @@ Your task is to invent exactly 4 DISTINCT, CREATIVE, and LOGICAL camera perspect
 
 RULES:
 1. Conceptualize exactly 4 distinct camera angles appropriate to the game (e.g. Dynamic Third-Person, Top-Down Aerial, Immersive First-Person, Isometric 3/4 Angle, Side-Scrolling 2.5D, Cinematic Fixed Angle, Orbit Cam).
-2. For EACH perspective, craft a visual prompt describing an authentic in-game screenshot from that exact camera angle in the chosen visual style.
+2. For EACH perspective, craft a visual modifier describing the camera placement, lens angle, and composition constraints. The camera angle description MUST lead with explicit camera placement (e.g. 'tight over-the-shoulder third-person camera positioned directly behind the hero's back and shoulder looking forward toward the opponent', 'aerial top-down bird's-eye camera looking straight down at the ground arena floor', 'dramatic low-angle Dutch-tilt 3D action camera looking up from floor level', 'side-profile horizontal 2.5D tracking camera'). DO NOT use generic side-view standoff compositions for all angles. Each perspective MUST have a completely distinct camera coordinate and viewpoint!
 3. Specify the dimension ("2D", "2.5D", or "3D") and exact technical cameraInstruction for setting up the camera in the game engine.
 
 You MUST respond with valid JSON strictly matching this schema:
@@ -492,10 +492,15 @@ TASK:
             console.log(`🎨 [Camera Perspective] Generating perspective preview card for "${p.name}"...`);
             const colorHint = selectedDirection?.colors?.length ? ` Palette: ${selectedDirection.colors.join(', ')}.` : '';
             const styleDetails = selectedDirection?.instruction || selectedDirection?.modifier || '';
-            imageUrl = await generateConceptCard({
-                prompt: `In-game view of ${prompt}, rendered in ${styleName} visual style (${styleDetails}), viewed from ${p.name} camera perspective (${p.modifier || ''}).${colorHint}`,
-                styleName: `${styleName} - ${p.name}`,
+            const cameraLead = p.modifier || p.cameraInstruction || p.name;
+            const perspectivePrompt = `Authentic in-game screenshot viewed from ${cameraLead}, ${p.name} camera perspective showing ${prompt}, rendered in ${styleName} visual style (${styleDetails}), matching camera viewport with authentic HUD elements, 1:1 aspect ratio, crisp 3D fidelity${colorHint}`;
+            imageUrl = await generateConceptCardImage({
+                prompt: perspectivePrompt,
+                size: '1024x1024',
                 prefix: 'camera-perspectives',
+            }).then(r => r?.imageUrl).catch(err => {
+                console.error(`❌ [Camera Perspective] Error generating card for "${p.name}":`, err?.message);
+                return null;
             });
             if (!imageUrl && anchorImage) {
                 console.log(`🖼️ [Camera Perspective] Anchoring to chosen visual style image for "${p.name}"`);

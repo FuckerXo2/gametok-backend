@@ -11,8 +11,7 @@
 
 import { SharedGameState } from './shared-game-state.js';
 import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
-import { callGeminiFlashJson } from './gemini-client.js';
-import { executeHermesAgent, extractJsonFromHermes } from './official-hermes-client.js';
+import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata } from './official-hermes-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
 
@@ -107,10 +106,26 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
     const landscapeMode = isLandscape(orientation);
     const runtime = (jobParams.runtime === 'web') ? 'web' : 'native';
 
+    const visualRefs = Array.isArray(jobParams.attachments) ? [...jobParams.attachments] : [];
+    if (jobParams.selectedDirection) {
+        const dir = jobParams.selectedDirection;
+        const dirImg = dir.imageUrl || dir.image_path || dir.image;
+        if (dirImg && !visualRefs.some(r => r === dirImg || (r && r.url === dirImg))) {
+            visualRefs.push({ url: dirImg, type: 'image', role: 'visual_style' });
+        }
+    }
+    if (jobParams.selectedPerspective) {
+        const p = jobParams.selectedPerspective;
+        const pImg = p.imageUrl || p.image;
+        if (pImg && !visualRefs.some(r => r === pImg || (r && r.url === pImg))) {
+            visualRefs.push({ url: pImg, type: 'image', role: 'camera_perspective' });
+        }
+    }
+
     const gameState = new SharedGameState({
         prompt: jobParams.prompt || 'Create an interactive 3D game',
         currentModelOwner: initialModel,
-        visualReferences: jobParams.attachments || [],
+        visualReferences: visualRefs,
         maxAttempts: jobParams.maxAttempts || 5,
         metadata: { orientation, runtime }
     });
@@ -160,6 +175,10 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
     }
     if (perspectiveSpec) {
         assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;
+        const pImg = perspectiveSpec.imageUrl || perspectiveSpec.image || '';
+        if (pImg) {
+            assetSpecPrompt += `\nSELECTED CAMERA PERSPECTIVE IMAGE: "${pImg}". Gemini/Hermes: use your multimodal vision to visually analyze this exact camera angle, elevation, distance, and field of view. Replicate this exact perspective in your code by configuring engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ)!`;
+        }
     }
     if (jobParams.selectedDirection) {
         const dir = jobParams.selectedDirection;
@@ -204,8 +223,6 @@ CRITICAL ARCHITECTURE RULES:
    - engine.setColor(id, r, g, b, a): Updates entity color/tint.
    - engine.clearEntities(): Wipes all entities.
    - engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ): Directs 3D perspective camera (combat tracking, chase, or isometric).
-   - engine.setVehicle(x, y, z, yaw, isDrifting): (Optional) Controls player vehicle in driving/racing games.
-   - engine.getVehicle(): Returns { x, y, z, yaw, speed, isDrifting }.
    - engine.log(message): Prints debug info to console.
 3. MANDATORY LIFECYCLE CALLBACK:
    You MUST define a global function:
@@ -225,29 +242,23 @@ CRITICAL ARCHITECTURE RULES:
    - Platformer / Action: layout "platformer", 2-4 buttons (JUMP ▲, ATTACK ⚔️, DASH 💨) + steering.
    Each button should have action string, label, emoji/icon, theme hex color, and glowing drop shadow.
 6. OUTPUT FORMAT:
-   Return valid JSON with:
-   {
-     "title": "Short catchy game name (e.g. Scorpion vs Green Lantern: Netherrealm Clash)",
-     "runtime": "native",
-     "orientation": "${orientation}",
-     "controls": {
-       "layout": "combat",
-       "dpad": "directional",
-       "buttons": [
-         { "action": "PUNCH", "label": "PUNCH", "icon": "🥊", "color": "#FF4500", "glow": "rgba(255,69,0,0.6)" },
-         { "action": "KICK", "label": "KICK", "icon": "🦵", "color": "#E63946", "glow": "rgba(230,57,70,0.6)" },
-         { "action": "BLOCK", "label": "BLOCK", "icon": "🛡️", "color": "#3A86FF", "glow": "rgba(58,134,255,0.6)" },
-         { "action": "SPECIAL", "label": "SPEAR", "icon": "⛓️", "color": "#FFD700", "glow": "rgba(255,215,0,0.7)" }
-       ]
-     },
-     "gameScript": "full clean JavaScript code string without markdown fences",
-     "thumbnailPrompt": "Midjourney style prompt for cover art"
-   }`;
+   Do NOT output JSON wrapping. Output pure JavaScript with metadata directives in the header comments:
+
+// @title: Short catchy game name (e.g. Scorpion vs Green Lantern: Netherrealm Clash)
+// @orientation: ${orientation}
+// @controls: {"layout":"combat","dpad":"directional","buttons":[{"action":"PUNCH","label":"PUNCH","icon":"🥊","color":"#FF4500","glow":"rgba(255,69,0,0.6)"},{"action":"KICK","label":"KICK","icon":"🦵","color":"#E63946","glow":"rgba(230,57,70,0.6)"},{"action":"BLOCK","label":"BLOCK","icon":"🛡️","color":"#3A86FF","glow":"rgba(58,134,255,0.6)"},{"action":"SPECIAL","label":"SPEAR","icon":"⛓️","color":"#FFD700","glow":"rgba(255,215,0,0.7)"}]}
+// @thumbnail: Dynamic cinematic screenshot prompt for cover art
+
+// Game code starts directly here (QuickJS native engine script):
+function initGame() {
+    ...
+}
+`;
 
             userPrompt = `Build a high-performance native 3D GameTok JavaScript game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
             if (gameState.errorHistory.length > 0) {
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
-                userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return the corrected JSON.`;
+                userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return corrected JavaScript with headers.`;
             }
 
         // Generate code via Official Hermes Agent (powered by Gemini)
@@ -256,22 +267,21 @@ CRITICAL ARCHITECTURE RULES:
 
         try {
             let response = null;
-            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nRespond with valid JSON.`;
+            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nOutput pure JavaScript with header directives.`;
             const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
             const hermesOutput = await executeHermesAgent(hermesPrompt, {
                 toolsets: 'file,terminal',
                 sessionId,
             });
             if (hermesOutput) {
-                response = extractJsonFromHermes(hermesOutput);
+                response = extractScriptWithMetadata(hermesOutput, orientation);
             }
 
-            if (!response) {
-                throw new Error('Hermes Agent failed to produce valid JSON output');
+            if (!response || !response.gameScript) {
+                throw new Error('Hermes Agent failed to produce valid game script');
             }
 
-            generatedCode = response.gameScript || response.code || (typeof response === 'string' ? response : '');
-            if (!generatedCode) throw new Error('No gameScript generated by model');
+            generatedCode = response.gameScript;
             if (response.title) gameState.metadata.title = response.title;
             if (response.thumbnailPrompt) gameState.metadata.thumbnailPrompt = response.thumbnailPrompt;
             if (response.controls) {
