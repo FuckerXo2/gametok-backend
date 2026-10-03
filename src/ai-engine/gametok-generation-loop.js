@@ -29,7 +29,14 @@ function testNativeScript(code) {
         clearEntities: () => {},
         setVehicle: () => {},
         getVehicle: () => ({ x: 0, y: 0, z: 0, yaw: 0, isDrifting: false }),
-        spawnModel: () => {},
+        spawnModel: () => 1,
+        playAnimation: () => {},
+        playAnim: () => {},
+        drawBar: () => {},
+        drawText: () => {},
+        drawButton: () => {},
+        removeUI: () => {},
+        clearUI: () => {},
         setCamera: () => {},
         log: () => {},
       },
@@ -218,6 +225,7 @@ CRITICAL ARCHITECTURE RULES:
    - engine.clearEntities(): Wipes all entities and purges scene geometry. Call this FIRST!
    - engine.spawnEntity(type, x, y, z, scale, r, g, b): Spawns 3D entity. type: 'cube' (boxes, obstacles, walls), 'sphere' (coins, gems, orbs, planets), 'plane' (floors, platforms). Returns entityId (number).
    - engine.spawnModel(assetUrl, x, y, z): Spawns 3D character/object mesh (GLB/GLTF from Cloudflare R2 URL or local path). Returns entityId (number).
+   - engine.playAnimation(entityId, animUrl, loop): Plays animation on a 3D rigged character. animUrl is one of the core animations (e.g. fight_idle.glb, punch.glb, kick.glb, walk.glb). loop is boolean (default true).
    - engine.destroyEntity(id): Removes entity from the scene.
    - engine.setPosition(id, x, y, z): Updates entity position.
    - engine.setRotation(id, rx, ry, rz): Updates entity Euler angles in radians.
@@ -225,6 +233,12 @@ CRITICAL ARCHITECTURE RULES:
    - engine.setColor(id, r, g, b, a): Updates entity color/tint.
    - engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ): Directs 3D perspective camera (combat tracking, chase, or isometric).
    - engine.log(message): Prints debug info to console.
+   - IN-ENGINE 2D HUD / UI SYSTEM (Call in init & update to render high-performance native game UI):
+     * engine.drawBar(id, x, y, width, height, percent, r, g, b, a): Native 2D bar (health bar, boost meter, power gauge). x, y, width, height are normalized (0.0 to 1.0) or pixels. percent is 0.0 to 1.0. r, g, b, a is fill color (0.0 to 1.0).
+     * engine.drawText(id, text, x, y, fontSize, r, g, b, a): Native 2D text label (e.g. fighter names, match timer "99", score).
+     * engine.drawButton(id, label, x, y, width, height, r, g, b, a): Native touch button directly drawn by engine.
+     * engine.removeUI(id): Removes specific HUD element.
+     * engine.clearUI(): Clears all HUD elements.
 4. MANDATORY LIFECYCLE CALLBACK:
    You MUST define a global function:
    globalThis.onGameEvent = function(event, data) { ... }
@@ -233,21 +247,24 @@ CRITICAL ARCHITECTURE RULES:
    - event === 'update': data = { dt: number } where dt is delta-time in seconds (e.g. 0.0083 at 120 FPS or 0.0166 at 60 FPS).
      ALWAYS multiply velocity, attacks, and animations by dt! Example: posX += velX * dt;
 5. GAMEPLAY FEEL & GENRE LOGIC:
-   - For Fighting Games: Spawn both fighter models (e.g. Scorpion and Green Lantern), track health bars (P1 Health, P2 Health), process punch/kick hitboxes, knockback velocity, hit animations, block state, special projectiles (Scorpion's spear / Green Lantern's construct energy), dynamic camera framing keeping both fighters in view.
+   - For Fighting Games: Spawn both fighter models (e.g. Scorpion and Green Lantern), initialize HUD health bars using engine.drawBar('p1_health', 0.05, 0.05, 0.35, 0.03, 1.0, 0.0, 1.0, 0.3, 1.0) and engine.drawBar('p2_health', 0.60, 0.05, 0.35, 0.03, 1.0, 1.0, 0.2, 0.2, 1.0), draw fighter names with engine.drawText('p1_name', 'SCORPION', 0.05, 0.02, 16, 1, 1, 1, 1) and engine.drawText('timer', '99', 0.48, 0.04, 22, 1, 0.85, 0.1, 1). During combat, update the bars via engine.drawBar when damage is dealt!
    - For Racing/Runner Games: Smooth acceleration, responsive steering, drift mechanics with score multipliers.
    - Procedural track boundaries, collectible gems or obstacles ahead of the player.
 6. DYNAMIC TOUCH CONTROLS & BUTTON DESIGN:
-   You MUST design custom, themed touch controls matching this specific game!
-   - Fighting / Combat: layout "combat", 4 buttons (e.g. PUNCH 🥊, KICK 🦵, BLOCK 🛡️, SPECIAL/SPEAR ⛓️) + directional d-pad ("directional").
-   - Racing / Driving: layout "driving", 2 buttons (DRIFT ⚡, GAS ▲) + steering ("steering").
-   - Platformer / Action: layout "platformer", 2-4 buttons (JUMP ▲, ATTACK ⚔️, DASH 💨) + steering.
-   Each button should have action string, label, emoji/icon, theme hex color, and glowing drop shadow.
+   You MUST design custom, sleek console touch controls matching this specific game! DO NOT USE PHONE EMOJIS!
+   - movement: "joystick" (smooth 360° virtual analog thumbstick for 3D combat, brawlers, action, RPGs), "steering" (left/right steering for cars/runners), or "none" (tap-to-play).
+   - buttons: Design the exact action buttons this gameplay loop requires. Use clean, bold console labels (e.g. "PUNCH", "KICK", "GUARD", "SPECIAL", "DASH", "FIRE", "JUMP").
+   - Each button definition:
+     * action: String identifier passed to onGameEvent('action', { name: action, pressed: true }) (e.g. "PUNCH", "KICK", "BLOCK", "SPECIAL")
+     * label: Clean, bold text label displayed on the button (e.g. "PUNCH", "KICK", "GUARD", "SPEAR")
+     * color: Theme hex color (e.g. "#FF5500", "#00FF88", "#3B82F6", "#EAB308")
+     * glow: Subtle glow rgba
 7. OUTPUT FORMAT:
    Do NOT output JSON wrapping. Output pure JavaScript with metadata directives in the header comments:
 
 // @title: Short catchy game name (e.g. Scorpion vs Green Lantern: Netherrealm Clash)
 // @orientation: ${orientation}
-// @controls: {"layout":"combat","dpad":"directional","buttons":[{"action":"PUNCH","label":"PUNCH","icon":"🥊","color":"#FF4500","glow":"rgba(255,69,0,0.6)"},{"action":"KICK","label":"KICK","icon":"🦵","color":"#E63946","glow":"rgba(230,57,70,0.6)"},{"action":"BLOCK","label":"BLOCK","icon":"🛡️","color":"#3A86FF","glow":"rgba(58,134,255,0.6)"},{"action":"SPECIAL","label":"SPEAR","icon":"⛓️","color":"#FFD700","glow":"rgba(255,215,0,0.7)"}]}
+// @controls: {"movement":"joystick","buttons":[{"action":"PUNCH","label":"PUNCH","color":"#FF5500","glow":"rgba(255,85,0,0.5)"},{"action":"KICK","label":"KICK","color":"#EF4444","glow":"rgba(239,68,68,0.5)"},{"action":"BLOCK","label":"GUARD","color":"#3B82F6","glow":"rgba(59,130,246,0.5)"},{"action":"SPECIAL","label":"SPEAR","color":"#EAB308","glow":"rgba(234,179,8,0.6)"}]}
 // @thumbnail: Dynamic cinematic screenshot prompt for cover art
 
 // Game code starts directly here (QuickJS native engine script):
