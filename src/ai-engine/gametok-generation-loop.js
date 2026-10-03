@@ -213,7 +213,9 @@ ${nativeOrientationRules}
 
 CRITICAL ARCHITECTURE RULES:
 1. PURE JAVASCRIPT ONLY: Do NOT output HTML, CSS, <html>, <script>, DOM elements, window, document, or requestAnimationFrame. The code runs directly in QuickJS C++.
-2. NATIVE ENGINE GLOBAL BINDINGS:
+2. MANDATORY CLEAR ON INIT: Line 1 of your executable code MUST call `engine.clearEntities();` so that any previous or default scene entities are completely purged before spawning game-specific models or arena geometry.
+3. NATIVE ENGINE GLOBAL BINDINGS:
+   - engine.clearEntities(): Wipes all entities and purges scene geometry. Call this FIRST!
    - engine.spawnEntity(type, x, y, z, scale, r, g, b): Spawns 3D entity. type: 'cube' (boxes, obstacles, walls), 'sphere' (coins, gems, orbs, planets), 'plane' (floors, platforms). Returns entityId (number).
    - engine.spawnModel(assetUrl, x, y, z): Spawns 3D character/object mesh (GLB/GLTF from Cloudflare R2 URL or local path). Returns entityId (number).
    - engine.destroyEntity(id): Removes entity from the scene.
@@ -221,27 +223,26 @@ CRITICAL ARCHITECTURE RULES:
    - engine.setRotation(id, rx, ry, rz): Updates entity Euler angles in radians.
    - engine.setScale(id, sx, sy, sz): Updates entity 3D scale.
    - engine.setColor(id, r, g, b, a): Updates entity color/tint.
-   - engine.clearEntities(): Wipes all entities.
    - engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ): Directs 3D perspective camera (combat tracking, chase, or isometric).
    - engine.log(message): Prints debug info to console.
-3. MANDATORY LIFECYCLE CALLBACK:
+4. MANDATORY LIFECYCLE CALLBACK:
    You MUST define a global function:
    globalThis.onGameEvent = function(event, data) { ... }
    - event === 'input': data = { dirX: -1.0 to 1.0, dirY: -1.0 to 1.0, steer: -1.0 to 1.0, throttle: 0 or 1, drift: 0 or 1, brake: 0 or 1 }
    - event === 'action': data = { name: 'PUNCH' | 'KICK' | 'BLOCK' | 'SPECIAL' | 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'JUMP' | 'DRIFT' | 'GAS', pressed: boolean }
    - event === 'update': data = { dt: number } where dt is delta-time in seconds (e.g. 0.0083 at 120 FPS or 0.0166 at 60 FPS).
      ALWAYS multiply velocity, attacks, and animations by dt! Example: posX += velX * dt;
-4. GAMEPLAY FEEL & GENRE LOGIC:
+5. GAMEPLAY FEEL & GENRE LOGIC:
    - For Fighting Games: Spawn both fighter models (e.g. Scorpion and Green Lantern), track health bars (P1 Health, P2 Health), process punch/kick hitboxes, knockback velocity, hit animations, block state, special projectiles (Scorpion's spear / Green Lantern's construct energy), dynamic camera framing keeping both fighters in view.
    - For Racing/Runner Games: Smooth acceleration, responsive steering, drift mechanics with score multipliers.
    - Procedural track boundaries, collectible gems or obstacles ahead of the player.
-5. DYNAMIC TOUCH CONTROLS & BUTTON DESIGN:
+6. DYNAMIC TOUCH CONTROLS & BUTTON DESIGN:
    You MUST design custom, themed touch controls matching this specific game!
    - Fighting / Combat: layout "combat", 4 buttons (e.g. PUNCH 🥊, KICK 🦵, BLOCK 🛡️, SPECIAL/SPEAR ⛓️) + directional d-pad ("directional").
    - Racing / Driving: layout "driving", 2 buttons (DRIFT ⚡, GAS ▲) + steering ("steering").
    - Platformer / Action: layout "platformer", 2-4 buttons (JUMP ▲, ATTACK ⚔️, DASH 💨) + steering.
    Each button should have action string, label, emoji/icon, theme hex color, and glowing drop shadow.
-6. OUTPUT FORMAT:
+7. OUTPUT FORMAT:
    Do NOT output JSON wrapping. Output pure JavaScript with metadata directives in the header comments:
 
 // @title: Short catchy game name (e.g. Scorpion vs Green Lantern: Netherrealm Clash)
@@ -250,6 +251,7 @@ CRITICAL ARCHITECTURE RULES:
 // @thumbnail: Dynamic cinematic screenshot prompt for cover art
 
 // Game code starts directly here (QuickJS native engine script):
+engine.clearEntities();
 function initGame() {
     ...
 }
