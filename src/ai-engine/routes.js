@@ -1510,7 +1510,6 @@ router.post('/generate-spec', async (req, res) => {
 }`,
                 messages: [{ role: 'user', content: `Game Idea: "${prompt}"` }],
                 temperature: 0.4,
-                maxTokens: 2500,
             });
 
             if (spec && spec.title && spec.description) {
@@ -1562,7 +1561,6 @@ router.post('/refine-spec', async (req, res) => {
                     { role: 'user', content: userMessage }
                 ],
                 temperature: 0.4,
-                maxTokens: 2500,
             });
 
             if (refined && refined.spec) {

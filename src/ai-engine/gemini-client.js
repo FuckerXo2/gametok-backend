@@ -35,7 +35,7 @@ export function createGeminiClient(env = process.env) {
  * @param {{ systemPrompt: string, messages: Array<any>, temperature?: number, maxTokens?: number, model?: string }} args
  * @param {object} env
  */
-export async function callGeminiFlashJson({ systemPrompt, messages = [], temperature = 0.3, maxTokens = 8192, model = null }, env = process.env) {
+export async function callGeminiFlashJson({ systemPrompt, messages = [], temperature = 0.3, maxTokens = null, model = null }, env = process.env) {
     const config = getGeminiConfig(env);
     if (!config) {
         throw new Error('Gemini API key missing (set GEMINI_API_KEY in .env)');
@@ -49,13 +49,16 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
         : [...messages];
 
     async function executeCall(m) {
-        const response = await client.chat.completions.create({
+        const payload = {
             model: m,
             response_format: { type: 'json_object' },
             messages: formattedMessages,
             temperature,
-            max_tokens: maxTokens,
-        });
+        };
+        if (maxTokens) {
+            payload.max_tokens = maxTokens;
+        }
+        const response = await client.chat.completions.create(payload);
 
         let content = (response.choices?.[0]?.message?.content || '{}').trim();
         
