@@ -106,7 +106,8 @@ function inferThemeType(name = '', modifier = '') {
 }
 
 /**
- * Visual style concept card generator using OpenAI gpt-image-2.5-flare with Gemini Imagen 3 fallback.
+ * Visual style concept card generator using OpenAI gpt-image-2.5-flare.
+ * NO FALLBACKS: If image generation fails, logs error and returns null.
  */
 async function generateConceptCard({ prompt, styleName, prefix = 'visual-directions' }) {
     const imagePrompt = `Video game visual concept preview, ${prompt}, art style: ${styleName}, clean UI HUD mockup, 1:1 aspect ratio, high visual fidelity`;
@@ -119,18 +120,7 @@ async function generateConceptCard({ prompt, styleName, prefix = 'visual-directi
         return imgRes?.imageUrl || null;
     } catch (err) {
         console.error(`❌ [Concept Card Gen] Image generation failed (${err.message}) for "${styleName}"`);
-        try {
-            console.log(`🔄 [Concept Card Gen] Retrying with generic style-only card prompt for "${styleName}"...`);
-            const retryRes = await generateConceptCardImage({
-                prompt: `Playable video game viewport preview, ${styleName}, vibrant game scene, clean UI HUD mockup, 1:1 aspect ratio, high visual fidelity`,
-                size: '1024x1024',
-                prefix,
-            });
-            return retryRes?.imageUrl || null;
-        } catch (retryErr) {
-            console.error(`❌ [Concept Card Gen] Second retry also failed (${retryErr.message}) for "${styleName}"`);
-            return null;
-        }
+        return null;
     }
 }
 
@@ -250,15 +240,6 @@ TASK:
             imageUrl,
         };
     }));
-
-    // Guarantee that every card has an imageUrl so that directions ready check never fails
-    const firstValidUrl = directions.find(d => d && d.imageUrl)?.imageUrl || null;
-    for (const dir of directions) {
-        if (!dir.imageUrl && firstValidUrl) {
-            console.warn(`⚠️ [AI Art Director] Using companion card image fallback for "${dir.name}"`);
-            dir.imageUrl = firstValidUrl;
-        }
-    }
 
     onProgress?.({ step: 4, phase: 'ready', message: 'All set! Choose your visual direction to begin building.' });
 

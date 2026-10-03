@@ -81,44 +81,9 @@ export function sanitizePromptForImageGen(prompt) {
 }
 
 /**
- * Fallback image generation using Google Gemini Imagen 3 (imagen-3.0-generate-001)
- */
-export async function generateGeminiImagenImage(prompt) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error('GEMINI_API_KEY not configured');
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${key}`;
-    const payload = {
-        instances: [{ prompt }],
-        parameters: { sampleCount: 1, aspectRatio: '1:1' },
-    };
-
-    console.log(`✨ [Gemini Imagen 3] Generating fallback image for prompt: "${prompt.slice(0, 80)}..."`);
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Imagen API error ${res.status}: ${errText.slice(0, 200)}`);
-    }
-
-    const data = await res.json();
-    if (data.predictions && data.predictions[0]?.bytesBase64Encoded) {
-        return Buffer.from(data.predictions[0].bytesBase64Encoded, 'base64');
-    }
-    throw new Error('Gemini Imagen 3 returned no image prediction data');
-}
-
-/**
- * Generate visual style concept preview card.
- * Multi-layer resilience:
- * 1. Proactive prompt sanitization (removes violent words that trip OpenAI safety).
- * 2. OpenAI gpt-image-2.5-flare.
- * 3. If OpenAI throws safety violation (400), immediate retry with clean hero standoff prompt.
- * 4. If OpenAI fails completely, automatic fallback to Google Gemini Imagen 3.
+ * Generate visual style concept preview card strictly using OpenAI gpt-image-2.5-flare.
+ * Automatically sanitizes combat and action prompts to prevent OpenAI safety filter rejections.
+ * NO FALLBACKS: If OpenAI fails, throws error directly.
  */
 export async function generateConceptCardImage({
     prompt,
@@ -127,82 +92,37 @@ export async function generateConceptCardImage({
     prefix = 'concept-cards',
 }) {
     const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+        throw new Error('OPENAI_API_KEY is not configured in environment variables');
+    }
+
     const sanitizedPrompt = sanitizePromptForImageGen(prompt);
 
-    // 1. Try OpenAI if API key available
-    if (apiKey) {
-        try {
-            console.log(`⚡ [OpenAI Image] Generating with gpt-image-2.5-flare (${quality}, ${size})...`);
-            const openai = new OpenAI({ apiKey, timeout: 30000 });
+    console.log(`⚡ [OpenAI Image] Generating with gpt-image-2.5-flare (${quality}, ${size})...`);
+    const openai = new OpenAI({ apiKey, timeout: 30000 });
 
-            const response = await openai.images.generate({
-                model: 'gpt-image-2.5-flare',
-                prompt: sanitizedPrompt,
-                n: 1,
-                size,
-            });
+    const response = await openai.images.generate({
+        model: 'gpt-image-2.5-flare',
+        prompt: sanitizedPrompt,
+        n: 1,
+        size,
+    });
 
-            const imageData = response?.data?.[0];
-            if (imageData?.b64_json) {
-                const buffer = Buffer.from(imageData.b64_json, 'base64');
-                const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
-                return { imageUrl, source: 'gpt-image-2.5-flare' };
-            } else if (imageData?.url) {
-                const imgRes = await fetch(imageData.url);
-                const arrayBuffer = await imgRes.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
-                return { imageUrl, source: 'gpt-image-2.5-flare' };
-            }
-        } catch (openAiErr) {
-            const isSafetyViolation = /safety|safety_violations|rejected by the safety system/i.test(openAiErr.message) || openAiErr.status === 400;
-            console.warn(`⚠️ [OpenAI Image] Generation failed (${openAiErr.message}). Safety rejection: ${isSafetyViolation}`);
-
-            // Retry with ultra-safe generic game prompt if safety rejection
-            if (isSafetyViolation) {
-                try {
-                    const safeStandoffPrompt = `Playable 3D fighting video game visual concept preview, stylized hero characters in dynamic arena standoff, clean UI HUD mockup with health bars and super meters, 1:1 aspect ratio, high visual fidelity, vibrant cinematic lighting`;
-                    console.log(`🛡️ [OpenAI Image] Retrying with safe standoff prompt...`);
-                    const openai = new OpenAI({ apiKey, timeout: 25000 });
-                    const retryResponse = await openai.images.generate({
-                        model: 'gpt-image-2.5-flare',
-                        prompt: safeStandoffPrompt,
-                        n: 1,
-                        size,
-                    });
-                    const retryData = retryResponse?.data?.[0];
-                    if (retryData?.b64_json) {
-                        const buffer = Buffer.from(retryData.b64_json, 'base64');
-                        const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
-                        return { imageUrl, source: 'gpt-image-2.5-flare-safe-retry' };
-                    } else if (retryData?.url) {
-                        const imgRes = await fetch(retryData.url);
-                        const arrayBuffer = await imgRes.arrayBuffer();
-                        const buffer = Buffer.from(arrayBuffer);
-                        const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
-                        return { imageUrl, source: 'gpt-image-2.5-flare-safe-retry' };
-                    }
-                } catch (retryErr) {
-                    console.warn(`⚠️ [OpenAI Image] Safe retry also failed: ${retryErr.message}`);
-                }
-            }
-        }
+    const imageData = response?.data?.[0];
+    if (imageData?.b64_json) {
+        const buffer = Buffer.from(imageData.b64_json, 'base64');
+        const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
+        return { imageUrl, source: 'gpt-image-2.5-flare' };
+    } else if (imageData?.url) {
+        const imgRes = await fetch(imageData.url);
+        const arrayBuffer = await imgRes.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const imageUrl = await uploadBufferToR2(buffer, prefix, 'image/png');
+        return { imageUrl, source: 'gpt-image-2.5-flare' };
     }
 
-    // 2. Fallback to Gemini Imagen 3
-    if (process.env.GEMINI_API_KEY) {
-        try {
-            console.log(`🔄 [Image Client] Falling back to Gemini Imagen 3 (imagen-3.0-generate-001)...`);
-            const imagenBuffer = await generateGeminiImagenImage(sanitizedPrompt);
-            const imageUrl = await uploadBufferToR2(imagenBuffer, prefix, 'image/png');
-            console.log(`✅ [Gemini Imagen 3] Successfully generated card: ${imageUrl}`);
-            return { imageUrl, source: 'gemini-imagen-3' };
-        } catch (imagenErr) {
-            console.error(`❌ [Gemini Imagen 3] Fallback failed: ${imagenErr.message}`);
-        }
-    }
-
-    throw new Error('All image generation backends (OpenAI & Gemini Imagen) failed');
+    throw new Error('OpenAI gpt-image-2.5-flare returned no image data');
 }
 
 export const generateGameScreenshotImage = generateConceptCardImage;
