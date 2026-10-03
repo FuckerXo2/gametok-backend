@@ -12,6 +12,11 @@ import { getForgeSession } from './ai-engine/routes.js';
 
 let io = null;
 
+function getRoomName(sessionId) {
+    if (!sessionId) return '';
+    return sessionId.startsWith('forge_') ? sessionId : `forge_${sessionId}`;
+}
+
 export function initializeForgeSocket(server) {
     io = new Server(server, {
         cors: {
@@ -27,8 +32,9 @@ export function initializeForgeSocket(server) {
         socket.on('forge:join', async ({ sessionId }) => {
             if (!sessionId) return;
             currentSessionId = sessionId;
-            const roomName = `forge_${sessionId}`;
+            const roomName = getRoomName(sessionId);
             socket.join(roomName);
+            console.log(`🔌 [Forge Socket] Socket ${socket.id} joined room: ${roomName}`);
 
             try {
                 const session = await getForgeSession(sessionId);
@@ -42,7 +48,8 @@ export function initializeForgeSocket(server) {
 
         socket.on('disconnect', () => {
             if (currentSessionId) {
-                socket.leave(`forge_${currentSessionId}`);
+                const roomName = getRoomName(currentSessionId);
+                socket.leave(roomName);
             }
         });
     });
@@ -55,7 +62,8 @@ export function initializeForgeSocket(server) {
  */
 export function broadcastHermesThought(sessionId, { step, phase, message, details = null }) {
     if (!io || !sessionId) return;
-    io.to(`forge_${sessionId}`).emit('hermes:thought', {
+    const roomName = getRoomName(sessionId);
+    io.to(roomName).emit('hermes:thought', {
         sessionId,
         step,
         phase,
@@ -71,8 +79,9 @@ export function broadcastHermesThought(sessionId, { step, phase, message, detail
  */
 export function broadcastHermesCommand(sessionId, command, payload = {}) {
     if (!io || !sessionId) return;
-    console.log(`📡 [Forge Socket] Broadcasting Hermes command to forge_${sessionId}: ${command}`);
-    io.to(`forge_${sessionId}`).emit('hermes:command', {
+    const roomName = getRoomName(sessionId);
+    console.log(`📡 [Forge Socket] Broadcasting Hermes command to ${roomName}: ${command}`);
+    io.to(roomName).emit('hermes:command', {
         sessionId,
         command,
         payload,
@@ -85,9 +94,10 @@ export function broadcastHermesCommand(sessionId, command, payload = {}) {
  */
 export function broadcastHermesError(sessionId, error) {
     if (!io || !sessionId) return;
+    const roomName = getRoomName(sessionId);
     const errorMessage = error?.message || String(error) || 'Generation failed';
-    console.warn(`⚠️ [Forge Socket] Broadcasting Hermes error to forge_${sessionId}: ${errorMessage}`);
-    io.to(`forge_${sessionId}`).emit('hermes:error', {
+    console.warn(`⚠️ [Forge Socket] Broadcasting Hermes error to ${roomName}: ${errorMessage}`);
+    io.to(roomName).emit('hermes:error', {
         sessionId,
         message: errorMessage,
         canRetry: true,
