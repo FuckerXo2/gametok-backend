@@ -181,16 +181,6 @@ async function _spawnHermesProcess(prompt, options = {}) {
         const child = spawn(hermesBin, args, { env });
         let stdout = '';
         let stderr = '';
-        let isDone = false;
-
-        const timeoutMs = options.timeoutMs || 30000;
-        const timer = setTimeout(() => {
-            if (isDone) return;
-            isDone = true;
-            console.warn(`⏱️ [Hermes Agent] Process timed out after ${timeoutMs / 1000}s, terminating PID ${child.pid}...`);
-            try { child.kill('SIGTERM'); } catch (_) {}
-            reject(new Error(`Hermes Agent CLI timed out after ${timeoutMs / 1000}s`));
-        }, timeoutMs);
 
         try {
             child.stdin.end();
@@ -217,10 +207,6 @@ async function _spawnHermesProcess(prompt, options = {}) {
         });
 
         child.on('close', (code) => {
-            if (isDone) return;
-            isDone = true;
-            clearTimeout(timer);
-
             const output = stdout.trim();
             if (code !== 0 && !output) {
                 console.error(`⚠️ [Hermes Agent] CLI process exited with code ${code} (${stderr.slice(0, 300)})`);
@@ -234,10 +220,6 @@ async function _spawnHermesProcess(prompt, options = {}) {
         });
 
         child.on('error', (err) => {
-            if (isDone) return;
-            isDone = true;
-            clearTimeout(timer);
-
             console.error(`⚠️ [Hermes Agent] Spawn error:`, err.message);
             reject(err);
         });
