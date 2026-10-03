@@ -1220,6 +1220,12 @@ export async function saveForgeSession(sessionId, data) {
     if (!sessionId) return;
     const existing = forgeSessionsCache.get(sessionId) || {};
     const updated = { ...existing, ...data, updatedAt: Date.now() };
+    if (Array.isArray(updated.visualDirections) && updated.visualDirections.length >= 4 && updated.visualDirections.every(d => Boolean(d?.imageUrl))) {
+        updated.isDirectionsReady = true;
+    }
+    if (Array.isArray(updated.perspectives) && updated.perspectives.length >= 4 && updated.perspectives.every(p => Boolean(p?.imageUrl))) {
+        updated.isPerspectivesReady = true;
+    }
     forgeSessionsCache.set(sessionId, updated);
 
     try {
@@ -1264,16 +1270,23 @@ export async function getForgeSession(sessionId) {
         const result = await pool.query('SELECT * FROM forge_sessions WHERE id = $1', [sessionId]);
         if (result.rows.length > 0) {
             const row = result.rows[0];
+            const visualDirs = Array.isArray(row.visual_directions) ? row.visual_directions : [];
+            const perspectives = Array.isArray(row.perspectives) ? row.perspectives : [];
+            const isDirectionsReady = visualDirs.length >= 4 && visualDirs.every(d => Boolean(d?.imageUrl));
+            const isPerspectivesReady = perspectives.length >= 4 && perspectives.every(p => Boolean(p?.imageUrl));
+
             const session = {
                 sessionId: row.id,
                 userId: row.user_id,
                 prompt: row.prompt,
                 gameTitle: row.game_title,
                 journeyView: row.journey_view,
-                visualDirections: row.visual_directions || [],
+                visualDirections: visualDirs,
                 selectedDirection: row.selected_direction,
-                perspectives: row.perspectives || [],
+                perspectives: perspectives,
                 selectedPerspective: row.selected_perspective,
+                isDirectionsReady,
+                isPerspectivesReady,
                 step: row.step ?? 0,
                 phase: row.phase || null,
                 statusMessage: row.status_message || null,
