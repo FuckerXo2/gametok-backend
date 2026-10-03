@@ -16,6 +16,7 @@ import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { generateConceptCardImage } from './openai-image-client.js';
 import { directVisualDirections, directPerspectives } from './ai-art-director.js';
 import { callGeminiFlashJson } from './gemini-client.js';
+import { broadcastHermesThought, broadcastHermesCommand, broadcastHermesError } from '../forge-socket.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1348,6 +1349,7 @@ router.post('/generate-visual-directions', async (req, res) => {
 
         const onProgress = async ({ step, phase, message }) => {
             try {
+                broadcastHermesThought(activeSessionId, { step, phase, message });
                 await saveForgeSession(activeSessionId, {
                     sessionId: activeSessionId,
                     step,
@@ -1382,6 +1384,16 @@ router.post('/generate-visual-directions', async (req, res) => {
             updatedAt: Date.now(),
         }).catch(e => console.warn('[Forge Session] save error:', e.message));
 
+        // Direct Agent Command: tell client to navigate to directions screen with ready cards!
+        broadcastHermesCommand(activeSessionId, 'NAVIGATE_TO', {
+            view: 'directions',
+            visualDirections: result.directions,
+            requiresPerspectiveSelection: result.requiresPerspectiveSelection,
+            defaultPerspective: result.defaultPerspective,
+            gameTitle,
+            prompt,
+        });
+
         sendPushToTokenOrUser({
             userId,
             pushToken,
@@ -1404,6 +1416,7 @@ router.post('/generate-visual-directions', async (req, res) => {
         });
     } catch (err) {
         console.error('❌ [Visual Directions] Generation error:', err.message);
+        broadcastHermesError(activeSessionId, err);
         if (activeSessionId) {
             await saveForgeSession(activeSessionId, {
                 sessionId: activeSessionId,
@@ -1451,6 +1464,7 @@ router.post('/generate-perspectives', async (req, res) => {
 
         const onProgress = async ({ step, phase, message }) => {
             try {
+                broadcastHermesThought(activeSessionId, { step, phase, message });
                 await saveForgeSession(activeSessionId, {
                     sessionId: activeSessionId,
                     step,
@@ -1474,7 +1488,7 @@ router.post('/generate-perspectives', async (req, res) => {
             prompt,
             gameTitle,
             selectedDirection,
-            journeyView: 'perspective',
+            journeyView: result.requiresPerspectiveSelection === false ? 'building' : 'perspective',
             perspectives: result.perspectives,
             selectedPerspective: result.perspectives?.[0] || null,
             requiresPerspectiveSelection: result.requiresPerspectiveSelection !== false,
@@ -1484,6 +1498,17 @@ router.post('/generate-perspectives', async (req, res) => {
             statusMessage: result.requiresPerspectiveSelection === false ? '2D Viewport locked! Ready to build.' : 'Camera perspectives ready!',
             updatedAt: Date.now(),
         }).catch(e => console.warn('[Forge Session] save error:', e.message));
+
+        // Direct Agent Command: tell client to navigate to perspective or building screen!
+        broadcastHermesCommand(activeSessionId, 'NAVIGATE_TO', {
+            view: result.requiresPerspectiveSelection === false ? 'building' : 'perspective',
+            perspectives: result.perspectives,
+            requiresPerspectiveSelection: result.requiresPerspectiveSelection !== false,
+            defaultPerspective: result.defaultPerspective || result.perspectives?.[0] || null,
+            selectedDirection,
+            gameTitle,
+            prompt,
+        });
 
         sendPushToTokenOrUser({
             userId,
@@ -1509,6 +1534,7 @@ router.post('/generate-perspectives', async (req, res) => {
         });
     } catch (err) {
         console.error('❌ [Camera Perspectives] Generation error:', err.message);
+        broadcastHermesError(activeSessionId, err);
         if (activeSessionId) {
             await saveForgeSession(activeSessionId, {
                 sessionId: activeSessionId,

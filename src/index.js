@@ -30,6 +30,7 @@ import { initializeLobbySocket } from './lobby-socket.js';
 import { initializeChatSocket } from './chat-socket.js';
 import { initializePresenceSocket, presenceRouter } from './presence-socket.js';
 import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } from './score-lobby-socket.js';
+import { initializeForgeSocket } from './forge-socket.js';
 import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startForgeAutoscaler, stopForgeAutoscaler } from './ai.js';
 import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
@@ -5480,6 +5481,9 @@ const start = async () => {
   await ensureScoreLobbyColumn();
   initializeScoreLobbySocket(server);
   console.log('🏆 Score Lobby Socket initialized');
+
+  // Initialize Forge Socket for Hermes Agent-Driven Studio UI
+  initializeForgeSocket(server);
 
   startBotEngineScheduler();
 
