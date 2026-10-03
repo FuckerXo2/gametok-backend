@@ -228,8 +228,13 @@ export async function executeHermesAgent(prompt, options = {}) {
         return await _spawnHermesProcess(prompt, { ...options, model: requestedModel });
     } catch (err) {
         if (requestedModel === 'gemini-3.8-flash' && !options.model) {
-            console.warn(`⚠️ [Hermes Agent] Primary model gemini-3.8-flash failed (${err.message}), retrying with gemini-3.6-flash...`);
-            return await _spawnHermesProcess(prompt, { ...options, model: 'gemini-3.6-flash' });
+            console.warn(`⚠️ [Hermes Agent] Primary model gemini-3.8-flash failed (${err.message}), retrying with gemini-3.7-flash...`);
+            try {
+                return await _spawnHermesProcess(prompt, { ...options, model: 'gemini-3.7-flash' });
+            } catch (err37) {
+                console.warn(`⚠️ [Hermes Agent] Model gemini-3.7-flash also failed (${err37.message}), retrying with gemini-3.6-flash...`);
+                return await _spawnHermesProcess(prompt, { ...options, model: 'gemini-3.6-flash' });
+            }
         }
         throw err;
     }
