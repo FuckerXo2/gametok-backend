@@ -1391,6 +1391,15 @@ router.post('/generate-visual-directions', async (req, res) => {
         });
     } catch (err) {
         console.error('❌ [Visual Directions] Generation error:', err.message);
+        if (activeSessionId) {
+            await saveForgeSession(activeSessionId, {
+                sessionId: activeSessionId,
+                phase: 'failed',
+                statusMessage: err.message || 'Visual direction generation failed',
+                error: err.message || 'Visual direction generation failed',
+                updatedAt: Date.now(),
+            }).catch(() => {});
+        }
         res.status(500).json({ error: err.message || 'Visual direction generation failed' });
     }
 });
@@ -1487,6 +1496,15 @@ router.post('/generate-perspectives', async (req, res) => {
         });
     } catch (err) {
         console.error('❌ [Camera Perspectives] Generation error:', err.message);
+        if (activeSessionId) {
+            await saveForgeSession(activeSessionId, {
+                sessionId: activeSessionId,
+                phase: 'failed',
+                statusMessage: err.message || 'Camera perspective generation failed',
+                error: err.message || 'Camera perspective generation failed',
+                updatedAt: Date.now(),
+            }).catch(() => {});
+        }
         res.status(500).json({ error: err.message || 'Camera perspective generation failed' });
     }
 });
