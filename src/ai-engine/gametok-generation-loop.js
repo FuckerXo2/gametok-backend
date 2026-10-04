@@ -413,10 +413,8 @@ CRITICAL ARCHITECTURE RULES:
             let response = null;
             const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nCRITICAL REQUIREMENT: Output complete, unbroken single-file HTML (<!DOCTYPE html><html>...</html>) with closing </script> and </html> tags. Ensure the code is clean, concise, and complete without truncating mid-function.`;
             const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
-            const threejsSkillsDir = path.join(__dirname, 'threejs-skills');
             const hermesOutput = await executeHermesAgent(hermesPrompt, {
                 toolsets: 'file,terminal',
-                skills: (!is2DGame && fs.existsSync(threejsSkillsDir)) ? threejsSkillsDir : undefined,
                 sessionId,
             });
             if (hermesOutput) {

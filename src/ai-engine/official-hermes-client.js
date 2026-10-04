@@ -211,6 +211,30 @@ export function ensureHermesConfig() {
             console.warn(`[Hermes Config] Unable to write config at ${configPath}:`, e.message);
         }
     }
+
+    // Sync Three.js specialized skills into Hermes skills directory
+    const sourceSkillsDir = path.join(__dirname, 'threejs-skills');
+    if (fs.existsSync(sourceSkillsDir)) {
+        for (const dir of candidateDirs) {
+            if (!fs.existsSync(dir)) continue;
+            const targetSkillsDir = path.join(dir, 'skills');
+            try {
+                if (!fs.existsSync(targetSkillsDir)) {
+                    fs.mkdirSync(targetSkillsDir, { recursive: true });
+                }
+                const skillFolders = fs.readdirSync(sourceSkillsDir);
+                for (const sf of skillFolders) {
+                    const srcPath = path.join(sourceSkillsDir, sf);
+                    const destPath = path.join(targetSkillsDir, sf);
+                    if (fs.statSync(srcPath).isDirectory() && !fs.existsSync(destPath)) {
+                        fs.cpSync(srcPath, destPath, { recursive: true });
+                    }
+                }
+            } catch (err) {
+                console.warn(`[Hermes Skills] Could not sync skills to ${targetSkillsDir}:`, err.message);
+            }
+        }
+    }
 }
 
 export const ensureHermesImageGenConfig = ensureHermesConfig;
@@ -260,7 +284,22 @@ async function _spawnHermesProcess(prompt, options = {}) {
     }
 
     if (options.skills) {
-        args.push('--skills', options.skills);
+        let skillsArg = options.skills;
+        // If caller passed a directory path (e.g. /path/to/threejs-skills), sanitize it!
+        if (typeof skillsArg === 'string' && (skillsArg.includes('/') || skillsArg.includes('\\'))) {
+            if (fs.existsSync(skillsArg) && fs.statSync(skillsArg).isDirectory()) {
+                const subskills = fs.readdirSync(skillsArg).filter(f => {
+                    const full = path.join(skillsArg, f);
+                    return fs.statSync(full).isDirectory() && (fs.existsSync(path.join(full, 'SKILL.md')) || fs.existsSync(path.join(full, 'skill.json')));
+                });
+                skillsArg = subskills.join(',');
+            } else {
+                skillsArg = null;
+            }
+        }
+        if (skillsArg && skillsArg.trim()) {
+            args.push('--skills', skillsArg.trim());
+        }
     }
 
     console.log(`☤ [Hermes Agent] Launching live session (${model}${options.toolsets ? `, toolsets: ${options.toolsets}` : ''}${sessionId ? `, session: ${sessionId}` : ''})...`);
