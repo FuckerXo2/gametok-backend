@@ -8,6 +8,8 @@ import { callGeminiFlashJson } from './gemini-client.js';
 import { recordGeminiUsage } from './token-tracker.js';
 
 import { uploadBufferToR2 } from './openai-image-client.js';
+import { NATIVE_PERFORMANCE_SKILL_CONTENT } from './native-performance-skill.js';
+import { ASSET_INTELLIGENCE_SKILL_CONTENT } from './asset-intelligence-skill.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -212,27 +214,50 @@ export function ensureHermesConfig() {
         }
     }
 
-    // Sync Three.js specialized skills into Hermes skills directory
-    const sourceSkillsDir = path.join(__dirname, 'threejs-skills');
-    if (fs.existsSync(sourceSkillsDir)) {
-        for (const dir of candidateDirs) {
-            if (!fs.existsSync(dir)) continue;
-            const targetSkillsDir = path.join(dir, 'skills');
-            try {
-                if (!fs.existsSync(targetSkillsDir)) {
-                    fs.mkdirSync(targetSkillsDir, { recursive: true });
-                }
-                const skillFolders = fs.readdirSync(sourceSkillsDir);
+    // Sync custom game engineering skills into Hermes skills directory
+    for (const dir of candidateDirs) {
+        if (!fs.existsSync(dir)) continue;
+        const targetSkillsDir = path.join(dir, 'skills');
+        try {
+            if (!fs.existsSync(targetSkillsDir)) {
+                fs.mkdirSync(targetSkillsDir, { recursive: true });
+            }
+
+            // 1. Sync Three.js specialized skills
+            const sourceThreejsSkillsDir = path.join(__dirname, 'threejs-skills');
+            if (fs.existsSync(sourceThreejsSkillsDir)) {
+                const skillFolders = fs.readdirSync(sourceThreejsSkillsDir);
                 for (const sf of skillFolders) {
-                    const srcPath = path.join(sourceSkillsDir, sf);
+                    const srcPath = path.join(sourceThreejsSkillsDir, sf);
                     const destPath = path.join(targetSkillsDir, sf);
                     if (fs.statSync(srcPath).isDirectory() && !fs.existsSync(destPath)) {
                         fs.cpSync(srcPath, destPath, { recursive: true });
                     }
                 }
-            } catch (err) {
-                console.warn(`[Hermes Skills] Could not sync skills to ${targetSkillsDir}:`, err.message);
             }
+
+            // 2. Sync Blender 3D modeling skill
+            const blenderSkillSrc = path.join(__dirname, 'hermes-plugin-blender', 'skills', 'blender');
+            const blenderDest = path.join(targetSkillsDir, 'blender');
+            if (fs.existsSync(blenderSkillSrc) && !fs.existsSync(blenderDest)) {
+                fs.cpSync(blenderSkillSrc, blenderDest, { recursive: true });
+            }
+
+            // 3. Sync GameTok Native QuickJS / Metal Engine Performance Skill
+            const nativeSkillDir = path.join(targetSkillsDir, 'gametok-native-engine');
+            if (!fs.existsSync(nativeSkillDir)) {
+                fs.mkdirSync(nativeSkillDir, { recursive: true });
+                fs.writeFileSync(path.join(nativeSkillDir, 'SKILL.md'), NATIVE_PERFORMANCE_SKILL_CONTENT.trim(), 'utf8');
+            }
+
+            // 4. Sync Asset Intelligence & Adaptive Camera Rigging Skill
+            const assetSkillDir = path.join(targetSkillsDir, 'gametok-asset-intelligence');
+            if (!fs.existsSync(assetSkillDir)) {
+                fs.mkdirSync(assetSkillDir, { recursive: true });
+                fs.writeFileSync(path.join(assetSkillDir, 'SKILL.md'), ASSET_INTELLIGENCE_SKILL_CONTENT.trim(), 'utf8');
+            }
+        } catch (err) {
+            console.warn(`[Hermes Skills] Could not sync skills to ${targetSkillsDir}:`, err.message);
         }
     }
 }
