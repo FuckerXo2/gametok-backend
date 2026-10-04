@@ -83,7 +83,15 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
             let sanitized = str.replace(/,\s*([\]}])/g, '$1');
             try { return JSON.parse(sanitized); } catch (_) {}
 
-            // 3. Extract outermost object
+            // 3. Insert missing commas between objects: } { -> }, {
+            sanitized = sanitized.replace(/\}\s*\{/g, '},{');
+            try { return JSON.parse(sanitized); } catch (_) {}
+
+            // 4. Insert missing commas between lines: "val" \n "key": -> "val", \n "key":
+            sanitized = sanitized.replace(/(["\d\]}])\s*\n\s*"/g, '$1,\n"');
+            try { return JSON.parse(sanitized); } catch (_) {}
+
+            // 5. Extract outermost object
             const startObj = sanitized.indexOf('{');
             const endObj = sanitized.lastIndexOf('}');
             if (startObj !== -1 && endObj > startObj) {
@@ -92,7 +100,7 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
                 } catch (_) {}
             }
 
-            // 4. Extract outermost array
+            // 6. Extract outermost array
             const startArr = sanitized.indexOf('[');
             const endArr = sanitized.lastIndexOf(']');
             if (startArr !== -1 && endArr > startArr) {
@@ -101,11 +109,25 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
                 } catch (_) {}
             }
 
-            // Final fallback: try raw substring
-            if (startObj !== -1 && endObj > startObj) {
-                return JSON.parse(str.slice(startObj, endObj + 1));
+            // 7. Regex recovery: salvage valid JSON objects from broken responses
+            const objectMatches = str.match(/\{[^{}]*"name"\s*:\s*"[^"]+"[^{}]*\}/g);
+            if (objectMatches && objectMatches.length > 0) {
+                const recovered = [];
+                for (const m of objectMatches) {
+                    try { recovered.push(JSON.parse(m)); } catch (_) {}
+                }
+                if (recovered.length >= 3) {
+                    if (str.includes('directions')) return { directions: recovered };
+                    if (str.includes('perspectives')) return { perspectives: recovered };
+                }
             }
-            return JSON.parse(str);
+
+            // Safe fallback: never throw raw exception
+            try {
+                return JSON.parse(str);
+            } catch (_) {
+                return null;
+            }
         }
 
         const parsed = cleanAndParse(content);
@@ -135,7 +157,8 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
                 String(err.message).includes('UNAVAILABLE') ||
                 String(err.message).includes('high demand');
             if (isTemporary) {
-                console.warn(`[Gemini Client] Model ${m} unavailable (${err.status || err.message}), attempting failover...`);
+                console.warn(`[Gemini Client] Model ${m} unavailable (${err.status || err.message}), waiting 1000ms before failover...`);
+                await new Promise(res => setTimeout(res, 1000));
                 continue;
             }
             throw err;

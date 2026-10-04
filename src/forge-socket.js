@@ -8,7 +8,7 @@
  */
 
 import { Server } from 'socket.io';
-import { getForgeSession } from './ai-engine/routes.js';
+import { getForgeSession } from './ai-engine/forge-session-store.js';
 
 let io = null;
 

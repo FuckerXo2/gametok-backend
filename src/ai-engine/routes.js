@@ -16,7 +16,6 @@ import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { generateConceptCardImage } from './openai-image-client.js';
 import { directVisualDirections, directPerspectives } from './ai-art-director.js';
 import { callGeminiFlashJson } from './gemini-client.js';
-import { broadcastHermesThought, broadcastHermesCommand, broadcastHermesError } from '../forge-socket.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1217,89 +1216,19 @@ router.post('/generate-asset', async (req, res) => {
     }
 });
 
-const forgeSessionsCache = new Map();
+export { saveForgeSession, getForgeSession } from './forge-session-store.js';
+import { getForgeSession } from './forge-session-store.js';
 
-export async function saveForgeSession(sessionId, data) {
-    if (!sessionId) return;
-    const existing = forgeSessionsCache.get(sessionId) || {};
-    const updated = { ...existing, ...data, updatedAt: Date.now() };
-    if (Array.isArray(updated.visualDirections) && updated.visualDirections.length >= 4 && updated.visualDirections.every(d => Boolean(d?.imageUrl))) {
-        updated.isDirectionsReady = true;
-    }
-    if (Array.isArray(updated.perspectives) && updated.perspectives.length >= 4 && updated.perspectives.every(p => Boolean(p?.imageUrl))) {
-        updated.isPerspectivesReady = true;
-    }
-    forgeSessionsCache.set(sessionId, updated);
-
-    try {
-        await pool.query(`
-            INSERT INTO forge_sessions (id, user_id, prompt, game_title, journey_view, visual_directions, selected_direction, perspectives, selected_perspective, step, phase, status_message, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-                journey_view = EXCLUDED.journey_view,
-                visual_directions = COALESCE(EXCLUDED.visual_directions, forge_sessions.visual_directions),
-                selected_direction = COALESCE(EXCLUDED.selected_direction, forge_sessions.selected_direction),
-                perspectives = COALESCE(EXCLUDED.perspectives, forge_sessions.perspectives),
-                selected_perspective = COALESCE(EXCLUDED.selected_perspective, forge_sessions.selected_perspective),
-                step = COALESCE(EXCLUDED.step, forge_sessions.step),
-                phase = COALESCE(EXCLUDED.phase, forge_sessions.phase),
-                status_message = COALESCE(EXCLUDED.status_message, forge_sessions.status_message),
-                updated_at = NOW();
-        `, [
-            sessionId,
-            updated.userId || null,
-            updated.prompt || null,
-            updated.gameTitle || null,
-            updated.journeyView || 'understanding',
-            JSON.stringify(updated.visualDirections || []),
-            updated.selectedDirection ? JSON.stringify(updated.selectedDirection) : null,
-            JSON.stringify(updated.perspectives || []),
-            updated.selectedPerspective ? JSON.stringify(updated.selectedPerspective) : null,
-            typeof updated.step === 'number' ? updated.step : 0,
-            updated.phase || null,
-            updated.statusMessage || null,
-        ]);
-    } catch (e) {
-        console.warn('[Forge Sessions DB] Write error:', e.message);
-    }
-}
-
-export async function getForgeSession(sessionId) {
-    if (!sessionId) return null;
-    if (forgeSessionsCache.has(sessionId)) {
-        return forgeSessionsCache.get(sessionId);
-    }
-    try {
-        const result = await pool.query('SELECT * FROM forge_sessions WHERE id = $1', [sessionId]);
-        if (result.rows.length > 0) {
-            const row = result.rows[0];
-            const visualDirs = Array.isArray(row.visual_directions) ? row.visual_directions : [];
-            const perspectives = Array.isArray(row.perspectives) ? row.perspectives : [];
-            const isDirectionsReady = visualDirs.length >= 4 && visualDirs.every(d => Boolean(d?.imageUrl));
-            const isPerspectivesReady = perspectives.length >= 4 && perspectives.every(p => Boolean(p?.imageUrl));
-
-            const session = {
-                sessionId: row.id,
-                userId: row.user_id,
-                prompt: row.prompt,
-                gameTitle: row.game_title,
-                journeyView: row.journey_view,
-                visualDirections: visualDirs,
-                selectedDirection: row.selected_direction,
-                perspectives: perspectives,
-                selectedPerspective: row.selected_perspective,
-                isDirectionsReady,
-                isPerspectivesReady,
-                step: row.step ?? 0,
-                phase: row.phase || null,
-                statusMessage: row.status_message || null,
-                updatedAt: new Date(row.updated_at).getTime(),
-            };
-            forgeSessionsCache.set(sessionId, session);
-            return session;
+async function getUserIdFromReq(req) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '');
+        try {
+            const uRes = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
+            if (uRes.rows.length > 0) return uRes.rows[0].id;
+        } catch (e) {
+            // Ignore auth error
         }
-    } catch (e) {
-        console.warn('[Forge Sessions DB] Read error:', e.message);
     }
     return null;
 }
@@ -1320,232 +1249,50 @@ router.get('/forge-session/:sessionId', async (req, res) => {
 
 router.post('/generate-visual-directions', async (req, res) => {
     try {
-        const { prompt, gameTitle = 'Game', sessionId, pushToken } = req.body;
+        const { prompt, gameTitle = 'Game', sessionId, pushToken, attachments = [] } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-        let userId = null;
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            const token = authHeader.replace('Bearer ', '');
-            try {
-                const uRes = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-                if (uRes.rows.length > 0) userId = uRes.rows[0].id;
-            } catch (e) {
-                // Ignore auth error
-            }
-        }
+        const userId = await getUserIdFromReq(req);
+        const selectedAssets = sanitizeMediaAttachments(attachments);
 
-        const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-        await saveForgeSession(activeSessionId, {
-            sessionId: activeSessionId,
-            userId,
+        const result = await directVisualDirections({
             prompt,
             gameTitle,
-            journeyView: 'understanding',
-            step: 0,
-            phase: 'analyzing',
-            statusMessage: 'Analyzing your game idea and core vision...',
-            updatedAt: Date.now(),
-        }).catch(e => console.warn('[Forge Session] Initial save error:', e.message));
-
-        const onProgress = async ({ step, phase, message }) => {
-            try {
-                broadcastHermesThought(activeSessionId, { step, phase, message });
-                await saveForgeSession(activeSessionId, {
-                    sessionId: activeSessionId,
-                    step,
-                    phase,
-                    statusMessage: message,
-                    updatedAt: Date.now(),
-                });
-            } catch (e) {
-                console.warn('[Forge Session] Progress update error:', e.message);
-            }
-        };
-
-        console.log(`🌟 [Visual Directions] AI Art Director conceptualizing directions for "${prompt}" (Session: ${activeSessionId})...`);
-        const { attachments: rawAttachments = [] } = req.body;
-        const selectedAssets = sanitizeMediaAttachments(rawAttachments);
-        const result = await directVisualDirections({ prompt, gameTitle, selectedAssets, onProgress, sessionId: activeSessionId });
-
-        const hasAllVisualImages = Array.isArray(result.directions) && result.directions.length === 4 && result.directions.every(d => Boolean(d.imageUrl));
-        await saveForgeSession(activeSessionId, {
-            sessionId: activeSessionId,
-            userId,
-            prompt,
-            gameTitle,
-            journeyView: 'directions',
-            visualDirections: result.directions,
-            requiresPerspectiveSelection: result.requiresPerspectiveSelection,
-            defaultPerspective: result.defaultPerspective,
-            isDirectionsReady: hasAllVisualImages,
-            step: 4,
-            phase: 'ready',
-            statusMessage: 'Visual directions ready!',
-            updatedAt: Date.now(),
-        }).catch(e => console.warn('[Forge Session] save error:', e.message));
-
-        // Direct Agent Command: tell client to navigate to directions screen with ready cards!
-        broadcastHermesCommand(activeSessionId, 'NAVIGATE_TO', {
-            view: 'directions',
-            visualDirections: result.directions,
-            requiresPerspectiveSelection: result.requiresPerspectiveSelection,
-            defaultPerspective: result.defaultPerspective,
-            gameTitle,
-            prompt,
-        });
-
-        sendPushToTokenOrUser({
+            selectedAssets,
+            sessionId,
             userId,
             pushToken,
-            title: 'Art styles ready! 🎨',
-            body: `Choose your visual direction for "${gameTitle || prompt}"`,
-            data: {
-                type: 'creation',
-                action: 'visual_directions_ready',
-                journeyView: 'directions',
-                sessionId: activeSessionId,
-                prompt,
-                gameTitle,
-                requiresPerspectiveSelection: result.requiresPerspectiveSelection,
-            }
-        }).catch(err => console.warn('[Visual Directions] Push notification error:', err.message));
-
-        res.json({
-            ...result,
-            sessionId: activeSessionId,
         });
+
+        res.json(result);
     } catch (err) {
-        console.error('❌ [Visual Directions] Generation error:', err.message);
-        broadcastHermesError(activeSessionId, err);
-        if (activeSessionId) {
-            await saveForgeSession(activeSessionId, {
-                sessionId: activeSessionId,
-                phase: 'failed',
-                statusMessage: err.message || 'Visual direction generation failed',
-                error: err.message || 'Visual direction generation failed',
-                updatedAt: Date.now(),
-            }).catch(() => {});
-        }
+        console.error('❌ [Visual Directions] Error:', err.message);
         res.status(500).json({ error: err.message || 'Visual direction generation failed' });
     }
 });
 
 router.post('/generate-perspectives', async (req, res) => {
     try {
-        const { prompt, gameTitle = 'Game', selectedDirection, attachments: rawAttachments = [], sessionId, pushToken, requiresPerspectiveSelection } = req.body;
+        const { prompt, gameTitle = 'Game', selectedDirection, attachments = [], sessionId, pushToken, requiresPerspectiveSelection } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-        let userId = null;
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            const token = authHeader.replace('Bearer ', '');
-            try {
-                const uRes = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
-                if (uRes.rows.length > 0) userId = uRes.rows[0].id;
-            } catch (e) {
-                // Ignore auth error
-            }
-        }
+        const userId = await getUserIdFromReq(req);
+        const selectedAssets = sanitizeMediaAttachments(attachments);
 
-        const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-        await saveForgeSession(activeSessionId, {
-            sessionId: activeSessionId,
-            userId,
+        const result = await directPerspectives({
             prompt,
             gameTitle,
             selectedDirection,
-            journeyView: 'perspective-understanding',
-            step: 0,
-            phase: 'analyzing',
-            statusMessage: 'Analyzing gameplay space & movement...',
-            updatedAt: Date.now(),
-        }).catch(e => console.warn('[Forge Session] Initial save error:', e.message));
-
-        const onProgress = async ({ step, phase, message }) => {
-            try {
-                broadcastHermesThought(activeSessionId, { step, phase, message });
-                await saveForgeSession(activeSessionId, {
-                    sessionId: activeSessionId,
-                    step,
-                    phase,
-                    statusMessage: message,
-                    updatedAt: Date.now(),
-                });
-            } catch (e) {
-                console.warn('[Forge Session] Progress update error:', e.message);
-            }
-        };
-
-        console.log(`🎥 [Camera Perspectives] Directing perspectives for "${prompt}" (Session: ${activeSessionId})...`);
-        const selectedAssets = sanitizeMediaAttachments(rawAttachments);
-        const result = await directPerspectives({ prompt, gameTitle, selectedDirection, selectedAssets, onProgress, sessionId: activeSessionId, requiresPerspectiveSelection });
-
-        const hasAllPerspectiveImages = Array.isArray(result.perspectives) && result.perspectives.length === 4 && result.perspectives.every(p => Boolean(p.imageUrl));
-        await saveForgeSession(activeSessionId, {
-            sessionId: activeSessionId,
-            userId,
-            prompt,
-            gameTitle,
-            selectedDirection,
-            journeyView: result.requiresPerspectiveSelection === false ? 'building' : 'perspective',
-            perspectives: result.perspectives,
-            selectedPerspective: result.perspectives?.[0] || null,
-            requiresPerspectiveSelection: result.requiresPerspectiveSelection !== false,
-            isPerspectivesReady: hasAllPerspectiveImages,
-            step: 3,
-            phase: 'ready',
-            statusMessage: result.requiresPerspectiveSelection === false ? '2D Viewport locked! Ready to build.' : 'Camera perspectives ready!',
-            updatedAt: Date.now(),
-        }).catch(e => console.warn('[Forge Session] save error:', e.message));
-
-        // Direct Agent Command: tell client to navigate to perspective or building screen!
-        broadcastHermesCommand(activeSessionId, 'NAVIGATE_TO', {
-            view: result.requiresPerspectiveSelection === false ? 'building' : 'perspective',
-            perspectives: result.perspectives,
-            requiresPerspectiveSelection: result.requiresPerspectiveSelection !== false,
-            defaultPerspective: result.defaultPerspective || result.perspectives?.[0] || null,
-            selectedDirection,
-            gameTitle,
-            prompt,
-        });
-
-        sendPushToTokenOrUser({
+            selectedAssets,
+            sessionId,
             userId,
             pushToken,
-            title: result.requiresPerspectiveSelection === false ? 'Ready to build! 🚀' : 'Camera angles ready! 🎥',
-            body: result.requiresPerspectiveSelection === false 
-                ? `2D Viewport locked for "${gameTitle || prompt}". Tap to build!`
-                : `Choose your camera perspective for "${gameTitle || prompt}"`,
-            data: {
-                type: 'creation',
-                action: 'perspectives_ready',
-                journeyView: 'perspective',
-                sessionId: activeSessionId,
-                prompt,
-                gameTitle,
-                requiresPerspectiveSelection: result.requiresPerspectiveSelection !== false,
-            }
-        }).catch(err => console.warn('[Camera Perspectives] Push notification error:', err.message));
-
-        res.json({
-            ...result,
-            sessionId: activeSessionId,
+            requiresPerspectiveSelection,
         });
+
+        res.json(result);
     } catch (err) {
-        console.error('❌ [Camera Perspectives] Generation error:', err.message);
-        broadcastHermesError(activeSessionId, err);
-        if (activeSessionId) {
-            await saveForgeSession(activeSessionId, {
-                sessionId: activeSessionId,
-                phase: 'failed',
-                statusMessage: err.message || 'Camera perspective generation failed',
-                error: err.message || 'Camera perspective generation failed',
-                updatedAt: Date.now(),
-            }).catch(() => {});
-        }
+        console.error('❌ [Camera Perspectives] Error:', err.message);
         res.status(500).json({ error: err.message || 'Camera perspective generation failed' });
     }
 });
