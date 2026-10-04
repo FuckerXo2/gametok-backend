@@ -32,6 +32,17 @@ function testNativeScript(code) {
         spawnModel: () => 1,
         playAnimation: () => {},
         playAnim: () => {},
+        // 2D Engine Bindings
+        setMode: () => {},
+        spawnSprite: () => {},
+        setSpritePosition: () => {},
+        setSpriteScale: () => {},
+        setSpriteRotation: () => {},
+        setSpriteColor: () => {},
+        setSpriteVisible: () => {},
+        destroySprite: () => {},
+        clearSprites: () => {},
+        // 2D HUD UI Bindings
         drawBar: () => {},
         drawText: () => {},
         drawButton: () => {},
@@ -50,11 +61,19 @@ function testNativeScript(code) {
       JSON,
       console: { log: () => {}, warn: () => {}, error: () => {} },
     };
-    const fn = new Function('engine', 'globalThis', code);
+    const wrappedCode = `
+${code}
+if (typeof onGameEvent === 'function' && typeof globalThis.onGameEvent !== 'function') {
+  globalThis.onGameEvent = onGameEvent;
+}
+`;
+    const fn = new Function('engine', 'globalThis', wrappedCode);
     const mockGlobal = { ...sandbox };
     fn(sandbox.engine, mockGlobal);
     if (typeof mockGlobal.onGameEvent === 'function') {
       mockGlobal.onGameEvent('update', { dt: 0.016 });
+      mockGlobal.onGameEvent('touchDown', { x: 50, y: 50, id: 0, targetId: 'test_sprite' });
+      mockGlobal.onGameEvent('touchUp', { x: 50, y: 50, id: 0, targetId: 'test_sprite' });
     }
     return { passed: true, errors: [], durationMs: 2 };
   } catch (err) {
@@ -205,8 +224,99 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
         let systemPrompt = '';
         let userPrompt = '';
 
-        const nativeOrientationRules = landscapeMode
-            ? `VIEWPORT ORIENTATION: LANDSCAPE (Wide Aspect 16:9 / 19.5:9 widescreen).
+        const promptLower = (gameState.prompt || '').toLowerCase();
+        const is2DGame = Boolean(
+            promptLower.includes('candy') ||
+            promptLower.includes('crush') ||
+            promptLower.includes('match') ||
+            promptLower.includes('puzzle') ||
+            promptLower.includes('2d') ||
+            promptLower.includes('grid') ||
+            promptLower.includes('board') ||
+            promptLower.includes('card') ||
+            promptLower.includes('flappy') ||
+            promptLower.includes('bird') ||
+            promptLower.includes('chess') ||
+            promptLower.includes('checkers') ||
+            promptLower.includes('2048') ||
+            promptLower.includes('tetris') ||
+            promptLower.includes('bubble')
+        );
+
+        if (is2DGame) {
+            systemPrompt = `You are an expert game developer building a high-speed, juicy 2D game for the GameTok Native C++ / Apple Metal Engine.
+Runtime: Native C++ QuickJS.
+Orientation: ${orientation.toUpperCase()}.
+
+CRITICAL ARCHITECTURE RULES:
+1. PURE JAVASCRIPT ONLY: Do NOT output HTML, CSS, <html>, <script>, DOM elements, window, document, or requestAnimationFrame. The code runs directly in QuickJS C++.
+2. MANDATORY CLEAR ON INIT: Line 1 of your executable code MUST call:
+   engine.setMode("2d");
+   engine.clearSprites();
+   engine.clearEntities();
+   engine.clearUI();
+3. NATIVE 2D SPRITE ENGINE BINDINGS:
+   - engine.setMode("2d"): Switches Metal pipeline to 2D orthographic batched sprites mode. Always call on init!
+   - engine.spawnSprite(id, type, x, y, width, height, zIndex, r, g, b, a):
+     * id: String identifier (e.g. "candy_0_1", "tile_3_4", "player", "bg").
+     * type: 'candy' (procedural juicy gloss 3D-shaded candy/orb with specular shine!), 'rect' (crisp quad/board cell), 'card' (rounded corner card), or image URL.
+     * x, y: Position percentage (0 to 100). E.g. x: 50, y: 50 is center screen. (0,0 is top-left, 100,100 is bottom-right).
+     * width, height: Dimensions in percentage of screen (e.g. 9 for width, 7 for height for an 8x8 candy grid).
+     * zIndex: Layering order (0: background/board cells, 1: candies/tiles, 2: particles/effects, 3: overlays).
+     * r, g, b, a: Color tint (0.0 to 1.0). For vibrant candies:
+       - Red: 1.0, 0.2, 0.3
+       - Blue: 0.2, 0.6, 1.0
+       - Green: 0.2, 0.9, 0.4
+       - Yellow: 1.0, 0.85, 0.1
+       - Purple: 0.7, 0.25, 0.95
+       - Orange: 1.0, 0.55, 0.1
+   - engine.setSpritePosition(id, x, y): Smoothly update sprite position (for tile swapping, falling candies, or movement).
+   - engine.setSpriteScale(id, sx, sy): Scale multiplier (for pop animations, match bursts, or bounce effects).
+   - engine.setSpriteRotation(id, radians): Rotate sprite.
+   - engine.setSpriteColor(id, r, g, b, a): Update color/alpha.
+   - engine.setSpriteVisible(id, visible): Toggle visibility.
+   - engine.destroySprite(id): Removes sprite from the screen.
+   - engine.clearSprites(): Removes all sprites.
+   - IN-ENGINE 2D HUD UI:
+     * engine.drawText(id, text, x, y, fontSize, r, g, b, a): Native text (Score, Moves left, Level, Combo!). E.g. engine.drawText('score', 'SCORE: ' + score, 8, 8, 20, 1, 1, 1, 1);
+     * engine.drawBar(id, x, y, width, height, percent, r, g, b, a): Progress or time bar.
+     * engine.drawButton(id, label, x, y, width, height, r, g, b, a): Native button.
+4. MANDATORY LIFECYCLE & TOUCH PICKING:
+   You MUST define:
+   globalThis.onGameEvent = function(event, data) { ... }
+   - event === 'touchDown': data = { x, y, targetId }.
+     * targetId: The sprite ID that was tapped! If the player taps a candy, targetId will be e.g. "candy_2_3"!
+   - event === 'touchMove': data = { x, y, targetId }.
+   - event === 'touchUp': data = { x, y, targetId }.
+   - event === 'update': data = { dt: number }. Delta-time in seconds (e.g. 0.0083 at 120 FPS or 0.0166 at 60 FPS).
+     Use update(dt) to animate falling candies, swap transitions, floating score text, or particle effects!
+5. MATCH-3 / PUZZLE MECHANICS GUIDELINES:
+   - For Candy Crush / Match-3:
+     * Generate an 8x8 (or 7x7) board centered on the screen (e.g. board starts at x: 12 to 88, y: 25 to 75).
+     * First spawn background board tiles: engine.spawnSprite("cell_" + r + "_" + c, "rect", x, y, w, h, 0, 0.12, 0.08, 0.2, 0.85);
+     * Then spawn candies: engine.spawnSprite("candy_" + r + "_" + c, "candy", x, y, w * 0.88, h * 0.88, 1, color.r, color.g, color.b, 1.0);
+     * Track selection on touchDown: when a tile is tapped, highlight it (or scale it to 1.15). If adjacent tile is tapped, swap them!
+     * Validate matches: if 3 or more of same color in a row/col, destroy them with engine.destroySprite(), add score, and drop candies down!
+6. CONTROLS HEADER:
+   For 2D touch games, no virtual joystick is needed:
+   // @controls: {"movement":"none","buttons":[]}
+7. OUTPUT FORMAT:
+   Do NOT output JSON wrapping. Output pure JavaScript with metadata directives in the header comments:
+// @title: Short catchy game name
+// @orientation: ${orientation}
+// @controls: {"movement":"none","buttons":[]}
+// @thumbnail: Dynamic colorful match-3 board screenshot prompt for cover art
+
+// Game code starts directly here (QuickJS native engine script):
+engine.setMode("2d");
+engine.clearSprites();
+engine.clearEntities();
+engine.clearUI();
+`;
+            userPrompt = `Build a high-performance native 2D GameTok JavaScript game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
+        } else {
+            const nativeOrientationRules = landscapeMode
+                ? `VIEWPORT ORIENTATION: LANDSCAPE (Wide Aspect 16:9 / 19.5:9 widescreen).
 - Camera Framing: Position camera for widescreen horizontal breadth (aspect ratio > 2.0). Set camera back along Z/Y to frame horizontal movement across the X-axis (e.g. side-view fighting arena where fighters strafe left/right, wide racing track with sweeping turns).
 - Controls Safe Zone: Left/Right thumb controls sit at screen edges; keep the center 60% of the screen open for character action.`
                 : `VIEWPORT ORIENTATION: PORTRAIT (Vertical Aspect 9:16 mobile / TikTok style).
@@ -220,7 +330,7 @@ ${nativeOrientationRules}
 
 CRITICAL ARCHITECTURE RULES:
 1. PURE JAVASCRIPT ONLY: Do NOT output HTML, CSS, <html>, <script>, DOM elements, window, document, or requestAnimationFrame. The code runs directly in QuickJS C++.
-2. MANDATORY CLEAR ON INIT: Line 1 of your executable code MUST call `engine.clearEntities();` so that any previous or default scene entities are completely purged before spawning game-specific models or arena geometry.
+2. MANDATORY CLEAR ON INIT: Line 1 of your executable code MUST call \`engine.clearEntities();\` so that any previous or default scene entities are completely purged before spawning game-specific models or arena geometry.
 3. NATIVE ENGINE GLOBAL BINDINGS:
    - engine.clearEntities(): Wipes all entities and purges scene geometry. Call this FIRST!
    - engine.spawnEntity(type, x, y, z, scale, r, g, b): Spawns 3D entity. type: 'cube' (boxes, obstacles, walls), 'sphere' (coins, gems, orbs, planets), 'plane' (floors, platforms). Returns entityId (number).
@@ -273,8 +383,8 @@ function initGame() {
     ...
 }
 `;
-
             userPrompt = `Build a high-performance native 3D GameTok JavaScript game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
+        }
             if (gameState.errorHistory.length > 0) {
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
                 userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return corrected JavaScript with headers.`;
