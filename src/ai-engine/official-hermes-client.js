@@ -228,7 +228,6 @@ async function _spawnHermesProcess(prompt, options = {}) {
     const model = options.model || process.env.HERMES_MODEL || 'gemini-3.8-flash';
     const provider = options.provider || process.env.HERMES_PROVIDER || 'gemini';
     const sessionId = options.sessionId || null;
-    const reasoning = options.reasoning !== undefined ? options.reasoning : 'low';
 
     if (!hermesBin) {
         throw new Error('Official hermes CLI not found in PATH and automated installation failed');
@@ -252,10 +251,8 @@ async function _spawnHermesProcess(prompt, options = {}) {
         '--usage-file', usageFilePath,
     ];
 
-    if (reasoning && reasoning !== 'none') {
-        args.push('--reasoning', reasoning);
-    } else if (reasoning === 'none') {
-        args.push('--reasoning', 'none');
+    if (options.reasoning) {
+        args.push('--reasoning', options.reasoning);
     }
 
     if (options.toolsets) {

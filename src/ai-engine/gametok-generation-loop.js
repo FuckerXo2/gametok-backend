@@ -372,7 +372,6 @@ CRITICAL ARCHITECTURE RULES:
                 toolsets: 'file,terminal',
                 skills: (!is2DGame && fs.existsSync(threejsSkillsDir)) ? threejsSkillsDir : undefined,
                 sessionId,
-                reasoning: 'low',
             });
             if (hermesOutput) {
                 response = extractScriptWithMetadata(hermesOutput, orientation);
