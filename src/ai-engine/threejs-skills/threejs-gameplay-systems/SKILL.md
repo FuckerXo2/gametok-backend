@@ -35,19 +35,9 @@ Load `threejs-audio-generator` when implementing real SFX, ambience, UI sounds, 
 6. Keep hot paths allocation-light and update order explicit.
 7. Verify with build, browser, screenshot, canvas pixels, console/page errors, and one real input path.
 
-## Packaged Scaffold
-
-Use the bundled scaffold when starting a new project or when the user asks for a starter game:
-
-```bash
-python3 <this-skill-dir>/scripts/create_threejs_game.py ./my-game
-```
-
-The script copies `assets/threejs-vite-game/`, rewrites the project name in `package.json` and `package-lock.json`, and keeps generated games self-contained with their own visual test and canvas-inspection script. Use `--force` only when the target directory may be overwritten.
-
 ## Library Guidance
 
-- Use TypeScript, Vite, Three.js modules.
+- Standalone high-performance Three.js modules.
 - Custom collision for simple arcade triggers and pickups.
 - Rapier is the default robust physics engine for serious Three.js browser games with rigid bodies, sensors, balls, ramps, many contacts, or high-speed collisions.
 - Use `cannon-es` only as a lightweight JS fallback for small/simple rigid-body scenes.
