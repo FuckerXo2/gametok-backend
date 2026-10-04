@@ -159,9 +159,12 @@ async function _spawnHermesProcess(prompt, options = {}) {
         '--yolo',
         '--provider', provider,
         '-m', model,
-        '--reasoning', 'minimal',
         '--usage-file', usageFilePath,
     ];
+
+    if (options.reasoning) {
+        args.push('--reasoning', options.reasoning);
+    }
 
     if (options.toolsets) {
         args.push('-t', options.toolsets);
