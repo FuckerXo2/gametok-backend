@@ -14,6 +14,7 @@ import { recordImageGeneration, recordGeminiUsage } from './token-tracker.js';
 import { broadcastHermesThought, broadcastHermesCommand, broadcastHermesError } from '../forge-socket.js';
 import { saveForgeSession } from './forge-session-store.js';
 import { sendPushToTokenOrUser } from '../notifications.js';
+import { isLandscape } from './orientation.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title, concept prompt, and any attached or selected assets.
@@ -113,12 +114,15 @@ function inferThemeType(name = '', modifier = '') {
  * Visual style concept card generator using OpenAI gpt-image-2.5-flare.
  * NO FALLBACKS: If image generation fails, logs error and returns null.
  */
-async function generateConceptCard({ prompt, styleName, prefix = 'visual-directions' }) {
-    const imagePrompt = `Video game visual concept preview, ${prompt}, art style: ${styleName}, clean UI HUD mockup, 1:1 aspect ratio, high visual fidelity`;
+async function generateConceptCard({ prompt, styleName, prefix = 'visual-directions', orientation = 'portrait' }) {
+    const isLand = isLandscape(orientation) || (typeof prompt === 'string' && /orientation:\s*landscape/i.test(prompt));
+    const size = isLand ? '1792x1024' : '1024x1024';
+    const aspectDesc = isLand ? '16:9 widescreen landscape aspect ratio' : '1:1 aspect ratio';
+    const imagePrompt = `Video game visual concept preview, ${prompt}, art style: ${styleName}, clean UI HUD mockup, ${aspectDesc}, high visual fidelity`;
     try {
         const imgRes = await generateConceptCardImage({
             prompt: imagePrompt,
-            size: '1024x1024',
+            size,
             prefix,
         });
         return imgRes?.imageUrl || null;
@@ -133,10 +137,13 @@ async function generateConceptCard({ prompt, styleName, prefix = 'visual-directi
  * Fully unified pipeline: Hermes conceptualizes the directions AND fires all 4 image_generate
  * tool calls in parallel to OpenAI (gpt-image-2.5-flare), then uploads the results to Cloudflare R2.
  */
-export async function directVisualDirections({ prompt, gameTitle = 'Game', selectedAssets = [], onProgress, sessionId, userId = null, pushToken = null }) {
+export async function directVisualDirections({ prompt, gameTitle = 'Game', selectedAssets = [], onProgress, sessionId, userId = null, pushToken = null, orientation = 'portrait' }) {
     if (!prompt) throw new Error('Prompt is required');
 
     const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const isLand = isLandscape(orientation) || (typeof prompt === 'string' && /orientation:\s*landscape/i.test(prompt));
+    const targetAspectRatio = isLand ? 'landscape' : 'square';
+    const aspectPromptNote = isLand ? '16:9 widescreen landscape' : 'portrait';
 
     const notifyProgress = async ({ step, phase, message }) => {
         try {
@@ -189,8 +196,8 @@ Game Concept: ${prompt}${assetContext}
 
 TASK:
 1. Conceptualize exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to this game concept and its assets.
-2. For EACH of the 4 directions, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "square") to generate an authentic in-game screenshot preview card. You MUST issue all 4 \`image_generate\` tool calls concurrently in parallel in a single turn so they generate simultaneously.
-   - Craft a detailed visual prompt for each card: e.g. "In-game screenshot, playable video game viewport, authentic game HUD, game engine render of ${prompt}, <style details>, crisp game UI, clean graphics".
+2. For EACH of the 4 directions, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "${targetAspectRatio}") to generate an authentic in-game screenshot preview card. You MUST issue all 4 \`image_generate\` tool calls concurrently in parallel in a single turn so they generate simultaneously.
+   - Craft a detailed visual prompt for each card: e.g. "In-game screenshot, ${aspectPromptNote} playable video game viewport, authentic game HUD, game engine render of ${prompt}, <style details>, crisp game UI, clean graphics".
 3. Return a JSON object with a "directions" array containing the 4 directions:
    - "name": Style title (e.g. "Hyper-Stylized Comic Noir")
    - "tagline": Short punchy hook
@@ -223,7 +230,7 @@ TASK:
                     { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}\n\nRespond with valid JSON containing 4 distinct visual directions strictly matching the schema.` },
                 ],
                 temperature: 0.7,
-                maxTokens: 1500,
+                maxTokens: 2048,
                 jobId: activeSessionId,
             });
         }
@@ -256,6 +263,7 @@ TASK:
                     prompt,
                     styleName: `${dir.name} - ${dir.modifier || ''}`,
                     prefix: 'visual-directions',
+                    orientation: isLand ? 'landscape' : 'portrait',
                 });
                 if (imageUrl) {
                     console.log(`✅ [AI Art Director] Successfully acquired preview card for "${dir.name}": ${imageUrl}`);
@@ -449,10 +457,13 @@ You MUST respond with valid JSON strictly matching this schema:
  * SMART BYPASS: For 2D/grid/puzzle games, instantly returns fixed 2D perspectives anchored
  * to the selected visual style image without firing a second round of image generation!
  */
-export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [], onProgress, sessionId, userId = null, pushToken = null, requiresPerspectiveSelection }) {
+export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [], onProgress, sessionId, userId = null, pushToken = null, requiresPerspectiveSelection, orientation = 'portrait' }) {
     if (!prompt) throw new Error('Prompt is required');
 
     const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const isLand = isLandscape(orientation) || (typeof prompt === 'string' && /orientation:\s*landscape/i.test(prompt));
+    const targetAspectRatio = isLand ? 'landscape' : 'square';
+    const aspectPromptNote = isLand ? '16:9 widescreen landscape' : 'portrait';
 
     const notifyProgress = async ({ step, phase, message }) => {
         try {
@@ -620,7 +631,7 @@ Style Details: ${styleModifier}${assetContext}
 
 TASK:
 1. Conceptualize exactly 4 DISTINCT, EXCITING camera perspectives tailored specifically to this game concept and its chosen visual art style.
-2. For EACH of the 4 perspectives, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "square") 4 times concurrently in parallel to generate an in-game screenshot preview representing each of the 4 camera viewports showing the game rendered from that specific camera angle in ${styleName}.
+2. For EACH of the 4 perspectives, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "${targetAspectRatio}") 4 times concurrently in parallel to generate an in-game screenshot preview representing each of the 4 camera viewports showing the game rendered from that specific camera angle in ${styleName} (${aspectPromptNote} viewport).
 3. Return the JSON matching the schema with 4 perspectives.
 `;
 
@@ -674,10 +685,10 @@ TASK:
                 const colorHint = selectedDirection?.colors?.length ? ` Palette: ${selectedDirection.colors.join(', ')}.` : '';
                 const styleDetails = selectedDirection?.instruction || selectedDirection?.modifier || '';
                 const cameraLead = p.modifier || p.cameraInstruction || p.name;
-                const perspectivePrompt = `Authentic in-game screenshot viewed from ${cameraLead}, ${p.name} camera perspective showing ${prompt}, rendered in ${styleName} visual style (${styleDetails}), matching camera viewport with authentic HUD elements, 1:1 aspect ratio, crisp 3D fidelity${colorHint}`;
+                const perspectivePrompt = `Authentic in-game screenshot viewed from ${cameraLead}, ${p.name} camera perspective showing ${prompt}, rendered in ${styleName} visual style (${styleDetails}), matching camera viewport with authentic HUD elements, ${isLand ? '16:9 widescreen landscape aspect ratio' : '1:1 aspect ratio'}, crisp 3D fidelity${colorHint}`;
                 imageUrl = await generateConceptCardImage({
                     prompt: perspectivePrompt,
-                    size: '1024x1024',
+                    size: isLand ? '1792x1024' : '1024x1024',
                     prefix: 'camera-perspectives',
                 }).then(r => r?.imageUrl).catch(err => {
                     console.error(`❌ [Camera Perspective] Error generating card for "${p.name}":`, err?.message);

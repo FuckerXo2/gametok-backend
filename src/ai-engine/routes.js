@@ -1249,7 +1249,7 @@ router.get('/forge-session/:sessionId', async (req, res) => {
 
 router.post('/generate-visual-directions', async (req, res) => {
     try {
-        const { prompt, gameTitle = 'Game', sessionId, pushToken, attachments = [] } = req.body;
+        const { prompt, gameTitle = 'Game', sessionId, pushToken, attachments = [], orientation } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
         const userId = await getUserIdFromReq(req);
@@ -1262,6 +1262,7 @@ router.post('/generate-visual-directions', async (req, res) => {
             sessionId,
             userId,
             pushToken,
+            orientation,
         });
 
         res.json(result);
@@ -1273,7 +1274,7 @@ router.post('/generate-visual-directions', async (req, res) => {
 
 router.post('/generate-perspectives', async (req, res) => {
     try {
-        const { prompt, gameTitle = 'Game', selectedDirection, attachments = [], sessionId, pushToken, requiresPerspectiveSelection } = req.body;
+        const { prompt, gameTitle = 'Game', selectedDirection, attachments = [], sessionId, pushToken, requiresPerspectiveSelection, orientation } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
         const userId = await getUserIdFromReq(req);
@@ -1288,6 +1289,7 @@ router.post('/generate-perspectives', async (req, res) => {
             userId,
             pushToken,
             requiresPerspectiveSelection,
+            orientation,
         });
 
         res.json(result);

@@ -183,12 +183,12 @@ export function ensureHermesConfig() {
 
             let modified = false;
 
-            // Ensure max_tokens: 16384
-            if (!/max_tokens:\s*16384/i.test(content)) {
+            // Ensure max_tokens: 65536
+            if (!/max_tokens:\s*65536/i.test(content)) {
                 if (/max_tokens:\s*\d+/i.test(content)) {
-                    content = content.replace(/max_tokens:\s*\d+/gi, 'max_tokens: 16384');
+                    content = content.replace(/max_tokens:\s*\d+/gi, 'max_tokens: 65536');
                 } else {
-                    content = `max_tokens: 16384\nmax_output_tokens: 16384\n` + content;
+                    content = `max_tokens: 65536\nmax_output_tokens: 65536\n` + content;
                 }
                 modified = true;
             }
@@ -207,7 +207,7 @@ export function ensureHermesConfig() {
 
             if (modified) {
                 fs.writeFileSync(configPath, content, 'utf8');
-                console.log(`✅ [Hermes Config] Successfully configured 16k tokens & OpenAI image_gen in ${configPath}`);
+                console.log(`✅ [Hermes Config] Successfully configured 65k tokens & OpenAI image_gen in ${configPath}`);
             }
         } catch (e) {
             console.warn(`[Hermes Config] Unable to write config at ${configPath}:`, e.message);
