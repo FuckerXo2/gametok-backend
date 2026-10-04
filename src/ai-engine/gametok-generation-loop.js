@@ -15,6 +15,7 @@ import { fileURLToPath } from 'url';
 import { SharedGameState } from './shared-game-state.js';
 import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
 import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata, clearSessionHistory } from './official-hermes-client.js';
+import { analyzeVisualReferenceWithGemini } from './gemini-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
 import { calculateJobSpend, purgeJobSpend } from './token-tracker.js';
@@ -181,19 +182,83 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
     } else {
         assetSpecPrompt += `\nNO EXPLICIT ASSETS SELECTED BY USER.\n${getCatalogSummary()}\nAI INSTRUCTION: Decide whether this concept benefits from any of the catalog assets above (characters, Mixamo animations), OR if it is best executed 100% procedurally with stylized Three.js geometry.`;
     }
+    const promptLower = (gameState.prompt || '').toLowerCase();
+    const is2DGame = Boolean(
+        promptLower.includes('candy') ||
+        promptLower.includes('crush') ||
+        promptLower.includes('match') ||
+        promptLower.includes('puzzle') ||
+        promptLower.includes('2d') ||
+        promptLower.includes('grid') ||
+        promptLower.includes('board') ||
+        promptLower.includes('card') ||
+        promptLower.includes('flappy') ||
+        promptLower.includes('bird') ||
+        promptLower.includes('chess') ||
+        promptLower.includes('checkers') ||
+        promptLower.includes('2048') ||
+        promptLower.includes('tetris') ||
+        promptLower.includes('bubble')
+    );
+
+    // Multimodal Gemini Vision: Extract concrete visual blueprint from chosen visual direction preview card
+    let visualStyleBlueprint = null;
+    if (jobParams.selectedDirection) {
+        const dir = jobParams.selectedDirection;
+        const imgRef = typeof dir === 'object' && dir !== null 
+            ? (dir.imageUrl || dir.image_path || dir.image || '')
+            : (typeof dir === 'string' && (dir.startsWith('http') || dir.startsWith('data:')) ? dir : '');
+        if (imgRef) {
+            console.log(`👁️ [GameTok Loop] Activating Gemini Vision on selected visual direction preview card...`);
+            visualStyleBlueprint = await analyzeVisualReferenceWithGemini({
+                imageUrl: imgRef,
+                is2D: is2DGame,
+                jobId: gameState.jobId,
+            });
+        }
+    }
+
+    // Multimodal Gemini Vision: Extract concrete camera & perspective blueprint if camera perspective card exists
+    let perspectiveBlueprint = null;
+    if (perspectiveSpec) {
+        const pImg = perspectiveSpec.imageUrl || perspectiveSpec.image || '';
+        const dirImg = jobParams.selectedDirection?.imageUrl || jobParams.selectedDirection?.image || '';
+        if (pImg && pImg !== dirImg) {
+            console.log(`👁️ [GameTok Loop] Activating Gemini Vision on camera perspective preview card...`);
+            perspectiveBlueprint = await analyzeVisualReferenceWithGemini({
+                imageUrl: pImg,
+                prompt: `Analyze this camera perspective preview card for a 3D game developer using Three.js:
+1. Exact Camera Positioning: Determine camera.position.set(x, y, z) and camera.lookAt(targetX, targetY, targetZ).
+2. Field of View & Tilt: Estimate fieldOfView in degrees, elevation angle above the ground, and pitch/yaw angle.
+3. Arena Boundaries: How much of the arena floor and background are in frame.
+Provide exact, copy-paste ready Three.js code lines for configuring camera and lighting.`,
+                is2D: false,
+                jobId: gameState.jobId,
+            });
+        }
+    }
+
     if (perspectiveSpec) {
         assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;
-        const pImg = perspectiveSpec.imageUrl || perspectiveSpec.image || '';
-        if (pImg) {
-            assetSpecPrompt += `\nSELECTED CAMERA PERSPECTIVE IMAGE: "${pImg}". Gemini/Hermes: use your multimodal vision to visually analyze this exact camera angle, elevation, distance, and field of view. Replicate this exact perspective in your code by configuring camera.position.set(eyeX, eyeY, eyeZ) and camera.lookAt(targetX, targetY, targetZ)!`;
+        if (perspectiveBlueprint) {
+            assetSpecPrompt += `\n\n--- GEMINI VISION CAMERA PERSPECTIVE BLUEPRINT (EXTRACTED FROM PREVIEW IMAGE) ---\n${perspectiveBlueprint}\n\nHermes: You MUST match the camera position, lookAt target, and framing extracted by Gemini Vision above in your scene setup!`;
+        } else {
+            const pImg = perspectiveSpec.imageUrl || perspectiveSpec.image || '';
+            if (pImg) {
+                assetSpecPrompt += `\nCAMERA PERSPECTIVE REFERENCE: "${pImg}". Follow the perspective instruction above.`;
+            }
         }
     }
     if (jobParams.selectedDirection) {
         const dir = jobParams.selectedDirection;
-        const imgRef = dir.imageUrl || dir.image_path || dir.image || '';
         assetSpecPrompt += `\nVISUAL STYLE: ${dir.name}. ${dir.instruction || dir.modifier || ''}`;
-        if (imgRef) {
-            assetSpecPrompt += `\nSELECTED VISUAL DIRECTION PREVIEW IMAGE: "${imgRef}". Gemini: use your multimodal vision to visually inspect this reference image. Replicate its 3D arena architecture, lighting mood, color tones, floor material, and background set pieces directly in Three.js code so the 3D game world matches what is shown in the image.`;
+        if (visualStyleBlueprint) {
+            assetSpecPrompt += `\n\n--- GEMINI VISION VISUAL BLUEPRINT (EXTRACTED FROM PREVIEW CARD) ---\n${visualStyleBlueprint}\n\nHermes: You MUST replicate the exact color palette, lighting atmosphere, arena materials, and VFX extracted by Gemini Vision above so this game visually matches the chosen card!`;
+        } else {
+            const imgRef = dir.imageUrl || dir.image_path || dir.image || '';
+            if (imgRef) {
+                assetSpecPrompt += `\nVISUAL STYLE REFERENCE: "${imgRef}". Replicate its visual aesthetic in code.`;
+            }
         }
     }
     assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any external asset fails to load, catch the error and instantly fall back to procedural Three.js geometry. The game MUST NEVER crash or freeze!`;
@@ -205,25 +270,6 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
 
         let systemPrompt = '';
         let userPrompt = '';
-
-        const promptLower = (gameState.prompt || '').toLowerCase();
-        const is2DGame = Boolean(
-            promptLower.includes('candy') ||
-            promptLower.includes('crush') ||
-            promptLower.includes('match') ||
-            promptLower.includes('puzzle') ||
-            promptLower.includes('2d') ||
-            promptLower.includes('grid') ||
-            promptLower.includes('board') ||
-            promptLower.includes('card') ||
-            promptLower.includes('flappy') ||
-            promptLower.includes('bird') ||
-            promptLower.includes('chess') ||
-            promptLower.includes('checkers') ||
-            promptLower.includes('2048') ||
-            promptLower.includes('tetris') ||
-            promptLower.includes('bubble')
-        );
 
         if (is2DGame) {
             systemPrompt = `You are an expert game developer building a high-speed, hyper-juicy 2D mobile game for GameTOK (running inside an Apple Metal hardware-accelerated WebKit container at up to 120 FPS).

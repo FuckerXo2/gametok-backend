@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import fs from 'node:fs';
 import { recordGeminiUsage } from './token-tracker.js';
 
 export const GEMINI_FLASH_MODEL = 'gemini-3.8-flash';
@@ -167,3 +168,109 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
 
     throw lastError;
 }
+
+const visualAnalysisCache = new Map();
+
+/**
+ * Use Gemini 3.8 Flash Multimodal Vision to deconstruct a visual style card or camera perspective image
+ * into concrete, code-ready 3D/2D visual blueprints for Hermes Agent.
+ *
+ * @param {object} params
+ * @param {string} params.imageUrl - URL or local file path of the image
+ * @param {string} [params.prompt] - Optional custom prompt
+ * @param {boolean} [params.is2D] - Whether this is a 2D game
+ * @param {string} [params.jobId] - Optional tracking job ID
+ * @param {object} [env]
+ * @returns {Promise<string|null>} Structured visual blueprint text
+ */
+export async function analyzeVisualReferenceWithGemini({ imageUrl, prompt = null, is2D = false, jobId = null }, env = process.env) {
+    if (!imageUrl || typeof imageUrl !== 'string') return null;
+
+    const cacheKey = `${imageUrl}_${is2D ? '2d' : '3d'}`;
+    if (visualAnalysisCache.has(cacheKey)) {
+        console.log(`👁️ [Gemini Vision] Using cached visual blueprint for reference image.`);
+        return visualAnalysisCache.get(cacheKey);
+    }
+
+    try {
+        let base64DataUrl = null;
+        if (imageUrl.startsWith('data:image/')) {
+            base64DataUrl = imageUrl;
+        } else if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+            console.log(`👁️ [Gemini Vision] Fetching visual style card for analysis: ${imageUrl.slice(0, 90)}...`);
+            const res = await fetch(imageUrl, { signal: AbortSignal.timeout(8000) });
+            if (!res.ok) throw new Error(`HTTP ${res.status} fetching image from ${imageUrl}`);
+            const arrayBuffer = await res.arrayBuffer();
+            const mimeType = res.headers.get('content-type') || 'image/png';
+            base64DataUrl = `data:${mimeType};base64,${Buffer.from(arrayBuffer).toString('base64')}`;
+        } else if (fs.existsSync(imageUrl)) {
+            const fileBuf = fs.readFileSync(imageUrl);
+            const ext = imageUrl.endsWith('.jpg') || imageUrl.endsWith('.jpeg') ? 'jpeg' : 'png';
+            base64DataUrl = `data:image/${ext};base64,${fileBuf.toString('base64')}`;
+        } else {
+            console.warn(`[Gemini Vision] Image reference not accessible: ${imageUrl}`);
+            return null;
+        }
+
+        const client = createGeminiClient(env);
+        if (!client) return null;
+
+        const defaultPrompt = is2D
+            ? `Analyze this 2D game visual preview card in extreme technical detail for an HTML5 Canvas 2D game developer. Provide an exact, concrete visual blueprint:
+1. Core Color Palette: Dominant background, arena/grid border, entity/tile colors, and particle accents with exact hex codes.
+2. Background Atmosphere: Gradients, starfields, grid overlays, or subtle textures to render in canvas.
+3. Entity & Item Aesthetics: Outline thickness, drop shadows, glow effects, corner radii, and iconography style.
+4. Particle & Juiciness VFX: Burst colors, trails, screen flash colors on points/combo.
+Keep it concise, code-ready, and highly actionable.`
+            : `Analyze this 3D game visual preview card in extreme technical detail for a Three.js / WebGL game developer. Provide an exact, concrete visual blueprint:
+1. Core Color Palette: Arena floor, boundaries, background void/sky, and glowing accents with exact hex codes.
+2. Lighting & Atmosphere: Key light color, ambient light intensity, fog color and density (e.g. THREE.FogExp2), and shadow style.
+3. Arena & Floor Geometry: Floor material (hexagonal tiles, glossy grid, stone, metallic roughness, reflectivity), boundary walls/pillars, and distant backdrop structures.
+4. Camera & Perspective: View angle (isometric, top-down, third-person), camera height/tilt, and field of view.
+5. VFX & Shaders: Particle sparks, bloom/glow colors, pulse rings, and material emissive highlights.
+Keep it concise, code-ready, and highly actionable.`;
+
+        const messages = [
+            {
+                role: 'system',
+                content: 'You are an elite game art director and graphics programmer with computer vision mastery. Your job is to visually inspect game reference cards and deconstruct their exact visual DNA into actionable specifications for game code generation.'
+            },
+            {
+                role: 'user',
+                content: [
+                    {
+                        type: 'text',
+                        text: prompt || defaultPrompt,
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: { url: base64DataUrl },
+                    }
+                ]
+            }
+        ];
+
+        console.log(`👁️ [Gemini Vision] Inspecting visual style card with Gemini 3.8 Flash Vision...`);
+        const response = await client.chat.completions.create({
+            model: GEMINI_FLASH_MODEL,
+            messages,
+            temperature: 0.2,
+            max_tokens: 800,
+        });
+
+        if (response.usage && jobId) {
+            recordGeminiUsage(jobId, response.usage);
+        }
+
+        const blueprint = response.choices?.[0]?.message?.content?.trim() || null;
+        if (blueprint) {
+            console.log(`✅ [Gemini Vision] Extracted rich visual blueprint (${blueprint.length} chars) from image.`);
+            visualAnalysisCache.set(cacheKey, blueprint);
+        }
+        return blueprint;
+    } catch (err) {
+        console.warn(`⚠️ [Gemini Vision] Visual analysis skipped (${err.message}). Proceeding with text directives.`);
+        return null;
+    }
+}
+
