@@ -14,7 +14,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { SharedGameState } from './shared-game-state.js';
 import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
-import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata } from './official-hermes-client.js';
+import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata, clearSessionHistory } from './official-hermes-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
 import { calculateJobSpend, purgeJobSpend } from './token-tracker.js';
@@ -365,7 +365,7 @@ CRITICAL ARCHITECTURE RULES:
 
         try {
             let response = null;
-            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nOutput complete single-file HTML (<!DOCTYPE html><html>...</html>) with header directives in comments.`;
+            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nCRITICAL REQUIREMENT: Output complete, unbroken single-file HTML (<!DOCTYPE html><html>...</html>) with closing </script> and </html> tags. Ensure the code is clean, concise, and complete without truncating mid-function.`;
             const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
             const threejsSkillsDir = path.join(__dirname, 'threejs-skills');
             const hermesOutput = await executeHermesAgent(hermesPrompt, {
@@ -393,6 +393,8 @@ CRITICAL ARCHITECTURE RULES:
             }
         } catch (err) {
             console.error(`💥 [GameTok Loop] Generation error:`, err.message);
+            const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
+            clearSessionHistory(sessionId);
             gameState.recordAttempt({ passed: false, error: `Generation error: ${err.message}` });
             continue;
         }
@@ -413,6 +415,9 @@ CRITICAL ARCHITECTURE RULES:
             return gameState;
         } else {
             console.warn(`❌ [GameTok Loop] Attempt ${gameState.attemptCount} failed: ${sandboxResult.errors?.[0] || 'Unknown error'}`);
+            // Clear broken/truncated code from multi-turn history so next attempt starts clean
+            const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
+            clearSessionHistory(sessionId);
         }
     }
 
