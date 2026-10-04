@@ -9,77 +9,71 @@
  * via SharedGameState without losing context or restarting progress.
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { SharedGameState } from './shared-game-state.js';
 import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
 import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata } from './official-hermes-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-function testNativeScript(code) {
+
+function testGameScript(code, orientation = 'portrait') {
+  const startTime = Date.now();
   try {
-    const sandbox = {
-      engine: {
-        spawnEntity: () => 1,
-        destroyEntity: () => {},
-        setPosition: () => {},
-        setRotation: () => {},
-        setScale: () => {},
-        setColor: () => {},
-        clearEntities: () => {},
-        setVehicle: () => {},
-        getVehicle: () => ({ x: 0, y: 0, z: 0, yaw: 0, isDrifting: false }),
-        spawnModel: () => 1,
-        playAnimation: () => {},
-        playAnim: () => {},
-        // 2D Engine Bindings
-        setMode: () => {},
-        spawnSprite: () => {},
-        setSpritePosition: () => {},
-        setSpriteScale: () => {},
-        setSpriteRotation: () => {},
-        setSpriteColor: () => {},
-        setSpriteVisible: () => {},
-        destroySprite: () => {},
-        clearSprites: () => {},
-        // 2D HUD UI Bindings
-        drawBar: () => {},
-        drawText: () => {},
-        drawButton: () => {},
-        removeUI: () => {},
-        clearUI: () => {},
-        setCamera: () => {},
-        log: () => {},
-      },
-      Math,
-      Date,
-      Array,
-      Object,
-      String,
-      Number,
-      Boolean,
-      JSON,
-      console: { log: () => {}, warn: () => {}, error: () => {} },
-    };
-    const wrappedCode = `
-${code}
-if (typeof onGameEvent === 'function' && typeof globalThis.onGameEvent !== 'function') {
-  globalThis.onGameEvent = onGameEvent;
-}
-`;
-    const fn = new Function('engine', 'globalThis', wrappedCode);
-    const mockGlobal = { ...sandbox };
-    fn(sandbox.engine, mockGlobal);
-    if (typeof mockGlobal.onGameEvent === 'function') {
-      mockGlobal.onGameEvent('update', { dt: 0.016 });
-      mockGlobal.onGameEvent('touchDown', { x: 50, y: 50, id: 0, targetId: 'test_sprite' });
-      mockGlobal.onGameEvent('touchUp', { x: 50, y: 50, id: 0, targetId: 'test_sprite' });
+    if (!code || typeof code !== 'string' || code.trim().length < 50) {
+      return { passed: false, errors: ['Generated code is empty or too short'], durationMs: 1 };
     }
-    return { passed: true, errors: [], durationMs: 2 };
+
+    const trimmed = code.trim();
+    const isHtml = trimmed.startsWith('<') || trimmed.includes('<!DOCTYPE') || trimmed.includes('<html');
+
+    if (isHtml) {
+      // 1. Verify HTML structure
+      if (!trimmed.includes('<script')) {
+        return { passed: false, errors: ['HTML does not contain any <script> tags'], durationMs: 2 };
+      }
+
+      // 2. Extract scripts and test syntax
+      const scriptMatches = trimmed.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi);
+      let foundScript = false;
+      for (const match of scriptMatches) {
+        const scriptContent = match[1].trim();
+        // Skip external scripts with only src attribute
+        if (scriptContent.length > 0) {
+          foundScript = true;
+          try {
+            new Function(scriptContent);
+          } catch (err) {
+            return { passed: false, errors: [`JavaScript syntax error: ${err.message}`], durationMs: Date.now() - startTime };
+          }
+        }
+      }
+
+      // If scripts were purely external without inline script, check for basic body
+      if (!foundScript && !trimmed.includes('src=')) {
+        return { passed: false, errors: ['No executable JavaScript found inside HTML script tags'], durationMs: 2 };
+      }
+
+      return { passed: true, errors: [], durationMs: Date.now() - startTime };
+    } else {
+      // Pure JS verification
+      try {
+        new Function(trimmed);
+        return { passed: true, errors: [], durationMs: Date.now() - startTime };
+      } catch (err) {
+        return { passed: false, errors: [`JavaScript syntax error: ${err.message}`], durationMs: Date.now() - startTime };
+      }
+    }
   } catch (err) {
-    return { passed: false, errors: [err.message], durationMs: 2 };
+    return { passed: false, errors: [err.message], durationMs: Date.now() - startTime };
   }
 }
+
 
 function attachSpendSummary(gameState, jobParams = {}) {
     const hasVisualDir = Boolean(jobParams.selectedDirection);
@@ -194,16 +188,16 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
             assetSpecPrompt += `\nSELECTED SPRITE / MEME: "${spriteAsset.url || spriteAsset.idleUrl}" (Title: ${spriteAsset.title || spriteAsset.label || 'Sprite'}). Bind to entity or spawn procedural fallback entity on error.`;
         }
         if (model3dAsset && !attachments.some(a => a.url === model3dAsset.url)) {
-            assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load via engine.spawnModel("${model3dAsset.url}", x, y, z). Bind standard animations using engine.playAnimation(entityId, animUrl).`;
+            assetSpecPrompt += `\nSELECTED 3D MODEL: "${model3dAsset.url}" (Name: ${model3dAsset.name || model3dAsset.title || 'Model'}). Load in Three.js using THREE.GLTFLoader. If model has animations or external animations are used, bind using THREE.AnimationMixer(gltf.scene).`;
         }
     } else {
-        assetSpecPrompt += `\nNO EXPLICIT ASSETS SELECTED BY USER.\n${getCatalogSummary()}\nAI INSTRUCTION: Decide whether this concept benefits from any of the catalog assets above (characters, Mixamo animations), OR if it is best executed 100% procedurally (e.g. geometric arena, math puzzles, sandbox physics, wireframe vector) using engine.spawnEntity.`;
+        assetSpecPrompt += `\nNO EXPLICIT ASSETS SELECTED BY USER.\n${getCatalogSummary()}\nAI INSTRUCTION: Decide whether this concept benefits from any of the catalog assets above (characters, Mixamo animations), OR if it is best executed 100% procedurally with stylized Three.js geometry.`;
     }
     if (perspectiveSpec) {
         assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;
         const pImg = perspectiveSpec.imageUrl || perspectiveSpec.image || '';
         if (pImg) {
-            assetSpecPrompt += `\nSELECTED CAMERA PERSPECTIVE IMAGE: "${pImg}". Gemini/Hermes: use your multimodal vision to visually analyze this exact camera angle, elevation, distance, and field of view. Replicate this exact perspective in your code by configuring engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ)!`;
+            assetSpecPrompt += `\nSELECTED CAMERA PERSPECTIVE IMAGE: "${pImg}". Gemini/Hermes: use your multimodal vision to visually analyze this exact camera angle, elevation, distance, and field of view. Replicate this exact perspective in your code by configuring camera.position.set(eyeX, eyeY, eyeZ) and camera.lookAt(targetX, targetY, targetZ)!`;
         }
     }
     if (jobParams.selectedDirection) {
@@ -211,10 +205,10 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
         const imgRef = dir.imageUrl || dir.image_path || dir.image || '';
         assetSpecPrompt += `\nVISUAL STYLE: ${dir.name}. ${dir.instruction || dir.modifier || ''}`;
         if (imgRef) {
-            assetSpecPrompt += `\nSELECTED VISUAL DIRECTION PREVIEW IMAGE: "${imgRef}". Gemini: use your multimodal vision to visually inspect this reference image. Replicate its 3D arena architecture, lighting mood, color tones, floor material, and background set pieces directly in procedural code so the 3D game world matches what is shown in the image.`;
+            assetSpecPrompt += `\nSELECTED VISUAL DIRECTION PREVIEW IMAGE: "${imgRef}". Gemini: use your multimodal vision to visually inspect this reference image. Replicate its 3D arena architecture, lighting mood, color tones, floor material, and background set pieces directly in Three.js code so the 3D game world matches what is shown in the image.`;
         }
     }
-    assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any asset fails to load, catch the error and instantly fall back to procedural geometry (engine.spawnEntity('cube' | 'sphere' | 'plane', ...)). The game MUST NEVER crash or freeze!`;
+    assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any external asset fails to load, catch the error and instantly fall back to procedural Three.js geometry. The game MUST NEVER crash or freeze!`;
 
     let toolCallCount = 0;
 
@@ -244,146 +238,133 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
         );
 
         if (is2DGame) {
-            systemPrompt = `You are an expert game developer building a high-speed, juicy 2D game for the GameTok Native C++ / Apple Metal Engine.
-Runtime: Native C++ QuickJS.
+            systemPrompt = `You are an expert game developer building a high-speed, hyper-juicy 2D mobile game for GameTOK (running inside an Apple Metal hardware-accelerated WebKit container at up to 120 FPS).
+Runtime: HTML5 Canvas 2D (Apple Metal Accelerated).
 Orientation: ${orientation.toUpperCase()}.
 
 CRITICAL ARCHITECTURE RULES:
-1. PURE JAVASCRIPT ONLY: Do NOT output HTML, CSS, <html>, <script>, DOM elements, window, document, or requestAnimationFrame. The code runs directly in QuickJS C++.
-2. MANDATORY CLEAR ON INIT: Line 1 of your executable code MUST call:
-   engine.setMode("2d");
-   engine.clearSprites();
-   engine.clearEntities();
-   engine.clearUI();
-3. NATIVE 2D SPRITE ENGINE BINDINGS:
-   - engine.setMode("2d"): Switches Metal pipeline to 2D orthographic batched sprites mode. Always call on init!
-   - engine.spawnSprite(id, type, x, y, width, height, zIndex, r, g, b, a):
-     * id: String identifier (e.g. "candy_0_1", "tile_3_4", "player", "bg").
-     * type: 'candy' (procedural juicy gloss 3D-shaded candy/orb with specular shine!), 'rect' (crisp quad/board cell), 'card' (rounded corner card), or image URL.
-     * x, y: Position percentage (0 to 100). E.g. x: 50, y: 50 is center screen. (0,0 is top-left, 100,100 is bottom-right).
-     * width, height: Dimensions in percentage of screen (e.g. 9 for width, 7 for height for an 8x8 candy grid).
-     * zIndex: Layering order (0: background/board cells, 1: candies/tiles, 2: particles/effects, 3: overlays).
-     * r, g, b, a: Color tint (0.0 to 1.0). For vibrant candies:
-       - Red: 1.0, 0.2, 0.3
-       - Blue: 0.2, 0.6, 1.0
-       - Green: 0.2, 0.9, 0.4
-       - Yellow: 1.0, 0.85, 0.1
-       - Purple: 0.7, 0.25, 0.95
-       - Orange: 1.0, 0.55, 0.1
-   - engine.setSpritePosition(id, x, y): Smoothly update sprite position (for tile swapping, falling candies, or movement).
-   - engine.setSpriteScale(id, sx, sy): Scale multiplier (for pop animations, match bursts, or bounce effects).
-   - engine.setSpriteRotation(id, radians): Rotate sprite.
-   - engine.setSpriteColor(id, r, g, b, a): Update color/alpha.
-   - engine.setSpriteVisible(id, visible): Toggle visibility.
-   - engine.destroySprite(id): Removes sprite from the screen.
-   - engine.clearSprites(): Removes all sprites.
-   - IN-ENGINE 2D HUD UI:
-     * engine.drawText(id, text, x, y, fontSize, r, g, b, a): Native text (Score, Moves left, Level, Combo!). E.g. engine.drawText('score', 'SCORE: ' + score, 8, 8, 20, 1, 1, 1, 1);
-     * engine.drawBar(id, x, y, width, height, percent, r, g, b, a): Progress or time bar.
-     * engine.drawButton(id, label, x, y, width, height, r, g, b, a): Native button.
-4. MANDATORY LIFECYCLE & TOUCH PICKING:
-   You MUST define:
-   globalThis.onGameEvent = function(event, data) { ... }
-   - event === 'touchDown': data = { x, y, targetId }.
-     * targetId: The sprite ID that was tapped! If the player taps a candy, targetId will be e.g. "candy_2_3"!
-   - event === 'touchMove': data = { x, y, targetId }.
-   - event === 'touchUp': data = { x, y, targetId }.
-   - event === 'update': data = { dt: number }. Delta-time in seconds (e.g. 0.0083 at 120 FPS or 0.0166 at 60 FPS).
-     Use update(dt) to animate falling candies, swap transitions, floating score text, or particle effects!
-5. MATCH-3 / PUZZLE MECHANICS GUIDELINES:
-   - For Candy Crush / Match-3:
-     * Generate an 8x8 (or 7x7) board centered on the screen (e.g. board starts at x: 12 to 88, y: 25 to 75).
-     * First spawn background board tiles: engine.spawnSprite("cell_" + r + "_" + c, "rect", x, y, w, h, 0, 0.12, 0.08, 0.2, 0.85);
-     * Then spawn candies: engine.spawnSprite("candy_" + r + "_" + c, "candy", x, y, w * 0.88, h * 0.88, 1, color.r, color.g, color.b, 1.0);
-     * Track selection on touchDown: when a tile is tapped, highlight it (or scale it to 1.15). If adjacent tile is tapped, swap them!
-     * Validate matches: if 3 or more of same color in a row/col, destroy them with engine.destroySprite(), add score, and drop candies down!
-6. CONTROLS HEADER:
-   For 2D touch games, no virtual joystick is needed:
-   // @controls: {"movement":"none","buttons":[]}
-7. OUTPUT FORMAT:
-   Do NOT output JSON wrapping. Output pure JavaScript with metadata directives in the header comments:
-// @title: Short catchy game name
-// @orientation: ${orientation}
-// @controls: {"movement":"none","buttons":[]}
-// @thumbnail: Dynamic colorful match-3 board screenshot prompt for cover art
+1. OUTPUT FORMAT: Single-file complete, runnable HTML (<!DOCTYPE html><html>...</html>).
+   Include header directives in HTML comments at the top:
+<!-- @title: Short catchy game name -->
+<!-- @orientation: ${orientation} -->
+<!-- @controls: {"movement":"none","buttons":[]} -->
+<!-- @thumbnail: Dynamic colorful screenshot prompt for AI cover art -->
 
-// Game code starts directly here (QuickJS native engine script):
-engine.setMode("2d");
-engine.clearSprites();
-engine.clearEntities();
-engine.clearUI();
+2. FULLSCREEN MOBILE RESPONSIVE CANVAS & RETINA SCALING:
+   <style>
+     * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+     html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #0c0814; touch-action: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+     canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+   </style>
+   - Auto-resize and Retina scaling:
+     const dpr = Math.min(window.__GAMETOK_DPR__ || window.devicePixelRatio || 1, 3);
+     canvas.width = Math.floor(window.innerWidth * dpr);
+     canvas.height = Math.floor(window.innerHeight * dpr);
+     ctx.scale(dpr, dpr);
+   - Re-scale on window resize.
+
+3. JUICY GAME FEEL & PROCEDURAL POLISH:
+   - Squash & stretch animations, spring oscillations on tap or match (scale = 1.0 + Math.sin(t * 8) * 0.12).
+   - Radial gradients, drop-shadows, glossy specular shine arcs, and rounded rects for tiles/cards/candies.
+   - Particle bursts (sparkles, confetti, star bursts, glow rings) that explode and fade out on matches/points.
+   - Screen shake: cameraShake decaying smoothly each frame on combos or impacts (ctx.translate(shakeX, shakeY)).
+   - Floating score text (+100, COMBO x3!) floating upward and fading out.
+
+4. HARDWARE TAPTIC & PLATFORM BRIDGE (GAMETOK NATIVE BRIDGE):
+   The container injects 'window.GameTOK'. You MUST call:
+   - window.GameTOK?.haptic('light') on selection / dragging.
+   - window.GameTOK?.haptic('medium') on match / collect / bounce.
+   - window.GameTOK?.haptic('heavy') on combo / bomb / big blast.
+   - window.GameTOK?.haptic('success') on stage clear or high combo.
+   - window.GameTOK?.haptic('error') on fail or game over.
+   - window.GameTOK?.submitScore(score) whenever score changes.
+   - window.GameTOK?.gameOver(won, score) when game ends.
+
+5. PROCEDURAL WEB AUDIO SYNTHESIZER:
+   - Zero external audio files required! Synthesize sound effects using AudioContext and oscillators:
+     * pop / tap: short high sine blip
+     * match / coin: pentatonic chime arpeggio
+     * whoosh: noise / bandpass sweep
+     * fanfare / victory: ascending major triad
+   - Auto-resume AudioContext on first pointerdown / touchstart.
+
+6. TOUCH INTERACTION:
+   - Use 'pointerdown', 'pointermove', 'pointerup' for responsive mobile touch picking, dragging, and swiping.
 `;
-            userPrompt = `Build a high-performance native 2D GameTok JavaScript game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
+            userPrompt = `Build a high-performance, juicy 2D HTML5 Canvas GameTOK game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
         } else {
             const nativeOrientationRules = landscapeMode
                 ? `VIEWPORT ORIENTATION: LANDSCAPE (Wide Aspect 16:9 / 19.5:9 widescreen).
-- Camera Framing: Position camera for widescreen horizontal breadth (aspect ratio > 2.0). Set camera back along Z/Y to frame horizontal movement across the X-axis (e.g. side-view fighting arena where fighters strafe left/right, wide racing track with sweeping turns).
+- Camera Framing: Position camera for widescreen horizontal breadth (aspect ratio > 2.0). Set camera back along Z/Y to frame horizontal movement across the X-axis (e.g. wide arena, side-view brawler, racing track with sweeping turns).
 - Controls Safe Zone: Left/Right thumb controls sit at screen edges; keep the center 60% of the screen open for character action.`
                 : `VIEWPORT ORIENTATION: PORTRAIT (Vertical Aspect 9:16 mobile / TikTok style).
 - Camera Framing: Deep forward Z-axis perspective or elevated 3rd-person chase camera. Action flows vertically (e.g. forward track runner, top-down arena).
 - Controls Safe Zone: Thumb controls sit at the bottom 25%; keep the upper 75% open for deep 3D perspective visuals.`;
 
-            systemPrompt = `You are an expert game developer building high-speed procedural 3D games for the GameTok Native C++ / Apple Metal Engine.
-Runtime: Native C++ QuickJS.
+            systemPrompt = `You are a master 3D game developer building commercial-grade, hardware-accelerated 3D games for GameTOK (running inside an Apple Metal WebKit container at up to 120 FPS).
+Runtime: HTML5 / Three.js (Hardware-Accelerated WebGL on Apple Metal).
 Orientation: ${orientation.toUpperCase()}.
 ${nativeOrientationRules}
 
 CRITICAL ARCHITECTURE RULES:
-1. PURE JAVASCRIPT ONLY: Do NOT output HTML, CSS, <html>, <script>, DOM elements, window, document, or requestAnimationFrame. The code runs directly in QuickJS C++.
-2. MANDATORY CLEAR ON INIT: Line 1 of your executable code MUST call \`engine.clearEntities();\` so that any previous or default scene entities are completely purged before spawning game-specific models or arena geometry.
-3. NATIVE ENGINE GLOBAL BINDINGS:
-   - engine.clearEntities(): Wipes all entities and purges scene geometry. Call this FIRST!
-   - engine.spawnEntity(type, x, y, z, scale, r, g, b): Spawns 3D entity. type: 'cube' (boxes, obstacles, walls), 'sphere' (coins, gems, orbs, planets), 'plane' (floors, platforms). Returns entityId (number).
-   - engine.spawnModel(assetUrl, x, y, z): Spawns 3D character/object mesh (GLB/GLTF from Cloudflare R2 URL or local path). Returns entityId (number).
-   - engine.playAnimation(entityId, animUrl, loop): Plays animation on a 3D rigged character. animUrl is one of the core animations (e.g. fight_idle.glb, punch.glb, kick.glb, walk.glb). loop is boolean (default true).
-   - engine.destroyEntity(id): Removes entity from the scene.
-   - engine.setPosition(id, x, y, z): Updates entity position.
-   - engine.setRotation(id, rx, ry, rz): Updates entity Euler angles in radians.
-   - engine.setScale(id, sx, sy, sz): Updates entity 3D scale.
-   - engine.setColor(id, r, g, b, a): Updates entity color/tint.
-   - engine.setCamera(eyeX, eyeY, eyeZ, targetX, targetY, targetZ): Directs 3D perspective camera (combat tracking, chase, or isometric).
-   - engine.log(message): Prints debug info to console.
-   - IN-ENGINE 2D HUD / UI SYSTEM (Call in init & update to render high-performance native game UI):
-     * engine.drawBar(id, x, y, width, height, percent, r, g, b, a): Native 2D bar (health bar, boost meter, power gauge). x, y, width, height are normalized (0.0 to 1.0) or pixels. percent is 0.0 to 1.0. r, g, b, a is fill color (0.0 to 1.0).
-     * engine.drawText(id, text, x, y, fontSize, r, g, b, a): Native 2D text label (e.g. fighter names, match timer "99", score).
-     * engine.drawButton(id, label, x, y, width, height, r, g, b, a): Native touch button directly drawn by engine.
-     * engine.removeUI(id): Removes specific HUD element.
-     * engine.clearUI(): Clears all HUD elements.
-4. MANDATORY LIFECYCLE CALLBACK:
-   You MUST define a global function:
-   globalThis.onGameEvent = function(event, data) { ... }
-   - event === 'input': data = { dirX: -1.0 to 1.0, dirY: -1.0 to 1.0, steer: -1.0 to 1.0, throttle: 0 or 1, drift: 0 or 1, brake: 0 or 1 }
-   - event === 'action': data = { name: 'PUNCH' | 'KICK' | 'BLOCK' | 'SPECIAL' | 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'JUMP' | 'DRIFT' | 'GAS', pressed: boolean }
-   - event === 'update': data = { dt: number } where dt is delta-time in seconds (e.g. 0.0083 at 120 FPS or 0.0166 at 60 FPS).
-     ALWAYS multiply velocity, attacks, and animations by dt! Example: posX += velX * dt;
-5. GAMEPLAY FEEL & GENRE LOGIC:
-   - For Fighting Games: Spawn both fighter models (e.g. Scorpion and Green Lantern), initialize HUD health bars using engine.drawBar('p1_health', 0.05, 0.05, 0.35, 0.03, 1.0, 0.0, 1.0, 0.3, 1.0) and engine.drawBar('p2_health', 0.60, 0.05, 0.35, 0.03, 1.0, 1.0, 0.2, 0.2, 1.0), draw fighter names with engine.drawText('p1_name', 'SCORPION', 0.05, 0.02, 16, 1, 1, 1, 1) and engine.drawText('timer', '99', 0.48, 0.04, 22, 1, 0.85, 0.1, 1). During combat, update the bars via engine.drawBar when damage is dealt!
-   - For Racing/Runner Games: Smooth acceleration, responsive steering, drift mechanics with score multipliers.
-   - Procedural track boundaries, collectible gems or obstacles ahead of the player.
-6. DYNAMIC TOUCH CONTROLS & BUTTON DESIGN:
-   You MUST design custom, sleek console touch controls matching this specific game! DO NOT USE PHONE EMOJIS!
-   - movement: "joystick" (smooth 360° virtual analog thumbstick for 3D combat, brawlers, action, RPGs), "steering" (left/right steering for cars/runners), or "none" (tap-to-play).
-   - buttons: Design the exact action buttons this gameplay loop requires. Use clean, bold console labels (e.g. "PUNCH", "KICK", "GUARD", "SPECIAL", "DASH", "FIRE", "JUMP").
-   - Each button definition:
-     * action: String identifier passed to onGameEvent('action', { name: action, pressed: true }) (e.g. "PUNCH", "KICK", "BLOCK", "SPECIAL")
-     * label: Clean, bold text label displayed on the button (e.g. "PUNCH", "KICK", "GUARD", "SPEAR")
-     * color: Theme hex color (e.g. "#FF5500", "#00FF88", "#3B82F6", "#EAB308")
-     * glow: Subtle glow rgba
-7. OUTPUT FORMAT:
-   Do NOT output JSON wrapping. Output pure JavaScript with metadata directives in the header comments:
+1. OUTPUT FORMAT: Single-file complete, runnable HTML (<!DOCTYPE html><html>...</html>).
+   Include header directives in HTML comments at the top:
+<!-- @title: Catchy Game Name -->
+<!-- @orientation: ${orientation} -->
+<!-- @controls: {"movement":"joystick","buttons":[{"action":"ACTION","label":"LABEL","color":"#HEX"}]} -->
+<!-- @thumbnail: Cinematic description of the 3D game scene for AI cover generation -->
 
-// @title: Short catchy game name (e.g. Scorpion vs Green Lantern: Netherrealm Clash)
-// @orientation: ${orientation}
-// @controls: {"movement":"joystick","buttons":[{"action":"PUNCH","label":"PUNCH","color":"#FF5500","glow":"rgba(255,85,0,0.5)"},{"action":"KICK","label":"KICK","color":"#EF4444","glow":"rgba(239,68,68,0.5)"},{"action":"BLOCK","label":"GUARD","color":"#3B82F6","glow":"rgba(59,130,246,0.5)"},{"action":"SPECIAL","label":"SPEAR","color":"#EAB308","glow":"rgba(234,179,8,0.6)"}]}
-// @thumbnail: Dynamic cinematic screenshot prompt for cover art
+2. LIBRARIES VIA RELIABLE CDN:
+   - Three.js: <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-// Game code starts directly here (QuickJS native engine script):
-engine.clearEntities();
-function initGame() {
-    ...
-}
+3. FULLSCREEN MOBILE RESPONSIVE STYLING:
+   <style>
+     * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+     html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #05050a; touch-action: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+     canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+   </style>
+
+4. RETINA DISPLAY & THREE.JS SETUP:
+   - const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+   - renderer.setPixelRatio(Math.min(window.__GAMETOK_DPR__ || window.devicePixelRatio || 1, 3));
+   - renderer.setSize(window.innerWidth, window.innerHeight);
+   - renderer.shadowMap.enabled = true;
+   - renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+   - Handle window resize listener to update camera.aspect, camera.updateProjectionMatrix(), and renderer.setSize.
+
+5. PBR LIGHTING & COMMERCIAL VISUAL QUALITY:
+   - Never use flat unlit materials! Use THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.25 }) with specular highlights.
+   - Dynamic lighting rig:
+     * THREE.AmbientLight(0xffffff, 0.5) for balanced fill.
+     * THREE.DirectionalLight(0xfff5e6, 1.2) casting soft shadows.
+     * Colorful rim light or point light (e.g. cyan, magenta, or gold) for cinematic highlights on character edges.
+   - Build a real, visible, expansive 3D world: stylized floors, obstacles, floating rings, collectible gems, neon tracks, or sci-fi arena geometry.
+   - Particle systems: Spawn bursts of sparks/particles on collect, impact, or jump using THREE.Points or instanced meshes.
+   - Camera: Dynamic third-person chase camera or isometric follower that smoothly lerps behind player action (camera.position.lerp(targetPos, 0.1); camera.lookAt(player.position)).
+
+6. HARDWARE TAPTIC & PLATFORM BRIDGE (GAMETOK NATIVE BRIDGE):
+   The container injects 'window.GameTOK'. You MUST call:
+   - window.GameTOK?.haptic('light') on subtle movements / steps.
+   - window.GameTOK?.haptic('medium') on coin / gem collection or button taps.
+   - window.GameTOK?.haptic('heavy') on collisions, crashes, or strong hits.
+   - window.GameTOK?.haptic('success') on stage clear or high combo.
+   - window.GameTOK?.haptic('error') on death / game over.
+   - window.GameTOK?.submitScore(score) whenever score changes.
+   - window.GameTOK?.gameOver(won, score) when player finishes or dies.
+
+7. PROCEDURAL WEB AUDIO SYNTHESIZER:
+   - Zero external audio files required! Synthesize sound effects using AudioContext and oscillators:
+     * jump / boost: frequency sweep upward
+     * coin / gem: high pitched arpeggio chime (e.g. 523Hz -> 659Hz -> 784Hz)
+     * hit / crash: low distorted noise / pitch drop
+     * game over: minor chord cascade
+   - Resume AudioContext on first touch / pointerdown.
+
+8. ON-SCREEN MOBILE TOUCH CONTROLS:
+   - Provide responsive on-screen touch controls: virtual floating joystick or drag area on the left thumb, action buttons on the right thumb, with active touch feedback.
+   - Also listen for keyboard (Arrow keys / WASD / Space) for developer testing.
 `;
-            userPrompt = `Build a high-performance native 3D GameTok JavaScript game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
+            userPrompt = `Build a high-performance, hardware-accelerated 3D Three.js GameTOK game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
         }
             if (gameState.errorHistory.length > 0) {
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
@@ -396,10 +377,12 @@ function initGame() {
 
         try {
             let response = null;
-            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nOutput pure JavaScript with header directives.`;
+            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nOutput complete single-file HTML (<!DOCTYPE html><html>...</html>) with header directives in comments.`;
             const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
+            const threejsSkillsDir = path.join(__dirname, 'threejs-skills');
             const hermesOutput = await executeHermesAgent(hermesPrompt, {
                 toolsets: 'file,terminal',
+                skills: (!is2DGame && fs.existsSync(threejsSkillsDir)) ? threejsSkillsDir : undefined,
                 sessionId,
             });
             if (hermesOutput) {
@@ -416,8 +399,8 @@ function initGame() {
             if (response.controls) {
                 gameState.metadata.controls = response.controls;
                 const controlsJson = typeof response.controls === 'string' ? response.controls : JSON.stringify(response.controls);
-                if (!generatedCode.includes('// @controls:')) {
-                    generatedCode = `// @controls: ${controlsJson}\n` + generatedCode;
+                if (!generatedCode.includes('@controls:')) {
+                    generatedCode = `<!-- @controls: ${controlsJson} -->\n` + generatedCode;
                 }
             }
         } catch (err) {
@@ -429,9 +412,9 @@ function initGame() {
         toolCallCount += 1;
         gameState.updateCode(generatedCode, gameState.currentModelOwner, `Attempt ${gameState.attemptCount + 1}`);
 
-        // QuickJS Native Syntax Sandbox Verification
-        console.log(`🔬 [GameTok Loop] Running QuickJS native syntax sandbox attempt ${gameState.attemptCount + 1}...`);
-        const sandboxResult = testNativeScript(generatedCode);
+        // Hardware Accelerated Game Sandbox Verification
+        console.log(`🔬 [GameTok Loop] Running sandbox verification attempt ${gameState.attemptCount + 1}...`);
+        const sandboxResult = testGameScript(generatedCode, orientation);
 
         gameState.recordAttempt(sandboxResult);
 

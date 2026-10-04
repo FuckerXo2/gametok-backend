@@ -342,28 +342,33 @@ export function extractScriptWithMetadata(rawText, defaultOrientation = 'portrai
     if (!rawText) return null;
     let content = rawText.trim();
 
-    // 1. If wrapped in markdown code fence (```javascript ... ``` or ```js ... ``` or ``` ... ```), extract inner code
-    const fenceMatch = content.match(/```(?:javascript|js)?\s*([\s\S]*?)```/i);
+    // 1. If wrapped in markdown code fence (```html ... ``` or ```javascript ... ``` or ```js ... ``` or ``` ... ```), extract inner code
+    const fenceMatch = content.match(/```(?:html|javascript|js)?\s*([\s\S]*?)```/i);
     if (fenceMatch) {
         content = fenceMatch[1].trim();
     }
 
-    // 2. Extract header directives
+    // 2. Extract header directives (supports // @key, <!-- @key, and <title> tags)
     let title = 'Untitled GameTok Game';
     let orientation = defaultOrientation;
     let controls = null;
     let thumbnailPrompt = '';
 
-    const titleMatch = content.match(/^\/\/\s*@title:\s*(.+)$/m);
-    if (titleMatch) title = titleMatch[1].trim();
+    const titleMatch = content.match(/(?:\/\/|<!--)\s*@title:\s*([^>\n\r]+?)(?:\s*-->)?$/m);
+    if (titleMatch) {
+        title = titleMatch[1].trim();
+    } else {
+        const htmlTitleMatch = content.match(/<title>([^<]+)<\/title>/i);
+        if (htmlTitleMatch) title = htmlTitleMatch[1].trim();
+    }
 
-    const orientMatch = content.match(/^\/\/\s*@orientation:\s*(.+)$/m);
+    const orientMatch = content.match(/(?:\/\/|<!--)\s*@orientation:\s*([a-zA-Z]+)(?:\s*-->)?$/m);
     if (orientMatch) orientation = orientMatch[1].trim().toLowerCase();
 
-    const thumbMatch = content.match(/^\/\/\s*@thumbnail:\s*(.+)$/m);
+    const thumbMatch = content.match(/(?:\/\/|<!--)\s*@thumbnail:\s*([^>\n\r]+?)(?:\s*-->)?$/m);
     if (thumbMatch) thumbnailPrompt = thumbMatch[1].trim();
 
-    const controlsMatch = content.match(/^\/\/\s*@controls:\s*(\{.*\})$/m);
+    const controlsMatch = content.match(/(?:\/\/|<!--)\s*@controls:\s*(\{.+?\})(?:\s*-->)?$/m);
     if (controlsMatch) {
         try {
             controls = JSON.parse(controlsMatch[1].trim());
@@ -374,17 +379,17 @@ export function extractScriptWithMetadata(rawText, defaultOrientation = 'portrai
     if (!titleMatch && content.startsWith('{') && content.endsWith('}')) {
         try {
             const parsed = JSON.parse(content);
-            if (parsed.gameScript || parsed.code) {
+            if (parsed.gameScript || parsed.code || parsed.html) {
                 return {
                     title: parsed.title || title,
                     orientation: parsed.orientation || orientation,
                     controls: parsed.controls || controls,
                     thumbnailPrompt: parsed.thumbnailPrompt || thumbnailPrompt,
-                    gameScript: parsed.gameScript || parsed.code
+                    gameScript: parsed.gameScript || parsed.code || parsed.html
                 };
             }
         } catch (_) {
-            const scriptRegexMatch = content.match(/"gameScript"\s*:\s*"([\s\S]*?)"(?:\s*,\s*"\w+"|\s*})/);
+            const scriptRegexMatch = content.match(/"(?:gameScript|code|html)"\s*:\s*"([\s\S]*?)"(?:\s*,\s*"\w+"|\s*})/);
             if (scriptRegexMatch) {
                 return {
                     title,
@@ -397,7 +402,7 @@ export function extractScriptWithMetadata(rawText, defaultOrientation = 'portrai
         }
     }
 
-    // 4. Return pure JavaScript with metadata
+    // 4. Return game code with metadata
     if (content.length > 20) {
         return {
             title,

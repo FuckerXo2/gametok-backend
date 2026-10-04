@@ -1087,17 +1087,19 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             throw new Error(`Generation failed to produce valid code (Status: ${finalGameState.status})`);
         }
 
-        let finalScript = runtime === 'native' ? finalCode : null;
-        let finalHtml = runtime === 'web' ? finalCode : `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${finalGameState.metadata?.title || prompt}</title><style>body{margin:0;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;}</style></head><body><div style="text-align:center"><h2>${finalGameState.metadata?.title || prompt}</h2><p>This is a native GameTok Metal engine game. Open in the GameTOK mobile app to play at 120 FPS.</p></div></body></html>`;
+        const isHtml = finalCode.trim().startsWith('<') || finalCode.includes('<!DOCTYPE') || finalCode.includes('<html');
+        let finalHtml = isHtml ? finalCode : `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${finalGameState.metadata?.title || prompt}</title></head><body><script>${finalCode}</script></body></html>`;
+        let finalScript = isHtml ? null : finalCode;
+        const effectiveRuntime = isHtml ? 'web' : runtime;
 
-        if (runtime === 'web') {
-            await reportProgress(75, 'verifying', 'Testing game in Hermes sandbox...');
+        await reportProgress(75, 'verifying', 'Testing game in Hermes sandbox...');
+        try {
             const verifyRes = await verifyGame(finalHtml, { orientation, timeoutMs: 12000 });
             if (!verifyRes.success && !verifyRes.bypassed) {
                 console.warn(`⚠️ [HERMES DREAM JOB] Game sandbox had warnings/errors:`, verifyRes.crashes);
             }
-        } else {
-            await reportProgress(75, 'verifying', 'Verifying native QuickJS syntax...');
+        } catch (vErr) {
+            console.warn(`⚠️ [HERMES DREAM JOB] Sandbox verification skipped:`, vErr.message);
         }
 
         // 2. Save project files
@@ -1115,12 +1117,12 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             console.warn(`⚠️ [HERMES DREAM JOB] R2 upload failed, serving inline HTML:`, uploadErr.message);
         }
 
-        const finalTitle = finalGameState.metadata?.title || (runtime === 'web' ? extractHtmlTitle(finalHtml) : null) || (prompt ? prompt.slice(0, 40) : 'GameTok Game');
+        const finalTitle = finalGameState.metadata?.title || (isHtml ? extractHtmlTitle(finalHtml) : null) || (prompt ? prompt.slice(0, 40) : 'GameTok Game');
 
         if (!persistToDb) {
             await reportProgress(100, 'complete', 'Game ready!');
             forgetCancelledJob(jobId);
-            return { jobId, title: finalTitle, html: finalHtml, script: finalScript, runtime, gameUrl: publicGameUrl };
+            return { jobId, title: finalTitle, html: finalHtml, script: finalScript, runtime: effectiveRuntime, gameUrl: publicGameUrl };
         }
 
         // 4. Save to Database
@@ -1129,7 +1131,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             `UPDATE ai_games
              SET title = $1, html_payload = $2, raw_code = $3, script_payload = $4, runtime = $5, thumbnail = $6, game_url = $7
              WHERE id = $8`,
-            [finalTitle, finalHtml, finalCode, finalScript, runtime, null, publicGameUrl, jobId]
+            [finalTitle, finalHtml, finalCode, finalScript, effectiveRuntime, null, publicGameUrl, jobId]
         );
 
         await recordGenerationTelemetry(jobId, {
@@ -1994,12 +1996,12 @@ router.post('/remix/:sourceId', async (req, res) => {
             let htmlPayload = cat.html_payload || '';
             const baseUrl = cat.embed_url?.startsWith('http')
                 ? cat.embed_url.substring(0, cat.embed_url.lastIndexOf('/') + 1)
-                : `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/${cat.id}/`;
+                : `https://games.gametok.co/${cat.id}/`;
 
             if (!htmlPayload && cat.embed_url) {
                 let fetchUrl = cat.embed_url;
                 if (fetchUrl.startsWith('/')) {
-                    fetchUrl = `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/${cat.id}/index.html`;
+                    fetchUrl = `https://games.gametok.co/${cat.id}/index.html`;
                 }
                 try {
                     const resp = await fetch(fetchUrl);

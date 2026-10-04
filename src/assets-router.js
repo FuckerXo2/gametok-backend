@@ -14,7 +14,7 @@ const pool = new Pool({
 });
 
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gametok-games-assets';
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || 'https://games.gametok.co';
 const s3Client = process.env.R2_ACCOUNT_ID
   ? new S3Client({
       region: 'auto',
