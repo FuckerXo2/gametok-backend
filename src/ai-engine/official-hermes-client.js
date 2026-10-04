@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { callGeminiFlashJson } from './gemini-client.js';
+import { recordGeminiUsage } from './token-tracker.js';
 
 import { uploadBufferToR2 } from './openai-image-client.js';
 
@@ -215,6 +216,25 @@ async function _spawnHermesProcess(prompt, options = {}) {
             if (sessionId && output) {
                 appendSessionTurn(sessionId, 'user', prompt);
                 appendSessionTurn(sessionId, 'assistant', output);
+
+                // Track actual token usage from Hermes CLI output or prompt metrics
+                let promptTokens = 0;
+                let completionTokens = 0;
+                const tokenMatch = (stdout + stderr).match(/(?:prompt|input)\s*tokens?[:=]\s*([0-9,]+)/i);
+                const compMatch = (stdout + stderr).match(/(?:completion|output)\s*tokens?[:=]\s*([0-9,]+)/i);
+                if (tokenMatch) {
+                    promptTokens = parseInt(tokenMatch[1].replace(/,/g, ''), 10);
+                }
+                if (compMatch) {
+                    completionTokens = parseInt(compMatch[1].replace(/,/g, ''), 10);
+                }
+                if (!promptTokens) {
+                    promptTokens = Math.round(fullPrompt.length / 3.8);
+                }
+                if (!completionTokens && output) {
+                    completionTokens = Math.round(output.length / 3.8);
+                }
+                recordGeminiUsage(sessionId, { promptTokens, completionTokens, model });
             }
             resolve(output);
         });

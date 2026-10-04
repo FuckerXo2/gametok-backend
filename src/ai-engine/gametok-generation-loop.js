@@ -17,6 +17,7 @@ import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } fro
 import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata } from './official-hermes-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
+import { calculateJobSpend, purgeJobSpend } from './token-tracker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,40 +79,27 @@ function testGameScript(code, orientation = 'portrait') {
 function attachSpendSummary(gameState, jobParams = {}) {
     const hasVisualDir = Boolean(jobParams.selectedDirection);
     const hasPerspectives = Boolean(jobParams.selectedPerspective && jobParams.selectedPerspective.requiresSelection !== false);
-    const imageCount = (hasVisualDir ? 4 : 0) + (hasPerspectives ? 4 : 0);
-    const imageCostUsd = Number((imageCount * 0.006).toFixed(4));
-
-    const codeLen = (gameState.currentCode || '').length;
-    const baseInputTokens = 4200;
-    const attemptInputTokens = (gameState.attemptCount || 1) * 1200;
-    const totalInputTokens = baseInputTokens + attemptInputTokens;
-    const totalOutputTokens = 2000 + Math.round(codeLen / 3.8);
-
-    const inputCostUsd = (totalInputTokens * 0.75) / 1_000_000;
-    const outputCostUsd = (totalOutputTokens * 3.75) / 1_000_000;
-    const geminiCostUsd = Number((inputCostUsd + outputCostUsd).toFixed(4));
-    const totalSpendUsd = Number((imageCostUsd + geminiCostUsd).toFixed(4));
-
-    gameState.spend = {
-        totalUsd: totalSpendUsd,
-        imageCount,
-        imageCostUsd,
-        geminiInputTokens: totalInputTokens,
-        geminiOutputTokens: totalOutputTokens,
-        geminiCostUsd,
-        blenderRigCostUsd: 0.0,
-        r2CostUsd: 0.0,
-        currency: 'USD',
+    const fallbackContext = {
+        prompt: gameState.prompt,
+        code: gameState.currentCode,
+        attempts: gameState.attemptCount || 1,
+        hasVisualDir,
+        hasPerspectives,
     };
+
+    const spend = calculateJobSpend(gameState.jobId, fallbackContext);
+    gameState.spend = spend;
 
     console.log(`\n======================================================`);
     console.log(`🧾 [GAMETOK SPEND RECEIPT] Job ${gameState.jobId}`);
-    console.log(`├── 🎨 OpenAI Flare Images: ${imageCount} cards ($${imageCostUsd.toFixed(4)})`);
-    console.log(`├── 🧠 Gemini 3.8 Flash: ${totalInputTokens.toLocaleString()} in / ${totalOutputTokens.toLocaleString()} out ($${geminiCostUsd.toFixed(4)})`);
+    console.log(`├── 🎨 OpenAI Flare Images: ${spend.imageCount} cards ($${spend.imageCostUsd.toFixed(4)})`);
+    console.log(`├── 🧠 Gemini 3.8 Flash: ${spend.geminiInputTokens.toLocaleString()} in / ${spend.geminiOutputTokens.toLocaleString()} out ($${spend.geminiCostUsd.toFixed(4)})${spend.geminiCachedTokens > 0 ? ` [${spend.geminiCachedTokens.toLocaleString()} cached @ 90% off]` : ''}`);
     console.log(`├── 🦴 Blender 3D Rigging: $0.0000 (Headless Local / Docker)`);
     console.log(`├── ☁️ Cloudflare R2: $0.0000 (Zero Egress Tier)`);
-    console.log(`└── 💰 TOTAL SPEND: $${totalSpendUsd.toFixed(4)} (${(totalSpendUsd * 100).toFixed(1)}¢)`);
+    console.log(`└── 💰 TOTAL SPEND: $${spend.totalUsd.toFixed(4)} (${(spend.totalUsd * 100).toFixed(1)}¢) ${spend.isMeasured ? '[REAL TELEMETRY]' : '[CALCULATED]'}`);
     console.log(`======================================================\n`);
+
+    purgeJobSpend(gameState.jobId);
 }
 
 /**

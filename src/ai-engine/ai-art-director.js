@@ -10,6 +10,7 @@ import fs from 'fs';
 import { executeHermesAgent, extractJsonFromHermes, uploadLocalImageFileToR2, getHermesGeneratedImagesSince } from './official-hermes-client.js';
 import { callGeminiFlashJson } from './gemini-client.js';
 import { generateConceptCardImage } from './openai-image-client.js';
+import { recordImageGeneration, recordGeminiUsage } from './token-tracker.js';
 
 const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
 The user will provide a game title, concept prompt, and any attached or selected assets.
@@ -187,6 +188,7 @@ TASK:
             ],
             temperature: 0.7,
             maxTokens: 1500,
+            jobId: sessionId,
         });
     }
 
@@ -208,6 +210,7 @@ TASK:
         if (localPath && fs.existsSync(localPath)) {
             imageUrl = await uploadLocalImageFileToR2(localPath, 'visual-directions');
             console.log(`☁️ [AI Art Director] Uploaded Hermes image to R2 (${dir.name}): ${imageUrl}`);
+            if (sessionId) recordImageGeneration(sessionId, 1);
         }
 
         // If Hermes didn't generate image or localPath is missing, generate concept card via OpenAI
@@ -220,6 +223,7 @@ TASK:
             });
             if (imageUrl) {
                 console.log(`✅ [AI Art Director] Successfully acquired preview card for "${dir.name}": ${imageUrl}`);
+                if (sessionId) recordImageGeneration(sessionId, 1);
             } else {
                 console.error(`❌ [AI Art Director] Failed to acquire preview card for "${dir.name}"`);
             }
@@ -462,6 +466,7 @@ TASK:
             ],
             temperature: 0.7,
             maxTokens: 1500,
+            jobId: sessionId,
         });
     }
 
@@ -485,6 +490,7 @@ TASK:
         if (localPath && fs.existsSync(localPath)) {
             imageUrl = await uploadLocalImageFileToR2(localPath, 'camera-perspectives');
             console.log(`☁️ [Camera Perspective] Uploaded Hermes perspective image to R2 (${p.name}): ${imageUrl}`);
+            if (sessionId) recordImageGeneration(sessionId, 1);
         }
 
         // If Hermes didn't generate image or localPath is missing, generate perspective preview card via OpenAI
@@ -508,6 +514,7 @@ TASK:
             }
             if (imageUrl) {
                 console.log(`✅ [Camera Perspective] Successfully acquired preview card for "${p.name}": ${imageUrl}`);
+                if (sessionId) recordImageGeneration(sessionId, 1);
             } else {
                 console.error(`❌ [Camera Perspective] Failed to acquire preview card for "${p.name}"`);
             }

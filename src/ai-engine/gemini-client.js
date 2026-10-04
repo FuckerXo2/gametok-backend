@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { recordGeminiUsage } from './token-tracker.js';
 
 export const GEMINI_FLASH_MODEL = 'gemini-3.8-flash';
 export const GEMINI_FALLBACK_MODELS = ['gemini-3.7-flash', 'gemini-3.6-flash'];
@@ -35,7 +36,7 @@ export function createGeminiClient(env = process.env) {
  * @param {{ systemPrompt: string, messages: Array<any>, temperature?: number, maxTokens?: number, model?: string }} args
  * @param {object} env
  */
-export async function callGeminiFlashJson({ systemPrompt, messages = [], temperature = 0.3, maxTokens = null, model = null }, env = process.env) {
+export async function callGeminiFlashJson({ systemPrompt, messages = [], temperature = 0.3, maxTokens = null, model = null, jobId = null }, env = process.env) {
     const config = getGeminiConfig(env);
     if (!config) {
         throw new Error('Gemini API key missing (set GEMINI_API_KEY in .env)');
@@ -59,6 +60,13 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
             payload.max_tokens = maxTokens;
         }
         const response = await client.chat.completions.create(payload);
+
+        if (response.usage) {
+            if (jobId) {
+                recordGeminiUsage(jobId, response.usage);
+            }
+            console.log(`🧠 [Gemini Client] Model ${m} tokens: ${response.usage.prompt_tokens} prompt / ${response.usage.completion_tokens} completion (Total: ${response.usage.total_tokens})`);
+        }
 
         let content = (response.choices?.[0]?.message?.content || '{}').trim();
         
@@ -100,7 +108,17 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
             return JSON.parse(str);
         }
 
-        return cleanAndParse(content);
+        const parsed = cleanAndParse(content);
+        if (parsed && typeof parsed === 'object' && response.usage) {
+            try {
+                Object.defineProperty(parsed, '_usage', {
+                    value: response.usage,
+                    enumerable: false,
+                    writable: true,
+                });
+            } catch (_) {}
+        }
+        return parsed;
     }
 
     const candidateModels = [targetModel, ...GEMINI_FALLBACK_MODELS.filter(m => m !== targetModel)];
