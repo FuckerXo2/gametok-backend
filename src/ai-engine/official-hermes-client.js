@@ -230,32 +230,28 @@ export function ensureHermesConfig() {
                 for (const sf of skillFolders) {
                     const srcPath = path.join(sourceThreejsSkillsDir, sf);
                     const destPath = path.join(targetSkillsDir, sf);
-                    if (fs.statSync(srcPath).isDirectory() && !fs.existsSync(destPath)) {
+                    if (fs.statSync(srcPath).isDirectory()) {
                         fs.cpSync(srcPath, destPath, { recursive: true });
                     }
                 }
             }
 
-            // 2. Sync Blender 3D modeling skill
+            // 2. Sync Blender 3D modeling skill (props & vehicles)
             const blenderSkillSrc = path.join(__dirname, 'hermes-plugin-blender', 'skills', 'blender');
             const blenderDest = path.join(targetSkillsDir, 'blender');
-            if (fs.existsSync(blenderSkillSrc) && !fs.existsSync(blenderDest)) {
+            if (fs.existsSync(blenderSkillSrc)) {
                 fs.cpSync(blenderSkillSrc, blenderDest, { recursive: true });
             }
 
             // 3. Sync GameTok Native QuickJS / Metal Engine Performance Skill
             const nativeSkillDir = path.join(targetSkillsDir, 'gametok-native-engine');
-            if (!fs.existsSync(nativeSkillDir)) {
-                fs.mkdirSync(nativeSkillDir, { recursive: true });
-                fs.writeFileSync(path.join(nativeSkillDir, 'SKILL.md'), NATIVE_PERFORMANCE_SKILL_CONTENT.trim(), 'utf8');
-            }
+            fs.mkdirSync(nativeSkillDir, { recursive: true });
+            fs.writeFileSync(path.join(nativeSkillDir, 'SKILL.md'), NATIVE_PERFORMANCE_SKILL_CONTENT.trim(), 'utf8');
 
             // 4. Sync Asset Intelligence & Adaptive Camera Rigging Skill
             const assetSkillDir = path.join(targetSkillsDir, 'gametok-asset-intelligence');
-            if (!fs.existsSync(assetSkillDir)) {
-                fs.mkdirSync(assetSkillDir, { recursive: true });
-                fs.writeFileSync(path.join(assetSkillDir, 'SKILL.md'), ASSET_INTELLIGENCE_SKILL_CONTENT.trim(), 'utf8');
-            }
+            fs.mkdirSync(assetSkillDir, { recursive: true });
+            fs.writeFileSync(path.join(assetSkillDir, 'SKILL.md'), ASSET_INTELLIGENCE_SKILL_CONTENT.trim(), 'utf8');
         } catch (err) {
             console.warn(`[Hermes Skills] Could not sync skills to ${targetSkillsDir}:`, err.message);
         }
@@ -338,9 +334,9 @@ async function _spawnHermesProcess(prompt, options = {}) {
             GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
             OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
             OPENAI_IMAGE_MODEL: 'gpt-image-2.5-flare',
-            HERMES_MAX_TOKENS: '16384',
-            MAX_TOKENS: '16384',
-            GEMINI_MAX_OUTPUT_TOKENS: '16384',
+            HERMES_MAX_TOKENS: '65536',
+            MAX_TOKENS: '65536',
+            GEMINI_MAX_OUTPUT_TOKENS: '65536',
             PATH: `${path.dirname(hermesBin)}:${path.join(hermesHome, 'hermes-agent', '.hermes', 'bin')}:/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
         };
 
@@ -379,6 +375,24 @@ async function _spawnHermesProcess(prompt, options = {}) {
                 try { if (fs.existsSync(usageFilePath)) fs.unlinkSync(usageFilePath); } catch (_) {}
                 return reject(new Error(`Hermes Agent execution failed with code ${code}: ${stderr.slice(0, 200)}`));
             }
+
+            // Check if output is a known failure / abort warning
+            const isAbortedOrError = output.includes('⚠️ Response Stopped') ||
+                output.includes('⚠️ No visible answer was produced') ||
+                output.includes('Repetition Detected') ||
+                output.includes('Output Limit Reached') ||
+                output.includes('agent failed:');
+
+            if (isAbortedOrError) {
+                const preview = output.slice(0, 300).replace(/\n/g, ' ');
+                console.error(`⚠️ [Hermes Agent] Response aborted or failed (${preview})`);
+                if (sessionId) {
+                    clearSessionHistory(sessionId);
+                }
+                try { if (fs.existsSync(usageFilePath)) fs.unlinkSync(usageFilePath); } catch (_) {}
+                return reject(new Error(`Hermes generation aborted: ${preview}`));
+            }
+
             if (sessionId && output) {
                 appendSessionTurn(sessionId, 'user', prompt);
                 appendSessionTurn(sessionId, 'assistant', output);

@@ -412,10 +412,13 @@ CRITICAL ARCHITECTURE RULES:
         try {
             let response = null;
             const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nCRITICAL REQUIREMENT: Output complete, unbroken single-file HTML (<!DOCTYPE html><html>...</html>) with closing </script> and </html> tags. Ensure the code is clean, concise, and complete without truncating mid-function.`;
-            const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
+            // Isolate code generation sessions per attempt so Hermes gets a pristine, focused context
+            // and is never burdened by forge chat history or past truncation errors
+            const sessionId = `codegen_${jobParams.jobId || gameState.jobId}_attempt_${gameState.attemptCount + 1}`;
             const hermesOutput = await executeHermesAgent(hermesPrompt, {
                 toolsets: 'file,terminal',
                 sessionId,
+                reasoning: 'medium',
             });
             if (hermesOutput) {
                 response = extractScriptWithMetadata(hermesOutput, orientation);

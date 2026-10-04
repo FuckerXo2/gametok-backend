@@ -1,12 +1,12 @@
 ---
 name: blender
-description: Use when inspecting, editing, rigging, or generating 3D assets in Blender via the official Blender Lab MCP server.
+description: Use when inspecting, generating, modifying, or exporting 3D props, vehicles, cars, and environmental geometry in Blender via the official Blender Lab MCP server.
 ---
 
-# Blender through MCP & GameTok 3D Pipeline
+# Blender through MCP & GameTok 3D Asset Pipeline
 
 This package connects Hermes to Blender via the official Blender Lab MCP server (port 9876).
-It enables programmatic 3D scene inspection, procedural geometry, character auto-rigging to the UE5/Mixamo Master Skeleton, and GLB export for GameTok native games.
+It enables programmatic 3D scene inspection, procedural mesh generation, vehicle/car modeling, prop optimization, and GLB export for GameTok native games.
 
 ## Before working
 
@@ -19,42 +19,37 @@ It enables programmatic 3D scene inspection, procedural geometry, character auto
 - Assign JSON-serializable output to `result` for readback.
 - Make small changes, serialize calls, and verify the resulting mesh state.
 
-## GameTok Character Auto-Rigging to UE5 Master Skeleton
+## 3D Props, Vehicles & Environmental Assets
 
-When rigging raw character meshes (e.g. `scorpion.glb`, `hal_jordan_green_lantern.glb`, or imported OBJ/GLB characters):
-1. The `gametok_rigger` Python module is pre-installed in Blender's module search path.
-2. Use `execute_blender_code` to call `gametok_rigger.rig_character()`:
+Use Blender for modeling and optimizing non-skeletal game assets:
+
+### 1. Vehicles & Cars
+- Procedural chassis, wheels, spoilers, and collision hulls.
+- Separate wheel objects (`Wheel_FL`, `Wheel_FR`, `Wheel_RL`, `Wheel_RR`) with origin points centered on axles for dynamic runtime rotation.
+- Low-draw-call material assignments (metallic car paint, tinted glass, tire rubber).
+
+### 2. Gameplay Props & Collectibles
+- Crates, barrels, power-up crystals, portals, jump pads, and traps.
+- UV unwrapping and procedural PBR material baking (Diffuse, Roughness, Metallic, Normal).
+- Clean pivot point placement at base or center for simple placement in the game engine.
+
+### 3. Environmental Set Pieces & Track Geometry
+- Race track segments, neon arena arches, floating islands, and barricades.
+- Modular snap-together dimensions (e.g. 10m grid units).
+- Decimate and optimize high-poly meshes to mobile performance budgets (< 5,000 polygons for standard props, < 15,000 for hero vehicles).
+
+## Clean GLB Export Workflow
+
+Export game-ready `.glb` assets using `bpy.ops.export_scene.gltf`:
 ```python
-import gametok_rigger
+import bpy
 
-result = gametok_rigger.rig_character(
-    mesh_path="storage/characters/scorpion.glb",
-    output_path="storage/models3d/rigged/scorpion_rigged.glb"
+bpy.ops.export_scene.gltf(
+    filepath="storage/props/custom_asset.glb",
+    export_format='GLB',
+    use_selection=True,
+    export_apply=True,
+    export_yup=True
 )
+result = {"status": "success", "filepath": "storage/props/custom_asset.glb"}
 ```
-3. The rigger automatically:
-   - Resets the scene to a clean slate.
-   - Imports the mesh and centers/scales it.
-   - Imports the UE5 Master Skeleton (`storage/skeletons/ue5_master_skeleton.glb`).
-   - Parents the mesh to the armature with Automatic Weights (bone heat weighting).
-   - Exports the rigged `.glb` model ready for animation playback in the mobile game engine.
-
-## GameTok Core Animation Library
-
-Rigged characters are 100% compatible with the GameTok 2,457 Mixamo MoCap library.
-For humanoid gameplay, spawn the model with `engine.spawnModel(url, x, y, z)` and play/blend animations with `engine.playAnimation(entityId, animUrl, options)`:
-
-- **Idle (Relaxed):** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/idle.glb`
-- **Fight Idle (Stance):** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/fight_idle.glb`
-- **Walk:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/walk.glb`
-- **Run / Sprint:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/run.glb`
-- **Combo Punch:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/punch.glb`
-- **Cross Punch:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/cross_punch.glb`
-- **Kick:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/kick.glb`
-- **Block:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/block.glb`
-- **Hit Reaction:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/hit.glb`
-- **Death / Defeat:** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/core/death.glb`
-
-Pre-rigged models are also directly available at:
-- **Scorpion (Rigged):** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/characters/scorpion_rigged.glb`
-- **Hal Jordan (Rigged):** `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/characters/hal_jordan_green_lantern_rigged.glb`
