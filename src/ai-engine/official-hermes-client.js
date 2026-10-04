@@ -120,6 +120,7 @@ export function ensureHermesInstalled() {
         bin = getHermesBinaryPath();
         if (bin) {
             console.log(`✅ [Hermes Installer] Successfully installed Hermes Agent at: ${bin}`);
+            ensureHermesImageGenConfig();
             return bin;
         }
     } catch (e) {
@@ -129,16 +130,105 @@ export function ensureHermesInstalled() {
 }
 
 /**
+ * Resolve active HERMES_HOME directory
+ */
+export function getHermesHomePath() {
+    const projectRoot = process.cwd();
+    const candidates = [
+        process.env.HERMES_HOME,
+        path.join(projectRoot, '.hermes'),
+        path.join(__dirname, '../../.hermes'),
+        '/opt/render/project/src/.hermes',
+        path.join(os.homedir(), '.hermes'),
+    ].filter(Boolean);
+
+    for (const dir of candidates) {
+        if (fs.existsSync(dir)) return dir;
+    }
+    return candidates[0] || path.join(os.homedir(), '.hermes');
+}
+
+/**
+ * Automatically configure Hermes Agent:
+ * 1. Sets max_tokens: 16384 and max_output_tokens: 16384 so reasoning + code fits comfortably.
+ * 2. Locks image_gen to OpenAI gpt-image-2.5-flare so it doesn't fail on missing FAL_KEY.
+ */
+export function ensureHermesConfig() {
+    const projectRoot = process.cwd();
+    const candidateDirs = [
+        process.env.HERMES_HOME,
+        path.join(projectRoot, '.hermes'),
+        path.join(__dirname, '../../.hermes'),
+        '/opt/render/project/src/.hermes',
+        path.join(os.homedir(), '.hermes'),
+    ].filter(Boolean);
+
+    const openaiBlock = [
+        'image_gen:',
+        '  provider: openai',
+        '  openai:',
+        '    model: gpt-image-2.5-flare',
+    ].join('\n');
+
+    for (const dir of candidateDirs) {
+        if (!fs.existsSync(dir)) continue;
+        const configPath = path.join(dir, 'config.yaml');
+        try {
+            let content = '';
+            if (fs.existsSync(configPath)) {
+                content = fs.readFileSync(configPath, 'utf8');
+            }
+
+            let modified = false;
+
+            // Ensure max_tokens: 16384
+            if (!/max_tokens:\s*16384/i.test(content)) {
+                if (/max_tokens:\s*\d+/i.test(content)) {
+                    content = content.replace(/max_tokens:\s*\d+/gi, 'max_tokens: 16384');
+                } else {
+                    content = `max_tokens: 16384\nmax_output_tokens: 16384\n` + content;
+                }
+                modified = true;
+            }
+
+            // Ensure OpenAI image_gen block
+            const hasOpenAI = /image_gen:\s*[\r\n]+(?:[^\r\n]+[\r\n]+)*?\s*provider:\s*openai/i.test(content);
+            if (!hasOpenAI) {
+                console.log(`⚙️ [Hermes Config] Locking image_gen to OpenAI in ${configPath}...`);
+                if (/image_gen:/i.test(content)) {
+                    content = content.replace(/image_gen:[\s\S]*?(?=\n[a-zA-Z0-9_-]+:|$)/, openaiBlock);
+                } else {
+                    content = content.trim() + '\n\n' + openaiBlock + '\n';
+                }
+                modified = true;
+            }
+
+            if (modified) {
+                fs.writeFileSync(configPath, content, 'utf8');
+                console.log(`✅ [Hermes Config] Successfully configured 16k tokens & OpenAI image_gen in ${configPath}`);
+            }
+        } catch (e) {
+            console.warn(`[Hermes Config] Unable to write config at ${configPath}:`, e.message);
+        }
+    }
+}
+
+export const ensureHermesImageGenConfig = ensureHermesConfig;
+
+/**
  * Execute official Nous Research Hermes Agent with live stdout streaming and session continuity
  *
  * @param {string} prompt
  * @param {object} options
  */
 async function _spawnHermesProcess(prompt, options = {}) {
+    ensureHermesConfig();
+    const hermesHome = getHermesHomePath();
     let hermesBin = getHermesBinaryPath() || ensureHermesInstalled();
     const model = options.model || process.env.HERMES_MODEL || 'gemini-3.8-flash';
     const provider = options.provider || process.env.HERMES_PROVIDER || 'gemini';
     const sessionId = options.sessionId || null;
+    const reasoning = options.reasoning !== undefined ? options.reasoning : 'low';
 
     if (!hermesBin) {
         throw new Error('Official hermes CLI not found in PATH and automated installation failed');
@@ -162,8 +252,10 @@ async function _spawnHermesProcess(prompt, options = {}) {
         '--usage-file', usageFilePath,
     ];
 
-    if (options.reasoning) {
-        args.push('--reasoning', options.reasoning);
+    if (reasoning && reasoning !== 'none') {
+        args.push('--reasoning', reasoning);
+    } else if (reasoning === 'none') {
+        args.push('--reasoning', 'none');
     }
 
     if (options.toolsets) {
@@ -179,14 +271,16 @@ async function _spawnHermesProcess(prompt, options = {}) {
     return new Promise((resolve, reject) => {
         const env = {
             ...process.env,
+            HERMES_HOME: hermesHome,
             BLENDER_MCP_HOST: process.env.BLENDER_MCP_HOST || '127.0.0.1',
             BLENDER_MCP_PORT: process.env.BLENDER_MCP_PORT || '9876',
             GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
             OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+            OPENAI_IMAGE_MODEL: 'gpt-image-2.5-flare',
             HERMES_MAX_TOKENS: '16384',
             MAX_TOKENS: '16384',
             GEMINI_MAX_OUTPUT_TOKENS: '16384',
-            PATH: `${path.dirname(hermesBin)}:/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
+            PATH: `${path.dirname(hermesBin)}:${path.join(hermesHome, 'hermes-agent', '.hermes', 'bin')}:/opt/homebrew/bin:${path.join(os.homedir(), '.local', 'bin')}:${process.env.PATH || ''}`,
         };
 
         const child = spawn(hermesBin, args, { env });
@@ -298,7 +392,9 @@ export async function executeHermesAgent(prompt, options = {}) {
  * Scan Hermes cache directory for images generated during this session
  */
 export function getHermesGeneratedImagesSince(timestamp) {
+    const homeDir = getHermesHomePath();
     const candidateDirs = [
+        path.join(homeDir, 'cache', 'images'),
         path.join(os.homedir(), '.hermes', 'cache', 'images'),
         path.join(process.cwd(), '.hermes', 'cache', 'images'),
         process.env.HERMES_HOME ? path.join(process.env.HERMES_HOME, 'cache', 'images') : null,

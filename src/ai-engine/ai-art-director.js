@@ -189,8 +189,8 @@ Game Concept: ${prompt}${assetContext}
 
 TASK:
 1. Conceptualize exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to this game concept and its assets.
-2. For EACH of the 4 directions, IMMEDIATELY call your \`image_generate\` tool to generate an authentic in-game screenshot preview card (1024x1024, 1:1 aspect ratio). You MUST issue all 4 \`image_generate\` tool calls concurrently in parallel in a single turn so they generate simultaneously.
-   - Craft a detailed visual prompt for each card: e.g. "In-game screenshot, playable video game viewport, authentic game HUD, game engine render of ${prompt}, <style details>, 1:1 square ratio, crisp game UI, clean graphics".
+2. For EACH of the 4 directions, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "square") to generate an authentic in-game screenshot preview card. You MUST issue all 4 \`image_generate\` tool calls concurrently in parallel in a single turn so they generate simultaneously.
+   - Craft a detailed visual prompt for each card: e.g. "In-game screenshot, playable video game viewport, authentic game HUD, game engine render of ${prompt}, <style details>, crisp game UI, clean graphics".
 3. Return a JSON object with a "directions" array containing the 4 directions:
    - "name": Style title (e.g. "Hyper-Stylized Comic Noir")
    - "tagline": Short punchy hook
@@ -620,7 +620,7 @@ Style Details: ${styleModifier}${assetContext}
 
 TASK:
 1. Conceptualize exactly 4 DISTINCT, EXCITING camera perspectives tailored specifically to this game concept and its chosen visual art style.
-2. For EACH of the 4 perspectives, IMMEDIATELY call your \`image_generate\` tool 4 times concurrently in parallel to generate an in-game screenshot preview representing each of the 4 camera viewports (1024x1024, 1:1 aspect ratio) showing the game rendered from that specific camera angle in ${styleName}.
+2. For EACH of the 4 perspectives, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "square") 4 times concurrently in parallel to generate an in-game screenshot preview representing each of the 4 camera viewports showing the game rendered from that specific camera angle in ${styleName}.
 3. Return the JSON matching the schema with 4 perspectives.
 `;
 
