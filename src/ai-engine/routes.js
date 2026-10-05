@@ -9,7 +9,11 @@ import pool from '../db.js';
 import { classifyGame, normalizeCategories, setGameCategories } from '../categories.js';
 import { HermesHeadlessOrchestrator } from './hermes-headless-orchestrator.js';
 import { runGameTokGenerationLoop } from './gametok-generation-loop.js';
+import { runDirectGenerationLoop } from './gametok-direct-loop.js';
 import { uploadGameFolderToR2 } from './r2-uploader.js';
+
+// Feature flag: Use direct Gemini client (no CLI) vs AGY
+const USE_DIRECT_GEMINI = process.env.USE_DIRECT_GEMINI !== 'false'; // Default: true
 import { normalizeOrientation, DEFAULT_ORIENTATION } from './orientation.js';
 import { notifyGameReady, notifyGameFailed, sendPushToTokenOrUser } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
@@ -1062,28 +1066,60 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         console.log(`🧠 [HERMES DREAM JOB] Starting generation for: "${prompt}" (runtime: ${runtime}, orientation: ${orientation})`);
         await reportProgress(10, 'starting', 'Hermes is initializing...');
 
-        // 1. Run the Multi-Model Hermes Generation Loop
-        await reportProgress(25, 'generating', runtime === 'native' ? 'Generating 120 FPS Native Game script...' : 'Gemini is designing your 3D game...');
-        const finalGameState = await runGameTokGenerationLoop({
-            jobId,
-            sessionId: jobPayload?.sessionId || null,
-            prompt,
-            orientation,
-            runtime,
-            attachments: mediaAttachments,
-            selectedAudio: jobPayload?.selectedAudio || null,
-            selectedVideo: jobPayload?.selectedVideo || null,
-            selectedMeme: jobPayload?.selectedMeme || null,
-            selected3DModel: jobPayload?.selected3DModel || null,
-            selectedDirection: jobPayload?.selectedDirection || null,
-            selectedPerspective: jobPayload?.selectedPerspective || null,
-            dimension: jobPayload?.dimension || null,
-            maxAttempts: 5,
-        }, orchestrator);
+        // 1. Run AI Game Generation (Direct Gemini or AGY based on feature flag)
+        await reportProgress(25, 'generating', runtime === 'native' ? 'Generating 120 FPS Native Game script...' : 'AI is designing your game...');
+        
+        let finalGameState;
+        
+        if (USE_DIRECT_GEMINI) {
+            console.log('🚀 [GENERATION] Using Direct Gemini (no CLI)');
+            finalGameState = await runDirectGenerationLoop({
+                jobId,
+                prompt,
+                sessionId: jobPayload?.sessionId || null,
+                orientation,
+                selectedDirection: jobPayload?.selectedDirection || null,
+                selected3DModel: jobPayload?.selected3DModel || null,
+                selectedAssets: [
+                    jobPayload?.selectedAudio,
+                    jobPayload?.selectedVideo,
+                    jobPayload?.selectedMeme,
+                ].filter(Boolean),
+                // No skipDirections flag - always follow the full flow
+                onProgress: async (percent, status, message) => {
+                    await reportProgress(25 + Math.floor(percent * 0.5), status, message);
+                },
+            });
+        } else {
+            console.log('🔧 [GENERATION] Using AGY CLI (legacy)');
+            finalGameState = await runGameTokGenerationLoop({
+                jobId,
+                sessionId: jobPayload?.sessionId || null,
+                prompt,
+                orientation,
+                runtime,
+                attachments: mediaAttachments,
+                selectedAudio: jobPayload?.selectedAudio || null,
+                selectedVideo: jobPayload?.selectedVideo || null,
+                selectedMeme: jobPayload?.selectedMeme || null,
+                selected3DModel: jobPayload?.selected3DModel || null,
+                selectedDirection: jobPayload?.selectedDirection || null,
+                selectedPerspective: jobPayload?.selectedPerspective || null,
+                dimension: jobPayload?.dimension || null,
+                maxAttempts: 5,
+            }, orchestrator);
+        }
 
-        let finalCode = finalGameState.currentCode || '';
-        if (!finalCode || finalGameState.status === 'failed_needs_review') {
-            throw new Error(`Generation failed to produce valid code (Status: ${finalGameState.status})`);
+        // Extract game code (different formats for direct vs AGY)
+        let finalCode = USE_DIRECT_GEMINI 
+            ? (finalGameState.gameScript || '')
+            : (finalGameState.currentCode || '');
+            
+        if (!finalCode) {
+            const statusInfo = USE_DIRECT_GEMINI 
+                ? `Success: ${finalGameState.success}`
+                : `Status: ${finalGameState.status}`;
+            throw new Error(`Generation failed to produce valid code (${statusInfo})`);
         }
 
         const isHtml = finalCode.trim().startsWith('<') || finalCode.includes('<!DOCTYPE') || finalCode.includes('<html');
@@ -1266,12 +1302,65 @@ router.post('/generate-visual-directions', async (req, res) => {
             } catch (_) {}
         }, 4000);
 
-        const result = await directVisualDirections({
+        // Use new direct Gemini client for direction generation
+        console.log(`🎨 [Visual Directions] Using Direct Gemini client for: "${prompt}"`);
+        
+        const result = await runDirectGenerationLoop({
+            jobId: `directions-${Date.now()}`,
             prompt,
-            gameTitle,
+            sessionId: sessionId || `directions-${Date.now()}`,
+            orientation: orientation || 'portrait',
             selectedAssets,
-            sessionId,
-            userId,
+            skipDirections: false, // Generate directions
+            onProgress: (percent, status, message) => {
+                console.log(`📊 [Visual Directions] ${percent}% - ${message}`);
+            },
+            onDirectionsReady: async (directions) => {
+                console.log(`✅ [Visual Directions] ${directions.length} directions with images ready`);
+                
+                // Send push notification if user has push token
+                if (userId && pushToken) {
+                    sendPushToTokenOrUser(pushToken, {
+                        title: 'Choose Your Style',
+                        body: `Choose your visual direction for "${gameTitle || prompt}"`,
+                        data: {
+                            type: 'creation',
+                            action: 'visual_directions_ready',
+                            journeyView: 'directions',
+                            sessionId: result.sessionId,
+                            prompt,
+                            gameTitle,
+                        }
+                    }).catch(err => console.warn('[Visual Directions] Push notification error:', err.message));
+                }
+            },
+        });
+
+        // If we got directions (not a full game), return them
+        if (result.waitingForSelection && result.directions) {
+            clearInterval(heartbeatTimer);
+            return res.json({
+                success: true,
+                sessionId: result.sessionId,
+                prompt,
+                gameTitle,
+                directions: result.directions,
+            });
+        }
+
+        // Shouldn't reach here in normal flow
+        clearInterval(heartbeatTimer);
+        res.json({
+            success: false,
+            error: 'Unexpected response from direction generation',
+        });
+
+    } catch (err) {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        console.error('[Visual Directions] Error:', err.message);
+        res.status(500).json({ error: err.message || 'Visual direction generation failed' });
+    }
+});
             pushToken,
             orientation,
         });
