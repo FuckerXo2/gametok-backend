@@ -171,14 +171,15 @@ async function _spawnAgentProcess(prompt, options = {}) {
         }
     }
 
+    const reasoningEffort = options.reasoning || 'low';
     const args = [
         '-p', fullPrompt,
         '--model', model,
+        '--effort', reasoningEffort,
         '--dangerously-skip-permissions',
     ];
 
-    const reasoningEffort = options.reasoning || 'low';
-    console.log(`🚀 [AGY Agent] Launching (${model}, reasoning: ${reasoningEffort}${sessionId ? `, session: ${sessionId}` : ''})...`);
+    console.log(`🚀 [AGY Agent] Launching (${model}, effort: ${reasoningEffort}${sessionId ? `, session: ${sessionId}` : ''})...`);
 
     return new Promise((resolve, reject) => {
         const env = {
