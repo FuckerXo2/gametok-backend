@@ -147,6 +147,35 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
     let videoAsset = jobParams.selectedVideo || null;
     let spriteAsset = jobParams.selectedMeme || null;
     let model3dAsset = jobParams.selected3DModel || null;
+    
+    // Smart asset auto-selection based on prompt keywords
+    if (!model3dAsset && !hasAttachments) {
+        const promptLower = (gameState.prompt || '').toLowerCase();
+        const { CURATED_3D_MODELS } = await import('./asset-catalog.js');
+        
+        // Match characters by name in prompt
+        for (const model of CURATED_3D_MODELS) {
+            if (model.category !== 'character') continue;
+            const nameLower = model.name.toLowerCase();
+            const tagsMatched = model.tags.some(tag => promptLower.includes(tag.toLowerCase()));
+            
+            if (tagsMatched || promptLower.includes(nameLower)) {
+                console.log(`🎯 [Asset Auto-Select] Matched ${model.name} for prompt keywords`);
+                if (!model3dAsset) {
+                    model3dAsset = model;
+                } else {
+                    // Second character - add to attachments
+                    attachments.push({
+                        type: '3d-model',
+                        role: 'character',
+                        url: model.url,
+                        name: model.name,
+                        label: model.name,
+                    });
+                }
+            }
+        }
+    }
 
     const hasAttachments = attachments.length > 0;
     const hasDirectAssets = Boolean(audioAsset || videoAsset || spriteAsset || model3dAsset);
