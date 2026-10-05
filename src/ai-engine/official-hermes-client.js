@@ -288,17 +288,15 @@ async function _spawnHermesProcess(prompt, options = {}) {
     }
 
     const usageFilePath = path.join(os.tmpdir(), `hermes-usage-${randomUUID()}.json`);
+    const reasoningEffort = options.reasoning || 'low';
     const args = [
         '-z', fullPrompt,
         '--yolo',
         '--provider', provider,
         '-m', model,
+        '--reasoning', reasoningEffort,
         '--usage-file', usageFilePath,
     ];
-
-    if (options.reasoning) {
-        args.push('--reasoning', options.reasoning);
-    }
 
     if (options.toolsets) {
         args.push('-t', options.toolsets);
@@ -323,7 +321,7 @@ async function _spawnHermesProcess(prompt, options = {}) {
         }
     }
 
-    console.log(`☤ [Hermes Agent] Launching live session (${model}${options.toolsets ? `, toolsets: ${options.toolsets}` : ''}${sessionId ? `, session: ${sessionId}` : ''})...`);
+    console.log(`☤ [Hermes Agent] Launching live session (${model}, reasoning: ${reasoningEffort}${options.toolsets ? `, toolsets: ${options.toolsets}` : ''}${sessionId ? `, session: ${sessionId}` : ''})...`);
 
     return new Promise((resolve, reject) => {
         const env = {
@@ -377,11 +375,7 @@ async function _spawnHermesProcess(prompt, options = {}) {
             }
 
             // Check if output is a known failure / abort warning
-            const isAbortedOrError = output.includes('⚠️ Response Stopped') ||
-                output.includes('⚠️ No visible answer was produced') ||
-                output.includes('Repetition Detected') ||
-                output.includes('Output Limit Reached') ||
-                output.includes('agent failed:');
+            const isAbortedOrError = /Response Stopped|No visible answer was produced|Repetition Detected|Output Limit Reached|output-token limit|agent failed:/i.test(output);
 
             if (isAbortedOrError) {
                 const preview = output.slice(0, 300).replace(/\n/g, ' ');

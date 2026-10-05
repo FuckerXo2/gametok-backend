@@ -595,34 +595,11 @@ export const runMigrations = async () => {
 
 // Gamification tables
 export const runGamificationMigrations = async () => {
-  const client = await pool.connect();
   try {
     // Gamification system removed
     console.log('✅ Gamification tables skipped (system removed)');
-
-    // Seed some aspirational rewards
-    const rewardCount = await client.query('SELECT COUNT(*) FROM rewards');
-    if (parseInt(rewardCount.rows[0].count) === 0) {
-      await client.query(`
-        INSERT INTO rewards (name, description, cost, category, stock) VALUES
-        ('Custom Username Color', 'Stand out with a colored username', 500, 'cosmetic', NULL),
-        ('Profile Badge: OG', 'Show you were here early', 1000, 'badge', NULL),
-        ('Profile Badge: VIP', 'Exclusive VIP status badge', 5000, 'badge', NULL),
-        ('Ad-Free Hour', 'Play without ads for 1 hour', 200, 'boost', NULL),
-        ('2x Points Boost (1 day)', 'Double points for 24 hours', 1000, 'boost', NULL),
-        ('$5 Gift Card', 'Amazon/Apple/Google gift card', 50000, 'giftcard', 10),
-        ('$10 Gift Card', 'Amazon/Apple/Google gift card', 90000, 'giftcard', 5),
-        ('$25 Gift Card', 'Amazon/Apple/Google gift card', 200000, 'giftcard', 2),
-        ('GameTOK Merch', 'Exclusive GameTOK t-shirt', 75000, 'merch', 20),
-        ('Early Access', 'Get new games before everyone else', 10000, 'perk', NULL)
-      `);
-      console.log('✅ Default rewards seeded');
-    }
-
   } catch (e) {
     console.log('Gamification migration error:', e.message);
-  } finally {
-    client.release();
   }
 };
 

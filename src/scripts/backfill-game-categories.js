@@ -20,14 +20,14 @@ export async function backfillGameCategories() {
         
         // Fetch all games from ai_games table
         const { rows } = await pool.query(
-            `SELECT id, title, prompt, description FROM ai_games ORDER BY created_at DESC`
+            `SELECT id, title, prompt FROM ai_games ORDER BY created_at DESC`
         );
 
         console.log(`Found ${rows.length} games to inspect for categorization.`);
         let updatedCount = 0;
 
         for (const game of rows) {
-            const text = [game.title, game.prompt, game.description].filter(Boolean).join('\n');
+            const text = [game.title, game.prompt].filter(Boolean).join('\n');
             let categories = heuristicCategories(text);
             
             // Default fallback if no keywords matched so no game is left behind

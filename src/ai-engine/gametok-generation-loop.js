@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 import { SharedGameState } from './shared-game-state.js';
 import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
 import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata, clearSessionHistory } from './official-hermes-client.js';
-import { analyzeVisualReferenceWithGemini } from './gemini-client.js';
+import { callGeminiFlashJson, analyzeVisualReferenceWithGemini } from './gemini-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
 import { calculateJobSpend, purgeJobSpend } from './token-tracker.js';
@@ -415,17 +415,45 @@ CRITICAL ARCHITECTURE RULES:
             // Isolate code generation sessions per attempt so Hermes gets a pristine, focused context
             // and is never burdened by forge chat history or past truncation errors
             const sessionId = `codegen_${jobParams.jobId || gameState.jobId}_attempt_${gameState.attemptCount + 1}`;
-            const hermesOutput = await executeHermesAgent(hermesPrompt, {
-                toolsets: 'file,terminal',
-                sessionId,
-                reasoning: 'medium',
-            });
+            let hermesOutput = null;
+            try {
+                hermesOutput = await executeHermesAgent(hermesPrompt, {
+                    toolsets: 'file,terminal',
+                    sessionId,
+                    reasoning: 'low',
+                });
+            } catch (hermesErr) {
+                console.warn(`⚠️ [GameTok Loop] Hermes CLI: ${hermesErr.message}, falling back to direct Gemini Flash generation...`);
+            }
+
             if (hermesOutput) {
                 response = extractScriptWithMetadata(hermesOutput, orientation);
             }
 
             if (!response || !response.gameScript) {
-                throw new Error('Hermes Agent failed to produce valid game script');
+                console.log(`🧠 [GameTok Loop] Generating complete game script directly via Gemini Flash...`);
+                try {
+                    const geminiJson = await callGeminiFlashJson({
+                        systemPrompt: `${systemPrompt}\nOutput valid JSON strictly matching: { "title": "Catchy Title", "gameScript": "<!DOCTYPE html><html>...complete playable game code...</html>", "controls": ["Tap to jump"] }`,
+                        messages: [{ role: 'user', content: hermesPrompt }],
+                        temperature: 0.3,
+                        maxTokens: 16384,
+                        jobId: gameState.jobId,
+                    });
+                    if (geminiJson?.gameScript) {
+                        response = {
+                            gameScript: geminiJson.gameScript,
+                            title: geminiJson.title,
+                            controls: geminiJson.controls,
+                        };
+                    }
+                } catch (geminiErr) {
+                    console.error(`💥 [GameTok Loop] Direct Gemini Flash fallback error:`, geminiErr.message);
+                }
+            }
+
+            if (!response || !response.gameScript) {
+                throw new Error('Both Hermes Agent and Gemini Flash fallback failed to produce a valid game script');
             }
 
             generatedCode = response.gameScript;
