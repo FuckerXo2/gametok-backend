@@ -4,8 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/usr/local/bin:$PATH"
 
-# Install required system packages for Node
+# Install required system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
     git \
     curl \
     ca-certificates \
