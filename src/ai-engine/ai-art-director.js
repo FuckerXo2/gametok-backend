@@ -229,28 +229,41 @@ TASK:
 
         await notifyProgress({ step: 2, phase: 'directions', message: 'AGY is brainstorming 4 unique visual art directions...' });
 
-        // 1. Try AGY Agent first
+        // Try AGY Agent with model fallbacks (3.8 → 3.7 → 3.6)
         let parsed = null;
-        try {
-            const agyOutput = await executeHermesAgent(hermesPrompt, {
-                sessionId: activeSessionId,
-            });
-            parsed = extractJsonFromHermes(agyOutput);
-        } catch (agyErr) {
-            console.warn(`⚠️ [AI Art Director] AGY Agent: ${agyErr.message}, conceptualizing with Gemini Flash...`);
-        }
+        const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'];
 
-        if (!parsed || !Array.isArray(parsed.directions) || parsed.directions.length < 4) {
-            console.log(`🧠 [AI Art Director] Prompting Gemini Flash for visual directions...`);
-            parsed = await callGeminiFlashJson({
-                systemPrompt: SYSTEM_PROMPT,
-                messages: [
-                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}${assetContext}\n\nRespond with valid JSON containing 4 distinct visual directions strictly matching the schema.` },
-                ],
-                temperature: 0.7,
-                maxTokens: 2048,
-                jobId: activeSessionId,
-            });
+        for (let i = 0; i < FALLBACK_MODELS.length; i++) {
+            const model = FALLBACK_MODELS[i];
+            const isLastModel = i === FALLBACK_MODELS.length - 1;
+            
+            try {
+                console.log(`🎨 [AI Art Director] Attempting AGY with ${model}...`);
+                const agyOutput = await executeHermesAgent(hermesPrompt, {
+                    sessionId: activeSessionId,
+                    model,
+                });
+                parsed = extractJsonFromHermes(agyOutput);
+                
+                if (parsed && Array.isArray(parsed.directions) && parsed.directions.length >= 4) {
+                    console.log(`✅ [AI Art Director] Successfully conceptualized 4 directions with ${model}`);
+                    break; // Success - exit retry loop
+                }
+                
+                console.warn(`⚠️ [AI Art Director] ${model} returned invalid/incomplete response, ${isLastModel ? 'no more fallbacks' : 'trying next model'}...`);
+                
+            } catch (agyErr) {
+                const status = agyErr?.status || (String(agyErr.message).match(/(\d{3})/)?.[1]);
+                const isRetryable = status === '503' || status === '429' || status === 503 || status === 429;
+                
+                if (isLastModel) {
+                    console.error(`❌ [AI Art Director] All AGY models exhausted. Last error: ${agyErr.message}`);
+                    throw new Error(`AI Art Director failed after trying all models (${FALLBACK_MODELS.join(', ')}): ${agyErr.message}`);
+                }
+                
+                console.warn(`⚠️ [AI Art Director] ${model} failed (${agyErr.message}), waiting 1s before trying ${FALLBACK_MODELS[i + 1]}...`);
+                await new Promise(r => setTimeout(r, 1000)); // 1s backoff between retries
+            }
         }
 
         if (!parsed || !Array.isArray(parsed.directions) || parsed.directions.length < 4) {
@@ -360,13 +373,25 @@ TASK:
             directions,
         };
     } catch (err) {
+        const isRetryable = err?.status === 503 || err?.status === 429 || 
+                           String(err.message).includes('503') || 
+                           String(err.message).includes('429') ||
+                           String(err.message).includes('UNAVAILABLE');
+        
+        const userMessage = isRetryable 
+            ? 'Our AI servers are experiencing high demand. Please wait a moment and try again.'
+            : (err.message || 'Visual direction generation failed');
+        
         console.error('❌ [Visual Directions] Generation error:', err.message);
         try {
-            broadcastHermesError(activeSessionId, err);
+            broadcastHermesError(activeSessionId, {
+                message: userMessage,
+                canRetry: isRetryable,
+            });
             await saveForgeSession(activeSessionId, {
                 sessionId: activeSessionId,
                 phase: 'failed',
-                statusMessage: err.message || 'Visual direction generation failed',
+                statusMessage: userMessage,
                 error: err.message || 'Visual direction generation failed',
                 updatedAt: Date.now(),
             });
