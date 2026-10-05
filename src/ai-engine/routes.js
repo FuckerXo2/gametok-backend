@@ -1248,12 +1248,23 @@ router.get('/forge-session/:sessionId', async (req, res) => {
 });
 
 router.post('/generate-visual-directions', async (req, res) => {
+    let heartbeatTimer = null;
     try {
         const { prompt, gameTitle = 'Game', sessionId, pushToken, attachments = [], orientation } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
         const userId = await getUserIdFromReq(req);
         const selectedAssets = sanitizeMediaAttachments(attachments);
+
+        // Keep connection actively transmitting bytes every 4s to prevent iOS/Cloud Run idle socket teardown
+        res.setHeader('Content-Type', 'application/json');
+        heartbeatTimer = setInterval(() => {
+            try {
+                if (!res.writableEnded) {
+                    res.write(' ');
+                }
+            } catch (_) {}
+        }, 4000);
 
         const result = await directVisualDirections({
             prompt,
@@ -1265,20 +1276,37 @@ router.post('/generate-visual-directions', async (req, res) => {
             orientation,
         });
 
-        res.json(result);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (!res.writableEnded) {
+            res.end(JSON.stringify(result));
+        }
     } catch (err) {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
         console.error('❌ [Visual Directions] Error:', err.message);
-        res.status(500).json({ error: err.message || 'Visual direction generation failed' });
+        if (!res.writableEnded) {
+            res.status(500).end(JSON.stringify({ error: err.message || 'Visual direction generation failed' }));
+        }
     }
 });
 
 router.post('/generate-perspectives', async (req, res) => {
+    let heartbeatTimer = null;
     try {
         const { prompt, gameTitle = 'Game', selectedDirection, attachments = [], sessionId, pushToken, requiresPerspectiveSelection, orientation } = req.body;
         if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
         const userId = await getUserIdFromReq(req);
         const selectedAssets = sanitizeMediaAttachments(attachments);
+
+        // Keep connection actively transmitting bytes every 4s to prevent iOS/Cloud Run idle socket teardown
+        res.setHeader('Content-Type', 'application/json');
+        heartbeatTimer = setInterval(() => {
+            try {
+                if (!res.writableEnded) {
+                    res.write(' ');
+                }
+            } catch (_) {}
+        }, 4000);
 
         const result = await directPerspectives({
             prompt,
@@ -1292,10 +1320,16 @@ router.post('/generate-perspectives', async (req, res) => {
             orientation,
         });
 
-        res.json(result);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (!res.writableEnded) {
+            res.end(JSON.stringify(result));
+        }
     } catch (err) {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
         console.error('❌ [Camera Perspectives] Error:', err.message);
-        res.status(500).json({ error: err.message || 'Camera perspective generation failed' });
+        if (!res.writableEnded) {
+            res.status(500).end(JSON.stringify({ error: err.message || 'Camera perspective generation failed' }));
+        }
     }
 });
 
