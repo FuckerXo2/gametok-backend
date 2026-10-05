@@ -2,7 +2,7 @@
  * AI Art Director
  * 
  * Dynamically conceptualizes 4 tailored visual art directions for ANY game prompt.
- * Uses Hermes Agent powered by Gemini 3.8 Flash to conceptualize directions and
+ * Uses AGY Agent powered by Gemini 3.8 Flash to conceptualize directions and
  * render high-fidelity concept art screenshot cards.
  */
 
@@ -227,18 +227,17 @@ TASK:
 3. Return a JSON object with a "directions" array containing the 4 directions matching the schema (including dimension, cameraInstruction, cameraModifier).
 `;
 
-        await notifyProgress({ step: 2, phase: 'directions', message: 'Hermes is brainstorming 4 unique visual art directions...' });
+        await notifyProgress({ step: 2, phase: 'directions', message: 'AGY is brainstorming 4 unique visual art directions...' });
 
-        // 1. Try official Nous Research Hermes Agent first
+        // 1. Try AGY Agent first
         let parsed = null;
         try {
-            const hermesOutput = await executeHermesAgent(hermesPrompt, {
-                toolsets: 'image_gen,file',
+            const agyOutput = await executeHermesAgent(hermesPrompt, {
                 sessionId: activeSessionId,
             });
-            parsed = extractJsonFromHermes(hermesOutput);
-        } catch (hermesErr) {
-            console.warn(`⚠️ [AI Art Director] Hermes Agent CLI: ${hermesErr.message}, conceptualizing with Gemini Flash...`);
+            parsed = extractJsonFromHermes(agyOutput);
+        } catch (agyErr) {
+            console.warn(`⚠️ [AI Art Director] AGY Agent: ${agyErr.message}, conceptualizing with Gemini Flash...`);
         }
 
         if (!parsed || !Array.isArray(parsed.directions) || parsed.directions.length < 4) {

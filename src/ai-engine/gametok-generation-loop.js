@@ -15,7 +15,6 @@ import { fileURLToPath } from 'url';
 import { SharedGameState } from './shared-game-state.js';
 import { determineInitialModel, evaluateMidLoopHandoff, MODEL_GEMINI_FLASH } from './model-router.js';
 import { executeHermesAgent, extractJsonFromHermes, extractScriptWithMetadata, clearSessionHistory } from './official-hermes-client.js';
-import { analyzeVisualReferenceWithGemini } from './gemini-client.js';
 import { normalizeOrientation, isLandscape, DEFAULT_ORIENTATION } from './orientation.js';
 import { getCatalogSummary } from './asset-catalog.js';
 import { calculateJobSpend, purgeJobSpend } from './token-tracker.js';
@@ -201,65 +200,17 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
         promptLower.includes('bubble')
     );
 
-    // Multimodal Gemini Vision: Extract concrete visual blueprint from chosen visual direction preview card
-    let visualStyleBlueprint = null;
+    // Visual direction context — agy already knows the directions from the art director session.
+    // We just tell it which one the user picked.
     if (jobParams.selectedDirection) {
         const dir = jobParams.selectedDirection;
-        const imgRef = typeof dir === 'object' && dir !== null 
-            ? (dir.imageUrl || dir.image_path || dir.image || '')
-            : (typeof dir === 'string' && (dir.startsWith('http') || dir.startsWith('data:')) ? dir : '');
-        if (imgRef) {
-            console.log(`👁️ [GameTok Loop] Activating Gemini Vision on selected visual direction preview card...`);
-            visualStyleBlueprint = await analyzeVisualReferenceWithGemini({
-                imageUrl: imgRef,
-                is2D: is2DGame,
-                jobId: gameState.jobId,
-            });
-        }
+        assetSpecPrompt += `\nVISUAL STYLE SELECTED BY USER: "${dir.name}". ${dir.instruction || dir.modifier || ''}`;
+        if (dir.dimension) assetSpecPrompt += `\nDIMENSION: ${dir.dimension}`;
+        if (dir.cameraInstruction) assetSpecPrompt += `\nCAMERA: ${dir.cameraInstruction}`;
+        if (dir.colors && dir.colors.length > 0) assetSpecPrompt += `\nCOLOR PALETTE: ${dir.colors.join(', ')}`;
     }
-
-    // Multimodal Gemini Vision: Extract concrete camera & perspective blueprint if camera perspective card exists
-    let perspectiveBlueprint = null;
-    if (perspectiveSpec) {
-        const pImg = perspectiveSpec.imageUrl || perspectiveSpec.image || '';
-        const dirImg = jobParams.selectedDirection?.imageUrl || jobParams.selectedDirection?.image || '';
-        if (pImg && pImg !== dirImg) {
-            console.log(`👁️ [GameTok Loop] Activating Gemini Vision on camera perspective preview card...`);
-            perspectiveBlueprint = await analyzeVisualReferenceWithGemini({
-                imageUrl: pImg,
-                prompt: `Analyze this camera perspective preview card for a 3D game developer using Three.js:
-1. Exact Camera Positioning: Determine camera.position.set(x, y, z) and camera.lookAt(targetX, targetY, targetZ).
-2. Field of View & Tilt: Estimate fieldOfView in degrees, elevation angle above the ground, and pitch/yaw angle.
-3. Arena Boundaries: How much of the arena floor and background are in frame.
-Provide exact, copy-paste ready Three.js code lines for configuring camera and lighting.`,
-                is2D: false,
-                jobId: gameState.jobId,
-            });
-        }
-    }
-
     if (perspectiveSpec) {
         assetSpecPrompt += `\nCAMERA PERSPECTIVE: ${perspectiveSpec.name} (${perspectiveSpec.dimension}). ${perspectiveSpec.cameraInstruction}`;
-        if (perspectiveBlueprint) {
-            assetSpecPrompt += `\n\n--- GEMINI VISION CAMERA PERSPECTIVE BLUEPRINT (EXTRACTED FROM PREVIEW IMAGE) ---\n${perspectiveBlueprint}\n\nHermes: You MUST match the camera position, lookAt target, and framing extracted by Gemini Vision above in your scene setup!`;
-        } else {
-            const pImg = perspectiveSpec.imageUrl || perspectiveSpec.image || '';
-            if (pImg) {
-                assetSpecPrompt += `\nCAMERA PERSPECTIVE REFERENCE: "${pImg}". Follow the perspective instruction above.`;
-            }
-        }
-    }
-    if (jobParams.selectedDirection) {
-        const dir = jobParams.selectedDirection;
-        assetSpecPrompt += `\nVISUAL STYLE: ${dir.name}. ${dir.instruction || dir.modifier || ''}`;
-        if (visualStyleBlueprint) {
-            assetSpecPrompt += `\n\n--- GEMINI VISION VISUAL BLUEPRINT (EXTRACTED FROM PREVIEW CARD) ---\n${visualStyleBlueprint}\n\nHermes: You MUST replicate the exact color palette, lighting atmosphere, arena materials, and VFX extracted by Gemini Vision above so this game visually matches the chosen card!`;
-        } else {
-            const imgRef = dir.imageUrl || dir.image_path || dir.image || '';
-            if (imgRef) {
-                assetSpecPrompt += `\nVISUAL STYLE REFERENCE: "${imgRef}". Replicate its visual aesthetic in code.`;
-            }
-        }
     }
     assetSpecPrompt += `\nPROCEDURAL RESILIENCE: If any external asset fails to load, catch the error and instantly fall back to procedural Three.js geometry. The game MUST NEVER crash or freeze!`;
 
@@ -400,33 +351,35 @@ CRITICAL ARCHITECTURE RULES:
 `;
             userPrompt = `Build a high-performance, hardware-accelerated 3D Three.js GameTOK game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
         }
-        // Generate code via Official Hermes Agent (powered by Gemini)
+        // Generate code via AGY Agent
         let generatedCode = '';
         const isRetry = gameState.attemptCount > 0;
-        // On first attempt: fresh isolated session. On retry: REUSE the session so Hermes can see
-        // its own previous output and patch the specific issue (like a real agent would).
-        const sessionId = `codegen_${jobParams.jobId || gameState.jobId}_attempt_1`;
-        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Official Hermes Agent${isRetry ? ' (patching previous attempt)' : ''}...`);
+        // Use the SAME forge session ID as the art director — agy already has full context
+        // of the visual directions, style descriptions, and everything from the earlier stage.
+        // One continuous conversation, just like ChatGPT.
+        const sessionId = jobParams.sessionId || `codegen_${jobParams.jobId || gameState.jobId}`;
+        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via AGY Agent${isRetry ? ' (patching previous attempt)' : ''}...`);
 
         try {
             let response = null;
 
             if (isRetry && gameState.errorHistory.length > 0) {
                 // SMART RETRY: Send a focused fix instruction to the SAME session
-                // Hermes still has its previous code in context and can patch it
+                // agy still has its previous code in context and can patch it
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
                 const fixPrompt = `Your previous output FAILED validation.\n\nErrors:\n${lastErr.errors.join('\n')}\n\nFix the exact issue above. Output the COMPLETE corrected single-file HTML (<!DOCTYPE html><html>...</html>) with all <script> tags properly closed. Do NOT wrap in markdown fences. Output raw HTML only.`;
                 const hermesOutput = await executeHermesAgent(fixPrompt, {
-                    toolsets: 'file,terminal',
                     sessionId,
                     reasoning: 'low',
                 });
                 response = extractScriptWithMetadata(hermesOutput, orientation);
             } else {
-                // FIRST ATTEMPT: Full prompt, fresh session
-                const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nCRITICAL REQUIREMENT: Output complete, unbroken single-file HTML (<!DOCTYPE html><html>...</html>) with closing </script> and </html> tags. Ensure the code is clean, concise, and complete without truncating mid-function. Do NOT wrap output in markdown code fences.`;
-                const hermesOutput = await executeHermesAgent(hermesPrompt, {
-                    toolsets: 'file,terminal',
+                // FIRST ATTEMPT: Continue from the art director session — agy already knows the visual directions
+                const dirContext = jobParams.selectedDirection
+                    ? `\nThe user has chosen visual direction "${jobParams.selectedDirection.name}" from the options you conceptualized earlier. Build the game matching that exact style.`
+                    : '';
+                const agyPrompt = `${systemPrompt}\n\nTask: ${userPrompt}${dirContext}\n\nCRITICAL REQUIREMENT: Output complete, unbroken single-file HTML (<!DOCTYPE html><html>...</html>) with closing </script> and </html> tags. Ensure the code is clean, concise, and complete without truncating mid-function. Do NOT wrap output in markdown code fences.`;
+                const hermesOutput = await executeHermesAgent(agyPrompt, {
                     sessionId,
                     reasoning: 'low',
                 });
@@ -434,7 +387,7 @@ CRITICAL ARCHITECTURE RULES:
             }
 
             if (!response || !response.gameScript) {
-                throw new Error('Hermes Agent completed execution but failed to produce a valid gameScript in its output');
+                throw new Error('AGY Agent completed execution but failed to produce a valid gameScript in its output');
             }
 
             generatedCode = response.gameScript;
