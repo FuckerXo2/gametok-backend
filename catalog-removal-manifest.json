@@ -1,0 +1,290 @@
+[
+  {
+    "id": "apex-formula",
+    "name": "APEX FORMULA — 3D F1 Racing",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/apex-formula/index.html",
+    "prefix": "games/apex-formula/"
+  },
+  {
+    "id": "bridge-horror-house",
+    "name": "Bridge Horror House 3D",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/bridge-horror-house/index.html",
+    "prefix": "games/bridge-horror-house/"
+  },
+  {
+    "id": "combat-blending",
+    "name": "Knight Combat Blending",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/combat-blending/index.html",
+    "prefix": "games/combat-blending/"
+  },
+  {
+    "id": "fable-mario",
+    "name": "Fable Mario 3D Platformer",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/fable-mario/index.html",
+    "prefix": "games/fable-mario/"
+  },
+  {
+    "id": "fable-rpg",
+    "name": "Fable 3D Action RPG",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/fable-rpg/index.html",
+    "prefix": "games/fable-rpg/"
+  },
+  {
+    "id": "fps-arena-shooter",
+    "name": "FPS Arena Shooter 3D",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/fps-arena-shooter/index.html",
+    "prefix": "games/fps-arena-shooter/"
+  },
+  {
+    "id": "hexgl-racer",
+    "name": "HexGL Sci-Fi Anti-Gravity Racer",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/hexgl-racer/index.html",
+    "prefix": "games/hexgl-racer/"
+  },
+  {
+    "id": "loops-206",
+    "name": "Tower Building",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/206/index.html",
+    "prefix": "loops-games/206/"
+  },
+  {
+    "id": "loops-319",
+    "name": "cohe shoo",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/319/index.html",
+    "prefix": "loops-games/319/"
+  },
+  {
+    "id": "loops-413",
+    "name": "ninja clan",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/413/index.html",
+    "prefix": "loops-games/413/"
+  },
+  {
+    "id": "loops-416",
+    "name": "Barrier",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/416/index.html",
+    "prefix": "loops-games/416/"
+  },
+  {
+    "id": "loops-417",
+    "name": "Ricocheting Orange",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/417/index.html",
+    "prefix": "loops-games/417/"
+  },
+  {
+    "id": "loops-423",
+    "name": "Little Strawberry",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/423/index.html",
+    "prefix": "loops-games/423/"
+  },
+  {
+    "id": "loops-425",
+    "name": "Broccoli",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/425/index.html",
+    "prefix": "loops-games/425/"
+  },
+  {
+    "id": "loops-432",
+    "name": "Gold Miner",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/432/index.html",
+    "prefix": "loops-games/432/"
+  },
+  {
+    "id": "loops-439",
+    "name": "Police and Thief",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/439/index.html",
+    "prefix": "loops-games/439/"
+  },
+  {
+    "id": "loops-441",
+    "name": "Nutmeg Football",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/441/index.html",
+    "prefix": "loops-games/441/"
+  },
+  {
+    "id": "loops-466",
+    "name": "TNT Tap",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/466/index.html",
+    "prefix": "loops-games/466/"
+  },
+  {
+    "id": "loops-467",
+    "name": "WindMill",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/467/index.html",
+    "prefix": "loops-games/467/"
+  },
+  {
+    "id": "loops-468",
+    "name": "Teddy Escape",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/468/index.html",
+    "prefix": "loops-games/468/"
+  },
+  {
+    "id": "loops-469",
+    "name": "Treasure ninja",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/469/index.html",
+    "prefix": "loops-games/469/"
+  },
+  {
+    "id": "loops-471",
+    "name": "The Last Battle",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/471/index.html",
+    "prefix": "loops-games/471/"
+  },
+  {
+    "id": "loops-578",
+    "name": "Super_Tetris",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/578/index.html",
+    "prefix": "loops-games/578/"
+  },
+  {
+    "id": "loops-633",
+    "name": "CutTheCandy",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/633/index.html",
+    "prefix": "loops-games/633/"
+  },
+  {
+    "id": "loops-690",
+    "name": "Emoji Pong",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/690/index.html",
+    "prefix": "loops-games/690/"
+  },
+  {
+    "id": "loops-691",
+    "name": "Fast Driver",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/691/index.html",
+    "prefix": "loops-games/691/"
+  },
+  {
+    "id": "loops-694",
+    "name": "Fishing",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/694/index.html",
+    "prefix": "loops-games/694/"
+  },
+  {
+    "id": "loops-720",
+    "name": "Koala",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/720/index.html",
+    "prefix": "loops-games/720/"
+  },
+  {
+    "id": "loops-729",
+    "name": "Karting",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/729/index.html",
+    "prefix": "loops-games/729/"
+  },
+  {
+    "id": "loops-755",
+    "name": "Pac Rush IG",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/755/index.html",
+    "prefix": "loops-games/755/"
+  },
+  {
+    "id": "loops-760",
+    "name": "Pipe Mania",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/760/index.html",
+    "prefix": "loops-games/760/"
+  },
+  {
+    "id": "loops-762",
+    "name": "Jewel Match",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/762/index.html",
+    "prefix": "loops-games/762/"
+  },
+  {
+    "id": "loops-778",
+    "name": "Animals Crush Match 3",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/778/index.html",
+    "prefix": "loops-games/778/"
+  },
+  {
+    "id": "loops-799",
+    "name": "Crazy Supermarket",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/799/index.html",
+    "prefix": "loops-games/799/"
+  },
+  {
+    "id": "loops-817",
+    "name": "GreedySnake",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/817/index.html",
+    "prefix": "loops-games/817/"
+  },
+  {
+    "id": "loops-822",
+    "name": "Car Racing",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/822/index.html",
+    "prefix": "loops-games/822/"
+  },
+  {
+    "id": "loops-836",
+    "name": "Real Moto Race",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/836/index.html",
+    "prefix": "loops-games/836/"
+  },
+  {
+    "id": "loops-840",
+    "name": "MineClearanc",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/840/index.html",
+    "prefix": "loops-games/840/"
+  },
+  {
+    "id": "loops-844",
+    "name": "dragonandprincess",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/844/index.html",
+    "prefix": "loops-games/844/"
+  },
+  {
+    "id": "loops-857",
+    "name": "msxxl",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/857/index.html",
+    "prefix": "loops-games/857/"
+  },
+  {
+    "id": "loops-862",
+    "name": "Cat Hero",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/862/index.html",
+    "prefix": "loops-games/862/"
+  },
+  {
+    "id": "loops-936",
+    "name": "AgentsVsZombies",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/936/index.html",
+    "prefix": "loops-games/936/"
+  },
+  {
+    "id": "loops-958",
+    "name": "IdleMiner",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/loops-games/958/index.html",
+    "prefix": "loops-games/958/"
+  },
+  {
+    "id": "neon-drift",
+    "name": "Neon Drift Synthwave",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/neon-drift/index.html",
+    "prefix": "games/neon-drift/"
+  },
+  {
+    "id": "portal-dimension",
+    "name": "Portal Dimension 3D",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/portal-dimension/index.html",
+    "prefix": "games/portal-dimension/"
+  },
+  {
+    "id": "the-long-silence",
+    "name": "The Long Silence (3D Horror)",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/the-long-silence/index.html",
+    "prefix": "games/the-long-silence/"
+  },
+  {
+    "id": "tokyo-keyframes",
+    "name": "Cyberpunk Littlest Tokyo",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/tokyo-keyframes/index.html",
+    "prefix": "games/tokyo-keyframes/"
+  },
+  {
+    "id": "turbo-kart-rush",
+    "name": "Turbo Kart Rush 3D",
+    "embed_url": "https://pub-b7694276c8f54290854b276638a93b62.r2.dev/games/turbo-kart-rush/index.html",
+    "prefix": "games/turbo-kart-rush/"
+  }
+]
