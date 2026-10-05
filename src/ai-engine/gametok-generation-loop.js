@@ -401,7 +401,7 @@ CRITICAL ARCHITECTURE RULES:
                 const hermesOutput = await executeHermesAgent(fixPrompt, {
                     sessionId,
                     reasoning: 'low',
-                    maxTokens: 16384, // Double the default to allow full game generation
+                    maxTokens: 65536, // Gemini 3.8 Flash max output limit
                 });
                 response = extractScriptWithMetadata(hermesOutput, orientation);
             } else {
@@ -413,7 +413,7 @@ CRITICAL ARCHITECTURE RULES:
                 const hermesOutput = await executeHermesAgent(agyPrompt, {
                     sessionId,
                     reasoning: 'low',
-                    maxTokens: 16384, // Double the default to allow full game generation
+                    maxTokens: 65536, // Gemini 3.8 Flash max output limit
                 });
                 response = extractScriptWithMetadata(hermesOutput, orientation);
             }
