@@ -401,6 +401,7 @@ CRITICAL ARCHITECTURE RULES:
                 const hermesOutput = await executeHermesAgent(fixPrompt, {
                     sessionId,
                     reasoning: 'low',
+                    maxTokens: 16384, // Double the default to allow full game generation
                 });
                 response = extractScriptWithMetadata(hermesOutput, orientation);
             } else {
@@ -412,6 +413,7 @@ CRITICAL ARCHITECTURE RULES:
                 const hermesOutput = await executeHermesAgent(agyPrompt, {
                     sessionId,
                     reasoning: 'low',
+                    maxTokens: 16384, // Double the default to allow full game generation
                 });
                 response = extractScriptWithMetadata(hermesOutput, orientation);
             }
