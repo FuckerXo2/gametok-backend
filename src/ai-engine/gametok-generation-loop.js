@@ -400,28 +400,38 @@ CRITICAL ARCHITECTURE RULES:
 `;
             userPrompt = `Build a high-performance, hardware-accelerated 3D Three.js GameTOK game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
         }
-            if (gameState.errorHistory.length > 0) {
-                const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
-                userPrompt += `\n\n⚠️ PREVIOUS ATTEMPT FAILED ATTEMPT #${lastErr.attempt}.\nErrors:\n${lastErr.errors.join('\n')}\nFix the exact issue above and return corrected JavaScript with headers.`;
-            }
-
         // Generate code via Official Hermes Agent (powered by Gemini)
         let generatedCode = '';
-        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Official Hermes Agent...`);
+        const isRetry = gameState.attemptCount > 0;
+        // On first attempt: fresh isolated session. On retry: REUSE the session so Hermes can see
+        // its own previous output and patch the specific issue (like a real agent would).
+        const sessionId = `codegen_${jobParams.jobId || gameState.jobId}_attempt_1`;
+        console.log(`🤖 [GameTok Loop] Attempt ${gameState.attemptCount + 1}/${gameState.maxAttempts} generating code via Official Hermes Agent${isRetry ? ' (patching previous attempt)' : ''}...`);
 
         try {
             let response = null;
-            const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nCRITICAL REQUIREMENT: Output complete, unbroken single-file HTML (<!DOCTYPE html><html>...</html>) with closing </script> and </html> tags. Ensure the code is clean, concise, and complete without truncating mid-function.`;
-            // Isolate code generation sessions per attempt so Hermes gets a pristine, focused context
-            // and is never burdened by forge chat history or past truncation errors
-            const sessionId = `codegen_${jobParams.jobId || gameState.jobId}_attempt_${gameState.attemptCount + 1}`;
-            const hermesOutput = await executeHermesAgent(hermesPrompt, {
-                toolsets: 'file,terminal',
-                sessionId,
-                reasoning: 'low',
-            });
 
-            response = extractScriptWithMetadata(hermesOutput, orientation);
+            if (isRetry && gameState.errorHistory.length > 0) {
+                // SMART RETRY: Send a focused fix instruction to the SAME session
+                // Hermes still has its previous code in context and can patch it
+                const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
+                const fixPrompt = `Your previous output FAILED validation.\n\nErrors:\n${lastErr.errors.join('\n')}\n\nFix the exact issue above. Output the COMPLETE corrected single-file HTML (<!DOCTYPE html><html>...</html>) with all <script> tags properly closed. Do NOT wrap in markdown fences. Output raw HTML only.`;
+                const hermesOutput = await executeHermesAgent(fixPrompt, {
+                    toolsets: 'file,terminal',
+                    sessionId,
+                    reasoning: 'low',
+                });
+                response = extractScriptWithMetadata(hermesOutput, orientation);
+            } else {
+                // FIRST ATTEMPT: Full prompt, fresh session
+                const hermesPrompt = `${systemPrompt}\n\nTask: ${userPrompt}\n\nCRITICAL REQUIREMENT: Output complete, unbroken single-file HTML (<!DOCTYPE html><html>...</html>) with closing </script> and </html> tags. Ensure the code is clean, concise, and complete without truncating mid-function. Do NOT wrap output in markdown code fences.`;
+                const hermesOutput = await executeHermesAgent(hermesPrompt, {
+                    toolsets: 'file,terminal',
+                    sessionId,
+                    reasoning: 'low',
+                });
+                response = extractScriptWithMetadata(hermesOutput, orientation);
+            }
 
             if (!response || !response.gameScript) {
                 throw new Error('Hermes Agent completed execution but failed to produce a valid gameScript in its output');
@@ -439,8 +449,9 @@ CRITICAL ARCHITECTURE RULES:
             }
         } catch (err) {
             console.error(`💥 [GameTok Loop] Generation error:`, err.message);
-            const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
-            clearSessionHistory(sessionId);
+            // Only clear session on complete generation failure (not validation failure)
+            const sid = jobParams.sessionId || jobParams.jobId || gameState.jobId;
+            clearSessionHistory(sid);
             gameState.recordAttempt({ passed: false, error: `Generation error: ${err.message}` });
             continue;
         }
@@ -461,9 +472,7 @@ CRITICAL ARCHITECTURE RULES:
             return gameState;
         } else {
             console.warn(`❌ [GameTok Loop] Attempt ${gameState.attemptCount} failed: ${sandboxResult.errors?.[0] || 'Unknown error'}`);
-            // Clear broken/truncated code from multi-turn history so next attempt starts clean
-            const sessionId = jobParams.sessionId || jobParams.jobId || gameState.jobId;
-            clearSessionHistory(sessionId);
+            // DON'T clear session history — Hermes needs to see its own output to fix it
         }
     }
 

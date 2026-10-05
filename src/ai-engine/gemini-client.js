@@ -251,18 +251,38 @@ Keep it concise, code-ready, and highly actionable.`;
         ];
 
         console.log(`👁️ [Gemini Vision] Inspecting visual style card with Gemini 3.8 Flash Vision...`);
-        const response = await client.chat.completions.create({
-            model: GEMINI_FLASH_MODEL,
-            messages,
-            temperature: 0.2,
-            max_tokens: 800,
-        });
 
-        if (response.usage && jobId) {
-            recordGeminiUsage(jobId, response.usage);
+        // Retry with backoff on transient 503/429 errors (same pattern as art director failover)
+        let blueprint = null;
+        const maxVisionRetries = 3;
+        for (let vAttempt = 0; vAttempt < maxVisionRetries; vAttempt++) {
+            try {
+                const response = await client.chat.completions.create({
+                    model: GEMINI_FLASH_MODEL,
+                    messages,
+                    temperature: 0.2,
+                    max_tokens: 800,
+                });
+
+                if (response.usage && jobId) {
+                    recordGeminiUsage(jobId, response.usage);
+                }
+
+                blueprint = response.choices?.[0]?.message?.content?.trim() || null;
+                break; // success — exit retry loop
+            } catch (apiErr) {
+                const status = apiErr?.status || apiErr?.response?.status || 0;
+                const isRetryable = status === 503 || status === 429 || status >= 500;
+                if (isRetryable && vAttempt < maxVisionRetries - 1) {
+                    const delay = 1500 * (vAttempt + 1);
+                    console.warn(`👁️ [Gemini Vision] Attempt ${vAttempt + 1} failed (${status}), retrying in ${delay}ms...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue;
+                }
+                throw apiErr; // non-retryable or exhausted retries
+            }
         }
 
-        const blueprint = response.choices?.[0]?.message?.content?.trim() || null;
         if (blueprint) {
             console.log(`✅ [Gemini Vision] Extracted rich visual blueprint (${blueprint.length} chars) from image.`);
             visualAnalysisCache.set(cacheKey, blueprint);
