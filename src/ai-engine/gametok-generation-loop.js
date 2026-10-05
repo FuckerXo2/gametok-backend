@@ -330,6 +330,7 @@ CRITICAL ARCHITECTURE RULES:
 
 2. LIBRARIES VIA RELIABLE CDN:
    - Three.js: <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+   - GLTFLoader: <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
 3. FULLSCREEN MOBILE RESPONSIVE STYLING:
    <style>
@@ -396,7 +397,7 @@ CRITICAL ARCHITECTURE RULES:
                 // SMART RETRY: Send a focused fix instruction to the SAME session
                 // agy still has its previous code in context and can patch it
                 const lastErr = gameState.errorHistory[gameState.errorHistory.length - 1];
-                const fixPrompt = `Your previous output FAILED validation.\n\nErrors:\n${lastErr.errors.join('\n')}\n\nFix the exact issue above. Output the COMPLETE corrected single-file HTML (<!DOCTYPE html><html>...</html>) with all <script> tags properly closed. Do NOT wrap in markdown fences. Output raw HTML only.`;
+                const fixPrompt = `Your previous game output had issues:\n${lastErr.errors.join('\n')}\n\nYour task: Output a COMPLETE, FULLY WORKING game from start to finish. Include:\n1. Complete <!DOCTYPE html><html><head>...</head>\n2. Full <body> with canvas/game container\n3. Complete JavaScript with all functions closed\n4. Proper </body></html> closing tags\n\nDo NOT output partial code. Do NOT stop mid-function. Output the ENTIRE working game in one response. No markdown fences.`;
                 const hermesOutput = await executeHermesAgent(fixPrompt, {
                     sessionId,
                     reasoning: 'low',
