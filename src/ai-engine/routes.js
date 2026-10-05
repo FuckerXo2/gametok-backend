@@ -8,12 +8,18 @@ import { inspect } from 'node:util';
 import pool from '../db.js';
 import { classifyGame, normalizeCategories, setGameCategories } from '../categories.js';
 import { HermesHeadlessOrchestrator } from './hermes-headless-orchestrator.js';
-import { runGameTokGenerationLoop } from './gametok-generation-loop.js';
 import { runDirectGenerationLoop } from './gametok-direct-loop.js';
 import { uploadGameFolderToR2 } from './r2-uploader.js';
 
 // Feature flag: Use direct Gemini client (no CLI) vs AGY
 const USE_DIRECT_GEMINI = process.env.USE_DIRECT_GEMINI !== 'false'; // Default: true
+
+// Only import AGY loop if explicitly disabled
+let runGameTokGenerationLoop = null;
+if (!USE_DIRECT_GEMINI) {
+    const agyModule = await import('./gametok-generation-loop.js');
+    runGameTokGenerationLoop = agyModule.runGameTokGenerationLoop;
+}
 import { normalizeOrientation, DEFAULT_ORIENTATION } from './orientation.js';
 import { notifyGameReady, notifyGameFailed, sendPushToTokenOrUser } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
