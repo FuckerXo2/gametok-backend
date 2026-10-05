@@ -2,28 +2,24 @@ FROM node:20-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
-ENV PATH="/usr/local/bin:/opt/hermes-venv/bin:$PATH"
+ENV PATH="/usr/local/bin:$PATH"
 
-# Install required system packages for Node and Python
+# Install required system packages for Node
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
     git \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (high-performance Python package installer)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install Antigravity CLI (agy) — successor to Gemini CLI
+RUN curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh \
+    && bash /tmp/agy-install.sh \
+    && rm /tmp/agy-install.sh \
+    && ln -sf "$(find /root/.local -name agy -type f 2>/dev/null | head -1)" /usr/local/bin/agy || true
 
-# Install Official Nous Research Hermes Agent CLI
-RUN git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /opt/hermes-agent \
-    && cd /opt/hermes-agent \
-    && uv venv /opt/hermes-venv --python 3.12 \
-    && . /opt/hermes-venv/bin/activate \
-    && uv pip install -e . \
-    && ln -s /opt/hermes-venv/bin/hermes /usr/local/bin/hermes
+# Configure agy for headless API key auth (no browser OAuth)
+RUN mkdir -p /root/.gemini/antigravity-cli \
+    && echo '{"modelProvider":"gemini"}' > /root/.gemini/antigravity-cli/settings.json
 
 WORKDIR /app
 

@@ -10,16 +10,10 @@ import { JwksClient } from 'jwks-rsa';
 import fs from 'fs';
 import path from 'path';
 
-// Augment PATH so official Hermes Agent CLI is visible to all child processes
-const projectHermesBin = path.join(process.cwd(), '.hermes', 'hermes-agent', '.hermes', 'bin');
-const projectHermesHomeBin = path.join(process.cwd(), '.hermes', 'bin');
+// Augment PATH so Antigravity CLI (agy) is visible to all child processes
 const projectNodeBin = path.join(process.cwd(), 'node_modules', '.bin');
 const localBin = path.join(os.homedir(), '.local', 'bin');
-const hermesAgentBin = path.join(os.homedir(), '.hermes', 'hermes-agent', '.hermes', 'bin');
-const hermesBin = path.join(os.homedir(), '.hermes', 'bin');
-process.env.PATH = `${projectHermesBin}:${projectHermesHomeBin}:${projectNodeBin}:${localBin}:${hermesAgentBin}:${hermesBin}:/opt/render/.local/bin:/opt/render/.hermes/hermes-agent/.hermes/bin:${process.env.PATH || ''}`;
-process.env.HERMES_HOME = process.env.HERMES_HOME || path.join(process.cwd(), '.hermes');
-process.env.UV_PYTHON_DOWNLOADS = 'manual';
+process.env.PATH = `/opt/homebrew/bin:${projectNodeBin}:${localBin}:${process.env.PATH || ''}`;
 
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -5433,11 +5427,11 @@ const start = async () => {
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
     try {
-      const hermesCheck = getHermesBinaryPath() || execSync('which hermes 2>/dev/null || true', { encoding: 'utf-8', env: process.env }).trim();
-      if (hermesCheck) {
-        console.log(`☤ [Hermes CLI] Active and ready at: ${hermesCheck}`);
+      const agyCheck = getHermesBinaryPath() || execSync('which agy 2>/dev/null || true', { encoding: 'utf-8', env: process.env }).trim();
+      if (agyCheck) {
+        console.log(`🚀 [AGY CLI] Active and ready at: ${agyCheck}`);
       } else {
-        console.log(`ℹ️ [Hermes CLI] Not yet in PATH at startup (will auto-install on demand if needed)`);
+        console.log(`ℹ️ [AGY CLI] Not yet in PATH at startup (will auto-install on demand if needed)`);
       }
     } catch (_) {}
   });
