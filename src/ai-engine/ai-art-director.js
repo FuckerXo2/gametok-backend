@@ -16,9 +16,40 @@ import { saveForgeSession } from './forge-session-store.js';
 import { sendPushToTokenOrUser } from '../notifications.js';
 import { isLandscape } from './orientation.js';
 
-const SYSTEM_PROMPT = `You are a world-class Video Game Art Director.
+/**
+ * Sanitize image prompts to avoid OpenAI safety filter rejections.
+ * Replaces common game/combat terms with softer visual alternatives.
+ */
+function sanitizeImagePrompt(prompt) {
+    if (!prompt || typeof prompt !== 'string') return prompt;
+    return prompt
+        .replace(/\bninja combat(\s+gear)?/gi, 'heroic martial arts outfit')
+        .replace(/\bcombat\b/gi, 'action')
+        .replace(/\bfight(ing|er|ers)?\b/gi, 'competitive action')
+        .replace(/\bweapon(s)?\b/gi, 'energy construct$1')
+        .replace(/\bkill(ing|ed|s)?\b/gi, 'defeat$1')
+        .replace(/\bblood(y)?\b/gi, 'energy')
+        .replace(/\bgore\b/gi, '')
+        .replace(/\bsword(s)?\b/gi, 'luminous blade$1')
+        .replace(/\bknife\b/gi, 'energy arc')
+        .replace(/\bknives\b/gi, 'energy arcs')
+        .replace(/\bgun(s)?\b/gi, 'energy blaster$1')
+        .replace(/\bpistol(s)?\b/gi, 'energy blaster$1')
+        .replace(/\brifl(e|es)\b/gi, 'ranged blaster$1')
+        .replace(/\bshotgun(s)?\b/gi, 'heavy blaster$1')
+        .replace(/\bbullet(s)?\b/gi, 'energy bolt$1')
+        .replace(/\bexplosion(s)?\b/gi, 'energy burst$1')
+        .replace(/\bstab(bing|bed)?\b/gi, 'strik$1')
+        .replace(/\bimpale(d|ment)?\b/gi, 'clash$1')
+        .replace(/\bdecapitat(e|ion|ed)\b/gi, 'defeat')
+        .replace(/\b(murder|assassin)(s|ation|ate|ed)?\b/gi, 'rival$2')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+const SYSTEM_PROMPT = `You are a world-class Video Game Art Director and Camera Designer.
 The user will provide a game title, concept prompt, and any attached or selected assets.
-Your task is to invent exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to that game concept and its assets.
+Your task is to invent exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to that game concept. Each direction MUST include BOTH a visual art style AND a camera perspective/angle baked together.
 
 Rules:
 - NEVER output generic out-of-context styles or default to clay/cute styles unless the game explicitly asks for it.
@@ -28,21 +59,12 @@ Rules:
   2. If NO assets are provided: Establish a strong, unified creative vision first. The game code will either query matching catalog assets or generate everything procedurally so the aesthetic is never compromised.
 - Ensure diversity in mediums (e.g. 16-Bit Masterpiece Pixel Art, High-Octane Cel-Shaded Anime, Stylized Low-Poly 3D, Vibrant Neo-Arcade, Hand-Inked Graphic Novel, Moody Dark Fantasy, Retro Synthwave, Clean Vector 2D, etc.) appropriate to the game genre.
 - CONTENT SAFETY FOR VISUAL PROMPTS: Keep all visual style descriptions and modifiers strictly PG-13 / game-safe. NEVER use explicit violence, stabbing, spear impalement, blood, decapitation, or graphic gore. Describe heroic character standoffs, energy construct clashes, martial arts poses, and stylized particle effects so image generators process them without safety filter rejections.
-- PERSPECTIVE AUTONOMY (HERMES SKILL):
-  You must autonomously evaluate whether this game concept needs user camera perspective selection (requiresPerspectiveSelection: true) or has an inherent fixed view (requiresPerspectiveSelection: false):
-  - Set requiresPerspectiveSelection to FALSE if the game mechanics operate on a fixed flat 2D plane or fixed vantage point (e.g. Match-3 / Candy Crush, tile puzzles, card/deck games, tabletop board games, trivia, word games, or explicit 2D platformers). In this case, provide the optimal defaultPerspective.
-  - Set requiresPerspectiveSelection to TRUE if the game features 3D navigation, spatial depth, racing, action, or where camera perspective fundamentally changes the gameplay experience.
+- CAMERA PERSPECTIVE per direction: Each direction MUST include a camera angle/perspective that best showcases that visual style for this game concept. Choose from: Side-Scrolling 2.5D, Top-Down, Isometric, Third-Person Over-Shoulder, First-Person, Bird's-Eye Aerial, Low-Angle Dutch Tilt, Cinematic Fixed, Dynamic Tracking, etc.
+  - For 2D games (Match-3, puzzle, card, platformer): use appropriate fixed 2D perspectives.
+  - For 3D games (racing, action, fighting, adventure): use cinematic 3D perspectives.
 
 You MUST respond with valid JSON strictly matching this schema:
 {
-  "requiresPerspectiveSelection": true,
-  "perspectiveRationale": "Clear explanation of whether camera selection is needed or if the game has an inherent fixed view",
-  "defaultPerspective": {
-    "name": "Top-Down 2D Grid",
-    "dimension": "2D",
-    "cameraInstruction": "Fixed top-down orthographic camera focused directly on the 2D playfield",
-    "modifier": "top-down 2D view"
-  },
   "directions": [
     {
       "name": "Creative Style Title (e.g. 16-Bit Neo Pixel)",
@@ -50,10 +72,14 @@ You MUST respond with valid JSON strictly matching this schema:
       "icon": "Ionicons icon name: sparkles | color-palette | flame | water | paw | leaf | flash | shapes-outline | rocket | game-controller | heart | skull | car | planet | bulb",
       "colors": ["#hex1", "#hex2", "#hex3", "#hex4"],
       "modifier": "visual concept preview of playable video game, authentic HUD, crisp rendering, high visual fidelity",
-      "instruction": "Clear instructions for the game code builder describing colors, UI styling, and aesthetic atmosphere"
+      "instruction": "Clear instructions for the game code builder describing colors, UI styling, and aesthetic atmosphere",
+      "dimension": "2D | 2.5D | 3D",
+      "cameraInstruction": "Technical camera setup details for game runtime (e.g. Set camera to horizontal tracking rail at Y:1.4m, FOV 50deg)",
+      "cameraModifier": "camera angle description for the in-game screenshot render (e.g. side-profile 2.5D tracking camera)"
     }
   ]
 }`;
+
 
 /**
  * Call LLM to invent 4 custom directions tailored specifically to the game and its assets
@@ -118,7 +144,7 @@ async function generateConceptCard({ prompt, styleName, prefix = 'visual-directi
     const isLand = isLandscape(orientation) || (typeof prompt === 'string' && /orientation:\s*landscape/i.test(prompt));
     const size = isLand ? '1792x1024' : '1024x1024';
     const aspectDesc = isLand ? '16:9 widescreen landscape aspect ratio' : '1:1 aspect ratio';
-    const imagePrompt = `Video game visual concept preview, ${prompt}, art style: ${styleName}, clean UI HUD mockup, ${aspectDesc}, high visual fidelity`;
+    const imagePrompt = sanitizeImagePrompt(`Video game visual concept preview, ${prompt}, art style: ${styleName}, clean UI HUD mockup, ${aspectDesc}, high visual fidelity`);
     try {
         const imgRes = await generateConceptCardImage({
             prompt: imagePrompt,
@@ -195,17 +221,10 @@ Game Title: ${gameTitle || 'Untitled Game'}
 Game Concept: ${prompt}${assetContext}
 
 TASK:
-1. Conceptualize exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions tailored SPECIFICALLY to this game concept and its assets.
+1. Conceptualize exactly 4 DISTINCT, CREATIVE, and VISUALLY COMPELLING art directions with baked-in camera perspectives tailored SPECIFICALLY to this game concept and its assets.
 2. For EACH of the 4 directions, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "${targetAspectRatio}") to generate an authentic in-game screenshot preview card. You MUST issue all 4 \`image_generate\` tool calls concurrently in parallel in a single turn so they generate simultaneously.
-   - Craft a detailed visual prompt for each card: e.g. "In-game screenshot, ${aspectPromptNote} playable video game viewport, authentic game HUD, game engine render of ${prompt}, <style details>, crisp game UI, clean graphics".
-3. Return a JSON object with a "directions" array containing the 4 directions:
-   - "name": Style title (e.g. "Hyper-Stylized Comic Noir")
-   - "tagline": Short punchy hook
-   - "description": 1-2 sentence aesthetic summary
-   - "modifier": Visual prompt modifier
-   - "colors": Array of 3-4 hex color codes
-   - "themeType": One of "cyberpunk", "fantasy", "retro", "noir", "neon", "celestial", "arcade"
-   - "image_path": The exact file path of the image generated by your image_generate tool
+   - Craft a detailed visual prompt for each card: e.g. "In-game screenshot, ${aspectPromptNote} playable video game viewport, authentic game HUD, game engine render of ${prompt}, <style details>, <camera angle>, crisp game UI, clean graphics".
+3. Return a JSON object with a "directions" array containing the 4 directions matching the schema (including dimension, cameraInstruction, cameraModifier).
 `;
 
         await notifyProgress({ step: 2, phase: 'directions', message: 'Hermes is brainstorming 4 unique visual art directions...' });
@@ -285,39 +304,14 @@ TASK:
                 instruction: dir.instruction || `Use a ${dir.name} visual aesthetic with cohesive colors and clean UI.`,
                 modifier: dir.modifier,
                 themeType,
+                dimension: dir.dimension || '3D',
+                cameraInstruction: dir.cameraInstruction || 'Default camera setup',
+                cameraModifier: dir.cameraModifier || '',
                 imageUrl,
             };
         }));
 
         await notifyProgress({ step: 4, phase: 'ready', message: 'All set! Choose your visual direction to begin building.' });
-
-        // Hermes Agent's autonomous determination
-        let requiresPerspectiveSelection = true;
-        let perspectiveRationale = '';
-        let defaultPerspective = null;
-
-        if (parsed && typeof parsed.requiresPerspectiveSelection === 'boolean') {
-            requiresPerspectiveSelection = parsed.requiresPerspectiveSelection;
-            perspectiveRationale = parsed.perspectiveRationale || '';
-            defaultPerspective = parsed.defaultPerspective || null;
-        } else {
-            const isFixed = isFixedPerspectiveGame(prompt, gameTitle, selectedAssets);
-            requiresPerspectiveSelection = !isFixed;
-            perspectiveRationale = isFixed ? 'Game mechanics operate on a fixed 2D viewport.' : 'Game benefits from user camera angle selection.';
-        }
-
-        if (!requiresPerspectiveSelection && !defaultPerspective) {
-            defaultPerspective = {
-                id: 'perspective-fixed-2d-1',
-                name: 'Top-Down 2D Grid',
-                tagline: 'Direct Overhead',
-                dimension: '2D',
-                icon: 'grid',
-                cameraInstruction: 'Fixed 2D top-down camera with centered viewport',
-                modifier: 'top-down 2D view',
-                imageUrl: directions[0]?.imageUrl || null,
-            };
-        }
 
         const hasAllVisualImages = Array.isArray(directions) && directions.length === 4 && directions.every(d => Boolean(d.imageUrl));
         await saveForgeSession(activeSessionId, {
@@ -327,8 +321,6 @@ TASK:
             gameTitle,
             journeyView: 'directions',
             visualDirections: directions,
-            requiresPerspectiveSelection,
-            defaultPerspective,
             isDirectionsReady: hasAllVisualImages,
             step: 4,
             phase: 'ready',
@@ -340,8 +332,6 @@ TASK:
         broadcastHermesCommand(activeSessionId, 'NAVIGATE_TO', {
             view: 'directions',
             visualDirections: directions,
-            requiresPerspectiveSelection,
-            defaultPerspective,
             gameTitle,
             prompt,
         });
@@ -359,7 +349,6 @@ TASK:
                     sessionId: activeSessionId,
                     prompt,
                     gameTitle,
-                    requiresPerspectiveSelection,
                 }
             }).catch(err => console.warn('[Visual Directions] Push notification error:', err.message));
         }
@@ -369,9 +358,6 @@ TASK:
             sessionId: activeSessionId,
             prompt,
             gameTitle,
-            requiresPerspectiveSelection,
-            perspectiveRationale,
-            defaultPerspective,
             directions,
         };
     } catch (err) {
@@ -391,405 +377,3 @@ TASK:
         throw err;
     }
 }
-
-/**
- * Determine if a game concept is inherently 2D or has a fixed camera perspective
- * (e.g. Candy Crush, Match-3, 2D platformer, card games, puzzles).
- * These games DO NOT need a separate 3D camera perspective picker or extra image generation!
- */
-export function isFixedPerspectiveGame(prompt = '', gameTitle = '', selectedAssets = []) {
-    const text = `${prompt} ${gameTitle}`.toLowerCase();
-    const fixedPatterns = [
-        /match[-\s]?3/i,
-        /candy[-\s]?crush/i,
-        /grid[-\s]?puzzle/i,
-        /tile[-\s]?(match|puzzle|connect)/i,
-        /tetris/i,
-        /2048/i,
-        /flappy/i,
-        /side[-\s]?scroll/i,
-        /2d\s+(platform|runner|shooter|fighter|arcade|game)/i,
-        /platformer/i,
-        /doodle[-\s]?jump/i,
-        /card[-\s]?(game|deck|battle)/i,
-        /solitaire|poker|blackjack/i,
-        /board[-\s]?game/i,
-        /chess|checkers/i,
-        /trivia|wordle|word[-\s]?game|crossword/i,
-        /top[-\s]?down\s+2d/i,
-        /tower[-\s]?defense/i,
-        /clicker|idle[-\s]?game|tap[-\s]?game/i,
-        /visual[-\s]?novel/i,
-        /bubble[-\s]?shooter/i,
-        /brick[-\s]?breaker|breakout|pong/i,
-    ];
-    return fixedPatterns.some(pattern => pattern.test(text));
-}
-
-const PERSPECTIVE_SYSTEM_PROMPT = `You are a world-class Game Designer and Technical Camera Director.
-The user has chosen a game concept, visual art direction, and optional assets.
-Your task is to invent exactly 4 DISTINCT, CREATIVE, and LOGICAL camera perspectives tailored specifically to this game concept and rendered in the chosen visual art style.
-
-RULES:
-1. Conceptualize exactly 4 distinct camera angles appropriate to the game (e.g. Dynamic Third-Person, Top-Down Aerial, Immersive First-Person, Isometric 3/4 Angle, Side-Scrolling 2.5D, Cinematic Fixed Angle, Orbit Cam).
-2. For EACH perspective, craft a visual modifier describing the camera placement, lens angle, and composition constraints. The camera angle description MUST lead with explicit camera placement (e.g. 'tight over-the-shoulder third-person camera positioned directly behind the hero's back and shoulder looking forward toward the opponent', 'aerial top-down bird's-eye camera looking straight down at the ground arena floor', 'dramatic low-angle Dutch-tilt 3D action camera looking up from floor level', 'side-profile horizontal 2.5D tracking camera'). DO NOT use generic side-view standoff compositions for all angles. Each perspective MUST have a completely distinct camera coordinate and viewpoint!
-3. Specify the dimension ("2D", "2.5D", or "3D") and exact technical cameraInstruction for setting up the camera in the game engine.
-
-You MUST respond with valid JSON strictly matching this schema:
-{
-  "perspectives": [
-    {
-      "name": "Perspective Name (e.g. Dynamic Third-Person)",
-      "tagline": "2-3 word punchy tagline (e.g. Behind Hero)",
-      "dimension": "2D" | "2.5D" | "3D",
-      "icon": "Ionicons icon name: eye | airplane | walk | cube | videocam | grid | navigate | telescope",
-      "cameraInstruction": "Technical camera setup details for game runtime",
-      "modifier": "camera angle description for in-game screenshot render"
-    }
-  ]
-}`;
-
-/**
- * Step 2: Direct camera perspectives tailored to the game, chosen style, and assets
- * Fully unified pipeline: Hermes conceptualizes 4 camera perspective angles in the chosen visual style
- * and generates authentic in-game screenshot previews from each camera perspective.
- * 
- * SMART BYPASS: For 2D/grid/puzzle games, instantly returns fixed 2D perspectives anchored
- * to the selected visual style image without firing a second round of image generation!
- */
-export async function directPerspectives({ prompt, gameTitle = 'Game', selectedDirection, selectedAssets = [], onProgress, sessionId, userId = null, pushToken = null, requiresPerspectiveSelection, orientation = 'portrait' }) {
-    if (!prompt) throw new Error('Prompt is required');
-
-    const activeSessionId = sessionId || `forge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const isLand = isLandscape(orientation) || (typeof prompt === 'string' && /orientation:\s*landscape/i.test(prompt));
-    const targetAspectRatio = isLand ? 'landscape' : 'square';
-    const aspectPromptNote = isLand ? '16:9 widescreen landscape' : 'portrait';
-
-    const notifyProgress = async ({ step, phase, message }) => {
-        try {
-            broadcastHermesThought(activeSessionId, { step, phase, message });
-            await saveForgeSession(activeSessionId, {
-                sessionId: activeSessionId,
-                step,
-                phase,
-                statusMessage: message,
-                updatedAt: Date.now(),
-            });
-        } catch (e) {
-            console.warn('[Forge Session] Progress update error:', e.message);
-        }
-        if (typeof onProgress === 'function') {
-            try { onProgress({ step, phase, message }); } catch (_) {}
-        }
-    };
-
-    try {
-        await saveForgeSession(activeSessionId, {
-            sessionId: activeSessionId,
-            userId,
-            prompt,
-            gameTitle,
-            selectedDirection,
-            journeyView: 'perspective-understanding',
-            step: 0,
-            phase: 'analyzing',
-            statusMessage: 'Analyzing gameplay space & movement...',
-            updatedAt: Date.now(),
-        }).catch(e => console.warn('[Forge Session] Initial save error:', e.message));
-
-        const anchorImage = selectedDirection?.imageUrl || null;
-        const isFixed = requiresPerspectiveSelection === false || isFixedPerspectiveGame(prompt, gameTitle, selectedAssets);
-
-        if (isFixed) {
-            console.log(`⏩ [Camera Perspective] Fixed 2D perspective confirmed for "${prompt}". Bypassing second generation cycle!`);
-            await notifyProgress({ step: 1, phase: 'camera_rigs', message: 'Configuring fixed 2D viewport...' });
-            await notifyProgress({ step: 3, phase: 'ready', message: 'Camera perspective locked for 2D gameplay!' });
-
-            const fixedPerspectives = [
-                {
-                    id: `perspective-fixed-2d-1`,
-                    name: 'Top-Down 2D View',
-                    tagline: 'Direct Overhead',
-                    dimension: '2D',
-                    icon: 'grid',
-                    cameraInstruction: 'Fixed 2D top-down camera with centered viewport',
-                    modifier: 'top-down 2D view',
-                    imageUrl: anchorImage,
-                },
-                {
-                    id: `perspective-fixed-2d-2`,
-                    name: 'Classic Arcade 2D',
-                    tagline: 'Clean Viewport',
-                    dimension: '2D',
-                    icon: 'tablet-landscape',
-                    cameraInstruction: 'Full-screen 2D orthogonal playfield',
-                    modifier: 'classic arcade 2D view',
-                    imageUrl: anchorImage,
-                },
-                {
-                    id: `perspective-fixed-2d-3`,
-                    name: 'Isometric 2.5D Angle',
-                    tagline: 'Subtle Depth',
-                    dimension: '2.5D',
-                    icon: 'cube',
-                    cameraInstruction: 'Tilted 30-degree isometric view with depth parallax',
-                    modifier: 'isometric 2.5D view',
-                    imageUrl: anchorImage,
-                },
-                {
-                    id: `perspective-fixed-2d-4`,
-                    name: 'Dynamic Zoom 2D',
-                    tagline: 'Action Focused',
-                    dimension: '2D',
-                    icon: 'scan',
-                    cameraInstruction: 'Reactive 2D camera with subtle screen zoom on matches and combos',
-                    modifier: 'dynamic zoom 2D view',
-                    imageUrl: anchorImage,
-                },
-            ];
-
-            const hasAllPerspectiveImages = fixedPerspectives.every(p => Boolean(p.imageUrl));
-            await saveForgeSession(activeSessionId, {
-                sessionId: activeSessionId,
-                userId,
-                prompt,
-                gameTitle,
-                selectedDirection,
-                journeyView: 'building',
-                perspectives: fixedPerspectives,
-                selectedPerspective: fixedPerspectives[0],
-                requiresPerspectiveSelection: false,
-                isPerspectivesReady: hasAllPerspectiveImages,
-                step: 3,
-                phase: 'ready',
-                statusMessage: '2D Viewport locked! Ready to build.',
-                updatedAt: Date.now(),
-            }).catch(e => console.warn('[Forge Session] save error:', e.message));
-
-            broadcastHermesCommand(activeSessionId, 'NAVIGATE_TO', {
-                view: 'building',
-                perspectives: fixedPerspectives,
-                requiresPerspectiveSelection: false,
-                defaultPerspective: fixedPerspectives[0],
-                selectedDirection,
-                gameTitle,
-                prompt,
-            });
-
-            if (pushToken || userId) {
-                sendPushToTokenOrUser({
-                    userId,
-                    pushToken,
-                    title: 'Ready to build! 🚀',
-                    body: `2D Viewport locked for "${gameTitle || prompt}". Tap to build!`,
-                    data: {
-                        type: 'creation',
-                        action: 'perspectives_ready',
-                        journeyView: 'perspective',
-                        sessionId: activeSessionId,
-                        prompt,
-                        gameTitle,
-                        requiresPerspectiveSelection: false,
-                    }
-                }).catch(err => console.warn('[Camera Perspectives] Push notification error:', err.message));
-            }
-
-            return {
-                success: true,
-                sessionId: activeSessionId,
-                prompt,
-                gameTitle,
-                selectedDirection,
-                requiresPerspectiveSelection: false,
-                perspectives: fixedPerspectives,
-                selectedPerspective: fixedPerspectives[0],
-            };
-        }
-
-        await notifyProgress({ step: 0, phase: 'analyzing', message: 'Analyzing gameplay space & movement...' });
-
-        const styleName = selectedDirection?.name || 'Selected Visual Style';
-        const styleModifier = selectedDirection?.modifier || '';
-
-        console.log(`🎥 [Camera Perspective] Hermes directing 4 perspectives for: "${prompt}" (Style: ${styleName}, Session: ${activeSessionId})`);
-
-        let assetContext = '';
-        if (Array.isArray(selectedAssets) && selectedAssets.length > 0) {
-            assetContext = '\nActive Game Assets:\n' + selectedAssets.map(a => `- ${a.role || a.type}: ${a.label || a.title || a.url}`).join('\n') + '\nFrame camera perspectives around these active assets.';
-        }
-
-        const runStartTime = Date.now();
-
-        await notifyProgress({ step: 1, phase: 'camera_rigs', message: `Styling camera rigs for ${styleName}...` });
-
-        const hermesPrompt = `${PERSPECTIVE_SYSTEM_PROMPT}
-
-Game Title: ${gameTitle || 'Untitled Game'}
-Game Concept: ${prompt}
-Chosen Art Direction: ${styleName}
-Style Details: ${styleModifier}${assetContext}
-
-TASK:
-1. Conceptualize exactly 4 DISTINCT, EXCITING camera perspectives tailored specifically to this game concept and its chosen visual art style.
-2. For EACH of the 4 perspectives, IMMEDIATELY call your \`image_generate\` tool with arguments (prompt: "...", aspect_ratio: "${targetAspectRatio}") 4 times concurrently in parallel to generate an in-game screenshot preview representing each of the 4 camera viewports showing the game rendered from that specific camera angle in ${styleName} (${aspectPromptNote} viewport).
-3. Return the JSON matching the schema with 4 perspectives.
-`;
-
-        // 1. Try official Nous Research Hermes Agent first
-        let parsed = null;
-        try {
-            const hermesOutput = await executeHermesAgent(hermesPrompt, {
-                toolsets: 'image_gen,file',
-                sessionId: activeSessionId,
-            });
-            parsed = extractJsonFromHermes(hermesOutput);
-        } catch (hermesErr) {
-            console.warn(`⚠️ [Camera Perspective] Hermes Agent CLI: ${hermesErr.message}, conceptualizing with Gemini Flash...`);
-        }
-
-        if (!parsed || !Array.isArray(parsed.perspectives) || parsed.perspectives.length < 4) {
-            console.log(`🧠 [Camera Perspective] Directing camera perspectives via Gemini Flash...`);
-            parsed = await callGeminiFlashJson({
-                systemPrompt: PERSPECTIVE_SYSTEM_PROMPT,
-                messages: [
-                    { role: 'user', content: `Game Title: ${gameTitle || 'Untitled Game'}\nGame Concept: ${prompt}\nChosen Art Direction: ${styleName}\nStyle Details: ${styleModifier}${assetContext}\n\nRespond with valid JSON containing 4 distinct camera perspectives.` },
-                ],
-                temperature: 0.7,
-                maxTokens: 1500,
-                jobId: activeSessionId,
-            });
-        }
-
-        if (!parsed || !Array.isArray(parsed.perspectives) || parsed.perspectives.length < 4) {
-            throw new Error(`AI Camera Director failed to evaluate 4 camera perspectives for "${prompt}"`);
-        }
-
-        await notifyProgress({ step: 2, phase: 'rendering', message: 'Rendering in-game screenshot angles with GPT Image...' });
-
-        // Locate generated images in Hermes cache
-        const generatedImages = getHermesGeneratedImagesSince(runStartTime);
-        console.log(`🖼️ [Camera Perspective] Found ${generatedImages.length} perspective images in Hermes cache`);
-
-        const perspectives = await Promise.all(parsed.perspectives.slice(0, 4).map(async (p, index) => {
-            let localPath = p.image_path || generatedImages[index] || null;
-            let imageUrl = null;
-            if (localPath && fs.existsSync(localPath)) {
-                imageUrl = await uploadLocalImageFileToR2(localPath, 'camera-perspectives');
-                console.log(`☁️ [Camera Perspective] Uploaded Hermes perspective image to R2 (${p.name}): ${imageUrl}`);
-                if (activeSessionId) recordImageGeneration(activeSessionId, 1);
-            }
-
-            // If Hermes didn't generate image or localPath is missing, generate perspective preview card via OpenAI
-            if (!imageUrl) {
-                console.log(`🎨 [Camera Perspective] Generating perspective preview card for "${p.name}"...`);
-                const colorHint = selectedDirection?.colors?.length ? ` Palette: ${selectedDirection.colors.join(', ')}.` : '';
-                const styleDetails = selectedDirection?.instruction || selectedDirection?.modifier || '';
-                const cameraLead = p.modifier || p.cameraInstruction || p.name;
-                const perspectivePrompt = `Authentic in-game screenshot viewed from ${cameraLead}, ${p.name} camera perspective showing ${prompt}, rendered in ${styleName} visual style (${styleDetails}), matching camera viewport with authentic HUD elements, ${isLand ? '16:9 widescreen landscape aspect ratio' : '1:1 aspect ratio'}, crisp 3D fidelity${colorHint}`;
-                imageUrl = await generateConceptCardImage({
-                    prompt: perspectivePrompt,
-                    size: isLand ? '1792x1024' : '1024x1024',
-                    prefix: 'camera-perspectives',
-                }).then(r => r?.imageUrl).catch(err => {
-                    console.error(`❌ [Camera Perspective] Error generating card for "${p.name}":`, err?.message);
-                    return null;
-                });
-                if (!imageUrl && anchorImage) {
-                    console.log(`🖼️ [Camera Perspective] Anchoring to chosen visual style image for "${p.name}"`);
-                    imageUrl = anchorImage;
-                }
-                if (imageUrl) {
-                    console.log(`✅ [Camera Perspective] Successfully acquired preview card for "${p.name}": ${imageUrl}`);
-                    if (activeSessionId) recordImageGeneration(activeSessionId, 1);
-                } else {
-                    console.error(`❌ [Camera Perspective] Failed to acquire preview card for "${p.name}"`);
-                }
-            }
-
-            return {
-                id: `perspective-${Date.now()}-${index + 1}`,
-                name: p.name,
-                tagline: p.tagline || 'Camera Perspective',
-                dimension: p.dimension || '3D',
-                icon: p.icon || 'videocam',
-                cameraInstruction: p.cameraInstruction || `Set camera rig to ${p.name}`,
-                modifier: p.modifier,
-                imageUrl,
-            };
-        }));
-
-        await notifyProgress({ step: 3, phase: 'ready', message: 'Camera perspectives ready!' });
-
-        const hasAllPerspectiveImages = Array.isArray(perspectives) && perspectives.length === 4 && perspectives.every(p => Boolean(p.imageUrl));
-        await saveForgeSession(activeSessionId, {
-            sessionId: activeSessionId,
-            userId,
-            prompt,
-            gameTitle,
-            selectedDirection,
-            journeyView: 'perspective',
-            perspectives,
-            selectedPerspective: perspectives?.[0] || null,
-            requiresPerspectiveSelection: true,
-            isPerspectivesReady: hasAllPerspectiveImages,
-            step: 3,
-            phase: 'ready',
-            statusMessage: 'Camera perspectives ready!',
-            updatedAt: Date.now(),
-        }).catch(e => console.warn('[Forge Session] save error:', e.message));
-
-        broadcastHermesCommand(activeSessionId, 'NAVIGATE_TO', {
-            view: 'perspective',
-            perspectives,
-            requiresPerspectiveSelection: true,
-            defaultPerspective: perspectives?.[0] || null,
-            selectedDirection,
-            gameTitle,
-            prompt,
-        });
-
-        if (pushToken || userId) {
-            sendPushToTokenOrUser({
-                userId,
-                pushToken,
-                title: 'Camera angles ready! 🎥',
-                body: `Choose your camera perspective for "${gameTitle || prompt}"`,
-                data: {
-                    type: 'creation',
-                    action: 'perspectives_ready',
-                    journeyView: 'perspective',
-                    sessionId: activeSessionId,
-                    prompt,
-                    gameTitle,
-                    requiresPerspectiveSelection: true,
-                }
-            }).catch(err => console.warn('[Camera Perspectives] Push notification error:', err.message));
-        }
-
-        return {
-            success: true,
-            sessionId: activeSessionId,
-            prompt,
-            gameTitle,
-            selectedDirection,
-            requiresPerspectiveSelection: true,
-            perspectives,
-        };
-    } catch (err) {
-        console.error('❌ [Camera Perspectives] Generation error:', err.message);
-        try {
-            broadcastHermesError(activeSessionId, err);
-            await saveForgeSession(activeSessionId, {
-                sessionId: activeSessionId,
-                phase: 'failed',
-                statusMessage: err.message || 'Camera perspective generation failed',
-                error: err.message || 'Camera perspective generation failed',
-                updatedAt: Date.now(),
-            });
-        } catch (e) {
-            console.warn('[Forge Session] Error handling failure:', e.message);
-        }
-        throw err;
-    }
-}
-
