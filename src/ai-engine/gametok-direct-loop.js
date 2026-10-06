@@ -150,7 +150,9 @@ export async function runDirectGenerationLoop({
                 imageUrl: imageResult.url,
               };
             } catch (imgError) {
-              console.warn(`⚠️ Image generation failed for "${dir.name}":`, imgError.message);
+              console.error(`❌ [Direct Loop] Image generation FAILED for "${dir.name}":`, imgError);
+              console.error(`   Error details:`, imgError.message);
+              console.error(`   Stack:`, imgError.stack);
               // Return direction without image
               return {
                 ...dir,
