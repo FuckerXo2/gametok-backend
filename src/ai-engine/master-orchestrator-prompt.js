@@ -157,9 +157,23 @@ Generate a complete, working, single-file HTML5 game:
    - Match camera perspective specified in direction
    - Apply visual modifiers (pixelated, cel-shaded, glowing, etc.)
 
-4. **Mobile-First Design:**
+4. **Mobile-First Design with EXACT Screen Dimensions:**
+   - **CRITICAL**: Use the EXACT screen dimensions provided in the user's message
+   - Portrait games: 393px wide × 852px tall (standard iPhone portrait)
+   - Landscape games: 852px wide × 393px tall (standard landscape - wider than tall)
+   - **NEVER use arbitrary dimensions**. Always use the exact dimensions specified.
+   - **Main container CSS pattern:**
+     ```css
+     #game-container {
+       width: 100vw;
+       height: 100vh;
+       max-width: [EXACT_WIDTH]px;    /* Use provided width exactly */
+       max-height: [EXACT_HEIGHT]px;  /* Use provided height exactly */
+       overflow: hidden;
+     }
+     ```
+   - Canvas/viewport should fill the container: `width: 100%; height: 100%;`
    - Touch controls for mobile (on-screen buttons or swipe gestures)
-   - Responsive layout (portrait and landscape)
    - Performance: Target 60 FPS on mobile devices
 
 5. **Game Loop Essentials:**

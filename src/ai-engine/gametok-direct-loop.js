@@ -86,8 +86,17 @@ export async function runDirectGenerationLoop({
       initialMessage += `\nSelected 3D Model: ${selected3DModel.label || selected3DModel.url}\n`;
     }
     
-    // Add orientation requirement
-    initialMessage += `\nOrientation: ${orientation}`;
+    // Add orientation requirement with EXACT dimensions
+    const dimensions = orientation === 'landscape' 
+      ? { width: 852, height: 393 }  // Landscape: wider than tall
+      : { width: 393, height: 852 }; // Portrait: taller than wide
+    
+    initialMessage += `\n\nOrientation: ${orientation}`;
+    initialMessage += `\nScreen Dimensions: ${dimensions.width}px × ${dimensions.height}px`;
+    initialMessage += `\n\nIMPORTANT: The game container MUST use these EXACT dimensions:`;
+    initialMessage += `\n- max-width: ${dimensions.width}px`;
+    initialMessage += `\n- max-height: ${dimensions.height}px`;
+    initialMessage += `\nDo NOT use different dimensions. The game must fit perfectly within ${dimensions.width}×${dimensions.height}px.`;
     
     // Modify prompt based on whether we want directions or instant game
     if (skipDirections || selectedDirection) {
