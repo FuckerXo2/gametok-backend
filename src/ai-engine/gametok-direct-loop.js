@@ -146,6 +146,7 @@ export async function runDirectGenerationLoop({
               
               return {
                 ...dir,
+                id: `dir-${jobId}-${index}`, // Add ID for frontend compatibility
                 imageUrl: imageResult.url,
               };
             } catch (imgError) {
@@ -153,6 +154,7 @@ export async function runDirectGenerationLoop({
               // Return direction without image
               return {
                 ...dir,
+                id: `dir-${jobId}-${index}`, // Add ID even on error
                 imageUrl: null,
               };
             }
