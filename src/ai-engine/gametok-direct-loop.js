@@ -98,6 +98,14 @@ export async function runDirectGenerationLoop({
     initialMessage += `\n- max-height: ${dimensions.height}px`;
     initialMessage += `\nDo NOT use different dimensions. The game must fit perfectly within ${dimensions.width}×${dimensions.height}px.`;
     
+    // Add graphics capability hint
+    initialMessage += `\n\n🎮 GRAPHICS API: Generate with WebGPU + WebGL fallback pattern.`;
+    initialMessage += `\n- Modern devices (iOS 26+, Android 12+, Chrome 113+) will use WebGPU for AAA performance`;
+    initialMessage += `\n- Older devices will automatically fall back to WebGL`;
+    initialMessage += `\n- ALWAYS implement both renderers with automatic detection`;
+    initialMessage += `\n- For Three.js: Use WebGPURenderer with WebGLRenderer fallback`;
+    initialMessage += `\n- For custom renderers: Check navigator.gpu availability first`;
+    
     // Modify prompt based on whether we want directions or instant game
     if (skipDirections || selectedDirection) {
       // User wants instant game or already selected direction

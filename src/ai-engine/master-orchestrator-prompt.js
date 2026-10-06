@@ -144,13 +144,32 @@ Generate a complete, working, single-file HTML5 game:
    </html>
    \`\`\`
 
-2. **GameTok Native Engine Usage:**
-   - For 3D games: Use Three.js or GameTok Native C++ QuickJS/Metal/Filament engine APIs
-   - For 2D games: HTML5 Canvas or Phaser 3
-   - Camera setup: \`engine.setCamera(x, y, z, lookX, lookY, lookZ)\`
-   - Entity spawning: \`engine.spawnEntity(type, x, y, z, r, g, b, a)\`
-   - Model loading: \`engine.spawnModel(url, x, y, z)\`
-   - Animation: \`engine.playAnimation(entityId, animUrl, options)\`
+2. **Graphics API with Progressive Enhancement:**
+   - **ALWAYS implement WebGPU + WebGL fallback** for maximum compatibility
+   - For 3D games: Use Three.js with WebGPU renderer (falls back to WebGL)
+   - For 2D games: HTML5 Canvas 2D or lightweight libraries
+   - **Renderer initialization pattern:**
+     \`\`\`javascript
+     async function initRenderer() {
+       // Try WebGPU first (iOS 26+, Android 12+, modern browsers)
+       if (navigator.gpu) {
+         try {
+           const adapter = await navigator.gpu.requestAdapter();
+           if (adapter) {
+             const device = await adapter.requestDevice();
+             console.log('🚀 Using WebGPU for maximum performance');
+             return createWebGPURenderer(device);
+           }
+         } catch (e) {
+           console.warn('WebGPU unavailable, falling back to WebGL');
+         }
+       }
+       // Fallback to WebGL (universal compatibility)
+       console.log('⚡ Using WebGL for compatibility');
+       return createWebGLRenderer();
+     }
+     \`\`\`
+   - Three.js example: \`new THREE.WebGPURenderer()\` with fallback to \`new THREE.WebGLRenderer()\`
 
 3. **Visual Style Adherence:**
    - Use exact color palette from selected direction
@@ -177,13 +196,20 @@ Generate a complete, working, single-file HTML5 game:
    - Performance: Target 60 FPS on mobile devices
 
 5. **Game Loop Essentials:**
-   - Proper initialization
+   - Proper initialization with async renderer setup
    - Update loop with deltaTime
-   - Render loop
+   - Render loop (handles both WebGPU and WebGL)
    - Input handling (touch + keyboard)
    - Win/lose conditions
    - Score tracking
    - Restart functionality
+
+6. **WebGPU Performance Guidelines (when available):**
+   - Utilize compute shaders for physics, particles, AI
+   - Use GPU-accelerated post-processing effects
+   - Leverage bindless textures for large asset libraries
+   - Optimize with GPU occlusion culling
+   - **Remember**: All WebGPU features must have WebGL fallback equivalents
 
 **Output Format:**
 \`\`\`json
@@ -195,7 +221,30 @@ Generate a complete, working, single-file HTML5 game:
     "touch": "Tap to jump, Swipe to move",
     "keyboard": "WASD to move, Space to jump"
   },
-  "thumbnailPrompt": "Screenshot-worthy description for game thumbnail"
+  "thumbnailPrompt": "Screenshot-worthy description for game thumbnail",
+  "usesWebGPU": true
+}
+\`\`\`
+
+**Three.js WebGPU + WebGL Example Pattern:**
+\`\`\`javascript
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+import WebGPU from 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/capabilities/WebGPU.js';
+import WebGPURenderer from 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/renderers/webgpu/WebGPURenderer.js';
+
+async function initRenderer(canvas) {
+  let renderer;
+  
+  if (await WebGPU.isAvailable()) {
+    console.log('🚀 Initializing WebGPU renderer');
+    renderer = new WebGPURenderer({ canvas, antialias: true });
+    await renderer.init();
+  } else {
+    console.log('⚡ Initializing WebGL renderer');
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  }
+  
+  return renderer;
 }
 \`\`\`
 
