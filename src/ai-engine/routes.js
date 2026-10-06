@@ -13,13 +13,6 @@ import { uploadGameFolderToR2 } from './r2-uploader.js';
 
 // Feature flag: Use direct Gemini client (no CLI) vs AGY
 const USE_DIRECT_GEMINI = process.env.USE_DIRECT_GEMINI !== 'false'; // Default: true
-
-// Only import AGY loop if explicitly disabled
-let runGameTokGenerationLoop = null;
-if (!USE_DIRECT_GEMINI) {
-    const agyModule = await import('./gametok-generation-loop.js');
-    runGameTokGenerationLoop = agyModule.runGameTokGenerationLoop;
-}
 import { normalizeOrientation, DEFAULT_ORIENTATION } from './orientation.js';
 import { notifyGameReady, notifyGameFailed, sendPushToTokenOrUser } from '../notifications.js';
 import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
@@ -1098,6 +1091,8 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
             });
         } else {
             console.log('🔧 [GENERATION] Using AGY CLI (legacy)');
+            // Lazy load AGY module only when needed
+            const { runGameTokGenerationLoop } = await import('./gametok-generation-loop.js');
             finalGameState = await runGameTokGenerationLoop({
                 jobId,
                 sessionId: jobPayload?.sessionId || null,
