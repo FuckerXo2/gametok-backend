@@ -147,7 +147,7 @@ export async function runDirectGenerationLoop({
               return {
                 ...dir,
                 id: `dir-${jobId}-${index}`, // Add ID for frontend compatibility
-                imageUrl: imageResult.url,
+                imageUrl: imageResult.imageUrl, // Fixed: was .url, should be .imageUrl
               };
             } catch (imgError) {
               console.error(`❌ [Direct Loop] Image generation FAILED for "${dir.name}":`, imgError);
