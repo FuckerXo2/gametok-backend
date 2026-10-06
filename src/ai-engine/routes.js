@@ -1362,22 +1362,6 @@ router.post('/generate-visual-directions', async (req, res) => {
         res.status(500).json({ error: err.message || 'Visual direction generation failed' });
     }
 });
-            pushToken,
-            orientation,
-        });
-
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
-        if (!res.writableEnded) {
-            res.end(JSON.stringify(result));
-        }
-    } catch (err) {
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
-        console.error('❌ [Visual Directions] Error:', err.message);
-        if (!res.writableEnded) {
-            res.status(500).end(JSON.stringify({ error: err.message || 'Visual direction generation failed' }));
-        }
-    }
-});
 
 router.post('/generate-spec', async (req, res) => {
     try {
