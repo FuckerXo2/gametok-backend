@@ -182,7 +182,7 @@ Generate a complete, working, single-file HTML5 game:
    - Landscape games: 852px wide × 393px tall (standard landscape - wider than tall)
    - **NEVER use arbitrary dimensions**. Always use the exact dimensions specified.
    - **Main container CSS pattern:**
-     ```css
+     \`\`\`
      #game-container {
        width: 100vw;
        height: 100vh;
@@ -190,8 +190,8 @@ Generate a complete, working, single-file HTML5 game:
        max-height: [EXACT_HEIGHT]px;  /* Use provided height exactly */
        overflow: hidden;
      }
-     ```
-   - Canvas/viewport should fill the container: `width: 100%; height: 100%;`
+     \`\`\`
+   - Canvas/viewport should fill the container: width: 100%; height: 100%;
    - Touch controls for mobile (on-screen buttons or swipe gestures)
    - Performance: Target 60 FPS on mobile devices
 
