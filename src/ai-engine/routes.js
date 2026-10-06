@@ -1293,16 +1293,6 @@ router.post('/generate-visual-directions', async (req, res) => {
         const userId = await getUserIdFromReq(req);
         const selectedAssets = sanitizeMediaAttachments(attachments);
 
-        // Keep connection actively transmitting bytes every 4s to prevent iOS/Cloud Run idle socket teardown
-        res.setHeader('Content-Type', 'application/json');
-        heartbeatTimer = setInterval(() => {
-            try {
-                if (!res.writableEnded) {
-                    res.write(' ');
-                }
-            } catch (_) {}
-        }, 4000);
-
         // Use new direct Gemini client for direction generation
         console.log(`🎨 [Visual Directions] Using Direct Gemini client for: "${prompt}"`);
         
@@ -1339,7 +1329,6 @@ router.post('/generate-visual-directions', async (req, res) => {
 
         // If we got directions (not a full game), return them
         if (result.waitingForSelection && result.directions) {
-            clearInterval(heartbeatTimer);
             return res.json({
                 success: true,
                 sessionId: result.sessionId,
@@ -1350,16 +1339,16 @@ router.post('/generate-visual-directions', async (req, res) => {
         }
 
         // Shouldn't reach here in normal flow
-        clearInterval(heartbeatTimer);
         res.json({
             success: false,
             error: 'Unexpected response from direction generation',
         });
 
     } catch (err) {
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
         console.error('[Visual Directions] Error:', err.message);
-        res.status(500).json({ error: err.message || 'Visual direction generation failed' });
+        if (!res.headersSent) {
+            res.status(500).json({ error: err.message || 'Visual direction generation failed' });
+        }
     }
 });
 
