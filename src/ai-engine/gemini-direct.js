@@ -10,8 +10,6 @@
 
 import OpenAI from 'openai';
 
-const DEFAULT_KEY_B64 = 'QVEuQWI4Uk42S0FmSHUxUERNMjN5ZlRvMjFHZXRKY1B3NTE5MW9ZZWt5dVZjMDZZQXo2OWc=';
-
 // Model fallback chain (3.8 → 3.7 → 3.6 when 503/429 errors occur)
 const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'];
 
@@ -33,7 +31,11 @@ const conversationMemory = new Map();
  * @param {number} [options.temperature] - Creativity level (default: 0.7)
  */
 export async function generateText(prompt, options = {}) {
-    const apiKey = process.env.GEMINI_API_KEY || Buffer.from(DEFAULT_KEY_B64, 'base64').toString('utf8');
+    const apiKey = process.env.GEMINI_API_KEY;
+    
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY environment variable is required');
+    }
     
     const client = new OpenAI({
         apiKey,

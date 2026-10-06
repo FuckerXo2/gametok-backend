@@ -5,12 +5,11 @@ import { recordGeminiUsage } from './token-tracker.js';
 export const GEMINI_FLASH_MODEL = 'gemini-3.8-flash';
 export const GEMINI_FALLBACK_MODELS = ['gemini-3.7-flash', 'gemini-3.6-flash'];
 
-const DEFAULT_KEY_B64 = 'QVEuQWI4Uk42S0FmSHUxUERNMjN5ZlRvMjFHZXRKY1B3NTE5MW9ZZWt5dVZjMDZZQXo2OWc=';
-
 export function getGeminiConfig(env = process.env) {
-    const fallbackKey = Buffer.from(DEFAULT_KEY_B64, 'base64').toString('utf8');
-    const apiKey = String(env.GEMINI_API_KEY || fallbackKey).trim();
-    if (!apiKey) return null;
+    const apiKey = String(env.GEMINI_API_KEY || '').trim();
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY environment variable is required');
+    }
 
     return {
         apiKey,
