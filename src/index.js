@@ -10,7 +10,7 @@ import { JwksClient } from 'jwks-rsa';
 import fs from 'fs';
 import path from 'path';
 
-// Augment PATH so Antigravity CLI (agy) is visible to all child processes
+// Augment PATH for local binaries
 const projectNodeBin = path.join(process.cwd(), 'node_modules', '.bin');
 const localBin = path.join(os.homedir(), '.local', 'bin');
 process.env.PATH = `/opt/homebrew/bin:${projectNodeBin}:${localBin}:${process.env.PATH || ''}`;
@@ -37,7 +37,6 @@ import { backfillGameCategories } from './scripts/backfill-game-categories.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
-import { getHermesBinaryPath } from './ai-engine/official-hermes-client.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -5426,14 +5425,7 @@ const start = async () => {
 
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
-    try {
-      const agyCheck = getHermesBinaryPath() || execSync('which agy 2>/dev/null || true', { encoding: 'utf-8', env: process.env }).trim();
-      if (agyCheck) {
-        console.log(`🚀 [AGY CLI] Active and ready at: ${agyCheck}`);
-      } else {
-        console.log(`ℹ️ [AGY CLI] Not yet in PATH at startup (will auto-install on demand if needed)`);
-      }
-    } catch (_) {}
+    console.log(`🚀 Direct Gemini API integration active (no CLI required)`);
   });
 
   let shuttingDown = false;
