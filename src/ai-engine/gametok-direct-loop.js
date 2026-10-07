@@ -16,6 +16,7 @@ import { MASTER_ORCHESTRATOR_PROMPT } from './master-orchestrator-prompt.js';
 import { generateConceptCardImage } from './openai-image-client.js';
 import { sendPushToTokenOrUser } from '../notifications.js';
 import { CURATED_3D_MODELS } from './asset-catalog.js';
+import { validateAndFixOrientation } from './model-orientation-validator.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -93,6 +94,7 @@ function getRelevantModels(prompt) {
  * @param {object} [params.selected3DModel] - Pre-selected 3D model asset
  * @param {Array} [params.selectedAssets] - Pre-selected assets
  * @param {boolean} [params.skipDirections] - Skip visual direction generation, auto-select immediately
+ * @param {boolean} [params.validateOrientation] - Run screenshot validation for 3D model orientation (default: false)
  * @param {function} [params.onProgress] - Progress callback
  * @param {function} [params.onDirectionsReady] - Callback when directions are ready for user selection
  * @returns {Promise<object>} Final game state or directions for selection
@@ -106,6 +108,7 @@ export async function runDirectGenerationLoop({
   selected3DModel = null,
   selectedAssets = [],
   skipDirections = false,
+  validateOrientation = false,
   onProgress = null,
   onDirectionsReady = null,
 }) {
@@ -306,10 +309,10 @@ export async function runDirectGenerationLoop({
         throw new Error('AI did not generate game code after continuation prompt');
       }
       
-      return finalizeGameState(gameState, continueParsed, onProgress);
+      return finalizeGameState(gameState, continueParsed, onProgress, validateOrientation);
     }
     
-    return finalizeGameState(gameState, parsed, onProgress);
+    return finalizeGameState(gameState, parsed, onProgress, validateOrientation);
     
   } catch (error) {
     console.error(`❌ [Direct Loop] Generation failed:`, error.message);
@@ -342,7 +345,7 @@ export async function runDirectGenerationLoop({
       const retryParsed = parseOrchestratorResponse(retryResponse.text);
       
       if (retryParsed.gameScript) {
-        return finalizeGameState(gameState, retryParsed, onProgress);
+        return finalizeGameState(gameState, retryParsed, onProgress, validateOrientation);
       }
     }
     
@@ -409,20 +412,52 @@ export async function continueWithSelectedDirection({
 /**
  * Finalize game state with parsed response
  */
-function finalizeGameState(gameState, parsed, onProgress) {
+async function finalizeGameState(gameState, parsed, onProgress, validateOrientationFlag = false) {
   gameState.metadata.title = parsed.title || 'Untitled Game';
   gameState.metadata.thumbnailPrompt = parsed.thumbnailPrompt || gameState.prompt;
   gameState.metadata.controls = parsed.controls || {};
   
-  if (onProgress) onProgress(80, 'finalizing', 'Finalizing game...');
+  let finalScript = parsed.gameScript;
+  let validationResult = null;
+  
+  // Optional: Validate 3D model orientation with screenshot feedback
+  if (validateOrientationFlag) {
+    if (onProgress) onProgress(80, 'validating', 'Validating 3D model orientation...');
+    
+    console.log(`🔍 [Direct Loop] Running orientation validation...`);
+    
+    try {
+      validationResult = await validateAndFixOrientation({
+        gameScript: finalScript,
+        prompt: gameState.prompt,
+        sessionId: gameState.sessionId,
+        orientation: gameState.orientation,
+        maxIterations: 2,
+      });
+      
+      finalScript = validationResult.finalScript;
+      
+      if (validationResult.allFixed) {
+        console.log(`✅ [Direct Loop] Orientation validation passed`);
+      } else {
+        console.log(`⚠️ [Direct Loop] Orientation validation completed with potential issues`);
+      }
+    } catch (validationError) {
+      console.error(`❌ [Direct Loop] Orientation validation failed:`, validationError.message);
+      // Continue with unvalidated script
+    }
+  }
+  
+  if (onProgress) onProgress(95, 'finalizing', 'Finalizing game...');
   
   console.log(`✅ [Direct Loop] Game generated successfully`);
   console.log(`   Title: ${gameState.metadata.title}`);
-  console.log(`   Code length: ${parsed.gameScript.length} characters`);
+  console.log(`   Code length: ${finalScript.length} characters`);
   
   return {
     ...gameState,
-    gameScript: parsed.gameScript,
+    gameScript: finalScript,
+    validationResult,
     success: true,
   };
 }

@@ -1084,6 +1084,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     jobPayload?.selectedVideo,
                     jobPayload?.selectedMeme,
                 ].filter(Boolean),
+                validateOrientation: jobPayload?.validateOrientation || false, // Optional screenshot validation
                 // No skipDirections flag - always follow the full flow
                 onProgress: async (percent, status, message) => {
                     await reportProgress(25 + Math.floor(percent * 0.5), status, message);
