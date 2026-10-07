@@ -6,6 +6,7 @@ ENV PATH="/usr/local/bin:$PATH"
 
 # Install required system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    blender \
     python3 \
     git \
     curl \
