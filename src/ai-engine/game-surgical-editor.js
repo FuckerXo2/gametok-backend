@@ -177,16 +177,27 @@ export async function editGameSurgically({
   currentCode,
   instructions,
   draftId,
+  attachments = [],
   model = 'gemini-3.8-flash',
 }) {
   const sessionId = `edit-surgical-${draftId}`;
+
+  let assetContext = '';
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    assetContext = '\n\nAttached Assets / Characters:\n' + attachments.map((att, i) => {
+      const rig = att.is_rigged ? ` [RIGGED 3D CHARACTER: ${att.skeleton || 'UE5 Master Skeleton'}, ${att.bone_count || 100} bones]` : '';
+      const role = att.role ? ` (Role: ${att.role})` : '';
+      const note = att.instruction ? ` - Note: "${att.instruction}"` : '';
+      return `  [${i + 1}] "${att.title || att.name || 'Asset'}" (${(att.type || '3D').toUpperCase()}${role}): ${att.url}${rig}${note}`;
+    }).join('\n');
+  }
 
   const prompt = `Current Game Code:
 \`\`\`html
 ${currentCode}
 \`\`\`
 
-User Edit Request: "${instructions}"
+User Edit Request: "${instructions}"${assetContext}
 
 Output the minimal SEARCH/REPLACE blocks needed to implement this edit accurately.`;
 
