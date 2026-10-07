@@ -15,6 +15,71 @@ import { generateText, clearConversation } from './gemini-direct.js';
 import { MASTER_ORCHESTRATOR_PROMPT } from './master-orchestrator-prompt.js';
 import { generateConceptCardImage } from './openai-image-client.js';
 import { sendPushToTokenOrUser } from '../notifications.js';
+import { CURATED_3D_MODELS } from './asset-catalog.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load animations catalog
+const ANIMATIONS_CATALOG = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'animations-catalog.json'), 'utf-8')
+);
+
+/**
+ * Filter relevant animations based on game prompt
+ */
+function getRelevantAnimations(prompt, maxCount = 40) {
+  const keywords = prompt.toLowerCase();
+  const relevantBuckets = [];
+  
+  // Detect game type from keywords
+  if (/fight|combat|battle|punch|kick|attack|brawl|warrior|martial/.test(keywords)) {
+    relevantBuckets.push('combat', 'reactions');
+  }
+  if (/walk|run|move|explore|adventure|travel|journey/.test(keywords)) {
+    relevantBuckets.push('locomotion');
+  }
+  if (/idle|stand|wait|pose/.test(keywords)) {
+    relevantBuckets.push('idles_stances');
+  }
+  if (/dance|celebrate|emote|gesture|cheer|taunt/.test(keywords)) {
+    relevantBuckets.push('emotes_social');
+  }
+  if (/sport|soccer|golf|baseball|fitness|gym/.test(keywords)) {
+    relevantBuckets.push('sports_activities');
+  }
+  
+  // Default to basic locomotion + idles if no specific match
+  if (relevantBuckets.length === 0) {
+    relevantBuckets.push('locomotion', 'idles_stances');
+  }
+  
+  // Filter animations
+  const filtered = ANIMATIONS_CATALOG.animations
+    .filter(anim => relevantBuckets.includes(anim.bucket))
+    .slice(0, maxCount);
+  
+  return filtered;
+}
+
+/**
+ * Filter relevant 3D character models based on prompt
+ */
+function getRelevantModels(prompt) {
+  const keywords = prompt.toLowerCase();
+  const allCharacters = CURATED_3D_MODELS.filter(m => m.category === 'character');
+  
+  // Try to match specific character names
+  const matched = allCharacters.filter(char => 
+    char.tags.some(tag => keywords.includes(tag.toLowerCase()))
+  );
+  
+  // If specific characters found, return them. Otherwise return all.
+  return matched.length > 0 ? matched : allCharacters;
+}
 
 /**
  * Run direct Gemini generation with master orchestrator
@@ -105,6 +170,28 @@ export async function runDirectGenerationLoop({
     initialMessage += `\n- ALWAYS implement both renderers with automatic detection`;
     initialMessage += `\n- For Three.js: Use WebGPURenderer with WebGLRenderer fallback`;
     initialMessage += `\n- For custom renderers: Check navigator.gpu availability first`;
+    
+    // Add available assets catalogs
+    const relevantAnimations = getRelevantAnimations(prompt);
+    const relevantModels = getRelevantModels(prompt);
+    
+    if (relevantModels.length > 0) {
+      initialMessage += `\n\n📦 AVAILABLE 3D CHARACTER MODELS (${relevantModels.length}):\n`;
+      relevantModels.forEach(model => {
+        initialMessage += `- ${model.name} (${model.archetype})\n`;
+        initialMessage += `  URL: ${model.url}\n`;
+        initialMessage += `  Tags: ${model.tags.slice(0, 5).join(', ')}\n`;
+      });
+    }
+    
+    if (relevantAnimations.length > 0) {
+      initialMessage += `\n\n🎬 AVAILABLE ANIMATIONS (${relevantAnimations.length}):\n`;
+      relevantAnimations.forEach(anim => {
+        initialMessage += `- ${anim.cleanName} (${anim.duration.toFixed(1)}s, ${anim.subBucket})\n`;
+        initialMessage += `  URL: https://pub-b7694276c8f54290854b276638a93b62.r2.dev/${anim.relativePath}\n`;
+      });
+      initialMessage += `\nNOTE: Load these animations and apply them to character models using Three.js AnimationMixer.\n`;
+    }
     
     // Modify prompt based on whether we want directions or instant game
     if (skipDirections || selectedDirection) {
