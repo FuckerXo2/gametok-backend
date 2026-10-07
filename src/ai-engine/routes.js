@@ -1520,19 +1520,74 @@ router.post('/edit', async (req, res) => {
         const { draftId, instructions } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
-        await getUserIdFromToken(token, 'Expired session');
+        const userId = await getUserIdFromToken(token, 'Expired session');
 
         if (!draftId || !instructions) return res.status(400).json({ error: "draftId and instructions are required" });
 
-        // Hermes interactive editing is currently scheduled for next iteration
-        res.json({
-            success: false,
-            message: "Interactive game editing is being upgraded to Hermes multi-model architecture.",
-            draftId
+        console.log(`🎨 [EDIT] User ${userId} editing draft ${draftId}: "${instructions.substring(0, 60)}..."`);
+
+        // Fetch the existing game
+        const gameResult = await pool.query(
+            'SELECT script_payload, orientation FROM ai_games WHERE id = $1 AND user_id = $2',
+            [draftId, userId]
+        );
+
+        if (gameResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Game not found or not owned by user' });
+        }
+
+        const existingGame = gameResult.rows[0];
+        const currentCode = existingGame.script_payload;
+        const orientation = existingGame.orientation || 'portrait';
+
+        // Use direct Gemini with conversation memory
+        const sessionId = `edit-${draftId}`;
+        
+        const editPrompt = `You are editing an existing game. Here is the current game code:
+
+\`\`\`html
+${currentCode}
+\`\`\`
+
+User's edit request: "${instructions}"
+
+INSTRUCTIONS:
+1. Analyze the existing game code carefully
+2. Apply ONLY the requested changes
+3. Keep all existing features and gameplay intact
+4. Output the COMPLETE modified game code (full HTML file)
+5. Do NOT add explanations, just output the code
+
+Output format: Complete HTML game code starting with <!DOCTYPE html>`;
+
+        const response = await generateText(editPrompt, {
+            sessionId,
+            systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
+            model: 'gemini-3.8-flash',
+            maxTokens: 65536,
+            temperature: 0.7,
         });
+
+        const modifiedCode = response.text;
+
+        // Update the database
+        await pool.query(
+            'UPDATE ai_games SET script_payload = $1, updated_at = NOW() WHERE id = $2',
+            [modifiedCode, draftId]
+        );
+
+        console.log(`✅ [EDIT] Draft ${draftId} updated successfully`);
+
+        res.json({
+            success: true,
+            draftId,
+            htmlPreview: modifiedCode,
+            message: 'Game updated successfully'
+        });
+
     } catch (outerError) {
-        console.error("OUTER EDIT ERROR:", outerError);
-        res.status(outerError.statusCode || 500).json({ error: outerError.message || "System Error" });
+        console.error("❌ [EDIT] Error:", outerError);
+        res.status(outerError.statusCode || 500).json({ error: outerError.message || "Edit failed" });
     }
 });
 
