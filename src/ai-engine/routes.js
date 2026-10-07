@@ -1576,7 +1576,7 @@ router.post('/dream', async (req, res) => {
 
 router.post('/edit', async (req, res) => {
     try {
-        const { draftId, instructions, attachments = [] } = req.body;
+        const { draftId, instructions, attachments = [], messages = [] } = req.body;
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) return res.status(401).json({ error: 'Unauthorized' });
         const userId = await getUserIdFromToken(token, 'Expired session');
@@ -1584,7 +1584,7 @@ router.post('/edit', async (req, res) => {
         if (!draftId || !instructions) return res.status(400).json({ error: "draftId and instructions are required" });
 
         const mediaAttachments = sanitizeMediaAttachments(attachments);
-        console.log(`🎨 [EDIT] User ${userId} editing draft ${draftId}: "${instructions.substring(0, 60)}..." (${mediaAttachments.length} attachments)`);
+        console.log(`🎨 [EDIT] User ${userId} editing draft ${draftId}: "${instructions.substring(0, 60)}..." (${mediaAttachments.length} attachments, ${messages.length} prior messages)`);
 
         // Fetch the existing game with edit_history
         const gameResult = await pool.query(
@@ -1620,6 +1620,7 @@ router.post('/edit', async (req, res) => {
             instructions,
             draftId,
             attachments: mediaAttachments,
+            conversationHistory: messages,
         });
 
         const modifiedCode = editResult.modifiedCode;

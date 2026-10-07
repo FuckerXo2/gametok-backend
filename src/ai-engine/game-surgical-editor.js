@@ -178,9 +178,17 @@ export async function editGameSurgically({
   instructions,
   draftId,
   attachments = [],
+  conversationHistory = [],
   model = 'gemini-3.8-flash',
 }) {
   const sessionId = `edit-surgical-${draftId}`;
+
+  let chatContext = '';
+  if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    const recent = conversationHistory.slice(-8);
+    chatContext = '\n\nConversation Context & History Leading Up To This Edit:\n' +
+      recent.map(m => `${m.role === 'user' ? 'User' : 'GameTok Assistant'}: ${m.text}`).join('\n');
+  }
 
   let assetContext = '';
   if (Array.isArray(attachments) && attachments.length > 0) {
@@ -195,7 +203,7 @@ export async function editGameSurgically({
   const prompt = `Current Game Code:
 \`\`\`html
 ${currentCode}
-\`\`\`
+\`\`\`${chatContext}
 
 User Edit Request: "${instructions}"${assetContext}
 
