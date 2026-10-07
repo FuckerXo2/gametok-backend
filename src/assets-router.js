@@ -359,8 +359,175 @@ router.post('/generate', async (req, res) => {
   }
 });
 
+// ─── 3D MODELS SYSTEM ───
+
+const MODELS_3D_CATEGORIES = [
+  { id: 'trending', label: 'All 3D Models', chips: [] },
+  { id: 'lagos', label: '🇳🇬 Lagos Legends', chips: ['street_hustler', 'tech_bro', 'veteran', 'lagos'] },
+  { id: 'fighters', label: 'Fighters & Ninjas', chips: ['martial_arts', 'ninja', 'combat'] },
+  { id: 'superheroes', label: 'Superheroes', chips: ['green_lantern', 'hero'] },
+  { id: 'my_models', label: 'My Uploads', chips: [] },
+];
+
+const CURATED_3D_MODELS_BACKEND = [
+  {
+    id: 'gt-lagos-street-hustler',
+    name: 'Street Hustler',
+    title: 'Lagos Street Hustler',
+    category: 'characters',
+    subcategory: 'lagos',
+    tags: ['lagos', 'street_hustler', 'agbero', 'conductor', 'rigged', 'ue5_bones', 'character'],
+    url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/3d/characters/gt_characters_07c99b16f29e.glb',
+    cdn_url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/3d/characters/gt_characters_07c99b16f29e.glb',
+    thumbnail_url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/thumbnails/07c99b16f29e088e.webp',
+    thumb: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/thumbnails/07c99b16f29e088e.webp',
+    is_rigged: true,
+    rig_type: 'ue5_humanoid',
+    bone_count: 100,
+    format: 'glb',
+    file_size: '2.4 MB',
+    uses_count: 1420
+  },
+  {
+    id: 'gt-lagos-tech-bro',
+    name: 'Tech Bro',
+    title: 'Lekki Tech Bro',
+    category: 'characters',
+    subcategory: 'lagos',
+    tags: ['lagos', 'tech_bro', 'lekki', 'developer', 'startup', 'rigged', 'ue5_bones', 'character'],
+    url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/3d/characters/gt_characters_7cc29526e7f7.glb',
+    cdn_url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/3d/characters/gt_characters_7cc29526e7f7.glb',
+    thumbnail_url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/thumbnails/7cc29526e7f7a80e.webp',
+    thumb: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/thumbnails/7cc29526e7f7a80e.webp',
+    is_rigged: true,
+    rig_type: 'ue5_humanoid',
+    bone_count: 100,
+    format: 'glb',
+    file_size: '2.1 MB',
+    uses_count: 1180
+  },
+  {
+    id: 'gt-lagos-veteran',
+    name: 'Military Veteran',
+    title: 'Nigerian Military Veteran',
+    category: 'characters',
+    subcategory: 'lagos',
+    tags: ['lagos', 'veteran', 'soldier', 'military', 'fighter', 'tactical', 'rigged', 'ue5_bones', 'character'],
+    url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/3d/characters/gt_characters_67f3eac80f68.glb',
+    cdn_url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/assets/3d/characters/gt_characters_67f3eac80f68.glb',
+    thumbnail_url: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/thumbnails/67f3eac80f68480e.webp',
+    thumb: 'https://pub-b7694276c8f54290854b276638a93b62.r2.dev/thumbnails/67f3eac80f68480e.webp',
+    is_rigged: true,
+    rig_type: 'ue5_humanoid',
+    bone_count: 100,
+    format: 'glb',
+    file_size: '3.1 MB',
+    uses_count: 980
+  },
+  {
+    id: 'gt-liu-kang',
+    name: 'Liu Kang',
+    title: 'Shaolin Martial Artist',
+    category: 'characters',
+    subcategory: 'fighters',
+    tags: ['fighter', 'martial_arts', 'liu_kang', 'combat', 'warrior', 'rigged', 'ue5_bones'],
+    url: '/storage/models3d/rigged/liu_kang_rigged.glb',
+    cdn_url: '/storage/models3d/rigged/liu_kang_rigged.glb',
+    thumbnail_url: '',
+    is_rigged: true,
+    rig_type: 'humanoid',
+    bone_count: 85,
+    format: 'glb',
+    file_size: '0.99 MB',
+    uses_count: 840
+  },
+  {
+    id: 'gt-scorpion',
+    name: 'Scorpion',
+    title: 'Scorpion Ninja Warrior',
+    category: 'characters',
+    subcategory: 'fighters',
+    tags: ['ninja', 'scorpion', 'fighter', 'warrior', 'assassin', 'rigged', 'ue5_bones'],
+    url: '/storage/models3d/rigged/scorpion_rigged.glb',
+    cdn_url: '/storage/models3d/rigged/scorpion_rigged.glb',
+    thumbnail_url: '',
+    is_rigged: true,
+    rig_type: 'humanoid',
+    bone_count: 85,
+    format: 'glb',
+    file_size: '0.43 MB',
+    uses_count: 910
+  },
+  {
+    id: 'gt-green-lantern',
+    name: 'Green Lantern',
+    title: 'Green Lantern (Hal Jordan)',
+    category: 'characters',
+    subcategory: 'superheroes',
+    tags: ['superhero', 'green_lantern', 'hal_jordan', 'hero', 'rigged', 'ue5_bones'],
+    url: '/storage/models3d/rigged/hal_jordan_green_lantern_rigged.glb',
+    cdn_url: '/storage/models3d/rigged/hal_jordan_green_lantern_rigged.glb',
+    thumbnail_url: '',
+    is_rigged: true,
+    rig_type: 'humanoid',
+    bone_count: 90,
+    format: 'glb',
+    file_size: '1.41 MB',
+    uses_count: 730
+  }
+];
+
+// GET /api/assets/3d/categories
+router.get(['/3d/categories', '/models/categories'], (req, res) => {
+  res.json({ success: true, categories: MODELS_3D_CATEGORIES });
+});
+
+// GET /api/assets/3d or /api/assets/models
+router.get(['/3d', '/models'], async (req, res) => {
+  try {
+    const { category, tag, search, limit = 50, offset = 0 } = req.query;
+    let list = [...CURATED_3D_MODELS_BACKEND];
+
+    if (category && category !== 'trending' && category !== 'my_models') {
+      list = list.filter(m => m.category === category || m.subcategory === category);
+    }
+
+    if (tag) {
+      const tagLower = tag.toLowerCase();
+      list = list.filter(m => m.tags.some(t => t.toLowerCase().includes(tagLower)));
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(m =>
+        m.title.toLowerCase().includes(q) ||
+        m.name.toLowerCase().includes(q) ||
+        m.tags.some(t => t.toLowerCase().includes(q))
+      );
+    }
+
+    const limitNum = parseInt(limit, 10) || 50;
+    const offsetNum = parseInt(offset, 10) || 0;
+    const paged = list.slice(offsetNum, offsetNum + limitNum);
+
+    res.json({
+      success: true,
+      models: paged,
+      total: list.length,
+      hasMore: offsetNum + paged.length < list.length
+    });
+  } catch (err) {
+    res.json({ success: true, models: CURATED_3D_MODELS_BACKEND, total: CURATED_3D_MODELS_BACKEND.length, hasMore: false });
+  }
+});
+
 // Backward compatibility for /api/assets/trending
 router.get('/trending', async (req, res) => {
+  const type = req.query.type;
+  if (type === '3d' || type === 'model') {
+    return res.json({ success: true, assets: CURATED_3D_MODELS_BACKEND, total: CURATED_3D_MODELS_BACKEND.length });
+  }
+
   try {
     const client = await pool.connect();
     try {

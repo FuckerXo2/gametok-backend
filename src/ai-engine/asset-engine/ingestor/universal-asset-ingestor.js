@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { GlbHandler } from './handlers/glb-handler.js';
 import { ObjHandler } from './handlers/obj-handler.js';
 import { FbxHandler } from './handlers/fbx-handler.js';
@@ -113,6 +114,36 @@ export class UniversalAssetIngestor {
             }
         }
 
+        // 1c. Mobile Optimization / Compression for assets > 10MB
+        const TEN_MB = 10 * 1024 * 1024;
+        if (processed.fileSizeBytes > TEN_MB && (processed.canonicalRuntimeFormat === 'glb' || ext === '.glb')) {
+            console.log(`🗜️ [Universal Ingestor] Asset "${filename}" exceeds 10MB (${(processed.fileSizeBytes / 1048576).toFixed(1)}MB). Auto-compressing with Blender...`);
+            try {
+                const { compressGlbAsset } = await import('../../character-rigger.js');
+                const os = await import('node:os');
+                const fsPromises = await import('node:fs/promises');
+                const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'ingest-opt-'));
+                const inputTempPath = path.join(tempDir, filename);
+                await fsPromises.writeFile(inputTempPath, processed.canonicalBuffer);
+
+                const optResult = await compressGlbAsset(inputTempPath, { 
+                    outputPath: path.join(tempDir, `${path.basename(filename, ext)}_opt.glb`),
+                    maxDim: 1024,
+                    quality: 80
+                });
+
+                if (optResult.success && fs.existsSync(optResult.outputPath)) {
+                    const optBuffer = await fsPromises.readFile(optResult.outputPath);
+                    processed.canonicalBuffer = optBuffer;
+                    processed.fileSizeBytes = optBuffer.length;
+                    console.log(`✨ [Universal Ingestor] Successfully compressed "${filename}" down to ${(optBuffer.length / 1048576).toFixed(2)}MB!`);
+                }
+                await fsPromises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+            } catch (optErr) {
+                console.warn(`⚠️ [Universal Ingestor] Compression step failed: ${optErr.message}. Continuing with original.`);
+            }
+        }
+
         // 2. Handle Standalone Animation Clips (e.g. Mixamo FBX motion track)
         if (processed.isStandaloneAnimation || params.targetType === 'standalone_animation') {
             const animMeta = params.animationMetadata || {};
@@ -129,17 +160,32 @@ export class UniversalAssetIngestor {
             });
         }
 
-        // 3. Upload Canonical Runtime Asset to Cloudflare R2
+        // 3. Upload Canonical Runtime Asset to Cloudflare R2 (with local disk copy)
         const category = processed.rigging?.isRigged ? 'characters' : (params.category || 'characters');
         const assetId = `gt_${category}_${processed.sha256.substring(0, 12)}`;
         const r2Key = `assets/3d/${category}/${assetId}.${processed.canonicalRuntimeFormat}`;
 
-        console.log(`☁️  [Universal Ingestor] Uploading canonical runtime asset to R2: "${r2Key}"...`);
-        const r2Upload = await uploadAssetBufferToR2({
-            key: r2Key,
-            buffer: processed.canonicalBuffer,
-            contentType: processed.mimeType
-        });
+        // Always save a local copy to storage/models3d/rigged
+        const localSaveDir = path.resolve(process.cwd(), 'storage/models3d/rigged');
+        fs.mkdirSync(localSaveDir, { recursive: true });
+        const localFilePath = path.join(localSaveDir, `${path.basename(filename, ext)}_rigged.glb`);
+        fs.writeFileSync(localFilePath, processed.canonicalBuffer);
+        console.log(`💾 [Universal Ingestor] Saved local copy to: ${localFilePath}`);
+
+        let cdnUrl = `/storage/models3d/rigged/${path.basename(localFilePath)}`;
+        let r2KeyResult = r2Key;
+        try {
+            console.log(`☁️  [Universal Ingestor] Uploading canonical runtime asset to R2: "${r2Key}"...`);
+            const r2Upload = await uploadAssetBufferToR2({
+                key: r2Key,
+                buffer: processed.canonicalBuffer,
+                contentType: processed.mimeType
+            });
+            cdnUrl = r2Upload.cdnUrl;
+            r2KeyResult = r2Upload.key;
+        } catch (r2Err) {
+            console.warn(`⚠️ [Universal Ingestor] R2 upload warning (${r2Err.message}). Using local storage fallback.`);
+        }
 
         // 4. Render Studio WebP Thumbnail if not provided
         let thumbnailUrl = params.thumbnailUrl || null;
@@ -148,7 +194,7 @@ export class UniversalAssetIngestor {
             try {
                 const { StudioThumbnailRenderer } = await import('../visual/thumbnail-renderer.js');
                 const thumbResult = await StudioThumbnailRenderer.renderThumbnail({
-                    modelUrl: r2Upload.cdnUrl,
+                    modelUrl: cdnUrl,
                     sha256: processed.sha256,
                     boundingBox: processed.spatial?.boundingBox
                 });
@@ -176,8 +222,8 @@ export class UniversalAssetIngestor {
             embedded_animation_names: processed.animations.clipNames,
             bounding_box: processed.spatial.boundingBox,
             suggested_scale: processed.spatial.suggestedScale,
-            r2_key: r2Upload.key,
-            cdn_url: r2Upload.cdnUrl,
+            r2_key: r2KeyResult,
+            cdn_url: cdnUrl,
             thumbnail_url: thumbnailUrl,
             file_size_bytes: processed.canonicalBuffer.length,
             sha256_hash: processed.sha256,

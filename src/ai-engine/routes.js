@@ -19,6 +19,8 @@ import { deleteCoverAsset, enqueueCoverGeneration } from '../cover-art.js';
 import { generateConceptCardImage } from './openai-image-client.js';
 import { directVisualDirections } from './ai-art-director.js';
 import { callGeminiFlashJson } from './gemini-client.js';
+import { editGameSurgically } from './game-surgical-editor.js';
+import { executeBlenderCode, getBlenderSceneSummary, exportBlenderSceneGlb, isBlenderMcpLive } from './blender-mcp-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1012,6 +1014,13 @@ function sanitizeMediaAttachments(rawAttachments = []) {
                 instruction: attachment.instruction ? String(attachment.instruction) : undefined,
                 category: attachment.category ? String(attachment.category) : undefined,
                 genre: attachment.genre ? String(attachment.genre) : undefined,
+                is_rigged: attachment.is_rigged !== undefined ? Boolean(attachment.is_rigged) : undefined,
+                bone_count: attachment.bone_count !== undefined ? Number(attachment.bone_count) : undefined,
+                rig_type: attachment.rig_type ? String(attachment.rig_type) : undefined,
+                skeleton: attachment.skeleton ? String(attachment.skeleton) : undefined,
+                format: attachment.format ? String(attachment.format) : undefined,
+                thumbnail: attachment.thumbnail ? String(attachment.thumbnail) : undefined,
+                thumb: attachment.thumb ? String(attachment.thumb) : undefined,
             };
         })
         .filter(Boolean);
@@ -1251,6 +1260,55 @@ router.post('/generate-asset', async (req, res) => {
     } catch (err) {
         console.error('❌ [Asset Gen] Asset generation failed:', err.message);
         res.status(500).json({ error: err.message || 'Asset generation failed' });
+    }
+});
+
+// ==========================================
+// BLENDER MCP AI AGENT ENDPOINTS
+// ==========================================
+router.get('/blender/status', async (req, res) => {
+    try {
+        const isLive = await isBlenderMcpLive(500);
+        const testRes = await executeBlenderCode('import bpy; result = {"version": bpy.app.version_string, "objects": len(bpy.context.scene.objects)}');
+        res.json({
+            success: true,
+            isMcpLive: isLive,
+            blender: testRes.result || null,
+            status: testRes.status,
+            message: testRes.message || null
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/blender/execute', async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) return res.status(400).json({ error: 'Python code is required' });
+        const result = await executeBlenderCode(code);
+        res.json({ success: result.status === 'ok', ...result });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.get('/blender/summary', async (req, res) => {
+    try {
+        const result = await getBlenderSceneSummary();
+        res.json({ success: result.status === 'ok', ...result });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/blender/export', async (req, res) => {
+    try {
+        const { filename, worldName } = req.body;
+        const result = await exportBlenderSceneGlb({ filename, worldName });
+        res.json({ success: result.status === 'ok', ...result });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
@@ -1527,9 +1585,9 @@ router.post('/edit', async (req, res) => {
 
         console.log(`🎨 [EDIT] User ${userId} editing draft ${draftId}: "${instructions.substring(0, 60)}..."`);
 
-        // Fetch the existing game
+        // Fetch the existing game with edit_history
         const gameResult = await pool.query(
-            'SELECT script_payload, orientation FROM ai_games WHERE id = $1 AND user_id = $2',
+            'SELECT script_payload, html_payload, orientation, edit_history FROM ai_games WHERE id = $1 AND user_id = $2',
             [draftId, userId]
         );
 
@@ -1538,57 +1596,109 @@ router.post('/edit', async (req, res) => {
         }
 
         const existingGame = gameResult.rows[0];
-        const currentCode = existingGame.script_payload;
-        const orientation = existingGame.orientation || 'portrait';
+        const currentCode = existingGame.script_payload || existingGame.html_payload;
 
-        // Use direct Gemini with conversation memory
-        const sessionId = `edit-${draftId}`;
-        
-        const editPrompt = `You are editing an existing game. Here is the current game code:
+        if (!currentCode) {
+            return res.status(400).json({ error: 'No existing game code found to edit' });
+        }
 
-\`\`\`html
-${currentCode}
-\`\`\`
+        // Snapshot current code before applying edit for 1-tap Undo
+        const existingHistory = Array.isArray(existingGame.edit_history) ? existingGame.edit_history : [];
+        const snapshot = {
+            version: existingHistory.length + 1,
+            instruction: instructions,
+            timestamp: new Date().toISOString(),
+            previousCode: currentCode,
+        };
+        const updatedHistory = [...existingHistory, snapshot];
+        if (updatedHistory.length > 15) updatedHistory.shift();
 
-User's edit request: "${instructions}"
-
-INSTRUCTIONS:
-1. Analyze the existing game code carefully
-2. Apply ONLY the requested changes
-3. Keep all existing features and gameplay intact
-4. Output the COMPLETE modified game code (full HTML file)
-5. Do NOT add explanations, just output the code
-
-Output format: Complete HTML game code starting with <!DOCTYPE html>`;
-
-        const response = await generateText(editPrompt, {
-            sessionId,
-            systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
-            model: 'gemini-3.8-flash',
-            maxTokens: 65536,
-            temperature: 0.7,
+        // Run precision diff-patching with V8 syntax verification & auto-healing
+        const editResult = await editGameSurgically({
+            currentCode,
+            instructions,
+            draftId,
         });
 
-        const modifiedCode = response.text;
+        const modifiedCode = editResult.modifiedCode;
 
-        // Update the database
+        // Update the database with verified code & version snapshot
         await pool.query(
-            'UPDATE ai_games SET script_payload = $1, updated_at = NOW() WHERE id = $2',
-            [modifiedCode, draftId]
+            'UPDATE ai_games SET script_payload = $1, html_payload = $1, edit_history = $2, updated_at = NOW() WHERE id = $3',
+            [modifiedCode, JSON.stringify(updatedHistory), draftId]
         );
 
-        console.log(`✅ [EDIT] Draft ${draftId} updated successfully`);
+        console.log(`✅ [EDIT] Draft ${draftId} updated successfully (${editResult.method}, ${editResult.elapsedMs}ms)`);
 
         res.json({
             success: true,
             draftId,
             htmlPreview: modifiedCode,
+            method: editResult.method,
+            elapsedMs: editResult.elapsedMs,
+            version: updatedHistory.length,
             message: 'Game updated successfully'
         });
 
     } catch (outerError) {
         console.error("❌ [EDIT] Error:", outerError);
         res.status(outerError.statusCode || 500).json({ error: outerError.message || "Edit failed" });
+    }
+});
+
+router.post('/undo', async (req, res) => {
+    try {
+        const { draftId } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Unauthorized' });
+        const userId = await getUserIdFromToken(token, 'Expired session');
+
+        if (!draftId) return res.status(400).json({ error: "draftId is required" });
+
+        console.log(`↩️ [UNDO] User ${userId} requested undo for draft ${draftId}`);
+
+        const gameResult = await pool.query(
+            'SELECT script_payload, html_payload, edit_history FROM ai_games WHERE id = $1 AND user_id = $2',
+            [draftId, userId]
+        );
+
+        if (gameResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Game not found or not owned by user' });
+        }
+
+        const existingGame = gameResult.rows[0];
+        const history = Array.isArray(existingGame.edit_history) ? existingGame.edit_history : [];
+
+        if (history.length === 0) {
+            return res.status(400).json({ error: 'No previous versions available to undo' });
+        }
+
+        // Pop latest snapshot to restore previous code
+        const lastSnapshot = history.pop();
+        const restoredCode = lastSnapshot.previousCode;
+
+        if (!restoredCode) {
+            return res.status(400).json({ error: 'No code snapshot found to restore' });
+        }
+
+        await pool.query(
+            'UPDATE ai_games SET script_payload = $1, html_payload = $1, edit_history = $2, updated_at = NOW() WHERE id = $3',
+            [restoredCode, JSON.stringify(history), draftId]
+        );
+
+        console.log(`✅ [UNDO] Draft ${draftId} restored to previous version (remaining: ${history.length})`);
+
+        res.json({
+            success: true,
+            draftId,
+            htmlPreview: restoredCode,
+            versionsRemaining: history.length,
+            message: 'Reverted to previous version'
+        });
+
+    } catch (outerError) {
+        console.error("❌ [UNDO] Error:", outerError);
+        res.status(outerError.statusCode || 500).json({ error: outerError.message || "Undo failed" });
     }
 });
 

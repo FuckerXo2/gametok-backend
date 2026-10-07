@@ -50,6 +50,7 @@ This is a 3D game. Before you write scene code, read these files from the ./thre
   - threejs-aaa-graphics-builder/references/visual-scorecard.md — the rubric your screenshot is graded against
   - threejs-aaa-graphics-builder/references/render-recipes.md — lighting, tone mapping, materials
   - threejs-aaa-graphics-builder/references/model-recipes.md — building authored shapes instead of primitives
+  - threejs-open-world-builder/SKILL.md — 3x3 coordinate chunk streaming, 100-bone rigged GLTF character controller, mobile touch joystick, and declarative WORLD_CHUNKS manifest for open-world / city games
 
 The scorecard lists automatic failures. These will be checked against a screenshot of your running game:
   - the world is mostly stretched boxes, flat planes, or a sparse arena

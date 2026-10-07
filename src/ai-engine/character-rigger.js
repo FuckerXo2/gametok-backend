@@ -176,3 +176,67 @@ export async function ensureCharacterRigged(inputPath, opts = {}) {
     });
   });
 }
+
+const COMPRESS_SCRIPT = path.join(__dirname, 'blender-compressor.py');
+
+/**
+ * Compress and optimize a GLB asset (textures to WebP, texture downscaling, mesh decimation)
+ * @param {string} inputPath 
+ * @param {object} [opts]
+ * @returns {Promise<{ success: boolean, outputPath: string, initialBytes: number, finalBytes: number, savedBytes: number }>}
+ */
+export async function compressGlbAsset(inputPath, opts = {}) {
+  const resolvedInput = path.resolve(inputPath);
+  if (!fs.existsSync(resolvedInput)) {
+    throw new Error(`[AssetCompressor] Input file not found: ${resolvedInput}`);
+  }
+
+  const blenderBin = await isBlenderAvailable();
+  if (!blenderBin) {
+    console.warn('[AssetCompressor] Blender not available. Skipping compression.');
+    return { success: false, outputPath: resolvedInput, skipped: true };
+  }
+
+  const initialBytes = fs.statSync(resolvedInput).size;
+  const targetCompressedPath = opts.outputPath || path.join(
+    path.dirname(resolvedInput),
+    `${path.basename(resolvedInput, path.extname(resolvedInput))}_opt.glb`
+  );
+
+  const maxDim = opts.maxDim || 1024;
+  const quality = opts.quality || 82;
+
+  return new Promise((resolve) => {
+    const proc = spawn(blenderBin, [
+      '-b', '-P', COMPRESS_SCRIPT, '--',
+      resolvedInput, targetCompressedPath,
+      String(maxDim), String(quality)
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let outputLog = '';
+    proc.stdout.on('data', (d) => { outputLog += d.toString(); });
+    proc.stderr.on('data', (d) => { outputLog += d.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0 && fs.existsSync(targetCompressedPath)) {
+        const finalBytes = fs.statSync(targetCompressedPath).size;
+        console.log(`🎉 [AssetCompressor] Compressed from ${(initialBytes / 1048576).toFixed(2)}MB to ${(finalBytes / 1048576).toFixed(2)}MB!`);
+        resolve({
+          success: true,
+          outputPath: targetCompressedPath,
+          initialBytes,
+          finalBytes,
+          savedBytes: initialBytes - finalBytes
+        });
+      } else {
+        console.warn('[AssetCompressor] Compression failed. Using original.', outputLog);
+        resolve({ success: false, outputPath: resolvedInput, error: outputLog });
+      }
+    });
+
+    proc.on('error', (err) => {
+      resolve({ success: false, outputPath: resolvedInput, error: err.message });
+    });
+  });
+}
+

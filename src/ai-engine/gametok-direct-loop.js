@@ -17,6 +17,7 @@ import { generateConceptCardImage } from './openai-image-client.js';
 import { sendPushToTokenOrUser } from '../notifications.js';
 import { CURATED_3D_MODELS } from './asset-catalog.js';
 import { validateAndFixOrientation } from './model-orientation-validator.js';
+import { executeBlenderCode, exportBlenderSceneGlb, getBlenderSceneSummary } from './blender-mcp-client.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -287,6 +288,37 @@ export async function runDirectGenerationLoop({
       }
     }
     
+    // Check if AI requested Blender MCP scene execution
+    if (parsed.action === 'execute_blender' || (parsed.blenderCode && !parsed.gameScript)) {
+      console.log('🦾 [Direct Loop] Executing Blender MCP scene generation via AI request...');
+      if (onProgress) onProgress(60, 'blender_generating', 'Assembling 3D world in Blender via MCP...');
+      
+      const blenderResult = await executeBlenderCode(parsed.blenderCode);
+      let exportResult = null;
+      if (parsed.exportGlb) {
+        exportResult = await exportBlenderSceneGlb({ 
+          filename: parsed.exportGlb, 
+          worldName: parsed.worldName || gameState.prompt 
+        });
+      }
+
+      const blenderFeedback = `Blender MCP execution finished:\n${JSON.stringify({ blender: blenderResult, export: exportResult }, null, 2)}\n\nNow generate the complete HTML5 Three.js game code integrating this world.`;
+      console.log('🔄 [Direct Loop] Passing Blender MCP manifest and assets to AI code generator...');
+      
+      const continueResponse = await generateText(blenderFeedback, {
+        sessionId: effectiveSessionId,
+        systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
+        model: 'gemini-3.8-flash',
+        maxTokens: 65536,
+        temperature: 0.7,
+      });
+
+      const continueParsed = parseOrchestratorResponse(continueResponse.text);
+      if (continueParsed.gameScript) {
+        return finalizeGameState(gameState, continueParsed, onProgress, validateOrientation);
+      }
+    }
+
     // If we reach here, we should have game code
     if (!parsed.gameScript) {
       // Try prompting AI to continue with game generation
@@ -493,6 +525,9 @@ function parseOrchestratorResponse(text) {
     result.thumbnailPrompt = json.thumbnailPrompt;
     result.controls = json.controls;
     result.directions = json.directions; // Visual directions array
+    result.blenderCode = json.blenderCode || json.code || null;
+    result.exportGlb = json.exportGlb || json.export_glb || null;
+    result.worldName = json.worldName || json.world_name || null;
     
     // Extract game script from JSON
     if (json.gameScript) {

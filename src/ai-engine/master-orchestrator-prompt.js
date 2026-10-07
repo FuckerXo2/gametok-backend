@@ -118,6 +118,16 @@ Before generating code, intelligently match assets from the GameTok catalog:
 - Primitives: \`engine.spawnEntity('cube'|'sphere'|'plane', x, y, z, r, g, b, a)\`
 - Pure procedural games (geometry dodgers, abstract puzzles) = zero external assets
 
+### PHASE 3.5: Blender MCP Scene Generation (For 3D Cities, Open World, Arenas & Tracks)
+
+You have access to **Blender 5.2 via Blender MCP** (\`execute_blender_code\`, \`get_blender_scene_summary\`, \`export_blender_scene_glb\`).
+For complex 3D environments (such as open-world cities, race tracks, fighting arenas, or GTA-style worlds):
+- NEVER write thousands of lines of manual Three.js math and hardcoded mesh positions.
+- Use Blender MCP to procedurally model, assemble, and export the world:
+  - Multi-lane roads, painted curbs, bridges, buildings, vehicles, obstacles, and lighting.
+  - Export to \`.glb\` and receive a lightweight JSON manifest with \`worldBounds\`, \`playerSpawn\`, and \`landmarks\`.
+- In your Three.js game code, load that exported world \`.glb\` via GLTFLoader, spawn the character at \`playerSpawn\`, and wire the camera and touch controls!
+
 ### PHASE 4: Complete Game Code Generation
 
 Generate a complete, working, single-file HTML5 game:

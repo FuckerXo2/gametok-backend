@@ -191,8 +191,12 @@ export async function runGameTokGenerationLoop(jobParams = {}, hermes = null) {
                 const type = att.type || 'media';
                 const title = att.title || att.name || att.label || `Asset #${idx + 1}`;
                 const url = att.url || att.idleUrl;
+                let rigInfo = '';
+                if (att.is_rigged) {
+                    rigInfo = ` | RIGGED: YES (${att.skeleton || 'UE5 Master Skeleton'}, ${att.bone_count || 100} bones) - Use THREE.GLTFLoader, bind with THREE.AnimationMixer, blend Mixamo locomotion (idle/walk/run) mapped to touch joystick`;
+                }
                 const note = att.instruction ? ` | User Note: "${att.instruction}"` : '';
-                assetSpecPrompt += `\n  [${idx + 1}] (${type.toUpperCase()} / Role: ${role.toUpperCase()}) "${title}": ${url}${note}`;
+                assetSpecPrompt += `\n  [${idx + 1}] (${type.toUpperCase()} / Role: ${role.toUpperCase()}) "${title}": ${url}${rigInfo}${note}`;
             });
         }
         if (audioAsset && !attachments.some(a => a.url === audioAsset.url)) {
@@ -378,6 +382,14 @@ CRITICAL ARCHITECTURE RULES:
 8. ON-SCREEN MOBILE TOUCH CONTROLS:
    - Provide responsive on-screen touch controls: virtual floating joystick or drag area on the left thumb, action buttons on the right thumb, with active touch feedback.
    - Also listen for keyboard (Arrow keys / WASD / Space) for developer testing.
+
+9. OPEN-WORLD & 3D CHUNKING ARCHITECTURE (FOR CITY / GTA / EXPLORATION):
+   - When building open-world or city environments (e.g. Lagos streets, GTA, open districts):
+     * NEVER load a monolithic giant city mesh that causes mobile Out-Of-Memory (OOM) WebGL crashes!
+     * Implement 3x3 coordinate chunk streaming (CHUNK_SIZE ~ 50-60m) around the player's position. Only active adjacent chunks are rendered.
+     * Handcraft hero starter chunk (0,0) where player spawns: dark asphalt road, curbs, open drainage gutters, streetlights, kiosks, and authentic local props (e.g. iconic yellow Danfo minibuses with twin black waist stripes).
+     * Organize the environment in a clean, declarative WORLD_CHUNKS = { "0,0": { props: [...] }, "0,1": { ... } } registry so Creator AI in WishStudio can easily add, edit, or customize individual blocks.
+     * When user attachments include rigged character GLBs, load via THREE.GLTFLoader, wire THREE.AnimationMixer, smoothly blend Mixamo locomotion (idle/walk/run) driven by virtual joystick displacement, and attach a smooth 3rd-person follow camera.
 `;
             userPrompt = `Build a high-performance, hardware-accelerated 3D Three.js GameTOK game for prompt: "${gameState.prompt}"${assetSpecPrompt}`;
         }

@@ -369,6 +369,9 @@ export const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'script_payload') THEN
           ALTER TABLE ai_games ADD COLUMN script_payload TEXT;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_games' AND column_name = 'edit_history') THEN
+          ALTER TABLE ai_games ADD COLUMN edit_history JSONB DEFAULT '[]'::jsonb;
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_events') THEN
           CREATE TABLE search_events (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

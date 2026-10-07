@@ -8,6 +8,7 @@ const execAsync = promisify(exec);
 import { applyPatchReplacements } from './maker-agent-patches.js';
 import { isFreeBuildMode, resolveMakerAgentImplementTurns, resolveMakerAgentInspectionTurns } from './maker-factory-mode.js';
 import { parseTscOutput } from './maker-project-compile-gate.js';
+import { executeBlenderCode, getBlenderSceneSummary, exportBlenderSceneGlb } from './blender-mcp-client.js';
 
 export const MAKER_TOOL_APPLY_PATCH = 'apply_patch';
 export const MAKER_TOOL_WRITE_FILE = 'write_file';
@@ -16,6 +17,9 @@ export const MAKER_TOOL_GREP_PROJECT = 'grep_project';
 export const MAKER_TOOL_RUN_TSC = 'run_tsc_check';
 export const MAKER_TOOL_FINISH_INSPECTION = 'finish_inspection';
 export const MAKER_TOOL_RUN_COMMAND = 'run_command';
+export const MAKER_TOOL_BLENDER_EXECUTE = 'execute_blender_code';
+export const MAKER_TOOL_BLENDER_SUMMARY = 'get_blender_scene_summary';
+export const MAKER_TOOL_BLENDER_EXPORT = 'export_blender_scene_glb';
 
 export const MAKER_AGENT_TURN_MODE_IMPLEMENT = 'implement';
 export const MAKER_AGENT_TURN_MODE_REPAIR = 'repair';
@@ -330,6 +334,66 @@ export function getMakerAgentToolDefinitions() {
                         },
                     },
                     required: ['command'],
+                    additionalProperties: false,
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: MAKER_TOOL_BLENDER_EXECUTE,
+                description: 'Execute Python code inside Blender 5.2 via Blender MCP. Use this to procedurally create, modify, inspect, or arrange 3D scenes, level geometry, roads, buildings, vehicles, obstacles, lighting, or materials with full bpy access.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        code: {
+                            type: 'string',
+                            description: 'Python script to execute in Blender with bpy available',
+                        },
+                        reason: {
+                            type: 'string',
+                            description: 'Why you are running this Blender script',
+                        },
+                    },
+                    required: ['code'],
+                    additionalProperties: false,
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: MAKER_TOOL_BLENDER_SUMMARY,
+                description: 'Inspect the active Blender 3D scene (lists all objects, meshes, materials, vertex counts, and scene names).',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        reason: {
+                            type: 'string',
+                            description: 'Why you want to inspect the scene',
+                        },
+                    },
+                    additionalProperties: false,
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: MAKER_TOOL_BLENDER_EXPORT,
+                description: 'Export the current Blender scene to a game-ready .glb asset file with an emitted lightweight JSON manifest containing world bounds, player spawn points, and landmarks.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        filename: {
+                            type: 'string',
+                            description: 'Target GLB filename (e.g. "lagos_world.glb")',
+                        },
+                        world_name: {
+                            type: 'string',
+                            description: 'Descriptive name of the world or level',
+                        },
+                    },
                     additionalProperties: false,
                 },
             },
@@ -772,6 +836,18 @@ async function executeMakerToolCall(projectRoot, helpers, toolName, rawArgs, opt
             return executeFinishInspection(args);
         case MAKER_TOOL_RUN_COMMAND:
             return executeRunCommand(projectRoot, args);
+        case MAKER_TOOL_BLENDER_EXECUTE: {
+            const res = await executeBlenderCode(args.code);
+            return { ok: res.status === 'ok', tool: MAKER_TOOL_BLENDER_EXECUTE, ...res };
+        }
+        case MAKER_TOOL_BLENDER_SUMMARY: {
+            const res = await getBlenderSceneSummary();
+            return { ok: res.status === 'ok', tool: MAKER_TOOL_BLENDER_SUMMARY, ...res };
+        }
+        case MAKER_TOOL_BLENDER_EXPORT: {
+            const res = await exportBlenderSceneGlb({ filename: args.filename, worldName: args.world_name });
+            return { ok: res.status === 'ok', tool: MAKER_TOOL_BLENDER_EXPORT, ...res };
+        }
         default:
             throw new Error(`Unknown maker tool: ${toolName}`);
     }
