@@ -7,8 +7,8 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Model fallback chain: 3.8 -> 3.7 -> 2.0
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-2.0-flash'];
+// Model fallback chain: 3.8 -> 3.7 -> 3.6
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash'];
 
 // In-memory conversation storage for multi-turn sessions
 const conversationMemory = new Map();
@@ -103,7 +103,7 @@ export async function generateText(prompt, options = {}) {
         }
     }
 
-    throw lastError || new Error('All Gemini models failed');
+    throw lastError || new Error('All Gemini models (3.8, 3.7, 3.6) failed. Please try again.');
 }
 
 /**
