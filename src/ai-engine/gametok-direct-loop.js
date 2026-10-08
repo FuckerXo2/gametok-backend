@@ -349,7 +349,7 @@ export async function runDirectGenerationLoop({
       }
 
       const finalGlbUrl = cdnGlbUrl || `/storage/models3d/scenes/${exportResult?.manifest?.glbFile || parsed.exportGlb || 'world.glb'}`;
-      const blenderFeedback = `Blender MCP execution finished:\n- Status: ${blenderResult?.status || 'ok'}\n- Exported GLB URL: ${finalGlbUrl}\n- Manifest: ${JSON.stringify(exportResult?.manifest || {}, null, 2)}\n\nNow generate the complete Three.js HTML game code (action: "game_code_ready") integrating this exact GLB world URL with GLTFLoader. Wire up the camera, player movement, lighting, touch joystick, and gameplay loop.`;
+      const blenderFeedback = `Blender MCP execution finished:\n- Status: ${blenderResult?.status || 'ok'}\n- Exported GLB URL: ${finalGlbUrl}\n- Manifest: ${JSON.stringify(exportResult?.manifest || {}, null, 2)}\n\nNow generate the complete Three.js HTML game code (action: "game_code_ready") integrating this exact GLB world URL with GLTFLoader. Wire up the camera, player movement, lighting, clean responsive touch controls, and gameplay loop.`;
       console.log(`🔄 [Direct Loop] Passing Blender MCP manifest and assets (GLB: ${finalGlbUrl}) to AI code generator...`);
       
       const continueResponse = await generateText(blenderFeedback, {
@@ -523,7 +523,7 @@ export async function continueWithSelectedDirection({
     }
 
     const finalGlbUrl = cdnGlbUrl || `/storage/models3d/scenes/${exportResult?.manifest?.glbFile || parsed.exportGlb || 'world.glb'}`;
-    const blenderFeedback = `Blender MCP execution finished:\n- Status: ${blenderResult?.status || 'ok'}\n- Exported GLB URL: ${finalGlbUrl}\n- Manifest: ${JSON.stringify(exportResult?.manifest || {}, null, 2)}\n\nNow generate the complete Three.js HTML game code (action: "game_code_ready") integrating this exact GLB world URL with GLTFLoader. Wire up the camera, player movement, lighting, touch joystick, and gameplay loop.`;
+    const blenderFeedback = `Blender MCP execution finished:\n- Status: ${blenderResult?.status || 'ok'}\n- Exported GLB URL: ${finalGlbUrl}\n- Manifest: ${JSON.stringify(exportResult?.manifest || {}, null, 2)}\n\nNow generate the complete Three.js HTML game code (action: "game_code_ready") integrating this exact GLB world URL with GLTFLoader. Wire up the camera, player movement, lighting, clean responsive touch controls, and gameplay loop.`;
     
     const continueResponse = await generateText(blenderFeedback, {
       sessionId,
