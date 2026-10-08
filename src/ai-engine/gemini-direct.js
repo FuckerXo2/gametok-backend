@@ -39,6 +39,13 @@ export async function generateText(prompt, options = {}) {
     let lastError = null;
 
     for (const model of models) {
+        if (options.abortSignal?.aborted || (typeof options.isCancelled === 'function' && options.isCancelled())) {
+            console.log('🛑 [Gemini Direct] Generation aborted before calling model.');
+            const cancelErr = new Error('DREAM_JOB_CANCELLED');
+            cancelErr.code = 'DREAM_JOB_CANCELLED';
+            throw cancelErr;
+        }
+
         try {
             console.log(`🧠 [Gemini Direct] Streaming via native Google SDK (${model})...`);
             const genAI = new GoogleGenerativeAI(apiKey);
@@ -70,6 +77,12 @@ export async function generateText(prompt, options = {}) {
             let text = '';
             let chunkCount = 0;
             for await (const chunk of streamResult.stream) {
+                if (options.abortSignal?.aborted || (typeof options.isCancelled === 'function' && options.isCancelled())) {
+                    console.log(`🛑 [Gemini Direct] Stream aborted mid-generation for ${model} after ${chunkCount} chunks.`);
+                    const cancelErr = new Error('DREAM_JOB_CANCELLED');
+                    cancelErr.code = 'DREAM_JOB_CANCELLED';
+                    throw cancelErr;
+                }
                 const chunkText = chunk.text();
                 text += chunkText;
                 chunkCount++;
@@ -98,6 +111,10 @@ export async function generateText(prompt, options = {}) {
                 };
             }
         } catch (err) {
+            if (err?.message === 'DREAM_JOB_CANCELLED' || err?.code === 'DREAM_JOB_CANCELLED' || options.abortSignal?.aborted) {
+                console.log(`🛑 [Gemini Direct] Immediately rethrowing cancellation signal for ${model}`);
+                throw err;
+            }
             console.warn(`⚠️ [Gemini Direct] ${model} failed: ${err?.message || err}. Falling back to next model...`);
             lastError = err;
         }

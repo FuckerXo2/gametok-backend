@@ -117,3 +117,50 @@ export async function uploadGameFolderToR2(jobId, projectRoot) {
     console.log(`✅ [R2 Uploader] Upload complete! Game available at: ${publicUrl}`);
     return publicUrl;
 }
+
+/**
+ * Uploads a single file to Cloudflare R2 bucket.
+ * 
+ * @param {string} localPath - Absolute path to local file
+ * @param {string} key - R2 object key
+ * @returns {Promise<string|null>} The public URL to the uploaded file, or null if R2 isn't configured
+ */
+export async function uploadSingleFileToR2(localPath, key) {
+    if (!process.env.R2_BUCKET_NAME || !process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
+        console.warn('⚠️ [R2 Uploader] R2 credentials not fully configured. Skipping single file upload.');
+        return null;
+    }
+
+    try {
+        const s3Client = new S3Client({
+            region: 'auto',
+            endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+                accessKeyId: process.env.R2_ACCESS_KEY_ID,
+                secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+            },
+        });
+
+        const bucketName = process.env.R2_BUCKET_NAME;
+        const publicUrlBase = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
+        const content = await fs.readFile(localPath);
+        const contentType = getMimeType(localPath);
+
+        console.log(`📤 [R2 Uploader] Uploading single asset ${key} (${contentType}) to R2...`);
+        const command = new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: content,
+            ContentType: contentType,
+            CacheControl: 'public, max-age=31536000',
+        });
+
+        await s3Client.send(command);
+        const publicUrl = `${publicUrlBase.replace(/\/$/, '')}/${key.replace(/^\//, '')}`;
+        console.log(`✅ [R2 Uploader] Single asset upload complete: ${publicUrl}`);
+        return publicUrl;
+    } catch (err) {
+        console.error(`❌ [R2 Uploader] Failed to upload ${localPath} to R2:`, err.message);
+        return null;
+    }
+}

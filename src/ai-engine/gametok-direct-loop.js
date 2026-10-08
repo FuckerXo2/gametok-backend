@@ -18,6 +18,7 @@ import { sendPushToTokenOrUser } from '../notifications.js';
 import { CURATED_3D_MODELS } from './asset-catalog.js';
 import { validateAndFixOrientation } from './model-orientation-validator.js';
 import { executeBlenderCode, exportBlenderSceneGlb, getBlenderSceneSummary } from './blender-mcp-client.js';
+import { uploadSingleFileToR2 } from './r2-uploader.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -112,6 +113,7 @@ export async function runDirectGenerationLoop({
   validateOrientation = false,
   onProgress = null,
   onDirectionsReady = null,
+  abortSignal = null,
 }) {
   const effectiveSessionId = sessionId || `job-${jobId}`;
   
@@ -195,10 +197,16 @@ export async function runDirectGenerationLoop({
       initialMessage += `\nNOTE: Load these animations and apply them to character models using Three.js AnimationMixer.\n`;
     }
     
+    // Check if prompt describes an open-world / GTA / city / track environment
+    const isOpenWorldOrCity = /open[\s-]?world|gta|city|lagos|grand[\s-]theft|driving|freeroam|traffic|downtown|street/i.test(prompt);
+
     // Modify prompt based on whether we want directions or instant game
     if (skipDirections || selectedDirection) {
-      // User wants instant game or already selected direction
-      initialMessage += '\n\nIMPORTANT: Generate the complete game immediately. Skip visual direction selection.';
+      if (isOpenWorldOrCity) {
+        initialMessage += '\n\nIMPORTANT: This is an open-world / city 3D game. You MUST invoke Blender MCP via action "execute_blender" to procedurally generate and export the 3D world as a .glb first.';
+      } else {
+        initialMessage += '\n\nIMPORTANT: Generate the complete game immediately. Skip visual direction selection.';
+      }
       
       if (selectedDirection) {
         initialMessage += `\nUser has pre-selected visual direction: "${selectedDirection.name}"`;
@@ -250,6 +258,7 @@ export async function runDirectGenerationLoop({
         model: 'gemini-3.8-flash',
         maxTokens: skipDirections || selectedDirection ? 65536 : 4096, // Less tokens for directions phase
         temperature: 0.7,
+        abortSignal,
       });
     } finally {
       if (streamProgressTimer) clearInterval(streamProgressTimer);
@@ -325,15 +334,23 @@ export async function runDirectGenerationLoop({
       
       const blenderResult = await executeBlenderCode(parsed.blenderCode);
       let exportResult = null;
+      let cdnGlbUrl = null;
+
       if (parsed.exportGlb) {
         exportResult = await exportBlenderSceneGlb({ 
           filename: parsed.exportGlb, 
           worldName: parsed.worldName || gameState.prompt 
         });
+
+        if (exportResult?.glbPath && fs.existsSync(exportResult.glbPath)) {
+          const r2Key = `models3d/scenes/${path.basename(exportResult.glbPath)}`;
+          cdnGlbUrl = await uploadSingleFileToR2(exportResult.glbPath, r2Key).catch(() => null);
+        }
       }
 
-      const blenderFeedback = `Blender MCP execution finished:\n${JSON.stringify({ blender: blenderResult, export: exportResult }, null, 2)}\n\nNow generate the complete HTML5 Three.js game code integrating this world.`;
-      console.log('🔄 [Direct Loop] Passing Blender MCP manifest and assets to AI code generator...');
+      const finalGlbUrl = cdnGlbUrl || `/storage/models3d/scenes/${exportResult?.manifest?.glbFile || parsed.exportGlb || 'world.glb'}`;
+      const blenderFeedback = `Blender MCP execution finished:\n- Status: ${blenderResult?.status || 'ok'}\n- Exported GLB URL: ${finalGlbUrl}\n- Manifest: ${JSON.stringify(exportResult?.manifest || {}, null, 2)}\n\nNow generate the complete Three.js HTML game code (action: "game_code_ready") integrating this exact GLB world URL with GLTFLoader. Wire up the camera, player movement, lighting, touch joystick, and gameplay loop.`;
+      console.log(`🔄 [Direct Loop] Passing Blender MCP manifest and assets (GLB: ${finalGlbUrl}) to AI code generator...`);
       
       const continueResponse = await generateText(blenderFeedback, {
         sessionId: effectiveSessionId,
@@ -341,6 +358,7 @@ export async function runDirectGenerationLoop({
         model: 'gemini-3.8-flash',
         maxTokens: 65536,
         temperature: 0.7,
+        abortSignal,
       });
 
       const continueParsed = parseOrchestratorResponse(continueResponse.text);
@@ -363,6 +381,7 @@ export async function runDirectGenerationLoop({
         model: 'gemini-3.8-flash',
         maxTokens: 65536,
         temperature: 0.7,
+        abortSignal,
       });
       
       const continueParsed = parseOrchestratorResponse(continueResponse.text);
@@ -377,6 +396,11 @@ export async function runDirectGenerationLoop({
     return finalizeGameState(gameState, parsed, onProgress, validateOrientation);
     
   } catch (error) {
+    if (error?.message === 'DREAM_JOB_CANCELLED' || error?.code === 'DREAM_JOB_CANCELLED' || abortSignal?.aborted) {
+      console.log(`🛑 [Direct Loop] Generation cancelled for job ${jobId}`);
+      throw error;
+    }
+
     console.error(`❌ [Direct Loop] Generation failed:`, error.message);
     
     gameState.errorHistory.push({
@@ -402,6 +426,7 @@ export async function runDirectGenerationLoop({
         model: 'gemini-3.8-flash',
         maxTokens: 65536,
         temperature: 0.7,
+        abortSignal,
       });
       
       const retryParsed = parseOrchestratorResponse(retryResponse.text);
@@ -477,6 +502,49 @@ export async function continueWithSelectedDirection({
   
   const parsed = parseOrchestratorResponse(response.text);
   
+  if (parsed.action === 'execute_blender' || (parsed.blenderCode && !parsed.gameScript)) {
+    console.log('🦾 [Direct Loop] Executing Blender MCP scene generation from direction selection...');
+    if (onProgress) onProgress(65, 'blender_generating', 'Assembling 3D world in Blender via MCP...');
+    
+    const blenderResult = await executeBlenderCode(parsed.blenderCode);
+    let exportResult = null;
+    let cdnGlbUrl = null;
+
+    if (parsed.exportGlb) {
+      exportResult = await exportBlenderSceneGlb({ 
+        filename: parsed.exportGlb, 
+        worldName: parsed.worldName || selectedDirection.name 
+      });
+
+      if (exportResult?.glbPath && fs.existsSync(exportResult.glbPath)) {
+        const r2Key = `models3d/scenes/${path.basename(exportResult.glbPath)}`;
+        cdnGlbUrl = await uploadSingleFileToR2(exportResult.glbPath, r2Key).catch(() => null);
+      }
+    }
+
+    const finalGlbUrl = cdnGlbUrl || `/storage/models3d/scenes/${exportResult?.manifest?.glbFile || parsed.exportGlb || 'world.glb'}`;
+    const blenderFeedback = `Blender MCP execution finished:\n- Status: ${blenderResult?.status || 'ok'}\n- Exported GLB URL: ${finalGlbUrl}\n- Manifest: ${JSON.stringify(exportResult?.manifest || {}, null, 2)}\n\nNow generate the complete Three.js HTML game code (action: "game_code_ready") integrating this exact GLB world URL with GLTFLoader. Wire up the camera, player movement, lighting, touch joystick, and gameplay loop.`;
+    
+    const continueResponse = await generateText(blenderFeedback, {
+      sessionId,
+      systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
+      model: 'gemini-3.8-flash',
+      maxTokens: 65536,
+      temperature: 0.7,
+    });
+
+    const continueParsed = parseOrchestratorResponse(continueResponse.text);
+    if (continueParsed.gameScript) {
+      return {
+        gameScript: continueParsed.gameScript,
+        title: continueParsed.title,
+        thumbnailPrompt: continueParsed.thumbnailPrompt,
+        controls: continueParsed.controls,
+        success: true,
+      };
+    }
+  }
+
   if (!parsed.gameScript) {
     throw new Error('AI did not generate game code after direction selection');
   }

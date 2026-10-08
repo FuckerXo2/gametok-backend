@@ -71,6 +71,7 @@ const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATIO
 
 const generationJobRunners = new Map();
 const generationJobCancelChecks = new Map();
+const activeJobAbortControllers = new Map();
 let generationQueueReadyPromise = null;
 let generationWorkerTimer = null;
 let generationWorkerStopping = false;
@@ -437,6 +438,12 @@ async function recordGenerationTelemetry(jobId, fields = {}) {
 async function markJobCanceled(jobId) {
     rememberCancelledJob(jobId);
     rememberPendingBoot(jobId, { status: 'canceled', error: 'Generation cancelled by user' });
+    const controller = activeJobAbortControllers.get(jobId);
+    if (controller) {
+        console.log(`🛑 [DREAM JOB] Aborting in-flight generation stream for ${jobId}`);
+        controller.abort();
+        activeJobAbortControllers.delete(jobId);
+    }
     try {
         await markGenerationJobCanceled(jobId);
     } catch (error) {
@@ -878,7 +885,11 @@ async function runGenerationJob(job) {
         throw new Error(`No generation runner registered for job kind "${job.kind}"`);
     }
 
-    const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
+    const payload = job.payload && typeof job.payload === 'object' ? { ...job.payload } : {};
+    const abortController = new AbortController();
+    activeJobAbortControllers.set(job.id, abortController);
+    payload.abortSignal = abortController.signal;
+
     rememberPendingBoot(job.id, { status: 'running', userId: job.user_id });
     const __logCtx = { jobId: job.id, lines: [], bytes: 0, truncated: false };
     return genLogStore.run(__logCtx, async () => {
@@ -919,6 +930,7 @@ async function runGenerationJob(job) {
             forgetPendingBoot(job.id);
         } finally {
             clearInterval(heartbeat);
+            activeJobAbortControllers.delete(job.id);
             await persistGenerationLog(job.id, __logCtx);
         }
     });
@@ -1094,6 +1106,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     jobPayload?.selectedMeme,
                 ].filter(Boolean),
                 validateOrientation: jobPayload?.validateOrientation || false, // Optional screenshot validation
+                abortSignal: jobPayload?.abortSignal || null,
                 // Direct progress passed straight through
                 onProgress: async (percent, status, message) => {
                     await reportProgress(percent, status, message);
@@ -1542,6 +1555,20 @@ router.post('/dream', async (req, res) => {
             return res.json({ success: true, jobId: existingJob.id, deduped: true });
         }
 
+        // Auto-cancel any previous queued or running jobs for this user so they don't block the queue
+        try {
+            const staleUserJobs = await pool.query(
+                `SELECT id FROM generation_jobs WHERE user_id = $1 AND kind = 'dream' AND status IN ('queued', 'running')`,
+                [userId]
+            );
+            for (const stale of staleUserJobs.rows) {
+                console.log(`🧹 [DREAM ROUTE] Auto-cancelling prior job ${stale.id} for User[${userId}] before enqueueing new prompt`);
+                await markJobCanceled(stale.id);
+            }
+        } catch (cleanErr) {
+            console.warn(`[DREAM ROUTE] Could not clean stale jobs for User[${userId}]:`, cleanErr?.message || cleanErr);
+        }
+
         console.log(`🧠 [DREAM ROUTE] Creating Gemini Dream job for User[${userId}] -> Concept: "${prompt}" (runtime: ${runtime}, ${orientation}${sessionId ? `, Session: ${sessionId}` : ''})`);
 
         const jobId = randomUUID();
@@ -1714,7 +1741,8 @@ router.post('/dream/cancel/:jobId', async (req, res) => {
 
         const pendingBoot = pendingJobBoots.get(jobId);
         const existing = await pool.query('SELECT user_id FROM ai_games WHERE id = $1', [jobId]);
-        const ownerId = existing.rows[0]?.user_id || pendingBoot?.userId || null;
+        const queueJob = await pool.query('SELECT user_id FROM generation_jobs WHERE id = $1', [jobId]);
+        const ownerId = existing.rows[0]?.user_id || queueJob.rows[0]?.user_id || pendingBoot?.userId || null;
 
         if (!ownerId && !pendingBoot) {
             return res.status(404).json({ error: 'Job not found' });

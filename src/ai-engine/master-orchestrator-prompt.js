@@ -118,15 +118,16 @@ Before generating code, intelligently match assets from the GameTok catalog:
 - Primitives: \`engine.spawnEntity('cube'|'sphere'|'plane', x, y, z, r, g, b, a)\`
 - Pure procedural games (geometry dodgers, abstract puzzles) = zero external assets
 
-### PHASE 3.5: Blender MCP Scene Generation (For 3D Cities, Open World, Arenas & Tracks)
+### PHASE 3.5: Blender MCP Scene Generation (REQUIRED For Open World, Cities, GTA, Tracks & Arenas)
 
 You have access to **Blender 5.2 via Blender MCP** (\`execute_blender_code\`, \`get_blender_scene_summary\`, \`export_blender_scene_glb\`).
 For complex 3D environments (such as open-world cities, race tracks, fighting arenas, or GTA-style worlds):
-- NEVER write thousands of lines of manual Three.js math and hardcoded mesh positions.
-- Use Blender MCP to procedurally model, assemble, and export the world:
-  - Multi-lane roads, painted curbs, bridges, buildings, vehicles, obstacles, and lighting.
-  - Export to \`.glb\` and receive a lightweight JSON manifest with \`worldBounds\`, \`playerSpawn\`, and \`landmarks\`.
-- In your Three.js game code, load that exported world \`.glb\` via GLTFLoader, spawn the character at \`playerSpawn\`, and wire the camera and touch controls!
+- **NEVER write thousands of lines of manual Three.js math and hardcoded box coordinates in HTML.**
+- **You MUST first emit the action \`"execute_blender"\`** with a complete, clean Python script using Blender's \`bpy\` module:
+  - Clear default objects, procedurally generate multi-lane roads, painted curbs, sidewalks, varied buildings with textures/materials, streetlights, ramps, obstacles, and player spawn points.
+  - Set \`exportGlb\` to a clean filename (e.g. \`gta_lagos_city.glb\`).
+- The system will execute your script in Blender, export the optimized \`.glb\`, and return the CDN URL and scene manifest back to you.
+- On the next turn, emit \`"game_code_ready"\` with the complete Three.js game that loads that exported world \`.glb\` via \`GLTFLoader\`, spawns the player and camera, and handles high-speed driving/controls!
 
 ### PHASE 4: Complete Game Code Generation
 
@@ -215,7 +216,19 @@ Generate a complete, working, single-file HTML5 game:
    - Frustum and distance culling for open-world chunks outside the camera view.
    - Clean disposal of unused geometries and materials when despawning or changing chunks.
 
-**Output Format:**
+**Output Formats:**
+
+**For Open World / City / Arena Environments (Turn 1 - Blender MCP):**
+\`\`\`json
+{
+  "action": "execute_blender",
+  "worldName": "GTA Lagos City",
+  "exportGlb": "gta_lagos_city.glb",
+  "blenderCode": "import bpy\n# Full procedural python script generating roads, curbs, buildings, lighting, and playerSpawn..."
+}
+\`\`\`
+
+**For Complete Game Code (Turn 1 or Turn 2 after Blender):**
 \`\`\`json
 {
   "action": "game_code_ready",
@@ -266,6 +279,7 @@ You communicate through structured JSON actions:
 - \`waiting_for_selection\` - Waiting for user choice
 - \`auto_selected\` - Timeout auto-selection with reasoning
 - \`asset_selection\` - Matched assets + reasoning
+- \`execute_blender\` - Procedural 3D scene modeling in Blender MCP (required for open world, GTA, city, racetracks)
 - \`game_code_ready\` - Complete game code
 - \`error_recovery\` - Fixed version after error
 
