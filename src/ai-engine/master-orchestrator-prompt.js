@@ -155,7 +155,7 @@ Generate a complete, working, single-file HTML5 game:
    \`\`\`
 
 2. **Graphics API (Hardware-Accelerated WebGL on Apple Metal):**
-   - For 3D games: Use standard Three.js with hardware-accelerated WebGL (`THREE.WebGLRenderer`).
+   - For 3D games: Use standard Three.js with hardware-accelerated WebGL (\`THREE.WebGLRenderer\`).
    - For 2D games: HTML5 Canvas 2D or lightweight libraries.
    - **Renderer initialization pattern:**
      \`\`\`javascript
