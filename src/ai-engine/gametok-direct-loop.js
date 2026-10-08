@@ -210,18 +210,50 @@ export async function runDirectGenerationLoop({
       initialMessage += '\n\nFirst, generate 4 visual direction options for the user to choose from.';
     }
     
-    if (onProgress) onProgress(10, 'conceptualizing', 'AI is conceptualizing your game...');
+    let streamProgressTimer = null;
+    if (onProgress) {
+      if (skipDirections || selectedDirection) {
+        onProgress(20, 'assets', 'Gathering models, textures & animation rigs...');
+        let tick = 0;
+        streamProgressTimer = setInterval(() => {
+          tick++;
+          if (tick === 1) onProgress(35, 'world', 'Constructing 3D scene geometry & lighting...');
+          else if (tick === 2) onProgress(50, 'gameplay', 'Setting up physics, camera & controls...');
+          else if (tick === 3) onProgress(65, 'audio', 'Synthesizing audio effects & shaders...');
+          else if (tick >= 4) {
+            onProgress(75, 'finalizing', 'Finalizing game code & engine scripts...');
+            clearInterval(streamProgressTimer);
+          }
+        }, 5000);
+      } else {
+        onProgress(15, 'conceptualizing', 'Hermes is brainstorming 4 visual directions...');
+        let tick = 0;
+        streamProgressTimer = setInterval(() => {
+          tick++;
+          if (tick === 1) onProgress(22, 'mechanics', 'Exploring game mechanics & style palettes...');
+          else if (tick >= 2) {
+            onProgress(30, 'directions', 'Preparing concept directions...');
+            clearInterval(streamProgressTimer);
+          }
+        }, 3500);
+      }
+    }
     
     // Phase 1: Initial generation
     console.log(`🧠 [Direct Loop] Phase 1: ${skipDirections || selectedDirection ? 'Instant generation' : 'Direction conceptualization'}...`);
     
-    const response = await generateText(initialMessage, {
-      sessionId: effectiveSessionId,
-      systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
-      model: 'gemini-3.8-flash',
-      maxTokens: skipDirections || selectedDirection ? 65536 : 4096, // Less tokens for directions phase
-      temperature: 0.7,
-    });
+    let response;
+    try {
+      response = await generateText(initialMessage, {
+        sessionId: effectiveSessionId,
+        systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
+        model: 'gemini-3.8-flash',
+        maxTokens: skipDirections || selectedDirection ? 65536 : 4096, // Less tokens for directions phase
+        temperature: 0.7,
+      });
+    } finally {
+      if (streamProgressTimer) clearInterval(streamProgressTimer);
+    }
     
     console.log(`✅ [Direct Loop] Generated ${response.usage.completionTokens} tokens with ${response.model}`);
     
@@ -395,7 +427,21 @@ export async function continueWithSelectedDirection({
 }) {
   console.log(`▶️ [Direct Loop] Continuing with ${autoSelected ? 'auto-' : ''}selected direction: ${selectedDirection.name}`);
   
-  if (onProgress) onProgress(50, 'building', `Building ${selectedDirection.name} game...`);
+  let streamTimer = null;
+  if (onProgress) {
+    onProgress(25, 'assets', `Preparing models & assets for ${selectedDirection.name}...`);
+    let tick = 0;
+    streamTimer = setInterval(() => {
+      tick++;
+      if (tick === 1) onProgress(42, 'world', `Constructing 3D scene in ${selectedDirection.name} style...`);
+      else if (tick === 2) onProgress(58, 'gameplay', 'Programming physics, mechanics & touch controls...');
+      else if (tick === 3) onProgress(72, 'audio', 'Integrating audio effects & shaders...');
+      else if (tick >= 4) {
+        onProgress(82, 'finalizing', 'Finalizing game code & engine scripts...');
+        clearInterval(streamTimer);
+      }
+    }, 5000);
+  }
   
   // Build message with BOTH text and image (agentic pattern like ChatGPT)
   const messageContent = [
@@ -416,13 +462,18 @@ export async function continueWithSelectedDirection({
     console.log(`  🖼️ Including selected image in Gemini's context: ${selectedDirection.imageUrl.substring(0, 60)}...`);
   }
   
-  const response = await generateText(messageContent, {
-    sessionId, // Same session - AI remembers the directions it generated
-    systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
-    model: 'gemini-3.8-flash',
-    maxTokens: 65536,
-    temperature: 0.7,
-  });
+  let response;
+  try {
+    response = await generateText(messageContent, {
+      sessionId, // Same session - AI remembers the directions it generated
+      systemPrompt: MASTER_ORCHESTRATOR_PROMPT,
+      model: 'gemini-3.8-flash',
+      maxTokens: 65536,
+      temperature: 0.7,
+    });
+  } finally {
+    if (streamTimer) clearInterval(streamTimer);
+  }
   
   const parsed = parseOrchestratorResponse(response.text);
   

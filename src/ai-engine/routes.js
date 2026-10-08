@@ -1075,7 +1075,7 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         await reportProgress(10, 'starting', 'Hermes is initializing...');
 
         // 1. Run AI Game Generation (Direct Gemini or AGY based on feature flag)
-        await reportProgress(25, 'generating', runtime === 'native' ? 'Generating 120 FPS Native Game script...' : 'AI is designing your game...');
+        await reportProgress(15, 'assets', 'Gathering and preparing 3D assets...');
         
         let finalGameState;
         
@@ -1094,9 +1094,9 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
                     jobPayload?.selectedMeme,
                 ].filter(Boolean),
                 validateOrientation: jobPayload?.validateOrientation || false, // Optional screenshot validation
-                // No skipDirections flag - always follow the full flow
+                // Direct progress passed straight through
                 onProgress: async (percent, status, message) => {
-                    await reportProgress(25 + Math.floor(percent * 0.5), status, message);
+                    await reportProgress(percent, status, message);
                 },
             });
         } else {
