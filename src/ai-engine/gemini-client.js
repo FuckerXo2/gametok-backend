@@ -58,16 +58,20 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
         if (maxTokens) {
             payload.max_tokens = maxTokens;
         }
-        const response = await client.chat.completions.create(payload);
-
-        if (response.usage) {
-            if (jobId) {
+        let content = '';
+        try {
+            const stream = await client.chat.completions.create({ ...payload, stream: true });
+            for await (const chunk of stream) {
+                content += chunk.choices?.[0]?.delta?.content || '';
+            }
+        } catch (streamErr) {
+            const response = await client.chat.completions.create(payload);
+            if (response.usage && jobId) {
                 recordGeminiUsage(jobId, response.usage);
             }
-            console.log(`🧠 [Gemini Client] Model ${m} tokens: ${response.usage.prompt_tokens} prompt / ${response.usage.completion_tokens} completion (Total: ${response.usage.total_tokens})`);
+            content = response.choices?.[0]?.message?.content || '{}';
         }
-
-        let content = (response.choices?.[0]?.message?.content || '{}').trim();
+        content = content.trim();
         
         function cleanAndParse(raw) {
             if (!raw) return null;

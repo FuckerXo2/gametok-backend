@@ -64,8 +64,8 @@ const GENERATION_JOB_CONCURRENCY = Math.min(
     Math.max(1, Number(process.env.GENERATION_JOB_CONCURRENCY || (IS_CLOUD ? 8 : 1)))
 );
 const GENERATION_JOB_POLL_MS = Math.max(1000, Number(process.env.GENERATION_JOB_POLL_MS || 3000));
-const GENERATION_JOB_MAX_ATTEMPTS = Math.max(1, Number(process.env.GENERATION_JOB_MAX_ATTEMPTS || 1));
-const GENERATION_JOB_STALE_MINUTES = Math.max(2, Number(process.env.GENERATION_JOB_STALE_MINUTES || 2));
+const GENERATION_JOB_MAX_ATTEMPTS = Math.max(2, Number(process.env.GENERATION_JOB_MAX_ATTEMPTS || 2));
+const GENERATION_JOB_STALE_MINUTES = Math.max(5, Number(process.env.GENERATION_JOB_STALE_MINUTES || 5));
 const GENERATION_JOB_RETRY_DELAY_MS = Math.max(5000, Number(process.env.GENERATION_JOB_RETRY_DELAY_MS || 30000));
 const GENERATION_JOB_HEARTBEAT_MS = Math.max(15000, Number(process.env.GENERATION_JOB_HEARTBEAT_MS || 30000));
 
