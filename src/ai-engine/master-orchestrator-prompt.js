@@ -154,32 +154,26 @@ Generate a complete, working, single-file HTML5 game:
    </html>
    \`\`\`
 
-2. **Graphics API with Progressive Enhancement:**
-   - **ALWAYS implement WebGPU + WebGL fallback** for maximum compatibility
-   - For 3D games: Use Three.js with WebGPU renderer (falls back to WebGL)
-   - For 2D games: HTML5 Canvas 2D or lightweight libraries
+2. **Graphics API (Hardware-Accelerated WebGL on Apple Metal):**
+   - For 3D games: Use standard Three.js with hardware-accelerated WebGL (`THREE.WebGLRenderer`).
+   - For 2D games: HTML5 Canvas 2D or lightweight libraries.
    - **Renderer initialization pattern:**
      \`\`\`javascript
-     async function initRenderer() {
-       // Try WebGPU first (iOS 26+, Android 12+, modern browsers)
-       if (navigator.gpu) {
-         try {
-           const adapter = await navigator.gpu.requestAdapter();
-           if (adapter) {
-             const device = await adapter.requestDevice();
-             console.log('🚀 Using WebGPU for maximum performance');
-             return createWebGPURenderer(device);
-           }
-         } catch (e) {
-           console.warn('WebGPU unavailable, falling back to WebGL');
-         }
-       }
-       // Fallback to WebGL (universal compatibility)
-       console.log('⚡ Using WebGL for compatibility');
-       return createWebGLRenderer();
+     function initRenderer(canvas) {
+       console.log('⚡ Initializing hardware-accelerated WebGL renderer');
+       const renderer = new THREE.WebGLRenderer({
+         canvas,
+         antialias: true,
+         powerPreference: 'high-performance'
+       });
+       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+       renderer.setSize(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight, false);
+       renderer.shadowMap.enabled = true;
+       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+       return renderer;
      }
      \`\`\`
-   - Three.js example: \`new THREE.WebGPURenderer()\` with fallback to \`new THREE.WebGLRenderer()\`
+   - **CRITICAL**: Do NOT use experimental WebGPU or \`navigator.gpu\` async probing. In mobile WebViews (iOS WKWebView / Android WebView), WebGPU adapter requests can hang or fail. Standard WebGL boots synchronously at 60-120 FPS accelerated by Apple Metal. Never create loading screens that wait for WebGPU detection.
 
 3. **Visual Style Adherence:**
    - Use exact color palette from selected direction
@@ -206,20 +200,20 @@ Generate a complete, working, single-file HTML5 game:
    - Performance: Target 60 FPS on mobile devices
 
 5. **Game Loop Essentials:**
-   - Proper initialization with async renderer setup
-   - Update loop with deltaTime
-   - Render loop (handles both WebGPU and WebGL)
-   - Input handling (touch + keyboard)
+   - Immediate synchronous renderer initialization
+   - Update loop with deltaTime via requestAnimationFrame
+   - Render loop (60-120 FPS hardware-accelerated WebGL)
+   - Input handling (touch virtual joystick + buttons + keyboard fallback)
    - Win/lose conditions
    - Score tracking
    - Restart functionality
 
-6. **WebGPU Performance Guidelines (when available):**
-   - Utilize compute shaders for physics, particles, AI
-   - Use GPU-accelerated post-processing effects
-   - Leverage bindless textures for large asset libraries
-   - Optimize with GPU occlusion culling
-   - **Remember**: All WebGPU features must have WebGL fallback equivalents
+6. **Mobile Graphics Performance Guidelines (Apple Metal WebGL):**
+   - Use instanced meshes or chunk grouping for repetitive environmental props (buildings, trees, cars).
+   - Cap pixel ratio to \`Math.min(window.devicePixelRatio, 2)\` for smooth 60-120 FPS.
+   - Efficient texture sizes (1024x1024 or 512x512) and bounded shadow maps (1024x1024).
+   - Frustum and distance culling for open-world chunks outside the camera view.
+   - Clean disposal of unused geometries and materials when despawning or changing chunks.
 
 **Output Format:**
 \`\`\`json
@@ -232,28 +226,25 @@ Generate a complete, working, single-file HTML5 game:
     "keyboard": "WASD to move, Space to jump"
   },
   "thumbnailPrompt": "Screenshot-worthy description for game thumbnail",
-  "usesWebGPU": true
+  "runtime": "webgl"
 }
 \`\`\`
 
-**Three.js WebGPU + WebGL Example Pattern:**
+**Three.js WebGL Fast-Boot Example Pattern:**
 \`\`\`javascript
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import WebGPU from 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/capabilities/WebGPU.js';
-import WebGPURenderer from 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/renderers/webgpu/WebGPURenderer.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
 
-async function initRenderer(canvas) {
-  let renderer;
-  
-  if (await WebGPU.isAvailable()) {
-    console.log('🚀 Initializing WebGPU renderer');
-    renderer = new WebGPURenderer({ canvas, antialias: true });
-    await renderer.init();
-  } else {
-    console.log('⚡ Initializing WebGL renderer');
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  }
-  
+function initRenderer(canvas) {
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    powerPreference: 'high-performance'
+  });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   return renderer;
 }
 \`\`\`

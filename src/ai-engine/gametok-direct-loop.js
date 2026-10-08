@@ -167,13 +167,11 @@ export async function runDirectGenerationLoop({
     initialMessage += `\n- max-height: ${dimensions.height}px`;
     initialMessage += `\nDo NOT use different dimensions. The game must fit perfectly within ${dimensions.width}×${dimensions.height}px.`;
     
-    // Add graphics capability hint
-    initialMessage += `\n\n🎮 GRAPHICS API: Generate with WebGPU + WebGL fallback pattern.`;
-    initialMessage += `\n- Modern devices (iOS 26+, Android 12+, Chrome 113+) will use WebGPU for AAA performance`;
-    initialMessage += `\n- Older devices will automatically fall back to WebGL`;
-    initialMessage += `\n- ALWAYS implement both renderers with automatic detection`;
-    initialMessage += `\n- For Three.js: Use WebGPURenderer with WebGLRenderer fallback`;
-    initialMessage += `\n- For custom renderers: Check navigator.gpu availability first`;
+    // Graphics API: Standard Hardware-Accelerated WebGL on Apple Metal / Vulkan
+    initialMessage += `\n\n🎮 GRAPHICS API: Pure Hardware-Accelerated WebGL (Apple Metal on iOS, Vulkan on Android).`;
+    initialMessage += `\n- Use standard Three.js WebGLRenderer (e.g. new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })).`;
+    initialMessage += `\n- DO NOT use experimental WebGPU or navigator.gpu detection — WebGL boots instantly at 60-120 FPS on mobile WebViews with zero startup delays.`;
+    initialMessage += `\n- Never create async loading screens that block on graphics API detection. Start the game and controls immediately.`;
     
     // Add available assets catalogs
     const relevantAnimations = getRelevantAnimations(prompt);
