@@ -6,10 +6,9 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import OpenAI from 'openai';
 
-// Model fallback chain: 3.8 -> 2.5 (rock solid capacity) -> 3.7 -> 2.0
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.0-flash'];
+// Model fallback chain: 3.8 -> 3.7 -> 2.0
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-2.0-flash'];
 
 // In-memory conversation storage for multi-turn sessions
 const conversationMemory = new Map();
@@ -40,7 +39,6 @@ export async function generateText(prompt, options = {}) {
     let lastError = null;
 
     for (const model of models) {
-        // --- 1. Try Native GoogleGenerativeAI with real-time stream ---
         try {
             console.log(`🧠 [Gemini Direct] Streaming via native Google SDK (${model})...`);
             const genAI = new GoogleGenerativeAI(apiKey);
@@ -99,91 +97,9 @@ export async function generateText(prompt, options = {}) {
                     },
                 };
             }
-        } catch (nativeErr) {
-            const isModelOverloaded = String(nativeErr?.message || '').includes('503') ||
-                String(nativeErr?.message || '').includes('high demand') ||
-                String(nativeErr?.message || '').includes('UNAVAILABLE') ||
-                String(nativeErr?.status || '').includes('503');
-
-            console.warn(`⚠️ [Gemini Direct] Native SDK attempt for ${model} encountered: ${nativeErr?.message || nativeErr}`);
-            lastError = nativeErr;
-
-            // If Google explicitly rejected this model due to high demand (503), do NOT try the same model again via OpenAI gateway!
-            if (isModelOverloaded) {
-                console.warn(`⚡ [Gemini Direct] ${model} is overloaded on Google's side (503/high demand). Skipping gateway and trying next model immediately...`);
-                continue;
-            }
-        }
-
-        // --- 2. Fallback: OpenAI SSE Streaming gateway on same model (for non-503 protocol/network errors) ---
-        try {
-            console.log(`🧠 [Gemini Direct] Streaming via OpenAI SSE gateway (${model})...`);
-            const client = new OpenAI({
-                apiKey,
-                baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
-                timeout: 180000,
-            });
-
-            const messages = [];
-            if (options.systemPrompt) {
-                messages.push({ role: 'system', content: options.systemPrompt });
-            }
-            if (options.sessionId && conversationMemory.has(options.sessionId)) {
-                messages.push(...conversationMemory.get(options.sessionId));
-            }
-            messages.push({ role: 'user', content: userPromptText });
-
-            const stream = await client.chat.completions.create({
-                model,
-                messages,
-                max_tokens: options.maxTokens || 65536,
-                stream: true,
-            });
-
-            let text = '';
-            let chunkCount = 0;
-            for await (const chunk of stream) {
-                const delta = chunk.choices?.[0]?.delta?.content || '';
-                if (delta) {
-                    text += delta;
-                    chunkCount++;
-                }
-            }
-
-            if (text && text.trim().length > 0) {
-                console.log(`✅ [Gemini Direct] OpenAI SSE stream complete for ${model}: ${text.length} chars in ${chunkCount} chunks`);
-
-                if (options.sessionId) {
-                    if (!conversationMemory.has(options.sessionId)) {
-                        conversationMemory.set(options.sessionId, []);
-                    }
-                    const history = conversationMemory.get(options.sessionId);
-                    history.push({ role: 'user', content: userPromptText });
-                    history.push({ role: 'assistant', content: text });
-                }
-
-                return {
-                    text,
-                    model,
-                    usage: {
-                        promptTokens: Math.ceil(userPromptText.length / 4),
-                        completionTokens: Math.ceil(text.length / 4),
-                        totalTokens: Math.ceil((userPromptText.length + text.length) / 4),
-                    },
-                };
-            }
-        } catch (openAiErr) {
-            lastError = openAiErr;
-            const isRetryable = openAiErr.status === 503 || openAiErr.status === 429 ||
-                String(openAiErr.message).includes('503') ||
-                String(openAiErr.message).includes('429') ||
-                String(openAiErr.message).includes('high demand') ||
-                String(openAiErr.message).includes('UNAVAILABLE');
-
-            console.warn(`⚠️ [Gemini Direct] ${model} unavailable (${openAiErr?.status || openAiErr?.message}), falling back to next model in 1s...`);
-            if (isRetryable) {
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-            }
+        } catch (err) {
+            console.warn(`⚠️ [Gemini Direct] ${model} failed: ${err?.message || err}. Falling back to next model...`);
+            lastError = err;
         }
     }
 
