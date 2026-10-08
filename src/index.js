@@ -1850,6 +1850,316 @@ app.patch('/api/admin/games/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// INDIE DEVELOPER PUBLISHING & CREATOR STUDIO
+// ============================================
+
+const handleGamePublish = async (req, res) => {
+  try {
+    let {
+      url,
+      embedUrl,
+      html,
+      title,
+      name,
+      description,
+      creatorHandle,
+      creatorName,
+      creatorEmail,
+      payoutAddress,
+      category,
+      orientation,
+      icon,
+      color,
+      thumbnail
+    } = req.body;
+
+    let targetUrl = (url || embedUrl || '').trim();
+    let gameTitle = (title || name || '').trim();
+    let gameDesc = (description || '').trim();
+    let handle = (creatorHandle || '').trim().replace(/^@/, '');
+    let displayName = (creatorName || '').trim();
+
+    // If an external URL is given, attempt to scrape metadata and bridge tags if title/creator missing
+    if (targetUrl) {
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      try {
+        const scrapeController = new AbortController();
+        const scrapeTimeout = setTimeout(() => scrapeController.abort(), 3500);
+        const resp = await fetch(targetUrl, {
+          signal: scrapeController.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GameTokBot/1.0; +https://gametok.co)' }
+        });
+        clearTimeout(scrapeTimeout);
+        if (resp.ok) {
+          const htmlText = await resp.text();
+          // Extract <title>
+          if (!gameTitle) {
+            const mTitle = htmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
+            if (mTitle && mTitle[1]) gameTitle = mTitle[1].trim();
+          }
+          // Extract meta description
+          if (!gameDesc) {
+            const mDesc = htmlText.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+                          htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+            if (mDesc && mDesc[1]) gameDesc = mDesc[1].trim();
+          }
+          // Extract bridge script attributes
+          const mScript = htmlText.match(/<script[^>]*bridge\.js[^>]*>/i);
+          if (mScript) {
+            const scriptTag = mScript[0];
+            const mHandle = scriptTag.match(/data-creator-handle=["']([^"']+)["']/i);
+            if (mHandle && mHandle[1] && !handle) handle = mHandle[1].trim();
+            const mName = scriptTag.match(/data-creator-name=["']([^"']+)["']/i);
+            if (mName && mName[1] && !displayName) displayName = mName[1].trim();
+            const mGameTitle = scriptTag.match(/data-game-title=["']([^"']+)["']/i);
+            if (mGameTitle && mGameTitle[1] && !gameTitle) gameTitle = mGameTitle[1].trim();
+          }
+          // Extract meta author
+          if (!displayName && !handle) {
+            const mAuthor = htmlText.match(/<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i);
+            if (mAuthor && mAuthor[1]) {
+              displayName = mAuthor[1].trim();
+              handle = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 30);
+            }
+          }
+          // Extract og:image for thumbnail
+          if (!thumbnail) {
+            const mOgImg = htmlText.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+            if (mOgImg && mOgImg[1]) {
+              thumbnail = mOgImg[1].trim();
+              if (thumbnail.startsWith('/')) {
+                const u = new URL(targetUrl);
+                thumbnail = `${u.origin}${thumbnail}`;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Scrape failure is non-fatal
+      }
+    } else if (html) {
+      // In-memory / raw HTML mode
+      if (!gameTitle) {
+        const mTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (mTitle && mTitle[1]) gameTitle = mTitle[1].trim();
+      }
+      const mScript = html.match(/<script[^>]*bridge\.js[^>]*>/i);
+      if (mScript) {
+        const scriptTag = mScript[0];
+        const mHandle = scriptTag.match(/data-creator-handle=["']([^"']+)["']/i);
+        if (mHandle && mHandle[1] && !handle) handle = mHandle[1].trim();
+        const mName = scriptTag.match(/data-creator-name=["']([^"']+)["']/i);
+        if (mName && mName[1] && !displayName) displayName = mName[1].trim();
+      }
+    } else {
+      return res.status(400).json({ error: 'Either a game URL or HTML content must be provided.' });
+    }
+
+    if (!gameTitle) {
+      gameTitle = 'Indie Web Game';
+    }
+
+    // Sanitize creator handle
+    if (!handle) {
+      handle = displayName ? displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 30) : `creator_${Date.now().toString(36)}`;
+    }
+    handle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 40);
+    if (!handle) handle = `creator_${Date.now().toString(36)}`;
+    if (!displayName) displayName = handle;
+
+    // Zero-signup Creator profile resolution
+    let creatorRecord;
+    const userLookup = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [handle]);
+    if (userLookup.rows.length > 0) {
+      creatorRecord = userLookup.rows[0];
+      if (payoutAddress && !creatorRecord.bio?.includes(payoutAddress)) {
+        await pool.query('UPDATE users SET bio = COALESCE(bio, \'\') || $1 WHERE id = $2', [` [Payout: ${payoutAddress}]`, creatorRecord.id]);
+      }
+    } else {
+      const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(handle)}`;
+      const bioText = payoutAddress ? `Indie game developer on GameTok. [Payout: ${payoutAddress}]` : 'Indie game developer on GameTok.';
+      const insertUser = await pool.query(
+        `INSERT INTO users (username, display_name, avatar, bio)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [handle, displayName, avatarUrl, bioText]
+      );
+      creatorRecord = insertUser.rows[0];
+    }
+
+    // Slugify title for game ID
+    let slug = gameTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+    if (!slug) slug = `game-${Date.now().toString(36)}`;
+
+    // Check collision
+    let gameId = slug;
+    const existingGame = await pool.query('SELECT id, developer FROM games WHERE id = $1', [gameId]);
+    if (existingGame.rows.length > 0) {
+      if (existingGame.rows[0].developer !== creatorRecord.id.toString()) {
+        gameId = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+      }
+    }
+
+    const defaultColors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#F38181', '#AA96DA', '#6C5CE7', '#FD79A8'];
+    const chosenColor = color || defaultColors[Math.floor(Math.random() * defaultColors.length)];
+    const chosenIcon = icon || '🎮';
+    const chosenCategory = (category || 'arcade').toLowerCase();
+    const chosenOrientation = orientation === 'landscape' ? 'landscape' : 'portrait';
+
+    const insertResult = await pool.query(
+      `INSERT INTO games (
+        id, name, description, icon, color, category,
+        embed_url, thumbnail, developer, orientation, runtime, script_payload
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11)
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        icon = EXCLUDED.icon,
+        color = EXCLUDED.color,
+        category = EXCLUDED.category,
+        embed_url = EXCLUDED.embed_url,
+        thumbnail = COALESCE(EXCLUDED.thumbnail, games.thumbnail),
+        developer = EXCLUDED.developer,
+        orientation = EXCLUDED.orientation,
+        script_payload = EXCLUDED.script_payload
+      RETURNING *`,
+      [
+        gameId,
+        gameTitle,
+        gameDesc,
+        chosenIcon,
+        chosenColor,
+        chosenCategory,
+        targetUrl || null,
+        thumbnail || null,
+        creatorRecord.id.toString(),
+        chosenOrientation,
+        html || null
+      ]
+    );
+
+    // Sync categories join table
+    try {
+      if (typeof setGameCategories === 'function') {
+        await setGameCategories(gameId, [chosenCategory]);
+      }
+    } catch (e) {
+      console.warn('[Publish] Category sync error:', e);
+    }
+
+    const savedGame = insertResult.rows[0];
+
+    return res.json({
+      success: true,
+      gameId: savedGame.id,
+      title: savedGame.name,
+      description: savedGame.description,
+      url: `https://gametok.co/game/${savedGame.id}`,
+      shortUrl: `https://gametok.co/game/${savedGame.id}`,
+      playerUrl: `https://gametok.co/game/${savedGame.id}`,
+      embedUrl: savedGame.embed_url,
+      orientation: savedGame.orientation,
+      creator: {
+        id: creatorRecord.id,
+        username: creatorRecord.username,
+        displayName: creatorRecord.display_name,
+        avatar: creatorRecord.avatar
+      },
+      dashboardUrl: `https://games.gametok.co?creator=${encodeURIComponent(creatorRecord.username)}`
+    });
+  } catch (error) {
+    console.error('[Publish] Error publishing game:', error);
+    return res.status(500).json({ error: 'Failed to publish game: ' + (error.message || 'Server error') });
+  }
+};
+
+app.post('/api/publish', handleGamePublish);
+app.post('/api/games/publish-web', handleGamePublish);
+
+// Get creator profile & dashboard stats
+app.get('/api/publish/creator/:handle', async (req, res) => {
+  try {
+    const handle = String(req.params.handle || '').trim().replace(/^@/, '').toLowerCase();
+    const userRes = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [handle]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+    const creator = userRes.rows[0];
+    const gamesRes = await pool.query(
+      `SELECT g.*, 
+        COALESCE((SELECT COUNT(*) FROM likes l WHERE l.game_id = g.id), 0) AS likes_count,
+        COALESCE(g.plays, 0) AS plays_count
+       FROM games g 
+       WHERE g.developer = $1 OR g.developer = $2
+       ORDER BY g.created_at DESC`,
+      [creator.id.toString(), creator.username]
+    );
+
+    let totalPlays = 0;
+    let totalLikes = 0;
+    gamesRes.rows.forEach(r => {
+      totalPlays += parseInt(r.plays_count || 0, 10);
+      totalLikes += parseInt(r.likes_count || 0, 10);
+    });
+
+    // Payout calculation: e.g. $5.00 per 1,000 plays ($0.005/play)
+    const estEarnings = (totalPlays * 0.005).toFixed(2);
+
+    res.json({
+      creator: {
+        id: creator.id,
+        username: creator.username,
+        displayName: creator.display_name,
+        avatar: creator.avatar,
+        bio: creator.bio,
+        createdAt: creator.created_at
+      },
+      stats: {
+        totalGames: gamesRes.rows.length,
+        totalPlays,
+        totalLikes,
+        estimatedEarnings: estEarnings
+      },
+      games: gamesRes.rows.map(formatGame)
+    });
+  } catch (err) {
+    console.error('[Creator Profile] Error:', err);
+    res.status(500).json({ error: 'Failed to load creator profile' });
+  }
+});
+
+// Update creator profile (display name, avatar, bio, payout address)
+app.patch('/api/publish/creator/:handle', async (req, res) => {
+  try {
+    const handle = String(req.params.handle || '').trim().replace(/^@/, '').toLowerCase();
+    const { displayName, bio, payoutAddress, avatar } = req.body;
+    const updates = [];
+    const values = [];
+    let idx = 1;
+    if (displayName) { updates.push(`display_name = $${idx++}`); values.push(displayName); }
+    if (avatar) { updates.push(`avatar = $${idx++}`); values.push(avatar); }
+    if (bio !== undefined || payoutAddress !== undefined) {
+      let finalBio = bio || '';
+      if (payoutAddress) finalBio = `${finalBio} [Payout: ${payoutAddress}]`.trim();
+      updates.push(`bio = $${idx++}`);
+      values.push(finalBio);
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    values.push(handle);
+    const result = await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE LOWER(username) = LOWER($${idx}) RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Creator not found' });
+    res.json({ success: true, creator: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update creator profile' });
+  }
+});
+
 // Get all games for admin (not randomized)
 app.get('/api/admin/games', async (req, res) => {
   try {
