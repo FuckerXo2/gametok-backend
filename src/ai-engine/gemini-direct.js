@@ -8,8 +8,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
-// Model fallback chain: 3.8 -> 3.7 -> 2.5 -> 2.0
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+// Model fallback chain: 3.8 -> 2.5 (rock solid capacity) -> 3.7 -> 2.0
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.0-flash'];
 
 // In-memory conversation storage for multi-turn sessions
 const conversationMemory = new Map();
@@ -100,11 +100,22 @@ export async function generateText(prompt, options = {}) {
                 };
             }
         } catch (nativeErr) {
+            const isModelOverloaded = String(nativeErr?.message || '').includes('503') ||
+                String(nativeErr?.message || '').includes('high demand') ||
+                String(nativeErr?.message || '').includes('UNAVAILABLE') ||
+                String(nativeErr?.status || '').includes('503');
+
             console.warn(`⚠️ [Gemini Direct] Native SDK attempt for ${model} encountered: ${nativeErr?.message || nativeErr}`);
             lastError = nativeErr;
+
+            // If Google explicitly rejected this model due to high demand (503), do NOT try the same model again via OpenAI gateway!
+            if (isModelOverloaded) {
+                console.warn(`⚡ [Gemini Direct] ${model} is overloaded on Google's side (503/high demand). Skipping gateway and trying next model immediately...`);
+                continue;
+            }
         }
 
-        // --- 2. Fallback: OpenAI SSE Streaming gateway on same model ---
+        // --- 2. Fallback: OpenAI SSE Streaming gateway on same model (for non-503 protocol/network errors) ---
         try {
             console.log(`🧠 [Gemini Direct] Streaming via OpenAI SSE gateway (${model})...`);
             const client = new OpenAI({
