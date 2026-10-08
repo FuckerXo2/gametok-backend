@@ -204,7 +204,7 @@ Generate a complete, working, single-file HTML5 game:
    - Immediate synchronous renderer initialization
    - Update loop with deltaTime via requestAnimationFrame
    - Render loop (60-120 FPS hardware-accelerated WebGL)
-   - Input handling: Clean, responsive mobile touch controls tailored to the game mechanics + keyboard fallback. **NEVER use floating/dynamic thumb joysticks that spawn circles under touch or hijack camera swipes.** Use fixed on-screen buttons, directional pads, or direct gestures that reliably reset on touch-end.
+   - Input handling: Responsive mobile touch controls tailored to the game mechanics + keyboard fallback.
    - Win/lose conditions
    - Score tracking
    - Restart functionality

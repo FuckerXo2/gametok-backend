@@ -380,7 +380,7 @@ CRITICAL ARCHITECTURE RULES:
    - Resume AudioContext on first touch / pointerdown.
 
 8. ON-SCREEN MOBILE TOUCH CONTROLS:
-   - Provide responsive on-screen touch controls: fixed directional buttons/pads or direct drag area, dedicated action buttons on the right thumb, with active touch feedback. Never spawn floating/moving thumb joystick circles under touches.
+   - Provide responsive on-screen mobile touch controls tailored to the game mechanics, with active touch feedback.
    - Also listen for keyboard (Arrow keys / WASD / Space) for developer testing.
 
 9. OPEN-WORLD & 3D CHUNKING ARCHITECTURE (FOR CITY / GTA / EXPLORATION):
