@@ -80,7 +80,6 @@ export async function generateText(prompt, options = {}) {
                 model,
                 messages,
                 max_tokens: options.maxTokens || 65536,
-                temperature: options.temperature || 0.7,
             });
 
             const text = response.choices[0]?.message?.content || '';

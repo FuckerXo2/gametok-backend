@@ -54,7 +54,6 @@ export async function callGeminiFlashJson({ systemPrompt, messages = [], tempera
             model: m,
             response_format: { type: 'json_object' },
             messages: formattedMessages,
-            temperature,
         };
         if (maxTokens) {
             payload.max_tokens = maxTokens;
@@ -259,7 +258,6 @@ Keep it concise, code-ready, and highly actionable.`;
                 const response = await client.chat.completions.create({
                     model: GEMINI_FLASH_MODEL,
                     messages,
-                    temperature: 0.2,
                     max_tokens: 800,
                 });
 
