@@ -980,7 +980,7 @@ function startGenerationQueueWorker() {
     }
     void ensureGenerationQueueSchema()
         .then(() => {
-            console.log(`🏗️ [GEN QUEUE] Hermes Worker ${GENERATION_WORKER_ID} ready with concurrency=${GENERATION_JOB_CONCURRENCY}`);
+            console.log(`🏗️ [GEN QUEUE] Generation Worker ${GENERATION_WORKER_ID} ready with concurrency=${GENERATION_JOB_CONCURRENCY}`);
             scheduleGenerationWorker(0);
         })
         .catch((error) => {
@@ -1071,11 +1071,11 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
     try {
         const runtime = jobPayload?.runtime === 'web' ? 'web' : 'native';
         assertJobNotCancelled(jobId);
-        console.log(`🧠 [HERMES DREAM JOB] Starting generation for: "${prompt}" (runtime: ${runtime}, orientation: ${orientation})`);
-        await reportProgress(10, 'starting', 'Hermes is initializing...');
+        console.log(`🧠 [DREAM JOB] Pixil starting generation for: "${prompt}" (runtime: ${runtime}, orientation: ${orientation})`);
+        await reportProgress(10, 'starting', 'Pixil is initializing...');
 
-        // 1. Run AI Game Generation (Direct Gemini or AGY based on feature flag)
-        await reportProgress(15, 'assets', 'Gathering and preparing 3D assets...');
+        // 1. Run AI Game Generation (Direct Gemini)
+        await reportProgress(15, 'assets', 'Pixil is gathering 3D assets...');
         
         let finalGameState;
         
@@ -1138,14 +1138,14 @@ async function executeDreamJob(jobId, prompt, mediaAttachments = [], jobPayload 
         let finalScript = isHtml ? null : finalCode;
         const effectiveRuntime = isHtml ? 'web' : runtime;
 
-        await reportProgress(75, 'verifying', 'Testing game in Hermes sandbox...');
+        await reportProgress(75, 'verifying', 'Testing game in sandbox...');
         try {
             const verifyRes = await verifyGame(finalHtml, { orientation, timeoutMs: 12000 });
             if (!verifyRes.success && !verifyRes.bypassed) {
-                console.warn(`⚠️ [HERMES DREAM JOB] Game sandbox had warnings/errors:`, verifyRes.crashes);
+                console.warn(`⚠️ [DREAM JOB] Game sandbox had warnings/errors:`, verifyRes.crashes);
             }
         } catch (vErr) {
-            console.warn(`⚠️ [HERMES DREAM JOB] Sandbox verification skipped:`, vErr.message);
+            console.warn(`⚠️ [DREAM JOB] Sandbox verification skipped:`, vErr.message);
         }
 
         // 2. Save project files
@@ -1542,7 +1542,7 @@ router.post('/dream', async (req, res) => {
             return res.json({ success: true, jobId: existingJob.id, deduped: true });
         }
 
-        console.log(`🧠 [DREAM ROUTE] Creating Hermes job for User[${userId}] -> Concept: "${prompt}" (runtime: ${runtime}, ${orientation}${sessionId ? `, Session: ${sessionId}` : ''})`);
+        console.log(`🧠 [DREAM ROUTE] Creating Gemini Dream job for User[${userId}] -> Concept: "${prompt}" (runtime: ${runtime}, ${orientation}${sessionId ? `, Session: ${sessionId}` : ''})`);
 
         const jobId = randomUUID();
         await enqueueGenerationJob({

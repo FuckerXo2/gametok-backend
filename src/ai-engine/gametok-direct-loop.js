@@ -213,7 +213,7 @@ export async function runDirectGenerationLoop({
     let streamProgressTimer = null;
     if (onProgress) {
       if (skipDirections || selectedDirection) {
-        onProgress(20, 'assets', 'Gathering models, textures & animation rigs...');
+        onProgress(20, 'assets', 'Pixil is gathering models, textures & animation rigs...');
         let tick = 0;
         streamProgressTimer = setInterval(() => {
           tick++;
@@ -226,7 +226,7 @@ export async function runDirectGenerationLoop({
           }
         }, 5000);
       } else {
-        onProgress(15, 'conceptualizing', 'Hermes is brainstorming 4 visual directions...');
+        onProgress(15, 'conceptualizing', 'Pixil is brainstorming 4 visual directions...');
         let tick = 0;
         streamProgressTimer = setInterval(() => {
           tick++;
@@ -429,7 +429,7 @@ export async function continueWithSelectedDirection({
   
   let streamTimer = null;
   if (onProgress) {
-    onProgress(25, 'assets', `Preparing models & assets for ${selectedDirection.name}...`);
+    onProgress(25, 'assets', `Pixil is preparing models & assets for ${selectedDirection.name}...`);
     let tick = 0;
     streamTimer = setInterval(() => {
       tick++;
