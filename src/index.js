@@ -110,6 +110,10 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Global Media & Assets Pool - Mounted BEFORE requireAdmin so team can upload and manage 3D assets/animations 24/7
+app.use('/admin/assets', adminAssetsRouter);
+app.use('/api/admin/assets', adminAssetsRouter);
+
 // Registered before the admin routers and route definitions below so it covers
 // all of them, including /api/admin/bots and /api/admin/covers.
 app.use('/api/admin', requireAdmin);
@@ -118,9 +122,6 @@ app.use('/api/admin', requireAdmin);
 app.use('/api/ai', aiRouter);
 app.use('/api/opengame', openGameRouter);
 
-// Global Media & Assets Pool
-app.use('/admin/assets', adminAssetsRouter);
-app.use('/api/admin/assets', adminAssetsRouter);
 app.use('/api/assets', assetsRouter);
 app.use('/api/posts', postsPublicRouter);
 app.use('/api/admin/posts', postsAdminRouter);

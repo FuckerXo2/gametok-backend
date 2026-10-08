@@ -94,6 +94,9 @@ router.get('/characters', async (req, res) => {
         } catch {
             characters = getInMemoryAssets().filter(a => a.category === 'characters' || a.is_rigged);
         }
+        if (!characters.length) {
+            characters = getInMemoryAssets().filter(a => a.category === 'characters' || a.is_rigged);
+        }
         res.json({ success: true, count: characters.length, characters });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -141,6 +144,19 @@ router.get('/stats', async (req, res) => {
             inMemAssets.forEach(a => {
                 categories[a.category] = (categories[a.category] || 0) + 1;
             });
+        }
+
+        if (total3D === 0) {
+            const inMemAssets = getInMemoryAssets();
+            total3D = inMemAssets.length;
+            inMemAssets.forEach(a => {
+                categories[a.category] = (categories[a.category] || 0) + 1;
+            });
+        }
+
+        if (totalAnimations === 0) {
+            const inMemAnims = getInMemoryAnimations();
+            totalAnimations = inMemAnims.length;
         }
 
         res.json({

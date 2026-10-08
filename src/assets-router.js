@@ -369,7 +369,7 @@ const MODELS_3D_CATEGORIES = [
   { id: 'my_models', label: 'My Uploads', chips: [] },
 ];
 
-const CURATED_3D_MODELS_BACKEND = [
+export const CURATED_3D_MODELS_BACKEND = [
   {
     id: 'gt-lagos-street-hustler',
     name: 'Street Hustler',

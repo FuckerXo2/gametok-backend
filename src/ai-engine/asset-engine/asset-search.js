@@ -50,7 +50,7 @@ export async function searchAssetCatalog(params = {}) {
             }
         }
 
-        const limit = Math.min(25, Math.max(1, Number(params.limit) || 8));
+        const limit = Math.min(200, Math.max(1, Number(params.limit) || 50));
         values.push(limit);
 
         const sql = `
@@ -99,7 +99,7 @@ export async function searchAssetCatalog(params = {}) {
             if (!matchesName && !matchesTag) return false;
         }
         return true;
-    }).slice(0, Number(params.limit) || 8);
+    }).slice(0, Math.min(200, Math.max(1, Number(params.limit) || 50)));
 
 
 }

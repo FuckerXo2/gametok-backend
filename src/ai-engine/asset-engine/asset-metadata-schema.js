@@ -1,4 +1,12 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pool from '../../db.js';
+import { CURATED_3D_MODELS_BACKEND } from '../../assets-router.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ANIMATIONS_CATALOG_PATH = path.join(__dirname, '../animations-catalog.json');
 
 /**
  * Asset Catalog Database Schema & In-Memory Fallback Cache
@@ -6,6 +14,72 @@ import pool from '../../db.js';
 
 const inMemoryAssetCatalog = new Map();
 const inMemoryAnimationCatalog = new Map();
+
+function normalizeCuratedModel(m) {
+    return {
+        id: m.id,
+        name: m.name || m.title || m.id,
+        category: m.category || 'characters',
+        subcategory: m.subcategory || 'lagos',
+        dimension: '3D',
+        format: m.format || 'glb',
+        style: m.style || 'realistic_stylized',
+        is_rigged: Boolean(m.is_rigged),
+        rig_type: m.rig_type || (m.is_rigged ? 'ue5_humanoid' : 'unrigged'),
+        bone_count: Number(m.bone_count || (m.is_rigged ? 100 : 0)),
+        has_embedded_animations: Boolean(m.has_embedded_animations),
+        embedded_animation_names: m.embedded_animation_names || [],
+        bounding_box: m.bounding_box || { size: { x: 1, y: 1.8, z: 0.5 } },
+        suggested_scale: Number(m.suggested_scale || 1.0),
+        r2_key: m.r2_key || `assets/3d/${m.id}.glb`,
+        cdn_url: m.cdn_url || m.url,
+        thumbnail_url: m.thumbnail_url || m.thumb || null,
+        file_size_bytes: Number(m.file_size_bytes || 2500000),
+        sha256_hash: m.sha256_hash || `curated_hash_${m.id}`,
+        source: 'gametok-curated',
+        license: 'CC0',
+        attribution_text: 'GameTok Lagos Assets',
+        tags: m.tags || []
+    };
+}
+
+export function seedInMemoryDefaults() {
+    if (inMemoryAssetCatalog.size === 0 && Array.isArray(CURATED_3D_MODELS_BACKEND)) {
+        for (const model of CURATED_3D_MODELS_BACKEND) {
+            const normalized = normalizeCuratedModel(model);
+            inMemoryAssetCatalog.set(normalized.id, normalized);
+        }
+    }
+
+    if (inMemoryAnimationCatalog.size === 0 && fs.existsSync(ANIMATIONS_CATALOG_PATH)) {
+        try {
+            const raw = JSON.parse(fs.readFileSync(ANIMATIONS_CATALOG_PATH, 'utf-8'));
+            if (raw && Array.isArray(raw.animations)) {
+                for (const a of raw.animations) {
+                    const anim = {
+                        id: a.id,
+                        name: a.cleanName || a.id,
+                        rig_target: 'humanoid',
+                        category: a.bucket || 'locomotion',
+                        action: a.subBucket || a.id,
+                        role: 'neutral',
+                        duration_seconds: Number(a.duration || 1.0),
+                        r2_key: `animations/${a.relativePath}`,
+                        cdn_url: `https://pub-b7694276c8f54290854b276638a93b62.r2.dev/animations/${a.relativePath}`,
+                        source: 'mixamo',
+                        license: 'Mixamo Standard Royalty-Free'
+                    };
+                    inMemoryAnimationCatalog.set(anim.id, anim);
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ [Asset Schema] Could not preload animations-catalog.json:', e.message);
+        }
+    }
+}
+
+// Seed on startup
+seedInMemoryDefaults();
 
 export async function initAssetCatalogSchema() {
     try {
@@ -63,9 +137,20 @@ export async function initAssetCatalogSchema() {
                 cdn_url TEXT NOT NULL,
                 source VARCHAR(64) NOT NULL,
                 license VARCHAR(32) NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
         `);
+
+        // Auto-seed curated 3D assets to Postgres if table is empty
+        try {
+            const countCheck = await pool.query('SELECT count(*) FROM asset_catalog');
+            if (parseInt(countCheck.rows[0]?.count || 0, 10) === 0 && Array.isArray(CURATED_3D_MODELS_BACKEND)) {
+                for (const model of CURATED_3D_MODELS_BACKEND) {
+                    await upsertCatalogAsset(normalizeCuratedModel(model)).catch(() => {});
+                }
+            }
+        } catch (seedErr) {
+            console.warn('⚠️ [Asset Schema] Could not seed Postgres table:', seedErr.message);
+        }
     } catch (e) {
         console.warn(`⚠️ [Asset Schema] DB pool unavailable (${e.code || e.message}). Operating with in-memory catalog cache.`);
     }
@@ -142,11 +227,13 @@ export async function upsertCatalogAsset(asset) {
 }
 
 export function getInMemoryAssets() {
-    return Array.from(inMemoryAssetCatalog.values());
+    if (inMemoryAssetCatalog.size === 0) seedInMemoryDefaults();
+    return Array.from(new Set(inMemoryAssetCatalog.values()));
 }
 
 export function getInMemoryAnimations() {
-    return Array.from(inMemoryAnimationCatalog.values());
+    if (inMemoryAnimationCatalog.size === 0) seedInMemoryDefaults();
+    return Array.from(new Set(inMemoryAnimationCatalog.values()));
 }
 
 export function addInMemoryAnimation(anim) {
