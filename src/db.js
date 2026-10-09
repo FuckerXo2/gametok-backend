@@ -621,6 +621,36 @@ export const runMigrations = async () => {
       );
       CREATE INDEX IF NOT EXISTS idx_game_sessions_game ON game_sessions(game_id);
       CREATE INDEX IF NOT EXISTS idx_game_sessions_time ON game_sessions(started_at DESC);
+
+      -- Email verification codes and trusted devices
+      CREATE TABLE IF NOT EXISTS email_verification_codes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        purpose VARCHAR(32) DEFAULT 'login',
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        attempts INTEGER DEFAULT 0,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_email_verification_codes_lookup 
+        ON email_verification_codes(LOWER(email), purpose);
+
+      CREATE TABLE IF NOT EXISTS user_devices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        device_id VARCHAR(255) NOT NULL,
+        device_name VARCHAR(255),
+        ip_address VARCHAR(64),
+        user_agent TEXT,
+        last_used_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, device_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_devices_lookup 
+        ON user_devices(user_id, device_id);
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
     `);
     console.log('✅ Game progress, forge sessions, & developer platform tables ready');
   } catch (e) {

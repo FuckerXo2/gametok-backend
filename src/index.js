@@ -698,34 +698,149 @@ app.get('/api/admin/thumbnail-status', async (req, res) => {
 // AUTH ENDPOINTS
 // ============================================
 
+// ============================================
+// AUTH & EMAIL VERIFICATION (login@gametok.co)
+// ============================================
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+
+async function sendVerificationEmail({ to, code, username, purpose = 'login' }) {
+  const isSignup = purpose === 'signup';
+  const subject = isSignup 
+    ? `Verify your GameTok account: ${code}`
+    : `Your GameTok security code: ${code}`;
+  
+  const purposeText = isSignup
+    ? 'Welcome to GameTok! Use the verification code below to verify your email and complete your registration.'
+    : 'We noticed a login request for your GameTok account from a new device or browser session.';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { margin: 0; padding: 0; background-color: #030508; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #ffffff; }
+        .wrapper { max-width: 520px; margin: 40px auto; background-color: #080c14; border: 1px solid #141926; border-radius: 20px; overflow: hidden; padding: 40px 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+        .logo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+        .brand-text { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; }
+        .title { font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 12px; }
+        .desc { font-size: 15px; color: #8b92a5; line-height: 1.6; margin-bottom: 28px; }
+        .code-box { background: #05070c; border: 1px solid #1f2738; border-radius: 14px; padding: 22px; text-align: center; margin-bottom: 28px; }
+        .code-val { font-size: 38px; font-weight: 900; letter-spacing: 0.22em; color: #38bdf8; font-family: monospace; }
+        .expire-hint { font-size: 13px; color: #4d5569; margin-top: 8px; }
+        .footer { border-top: 1px solid #141926; padding-top: 24px; font-size: 12.5px; color: #4d5569; line-height: 1.5; }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="brand-text" style="color: #38bdf8; margin-bottom: 24px;">🎮 GameTok</div>
+        <div class="title">${isSignup ? 'Welcome to GameTok!' : 'Verification Code'}</div>
+        <div class="desc">Hi ${username || 'there'},<br><br>${purposeText}</div>
+        
+        <div class="code-box">
+          <div class="code-val">${code}</div>
+          <div class="expire-hint">This code expires in 10 minutes.</div>
+        </div>
+
+        <div class="desc" style="font-size: 13px;">
+          If you didn't attempt to sign in to GameTok, you can safely ignore this email or update your password.
+        </div>
+
+        <div class="footer">
+          Sent securely by GameTok Security • <a href="https://gametok.co" style="color: #38bdf8; text-decoration: none;">gametok.co</a><br>
+          For help, contact <a href="mailto:login@gametok.co" style="color: #8b92a5;">login@gametok.co</a>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: 'GameTok Security <login@gametok.co>',
+      to: [to],
+      subject,
+      html
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    console.error('[Resend] Failed to send email:', data);
+    throw new Error(data.message || 'Failed to dispatch verification email');
+  }
+  return data;
+}
+
+// Generates a 6-digit numeric OTP and stores in DB
+async function issueVerificationCode(email, userId = null, purpose = 'login') {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  // Delete previous pending codes for this email and purpose
+  await pool.query(
+    'DELETE FROM email_verification_codes WHERE LOWER(email) = LOWER($1) AND purpose = $2',
+    [email, purpose]
+  );
+
+  await pool.query(
+    `INSERT INTO email_verification_codes (email, code, purpose, user_id, expires_at)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [email.toLowerCase(), code, purpose, userId, expiresAt]
+  );
+
+  return code;
+}
+
 app.post('/api/auth/signup', async (req, res) => {
-  const { username, email, password, displayName } = req.body;
+  const { username, email, password, displayName, deviceId } = req.body;
 
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   if (username.length < 3 || username.length > 20) return res.status(400).json({ error: 'Username must be 3-20 chars' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be 6+ chars' });
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Valid email address required' });
 
   try {
-    const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
-    if (existing.rows.length > 0) return res.status(400).json({ error: 'Username taken' });
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)',
+      [username, email]
+    );
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Username or email already in use' });
 
     const token = generateToken();
     const result = await pool.query(
-      `INSERT INTO users (username, email, password, display_name, token) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [username, email || null, hashPassword(password), displayName || username, token]
+      `INSERT INTO users (username, email, password, display_name, token, email_verified) 
+       VALUES ($1, $2, $3, $4, $5, FALSE) RETURNING *`,
+      [username, email.toLowerCase(), hashPassword(password), displayName || username, token]
     );
 
     const user = result.rows[0];
-    res.json({ user: await formatUserWithFollowCounts(user), token });
+
+    // Issue and send 6-digit verification code
+    const code = await issueVerificationCode(email, user.id, 'signup');
+    await sendVerificationEmail({ to: email, code, username: user.username, purpose: 'signup' });
+
+    res.json({
+      requireCode: true,
+      purpose: 'signup',
+      email: user.email,
+      userId: user.id,
+      message: 'Account created! We sent a 6-digit verification code to your email.'
+    });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + e.message });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, deviceId } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
   try {
@@ -736,6 +851,34 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    const userEmail = user.email;
+    const isEmailVerified = user.email_verified === true;
+
+    // Check device familiarity
+    let isKnownDevice = false;
+    if (deviceId && user.id) {
+      const devRes = await pool.query(
+        'SELECT 1 FROM user_devices WHERE user_id = $1 AND device_id = $2',
+        [user.id, deviceId]
+      );
+      if (devRes.rows.length > 0) isKnownDevice = true;
+    }
+
+    // Require 6-digit code if user has email and (email is unverified OR logging in from new device)
+    if (userEmail && (!isEmailVerified || !isKnownDevice)) {
+      const code = await issueVerificationCode(userEmail, user.id, 'login');
+      await sendVerificationEmail({ to: userEmail, code, username: user.username, purpose: 'login' });
+
+      return res.json({
+        requireCode: true,
+        purpose: 'login',
+        email: userEmail,
+        userId: user.id,
+        message: 'Security check: We sent a 6-digit login code to ' + userEmail
+      });
+    }
+
+    // Known device & verified email -> instant login
     let token = user.token;
     if (!token) {
       token = generateToken();
@@ -746,7 +889,99 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({ user: await formatUserWithFollowCounts(user), token });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + e.message });
+  }
+});
+
+// Verify 6-digit code for signup or new-device login
+app.post('/api/auth/verify-code', async (req, res) => {
+  const { email, code, deviceId, deviceName } = req.body;
+  if (!email || !code) return res.status(400).json({ error: 'Email and verification code are required' });
+
+  try {
+    const codeQuery = await pool.query(
+      `SELECT * FROM email_verification_codes 
+       WHERE LOWER(email) = LOWER($1) 
+       ORDER BY created_at DESC LIMIT 1`,
+      [email]
+    );
+
+    if (codeQuery.rows.length === 0) {
+      return res.status(400).json({ error: 'No verification code found. Please request a new one.' });
+    }
+
+    const row = codeQuery.rows[0];
+
+    // Check expiry
+    if (new Date() > new Date(row.expires_at)) {
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
+    }
+
+    // Check code match
+    if (row.code !== String(code).trim()) {
+      await pool.query('UPDATE email_verification_codes SET attempts = attempts + 1 WHERE id = $1', [row.id]);
+      return res.status(400).json({ error: 'Incorrect verification code. Please check your email.' });
+    }
+
+    // Code is valid! Get or update user
+    let userRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    if (userRes.rows.length === 0 && row.user_id) {
+      userRes = await pool.query('SELECT * FROM users WHERE id = $1', [row.user_id]);
+    }
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'User account not found' });
+    }
+
+    const user = userRes.rows[0];
+    let token = user.token || generateToken();
+
+    // Mark email as verified and refresh token
+    await pool.query(
+      'UPDATE users SET email_verified = TRUE, token = $1 WHERE id = $2',
+      [token, user.id]
+    );
+    user.token = token;
+
+    // Register this device as trusted
+    if (deviceId) {
+      await pool.query(
+        `INSERT INTO user_devices (user_id, device_id, device_name, last_used_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (user_id, device_id) DO UPDATE SET last_used_at = NOW()`,
+        [user.id, deviceId, deviceName || 'Web Browser']
+      );
+    }
+
+    // Clean up code
+    await pool.query('DELETE FROM email_verification_codes WHERE LOWER(email) = LOWER($1)', [email]);
+
+    res.json({
+      success: true,
+      user: await formatUserWithFollowCounts(user),
+      token
+    });
+  } catch (e) {
+    console.error('Verify code error:', e);
+    res.status(500).json({ error: 'Failed to verify code: ' + e.message });
+  }
+});
+
+// Resend verification code
+app.post('/api/auth/resend-code', async (req, res) => {
+  const { email, purpose = 'login' } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const userRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    const user = userRes.rows[0] || null;
+
+    const code = await issueVerificationCode(email, user ? user.id : null, purpose);
+    await sendVerificationEmail({ to: email, code, username: user?.username || 'Gamer', purpose });
+
+    res.json({ success: true, message: 'New verification code sent to ' + email });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to resend code: ' + e.message });
   }
 });
 
