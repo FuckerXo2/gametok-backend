@@ -588,8 +588,41 @@ export const runMigrations = async () => {
       ALTER TABLE forge_sessions ADD COLUMN IF NOT EXISTS phase VARCHAR(64);
 
       CREATE INDEX IF NOT EXISTS idx_forge_sessions_user ON forge_sessions(user_id);
+
+      -- Developer Platform: Games status, versioning and sessions
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS status VARCHAR(32) DEFAULT 'published';
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS version VARCHAR(32) DEFAULT '1.0.0';
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS verification_status VARCHAR(32) DEFAULT 'unverified';
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS verification_notes TEXT;
+
+      CREATE TABLE IF NOT EXISTS game_versions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        version VARCHAR(32) NOT NULL,
+        entry_point TEXT,
+        script_payload TEXT,
+        changelog TEXT,
+        status VARCHAR(32) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(game_id, version)
+      );
+      CREATE INDEX IF NOT EXISTS idx_game_versions_game ON game_versions(game_id);
+
+      CREATE TABLE IF NOT EXISTS game_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        client_id VARCHAR(255),
+        duration_seconds INTEGER DEFAULT 0,
+        score INTEGER DEFAULT 0,
+        platform VARCHAR(32) DEFAULT 'web',
+        started_at TIMESTAMP DEFAULT NOW(),
+        ended_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_game_sessions_game ON game_sessions(game_id);
+      CREATE INDEX IF NOT EXISTS idx_game_sessions_time ON game_sessions(started_at DESC);
     `);
-    console.log('✅ Game progress & forge sessions tables ready');
+    console.log('✅ Game progress, forge sessions, & developer platform tables ready');
   } catch (e) {
     console.log('Game progress migration:', e.message);
   } finally {
