@@ -136,7 +136,7 @@ export async function initAssetCatalogSchema() {
                 r2_key VARCHAR(512) NOT NULL,
                 cdn_url TEXT NOT NULL,
                 source VARCHAR(64) NOT NULL,
-                license VARCHAR(32) NOT NULL,
+                license VARCHAR(32) NOT NULL
             );
         `);
 

@@ -16,11 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Antigravity CLI (agy) — successor to Gemini CLI
-RUN curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh \
+# Install Antigravity CLI (agy) — optional fallback (skipped if unreachable)
+RUN (curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh \
     && bash /tmp/agy-install.sh \
-    && rm /tmp/agy-install.sh \
-    && ln -sf "$(find /root/.local -name agy -type f 2>/dev/null | head -1)" /usr/local/bin/agy || true
+    && rm -f /tmp/agy-install.sh \
+    && ln -sf "$(find /root/.local -name agy -type f 2>/dev/null | head -1)" /usr/local/bin/agy) || echo "AGY CLI install skipped"
 
 # Configure agy for headless API key auth (no browser OAuth)
 RUN mkdir -p /root/.gemini/antigravity-cli \
@@ -39,7 +39,7 @@ COPY . .
 RUN cp docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh \
     && chmod +x /usr/local/bin/docker-entrypoint.sh
 
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=3000
+EXPOSE 3000
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

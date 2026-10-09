@@ -5716,24 +5716,6 @@ const runAnonymousTokensMigration = async () => {
 // ============================================
 
 const start = async () => {
-  await initDB();
-  // Launch posts live in the repo; this inserts any that are missing and
-  // never touches one that already exists.
-  await seedPosts();
-  await runMigrations();
-  await runGamificationMigrations();
-  await runLeaderboardMigration();
-  await runDeletedGamesMigration();
-  await runCoinConfigMigration();
-  await runStoriesMigration();
-  await runMultiplayerMigration();
-  await runAnonymousTokensMigration();
-  await ensureBotTables();
-  backfillGameCategories().catch((e) => console.warn('[backfill] error:', e.message));
-  startGenerationQueueWorker();
-  startForgeAutoscaler();
-
-
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
     console.log(`🚀 Direct Gemini API integration active (no CLI required)`);
@@ -5775,7 +5757,7 @@ const start = async () => {
   console.log('🟢 Presence Socket initialized');
 
   // Initialize Score Lobby Socket for shared live leaderboards
-  await ensureScoreLobbyColumn();
+  ensureScoreLobbyColumn().catch(e => console.warn('[ScoreLobbyColumn] Warning:', e?.message));
   initializeScoreLobbySocket(server);
   console.log('🏆 Score Lobby Socket initialized');
 
@@ -5783,6 +5765,40 @@ const start = async () => {
   initializeForgeSocket(server);
 
   startBotEngineScheduler();
+
+  // Run database initialization and migrations asynchronously with automatic retries
+  (async () => {
+    let retries = 5;
+    while (retries > 0) {
+      try {
+        console.log('🔄 Initializing database and running migrations...');
+        await initDB();
+        await seedPosts();
+        await runMigrations();
+        await runGamificationMigrations();
+        await runLeaderboardMigration();
+        await runDeletedGamesMigration();
+        await runCoinConfigMigration();
+        await runStoriesMigration();
+        await runMultiplayerMigration();
+        await runAnonymousTokensMigration();
+        await ensureBotTables();
+        backfillGameCategories().catch((e) => console.warn('[backfill] error:', e.message));
+        console.log('✅ Database and migrations initialized successfully');
+        break;
+      } catch (err) {
+        retries--;
+        console.error(`⚠️ [Database Init] Connection failed (${err.message}). Retries left: ${retries}`);
+        if (retries > 0) {
+          await new Promise((r) => setTimeout(r, 4000));
+        } else {
+          console.error('❌ [Database Init] All retries exhausted. Running with degraded database.');
+        }
+      }
+    }
+    startGenerationQueueWorker();
+    startForgeAutoscaler();
+  })();
 
   // ============================================
   // SCHEDULED NOTIFICATIONS (daily, with per-user throttles inside notifications.js)

@@ -10,11 +10,11 @@ import sys
 def get_default_skeleton():
     candidate_paths = [
         os.environ.get("SKELETON_PATH"),
+        os.path.abspath(os.path.join(os.getcwd(), "storage/skeletons/mixamo_master_skeleton.glb")),
+        "/app/storage/skeletons/mixamo_master_skeleton.glb",
+        "/Users/abiolalimitless/gameidea/gametok-backend/storage/skeletons/mixamo_master_skeleton.glb",
         os.path.abspath(os.path.join(os.getcwd(), "storage/skeletons/ue5_master_skeleton.glb")),
         "/app/storage/skeletons/ue5_master_skeleton.glb",
-        "/Users/abiolalimitless/gameidea/gametok-backend/storage/skeletons/ue5_master_skeleton.glb",
-        os.path.abspath(os.path.join(os.getcwd(), "storage/skeletons/ue5_master_skeleton.fbx")),
-        "/app/storage/skeletons/ue5_master_skeleton.fbx",
     ]
     for p in candidate_paths:
         if p and os.path.exists(p):
@@ -117,7 +117,7 @@ def rig_character(mesh_path: str, output_path: str, skeleton_path: str = None) -
     bpy.context.view_layer.objects.active = armature
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
-    # 6. Bind Mesh to Armature (ARMATURE_AUTO)
+    # 6. Bind Mesh to Armature (ARMATURE_AUTO + Non-manifold Recovery)
     bpy.ops.object.select_all(action='DESELECT')
     for obj in mesh_objects:
         obj.select_set(True)
@@ -126,7 +126,44 @@ def rig_character(mesh_path: str, output_path: str, skeleton_path: str = None) -
 
     armature.select_set(True)
     bpy.context.view_layer.objects.active = armature
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    try:
+        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    except Exception:
+        pass
+
+    # Find best weighted mesh for Data Transfer fallback
+    best_src = None
+    max_weights = 0
+    for obj in mesh_objects:
+        if obj.vertex_groups:
+            c = sum(1 for v in obj.data.vertices if len(v.groups) > 0)
+            if c > max_weights:
+                max_weights = c
+                best_src = obj
+
+    for obj in mesh_objects:
+        if hasattr(obj.data, 'color_attributes'):
+            obj.data.color_attributes.clear()
+
+        has_weights = len(obj.vertex_groups) > 0 and any(len(v.groups) > 0 for v in obj.data.vertices)
+        if not has_weights and best_src and obj != best_src:
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
+            for vg in best_src.vertex_groups:
+                if vg.name not in obj.vertex_groups:
+                    obj.vertex_groups.new(name=vg.name)
+            dt_mod = obj.modifiers.new(name="AutoWeightTransfer", type='DATA_TRANSFER')
+            dt_mod.object = best_src
+            dt_mod.use_vert_data = True
+            dt_mod.data_types_verts = {'VGROUP_WEIGHTS'}
+            dt_mod.vert_mapping = 'NEAREST'
+            bpy.ops.object.modifier_apply(modifier=dt_mod.name)
+
+        arm_mod = next((m for m in obj.modifiers if m.type == 'ARMATURE'), None)
+        if not arm_mod:
+            arm_mod = obj.modifiers.new(name="Armature", type='ARMATURE')
+            arm_mod.object = armature
 
     # 7. Export Rigged GLB
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
