@@ -2269,7 +2269,7 @@ const handleGamePublish = async (req, res) => {
         chosenIcon,
         chosenColor,
         chosenCategory,
-        targetUrl || null,
+        targetUrl || (html ? `https://gametok.co/api/games/${gameId}/play-html` : null),
         thumbnail || null,
         creatorRecord.id.toString(),
         chosenOrientation,
@@ -2492,6 +2492,9 @@ app.post('/api/developer/games', async (req, res) => {
       gameId = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
     }
 
+    // Auto-generate embedUrl for directly uploaded HTML bundles
+    const finalEmbedUrl = embedUrl || (html ? `https://gametok.co/api/games/${gameId}/play-html` : null);
+
     const insertResult = await pool.query(
       `INSERT INTO games (
         id, name, description, icon, color, category,
@@ -2516,7 +2519,7 @@ app.post('/api/developer/games', async (req, res) => {
         icon,
         color,
         category.toLowerCase(),
-        embedUrl || null,
+        finalEmbedUrl,
         developer.id.toString(),
         orientation === 'landscape' ? 'landscape' : 'portrait',
         html || null,
@@ -2531,7 +2534,7 @@ app.post('/api/developer/games', async (req, res) => {
        ON CONFLICT (game_id, version) DO UPDATE SET
         entry_point = EXCLUDED.entry_point,
         script_payload = EXCLUDED.script_payload`,
-      [gameId, version, embedUrl || null, html || null]
+      [gameId, version, finalEmbedUrl, html || null]
     );
 
     const saved = insertResult.rows[0];
@@ -3976,6 +3979,25 @@ app.get('/api/games/:id', async (req, res) => {
     res.json({ game: formatGame(result.rows[0]) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Serve uploaded HTML game bundles
+app.get('/api/games/:id/play-html', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT script_payload, embed_url FROM games WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).send('Game not found');
+    const row = result.rows[0];
+    if (row.script_payload) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(row.script_payload);
+    }
+    if (row.embed_url) {
+      return res.redirect(302, row.embed_url);
+    }
+    res.status(404).send('No playable content found for this game');
+  } catch (err) {
+    res.status(500).send('Server error');
   }
 });
 
