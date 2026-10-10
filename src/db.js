@@ -544,6 +544,17 @@ export const initDB = async () => {
       CREATE INDEX IF NOT EXISTS idx_community_assets_tags ON community_assets USING GIN (tags);
     `);
 
+    // Ensure removed games are purged from database (e.g. cyber dodge 3d)
+    try {
+      await client.query(`
+        DELETE FROM games WHERE id ILIKE '%cyber%dodge%' OR name ILIKE '%cyber dodge%';
+        DELETE FROM ai_games WHERE name ILIKE '%cyber dodge%' OR prompt ILIKE '%cyber dodge%';
+        DELETE FROM game_categories WHERE game_id ILIKE '%cyber%dodge%';
+      `);
+    } catch (e) {
+      console.warn('⚠️ [DB] Could not purge blacklisted games:', e.message);
+    }
+
     console.log('✅ Database tables initialized');
   } finally {
     client.release();

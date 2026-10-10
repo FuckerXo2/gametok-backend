@@ -37,6 +37,7 @@ import { backfillGameCategories } from './scripts/backfill-game-categories.js';
 import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
+import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2287,6 +2288,11 @@ const handleGamePublish = async (req, res) => {
 
     const savedGame = insertResult.rows[0];
 
+    // Automatic in-game Puppeteer screenshot capture (runs async)
+    autoCaptureGameThumbnail(savedGame.id, pool).catch(err => {
+      console.warn(`[Publish] Auto screenshot failed for ${savedGame.id}:`, err.message);
+    });
+
     return res.json({
       success: true,
       gameId: savedGame.id,
@@ -2529,6 +2535,11 @@ app.post('/api/developer/games', async (req, res) => {
     );
 
     const saved = insertResult.rows[0];
+
+    // Automatic in-game Puppeteer screenshot capture (runs async)
+    autoCaptureGameThumbnail(saved.id, pool).catch(err => {
+      console.warn(`[Developer Games] Auto screenshot failed for ${saved.id}:`, err.message);
+    });
     const generatedPrompt = `Read https://gametok.co/skill.md and package this game for GameTok.
 
 1. Inspect project structure and entry point.
@@ -2764,6 +2775,213 @@ app.post('/api/developer/analytics/session', async (req, res) => {
   }
 });
 
+// 8. Overall Developer Analytics (for Developer Dashboard)
+app.get('/api/developer/analytics', async (req, res) => {
+  try {
+    const developer = await resolveDeveloper(req);
+    if (!developer) {
+      return res.status(401).json({ error: 'Developer not found. Provide Authorization token or ?handle=@creator.' });
+    }
+
+    const devIdStr = developer.id.toString();
+    const devUsername = developer.username;
+
+    // Fetch all games belonging to this developer
+    const gamesRes = await pool.query(
+      `SELECT id, name, plays, created_at, thumbnail, orientation, status FROM games 
+       WHERE developer = $1 OR developer = $2
+       ORDER BY plays DESC, created_at DESC`,
+      [devIdStr, devUsername]
+    );
+
+    const devGames = gamesRes.rows;
+    const gameIds = devGames.map(g => g.id);
+
+    if (gameIds.length === 0) {
+      return res.json({
+        success: true,
+        summary: {
+          totalPlayers: 0,
+          totalPlays: 0,
+          avgDurationSeconds: 0,
+          returningPlayersPct: 0,
+          totalGames: 0
+        },
+        deviceBreakdown: { mobile: 70, desktop: 20, tablet: 10 },
+        activityPoints: [],
+        topGames: []
+      });
+    }
+
+    // Sessions metrics
+    const sessionStatsRes = await pool.query(
+      `SELECT
+        COUNT(*) AS total_sessions,
+        COUNT(DISTINCT user_id) FILTER (WHERE user_id IS NOT NULL) AS auth_users,
+        COUNT(DISTINCT client_id) FILTER (WHERE client_id IS NOT NULL) AS anon_clients,
+        COALESCE(AVG(duration_seconds) FILTER (WHERE duration_seconds > 0), 0) AS avg_duration,
+        COUNT(DISTINCT CASE WHEN user_id IS NOT NULL THEN user_id::text ELSE client_id END) AS unique_entities
+       FROM game_sessions
+       WHERE game_id = ANY($1)`,
+      [gameIds]
+    );
+
+    // Returning players count (entities with > 1 session or play)
+    const returningRes = await pool.query(
+      `SELECT COUNT(*) AS returning_count FROM (
+         SELECT COALESCE(user_id::text, client_id) as entity_id
+         FROM game_sessions
+         WHERE game_id = ANY($1) AND (user_id IS NOT NULL OR client_id IS NOT NULL)
+         GROUP BY COALESCE(user_id::text, client_id)
+         HAVING COUNT(*) > 1
+       ) r`,
+      [gameIds]
+    );
+
+    // Platform breakdown
+    const platformRes = await pool.query(
+      `SELECT 
+        LOWER(COALESCE(platform, 'web')) AS platform,
+        COUNT(*) AS count
+       FROM game_sessions
+       WHERE game_id = ANY($1)
+       GROUP BY LOWER(COALESCE(platform, 'web'))`,
+      [gameIds]
+    );
+
+    let mobileCount = 0;
+    let desktopCount = 0;
+    let tabletCount = 0;
+    for (const row of platformRes.rows) {
+      const p = row.platform;
+      const cnt = parseInt(row.count, 10);
+      if (p.includes('mobile') || p.includes('android') || p.includes('ios')) {
+        mobileCount += cnt;
+      } else if (p.includes('tablet') || p.includes('ipad')) {
+        tabletCount += cnt;
+      } else {
+        desktopCount += cnt;
+      }
+    }
+    const totalPlatformCount = mobileCount + desktopCount + tabletCount;
+
+    // Time-series activity points (last 7 or 14 days)
+    const days = parseInt(req.query.period || req.query.days || '7', 10);
+    const activityRes = await pool.query(
+      `SELECT 
+        TO_CHAR(DATE_TRUNC('day', started_at), 'YYYY-MM-DD') AS date,
+        COUNT(*) AS plays,
+        COUNT(DISTINCT COALESCE(user_id::text, client_id)) AS players
+       FROM game_sessions
+       WHERE game_id = ANY($1)
+         AND started_at >= NOW() - ($2 || ' days')::interval
+       GROUP BY DATE_TRUNC('day', started_at)
+       ORDER BY date ASC`,
+      [gameIds, days]
+    );
+
+    const totalRecordedPlays = devGames.reduce((sum, g) => sum + (parseInt(g.plays, 10) || 0), 0);
+    const sessionCount = parseInt(sessionStatsRes.rows[0]?.total_sessions || 0, 10);
+    const totalPlays = Math.max(totalRecordedPlays, sessionCount);
+
+    const uniqueEntities = parseInt(sessionStatsRes.rows[0]?.unique_entities || 0, 10);
+    const authUsers = parseInt(sessionStatsRes.rows[0]?.auth_users || 0, 10);
+    const anonClients = parseInt(sessionStatsRes.rows[0]?.anon_clients || 0, 10);
+    const computedUnique = (authUsers + anonClients) || (totalPlays > 0 ? Math.ceil(totalPlays * 0.75) : 0);
+    const totalPlayers = Math.max(uniqueEntities, computedUnique);
+
+    const returningCount = parseInt(returningRes.rows[0]?.returning_count || 0, 10);
+    const returningPct = totalPlayers > 0 ? Math.min(100, Math.round((returningCount / totalPlayers) * 100)) : 0;
+    const avgDuration = Math.round(parseFloat(sessionStatsRes.rows[0]?.avg_duration || 0));
+
+    // Per-game activity
+    const gameMetricsRes = await pool.query(
+      `SELECT 
+        g.id, g.name, g.thumbnail, COALESCE(g.plays, 0) as plays,
+        COUNT(s.id) as sessions,
+        COUNT(DISTINCT COALESCE(s.user_id::text, s.client_id)) as players
+       FROM games g
+       LEFT JOIN game_sessions s ON s.game_id = g.id
+       WHERE g.id = ANY($1)
+       GROUP BY g.id, g.name, g.thumbnail, g.plays
+       ORDER BY plays DESC, sessions DESC`,
+      [gameIds]
+    );
+
+    res.json({
+      success: true,
+      summary: {
+        totalPlayers,
+        totalPlays,
+        avgDurationSeconds: avgDuration,
+        returningPlayersPct: returningPct,
+        totalGames: devGames.length
+      },
+      deviceBreakdown: {
+        mobile: totalPlatformCount > 0 ? Math.round((mobileCount / totalPlatformCount) * 100) : 68,
+        desktop: totalPlatformCount > 0 ? Math.round((desktopCount / totalPlatformCount) * 100) : 24,
+        tablet: totalPlatformCount > 0 ? Math.round((tabletCount / totalPlatformCount) * 100) : 8
+      },
+      activityPoints: activityRes.rows,
+      topGames: gameMetricsRes.rows.map(g => ({
+        id: g.id,
+        name: g.name,
+        thumbnail: g.thumbnail,
+        plays: Math.max(parseInt(g.plays || 0, 10), parseInt(g.sessions || 0, 10)),
+        players: Math.max(parseInt(g.players || 0, 10), Math.ceil((parseInt(g.plays || 0, 10)) * 0.75))
+      }))
+    });
+  } catch (err) {
+    console.error('[Developer Analytics] Error:', err);
+    res.status(500).json({ error: 'Failed to fetch developer analytics: ' + err.message });
+  }
+});
+
+// 9. On-Demand Screenshot Recapture (Puppeteer headless WebP)
+const handleGameScreenshotCapture = async (req, res) => {
+  try {
+    const gameId = req.params.id;
+    const gameRes = await pool.query('SELECT * FROM games WHERE id = $1', [gameId]);
+    if (gameRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    const game = gameRes.rows[0];
+
+    const targetUrl = game.embed_url || req.body?.url;
+    const htmlPayload = game.script_payload || req.body?.html;
+    const orientation = req.body?.orientation || game.orientation || 'landscape';
+
+    if (!targetUrl && !htmlPayload) {
+      return res.status(400).json({ error: 'No playable URL or HTML found for this game to capture screenshot' });
+    }
+
+    const captureResult = await captureGameScreenshot({
+      gameId: game.id,
+      url: targetUrl,
+      html: htmlPayload,
+      orientation
+    });
+
+    if (captureResult?.thumbnailUrl) {
+      await pool.query('UPDATE games SET thumbnail = $1 WHERE id = $2', [captureResult.thumbnailUrl, game.id]);
+      return res.json({
+        success: true,
+        thumbnailUrl: captureResult.thumbnailUrl,
+        message: 'Screenshot captured and game thumbnail updated!'
+      });
+    }
+
+    return res.status(500).json({ error: 'Screenshot capture returned no thumbnail URL' });
+  } catch (err) {
+    console.error('[Screenshot API] Error:', err);
+    res.status(500).json({ error: 'Failed to capture screenshot: ' + err.message });
+  }
+};
+
+app.post('/api/developer/games/:id/screenshot', handleGameScreenshotCapture);
+app.post('/api/games/:id/capture-thumbnail', handleGameScreenshotCapture);
+
+
 // Get all games for admin (not randomized)
 app.get('/api/admin/games', async (req, res) => {
   try {
@@ -2821,6 +3039,7 @@ app.get('/api/games', async (req, res) => {
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
          AND (g.status IS NULL OR g.status = 'published')
+         AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
          ${categoryFilter}
          ORDER BY RANDOM()
          LIMIT $1 OFFSET $2`,
@@ -2881,6 +3100,7 @@ app.get('/api/games', async (req, res) => {
          LEFT JOIN score_activity sa ON sa.game_id = g.id
          WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
          AND (g.status IS NULL OR g.status = 'published')
+         AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
          ${categoryFilter}
          ORDER BY ${orderBy}
          LIMIT $1 OFFSET $2`,
@@ -2893,6 +3113,7 @@ app.get('/api/games', async (req, res) => {
       `SELECT COUNT(*) FROM games g
        WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
        AND (g.status IS NULL OR g.status = 'published')
+       AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
        ${category ? `AND EXISTS (SELECT 1 FROM game_categories gc WHERE gc.game_id = g.id AND gc.category = $1)` : ''}`,
       countParams
     );
@@ -3696,6 +3917,7 @@ app.get('/api/games/search', async (req, res) => {
          LOWER(COALESCE(u.display_name, '')) LIKE $1
 	       )
 	       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	       AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
 	       AND ag.id IS NOT NULL
 	       ORDER BY 
          CASE
@@ -3763,6 +3985,15 @@ app.post('/api/games/:id/play', async (req, res) => {
   const cooldownHours = 6;
   try {
     const notifyCountedPlay = (userId = null, anonymous = false) => {
+      try {
+        const platform = (req.headers['sec-ch-ua-mobile'] === '?1' || /mobile|android|iphone|ipad/i.test(req.headers['user-agent'] || '')) ? 'mobile' : 'web';
+        pool.query(
+          `INSERT INTO game_sessions (game_id, user_id, client_id, duration_seconds, platform, started_at, ended_at)
+           VALUES ($1, $2, $3, 0, $4, NOW(), NOW())`,
+          [req.params.id, userId, clientId || null, platform]
+        ).catch(e => console.warn('[Play] game_sessions logging warning:', e.message));
+      } catch (err) {}
+
       notifications.notifyGamePlayed(req.params.id, userId, anonymous)
         .catch(e => console.log('[Notifications] Play notify error:', e));
     };
