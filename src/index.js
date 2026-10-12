@@ -2309,7 +2309,7 @@ const handleGamePublish = async (req, res) => {
         displayName: creatorRecord.display_name,
         avatar: creatorRecord.avatar
       },
-      dashboardUrl: `https://games.gametok.co?creator=${encodeURIComponent(creatorRecord.username)}`
+      dashboardUrl: `https://games.gametok.co/dashboard?creator=${encodeURIComponent(creatorRecord.username)}`
     });
   } catch (error) {
     console.error('[Publish] Error publishing game:', error);
