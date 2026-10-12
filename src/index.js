@@ -2090,7 +2090,70 @@ app.patch('/api/admin/games/:id', async (req, res) => {
 // INDIE DEVELOPER PUBLISHING & CREATOR STUDIO
 // ============================================
 
-const hashManageKey = (key) => crypto.createHash('sha256').update(String(key)).digest('hex');
+// ---- Developer authentication -------------------------------------------------------
+// Every developer action is tied to a real GameTok account. A request authenticates with
+//   Authorization: Bearer <session token>   (signed in on games.gametok.co / gametok.co), or
+//   Authorization: Bearer gtk_live_...       (personal API key, for AI agents / CI), or
+//   x-api-key: gtk_live_...
+// A creator handle in the query/body is NEVER identity — handles are public.
+const API_KEY_PREFIX = 'gtk_live_';
+const hashApiKey = (key) => crypto.createHash('sha256').update(String(key)).digest('hex');
+
+async function authenticateDeveloper(req) {
+  const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const apiKey = String(req.headers['x-api-key'] || '').trim() || (bearer.startsWith(API_KEY_PREFIX) ? bearer : '');
+  if (apiKey) {
+    const keyRes = await pool.query(
+      `UPDATE developer_api_keys SET last_used_at = NOW()
+       WHERE key_hash = $1 AND revoked_at IS NULL
+       RETURNING user_id`,
+      [hashApiKey(apiKey)]
+    );
+    if (keyRes.rows.length === 0) return null;
+    const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [keyRes.rows[0].user_id]);
+    if (!userRes.rows[0]) return null;
+    req.authMethod = 'api_key';
+    return userRes.rows[0];
+  }
+  if (bearer) {
+    const userRes = await pool.query('SELECT * FROM users WHERE token = $1', [bearer]);
+    if (!userRes.rows[0]) return null;
+    req.authMethod = 'session';
+    return userRes.rows[0];
+  }
+  return null;
+}
+
+const DEVELOPER_AUTH_ERROR = 'Sign in at https://games.gametok.co or send a GameTok API key (Authorization: Bearer gtk_live_...). Create one at https://games.gametok.co/dashboard → Settings → API Keys.';
+
+async function requireDeveloper(req, res, next) {
+  try {
+    const developer = await authenticateDeveloper(req);
+    if (!developer) return res.status(401).json({ error: DEVELOPER_AUTH_ERROR });
+    req.developer = developer;
+    next();
+  } catch (err) {
+    console.error('[Developer Auth] Error:', err);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+}
+
+// games.developer holds the owner's user id (older rows may hold the username).
+const ownsGame = (user, game) => !!user && !!game && (game.developer === user.id.toString() || game.developer === user.username);
+
+async function requireOwnedGame(req, res, next) {
+  try {
+    const gameRes = await pool.query('SELECT * FROM games WHERE id = $1', [req.params.id]);
+    const game = gameRes.rows[0];
+    // Same 404 for "missing" and "not yours", so game ids can't be probed for ownership.
+    if (!game || !ownsGame(req.developer, game)) return res.status(404).json({ error: 'Game not found' });
+    req.game = game;
+    next();
+  } catch (err) {
+    console.error('[Developer Auth] Ownership check error:', err);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+}
 
 const handleGamePublish = async (req, res) => {
   try {
@@ -2101,10 +2164,6 @@ const handleGamePublish = async (req, res) => {
       title,
       name,
       description,
-      creatorHandle,
-      creatorName,
-      creatorEmail,
-      payoutAddress,
       category,
       orientation,
       icon,
@@ -2115,10 +2174,11 @@ const handleGamePublish = async (req, res) => {
     let targetUrl = (url || embedUrl || '').trim();
     let gameTitle = (title || name || '').trim();
     let gameDesc = (description || '').trim();
-    let handle = (creatorHandle || '').trim().replace(/^@/, '');
-    let displayName = (creatorName || '').trim();
+    // The game always belongs to the authenticated account; creator fields in the body are ignored.
+    const creatorRecord = await authenticateDeveloper(req);
+    if (!creatorRecord) return res.status(401).json({ error: DEVELOPER_AUTH_ERROR });
 
-    // If an external URL is given, attempt to scrape metadata and bridge tags if title/creator missing
+    // If an external URL is given, scrape title/description/og:image when they weren't provided
     if (targetUrl) {
       if (!/^https?:\/\//i.test(targetUrl)) {
         targetUrl = 'https://' + targetUrl;
@@ -2144,24 +2204,11 @@ const handleGamePublish = async (req, res) => {
                           htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
             if (mDesc && mDesc[1]) gameDesc = mDesc[1].trim();
           }
-          // Extract bridge script attributes
+          // bridge.js data-game-title overrides <title>
           const mScript = htmlText.match(/<script[^>]*bridge\.js[^>]*>/i);
-          if (mScript) {
-            const scriptTag = mScript[0];
-            const mHandle = scriptTag.match(/data-creator-handle=["']([^"']+)["']/i);
-            if (mHandle && mHandle[1] && !handle) handle = mHandle[1].trim();
-            const mName = scriptTag.match(/data-creator-name=["']([^"']+)["']/i);
-            if (mName && mName[1] && !displayName) displayName = mName[1].trim();
-            const mGameTitle = scriptTag.match(/data-game-title=["']([^"']+)["']/i);
-            if (mGameTitle && mGameTitle[1] && !gameTitle) gameTitle = mGameTitle[1].trim();
-          }
-          // Extract meta author
-          if (!displayName && !handle) {
-            const mAuthor = htmlText.match(/<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i);
-            if (mAuthor && mAuthor[1]) {
-              displayName = mAuthor[1].trim();
-              handle = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 30);
-            }
+          if (mScript && !title && !name) {
+            const mGameTitle = mScript[0].match(/data-game-title=["']([^"']+)["']/i);
+            if (mGameTitle && mGameTitle[1]) gameTitle = mGameTitle[1].trim();
           }
           // Extract og:image for thumbnail
           if (!thumbnail) {
@@ -2184,48 +2231,12 @@ const handleGamePublish = async (req, res) => {
         const mTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
         if (mTitle && mTitle[1]) gameTitle = mTitle[1].trim();
       }
-      const mScript = html.match(/<script[^>]*bridge\.js[^>]*>/i);
-      if (mScript) {
-        const scriptTag = mScript[0];
-        const mHandle = scriptTag.match(/data-creator-handle=["']([^"']+)["']/i);
-        if (mHandle && mHandle[1] && !handle) handle = mHandle[1].trim();
-        const mName = scriptTag.match(/data-creator-name=["']([^"']+)["']/i);
-        if (mName && mName[1] && !displayName) displayName = mName[1].trim();
-      }
     } else {
       return res.status(400).json({ error: 'Either a game URL or HTML content must be provided.' });
     }
 
     if (!gameTitle) {
       gameTitle = 'Indie Web Game';
-    }
-
-    // Sanitize creator handle
-    if (!handle) {
-      handle = displayName ? displayName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 30) : `creator_${Date.now().toString(36)}`;
-    }
-    handle = handle.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 40);
-    if (!handle) handle = `creator_${Date.now().toString(36)}`;
-    if (!displayName) displayName = handle;
-
-    // Zero-signup Creator profile resolution
-    let creatorRecord;
-    const userLookup = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [handle]);
-    if (userLookup.rows.length > 0) {
-      creatorRecord = userLookup.rows[0];
-      if (payoutAddress && !creatorRecord.bio?.includes(payoutAddress)) {
-        await pool.query('UPDATE users SET bio = COALESCE(bio, \'\') || $1 WHERE id = $2', [` [Payout: ${payoutAddress}]`, creatorRecord.id]);
-      }
-    } else {
-      const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(handle)}`;
-      const bioText = payoutAddress ? `Indie game developer on GameTok. [Payout: ${payoutAddress}]` : 'Indie game developer on GameTok.';
-      const insertUser = await pool.query(
-        `INSERT INTO users (username, display_name, avatar, bio)
-         VALUES ($1, $2, $3, $4)
-         RETURNING *`,
-        [handle, displayName, avatarUrl, bioText]
-      );
-      creatorRecord = insertUser.rows[0];
     }
 
     // Slugify title for game ID
@@ -2236,7 +2247,8 @@ const handleGamePublish = async (req, res) => {
     let gameId = slug;
     const existingGame = await pool.query('SELECT id, developer FROM games WHERE id = $1', [gameId]);
     if (existingGame.rows.length > 0) {
-      if (existingGame.rows[0].developer !== creatorRecord.id.toString()) {
+      // Re-publishing your own game updates it; anyone else's slug gets a suffix.
+      if (!ownsGame(creatorRecord, existingGame.rows[0])) {
         gameId = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
       }
     }
@@ -2288,14 +2300,6 @@ const handleGamePublish = async (req, res) => {
 
     const savedGame = insertResult.rows[0];
 
-    // Zero-signup creators have no login token, so the first publish of a game issues a
-    // manage key (only its hash is stored). It authorizes DELETE /api/developer/games/:id.
-    let manageKey = null;
-    if (!savedGame.manage_key_hash) {
-      manageKey = `gtk_${crypto.randomBytes(24).toString('hex')}`;
-      await pool.query('UPDATE games SET manage_key_hash = $1 WHERE id = $2', [hashManageKey(manageKey), savedGame.id]);
-    }
-
     // Automatic in-game Puppeteer screenshot capture (runs async)
     autoCaptureGameThumbnail(savedGame.id, pool).catch(err => {
       console.warn(`[Publish] Auto screenshot failed for ${savedGame.id}:`, err.message);
@@ -2317,9 +2321,7 @@ const handleGamePublish = async (req, res) => {
         displayName: creatorRecord.display_name,
         avatar: creatorRecord.avatar
       },
-      dashboardUrl: `https://games.gametok.co/dashboard?creator=${encodeURIComponent(creatorRecord.username)}`,
-      // Returned once, on first publish. Keep it secret: it can delete this game.
-      ...(manageKey ? { manageKey } : {})
+      dashboardUrl: 'https://games.gametok.co/dashboard'
     });
   } catch (error) {
     console.error('[Publish] Error publishing game:', error);
@@ -2386,6 +2388,10 @@ app.get('/api/publish/creator/:handle', async (req, res) => {
 app.patch('/api/publish/creator/:handle', async (req, res) => {
   try {
     const handle = String(req.params.handle || '').trim().replace(/^@/, '').toLowerCase();
+    // Only the signed-in owner of this handle may edit it.
+    const me = await authenticateDeveloper(req);
+    if (!me) return res.status(401).json({ error: DEVELOPER_AUTH_ERROR });
+    if (String(me.username || '').toLowerCase() !== handle) return res.status(403).json({ error: 'You can only edit your own profile' });
     const { displayName, bio, payoutAddress, avatar } = req.body;
     const updates = [];
     const values = [];
@@ -2415,27 +2421,76 @@ app.patch('/api/publish/creator/:handle', async (req, res) => {
 // DEVELOPER PLATFORM APIs (games.gametok.co)
 // ============================================
 
-// Helper to resolve developer from token or handle query
-async function resolveDeveloper(req) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (token) {
-    const userRes = await pool.query('SELECT * FROM users WHERE token = $1', [token]);
-    if (userRes.rows.length > 0) return userRes.rows[0];
+// Identity comes only from a session token or API key (see authenticateDeveloper).
+const resolveDeveloper = authenticateDeveloper;
+
+// Every /api/developer route needs an account, except the in-game session telemetry beacon.
+app.use('/api/developer', (req, res, next) => (req.path === '/analytics/session' ? next() : requireDeveloper(req, res, next)));
+// Per-game developer routes additionally require owning the game.
+app.use('/api/developer/games/:id', requireOwnedGame);
+
+// Personal API keys for agents/CI. Managing keys needs a real sign-in, not another API key.
+app.get('/api/developer/api-keys', async (req, res) => {
+  try {
+    const keys = await pool.query(
+      `SELECT id, name, key_prefix, created_at, last_used_at FROM developer_api_keys
+       WHERE user_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC`,
+      [req.developer.id]
+    );
+    res.json({
+      success: true,
+      keys: keys.rows.map(k => ({ id: k.id, name: k.name, prefix: k.key_prefix, createdAt: k.created_at, lastUsedAt: k.last_used_at }))
+    });
+  } catch (err) {
+    console.error('[API Keys] List error:', err);
+    res.status(500).json({ error: 'Failed to list API keys' });
   }
-  const handle = (req.query.handle || req.query.creator || req.body?.creatorHandle || '').trim().replace(/^@/, '').toLowerCase();
-  if (handle) {
-    const userRes = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [handle]);
-    if (userRes.rows.length > 0) return userRes.rows[0];
+});
+
+app.post('/api/developer/api-keys', async (req, res) => {
+  try {
+    if (req.authMethod !== 'session') return res.status(403).json({ error: 'Sign in on games.gametok.co to create API keys' });
+    const active = await pool.query('SELECT COUNT(*)::int AS n FROM developer_api_keys WHERE user_id = $1 AND revoked_at IS NULL', [req.developer.id]);
+    if (active.rows[0].n >= 10) return res.status(400).json({ error: 'You already have 10 active keys. Revoke one first.' });
+
+    const name = String(req.body?.name || 'Default').trim().slice(0, 100) || 'Default';
+    const key = API_KEY_PREFIX + crypto.randomBytes(24).toString('hex');
+    const prefix = key.slice(0, API_KEY_PREFIX.length + 6);
+    const inserted = await pool.query(
+      `INSERT INTO developer_api_keys (user_id, name, key_prefix, key_hash)
+       VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
+      [req.developer.id, name, prefix, hashApiKey(key)]
+    );
+    // The plaintext key is returned exactly once.
+    res.json({ success: true, key, id: inserted.rows[0].id, name, prefix, createdAt: inserted.rows[0].created_at });
+  } catch (err) {
+    console.error('[API Keys] Create error:', err);
+    res.status(500).json({ error: 'Failed to create API key' });
   }
-  return null;
-}
+});
+
+app.delete('/api/developer/api-keys/:keyId', async (req, res) => {
+  try {
+    if (req.authMethod !== 'session') return res.status(403).json({ error: 'Sign in on games.gametok.co to revoke API keys' });
+    const revoked = await pool.query(
+      `UPDATE developer_api_keys SET revoked_at = NOW()
+       WHERE id::text = $1 AND user_id = $2 AND revoked_at IS NULL RETURNING id`,
+      [req.params.keyId, req.developer.id]
+    );
+    if (revoked.rows.length === 0) return res.status(404).json({ error: 'Key not found' });
+    res.json({ success: true, revoked: revoked.rows[0].id });
+  } catch (err) {
+    console.error('[API Keys] Revoke error:', err);
+    res.status(500).json({ error: 'Failed to revoke API key' });
+  }
+});
 
 // 1. List developer games
 app.get('/api/developer/games', async (req, res) => {
   try {
     const developer = await resolveDeveloper(req);
     if (!developer) {
-      return res.status(401).json({ error: 'Developer not found. Provide Authorization token or ?handle=@creator.' });
+      return res.status(401).json({ error: DEVELOPER_AUTH_ERROR });
     }
 
     const gamesRes = await pool.query(
@@ -2476,7 +2531,7 @@ app.post('/api/developer/games', async (req, res) => {
   try {
     const developer = await resolveDeveloper(req);
     if (!developer) {
-      return res.status(401).json({ error: 'Developer not found. Provide Authorization token or creatorHandle.' });
+      return res.status(401).json({ error: DEVELOPER_AUTH_ERROR });
     }
 
     const {
@@ -2582,59 +2637,38 @@ app.post('/api/developer/games', async (req, res) => {
 });
 
 // 3. Get game detail, status, generated AI prompt, and verification checklist
-// Unpublish a game. Allowed for: the owner's login token, the game's manageKey
-// (x-manage-key, issued by /api/publish), or the admin key. A ?handle= alone is NOT
-// enough — handles are public, so resolveDeveloper's handle fallback is not used here.
+// Admin (behind requireAdmin): creators auto-created by the old zero-signup publish flow.
+// They have no login of any kind, so nobody can manage their games.
+app.get('/api/admin/orphan-creators', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.created_at,
+         COALESCE(json_agg(json_build_object('id', g.id, 'name', g.name, 'plays', g.plays, 'embedUrl', g.embed_url))
+           FILTER (WHERE g.id IS NOT NULL), '[]') AS games
+       FROM users u
+       LEFT JOIN games g ON g.developer = u.id::text OR g.developer = u.username
+       WHERE u.token IS NULL AND u.email IS NULL AND u.password IS NULL AND u.oauth_id IS NULL
+         AND u.bio LIKE 'Indie game developer on GameTok.%'
+       GROUP BY u.id
+       ORDER BY u.created_at DESC`
+    );
+    res.json({ success: true, count: result.rows.length, creators: result.rows });
+  } catch (err) {
+    console.error('[Admin] Orphan creators error:', err);
+    res.status(500).json({ error: 'Failed to list orphan creators' });
+  }
+});
+
+// Unpublish a game. requireDeveloper + requireOwnedGame (mounted above) guarantee the
+// caller owns req.game.
 app.delete('/api/developer/games/:id', async (req, res) => {
   try {
-    const gameRes = await pool.query('SELECT id, name, developer, manage_key_hash FROM games WHERE id = $1', [req.params.id]);
-    if (gameRes.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
-    const game = gameRes.rows[0];
-
-    let authorized = false;
-    const adminSecret = process.env.ADMIN_SECRET || process.env.ADMIN_KEY;
-    const adminProvided = req.headers['x-admin-secret'] || req.headers['x-admin-key'];
-    if (adminSecret && adminProvided && adminProvided === adminSecret) authorized = true;
-
-    const manageKey = req.headers['x-manage-key'];
-    if (!authorized && manageKey && game.manage_key_hash) {
-      const a = Buffer.from(hashManageKey(manageKey), 'hex');
-      const b = Buffer.from(game.manage_key_hash, 'hex');
-      authorized = a.length === b.length && crypto.timingSafeEqual(a, b);
-    }
-
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!authorized && token) {
-      const userRes = await pool.query('SELECT id, username FROM users WHERE token = $1', [token]);
-      const u = userRes.rows[0];
-      authorized = !!u && (game.developer === u.id.toString() || game.developer === u.username);
-    }
-
-    if (!authorized) return res.status(403).json({ error: 'Not allowed to delete this game' });
-
+    const game = req.game;
     // games FKs cascade; these two tables have no FK to games.
     await pool.query('DELETE FROM game_categories WHERE game_id = $1', [game.id]);
     await pool.query('DELETE FROM game_leaderboard WHERE game_id = $1', [game.id]).catch(() => {});
     await pool.query('DELETE FROM games WHERE id = $1', [game.id]);
-
-    // A zero-signup creator (auto-created by /api/publish: no login of any kind) with no games
-    // left is just an empty profile squatting the handle, so remove it with the last game.
-    let creatorRemoved = false;
-    try {
-      const removed = await pool.query(
-        `DELETE FROM users u
-         WHERE (u.id::text = $1 OR u.username = $1)
-           AND u.token IS NULL AND u.email IS NULL AND u.password IS NULL AND u.oauth_id IS NULL
-           AND NOT EXISTS (SELECT 1 FROM games g WHERE g.developer = u.id::text OR g.developer = u.username)
-         RETURNING u.id`,
-        [game.developer]
-      );
-      creatorRemoved = removed.rows.length > 0;
-    } catch (e) {
-      console.warn('[Developer Platform] Could not remove empty zero-signup creator:', e.message);
-    }
-
-    res.json({ success: true, deleted: game.id, creatorRemoved });
+    res.json({ success: true, deleted: game.id });
   } catch (err) {
     console.error('[Developer Platform] Error deleting game:', err);
     res.status(500).json({ error: 'Failed to delete game' });
@@ -2854,7 +2888,7 @@ app.get('/api/developer/analytics', async (req, res) => {
   try {
     const developer = await resolveDeveloper(req);
     if (!developer) {
-      return res.status(401).json({ error: 'Developer not found. Provide Authorization token or ?handle=@creator.' });
+      return res.status(401).json({ error: DEVELOPER_AUTH_ERROR });
     }
 
     const devIdStr = developer.id.toString();

@@ -605,7 +605,20 @@ export const runMigrations = async () => {
       ALTER TABLE games ADD COLUMN IF NOT EXISTS version VARCHAR(32) DEFAULT '1.0.0';
       ALTER TABLE games ADD COLUMN IF NOT EXISTS verification_status VARCHAR(32) DEFAULT 'unverified';
       ALTER TABLE games ADD COLUMN IF NOT EXISTS verification_notes TEXT;
-      ALTER TABLE games ADD COLUMN IF NOT EXISTS manage_key_hash VARCHAR(64);
+
+      -- Personal developer API keys (games.gametok.co → Settings → API Keys). Only a sha256 of
+      -- the key is stored; the plaintext is shown once at creation.
+      CREATE TABLE IF NOT EXISTS developer_api_keys (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL DEFAULT 'Default',
+        key_prefix VARCHAR(24) NOT NULL,
+        key_hash VARCHAR(64) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_used_at TIMESTAMP,
+        revoked_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_developer_api_keys_user ON developer_api_keys(user_id);
 
       CREATE TABLE IF NOT EXISTS game_versions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
