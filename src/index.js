@@ -2439,8 +2439,6 @@ app.get('/api/publish/creator/:handle', async (req, res) => {
       totalLikes += parseInt(r.likes_count || 0, 10);
     });
 
-    // Payout calculation: e.g. $5.00 per 1,000 plays ($0.005/play)
-    const estEarnings = (totalPlays * 0.005).toFixed(2);
 
     res.json({
       creator: {
@@ -2454,8 +2452,7 @@ app.get('/api/publish/creator/:handle', async (req, res) => {
       stats: {
         totalGames: gamesRes.rows.length,
         totalPlays,
-        totalLikes,
-        estimatedEarnings: estEarnings
+        totalLikes
       },
       games: gamesRes.rows.map(formatGame)
     });
