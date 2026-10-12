@@ -2319,6 +2319,19 @@ async function runGameChecks({ url, html }) {
 
 const reviewStatus = (review) => (review.verified ? 'passed' : 'unverified');
 
+// Kick off a thumbnail screenshot via POST /api/internal/thumbnail/:id on this same service.
+// Fire-and-forget: publishing never waits for (or fails because of) the screenshot.
+async function requestThumbnailCapture(gameId) {
+  try {
+    const key = crypto.createHash('sha256').update('thumbnail:' + await getSessionSigningSecret()).digest('hex');
+    fetch(`${PUBLIC_API_ORIGIN}/api/internal/thumbnail/${encodeURIComponent(gameId)}`, {
+      method: 'POST', headers: { 'x-internal-key': key }
+    }).catch(err => console.warn(`[Thumbnail] Could not request capture for ${gameId}:`, err.message));
+  } catch (err) {
+    console.warn(`[Thumbnail] Could not request capture for ${gameId}:`, err.message);
+  }
+}
+
 const handleGamePublish = async (req, res) => {
   try {
     let {
@@ -2450,10 +2463,9 @@ const handleGamePublish = async (req, res) => {
 
     const savedGame = insertResult.rows[0];
 
-    // Automatic in-game Puppeteer screenshot capture (runs async)
-    autoCaptureGameThumbnail(savedGame.id, pool).catch(err => {
-      console.warn(`[Publish] Auto screenshot failed for ${savedGame.id}:`, err.message);
-    });
+    // Thumbnail screenshot runs as its own request so Cloud Run gives it CPU (work left running
+    // after this response is sent gets throttled and never finishes).
+    requestThumbnailCapture(savedGame.id);
 
     return res.json({
       success: true,
@@ -2924,9 +2936,7 @@ app.post('/api/developer/games', async (req, res) => {
     const saved = insertResult.rows[0];
 
     // Automatic in-game Puppeteer screenshot capture (runs async)
-    autoCaptureGameThumbnail(saved.id, pool).catch(err => {
-      console.warn(`[Developer Games] Auto screenshot failed for ${saved.id}:`, err.message);
-    });
+    requestThumbnailCapture(saved.id);
     const generatedPrompt = `Read https://gametok.co/skill.md and package this game for GameTok.
 
 1. Inspect project structure and entry point.
@@ -4695,6 +4705,17 @@ app.post('/api/matches/:id/leave', async (req, res) => {
     console.error('[Matches] Leave error:', err);
     res.status(500).json({ error: 'Could not leave match' });
   }
+});
+
+// Internal: capture a game's thumbnail inside a request (see requestThumbnailCapture).
+app.post('/api/internal/thumbnail/:id', async (req, res) => {
+  const expected = crypto.createHash('sha256').update('thumbnail:' + await getSessionSigningSecret()).digest('hex');
+  const provided = String(req.headers['x-internal-key'] || '');
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
+    return res.status(404).end();
+  }
+  const url = await autoCaptureGameThumbnail(req.params.id, pool);
+  res.json({ success: Boolean(url), thumbnail: url || null });
 });
 
 // Serve uploaded HTML game bundles

@@ -95,7 +95,9 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
     fs.writeFileSync(localFilePath, buffer);
     console.log(`[Screenshot Engine] Saved local screenshot to: ${localFilePath}`);
 
-    const apiBase = process.env.PUBLIC_API_URL || 'https://gametok.co';
+    // Served by this backend's /games/thumbnails static route (gametok.co itself doesn't serve it).
+    // Cloud Run disks are ephemeral, so this local URL is only a fallback for when R2 isn't configured.
+    const apiBase = process.env.PUBLIC_API_URL || 'https://gametok-backend-267787411422.us-central1.run.app';
     let publicUrl = `${apiBase}/games/thumbnails/${filename}`;
 
     // Upload to Cloudflare R2 if available
