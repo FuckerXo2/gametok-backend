@@ -2155,6 +2155,52 @@ async function requireOwnedGame(req, res, next) {
   }
 }
 
+// GameTok shows external games in an iframe on gametok.co (feed + /game/:id). A host that
+// forbids framing would go live as a blank screen, so publish checks the same headers the
+// browser enforces. CSP frame-ancestors wins over X-Frame-Options when both are present.
+const EMBED_PARENT_ORIGIN = 'https://gametok.co';
+
+function frameAncestorsAllows(sources, parentOrigin, gameOrigin) {
+  const parent = new URL(parentOrigin);
+  return sources.some((raw) => {
+    const src = raw.toLowerCase();
+    if (src === '*') return true;
+    if (src === "'none'") return false;
+    if (src === "'self'") return gameOrigin === parent.origin;
+    if (/^[a-z][a-z0-9+.-]*:$/.test(src)) return src === parent.protocol; // scheme-only, e.g. https:
+    const m = src.match(/^(?:([a-z][a-z0-9+.-]*):\/\/)?(\*\.)?([^/:]+)(?::(\d+|\*))?(?:\/.*)?$/);
+    if (!m) return false;
+    const [, scheme, wildcard, host, port] = m;
+    if (scheme && scheme !== parent.protocol.slice(0, -1)) return false;
+    if (port && port !== '*' && port !== (parent.port || (parent.protocol === 'https:' ? '443' : '80'))) return false;
+    // '*.example.com' matches subdomains only, not example.com itself.
+    return wildcard ? parent.hostname.endsWith('.' + host) : parent.hostname === host;
+  });
+}
+
+function checkEmbeddable(headers, gameUrl) {
+  const gameOrigin = new URL(gameUrl).origin;
+  const csp = headers.get('content-security-policy') || '';
+  const directive = csp.split(/[;,]/).map(d => d.trim()).find(d => /^frame-ancestors(\s|$)/i.test(d));
+  if (directive) {
+    const sources = directive.split(/\s+/).slice(1);
+    if (frameAncestorsAllows(sources, EMBED_PARENT_ORIGIN, gameOrigin)) return { ok: true };
+    return {
+      ok: false,
+      reason: `Your game's Content-Security-Policy (frame-ancestors ${sources.join(' ') || "'none'"}) doesn't allow ${EMBED_PARENT_ORIGIN} to embed it. Add ${EMBED_PARENT_ORIGIN} to frame-ancestors.`
+    };
+  }
+  const xfo = (headers.get('x-frame-options') || '').trim().toUpperCase();
+  // Browsers ignore ALLOW-FROM and unknown values, so only DENY / SAMEORIGIN block.
+  if ((xfo === 'DENY' || xfo === 'SAMEORIGIN') && !(xfo === 'SAMEORIGIN' && gameOrigin === EMBED_PARENT_ORIGIN)) {
+    return {
+      ok: false,
+      reason: `Your game is served with X-Frame-Options: ${xfo}, which stops ${EMBED_PARENT_ORIGIN} from embedding it. Remove that header and send Content-Security-Policy: frame-ancestors 'self' ${EMBED_PARENT_ORIGIN} instead.`
+    };
+  }
+  return { ok: true };
+}
+
 const handleGamePublish = async (req, res) => {
   try {
     let {
@@ -2172,6 +2218,7 @@ const handleGamePublish = async (req, res) => {
     } = req.body;
 
     let targetUrl = (url || embedUrl || '').trim();
+    const publishWarnings = [];
     let gameTitle = (title || name || '').trim();
     let gameDesc = (description || '').trim();
     // The game always belongs to the authenticated account; creator fields in the body are ignored.
@@ -2187,15 +2234,44 @@ const handleGamePublish = async (req, res) => {
       if (!/^https?:\/\//i.test(targetUrl)) {
         targetUrl = 'https://' + targetUrl;
       }
+      // gametok.co is HTTPS; browsers block an http:// game inside it (mixed content).
+      if (/^http:\/\//i.test(targetUrl)) {
+        return res.status(400).json({ error: 'Your game URL must use https:// — browsers block http:// games inside GameTok.', code: 'GAME_URL_NOT_HTTPS' });
+      }
+      let resp = null;
       try {
         const scrapeController = new AbortController();
-        const scrapeTimeout = setTimeout(() => scrapeController.abort(), 3500);
-        const resp = await fetch(targetUrl, {
+        const scrapeTimeout = setTimeout(() => scrapeController.abort(), 8000);
+        resp = await fetch(targetUrl, {
           signal: scrapeController.signal,
+          redirect: 'follow',
           headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GameTokBot/1.0; +https://gametok.co)' }
         });
         clearTimeout(scrapeTimeout);
-        if (resp.ok) {
+      } catch (err) {
+        // Unreachable from our servers (timeout, DNS, TLS). Don't block on it — the host may
+        // just be slow or filter bots — but tell the caller nothing was verified.
+        publishWarnings.push(`Could not reach ${targetUrl} to verify it (${err.name === 'AbortError' ? 'timed out' : err.message}). Check it plays at the GameTok link.`);
+      }
+      if (resp && !resp.ok) {
+        return res.status(400).json({ error: `Your game URL returned HTTP ${resp.status}. Make sure it's live and public, then publish again.`, code: 'GAME_URL_UNREACHABLE' });
+      }
+      if (resp) {
+        const finalUrl = resp.url || targetUrl;
+        if (/^http:\/\//i.test(finalUrl)) {
+          return res.status(400).json({ error: `Your game URL redirects to an http:// page (${finalUrl}). Serve it over https://.`, code: 'GAME_URL_NOT_HTTPS' });
+        }
+        const embed = checkEmbeddable(resp.headers, finalUrl);
+        if (!embed.ok) {
+          // itch.io store pages block framing, but the game itself runs from html-classic.itch.zone.
+          const hint = /(^|\.)itch\.io$/i.test(new URL(finalUrl).hostname)
+            ? ' This is an itch.io store page — publish the game file URL instead (open the game on itch.io, right-click the game area → "Open frame in new tab", and use that html-classic.itch.zone URL).'
+            : '';
+          return res.status(400).json({ error: embed.reason + hint, code: 'GAME_NOT_EMBEDDABLE' });
+        }
+      }
+      try {
+        if (resp && resp.ok) {
           const htmlText = await resp.text();
           // Extract <title>
           if (!gameTitle) {
@@ -2325,7 +2401,8 @@ const handleGamePublish = async (req, res) => {
         displayName: creatorRecord.display_name,
         avatar: creatorRecord.avatar
       },
-      dashboardUrl: 'https://games.gametok.co/dashboard'
+      dashboardUrl: 'https://games.gametok.co/dashboard',
+      ...(publishWarnings.length ? { warnings: publishWarnings } : {})
     });
   } catch (error) {
     console.error('[Publish] Error publishing game:', error);
