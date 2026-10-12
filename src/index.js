@@ -2281,9 +2281,7 @@ const handleGamePublish = async (req, res) => {
 
     // Sync categories join table
     try {
-      if (typeof setGameCategories === 'function') {
-        await setGameCategories(gameId, [chosenCategory]);
-      }
+      await setGameCategories(pool, gameId, [chosenCategory], 'creator');
     } catch (e) {
       console.warn('[Publish] Category sync error:', e);
     }
