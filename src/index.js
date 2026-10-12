@@ -58,7 +58,11 @@ const PORT = process.env.PORT || 3000;
 const server = createServer(app);
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+// Keep the exact request bytes for signed endpoints (match results are HMAC'd over the body).
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, res, buf) => { if (req.originalUrl.startsWith('/api/developer/matches/')) req.rawBody = buf; }
+}));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Request logging for AI & Admin endpoints
@@ -2109,7 +2113,7 @@ async function authenticateDeveloper(req) {
     const keyRes = await pool.query(
       `UPDATE developer_api_keys SET last_used_at = NOW()
        WHERE key_hash = $1 AND revoked_at IS NULL
-       RETURNING user_id, mode`,
+       RETURNING id, user_id, mode, results_secret`,
       [hashApiKey(apiKey)]
     );
     if (keyRes.rows.length === 0) return null;
@@ -2117,6 +2121,7 @@ async function authenticateDeveloper(req) {
     if (!userRes.rows[0]) return null;
     req.authMethod = 'api_key';
     req.apiKeyMode = keyRes.rows[0].mode === 'test' ? 'test' : 'live';
+    req.apiKeyResultsSecret = keyRes.rows[0].results_secret || null;
     return userRes.rows[0];
   }
   if (bearer) {
@@ -2610,6 +2615,77 @@ app.post('/api/developer/sessions/verify', async (req, res) => {
   }
 });
 
+// Developer server side of matches. Reading a match needs your key; reporting a result also
+// needs an HMAC signature with the results secret issued with that key:
+//   X-GameTok-Timestamp: <unix seconds>   (within 5 minutes)
+//   X-GameTok-Signature: v1=<hex HMAC-SHA256(resultsSecret, "POST\n<path>\n<timestamp>\n<match nonce>\n<hex sha256(raw body)>")>
+async function loadDeveloperMatch(req, res) {
+  const match = await loadMatch(req.params.id);
+  if (!match) { res.status(404).json({ error: 'Match not found', code: 'MATCH_NOT_FOUND' }); return null; }
+  const game = await pool.query('SELECT id, developer FROM games WHERE id = $1', [match.game_id]);
+  if (!ownsGame(req.developer, game.rows[0])) { res.status(404).json({ error: 'Match not found', code: 'MATCH_NOT_FOUND' }); return null; }
+  if (req.authMethod === 'api_key' && req.apiKeyMode !== match.mode) {
+    res.status(403).json({ error: `A ${req.apiKeyMode} key can only use ${req.apiKeyMode} game_matches (this one is ${match.mode})`, code: 'WRONG_MODE' });
+    return null;
+  }
+  await expireMatches(match.game_id);
+  return loadMatch(match.id);
+}
+
+app.get('/api/developer/matches/:id', async (req, res) => {
+  try {
+    const match = await loadDeveloperMatch(req, res);
+    if (match) res.json({ match: matchView(match, null, { forDeveloper: true }) });
+  } catch (err) {
+    console.error('[Matches] Developer get error:', err);
+    res.status(500).json({ error: 'Could not load match' });
+  }
+});
+
+app.post('/api/developer/matches/:id/result', async (req, res) => {
+  try {
+    if (req.authMethod !== 'api_key') return res.status(403).json({ error: 'Report results from your server with an API key', code: 'API_KEY_REQUIRED' });
+    if (!req.apiKeyResultsSecret) return res.status(403).json({ error: 'This key has no results secret. Create a new API key in the dashboard.', code: 'NO_RESULTS_SECRET' });
+    const match = await loadDeveloperMatch(req, res);
+    if (!match) return;
+
+    const timestamp = String(req.headers['x-gametok-timestamp'] || '');
+    const signature = String(req.headers['x-gametok-signature'] || '');
+    if (!/^\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
+      return res.status(401).json({ error: 'X-GameTok-Timestamp missing or more than 5 minutes off', code: 'STALE_TIMESTAMP' });
+    }
+    const bodyHash = crypto.createHash('sha256').update(req.rawBody || Buffer.alloc(0)).digest('hex');
+    const path = req.originalUrl.split('?')[0];
+    const expected = 'v1=' + crypto.createHmac('sha256', req.apiKeyResultsSecret)
+      .update(['POST', path, timestamp, match.nonce, bodyHash].join('\n')).digest('hex');
+    const a = Buffer.from(signature), b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(401).json({ error: 'Bad signature', code: 'BAD_SIGNATURE' });
+    }
+
+    const winner = String(req.body?.winner || '');
+    const result = req.body?.result && typeof req.body.result === 'object' ? req.body.result : null;
+    if (winner !== 'draw' && !match.players.some(p => p.player_id === winner)) {
+      return res.status(400).json({ error: 'winner must be a player in the match or "draw"', code: 'BAD_WINNER' });
+    }
+    if (match.status === 'done') {
+      // Settled once; replaying the same result gives the same answer.
+      if (match.winner === winner) return res.json({ match: matchView(match, null, { forDeveloper: true }) });
+      return res.status(409).json({ error: 'This match already has a result', code: 'ALREADY_SETTLED', match: matchView(match, null, { forDeveloper: true }) });
+    }
+    if (match.status !== 'playing') {
+      return res.status(409).json({ error: `Only a match that is playing can be settled (this one is ${match.status})`, code: 'NOT_PLAYING' });
+    }
+    await pool.query(
+      `UPDATE game_matches SET status = 'done', winner = $2, result = $3, settled_at = NOW() WHERE id = $1 AND status = 'playing'`,
+      [match.id, winner, result ? JSON.stringify(result) : null]);
+    res.json({ match: matchView(await loadMatch(match.id), null, { forDeveloper: true }) });
+  } catch (err) {
+    console.error('[Matches] Result error:', err);
+    res.status(500).json({ error: 'Could not record result' });
+  }
+});
+
 // Integration checklist: the test player reports what the game did (first time only per item).
 const INTEGRATION_EVENTS = ['bridge_loaded', 'player_requested', 'session_verified', 'score_submitted'];
 async function recordIntegration(gameId, event) {
@@ -2696,13 +2772,15 @@ app.post('/api/developer/api-keys', async (req, res) => {
     const mode = req.body?.mode === 'test' ? 'test' : 'live';
     const key = (mode === 'test' ? TEST_API_KEY_PREFIX : API_KEY_PREFIX) + crypto.randomBytes(24).toString('hex');
     const prefix = key.slice(0, API_KEY_PREFIX.length + 6);
+    // Signs match results (HMAC). Stored as-is because verifying an HMAC needs the secret.
+    const resultsSecret = 'gtk_rs_' + crypto.randomBytes(24).toString('hex');
     const inserted = await pool.query(
-      `INSERT INTO developer_api_keys (user_id, name, key_prefix, key_hash, mode)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
-      [req.developer.id, name, prefix, hashApiKey(key), mode]
+      `INSERT INTO developer_api_keys (user_id, name, key_prefix, key_hash, mode, results_secret)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+      [req.developer.id, name, prefix, hashApiKey(key), mode, resultsSecret]
     );
-    // The plaintext key is returned exactly once.
-    res.json({ success: true, key, id: inserted.rows[0].id, name, prefix, mode, createdAt: inserted.rows[0].created_at });
+    // The plaintext key and results secret are returned exactly once.
+    res.json({ success: true, key, resultsSecret, id: inserted.rows[0].id, name, prefix, mode, createdAt: inserted.rows[0].created_at });
   } catch (err) {
     console.error('[API Keys] Create error:', err);
     res.status(500).json({ error: 'Failed to create API key' });
@@ -4378,6 +4456,244 @@ app.post('/api/games/:id/player-session', async (req, res) => {
   } catch (err) {
     console.error('[Player Session] Error:', err);
     res.status(500).json({ error: 'Could not create a player session' });
+  }
+});
+
+// ---- Multiplayer lobby -------------------------------------------------------------------
+// GameTok pairs players and records who won; the developer's own server runs the gameplay.
+// Players call these through bridge.js (GameTok.match.*) with their player session; the
+// result comes only from the developer's server (signed). Matches have no stakes.
+const MATCH_OPEN_MINUTES = 15;   // an unfilled match is cancelled after this
+const MATCH_PLAY_HOURS = 2;      // a started match with no result is voided after this
+const MATCH_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O, easy to read out loud
+
+async function authenticatePlayerSession(req) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+  try {
+    const claims = jwt.verify(token, await getSessionSigningSecret(), { algorithms: ['HS256'], issuer: 'gametok' });
+    return { playerId: claims.sub, name: claims.name, gameId: claims.gid, mode: claims.mode };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function requirePlayer(req, res, next) {
+  const player = await authenticatePlayerSession(req).catch(() => null);
+  if (!player) return res.status(401).json({ error: 'Send a valid player session (GameTok.session())', code: 'SESSION_INVALID' });
+  req.player = player;
+  next();
+}
+
+async function expireMatches(gameId) {
+  await pool.query(
+    `UPDATE game_matches SET status = 'cancelled', settled_at = NOW()
+     WHERE game_id = $1 AND status = 'open' AND created_at < NOW() - ($2 || ' minutes')::interval`,
+    [gameId, String(MATCH_OPEN_MINUTES)]);
+  await pool.query(
+    `UPDATE game_matches SET status = 'void', settled_at = NOW()
+     WHERE game_id = $1 AND status = 'playing' AND ends_at < NOW()`,
+    [gameId]);
+}
+
+async function loadMatch(matchId) {
+  const m = await pool.query('SELECT * FROM game_matches WHERE id::text = $1', [String(matchId)]);
+  if (!m.rows[0]) return null;
+  const players = await pool.query(
+    'SELECT player_id, name, left_at FROM game_match_players WHERE match_id = $1 ORDER BY joined_at', [m.rows[0].id]);
+  return { ...m.rows[0], players: players.rows };
+}
+
+function matchView(match, meId, { forDeveloper = false } = {}) {
+  return {
+    id: match.id,
+    code: match.code,
+    status: match.status,
+    seats: match.seats,
+    mode: match.mode,
+    quick: match.quick,
+    players: match.players.map(p => ({ id: p.player_id, name: p.name, ...(p.left_at ? { left: true } : {}) })),
+    ...(meId ? { me: meId } : {}),
+    winner: match.winner,
+    result: match.result,
+    createdAt: match.created_at,
+    startedAt: match.started_at,
+    endsAt: match.ends_at,
+    settledAt: match.settled_at,
+    ...(forDeveloper ? { gameId: match.game_id, nonce: match.nonce } : {})
+  };
+}
+
+async function activeMatchFor(player) {
+  const r = await pool.query(
+    `SELECT m.id FROM game_matches m JOIN game_match_players mp ON mp.match_id = m.id
+     WHERE m.game_id = $1 AND m.mode = $2 AND m.status IN ('open', 'playing')
+       AND mp.player_id = $3 AND mp.left_at IS NULL
+     ORDER BY m.created_at DESC LIMIT 1`,
+    [player.gameId, player.mode, player.playerId]);
+  return r.rows[0] ? loadMatch(r.rows[0].id) : null;
+}
+
+async function startIfFull(matchId) {
+  await pool.query(
+    `UPDATE game_matches SET status = 'playing', started_at = NOW(), ends_at = NOW() + ($2 || ' hours')::interval
+     WHERE id = $1 AND status = 'open'
+       AND (SELECT COUNT(*) FROM game_match_players WHERE match_id = $1 AND left_at IS NULL) >= seats`,
+    [matchId, String(MATCH_PLAY_HOURS)]);
+}
+
+async function createMatch(player, seats, quick) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = Array.from(crypto.randomBytes(6), b => MATCH_CODE_ALPHABET[b % MATCH_CODE_ALPHABET.length]).join('');
+    try {
+      const m = await pool.query(
+        `INSERT INTO game_matches (game_id, mode, code, seats, quick, nonce, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [player.gameId, player.mode, code, seats, quick, crypto.randomBytes(16).toString('hex'), player.playerId]);
+      await pool.query('INSERT INTO game_match_players (match_id, player_id, name) VALUES ($1, $2, $3)',
+        [m.rows[0].id, player.playerId, player.name]);
+      return loadMatch(m.rows[0].id);
+    } catch (err) {
+      if (err.code !== '23505') throw err; // retry only on a code collision
+    }
+  }
+  throw new Error('Could not allocate a match code');
+}
+
+const parseSeats = (v) => {
+  const n = parseInt(v ?? 2, 10);
+  return Number.isInteger(n) && n >= 2 && n <= 4 ? n : null;
+};
+
+app.use('/api/matches', requirePlayer);
+
+app.post('/api/matches', async (req, res) => {
+  try {
+    const seats = parseSeats(req.body?.seats);
+    if (!seats) return res.status(400).json({ error: 'seats must be 2, 3 or 4', code: 'BAD_SEATS' });
+    await expireMatches(req.player.gameId);
+    const current = await activeMatchFor(req.player);
+    if (current) return res.status(409).json({ error: 'You are already in a match in this game', code: 'ALREADY_IN_MATCH', match: matchView(current, req.player.playerId) });
+    const match = await createMatch(req.player, seats, false);
+    res.json({ match: matchView(match, req.player.playerId) });
+  } catch (err) {
+    console.error('[Matches] Create error:', err);
+    res.status(500).json({ error: 'Could not create match' });
+  }
+});
+
+app.post('/api/matches/join', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const code = String(req.body?.code || '').trim().toUpperCase();
+    await expireMatches(req.player.gameId);
+    const current = await activeMatchFor(req.player);
+    if (current) return res.status(409).json({ error: 'You are already in a match in this game', code: 'ALREADY_IN_MATCH', match: matchView(current, req.player.playerId) });
+    await client.query('BEGIN');
+    const m = await client.query(
+      `SELECT * FROM game_matches WHERE code = $1 AND status = 'open' AND game_id = $2 AND mode = $3 FOR UPDATE`,
+      [code, req.player.gameId, req.player.mode]);
+    if (!m.rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'No open match with that code', code: 'MATCH_NOT_FOUND' }); }
+    const count = await client.query('SELECT COUNT(*)::int AS n FROM game_match_players WHERE match_id = $1 AND left_at IS NULL', [m.rows[0].id]);
+    if (count.rows[0].n >= m.rows[0].seats) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That match is full', code: 'MATCH_FULL' }); }
+    await client.query(
+      `INSERT INTO game_match_players (match_id, player_id, name) VALUES ($1, $2, $3)
+       ON CONFLICT (match_id, player_id) DO UPDATE SET left_at = NULL`,
+      [m.rows[0].id, req.player.playerId, req.player.name]);
+    await client.query('COMMIT');
+    await startIfFull(m.rows[0].id);
+    res.json({ match: matchView(await loadMatch(m.rows[0].id), req.player.playerId) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[Matches] Join error:', err);
+    res.status(500).json({ error: 'Could not join match' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/matches/quick', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const seats = parseSeats(req.body?.seats);
+    if (!seats) return res.status(400).json({ error: 'seats must be 2, 3 or 4', code: 'BAD_SEATS' });
+    await expireMatches(req.player.gameId);
+    const current = await activeMatchFor(req.player);
+    if (current) return res.json({ match: matchView(current, req.player.playerId) });
+    await client.query('BEGIN');
+    // Oldest open quick match in this game with a free seat; SKIP LOCKED so two players
+    // looking at once don't both grab the last seat.
+    const m = await client.query(
+      `SELECT m.* FROM game_matches m
+       WHERE m.game_id = $1 AND m.mode = $2 AND m.status = 'open' AND m.quick AND m.seats = $3
+         AND (SELECT COUNT(*) FROM game_match_players mp WHERE mp.match_id = m.id AND mp.left_at IS NULL) < m.seats
+       ORDER BY m.created_at LIMIT 1 FOR UPDATE SKIP LOCKED`,
+      [req.player.gameId, req.player.mode, seats]);
+    if (!m.rows[0]) {
+      await client.query('ROLLBACK');
+      const match = await createMatch(req.player, seats, true);
+      return res.json({ match: matchView(match, req.player.playerId) });
+    }
+    await client.query(
+      `INSERT INTO game_match_players (match_id, player_id, name) VALUES ($1, $2, $3)
+       ON CONFLICT (match_id, player_id) DO UPDATE SET left_at = NULL`,
+      [m.rows[0].id, req.player.playerId, req.player.name]);
+    await client.query('COMMIT');
+    await startIfFull(m.rows[0].id);
+    res.json({ match: matchView(await loadMatch(m.rows[0].id), req.player.playerId) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[Matches] Quick match error:', err);
+    res.status(500).json({ error: 'Could not find a match' });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/matches/current', async (req, res) => {
+  try {
+    await expireMatches(req.player.gameId);
+    const match = await activeMatchFor(req.player);
+    res.json({ match: match ? matchView(match, req.player.playerId) : null });
+  } catch (err) {
+    console.error('[Matches] Current error:', err);
+    res.status(500).json({ error: 'Could not load match' });
+  }
+});
+
+app.get('/api/matches/:id', async (req, res) => {
+  try {
+    await expireMatches(req.player.gameId);
+    const match = await loadMatch(req.params.id);
+    if (!match || match.game_id !== req.player.gameId || !match.players.some(p => p.player_id === req.player.playerId)) {
+      return res.status(404).json({ error: 'Match not found', code: 'MATCH_NOT_FOUND' });
+    }
+    res.json({ match: matchView(match, req.player.playerId) });
+  } catch (err) {
+    console.error('[Matches] Get error:', err);
+    res.status(500).json({ error: 'Could not load match' });
+  }
+});
+
+app.post('/api/matches/:id/leave', async (req, res) => {
+  try {
+    const match = await loadMatch(req.params.id);
+    if (!match || match.game_id !== req.player.gameId || !match.players.some(p => p.player_id === req.player.playerId)) {
+      return res.status(404).json({ error: 'Match not found', code: 'MATCH_NOT_FOUND' });
+    }
+    if (match.status === 'open') {
+      await pool.query('DELETE FROM game_match_players WHERE match_id = $1 AND player_id = $2', [match.id, req.player.playerId]);
+      await pool.query(
+        `UPDATE game_matches SET status = 'cancelled', settled_at = NOW()
+         WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM game_match_players WHERE match_id = $1)`, [match.id]);
+    } else if (match.status === 'playing') {
+      // After the start the player stays on the roster (marked left); the server decides the result.
+      await pool.query('UPDATE game_match_players SET left_at = NOW() WHERE match_id = $1 AND player_id = $2', [match.id, req.player.playerId]);
+    }
+    res.json({ match: matchView(await loadMatch(match.id), req.player.playerId) });
+  } catch (err) {
+    console.error('[Matches] Leave error:', err);
+    res.status(500).json({ error: 'Could not leave match' });
   }
 });
 

@@ -621,6 +621,39 @@ export const runMigrations = async () => {
       CREATE INDEX IF NOT EXISTS idx_developer_api_keys_user ON developer_api_keys(user_id);
       -- 'test' keys (gtk_test_...) only create/update drafts and verify test-mode sessions.
       ALTER TABLE developer_api_keys ADD COLUMN IF NOT EXISTS mode VARCHAR(8) NOT NULL DEFAULT 'live';
+      -- HMAC secret for signing match results (shown once with the key; needed in plaintext to verify).
+      ALTER TABLE developer_api_keys ADD COLUMN IF NOT EXISTS results_secret VARCHAR(80);
+
+      -- Multiplayer lobby: GameTok pairs players and records the result; the developer's own
+      -- server runs the gameplay. No stakes.
+      CREATE TABLE IF NOT EXISTS game_matches (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        game_id VARCHAR(100) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        mode VARCHAR(8) NOT NULL,
+        code VARCHAR(6) NOT NULL,
+        status VARCHAR(12) NOT NULL DEFAULT 'open',
+        seats SMALLINT NOT NULL,
+        quick BOOLEAN NOT NULL DEFAULT FALSE,
+        nonce VARCHAR(64) NOT NULL,
+        created_by VARCHAR(40) NOT NULL,
+        winner VARCHAR(40),
+        result JSONB,
+        created_at TIMESTAMP DEFAULT NOW(),
+        started_at TIMESTAMP,
+        ends_at TIMESTAMP,
+        settled_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_matches_game_status ON game_matches(game_id, mode, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_open_code ON game_matches(code) WHERE status = 'open';
+      CREATE TABLE IF NOT EXISTS game_match_players (
+        match_id UUID NOT NULL REFERENCES game_matches(id) ON DELETE CASCADE,
+        player_id VARCHAR(40) NOT NULL,
+        name VARCHAR(100),
+        joined_at TIMESTAMP DEFAULT NOW(),
+        left_at TIMESTAMP,
+        PRIMARY KEY (match_id, player_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_match_players_player ON game_match_players(player_id);
 
       -- Server-side secrets generated on first boot (e.g. player-session signing key), so they
       -- don't depend on deploy-time env configuration.
