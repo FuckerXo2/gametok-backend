@@ -2093,26 +2093,30 @@ app.patch('/api/admin/games/:id', async (req, res) => {
 // ---- Developer authentication -------------------------------------------------------
 // Every developer action is tied to a real GameTok account. A request authenticates with
 //   Authorization: Bearer <session token>   (signed in on games.gametok.co / gametok.co), or
-//   Authorization: Bearer gtk_live_...       (personal API key, for AI agents / CI), or
-//   x-api-key: gtk_live_...
+//   Authorization: Bearer gtk_live_... / gtk_test_...   (personal API key, for AI agents / CI), or
+//   x-api-key: gtk_live_... / gtk_test_...
+// Test keys (gtk_test_) only create/update drafts and verify test-mode player sessions.
 // A creator handle in the query/body is NEVER identity — handles are public.
 const API_KEY_PREFIX = 'gtk_live_';
+const TEST_API_KEY_PREFIX = 'gtk_test_';
+const isApiKey = (v) => v.startsWith(API_KEY_PREFIX) || v.startsWith(TEST_API_KEY_PREFIX);
 const hashApiKey = (key) => crypto.createHash('sha256').update(String(key)).digest('hex');
 
 async function authenticateDeveloper(req) {
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  const apiKey = String(req.headers['x-api-key'] || '').trim() || (bearer.startsWith(API_KEY_PREFIX) ? bearer : '');
+  const apiKey = String(req.headers['x-api-key'] || '').trim() || (isApiKey(bearer) ? bearer : '');
   if (apiKey) {
     const keyRes = await pool.query(
       `UPDATE developer_api_keys SET last_used_at = NOW()
        WHERE key_hash = $1 AND revoked_at IS NULL
-       RETURNING user_id`,
+       RETURNING user_id, mode`,
       [hashApiKey(apiKey)]
     );
     if (keyRes.rows.length === 0) return null;
     const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [keyRes.rows[0].user_id]);
     if (!userRes.rows[0]) return null;
     req.authMethod = 'api_key';
+    req.apiKeyMode = keyRes.rows[0].mode === 'test' ? 'test' : 'live';
     return userRes.rows[0];
   }
   if (bearer) {
@@ -2124,7 +2128,7 @@ async function authenticateDeveloper(req) {
   return null;
 }
 
-const DEVELOPER_AUTH_ERROR = 'Sign in at https://games.gametok.co or send a GameTok API key (Authorization: Bearer gtk_live_...). Create one at https://games.gametok.co/dashboard → Settings → API Keys.';
+const DEVELOPER_AUTH_ERROR = 'Sign in at https://games.gametok.co or send a GameTok API key (Authorization: Bearer gtk_live_... or gtk_test_...). Create one at https://games.gametok.co/dashboard → Settings → API Keys.';
 
 async function requireDeveloper(req, res, next) {
   try {
@@ -2159,6 +2163,8 @@ async function requireOwnedGame(req, res, next) {
 // forbids framing would go live as a blank screen, so publish checks the same headers the
 // browser enforces. CSP frame-ancestors wins over X-Frame-Options when both are present.
 const EMBED_PARENT_ORIGIN = 'https://gametok.co';
+// Where uploaded HTML games are served from. gametok.co/api/* is the website, not the API.
+const PUBLIC_API_ORIGIN = process.env.PUBLIC_API_ORIGIN || 'https://gametok-backend-267787411422.us-central1.run.app';
 
 function frameAncestorsAllows(sources, parentOrigin, gameOrigin) {
   const parent = new URL(parentOrigin);
@@ -2363,9 +2369,20 @@ const handleGamePublish = async (req, res) => {
     let slug = gameTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
     if (!slug) slug = `game-${Date.now().toString(36)}`;
 
+    // Test mode: a test key (or "draft": true) creates/updates a private draft that isn't in the
+    // feed and can be played only in the dashboard's test player. A test key never touches a
+    // live game; a live publish of your own draft takes it live.
+    const asDraft = req.apiKeyMode === 'test' || req.body.draft === true;
+    const gameStatus = asDraft ? 'draft' : 'published';
+
     // Check collision
     let gameId = slug;
-    const existingGame = await pool.query('SELECT id, developer FROM games WHERE id = $1', [gameId]);
+    let existingGame = await pool.query('SELECT id, developer, status FROM games WHERE id = $1', [gameId]);
+    if (existingGame.rows.length > 0 && ownsGame(creatorRecord, existingGame.rows[0]) && asDraft && existingGame.rows[0].status !== 'draft') {
+      // Your live game has this name: keep the draft separate from it.
+      gameId = `${slug}-draft`;
+      existingGame = await pool.query('SELECT id, developer, status FROM games WHERE id = $1', [gameId]);
+    }
     if (existingGame.rows.length > 0) {
       // Re-publishing your own game updates it; anyone else's slug gets a suffix.
       if (!ownsGame(creatorRecord, existingGame.rows[0])) {
@@ -2383,8 +2400,8 @@ const handleGamePublish = async (req, res) => {
       `INSERT INTO games (
         id, name, description, icon, color, category,
         embed_url, thumbnail, developer, orientation, runtime, script_payload,
-        verification_status, verification_notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11, $12, $13)
+        verification_status, verification_notes, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11, $12, $13, $14)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         description = EXCLUDED.description,
@@ -2397,7 +2414,9 @@ const handleGamePublish = async (req, res) => {
         orientation = EXCLUDED.orientation,
         script_payload = EXCLUDED.script_payload,
         verification_status = EXCLUDED.verification_status,
-        verification_notes = EXCLUDED.verification_notes
+        verification_notes = EXCLUDED.verification_notes,
+        status = EXCLUDED.status,
+        updated_at = NOW()
       RETURNING *`,
       [
         gameId,
@@ -2406,13 +2425,14 @@ const handleGamePublish = async (req, res) => {
         chosenIcon,
         chosenColor,
         chosenCategory,
-        targetUrl || (html ? `https://gametok.co/api/games/${gameId}/play-html` : null),
+        targetUrl || (html ? `${PUBLIC_API_ORIGIN}/api/games/${gameId}/play-html` : null),
         thumbnail || null,
         creatorRecord.id.toString(),
         chosenOrientation,
         html || null,
         reviewStatus(review),
-        JSON.stringify(review.checks)
+        JSON.stringify(review.checks),
+        gameStatus
       ]
     );
 
@@ -2447,6 +2467,8 @@ const handleGamePublish = async (req, res) => {
         avatar: creatorRecord.avatar
       },
       dashboardUrl: 'https://games.gametok.co/dashboard',
+      status: gameStatus,
+      ...(gameStatus === 'draft' ? { testUrl: `https://games.gametok.co/sandbox/?game=${encodeURIComponent(savedGame.id)}` } : {}),
       checks: review.checks,
       ...(publishWarnings.length ? { warnings: publishWarnings } : {})
     });
@@ -2473,7 +2495,7 @@ app.get('/api/publish/creator/:handle', async (req, res) => {
         COALESCE((SELECT COUNT(*) FROM likes l WHERE l.game_id = g.id), 0) AS likes_count,
         COALESCE(g.plays, 0) AS plays_count
        FROM games g 
-       WHERE g.developer = $1 OR g.developer = $2
+       WHERE (g.developer = $1 OR g.developer = $2) AND (g.status IS NULL OR g.status = 'published')
        ORDER BY g.created_at DESC`,
       [creator.id.toString(), creator.username]
     );
@@ -2553,6 +2575,67 @@ app.use('/api/developer', (req, res, next) => (req.path === '/analytics/session'
 // Per-game developer routes additionally require owning the game.
 app.use('/api/developer/games/:id', requireOwnedGame);
 
+// The game's server checks a player session here before trusting it (with the developer's
+// key, never from the browser). Test keys only accept test sessions and live keys only live
+// ones; a signed-in dashboard session accepts both.
+app.post('/api/developer/sessions/verify', async (req, res) => {
+  try {
+    const session = String(req.body?.session || '');
+    let claims;
+    try {
+      claims = jwt.verify(session, await getSessionSigningSecret(), { algorithms: ['HS256'], issuer: 'gametok' });
+    } catch (err) {
+      const code = err.name === 'TokenExpiredError' ? 'SESSION_EXPIRED' : 'SESSION_INVALID';
+      return res.status(401).json({ valid: false, error: code === 'SESSION_EXPIRED' ? 'Session expired — ask the game for a fresh one with GameTok.session()' : 'Invalid session', code });
+    }
+    const gameRes = await pool.query('SELECT id, developer, integration FROM games WHERE id = $1', [claims.gid]);
+    const game = gameRes.rows[0];
+    if (!game || !ownsGame(req.developer, game)) {
+      return res.status(403).json({ valid: false, error: 'This session is for a game you do not own', code: 'WRONG_GAME' });
+    }
+    if (req.authMethod === 'api_key' && req.apiKeyMode !== claims.mode) {
+      return res.status(403).json({ valid: false, error: `A ${req.apiKeyMode} key can only verify ${req.apiKeyMode} sessions (this one is ${claims.mode})`, code: 'WRONG_MODE' });
+    }
+    if (claims.mode === 'test') await recordIntegration(game.id, 'session_verified');
+    res.json({
+      valid: true,
+      gameId: claims.gid,
+      mode: claims.mode,
+      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest) },
+      expiresAt: new Date(claims.exp * 1000).toISOString()
+    });
+  } catch (err) {
+    console.error('[Session Verify] Error:', err);
+    res.status(500).json({ error: 'Could not verify session' });
+  }
+});
+
+// Integration checklist: the test player reports what the game did (first time only per item).
+const INTEGRATION_EVENTS = ['bridge_loaded', 'player_requested', 'session_verified', 'score_submitted'];
+async function recordIntegration(gameId, event) {
+  if (!INTEGRATION_EVENTS.includes(event)) return;
+  await pool.query(
+    `UPDATE games SET integration = jsonb_set(COALESCE(integration, '{}'::jsonb), $2, to_jsonb(NOW()::text), true)
+     WHERE id = $1 AND NOT (COALESCE(integration, '{}'::jsonb) ? $3)`,
+    [gameId, `{${event}}`, event]
+  );
+}
+
+app.post('/api/developer/games/:id/integration', async (req, res) => {
+  try {
+    const event = String(req.body?.event || '');
+    if (!INTEGRATION_EVENTS.includes(event) || event === 'session_verified') {
+      return res.status(400).json({ error: 'Unknown event' });
+    }
+    await recordIntegration(req.game.id, event);
+    const row = await pool.query('SELECT integration FROM games WHERE id = $1', [req.game.id]);
+    res.json({ success: true, integration: row.rows[0].integration });
+  } catch (err) {
+    console.error('[Integration] Error:', err);
+    res.status(500).json({ error: 'Could not record event' });
+  }
+});
+
 // Developer account status for the dashboard's onboarding (username + agreement).
 app.get('/api/developer/me', (req, res) => {
   const d = req.developer;
@@ -2589,13 +2672,13 @@ app.post('/api/developer/agreement', async (req, res) => {
 app.get('/api/developer/api-keys', async (req, res) => {
   try {
     const keys = await pool.query(
-      `SELECT id, name, key_prefix, created_at, last_used_at FROM developer_api_keys
+      `SELECT id, name, key_prefix, mode, created_at, last_used_at FROM developer_api_keys
        WHERE user_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC`,
       [req.developer.id]
     );
     res.json({
       success: true,
-      keys: keys.rows.map(k => ({ id: k.id, name: k.name, prefix: k.key_prefix, createdAt: k.created_at, lastUsedAt: k.last_used_at }))
+      keys: keys.rows.map(k => ({ id: k.id, name: k.name, prefix: k.key_prefix, mode: k.mode, createdAt: k.created_at, lastUsedAt: k.last_used_at }))
     });
   } catch (err) {
     console.error('[API Keys] List error:', err);
@@ -2610,15 +2693,16 @@ app.post('/api/developer/api-keys', async (req, res) => {
     if (active.rows[0].n >= 10) return res.status(400).json({ error: 'You already have 10 active keys. Revoke one first.' });
 
     const name = String(req.body?.name || 'Default').trim().slice(0, 100) || 'Default';
-    const key = API_KEY_PREFIX + crypto.randomBytes(24).toString('hex');
+    const mode = req.body?.mode === 'test' ? 'test' : 'live';
+    const key = (mode === 'test' ? TEST_API_KEY_PREFIX : API_KEY_PREFIX) + crypto.randomBytes(24).toString('hex');
     const prefix = key.slice(0, API_KEY_PREFIX.length + 6);
     const inserted = await pool.query(
-      `INSERT INTO developer_api_keys (user_id, name, key_prefix, key_hash)
-       VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
-      [req.developer.id, name, prefix, hashApiKey(key)]
+      `INSERT INTO developer_api_keys (user_id, name, key_prefix, key_hash, mode)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
+      [req.developer.id, name, prefix, hashApiKey(key), mode]
     );
     // The plaintext key is returned exactly once.
-    res.json({ success: true, key, id: inserted.rows[0].id, name, prefix, createdAt: inserted.rows[0].created_at });
+    res.json({ success: true, key, id: inserted.rows[0].id, name, prefix, mode, createdAt: inserted.rows[0].created_at });
   } catch (err) {
     console.error('[API Keys] Create error:', err);
     res.status(500).json({ error: 'Failed to create API key' });
@@ -2674,6 +2758,7 @@ app.get('/api/developer/games', async (req, res) => {
         ...formatGame(row),
         uniquePlayers: parseInt(row.unique_players || 0, 10),
         avgDurationSeconds: Math.round(parseFloat(row.avg_duration_seconds || 0)),
+        integration: row.integration || {},
       }))
     });
   } catch (err) {
@@ -2714,7 +2799,7 @@ app.post('/api/developer/games', async (req, res) => {
     }
 
     // Auto-generate embedUrl for directly uploaded HTML bundles
-    const finalEmbedUrl = embedUrl || (html ? `https://gametok.co/api/games/${gameId}/play-html` : null);
+    const finalEmbedUrl = embedUrl || (html ? `${PUBLIC_API_ORIGIN}/api/games/${gameId}/play-html` : null);
 
     const insertResult = await pool.query(
       `INSERT INTO games (
@@ -2820,6 +2905,9 @@ app.get('/api/admin/orphan-creators', async (req, res) => {
 app.delete('/api/developer/games/:id', async (req, res) => {
   try {
     const game = req.game;
+    if (req.apiKeyMode === 'test' && game.status !== 'draft') {
+      return res.status(403).json({ error: 'Test keys can only delete drafts', code: 'TEST_KEY_LIVE_GAME' });
+    }
     // games FKs cascade; these two tables have no FK to games.
     await pool.query('DELETE FROM game_categories WHERE game_id = $1', [game.id]);
     await pool.query('DELETE FROM game_leaderboard WHERE game_id = $1', [game.id]).catch(() => {});
@@ -3263,7 +3351,7 @@ app.get('/api/games', async (req, res) => {
          FROM games g
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
-         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
          AND (g.status IS NULL OR g.status = 'published')
          AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
          ${categoryFilter}
@@ -3324,7 +3412,7 @@ app.get('/api/games', async (req, res) => {
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
-         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
          AND (g.status IS NULL OR g.status = 'published')
          AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
          ${categoryFilter}
@@ -3337,7 +3425,7 @@ app.get('/api/games', async (req, res) => {
     const countParams = category ? [category] : [];
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM games g
-       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
        AND (g.status IS NULL OR g.status = 'published')
        AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
        ${category ? `AND EXISTS (SELECT 1 FROM game_categories gc WHERE gc.game_id = g.id AND gc.category = $1)` : ''}`,
@@ -3528,7 +3616,7 @@ app.get('/api/games/discover-lanes', async (req, res) => {
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
 	         WHERE
-	           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND
+	           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published') AND
 	           ag.id IS NOT NULL AND
 	           ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
        ),
@@ -3728,7 +3816,7 @@ app.get('/api/games/discover-debug', async (req, res) => {
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
          WHERE
-           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND
+           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published') AND
            ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
        ),
        ranked AS (
@@ -3894,7 +3982,7 @@ app.get('/api/games/top', async (req, res) => {
        FROM games g
        LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
        LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
-       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
          AND ag.id IS NOT NULL
          AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
        ORDER BY top_score DESC, COALESCE(g.plays, 0) DESC, COALESCE(g.like_count, 0) DESC, COALESCE(g.save_count, 0) DESC, g.created_at DESC
@@ -3944,7 +4032,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
 	         WHERE u.id IS NOT NULL
-	           AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	           AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
 	           AND ag.id IS NOT NULL
 	           AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
            AND COALESCE(sa.recent_activity_score, 0) > 0`,
@@ -3964,7 +4052,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
 	         FROM games g
 	         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
 	         LEFT JOIN score_activity sa ON sa.game_id = g.id
-	         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
 	           AND ag.id IS NOT NULL
 	           AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
            AND (
@@ -4012,7 +4100,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
            LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
            LEFT JOIN score_activity sa ON sa.game_id = g.id
 	           WHERE u.id IS NOT NULL
-	             AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	             AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
 	             AND ag.id IS NOT NULL
 	             AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
            GROUP BY u.id, u.username, u.display_name, u.avatar
@@ -4066,7 +4154,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
            LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
            LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
            LEFT JOIN score_activity sa ON sa.game_id = g.id
-	           WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	           WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
 	             AND ag.id IS NOT NULL
 	             AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
          )
@@ -4142,7 +4230,7 @@ app.get('/api/games/search', async (req, res) => {
          LOWER(COALESCE(u.username, '')) LIKE $1 OR
          LOWER(COALESCE(u.display_name, '')) LIKE $1
 	       )
-	       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL)
+	       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
 	       AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
 	       AND ag.id IS NOT NULL
 	       ORDER BY 
@@ -4199,9 +4287,97 @@ app.get('/api/games/:id', async (req, res) => {
       [req.params.id],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
+    // Test-mode drafts are private to their developer.
+    if (result.rows[0].status === 'draft') {
+      const viewer = await authenticateDeveloper(req).catch(() => null);
+      if (!ownsGame(viewer, result.rows[0])) return res.status(404).json({ error: 'Game not found' });
+    }
     res.json({ game: formatGame(result.rows[0]) });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ---- Player identity -------------------------------------------------------------------
+// A game asks "who's playing?" via bridge.js (GameTok.init / GameTok.session). The GameTok
+// player around it calls this endpoint with the player's own GameTok auth and passes the
+// result into the game. The game's server then checks the session with
+// POST /api/developer/sessions/verify using the developer's key.
+//  - player.id is a pseudonym unique to (player, game): games can't link players across games.
+//  - session is a 15-minute HS256 JWT signed with a platform secret only GameTok holds.
+//  - mode is 'test' for drafts (owner only, in the dashboard test player) and 'live' otherwise.
+let sessionSigningSecret = null;
+async function getSessionSigningSecret() {
+  if (sessionSigningSecret) return sessionSigningSecret;
+  await pool.query(
+    `INSERT INTO platform_secrets (name, value) VALUES ('player_session_signing', $1) ON CONFLICT (name) DO NOTHING`,
+    [crypto.randomBytes(48).toString('hex')]
+  );
+  const row = await pool.query(`SELECT value FROM platform_secrets WHERE name = 'player_session_signing'`);
+  sessionSigningSecret = row.rows[0].value;
+  return sessionSigningSecret;
+}
+
+const PLAYER_SESSION_TTL_SECONDS = 15 * 60;
+
+async function pseudonymousPlayerId(kind, rawId, gameId, mode) {
+  const secret = await getSessionSigningSecret();
+  const digest = crypto.createHmac('sha256', secret).update(`${kind}:${rawId}:${gameId}`).digest('base64url').slice(0, 22);
+  return (mode === 'test' ? 't_' : 'p_') + digest;
+}
+
+// Avatars are stored as https URLs or the app's dicebear:// / avatar-creator:// URIs.
+function publicAvatarUrl(avatar, seed) {
+  if (avatar && /^https:\/\//i.test(avatar)) return avatar;
+  const params = new URLSearchParams({ seed: String(seed || 'gametok') });
+  if (avatar && /^(dicebear|avatar-creator):\/\//.test(avatar)) {
+    const [encodedSeed, query = ''] = avatar.replace(/^(dicebear|avatar-creator):\/\//, '').split('?');
+    if (encodedSeed) params.set('seed', decodeURIComponent(encodedSeed));
+    const q = new URLSearchParams(query);
+    const map = { bg: 'backgroundColor', skinColor: 'skinColor', hairColor: 'hairColor', hair: 'hair', eyes: 'eyes', eyebrows: 'eyebrows', mouth: 'mouth' };
+    for (const [from, to] of Object.entries(map)) if (q.get(from)) params.set(to, q.get(from));
+  }
+  return `https://api.dicebear.com/9.x/adventurer/svg?${params.toString()}`;
+}
+
+app.post('/api/games/:id/player-session', async (req, res) => {
+  try {
+    const gameRes = await pool.query('SELECT id, developer, status FROM games WHERE id = $1', [req.params.id]);
+    const game = gameRes.rows[0];
+    if (!game) return res.status(404).json({ error: 'Game not found', code: 'GAME_NOT_FOUND' });
+
+    const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    const userRes = token ? await pool.query('SELECT id, username, display_name, avatar FROM users WHERE token = $1', [token]) : { rows: [] };
+    const user = userRes.rows[0] || null;
+    const clientId = String(req.headers['x-client-id'] || '').trim().slice(0, 100);
+
+    let mode = 'live';
+    if (game.status === 'draft') {
+      // Drafts only run in the developer's own test player.
+      if (!ownsGame(user, game)) return res.status(404).json({ error: 'Game not found', code: 'GAME_NOT_FOUND' });
+      mode = 'test';
+    }
+    if (!user && !clientId) {
+      return res.status(400).json({ error: 'Sign in, or send X-Client-Id for a guest player', code: 'NO_PLAYER' });
+    }
+
+    const guest = !user;
+    const playerId = await pseudonymousPlayerId(guest ? 'guest' : 'user', guest ? clientId : user.id, game.id, mode);
+    const player = {
+      id: playerId,
+      name: guest ? 'Guest' : (user.display_name || user.username || 'Player'),
+      avatar: guest ? null : publicAvatarUrl(user.avatar, user.username || user.id),
+      guest
+    };
+    const session = jwt.sign(
+      { gid: game.id, name: player.name, guest, mode },
+      await getSessionSigningSecret(),
+      { algorithm: 'HS256', subject: playerId, issuer: 'gametok', audience: `game:${game.id}`, expiresIn: PLAYER_SESSION_TTL_SECONDS }
+    );
+    res.json({ success: true, player, session, mode, expiresIn: PLAYER_SESSION_TTL_SECONDS });
+  } catch (err) {
+    console.error('[Player Session] Error:', err);
+    res.status(500).json({ error: 'Could not create a player session' });
   }
 });
 
