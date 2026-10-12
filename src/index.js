@@ -2090,6 +2090,8 @@ app.patch('/api/admin/games/:id', async (req, res) => {
 // INDIE DEVELOPER PUBLISHING & CREATOR STUDIO
 // ============================================
 
+const hashManageKey = (key) => crypto.createHash('sha256').update(String(key)).digest('hex');
+
 const handleGamePublish = async (req, res) => {
   try {
     let {
@@ -2288,6 +2290,14 @@ const handleGamePublish = async (req, res) => {
 
     const savedGame = insertResult.rows[0];
 
+    // Zero-signup creators have no login token, so the first publish of a game issues a
+    // manage key (only its hash is stored). It authorizes DELETE /api/developer/games/:id.
+    let manageKey = null;
+    if (!savedGame.manage_key_hash) {
+      manageKey = `gtk_${crypto.randomBytes(24).toString('hex')}`;
+      await pool.query('UPDATE games SET manage_key_hash = $1 WHERE id = $2', [hashManageKey(manageKey), savedGame.id]);
+    }
+
     // Automatic in-game Puppeteer screenshot capture (runs async)
     autoCaptureGameThumbnail(savedGame.id, pool).catch(err => {
       console.warn(`[Publish] Auto screenshot failed for ${savedGame.id}:`, err.message);
@@ -2309,7 +2319,9 @@ const handleGamePublish = async (req, res) => {
         displayName: creatorRecord.display_name,
         avatar: creatorRecord.avatar
       },
-      dashboardUrl: `https://games.gametok.co/dashboard?creator=${encodeURIComponent(creatorRecord.username)}`
+      dashboardUrl: `https://games.gametok.co/dashboard?creator=${encodeURIComponent(creatorRecord.username)}`,
+      // Returned once, on first publish. Keep it secret: it can delete this game.
+      ...(manageKey ? { manageKey } : {})
     });
   } catch (error) {
     console.error('[Publish] Error publishing game:', error);
@@ -2572,6 +2584,48 @@ app.post('/api/developer/games', async (req, res) => {
 });
 
 // 3. Get game detail, status, generated AI prompt, and verification checklist
+// Unpublish a game. Allowed for: the owner's login token, the game's manageKey
+// (x-manage-key, issued by /api/publish), or the admin key. A ?handle= alone is NOT
+// enough — handles are public, so resolveDeveloper's handle fallback is not used here.
+app.delete('/api/developer/games/:id', async (req, res) => {
+  try {
+    const gameRes = await pool.query('SELECT id, name, developer, manage_key_hash FROM games WHERE id = $1', [req.params.id]);
+    if (gameRes.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
+    const game = gameRes.rows[0];
+
+    let authorized = false;
+    const adminSecret = process.env.ADMIN_SECRET || process.env.ADMIN_KEY;
+    const adminProvided = req.headers['x-admin-secret'] || req.headers['x-admin-key'];
+    if (adminSecret && adminProvided && adminProvided === adminSecret) authorized = true;
+
+    const manageKey = req.headers['x-manage-key'];
+    if (!authorized && manageKey && game.manage_key_hash) {
+      const a = Buffer.from(hashManageKey(manageKey), 'hex');
+      const b = Buffer.from(game.manage_key_hash, 'hex');
+      authorized = a.length === b.length && crypto.timingSafeEqual(a, b);
+    }
+
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!authorized && token) {
+      const userRes = await pool.query('SELECT id, username FROM users WHERE token = $1', [token]);
+      const u = userRes.rows[0];
+      authorized = !!u && (game.developer === u.id.toString() || game.developer === u.username);
+    }
+
+    if (!authorized) return res.status(403).json({ error: 'Not allowed to delete this game' });
+
+    // games FKs cascade; these two tables have no FK to games.
+    await pool.query('DELETE FROM game_categories WHERE game_id = $1', [game.id]);
+    await pool.query('DELETE FROM game_leaderboard WHERE game_id = $1', [game.id]).catch(() => {});
+    await pool.query('DELETE FROM games WHERE id = $1', [game.id]);
+
+    res.json({ success: true, deleted: game.id });
+  } catch (err) {
+    console.error('[Developer Platform] Error deleting game:', err);
+    res.status(500).json({ error: 'Failed to delete game' });
+  }
+});
+
 app.get('/api/developer/games/:id', async (req, res) => {
   try {
     const gameRes = await pool.query('SELECT * FROM games WHERE id = $1', [req.params.id]);

@@ -605,6 +605,7 @@ export const runMigrations = async () => {
       ALTER TABLE games ADD COLUMN IF NOT EXISTS version VARCHAR(32) DEFAULT '1.0.0';
       ALTER TABLE games ADD COLUMN IF NOT EXISTS verification_status VARCHAR(32) DEFAULT 'unverified';
       ALTER TABLE games ADD COLUMN IF NOT EXISTS verification_notes TEXT;
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS manage_key_hash VARCHAR(64);
 
       CREATE TABLE IF NOT EXISTS game_versions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
