@@ -3320,9 +3320,10 @@ app.get('/api/developer/analytics', async (req, res) => {
         totalGames: devGames.length
       },
       deviceBreakdown: {
-        mobile: totalPlatformCount > 0 ? Math.round((mobileCount / totalPlatformCount) * 100) : 68,
-        desktop: totalPlatformCount > 0 ? Math.round((desktopCount / totalPlatformCount) * 100) : 24,
-        tablet: totalPlatformCount > 0 ? Math.round((tabletCount / totalPlatformCount) * 100) : 8
+        // No sessions yet means no breakdown (never invent a split).
+        mobile: totalPlatformCount > 0 ? Math.round((mobileCount / totalPlatformCount) * 100) : 0,
+        desktop: totalPlatformCount > 0 ? Math.round((desktopCount / totalPlatformCount) * 100) : 0,
+        tablet: totalPlatformCount > 0 ? Math.round((tabletCount / totalPlatformCount) * 100) : 0
       },
       activityPoints: activityRes.rows,
       topGames: gameMetricsRes.rows.map(g => ({
@@ -3330,7 +3331,7 @@ app.get('/api/developer/analytics', async (req, res) => {
         name: g.name,
         thumbnail: g.thumbnail,
         plays: Math.max(parseInt(g.plays || 0, 10), parseInt(g.sessions || 0, 10)),
-        players: Math.max(parseInt(g.players || 0, 10), Math.ceil((parseInt(g.plays || 0, 10)) * 0.75))
+        players: parseInt(g.players || 0, 10)
       }))
     });
   } catch (err) {
