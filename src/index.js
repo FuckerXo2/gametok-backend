@@ -2442,7 +2442,7 @@ app.get('/api/developer/games', async (req, res) => {
       `SELECT g.*,
         COALESCE((SELECT COUNT(*) FROM likes l WHERE l.game_id = g.id), 0) AS likes_count,
         COALESCE(g.plays, 0) AS plays_count,
-        COALESCE((SELECT COUNT(DISTINCT user_id) FROM game_sessions s WHERE s.game_id = g.id AND s.user_id IS NOT NULL), 0) AS unique_players,
+        COALESCE((SELECT COUNT(DISTINCT COALESCE(s.user_id::text, s.client_id)) FROM game_sessions s WHERE s.game_id = g.id), 0) AS unique_players,
         COALESCE((SELECT AVG(duration_seconds) FROM game_sessions s WHERE s.game_id = g.id AND s.duration_seconds > 0), 0) AS avg_duration_seconds
        FROM games g
        WHERE g.developer = $1 OR g.developer = $2
@@ -2617,7 +2617,24 @@ app.delete('/api/developer/games/:id', async (req, res) => {
     await pool.query('DELETE FROM game_leaderboard WHERE game_id = $1', [game.id]).catch(() => {});
     await pool.query('DELETE FROM games WHERE id = $1', [game.id]);
 
-    res.json({ success: true, deleted: game.id });
+    // A zero-signup creator (auto-created by /api/publish: no login of any kind) with no games
+    // left is just an empty profile squatting the handle, so remove it with the last game.
+    let creatorRemoved = false;
+    try {
+      const removed = await pool.query(
+        `DELETE FROM users u
+         WHERE (u.id::text = $1 OR u.username = $1)
+           AND u.token IS NULL AND u.email IS NULL AND u.password IS NULL AND u.oauth_id IS NULL
+           AND NOT EXISTS (SELECT 1 FROM games g WHERE g.developer = u.id::text OR g.developer = u.username)
+         RETURNING u.id`,
+        [game.developer]
+      );
+      creatorRemoved = removed.rows.length > 0;
+    } catch (e) {
+      console.warn('[Developer Platform] Could not remove empty zero-signup creator:', e.message);
+    }
+
+    res.json({ success: true, deleted: game.id, creatorRemoved });
   } catch (err) {
     console.error('[Developer Platform] Error deleting game:', err);
     res.status(500).json({ error: 'Failed to delete game' });
@@ -2769,6 +2786,7 @@ app.get('/api/developer/games/:id/analytics', async (req, res) => {
         COUNT(*) AS session_count,
         COUNT(DISTINCT user_id) FILTER (WHERE user_id IS NOT NULL) AS authenticated_players,
         COUNT(DISTINCT client_id) FILTER (WHERE client_id IS NOT NULL) AS anonymous_players,
+        COUNT(DISTINCT COALESCE(user_id::text, client_id)) AS unique_players,
         COALESCE(AVG(duration_seconds), 0) AS avg_duration,
         COALESCE(MAX(score), 0) AS high_score
        FROM game_sessions
@@ -2784,7 +2802,8 @@ app.get('/api/developer/games/:id/analytics', async (req, res) => {
 
     const s = playStats.rows[0] || {};
     const totalPlays = Math.max(parseInt(game.plays || 0, 10), parseInt(s.session_count || 0, 10));
-    const uniquePlayers = (parseInt(s.authenticated_players || 0, 10) + parseInt(s.anonymous_players || 0, 10)) || (totalPlays > 0 ? Math.ceil(totalPlays * 0.8) : 0);
+    // One player = a signed-in user or, when anonymous, a client id. Never estimated from plays.
+    const uniquePlayers = parseInt(s.unique_players || 0, 10);
 
     res.json({
       success: true,
@@ -2940,10 +2959,8 @@ app.get('/api/developer/analytics', async (req, res) => {
     const totalPlays = Math.max(totalRecordedPlays, sessionCount);
 
     const uniqueEntities = parseInt(sessionStatsRes.rows[0]?.unique_entities || 0, 10);
-    const authUsers = parseInt(sessionStatsRes.rows[0]?.auth_users || 0, 10);
-    const anonClients = parseInt(sessionStatsRes.rows[0]?.anon_clients || 0, 10);
-    const computedUnique = (authUsers + anonClients) || (totalPlays > 0 ? Math.ceil(totalPlays * 0.75) : 0);
-    const totalPlayers = Math.max(uniqueEntities, computedUnique);
+    // unique_entities already de-dupes signed-in users and anonymous clients; never estimated from plays.
+    const totalPlayers = uniqueEntities;
 
     const returningCount = parseInt(returningRes.rows[0]?.returning_count || 0, 10);
     const returningPct = totalPlayers > 0 ? Math.min(100, Math.round((returningCount / totalPlayers) * 100)) : 0;
