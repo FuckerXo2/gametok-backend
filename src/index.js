@@ -2177,6 +2177,10 @@ const handleGamePublish = async (req, res) => {
     // The game always belongs to the authenticated account; creator fields in the body are ignored.
     const creatorRecord = await authenticateDeveloper(req);
     if (!creatorRecord) return res.status(401).json({ error: DEVELOPER_AUTH_ERROR });
+    // Games are credited to the creator's @handle; Google sign-ups only get one in onboarding.
+    if (!creatorRecord.username) {
+      return res.status(403).json({ error: 'Choose your GameTok username at https://games.gametok.co/dashboard before publishing.' });
+    }
 
     // If an external URL is given, scrape title/description/og:image when they weren't provided
     if (targetUrl) {
