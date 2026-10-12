@@ -676,6 +676,8 @@ export const runMigrations = async () => {
         ON user_devices(user_id, device_id);
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS developer_agreement_version VARCHAR(20);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS developer_agreement_accepted_at TIMESTAMP;
     `);
     console.log('✅ Game progress, forge sessions, & developer platform tables ready');
   } catch (e) {

@@ -2201,6 +2201,113 @@ function checkEmbeddable(headers, gameUrl) {
   return { ok: true };
 }
 
+// ---- Developer agreement ------------------------------------------------------------
+// Bump the version when the agreement text (games.gametok.co/agreement.html) changes;
+// developers then have to accept again before publishing.
+const DEVELOPER_AGREEMENT_VERSION = '2026-10-13';
+const AGREEMENT_REQUIRED_ERROR = 'Accept the GameTok Developer Agreement at https://games.gametok.co/dashboard before publishing.';
+const agreementIsCurrent = (user) => user?.developer_agreement_version === DEVELOPER_AGREEMENT_VERSION;
+
+// ---- Automatic review -----------------------------------------------------------------
+// Every publish (and the dashboard's re-check) runs these. Blocking checks must pass for a
+// game to go live; the rest are recommendations shown as a checklist in the dashboard.
+const GAMETOK_BOT_UA = 'Mozilla/5.0 (compatible; GameTokBot/1.0; +https://gametok.co)';
+
+function extractGameMeta(htmlText, baseUrl) {
+  const meta = {};
+  const bridgeTag = htmlText.match(/<script[^>]*bridge\.js[^>]*>/i);
+  const bridgeTitle = bridgeTag && bridgeTag[0].match(/data-game-title=["']([^"']+)["']/i);
+  const titleTag = htmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
+  meta.title = (bridgeTitle && bridgeTitle[1].trim()) || (titleTag && titleTag[1].trim()) || '';
+  const desc = htmlText.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+               htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+  meta.description = desc ? desc[1].trim() : '';
+  const ogImg = htmlText.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+  if (ogImg && baseUrl) {
+    try { meta.thumbnail = new URL(ogImg[1].trim(), baseUrl).href; } catch (e) {}
+  }
+  return meta;
+}
+
+async function runGameChecks({ url, html }) {
+  const checks = [];
+  const warnings = [];
+  const add = (c) => { checks.push(c); return c; };
+  let htmlText = '';
+  let finalUrl = null;
+
+  if (url) {
+    finalUrl = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+    // gametok.co is HTTPS; browsers block an http:// game inside it (mixed content).
+    if (!add({ id: 'https', label: 'Served over HTTPS', blocking: true, code: 'GAME_URL_NOT_HTTPS',
+               ok: /^https:\/\//i.test(finalUrl),
+               detail: 'Your game URL must use https:// — browsers block http:// games inside GameTok.' }).ok) {
+      return { ok: false, checks, warnings, url: finalUrl, meta: {} };
+    }
+
+    let resp = null;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      resp = await fetch(finalUrl, { signal: controller.signal, redirect: 'follow', headers: { 'User-Agent': GAMETOK_BOT_UA } });
+      clearTimeout(timer);
+    } catch (err) {
+      // Unreachable from our servers (timeout, DNS, TLS). Don't block — the host may be slow or
+      // filter bots — but nothing below could be verified.
+      const why = err.name === 'AbortError' ? 'timed out' : err.message;
+      add({ id: 'reachable', label: 'Game URL loads', blocking: true, ok: null, code: 'GAME_URL_UNREACHABLE',
+            detail: `Could not reach your game to verify it (${why}).` });
+      warnings.push(`Could not reach ${finalUrl} to verify it (${why}). Check it plays at the GameTok link.`);
+      return { ok: true, verified: false, checks, warnings, url: finalUrl, meta: {} };
+    }
+
+    add({ id: 'reachable', label: 'Game URL loads', blocking: true, code: 'GAME_URL_UNREACHABLE', ok: resp.ok,
+          detail: resp.ok ? `HTTP ${resp.status}` : `Your game URL returned HTTP ${resp.status}. Make sure it's live and public, then publish again.` });
+    if (!resp.ok) return { ok: false, checks, warnings, url: finalUrl, meta: {} };
+
+    finalUrl = resp.url || finalUrl;
+    if (!add({ id: 'https_redirect', label: 'Stays on HTTPS after redirects', blocking: true, code: 'GAME_URL_NOT_HTTPS',
+               ok: /^https:\/\//i.test(finalUrl),
+               detail: `Your game URL redirects to an http:// page (${finalUrl}). Serve it over https://.` }).ok) {
+      return { ok: false, checks, warnings, url: finalUrl, meta: {} };
+    }
+
+    const embed = checkEmbeddable(resp.headers, finalUrl);
+    const itchHint = /(^|\.)itch\.io$/i.test(new URL(finalUrl).hostname)
+      ? ' This is an itch.io store page — publish the game file URL instead (open the game on itch.io, right-click the game area → "Open frame in new tab", and use that html-classic.itch.zone URL).'
+      : '';
+    if (!add({ id: 'embeddable', label: 'Can be shown inside GameTok', blocking: true, code: 'GAME_NOT_EMBEDDABLE',
+               ok: embed.ok, detail: embed.ok ? 'No X-Frame-Options / frame-ancestors restriction for gametok.co' : embed.reason + itchHint }).ok) {
+      return { ok: false, checks, warnings, url: finalUrl, meta: {} };
+    }
+
+    const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+    if (!add({ id: 'html', label: 'Is a web page', blocking: true, code: 'GAME_URL_NOT_HTML',
+               ok: contentType.includes('text/html') || contentType.includes('application/xhtml'),
+               detail: `Your game URL returns "${contentType || 'unknown content'}", not a web page. Publish the URL of the page that runs the game (usually its index.html).` }).ok) {
+      return { ok: false, checks, warnings, url: finalUrl, meta: {} };
+    }
+    try { htmlText = (await resp.text()).slice(0, 2_000_000); } catch (e) {}
+  } else {
+    htmlText = String(html || '');
+    if (!add({ id: 'html', label: 'Is a web page', blocking: true, code: 'GAME_HTML_INVALID',
+               ok: /<(html|body|script|canvas)\b/i.test(htmlText),
+               detail: 'The uploaded file does not look like an HTML game (no <html>, <body>, <script> or <canvas>).' }).ok) {
+      return { ok: false, checks, warnings, url: null, meta: {} };
+    }
+  }
+
+  // Recommendations (never block publishing).
+  add({ id: 'viewport', label: 'Mobile viewport meta tag', blocking: false, ok: /<meta[^>]*name=["']viewport["']/i.test(htmlText),
+        detail: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> so the game fits phones.' });
+  add({ id: 'bridge', label: 'GameTok bridge script', blocking: false, ok: /<script[^>]*bridge\.js/i.test(htmlText),
+        detail: 'Add <script src="https://gametok.co/bridge.js"></script> for fitting, scores and player identity.' });
+
+  return { ok: true, verified: true, checks, warnings, url: finalUrl, meta: extractGameMeta(htmlText, finalUrl) };
+}
+
+const reviewStatus = (review) => (review.verified ? 'passed' : 'unverified');
+
 const handleGamePublish = async (req, res) => {
   try {
     let {
@@ -2229,91 +2336,24 @@ const handleGamePublish = async (req, res) => {
       return res.status(403).json({ error: 'Choose your GameTok username at https://games.gametok.co/dashboard before publishing.' });
     }
 
-    // If an external URL is given, scrape title/description/og:image when they weren't provided
-    if (targetUrl) {
-      if (!/^https?:\/\//i.test(targetUrl)) {
-        targetUrl = 'https://' + targetUrl;
-      }
-      // gametok.co is HTTPS; browsers block an http:// game inside it (mixed content).
-      if (/^http:\/\//i.test(targetUrl)) {
-        return res.status(400).json({ error: 'Your game URL must use https:// — browsers block http:// games inside GameTok.', code: 'GAME_URL_NOT_HTTPS' });
-      }
-      let resp = null;
-      try {
-        const scrapeController = new AbortController();
-        const scrapeTimeout = setTimeout(() => scrapeController.abort(), 8000);
-        resp = await fetch(targetUrl, {
-          signal: scrapeController.signal,
-          redirect: 'follow',
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GameTokBot/1.0; +https://gametok.co)' }
-        });
-        clearTimeout(scrapeTimeout);
-      } catch (err) {
-        // Unreachable from our servers (timeout, DNS, TLS). Don't block on it — the host may
-        // just be slow or filter bots — but tell the caller nothing was verified.
-        publishWarnings.push(`Could not reach ${targetUrl} to verify it (${err.name === 'AbortError' ? 'timed out' : err.message}). Check it plays at the GameTok link.`);
-      }
-      if (resp && !resp.ok) {
-        return res.status(400).json({ error: `Your game URL returned HTTP ${resp.status}. Make sure it's live and public, then publish again.`, code: 'GAME_URL_UNREACHABLE' });
-      }
-      if (resp) {
-        const finalUrl = resp.url || targetUrl;
-        if (/^http:\/\//i.test(finalUrl)) {
-          return res.status(400).json({ error: `Your game URL redirects to an http:// page (${finalUrl}). Serve it over https://.`, code: 'GAME_URL_NOT_HTTPS' });
-        }
-        const embed = checkEmbeddable(resp.headers, finalUrl);
-        if (!embed.ok) {
-          // itch.io store pages block framing, but the game itself runs from html-classic.itch.zone.
-          const hint = /(^|\.)itch\.io$/i.test(new URL(finalUrl).hostname)
-            ? ' This is an itch.io store page — publish the game file URL instead (open the game on itch.io, right-click the game area → "Open frame in new tab", and use that html-classic.itch.zone URL).'
-            : '';
-          return res.status(400).json({ error: embed.reason + hint, code: 'GAME_NOT_EMBEDDABLE' });
-        }
-      }
-      try {
-        if (resp && resp.ok) {
-          const htmlText = await resp.text();
-          // Extract <title>
-          if (!gameTitle) {
-            const mTitle = htmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
-            if (mTitle && mTitle[1]) gameTitle = mTitle[1].trim();
-          }
-          // Extract meta description
-          if (!gameDesc) {
-            const mDesc = htmlText.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
-                          htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
-            if (mDesc && mDesc[1]) gameDesc = mDesc[1].trim();
-          }
-          // bridge.js data-game-title overrides <title>
-          const mScript = htmlText.match(/<script[^>]*bridge\.js[^>]*>/i);
-          if (mScript && !title && !name) {
-            const mGameTitle = mScript[0].match(/data-game-title=["']([^"']+)["']/i);
-            if (mGameTitle && mGameTitle[1]) gameTitle = mGameTitle[1].trim();
-          }
-          // Extract og:image for thumbnail
-          if (!thumbnail) {
-            const mOgImg = htmlText.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
-            if (mOgImg && mOgImg[1]) {
-              thumbnail = mOgImg[1].trim();
-              if (thumbnail.startsWith('/')) {
-                const u = new URL(targetUrl);
-                thumbnail = `${u.origin}${thumbnail}`;
-              }
-            }
-          }
-        }
-      } catch (err) {
-        // Scrape failure is non-fatal
-      }
-    } else if (html) {
-      // In-memory / raw HTML mode
-      if (!gameTitle) {
-        const mTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-        if (mTitle && mTitle[1]) gameTitle = mTitle[1].trim();
-      }
-    } else {
+    if (!targetUrl && !html) {
       return res.status(400).json({ error: 'Either a game URL or HTML content must be provided.' });
     }
+    if (!agreementIsCurrent(creatorRecord)) {
+      return res.status(403).json({ error: AGREEMENT_REQUIRED_ERROR, code: 'AGREEMENT_REQUIRED' });
+    }
+
+    // Automatic review: publishing goes live only if every blocking check passes.
+    const review = await runGameChecks({ url: targetUrl, html });
+    if (!review.ok) {
+      const failed = review.checks.find(c => c.blocking && c.ok === false);
+      return res.status(400).json({ error: failed.detail, code: failed.code, checks: review.checks });
+    }
+    if (targetUrl) targetUrl = review.url;
+    publishWarnings.push(...review.warnings);
+    if (!gameTitle && review.meta.title) gameTitle = review.meta.title;
+    if (!gameDesc && review.meta.description) gameDesc = review.meta.description;
+    if (!thumbnail && review.meta.thumbnail) thumbnail = review.meta.thumbnail;
 
     if (!gameTitle) {
       gameTitle = 'Indie Web Game';
@@ -2342,8 +2382,9 @@ const handleGamePublish = async (req, res) => {
     const insertResult = await pool.query(
       `INSERT INTO games (
         id, name, description, icon, color, category,
-        embed_url, thumbnail, developer, orientation, runtime, script_payload
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11)
+        embed_url, thumbnail, developer, orientation, runtime, script_payload,
+        verification_status, verification_notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11, $12, $13)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         description = EXCLUDED.description,
@@ -2354,7 +2395,9 @@ const handleGamePublish = async (req, res) => {
         thumbnail = COALESCE(EXCLUDED.thumbnail, games.thumbnail),
         developer = EXCLUDED.developer,
         orientation = EXCLUDED.orientation,
-        script_payload = EXCLUDED.script_payload
+        script_payload = EXCLUDED.script_payload,
+        verification_status = EXCLUDED.verification_status,
+        verification_notes = EXCLUDED.verification_notes
       RETURNING *`,
       [
         gameId,
@@ -2367,7 +2410,9 @@ const handleGamePublish = async (req, res) => {
         thumbnail || null,
         creatorRecord.id.toString(),
         chosenOrientation,
-        html || null
+        html || null,
+        reviewStatus(review),
+        JSON.stringify(review.checks)
       ]
     );
 
@@ -2402,6 +2447,7 @@ const handleGamePublish = async (req, res) => {
         avatar: creatorRecord.avatar
       },
       dashboardUrl: 'https://games.gametok.co/dashboard',
+      checks: review.checks,
       ...(publishWarnings.length ? { warnings: publishWarnings } : {})
     });
   } catch (error) {
@@ -2506,6 +2552,38 @@ const resolveDeveloper = authenticateDeveloper;
 app.use('/api/developer', (req, res, next) => (req.path === '/analytics/session' ? next() : requireDeveloper(req, res, next)));
 // Per-game developer routes additionally require owning the game.
 app.use('/api/developer/games/:id', requireOwnedGame);
+
+// Developer account status for the dashboard's onboarding (username + agreement).
+app.get('/api/developer/me', (req, res) => {
+  const d = req.developer;
+  res.json({
+    success: true,
+    developer: { id: d.id, username: d.username, displayName: d.display_name, avatar: d.avatar },
+    agreement: {
+      currentVersion: DEVELOPER_AGREEMENT_VERSION,
+      acceptedVersion: d.developer_agreement_version || null,
+      acceptedAt: d.developer_agreement_accepted_at || null,
+      accepted: agreementIsCurrent(d),
+      url: 'https://games.gametok.co/agreement.html'
+    }
+  });
+});
+
+// Accepting the agreement needs a real sign-in (an agent's API key can't accept on the developer's behalf).
+app.post('/api/developer/agreement', async (req, res) => {
+  try {
+    if (req.authMethod !== 'session') return res.status(403).json({ error: 'Sign in on games.gametok.co to accept the Developer Agreement' });
+    if (req.body?.version !== DEVELOPER_AGREEMENT_VERSION) {
+      return res.status(409).json({ error: 'The Developer Agreement has changed. Reload and review the current version.', currentVersion: DEVELOPER_AGREEMENT_VERSION });
+    }
+    await pool.query('UPDATE users SET developer_agreement_version = $1, developer_agreement_accepted_at = NOW() WHERE id = $2',
+      [DEVELOPER_AGREEMENT_VERSION, req.developer.id]);
+    res.json({ success: true, version: DEVELOPER_AGREEMENT_VERSION });
+  } catch (err) {
+    console.error('[Developer Platform] Agreement error:', err);
+    res.status(500).json({ error: 'Could not record acceptance' });
+  }
+});
 
 // Personal API keys for agents/CI. Managing keys needs a real sign-in, not another API key.
 app.get('/api/developer/api-keys', async (req, res) => {
@@ -2808,80 +2886,44 @@ Instructions for Coding Agent:
 // 4. Automated verification endpoint (probes the entry point or HTML for bridge integration)
 app.post('/api/developer/games/:id/verify', async (req, res) => {
   try {
-    const gameRes = await pool.query('SELECT * FROM games WHERE id = $1', [req.params.id]);
-    if (gameRes.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
-    const game = gameRes.rows[0];
-
-    let contentToInspect = game.script_payload || '';
-    const targetUrl = req.body?.url || game.embed_url;
-
-    if (targetUrl && (!contentToInspect || req.body?.url)) {
-      try {
-        const fetchRes = await fetch(targetUrl, { headers: { 'User-Agent': 'GameTokVerificationBot/1.0' } });
-        if (fetchRes.ok) contentToInspect = await fetchRes.text();
-      } catch (e) {
-        console.warn('Verification probe fetch error:', e.message);
-      }
-    }
-
-    const checks = {
-      hasBridgeScript: /bridge\.js/i.test(contentToInspect),
-      hasViewportMeta: /viewport/i.test(contentToInspect),
-      hasTouchHandling: /touch-action|ontouchstart|touch/i.test(contentToInspect) || /bridge\.js/i.test(contentToInspect),
-      hasTitle: /<title[^>]*>([^<]+)<\/title>/i.test(contentToInspect) || Boolean(game.name),
-      isResponsive: true
-    };
-
-    const isVerified = checks.hasBridgeScript;
-    const notes = isVerified 
-      ? 'Automated checks passed: GameTok Bridge detected and mobile viewport validated.'
-      : 'Verification notice: bridge.js script tag not yet detected in game HTML or URL.';
-
-    await pool.query(
-      `UPDATE games SET 
-        verification_status = $1,
-        verification_notes = $2
-       WHERE id = $3`,
-      [isVerified ? 'verified' : 'unverified', notes, game.id]
-    );
-
-    res.json({
-      success: true,
-      gameId: game.id,
-      verified: isVerified,
-      checks,
-      notes
-    });
+    const game = req.game; // requireOwnedGame
+    const review = await runGameChecks({ url: game.script_payload ? null : game.embed_url, html: game.script_payload });
+    const status = review.ok ? reviewStatus(review) : 'failed';
+    await pool.query('UPDATE games SET verification_status = $1, verification_notes = $2 WHERE id = $3',
+      [status, JSON.stringify(review.checks), game.id]);
+    res.json({ success: true, gameId: game.id, status, passed: review.ok, checks: review.checks, warnings: review.warnings });
   } catch (err) {
-    res.status(500).json({ error: 'Verification failed: ' + err.message });
+    console.error('[Developer Platform] Re-check error:', err);
+    res.status(500).json({ error: 'Checks failed to run' });
   }
 });
 
-// 5. Submit game for publication / Publish
+// 5. Go live: publish a game (e.g. a test-mode draft) once the agreement is accepted and the
+// automatic checks pass. Auto-approved — there is no manual review queue.
 app.post('/api/developer/games/:id/submit', async (req, res) => {
   try {
-    const gameRes = await pool.query('SELECT * FROM games WHERE id = $1', [req.params.id]);
-    if (gameRes.rows.length === 0) return res.status(404).json({ error: 'Game not found' });
-    const game = gameRes.rows[0];
-
-    const newStatus = req.body.publishImmediately ? 'published' : 'submitted';
-
+    const game = req.game; // requireOwnedGame
+    if (req.authMethod === 'api_key' && req.apiKeyMode === 'test') {
+      return res.status(403).json({ error: 'Test keys can only create drafts. Go live from the dashboard or with a live key.', code: 'TEST_KEY_CANNOT_GO_LIVE' });
+    }
+    if (!agreementIsCurrent(req.developer)) {
+      return res.status(403).json({ error: AGREEMENT_REQUIRED_ERROR, code: 'AGREEMENT_REQUIRED' });
+    }
+    const review = await runGameChecks({ url: game.script_payload ? null : game.embed_url, html: game.script_payload });
+    if (!review.ok) {
+      const failed = review.checks.find(c => c.blocking && c.ok === false);
+      await pool.query("UPDATE games SET verification_status = 'failed', verification_notes = $1 WHERE id = $2",
+        [JSON.stringify(review.checks), game.id]);
+      return res.status(400).json({ error: failed.detail, code: failed.code, checks: review.checks });
+    }
     await pool.query(
-      'UPDATE games SET status = $1, updated_at = NOW() WHERE id = $2',
-      [newStatus, game.id]
+      "UPDATE games SET status = 'published', verification_status = $1, verification_notes = $2, updated_at = NOW() WHERE id = $3",
+      [reviewStatus(review), JSON.stringify(review.checks), game.id]
     );
-
-    res.json({
-      success: true,
-      gameId: game.id,
-      status: newStatus,
-      publishedUrl: newStatus === 'published' ? `https://gametok.co/game/${game.id}` : null,
-      message: newStatus === 'published' 
-        ? 'Game published live to GameTok!' 
-        : 'Game submitted for review. It will be verified and published shortly.'
-    });
+    res.json({ success: true, gameId: game.id, status: 'published', url: `https://gametok.co/game/${game.id}`, checks: review.checks, warnings: review.warnings });
   } catch (err) {
-    res.status(500).json({ error: 'Submission failed: ' + err.message });
+    console.error('[Developer Platform] Go-live error:', err);
+    res.status(500).json({ error: 'Could not publish the game' });
   }
 });
 
