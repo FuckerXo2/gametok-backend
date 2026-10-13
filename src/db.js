@@ -669,6 +669,19 @@ export const runMigrations = async () => {
       -- Where games.orientation came from: 'developer' (chosen), 'detected' (from the game itself)
       -- or 'default' (portrait, nothing conclusive). Detection never overrides 'developer'.
       ALTER TABLE games ADD COLUMN IF NOT EXISTS orientation_source VARCHAR(12);
+      -- Devices the game is shown on: 'all' or 'desktop' (NULL = all). Source like orientation_source.
+      -- mobile_check holds why: developer choice, measured size and controls, reasons/warnings.
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS platform VARCHAR(12);
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS platform_source VARCHAR(12);
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS mobile_check JSONB;
+      -- Zipped builds hosted by POST /api/developer/uploads, so publish knows their size at once.
+      CREATE TABLE IF NOT EXISTS game_uploads (
+        url TEXT PRIMARY KEY,
+        developer_id TEXT NOT NULL,
+        bytes BIGINT NOT NULL,
+        files INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
       -- Uploaded HTML games were stored as gametok.co/api/... which serves the website, not the game.
       UPDATE games SET embed_url = replace(embed_url, 'https://gametok.co/api/', 'https://gametok-backend-267787411422.us-central1.run.app/api/')
         WHERE embed_url LIKE 'https://gametok.co/api/games/%/play-html';

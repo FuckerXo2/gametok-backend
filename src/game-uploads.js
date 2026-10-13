@@ -5,6 +5,8 @@
 import crypto from 'crypto';
 import { unzipSync } from 'fflate';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import pool from './db.js';
+import { decidePlatform } from './mobile-fit.js';
 
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gametok-games-assets';
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`).replace(/\/$/, '');
@@ -120,7 +122,13 @@ export async function handleGameUpload(req, res) {
     const url = `${R2_PUBLIC_URL}/${prefix}/${entry.split('/').map(encodeURIComponent).join('/')}`;
     const bytes = files.reduce((n, f) => n + f.data.length, 0);
     console.log(`[GameUpload] ${req.developer.id} uploaded ${files.length} files (${Math.round(bytes / 1024)} KB) → ${url}`);
-    return res.json({ success: true, url, files: files.length, bytes });
+    // Publish reads this to size the game before the headless check measures what it loads.
+    await pool.query(
+      `INSERT INTO game_uploads (url, developer_id, bytes, files) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (url) DO NOTHING`,
+      [url, String(req.developer.id), bytes, files.length]);
+    const { platform, reasons, warnings } = decidePlatform({ bytes });
+    return res.json({ success: true, url, files: files.length, bytes, platform, reasons, warnings });
   } catch (err) {
     if (err instanceof UploadError) return res.status(400).json({ error: err.message });
     console.error('[GameUpload] Error:', err);

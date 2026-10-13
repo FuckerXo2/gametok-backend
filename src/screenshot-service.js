@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { decidePlatform } from './mobile-fit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,6 +51,37 @@ async function measureOrientation(page) {
   });
 }
 
+// Which inputs the game listens for. Recorded from addEventListener and on* handlers in every
+// frame, so it sees what the game's own code (and its engine) registers.
+const TOUCH_EVENTS = ['touchstart', 'touchend', 'touchmove', 'pointerdown', 'pointerup', 'pointermove', 'mousedown', 'mouseup', 'click'];
+const KEY_EVENTS = ['keydown', 'keyup', 'keypress'];
+function recordInputListeners() {
+  const seen = (window.__gtInputs = new Set());
+  const add = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (type, ...rest) {
+    try { seen.add(String(type).toLowerCase()); } catch (e) {}
+    return add.call(this, type, ...rest);
+  };
+}
+async function collectInputs(page) {
+  const all = new Set();
+  for (const frame of page.frames()) {
+    const types = await frame.evaluate((names) => {
+      const out = [...(window.__gtInputs || [])];
+      const targets = [window, document, document.body, ...document.querySelectorAll('canvas')];
+      for (const t of targets) for (const n of names) if (t && typeof t['on' + n] === 'function') out.push(n);
+      return out;
+    }, [...TOUCH_EVENTS, ...KEY_EVENTS]).catch(() => []);
+    types.forEach((t) => all.add(t));
+  }
+  const inputs = [...all].filter((t) => TOUCH_EVENTS.includes(t) || KEY_EVENTS.includes(t)).sort();
+  const controls = inputs.some((t) => TOUCH_EVENTS.includes(t)) ? 'touch'
+    : inputs.some((t) => KEY_EVENTS.includes(t)) ? 'keyboard' : 'none';
+  return { inputs, controls };
+}
+
+const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+
 export async function captureGameScreenshot({ gameId, url, html, orientation = 'landscape', detectOrientation = false }) {
   if (!url && !html) {
     throw new Error('Either url or html is required for screenshot capture');
@@ -70,6 +102,8 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
         '--enable-unsafe-swiftshader',
         '--enable-webgl',
         '--ignore-gpu-blocklist',
+        // Keep cross-origin game iframes in this process so their downloads are counted.
+        '--disable-features=site-per-process',
         '--window-size=1280,720'
       ]
     });
@@ -77,11 +111,22 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
     const page = await browser.newPage();
     // When detecting, start upright like a phone in the feed.
     const isPortrait = detectOrientation || orientation === 'portrait';
+    // Load it the way a phone does, so games that switch to touch controls on phones show it.
+    await page.setUserAgent(PHONE_UA);
     await page.setViewport({
       width: isPortrait ? 400 : 720,
       height: isPortrait ? 720 : 420,
-      deviceScaleFactor: 1
+      deviceScaleFactor: 1,
+      isMobile: true,
+      hasTouch: true
     });
+    await page.evaluateOnNewDocument(recordInputListeners);
+    // setContent writes into the current blank page, which no "new document" hook reaches.
+    await page.evaluate(recordInputListeners);
+    let downloadBytes = html ? Buffer.byteLength(html, 'utf8') : 0;
+    const cdp = await page.createCDPSession();
+    await cdp.send('Network.enable');
+    cdp.on('Network.loadingFinished', (e) => { downloadBytes += e.encodedDataLength || 0; });
 
     // Mute audio to avoid audio context noise during automated capture
     await page.evaluateOnNewDocument(() => {
@@ -108,7 +153,7 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
       detectedOrientation = await measureOrientation(page).catch(() => null);
       if (detectedOrientation === 'landscape') {
         // Re-frame the thumbnail the way players will see it.
-        await page.setViewport({ width: 720, height: 420, deviceScaleFactor: 1 });
+        await page.setViewport({ width: 720, height: 420, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
     }
@@ -118,6 +163,17 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
       type: 'webp',
       quality: 75
     });
+
+    // After the screenshot: tap once (past a "tap to start" screen) and let it load what follows.
+    let fit = null;
+    try {
+      const vp = page.viewport();
+      await page.touchscreen.tap(Math.round(vp.width / 2), Math.round(vp.height / 2));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      fit = { bytes: downloadBytes, ...(await collectInputs(page)) };
+    } catch (e) {
+      console.warn(`[Screenshot Engine] Mobile check failed for ${gameId}:`, e.message);
+    }
 
     const safeId = String(gameId).replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeId}.webp`;
@@ -155,7 +211,8 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
       success: true,
       thumbnailUrl: publicUrl,
       localFilePath,
-      detectedOrientation
+      detectedOrientation,
+      fit
     };
   } finally {
     if (browser) {
@@ -200,6 +257,27 @@ export async function autoCaptureGameThumbnail(gameId, pool) {
          WHERE id = $2 AND orientation_source = 'default'`,
         [result.detectedOrientation, game.id]);
       console.log(`[Screenshot Engine] Detected ${result.detectedOrientation} for ${game.id}`);
+    }
+
+    if (result && result.fit) {
+      // Measured download wins over the uploaded size: it's what a phone actually fetches.
+      const prev = game.mobile_check || {};
+      const bytes = result.fit.bytes > 0 ? result.fit.bytes : (prev.bytes || null);
+      const decision = decidePlatform({ choice: prev.choice || null, bytes, controls: result.fit.controls });
+      const check = {
+        ...prev,
+        bytes,
+        bytesFrom: result.fit.bytes > 0 ? 'measured' : prev.bytesFrom || null,
+        controls: result.fit.controls,
+        inputs: result.fit.inputs,
+        reasons: decision.reasons,
+        warnings: decision.warnings,
+        checkedAt: new Date().toISOString()
+      };
+      await pool.query(
+        'UPDATE games SET platform = $1, platform_source = $2, mobile_check = $3, file_size = COALESCE($4, file_size) WHERE id = $5',
+        [decision.platform, decision.source, JSON.stringify(check), bytes ? Math.round(bytes) : null, game.id]);
+      console.log(`[Screenshot Engine] ${game.id}: ${decision.platform} (${result.fit.controls}, ${bytes || '?'} bytes)`);
     }
 
     if (result && result.thumbnailUrl) {

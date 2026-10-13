@@ -39,6 +39,7 @@ import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
 import { handleGameUpload, MAX_ZIP_BYTES } from './game-uploads.js';
+import { decidePlatform, platformChoiceFrom, platformSql, isPhoneRequest, SOFT_LIMIT_BYTES } from './mobile-fit.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2379,6 +2380,7 @@ const handleGamePublish = async (req, res) => {
       description,
       category,
       orientation,
+      platform,
       icon,
       color,
       thumbnail
@@ -2454,12 +2456,25 @@ const handleGamePublish = async (req, res) => {
     const chosenOrientation = developerOrientation || review.meta.orientation || 'portrait';
     const orientationSource = developerOrientation ? 'developer' : (review.meta.orientation ? 'detected' : 'default');
 
+    // Works on: sized now from what was uploaded; controls (and a link's size) are measured by the
+    // headless run after publish, which updates this.
+    const platformChoice = platformChoiceFrom(platform);
+    let uploadBytes = html ? Buffer.byteLength(html, 'utf8') : null;
+    if (!uploadBytes && targetUrl) {
+      const up = await pool.query('SELECT bytes FROM game_uploads WHERE url = ANY($1)', [[targetUrl, (url || embedUrl || '').trim()]]);
+      if (up.rows[0]) uploadBytes = Number(up.rows[0].bytes);
+    }
+    const fit = decidePlatform({ choice: platformChoice, bytes: uploadBytes });
+    publishWarnings.push(...fit.reasons, ...fit.warnings);
+    const mobileCheck = { choice: platformChoice, bytes: uploadBytes, bytesFrom: uploadBytes ? 'upload' : null, controls: null, reasons: fit.reasons, warnings: fit.warnings, checkedAt: new Date().toISOString() };
+
     const insertResult = await pool.query(
       `INSERT INTO games (
         id, name, description, icon, color, category,
         embed_url, thumbnail, developer, orientation, runtime, script_payload,
-        verification_status, verification_notes, status, orientation_source
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11, $12, $13, $14, $15)
+        verification_status, verification_notes, status, orientation_source,
+        platform, platform_source, mobile_check, file_size
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11, $12, $13, $14, $15, $16, $17, $18, $19)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         description = EXCLUDED.description,
@@ -2474,6 +2489,15 @@ const handleGamePublish = async (req, res) => {
                            THEN games.orientation ELSE EXCLUDED.orientation END,
         orientation_source = CASE WHEN EXCLUDED.orientation_source = 'default' AND games.orientation_source IN ('developer', 'detected')
                                   THEN games.orientation_source ELSE EXCLUDED.orientation_source END,
+        -- Nothing known yet (a link, no choice): keep the last measured result until it's re-measured.
+        platform = CASE WHEN EXCLUDED.platform_source = 'default' AND games.platform_source IS NOT NULL
+                        THEN games.platform ELSE EXCLUDED.platform END,
+        platform_source = CASE WHEN EXCLUDED.platform_source = 'default' AND games.platform_source IS NOT NULL
+                               THEN games.platform_source ELSE EXCLUDED.platform_source END,
+        mobile_check = CASE WHEN EXCLUDED.platform_source = 'default' AND games.mobile_check IS NOT NULL
+                            THEN games.mobile_check || jsonb_build_object('choice', EXCLUDED.mobile_check->'choice')
+                            ELSE EXCLUDED.mobile_check END,
+        file_size = COALESCE(EXCLUDED.file_size, games.file_size),
         script_payload = EXCLUDED.script_payload,
         verification_status = EXCLUDED.verification_status,
         verification_notes = EXCLUDED.verification_notes,
@@ -2495,7 +2519,11 @@ const handleGamePublish = async (req, res) => {
         reviewStatus(review),
         JSON.stringify(review.checks),
         gameStatus,
-        orientationSource
+        orientationSource,
+        fit.platform,
+        fit.source,
+        JSON.stringify(mobileCheck),
+        uploadBytes
       ]
     );
 
@@ -2523,6 +2551,8 @@ const handleGamePublish = async (req, res) => {
       embedUrl: savedGame.embed_url,
       orientation: savedGame.orientation,
       orientationSource: savedGame.orientation_source,
+      platform: savedGame.platform || 'all',
+      platformSource: savedGame.platform_source,
       creator: {
         id: creatorRecord.id,
         username: creatorRecord.username,
@@ -3448,6 +3478,7 @@ app.get('/api/admin/games', async (req, res) => {
 });
 
 app.get('/api/games', async (req, res) => {
+  const forDevice = platformSql(req);
   const limit = parseInt(req.query.limit) || 10;
   const offset = parseInt(req.query.offset) || 0;
   const sort = String(req.query.sort || 'discover').toLowerCase();
@@ -3491,7 +3522,7 @@ app.get('/api/games', async (req, res) => {
          FROM games g
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
-         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
          AND (g.status IS NULL OR g.status = 'published')
          AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
          ${categoryFilter}
@@ -3547,12 +3578,14 @@ app.get('/api/games', async (req, res) => {
                WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
                ELSE 0
              END
+             -- Big downloads cost phone players data and load time: rank them lower there.
+             ${isPhoneRequest(req) ? `- CASE WHEN g.file_size > ${SOFT_LIMIT_BYTES} THEN 10 ELSE 0 END` : ''}
            ) AS discover_score
          FROM games g
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
-         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
          AND (g.status IS NULL OR g.status = 'published')
          AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
          ${categoryFilter}
@@ -3565,7 +3598,7 @@ app.get('/api/games', async (req, res) => {
     const countParams = category ? [category] : [];
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM games g
-       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
        AND (g.status IS NULL OR g.status = 'published')
        AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
        ${category ? `AND EXISTS (SELECT 1 FROM game_categories gc WHERE gc.game_id = g.id AND gc.category = $1)` : ''}`,
@@ -3642,6 +3675,7 @@ app.get('/api/categories', async (_req, res) => {
 });
 
 app.get('/api/games/discover-lanes', async (req, res) => {
+  const forDevice = platformSql(req);
   const limit = Math.min(parseInt(req.query.limit) || 12, 24);
   const rawTab = String(req.query.tab || 'Explore').trim();
   const normalizedTab = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'].includes(rawTab) ? rawTab : 'Explore';
@@ -3756,7 +3790,7 @@ app.get('/api/games/discover-lanes', async (req, res) => {
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
 	         WHERE
-	           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published') AND
+	           (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice} AND
 	           ag.id IS NOT NULL AND
 	           ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
        ),
@@ -4101,6 +4135,7 @@ app.get('/api/search/trending', async (req, res) => {
 });
 
 app.get('/api/games/top', async (req, res) => {
+  const forDevice = platformSql(req);
   const limit = Math.min(parseInt(req.query.limit) || 10, 30);
   const rawTab = String(req.query.tab || 'Explore').trim();
   const normalizedTab = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'].includes(rawTab) ? rawTab : 'Explore';
@@ -4122,7 +4157,7 @@ app.get('/api/games/top', async (req, res) => {
        FROM games g
        LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
        LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
-       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+       WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
          AND ag.id IS NOT NULL
          AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
        ORDER BY top_score DESC, COALESCE(g.plays, 0) DESC, COALESCE(g.like_count, 0) DESC, COALESCE(g.save_count, 0) DESC, g.created_at DESC
@@ -4145,6 +4180,7 @@ app.get('/api/games/top', async (req, res) => {
 });
 
 app.get('/api/games/trending-summary', async (req, res) => {
+  const forDevice = platformSql(req);
   const limit = Math.min(parseInt(req.query.limit) || 5, 10);
   const rawTab = String(req.query.tab || 'Explore').trim();
   const normalizedTab = ['Explore', 'Games', 'Horror', 'Quiz', 'Roleplay'].includes(rawTab) ? rawTab : 'Explore';
@@ -4172,7 +4208,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
          LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
          LEFT JOIN score_activity sa ON sa.game_id = g.id
 	         WHERE u.id IS NOT NULL
-	           AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+	           AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
 	           AND ag.id IS NOT NULL
 	           AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
            AND COALESCE(sa.recent_activity_score, 0) > 0`,
@@ -4192,7 +4228,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
 	         FROM games g
 	         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
 	         LEFT JOIN score_activity sa ON sa.game_id = g.id
-	         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+	         WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
 	           AND ag.id IS NOT NULL
 	           AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
            AND (
@@ -4240,7 +4276,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
            LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
            LEFT JOIN score_activity sa ON sa.game_id = g.id
 	           WHERE u.id IS NOT NULL
-	             AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+	             AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
 	             AND ag.id IS NOT NULL
 	             AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
            GROUP BY u.id, u.username, u.display_name, u.avatar
@@ -4294,7 +4330,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
            LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
            LEFT JOIN users u ON u.id::text = COALESCE(NULLIF(g.developer, ''), ag.user_id::text)
            LEFT JOIN score_activity sa ON sa.game_id = g.id
-	           WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+	           WHERE (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
 	             AND ag.id IS NOT NULL
 	             AND ($1 = 'Explore' OR COALESCE(g.primary_tab, 'Explore') = $1)
          )
@@ -4341,6 +4377,7 @@ app.get('/api/games/trending-summary', async (req, res) => {
 });
 
 app.get('/api/games/search', async (req, res) => {
+  const forDevice = platformSql(req);
   const query = req.query.q || '';
   const limit = parseInt(req.query.limit) || 50;
 
@@ -4370,7 +4407,7 @@ app.get('/api/games/search', async (req, res) => {
          LOWER(COALESCE(u.username, '')) LIKE $1 OR
          LOWER(COALESCE(u.display_name, '')) LIKE $1
 	       )
-	       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')
+	       AND (g.multiplayer_only = FALSE OR g.multiplayer_only IS NULL) AND (g.status IS NULL OR g.status = 'published')${forDevice}
 	       AND (g.id NOT ILIKE '%cyber%dodge%' AND g.name NOT ILIKE '%cyber dodge%')
 	       AND ag.id IS NOT NULL
 	       ORDER BY 
@@ -5070,6 +5107,10 @@ function formatGame(row) {
     // inside the portrait feed card — the device never rotates. See ai-engine/orientation.js.
     orientation: row.orientation === 'landscape' ? 'landscape' : 'portrait',
     orientationSource: row.orientation_source || null,
+    // 'all' | 'desktop'. Desktop-only games are left out of feeds requested from phones.
+    platform: row.platform === 'desktop' ? 'desktop' : 'all',
+    platformSource: row.platform_source || null,
+    mobileCheck: row.mobile_check || null,
     creatorId: row.creator_id || row.creatorId || row.developer || null,
     creatorDisplayName: row.creator_display_name || row.creatorDisplayName || null,
     creatorVerified: Boolean(row.creator_verified),
