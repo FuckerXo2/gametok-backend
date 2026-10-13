@@ -38,7 +38,7 @@ import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engin
 import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
-import { handleGameUpload, handleGameUploadStart, handleGameUploadFinish, MAX_ZIP_BYTES } from './game-uploads.js';
+import { handleGameUpload, handleGameUploadStart, handleGameUploadFinish, handleGameFilesStart, handleGameFilesFinish, MAX_ZIP_BYTES } from './game-uploads.js';
 import { decidePlatform, platformSql } from './mobile-fit.js';
 
 
@@ -2459,8 +2459,10 @@ const handleGamePublish = async (req, res) => {
     // controls, load time (and a link's size) are measured by the headless run after publish.
     let uploadBytes = html ? Buffer.byteLength(html, 'utf8') : null;
     if (!uploadBytes && targetUrl) {
-      const up = await pool.query('SELECT bytes FROM game_uploads WHERE url = ANY($1)', [[targetUrl, (url || embedUrl || '').trim()]]);
-      if (up.rows[0]) uploadBytes = Number(up.rows[0].bytes);
+      // A one-file game downloads all of it. A folder's total isn't what a game loads (it fetches
+      // what it needs), so those wait for the phone test to measure the real download.
+      const up = await pool.query('SELECT bytes, files FROM game_uploads WHERE url = ANY($1)', [[targetUrl, (url || embedUrl || '').trim()]]);
+      if (up.rows[0] && up.rows[0].files === 1) uploadBytes = Number(up.rows[0].bytes);
     }
     const fit = decidePlatform({ bytes: uploadBytes });
     publishWarnings.push(...fit.reasons, ...fit.warnings);
@@ -2673,6 +2675,9 @@ app.post('/api/developer/uploads',
 // Bigger zips: the browser PUTs them straight to R2 with a signed URL, then asks us to unpack.
 app.post('/api/developer/uploads/start', handleGameUploadStart);
 app.post('/api/developer/uploads/:uploadId/finish', handleGameUploadFinish);
+// Any size: the browser PUTs each file straight to R2, then we check it and fix up its pages.
+app.post('/api/developer/uploads/files/start', handleGameFilesStart);
+app.post('/api/developer/uploads/files/:uploadId/finish', handleGameFilesFinish);
 
 // The game's server checks a player session here before trusting it (with the developer's
 // key, never from the browser). Test keys only accept test sessions and live keys only live
