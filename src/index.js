@@ -39,7 +39,7 @@ import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
 import { handleGameUpload, MAX_ZIP_BYTES } from './game-uploads.js';
-import { decidePlatform, platformChoiceFrom, platformSql, isPhoneRequest, SOFT_LIMIT_BYTES } from './mobile-fit.js';
+import { decidePlatform, platformChoiceFrom, platformSql } from './mobile-fit.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -3478,10 +3478,11 @@ app.get('/api/admin/games', async (req, res) => {
 });
 
 app.get('/api/games', async (req, res) => {
-  const forDevice = platformSql(req);
   const limit = parseInt(req.query.limit) || 10;
   const offset = parseInt(req.query.offset) || 0;
   const sort = String(req.query.sort || 'discover').toLowerCase();
+  // 'discover' is the phone app's swipe home feed; other sorts back Explore.
+  const forDevice = platformSql(req, { feed: sort === 'discover' });
   // Optional discovery category (see src/categories.js). Unknown values are ignored
   // rather than returning nothing, so a stale link degrades to the full feed.
   const category = isValidCategory(req.query.category)
@@ -3578,8 +3579,6 @@ app.get('/api/games', async (req, res) => {
                WHEN g.created_at >= NOW() - INTERVAL '21 days' THEN 4
                ELSE 0
              END
-             -- Big downloads cost phone players data and load time: rank them lower there.
-             ${isPhoneRequest(req) ? `- CASE WHEN g.file_size > ${SOFT_LIMIT_BYTES} THEN 10 ELSE 0 END` : ''}
            ) AS discover_score
          FROM games g
          LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
@@ -5107,8 +5106,8 @@ function formatGame(row) {
     // inside the portrait feed card — the device never rotates. See ai-engine/orientation.js.
     orientation: row.orientation === 'landscape' ? 'landscape' : 'portrait',
     orientationSource: row.orientation_source || null,
-    // 'all' | 'desktop'. Desktop-only games are left out of feeds requested from phones.
-    platform: row.platform === 'desktop' ? 'desktop' : 'all',
+    // 'all' | 'explore' | 'desktop': where phones see it (see mobile-fit.js). Desktop sees all.
+    platform: ['explore', 'desktop'].includes(row.platform) ? row.platform : 'all',
     platformSource: row.platform_source || null,
     mobileCheck: row.mobile_check || null,
     creatorId: row.creator_id || row.creatorId || row.developer || null,

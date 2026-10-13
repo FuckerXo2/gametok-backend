@@ -137,12 +137,23 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
       } catch (e) {}
     });
 
-    if (url) {
-      console.log(`[Screenshot Engine] Navigating to URL: ${url}`);
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
-    } else {
-      console.log(`[Screenshot Engine] Rendering HTML payload for: ${gameId}`);
-      await page.setContent(html, { waitUntil: 'load', timeout: 20000 });
+    // Load time = until the game stops downloading. A game still loading at the timeout is
+    // measured as the timeout and captured as it is, not dropped.
+    const loadStart = Date.now();
+    let loadMs;
+    try {
+      if (url) {
+        console.log(`[Screenshot Engine] Navigating to URL: ${url}`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
+      } else {
+        console.log(`[Screenshot Engine] Rendering HTML payload for: ${gameId}`);
+        await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
+      }
+      loadMs = Date.now() - loadStart;
+    } catch (err) {
+      if (err.name !== 'TimeoutError') throw err;
+      loadMs = Date.now() - loadStart;
+      console.warn(`[Screenshot Engine] ${gameId} still loading after ${loadMs} ms; capturing anyway`);
     }
 
     // Give Canvas / WebGL game loop 2.5 seconds to draw authentic graphics
@@ -170,7 +181,7 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
       const vp = page.viewport();
       await page.touchscreen.tap(Math.round(vp.width / 2), Math.round(vp.height / 2));
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      fit = { bytes: downloadBytes, ...(await collectInputs(page)) };
+      fit = { bytes: downloadBytes, loadMs, ...(await collectInputs(page)) };
     } catch (e) {
       console.warn(`[Screenshot Engine] Mobile check failed for ${gameId}:`, e.message);
     }
@@ -263,12 +274,13 @@ export async function autoCaptureGameThumbnail(gameId, pool) {
       // Measured download wins over the uploaded size: it's what a phone actually fetches.
       const prev = game.mobile_check || {};
       const bytes = result.fit.bytes > 0 ? result.fit.bytes : (prev.bytes || null);
-      const decision = decidePlatform({ choice: prev.choice || null, bytes, controls: result.fit.controls });
+      const decision = decidePlatform({ choice: prev.choice || null, bytes, controls: result.fit.controls, loadMs: result.fit.loadMs });
       const check = {
         ...prev,
         bytes,
         bytesFrom: result.fit.bytes > 0 ? 'measured' : prev.bytesFrom || null,
         controls: result.fit.controls,
+        loadMs: result.fit.loadMs,
         inputs: result.fit.inputs,
         reasons: decision.reasons,
         warnings: decision.warnings,
