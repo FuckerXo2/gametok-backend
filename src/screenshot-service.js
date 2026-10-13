@@ -274,7 +274,7 @@ export async function autoCaptureGameThumbnail(gameId, pool) {
       // Measured download wins over the uploaded size: it's what a phone actually fetches.
       const prev = game.mobile_check || {};
       const bytes = result.fit.bytes > 0 ? result.fit.bytes : (prev.bytes || null);
-      const decision = decidePlatform({ choice: prev.choice || null, bytes, controls: result.fit.controls, loadMs: result.fit.loadMs });
+      const decision = decidePlatform({ bytes, controls: result.fit.controls, loadMs: result.fit.loadMs });
       const check = {
         ...prev,
         bytes,

@@ -39,7 +39,7 @@ import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
 import { handleGameUpload, handleGameUploadStart, handleGameUploadFinish, MAX_ZIP_BYTES } from './game-uploads.js';
-import { decidePlatform, platformChoiceFrom, platformSql } from './mobile-fit.js';
+import { decidePlatform, platformSql } from './mobile-fit.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2380,7 +2380,6 @@ const handleGamePublish = async (req, res) => {
       description,
       category,
       orientation,
-      platform,
       icon,
       color,
       thumbnail
@@ -2456,17 +2455,16 @@ const handleGamePublish = async (req, res) => {
     const chosenOrientation = developerOrientation || review.meta.orientation || 'portrait';
     const orientationSource = developerOrientation ? 'developer' : (review.meta.orientation ? 'detected' : 'default');
 
-    // Works on: sized now from what was uploaded; controls (and a link's size) are measured by the
-    // headless run after publish, which updates this.
-    const platformChoice = platformChoiceFrom(platform);
+    // Where phones see it (GameTok's call, not the developer's): sized now from what was uploaded;
+    // controls, load time (and a link's size) are measured by the headless run after publish.
     let uploadBytes = html ? Buffer.byteLength(html, 'utf8') : null;
     if (!uploadBytes && targetUrl) {
       const up = await pool.query('SELECT bytes FROM game_uploads WHERE url = ANY($1)', [[targetUrl, (url || embedUrl || '').trim()]]);
       if (up.rows[0]) uploadBytes = Number(up.rows[0].bytes);
     }
-    const fit = decidePlatform({ choice: platformChoice, bytes: uploadBytes });
+    const fit = decidePlatform({ bytes: uploadBytes });
     publishWarnings.push(...fit.reasons, ...fit.warnings);
-    const mobileCheck = { choice: platformChoice, bytes: uploadBytes, bytesFrom: uploadBytes ? 'upload' : null, controls: null, reasons: fit.reasons, warnings: fit.warnings, checkedAt: new Date().toISOString() };
+    const mobileCheck = { bytes: uploadBytes, bytesFrom: uploadBytes ? 'upload' : null, controls: null, reasons: fit.reasons, warnings: fit.warnings, checkedAt: new Date().toISOString() };
 
     const insertResult = await pool.query(
       `INSERT INTO games (
@@ -2489,13 +2487,13 @@ const handleGamePublish = async (req, res) => {
                            THEN games.orientation ELSE EXCLUDED.orientation END,
         orientation_source = CASE WHEN EXCLUDED.orientation_source = 'default' AND games.orientation_source IN ('developer', 'detected')
                                   THEN games.orientation_source ELSE EXCLUDED.orientation_source END,
-        -- Nothing known yet (a link, no choice): keep the last measured result until it's re-measured.
+        -- Nothing known yet (a link): keep the last measured result until it's re-measured.
         platform = CASE WHEN EXCLUDED.platform_source = 'default' AND games.platform_source IS NOT NULL
                         THEN games.platform ELSE EXCLUDED.platform END,
         platform_source = CASE WHEN EXCLUDED.platform_source = 'default' AND games.platform_source IS NOT NULL
                                THEN games.platform_source ELSE EXCLUDED.platform_source END,
         mobile_check = CASE WHEN EXCLUDED.platform_source = 'default' AND games.mobile_check IS NOT NULL
-                            THEN games.mobile_check || jsonb_build_object('choice', EXCLUDED.mobile_check->'choice')
+                            THEN games.mobile_check
                             ELSE EXCLUDED.mobile_check END,
         file_size = COALESCE(EXCLUDED.file_size, games.file_size),
         script_payload = EXCLUDED.script_payload,
