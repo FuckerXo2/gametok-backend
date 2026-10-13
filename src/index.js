@@ -38,6 +38,7 @@ import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engin
 import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
+import { handleGameUpload, MAX_ZIP_BYTES } from './game-uploads.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2636,6 +2637,11 @@ const resolveDeveloper = authenticateDeveloper;
 app.use('/api/developer', (req, res, next) => (req.path === '/analytics/session' ? next() : requireDeveloper(req, res, next)));
 // Per-game developer routes additionally require owning the game.
 app.use('/api/developer/games/:id', requireOwnedGame);
+
+// Host a zipped web game build; the returned URL is then published like any game link.
+app.post('/api/developer/uploads',
+  express.raw({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], limit: MAX_ZIP_BYTES }),
+  handleGameUpload);
 
 // The game's server checks a player session here before trusting it (with the developer's
 // key, never from the browser). Test keys only accept test sessions and live keys only live
