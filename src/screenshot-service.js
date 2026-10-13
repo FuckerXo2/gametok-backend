@@ -29,7 +29,28 @@ if (process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_
  * Capture an authentic in-game screenshot from an external URL or HTML payload.
  * Runs in headless Chromium via Puppeteer.
  */
-export async function captureGameScreenshot({ gameId, url, html, orientation = 'landscape' }) {
+// Measure which way the game is drawn, in a portrait phone-sized viewport. Uses the largest
+// <canvas>: its own pixel size if set (a fixed 1280x720 game is landscape however it's scaled),
+// else its on-screen size. A game that fills the portrait viewport comes out portrait.
+// Returns 'portrait' | 'landscape' | null (no canvas / square-ish: inconclusive).
+async function measureOrientation(page) {
+  return page.evaluate(() => {
+    const viewportArea = window.innerWidth * window.innerHeight;
+    let best = null;
+    for (const el of document.querySelectorAll('canvas')) {
+      const r = el.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (area > (best ? best.area : 0)) best = { area, w: r.width, h: r.height, iw: el.width, ih: el.height };
+    }
+    if (!best || best.area < viewportArea * 0.1) return null;
+    const ratio = best.iw > 0 && best.ih > 0 ? best.iw / best.ih : best.w / best.h;
+    if (ratio >= 1.25) return 'landscape';
+    if (ratio <= 0.85) return 'portrait';
+    return null;
+  });
+}
+
+export async function captureGameScreenshot({ gameId, url, html, orientation = 'landscape', detectOrientation = false }) {
   if (!url && !html) {
     throw new Error('Either url or html is required for screenshot capture');
   }
@@ -54,7 +75,8 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
     });
 
     const page = await browser.newPage();
-    const isPortrait = orientation === 'portrait';
+    // When detecting, start upright like a phone in the feed.
+    const isPortrait = detectOrientation || orientation === 'portrait';
     await page.setViewport({
       width: isPortrait ? 400 : 720,
       height: isPortrait ? 720 : 420,
@@ -80,6 +102,16 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
 
     // Give Canvas / WebGL game loop 2.5 seconds to draw authentic graphics
     await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    let detectedOrientation = null;
+    if (detectOrientation) {
+      detectedOrientation = await measureOrientation(page).catch(() => null);
+      if (detectedOrientation === 'landscape') {
+        // Re-frame the thumbnail the way players will see it.
+        await page.setViewport({ width: 720, height: 420, deviceScaleFactor: 1 });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    }
 
     // Capture WebP buffer
     const buffer = await page.screenshot({
@@ -122,7 +154,8 @@ export async function captureGameScreenshot({ gameId, url, html, orientation = '
     return {
       success: true,
       thumbnailUrl: publicUrl,
-      localFilePath
+      localFilePath,
+      detectedOrientation
     };
   } finally {
     if (browser) {
@@ -143,7 +176,10 @@ export async function autoCaptureGameThumbnail(gameId, pool) {
     const game = gameRes.rows[0];
     const targetUrl = game.embed_url;
     const htmlPayload = game.script_payload;
-    const orientation = game.orientation || 'landscape';
+    const orientation = game.orientation || 'portrait';
+    // Measure only games published without a choice ('default'). Older games (no source recorded)
+    // keep whatever orientation they already have.
+    const detectOrientation = game.orientation_source === 'default';
 
     if (!targetUrl && !htmlPayload) {
       console.warn(`[Screenshot Engine] No embed_url or script_payload for game: ${gameId}`);
@@ -154,8 +190,17 @@ export async function autoCaptureGameThumbnail(gameId, pool) {
       gameId: game.id,
       url: targetUrl,
       html: htmlPayload,
-      orientation
+      orientation,
+      detectOrientation
     });
+
+    if (detectOrientation && result && result.detectedOrientation) {
+      await pool.query(
+        `UPDATE games SET orientation = $1, orientation_source = 'detected'
+         WHERE id = $2 AND orientation_source = 'default'`,
+        [result.detectedOrientation, game.id]);
+      console.log(`[Screenshot Engine] Detected ${result.detectedOrientation} for ${game.id}`);
+    }
 
     if (result && result.thumbnailUrl) {
       await pool.query('UPDATE games SET thumbnail = $1 WHERE id = $2', [result.thumbnailUrl, game.id]);

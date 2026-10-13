@@ -2240,6 +2240,39 @@ function extractGameMeta(htmlText, baseUrl) {
   return meta;
 }
 
+// What the game itself declares about orientation. Only explicit statements count:
+// a screen-orientation / x5-orientation meta tag, screen.orientation.lock(...) in its
+// code, or the web app manifest's "orientation". Returns 'portrait' | 'landscape' | null.
+const orientationFrom = (value) => {
+  const v = String(value || '').toLowerCase();
+  if (v.startsWith('landscape')) return 'landscape';
+  if (v.startsWith('portrait')) return 'portrait';
+  return null;
+};
+
+async function declaredOrientation(htmlText, baseUrl) {
+  const meta = htmlText.match(/<meta[^>]*name=["'](?:screen-orientation|x5-orientation)["'][^>]*content=["']([^"']+)["']/i) ||
+               htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["'](?:screen-orientation|x5-orientation)["']/i);
+  if (meta && orientationFrom(meta[1])) return orientationFrom(meta[1]);
+  const lock = htmlText.match(/(?:screen\.orientation\.lock|lockOrientation)\(\s*["'`]([a-z-]+)["'`]/i);
+  if (lock && orientationFrom(lock[1])) return orientationFrom(lock[1]);
+  const manifestLink = htmlText.match(/<link[^>]*rel=["']manifest["'][^>]*href=["']([^"']+)["']/i) ||
+                       htmlText.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["']manifest["']/i);
+  if (manifestLink && baseUrl) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(new URL(manifestLink[1], baseUrl).href, { signal: controller.signal, headers: { 'User-Agent': GAMETOK_BOT_UA } });
+      clearTimeout(timer);
+      if (res.ok) {
+        const manifest = await res.json();
+        if (orientationFrom(manifest.orientation)) return orientationFrom(manifest.orientation);
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
 async function runGameChecks({ url, html }) {
   const checks = [];
   const warnings = [];
@@ -2314,7 +2347,9 @@ async function runGameChecks({ url, html }) {
   add({ id: 'bridge', label: 'GameTok bridge script', blocking: false, ok: /<script[^>]*bridge\.js/i.test(htmlText),
         detail: 'Add <script src="https://gametok.co/bridge.js"></script> for fitting, scores and player identity.' });
 
-  return { ok: true, verified: true, checks, warnings, url: finalUrl, meta: extractGameMeta(htmlText, finalUrl) };
+  const meta = extractGameMeta(htmlText, finalUrl);
+  meta.orientation = await declaredOrientation(htmlText, finalUrl);
+  return { ok: true, verified: true, checks, warnings, url: finalUrl, meta };
 }
 
 const reviewStatus = (review) => (review.verified ? 'passed' : 'unverified');
@@ -2412,14 +2447,18 @@ const handleGamePublish = async (req, res) => {
     const chosenColor = color || defaultColors[Math.floor(Math.random() * defaultColors.length)];
     const chosenIcon = icon || '🎮';
     const chosenCategory = (category || 'arcade').toLowerCase();
-    const chosenOrientation = orientation === 'landscape' ? 'landscape' : 'portrait';
+    // Orientation: the developer's choice wins; otherwise what the game declares; otherwise
+    // portrait for now — the thumbnail run then measures the game and may switch it to landscape.
+    const developerOrientation = orientationFrom(orientation);
+    const chosenOrientation = developerOrientation || review.meta.orientation || 'portrait';
+    const orientationSource = developerOrientation ? 'developer' : (review.meta.orientation ? 'detected' : 'default');
 
     const insertResult = await pool.query(
       `INSERT INTO games (
         id, name, description, icon, color, category,
         embed_url, thumbnail, developer, orientation, runtime, script_payload,
-        verification_status, verification_notes, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11, $12, $13, $14)
+        verification_status, verification_notes, status, orientation_source
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web', $11, $12, $13, $14, $15)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         description = EXCLUDED.description,
@@ -2429,7 +2468,11 @@ const handleGamePublish = async (req, res) => {
         embed_url = EXCLUDED.embed_url,
         thumbnail = COALESCE(EXCLUDED.thumbnail, games.thumbnail),
         developer = EXCLUDED.developer,
-        orientation = EXCLUDED.orientation,
+        -- A re-publish without a choice keeps an earlier deliberate or detected orientation.
+        orientation = CASE WHEN EXCLUDED.orientation_source = 'default' AND games.orientation_source IN ('developer', 'detected')
+                           THEN games.orientation ELSE EXCLUDED.orientation END,
+        orientation_source = CASE WHEN EXCLUDED.orientation_source = 'default' AND games.orientation_source IN ('developer', 'detected')
+                                  THEN games.orientation_source ELSE EXCLUDED.orientation_source END,
         script_payload = EXCLUDED.script_payload,
         verification_status = EXCLUDED.verification_status,
         verification_notes = EXCLUDED.verification_notes,
@@ -2450,7 +2493,8 @@ const handleGamePublish = async (req, res) => {
         html || null,
         reviewStatus(review),
         JSON.stringify(review.checks),
-        gameStatus
+        gameStatus,
+        orientationSource
       ]
     );
 
@@ -2477,6 +2521,7 @@ const handleGamePublish = async (req, res) => {
       playerUrl: `https://gametok.co/game/${savedGame.id}`,
       embedUrl: savedGame.embed_url,
       orientation: savedGame.orientation,
+      orientationSource: savedGame.orientation_source,
       creator: {
         id: creatorRecord.id,
         username: creatorRecord.username,
@@ -5018,6 +5063,7 @@ function formatGame(row) {
     // 'portrait' | 'landscape'. Landscape games are played by rotating the WebView's content
     // inside the portrait feed card — the device never rotates. See ai-engine/orientation.js.
     orientation: row.orientation === 'landscape' ? 'landscape' : 'portrait',
+    orientationSource: row.orientation_source || null,
     creatorId: row.creator_id || row.creatorId || row.developer || null,
     creatorDisplayName: row.creator_display_name || row.creatorDisplayName || null,
     creatorVerified: Boolean(row.creator_verified),

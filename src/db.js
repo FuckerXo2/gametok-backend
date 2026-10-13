@@ -666,6 +666,9 @@ export const runMigrations = async () => {
       -- Integration checklist ticks recorded from the test player / API (bridge loaded, ...).
       ALTER TABLE games ADD COLUMN IF NOT EXISTS integration JSONB NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE games ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+      -- Where games.orientation came from: 'developer' (chosen), 'detected' (from the game itself)
+      -- or 'default' (portrait, nothing conclusive). Detection never overrides 'developer'.
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS orientation_source VARCHAR(12);
       -- Uploaded HTML games were stored as gametok.co/api/... which serves the website, not the game.
       UPDATE games SET embed_url = replace(embed_url, 'https://gametok.co/api/', 'https://gametok-backend-267787411422.us-central1.run.app/api/')
         WHERE embed_url LIKE 'https://gametok.co/api/games/%/play-html';
