@@ -61,6 +61,9 @@ router.get('/overview', async (req, res) => {
         (SELECT COUNT(DISTINCT who) FROM days WHERE day = ${LAGOS_TODAY}) AS active_today,
         (SELECT COUNT(DISTINCT who) FROM days WHERE day > ${LAGOS_TODAY} - 7) AS active_week,
         (SELECT COUNT(DISTINCT who) FROM days WHERE day > ${LAGOS_TODAY} - 30) AS active_month,
+        (SELECT COUNT(DISTINCT who) FROM days WHERE day = ${LAGOS_TODAY} AND who LIKE 'u:%') AS signed_in_today,
+        (SELECT COUNT(DISTINCT who) FROM days WHERE day > ${LAGOS_TODAY} - 7 AND who LIKE 'u:%') AS signed_in_week,
+        (SELECT COUNT(DISTINCT who) FROM days WHERE day > ${LAGOS_TODAY} - 30 AND who LIKE 'u:%') AS signed_in_month,
         (SELECT COUNT(*) FROM firsts WHERE first_day = ${LAGOS_TODAY}) AS new_today,
         (SELECT COUNT(*) FROM firsts WHERE first_day > ${LAGOS_TODAY} - 7) AS new_week,
         (SELECT COUNT(*) FROM firsts) AS people_ever`, [internal])).rows[0];
@@ -118,6 +121,8 @@ router.get('/overview', async (req, res) => {
     res.json({
       days, internal,
       active: { today: +head.active_today, week: +head.active_week, month: +head.active_month },
+      // Of those, people signed in to an account (the rest are guests, counted per device).
+      signedIn: { today: +head.signed_in_today, week: +head.signed_in_week, month: +head.signed_in_month },
       newPeople: { today: +head.new_today, week: +head.new_week, ever: +head.people_ever },
       retention: { d1: rate('d1'), d7: rate('d7'), d30: rate('d30') },
       perPerson: {
