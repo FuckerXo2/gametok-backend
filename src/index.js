@@ -42,6 +42,7 @@ import { decidePlatform, platformSql } from './mobile-fit.js';
 import { announceNewGames } from './new-game-push.js';
 import { withCloudSave } from './cloud-save-tag.js';
 import adminInsightsRouter from './admin-insights.js';
+import { maybeSyncStoreStats } from './store-stats.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -7611,6 +7612,11 @@ const start = async () => {
       console.error('[Scheduler] Error:', e);
     }
   }, ONE_DAY);
+
+  // App Store / Google Play downloads for the admin site: checked every 30 minutes, fetched every 6 hours.
+  setInterval(() => {
+    maybeSyncStoreStats(pool).catch((e) => console.error('[StoreStats] error:', e.message));
+  }, 30 * 60 * 1000);
 
   // New games push: checked every 15 minutes; announceNewGames itself only sends in the Lagos
   // evening, once a day, and only when games went live that day.

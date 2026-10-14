@@ -16,6 +16,7 @@
 // before then are undercounted. game_views starts 14 Oct 2026.
 import express from 'express';
 import pool from './db.js';
+import { storeConfig, syncStoreStats } from './store-stats.js';
 
 const router = express.Router();
 const clampDays = (v, def = 30) => Math.min(Math.max(parseInt(v, 10) || def, 1), 365);
@@ -239,6 +240,45 @@ router.get('/activity', async (req, res) => {
   } catch (err) {
     console.error('[AdminInsights] activity:', err.message);
     res.status(500).json({ error: 'Could not load activity' });
+  }
+});
+
+// App downloads per store (from app_store_daily, filled by src/store-stats.js).
+router.get('/app-stores', async (req, res) => {
+  try {
+    const days = clampDays(req.query.days);
+    const cfg = storeConfig();
+    const sum = await pool.query(`SELECT store,
+        COALESCE(SUM(downloads), 0) AS all_time,
+        COALESCE(SUM(downloads) FILTER (WHERE day > CURRENT_DATE - 7), 0) AS week,
+        COALESCE(SUM(downloads) FILTER (WHERE day > CURRENT_DATE - 30), 0) AS month,
+        to_char(MAX(day), 'YYYY-MM-DD') AS latest_day,
+        (ARRAY_AGG(active_devices ORDER BY day DESC) FILTER (WHERE active_devices IS NOT NULL))[1] AS active_devices,
+        MAX(updated_at) AS fetched_at
+      FROM app_store_daily GROUP BY store`);
+    const series = await pool.query(`SELECT to_char(day, 'YYYY-MM-DD') AS day, store, downloads FROM app_store_daily
+      WHERE day > CURRENT_DATE - $1::int ORDER BY day`, [days]);
+    const byStore = Object.fromEntries(sum.rows.map((r) => [r.store, {
+      allTime: +r.all_time, week: +r.week, month: +r.month, activeDevices: num(r.active_devices),
+      latestDay: r.latest_day, fetchedAt: r.fetched_at,
+    }]));
+    res.json({
+      connected: { apple: Boolean(cfg.apple), google: Boolean(cfg.google) },
+      stores: byStore,
+      series: series.rows.map((r) => ({ day: r.day, store: r.store, downloads: +r.downloads })),
+    });
+  } catch (err) {
+    console.error('[AdminInsights] app-stores:', err.message);
+    res.status(500).json({ error: 'Could not load app store numbers' });
+  }
+});
+
+// Fetch from the stores now (the schedule only runs every 6 hours).
+router.post('/app-stores/refresh', async (req, res) => {
+  try {
+    res.json(await syncStoreStats(pool));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

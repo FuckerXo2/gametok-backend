@@ -680,6 +680,18 @@ export const runMigrations = async () => {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT FALSE;
       -- When a game was included in the daily "new games" push (src/new-game-push.js).
       ALTER TABLE games ADD COLUMN IF NOT EXISTS announced_at TIMESTAMP;
+      -- App downloads per store per day, from the App Store / Google Play (src/store-stats.js).
+      CREATE TABLE IF NOT EXISTS app_store_daily (
+        store TEXT NOT NULL,
+        day DATE NOT NULL,
+        downloads INTEGER NOT NULL DEFAULT 0,
+        redownloads INTEGER,
+        updates INTEGER,
+        uninstalls INTEGER,
+        active_devices INTEGER,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (store, day)
+      );
       -- Last run of once-a-day jobs, claimed atomically so only one server instance runs them.
       CREATE TABLE IF NOT EXISTS scheduled_job_runs (
         name TEXT PRIMARY KEY,

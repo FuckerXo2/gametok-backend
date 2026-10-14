@@ -22,3 +22,8 @@ storage/animations/
 storage/models3d/
 __pycache__/
 *.pyc
+
+# Store API keys (App Store Connect .p8, Google Play service account .json). Never commit;
+# on the server they are environment variables instead.
+secrets/
+*.p8
