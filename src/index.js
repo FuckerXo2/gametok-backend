@@ -40,6 +40,7 @@ import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-se
 import { handleGameUpload, handleGameUploadStart, handleGameUploadFinish, handleGameFilesStart, handleGameFilesFinish, MAX_ZIP_BYTES } from './game-uploads.js';
 import { decidePlatform, platformSql } from './mobile-fit.js';
 import { announceNewGames } from './new-game-push.js';
+import adminInsightsRouter from './admin-insights.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -100,7 +101,7 @@ function adminKeyOk(req) {
  * requests require ?key=, x-admin-key, or x-admin-secret.
  * The generation dashboard (/admin/generations) and feeds are unlocked via adminKeyOk.
  */
-function requireAdmin(req, res, next) {
+async function requireAdmin(req, res, next) {
   // Generation dashboard feeds (logs/stats) are read-only monitoring metrics
   if (req.path.startsWith('/generation-logs') || req.path.startsWith('/generation-stats')) {
     return next();
@@ -111,10 +112,19 @@ function requireAdmin(req, res, next) {
   if (!secret) return next();
 
   const provided = req.headers['x-admin-secret'] || req.headers['x-admin-key'] || req.query.key;
-  if (provided !== secret) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  if (provided === secret) return next();
+
+  // Or a signed-in account flagged users.is_admin (the admin site at games.gametok.co/admin).
+  const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (bearer) {
+    try {
+      const admin = await pool.query('SELECT 1 FROM users WHERE token = $1 AND is_admin = TRUE', [bearer]);
+      if (admin.rowCount) return next();
+    } catch (err) {
+      console.error('[Admin] account check failed:', err.message);
+    }
   }
-  next();
+  return res.status(401).json({ error: 'Unauthorized' });
 }
 
 // Global Media & Assets Pool - Mounted BEFORE requireAdmin so team can upload and manage 3D assets/animations 24/7
@@ -124,6 +134,7 @@ app.use('/api/admin/assets', adminAssetsRouter);
 // Registered before the admin routers and route definitions below so it covers
 // all of them, including /api/admin/bots and /api/admin/covers.
 app.use('/api/admin', requireAdmin);
+app.use('/api/admin/insights', adminInsightsRouter);
 
 // 🔥 NATIVE AI PIPELINE MOUNT 🔥
 app.use('/api/ai', aiRouter);
