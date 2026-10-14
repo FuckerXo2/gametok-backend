@@ -32,7 +32,8 @@ WORKDIR /app
 
 # Install Node dependencies first for Docker layer caching
 COPY package*.json ./
-RUN npm install --production
+# Exact versions from package-lock.json; faster than npm install and identical on every build.
+RUN npm ci --omit=dev
 
 # Copy application source code
 COPY . .

@@ -1,11 +1,28 @@
 # Cloud Build configuration for automatic deployment to Cloud Run
 # Triggers on push to main branch
 
+# Builds reuse the previous image's layers (--cache-from :latest), so the system packages, the
+# agy CLI and npm install (~1 GB, incl. Chrome for thumbnails) only rerun when the Dockerfile or
+# package*.json change. A code-only push rebuilds just the source layer.
+
 steps:
+  # Pull the last image to use as a layer cache (missing on the very first build: that's fine)
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args: ['-c', 'docker pull gcr.io/$PROJECT_ID/gametok-backend:latest || exit 0']
+
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/gametok-backend:$COMMIT_SHA', '.']
-  
+    args: [
+      'build',
+      '--cache-from', 'gcr.io/$PROJECT_ID/gametok-backend:latest',
+      # BuildKit only reuses an image's layers as cache if it was built with this; the classic builder ignores it.
+      '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
+      '-t', 'gcr.io/$PROJECT_ID/gametok-backend:$COMMIT_SHA',
+      '-t', 'gcr.io/$PROJECT_ID/gametok-backend:latest',
+      '.'
+    ]
+
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/gametok-backend:$COMMIT_SHA']
@@ -39,6 +56,9 @@ steps:
 
 images:
   - 'gcr.io/$PROJECT_ID/gametok-backend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/gametok-backend:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  # 8 vCPUs: npm install and the image push run several times faster than on the default machine.
+  machineType: 'E2_HIGHCPU_8'
