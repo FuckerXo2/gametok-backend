@@ -674,6 +674,18 @@ export const runMigrations = async () => {
       ALTER TABLE games ADD COLUMN IF NOT EXISTS platform VARCHAR(12);
       ALTER TABLE games ADD COLUMN IF NOT EXISTS platform_source VARCHAR(12);
       ALTER TABLE games ADD COLUMN IF NOT EXISTS mobile_check JSONB;
+      -- A game shown to someone (the active card in a feed, or a game page). Against
+      -- game_sessions (opened/played) this gives how many who see a game play it.
+      CREATE TABLE IF NOT EXISTS game_views (
+        id BIGSERIAL PRIMARY KEY,
+        game_id VARCHAR(100) REFERENCES games(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        client_id VARCHAR(255),
+        platform VARCHAR(16),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS game_views_created_idx ON game_views (created_at);
+      CREATE INDEX IF NOT EXISTS game_views_game_idx ON game_views (game_id, created_at);
       -- Zipped builds hosted by POST /api/developer/uploads, so publish knows their size at once.
       CREATE TABLE IF NOT EXISTS game_uploads (
         url TEXT PRIMARY KEY,

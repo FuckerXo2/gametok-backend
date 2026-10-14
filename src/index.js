@@ -4815,21 +4815,19 @@ app.get('/api/games/:id/play-html', async (req, res) => {
   }
 });
 
+const PLAY_COOLDOWN_MINUTES = 30;
+const MAX_SESSION_SECONDS = 4 * 60 * 60; // a session left open overnight isn't 10 hours of play
+
 app.post('/api/games/:id/play', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   const clientId = String(req.headers['x-client-id'] || '').trim();
-  const cooldownHours = 6;
+  // Replaying the same game within this window is the same play (swiping back and forth).
+  const cooldownMinutes = PLAY_COOLDOWN_MINUTES;
+  let sessionId = null;
+  // Every response carries the session id, so the client can report time played to it.
+  const reply = (body) => res.json({ ...body, sessionId, cooldownMinutes });
   try {
     const notifyCountedPlay = (userId = null, anonymous = false) => {
-      try {
-        const platform = (req.headers['sec-ch-ua-mobile'] === '?1' || /mobile|android|iphone|ipad/i.test(req.headers['user-agent'] || '')) ? 'mobile' : 'web';
-        pool.query(
-          `INSERT INTO game_sessions (game_id, user_id, client_id, duration_seconds, platform, started_at, ended_at)
-           VALUES ($1, $2, $3, 0, $4, NOW(), NOW())`,
-          [req.params.id, userId, clientId || null, platform]
-        ).catch(e => console.warn('[Play] game_sessions logging warning:', e.message));
-      } catch (err) {}
-
       notifications.notifyGamePlayed(req.params.id, userId, anonymous)
         .catch(e => console.log('[Notifications] Play notify error:', e));
     };
@@ -4837,10 +4835,10 @@ app.post('/api/games/:id/play', async (req, res) => {
     const shouldCountByCooldown = async (lastPlayedAt) => {
       const cooldownResult = await pool.query(
         `SELECT CASE
-           WHEN $1::timestamp <= NOW() - INTERVAL '6 hours' THEN TRUE
+           WHEN $1::timestamp <= NOW() - make_interval(mins => $2::int) THEN TRUE
            ELSE FALSE
          END AS should_count`,
-        [lastPlayedAt],
+        [lastPlayedAt, cooldownMinutes],
       );
       return Boolean(cooldownResult.rows[0]?.should_count);
     };
@@ -4850,14 +4848,25 @@ app.post('/api/games/:id/play', async (req, res) => {
     // game_leaderboard FK constraint and 500s. Short-circuit gracefully instead.
     const gameExists = await pool.query('SELECT 1 FROM games WHERE id = $1', [req.params.id]);
     if (gameExists.rows.length === 0) {
-      return res.json({ success: true, counted: false, mode: 'unregistered-game' });
+      return reply({ success: true, counted: false, mode: 'unregistered-game' });
     }
+
+    // Every open is a play session (time played is reported to it); the plays counter below
+    // only counts it once per cooldown window.
+    const sessionUser = token ? (await pool.query('SELECT id FROM users WHERE token = $1', [token])).rows[0] : null;
+    const platform = (req.headers['sec-ch-ua-mobile'] === '?1' || /mobile|android|iphone|ipad|okhttp|cfnetwork/i.test(req.headers['user-agent'] || '')) ? 'mobile' : 'web';
+    const session = await pool.query(
+      `INSERT INTO game_sessions (game_id, user_id, client_id, duration_seconds, platform, started_at, ended_at)
+       VALUES ($1, $2, $3, 0, $4, NOW(), NOW()) RETURNING id`,
+      [req.params.id, sessionUser ? sessionUser.id : null, clientId || null, platform]
+    ).catch((e) => { console.warn('[Play] game_sessions logging warning:', e.message); return null; });
+    sessionId = session ? session.rows[0].id : null;
 
     if (!token) {
       if (!clientId) {
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
         notifyCountedPlay(null, true);
-        return res.json({ success: true, counted: true, mode: 'anonymous-no-client' });
+        return reply({ success: true, counted: true, mode: 'anonymous-no-client' });
       }
 
       const existingAnonymousPlay = await pool.query(
@@ -4873,7 +4882,7 @@ app.post('/api/games/:id/play', async (req, res) => {
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
         notifyCountedPlay(null, true);
-        return res.json({ success: true, counted: true, mode: 'anonymous', cooldownHours });
+        return reply({ success: true, counted: true, mode: 'anonymous' });
       }
 
       const shouldCount = await shouldCountByCooldown(existingAnonymousPlay.rows[0].last_played_at);
@@ -4887,14 +4896,14 @@ app.post('/api/games/:id/play', async (req, res) => {
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
         notifyCountedPlay(null, true);
-        return res.json({ success: true, counted: true, mode: 'anonymous', cooldownHours });
+        return reply({ success: true, counted: true, mode: 'anonymous' });
       }
 
       await pool.query(
         'UPDATE anonymous_game_plays SET last_played_at = NOW() WHERE client_id = $1 AND game_id = $2',
         [clientId, req.params.id],
       );
-      return res.json({ success: true, counted: false, mode: 'anonymous', cooldownHours });
+      return reply({ success: true, counted: false, mode: 'anonymous' });
     }
 
     const userResult = await pool.query('SELECT id FROM users WHERE token = $1', [token]);
@@ -4902,7 +4911,7 @@ app.post('/api/games/:id/play', async (req, res) => {
       if (!clientId) {
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
         notifyCountedPlay(null, true);
-        return res.json({ success: true, counted: true, mode: 'anonymous-fallback-no-client' });
+        return reply({ success: true, counted: true, mode: 'anonymous-fallback-no-client' });
       }
 
       const existingAnonymousPlay = await pool.query(
@@ -4918,7 +4927,7 @@ app.post('/api/games/:id/play', async (req, res) => {
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
         notifyCountedPlay(null, true);
-        return res.json({ success: true, counted: true, mode: 'anonymous-fallback', cooldownHours });
+        return reply({ success: true, counted: true, mode: 'anonymous-fallback' });
       }
 
       const shouldCount = await shouldCountByCooldown(existingAnonymousPlay.rows[0].last_played_at);
@@ -4932,14 +4941,14 @@ app.post('/api/games/:id/play', async (req, res) => {
         );
         await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
         notifyCountedPlay(null, true);
-        return res.json({ success: true, counted: true, mode: 'anonymous-fallback', cooldownHours });
+        return reply({ success: true, counted: true, mode: 'anonymous-fallback' });
       }
 
       await pool.query(
         'UPDATE anonymous_game_plays SET last_played_at = NOW() WHERE client_id = $1 AND game_id = $2',
         [clientId, req.params.id],
       );
-      return res.json({ success: true, counted: false, mode: 'anonymous-fallback', cooldownHours });
+      return reply({ success: true, counted: false, mode: 'anonymous-fallback' });
     }
 
     const userId = userResult.rows[0].id;
@@ -4957,7 +4966,7 @@ app.post('/api/games/:id/play', async (req, res) => {
       await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
       await pool.query('UPDATE users SET games_played = COALESCE(games_played, 0) + 1 WHERE id = $1', [userId]);
       notifyCountedPlay(userId, false);
-      return res.json({ success: true, counted: true, mode: 'user', cooldownHours });
+      return reply({ success: true, counted: true, mode: 'user' });
     }
 
     const shouldCount = await shouldCountByCooldown(existingPlay.rows[0].last_played_at);
@@ -4973,16 +4982,60 @@ app.post('/api/games/:id/play', async (req, res) => {
       await pool.query('UPDATE games SET plays = plays + 1 WHERE id = $1', [req.params.id]);
       await pool.query('UPDATE users SET games_played = COALESCE(games_played, 0) + 1 WHERE id = $1', [userId]);
       notifyCountedPlay(userId, false);
-      return res.json({ success: true, counted: true, mode: 'user', cooldownHours });
+      return reply({ success: true, counted: true, mode: 'user' });
     }
 
     await pool.query(
       'UPDATE game_plays SET last_played_at = NOW() WHERE user_id = $1 AND game_id = $2',
       [userId, req.params.id],
     );
-    res.json({ success: true, counted: false, mode: 'user', cooldownHours });
+    reply({ success: true, counted: false, mode: 'user' });
   } catch (e) {
     console.error('Record play error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// A game was shown (became the card on screen). Fire-and-forget from clients.
+app.post('/api/games/:id/view', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const clientId = String(req.headers['x-client-id'] || '').trim();
+    const user = token ? (await pool.query('SELECT id FROM users WHERE token = $1', [token])).rows[0] : null;
+    const platform = (req.headers['sec-ch-ua-mobile'] === '?1' || /mobile|android|iphone|ipad|okhttp|cfnetwork/i.test(req.headers['user-agent'] || '')) ? 'mobile' : 'web';
+    await pool.query(
+      `INSERT INTO game_views (game_id, user_id, client_id, platform)
+       SELECT $1::varchar, $2::uuid, $3::varchar, $4::varchar WHERE EXISTS (SELECT 1 FROM games WHERE id = $1::varchar)`,
+      [req.params.id, user ? user.id : null, clientId.slice(0, 255) || null, platform]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Play] view error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Time played in a session from POST /api/games/:id/play. Clients report the elapsed seconds
+// every ~15 s while the game is on screen and once when it leaves; the largest value wins, so
+// a closed tab still keeps the time up to its last report. Only the device (or account) that
+// opened the session can update it.
+app.post('/api/games/:id/sessions/:sessionId', async (req, res) => {
+  try {
+    const seconds = Math.min(Math.max(0, Math.round(Number(req.body?.seconds) || 0)), MAX_SESSION_SECONDS);
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.sessionId)) return res.status(404).json({ error: 'Session not found' });
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const clientId = String(req.headers['x-client-id'] || '').trim();
+    const user = token ? (await pool.query('SELECT id FROM users WHERE token = $1', [token])).rows[0] : null;
+    const result = await pool.query(
+      `UPDATE game_sessions
+          SET duration_seconds = GREATEST(duration_seconds, $1::int), ended_at = started_at + make_interval(secs => GREATEST(duration_seconds, $1::int))
+        WHERE id = $2 AND game_id = $3
+          AND ((client_id IS NOT NULL AND client_id = $4) OR (user_id IS NOT NULL AND user_id = $5))`,
+      [seconds, req.params.sessionId, req.params.id, clientId || null, user ? user.id : null]
+    );
+    res.json({ success: result.rowCount === 1 });
+  } catch (err) {
+    console.error('[Play] session time error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
