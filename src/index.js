@@ -2346,8 +2346,6 @@ async function runGameChecks({ url, html }) {
   // Recommendations (never block publishing).
   add({ id: 'viewport', label: 'Mobile viewport meta tag', blocking: false, ok: /<meta[^>]*name=["']viewport["']/i.test(htmlText),
         detail: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> so the game fits phones.' });
-  add({ id: 'bridge', label: 'GameTok bridge script', blocking: false, ok: /<script[^>]*bridge\.js/i.test(htmlText),
-        detail: 'Add <script src="https://gametok.co/bridge.js"></script> for fitting, scores and player identity.' });
 
   const meta = extractGameMeta(htmlText, finalUrl);
   meta.orientation = await declaredOrientation(htmlText, finalUrl);
@@ -3027,12 +3025,8 @@ app.post('/api/developer/games', async (req, res) => {
     const generatedPrompt = `Read https://gametok.co/skill.md and package this game for GameTok.
 
 1. Inspect project structure and entry point.
-2. Add the GameTok bridge script to the HTML head:
-   <script src="https://gametok.co/bridge.js" data-creator-handle="${developer.username}" data-creator-name="${developer.display_name || developer.username}" data-game-title="${saved.name}"></script>
-3. Listen for lifecycle events (GameTok.on('pause', ...), GameTok.on('resume', ...)).
-4. Wire score submissions: GameTok.submitScore(score) on game over or high scores.
-5. Verify mobile touch-action and viewport scaling.
-6. Verify game readiness locally and report changed files.`;
+2. Verify mobile touch controls and viewport scaling.
+3. Verify game readiness locally and report changed files.`;
 
     res.json({
       success: true,
@@ -3040,7 +3034,6 @@ app.post('/api/developer/games', async (req, res) => {
       integrationPrompt: generatedPrompt,
       integrationChecklist: {
         reviewedInstructions: false,
-        sdkIntegrated: false,
         testedLocally: false,
         passedChecks: false,
         submitted: false
@@ -3114,17 +3107,9 @@ Target Orientation: ${game.orientation}
 
 Instructions for Coding Agent:
 1. Inspect project structure and identify the game entry point.
-2. Add the GameTok bridge script to your main HTML file:
-   <script src="https://gametok.co/bridge.js" data-creator-handle="${developer.username}" data-creator-name="${developer.display_name || developer.username}" data-game-title="${game.name}"></script>
-3. Implement lifecycle handling:
-   - window.GameTok.on('pause', () => { /* Pause game audio and animation loop */ });
-   - window.GameTok.on('resume', () => { /* Resume gameplay */ });
-4. Implement player metrics:
-   - Call window.GameTok.submitScore(score) when the player completes a run or achieves a high score.
-   - Call window.GameTok.gameOver(score) when the round concludes.
-5. Check mobile viewport & touch actions:
-   - Ensure viewport is responsive and prevent default scrolling issues.
-6. Report changed files, compatibility issues, and test the game locally.`;
+2. Check mobile viewport & touch actions:
+   - Ensure viewport is responsive, the game responds to taps, and default scrolling is prevented.
+3. Report changed files, compatibility issues, and test the game locally.`;
 
     const versions = await pool.query('SELECT * FROM game_versions WHERE game_id = $1 ORDER BY created_at DESC', [game.id]);
 
@@ -3135,7 +3120,6 @@ Instructions for Coding Agent:
       integrationPrompt: prompt,
       checklist: {
         reviewedInstructions: true,
-        sdkIntegrated: game.verification_status === 'verified',
         testedLocally: game.verification_status === 'verified',
         passedChecks: game.verification_status === 'verified',
         submitted: game.status !== 'draft'
@@ -3146,7 +3130,7 @@ Instructions for Coding Agent:
   }
 });
 
-// 4. Automated verification endpoint (probes the entry point or HTML for bridge integration)
+// 4. Automated verification endpoint (re-runs the publish checks)
 app.post('/api/developer/games/:id/verify', async (req, res) => {
   try {
     const game = req.game; // requireOwnedGame
