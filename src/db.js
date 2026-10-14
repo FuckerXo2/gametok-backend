@@ -676,6 +676,8 @@ export const runMigrations = async () => {
       ALTER TABLE games ADD COLUMN IF NOT EXISTS mobile_check JSONB;
       -- Accounts allowed into the admin site (games.gametok.co/admin); see requireAdmin.
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+      -- Team, studio and test accounts: left out of the admin numbers (players, sign-ups, retention).
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_internal BOOLEAN NOT NULL DEFAULT FALSE;
       -- When a game was included in the daily "new games" push (src/new-game-push.js).
       ALTER TABLE games ADD COLUMN IF NOT EXISTS announced_at TIMESTAMP;
       -- Last run of once-a-day jobs, claimed atomically so only one server instance runs them.
