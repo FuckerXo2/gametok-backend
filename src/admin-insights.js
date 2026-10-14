@@ -7,6 +7,7 @@
 //   view    = a game shown on screen (game_views)
 //   session = a game opened and played (game_sessions); duration_seconds is time played
 //   plays   = the per-game counter, which counts a replay within 30 minutes once
+//   owner   = games.developer holds the owner's user id, or on older rows their username
 import express from 'express';
 import pool from './db.js';
 
@@ -71,7 +72,7 @@ router.get('/games', async (req, res) => {
              (SELECT ROUND(AVG(duration_seconds)) FROM game_sessions s WHERE s.game_id = g.id AND s.duration_seconds > 0 AND s.started_at >= NOW() - make_interval(days => $1)) AS avg_session_seconds,
              (SELECT MAX(started_at) FROM game_sessions s WHERE s.game_id = g.id) AS last_played_at
         FROM games g
-        LEFT JOIN users u ON u.id::text = g.developer
+        LEFT JOIN users u ON u.id::text = g.developer OR (u.username IS NOT NULL AND u.username = g.developer)
        ORDER BY sessions DESC, g.created_at DESC`, [days]);
     res.json({ days, games: r.rows.map((g) => ({
       ...g, views: +g.views, sessions: +g.sessions, players: +g.players, seconds_played: +g.seconds_played,
@@ -100,7 +101,7 @@ router.get('/users', async (req, res) => {
              (SELECT COALESCE(SUM(duration_seconds), 0) FROM game_sessions s WHERE s.user_id = u.id) AS seconds_played,
              (SELECT COUNT(DISTINCT game_id) FROM game_sessions s WHERE s.user_id = u.id) AS games_played,
              (SELECT MAX(started_at) FROM game_sessions s WHERE s.user_id = u.id) AS last_played_at,
-             (SELECT COUNT(*) FROM games g WHERE g.developer = u.id::text) AS games_published,
+             (SELECT COUNT(*) FROM games g WHERE g.developer = u.id::text OR g.developer = u.username) AS games_published,
              EXISTS (SELECT 1 FROM push_tokens p WHERE p.user_id = u.id) AS push_enabled
         FROM users u ${where}
        ORDER BY u.created_at DESC NULLS LAST
@@ -122,7 +123,7 @@ router.get('/users/:id', async (req, res) => {
       SELECT s.game_id, g.name, COUNT(*)::int AS sessions, COALESCE(SUM(s.duration_seconds), 0)::int AS seconds_played, MAX(s.started_at) AS last_played_at
         FROM game_sessions s LEFT JOIN games g ON g.id = s.game_id
        WHERE s.user_id = $1 GROUP BY s.game_id, g.name ORDER BY last_played_at DESC LIMIT 100`, [req.params.id])).rows;
-    const published = (await pool.query(`SELECT id, name, status, created_at FROM games WHERE developer = $1 ORDER BY created_at DESC`, [req.params.id])).rows;
+    const published = (await pool.query(`SELECT id, name, status, created_at FROM games WHERE developer = $1 OR developer = $2 ORDER BY created_at DESC`, [req.params.id, user.username || ''])).rows;
     const searches = (await pool.query(`SELECT query, created_at FROM search_events WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`, [req.params.id]).catch(() => ({ rows: [] }))).rows;
     res.json({ user, games, published, searches });
   } catch (err) {
@@ -144,7 +145,7 @@ router.get('/activity', async (req, res) => {
          ORDER BY s.started_at DESC LIMIT $1)
       UNION ALL
       (SELECT 'publish', g.created_at, g.developer, u.username, g.id, g.name, g.status, NULL
-         FROM games g LEFT JOIN users u ON u.id::text = g.developer ORDER BY g.created_at DESC LIMIT $1)
+         FROM games g LEFT JOIN users u ON u.id::text = g.developer OR (u.username IS NOT NULL AND u.username = g.developer) ORDER BY g.created_at DESC LIMIT $1)
       ORDER BY at DESC NULLS LAST LIMIT $1`, [limit]);
     res.json({ events: r.rows });
   } catch (err) {
