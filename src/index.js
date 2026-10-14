@@ -34,7 +34,6 @@ import { seedPosts } from './seed-posts.js';
 import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, classifyGame } from './categories.js';
 import { backfillGameCategories } from './scripts/backfill-game-categories.js';
 
-import botRouter, { ensureBotTables, startBotEngineScheduler } from './bot-engine.js';
 import coverArtRouter from './cover-art-router.js';
 import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
@@ -133,7 +132,6 @@ app.use('/api/assets', assetsRouter);
 app.use('/api/posts', postsPublicRouter);
 app.use('/api/admin/posts', postsAdminRouter);
 app.use('/api/admin/blog/images', blogImagesRouter);
-app.use('/api/admin/bots', botRouter);
 app.use('/api/admin/covers', coverArtRouter);
 
 app.use('/api/presence', presenceRouter);
@@ -7500,8 +7498,6 @@ const start = async () => {
   // Initialize Forge Socket for Hermes Agent-Driven Studio UI
   initializeForgeSocket(server);
 
-  startBotEngineScheduler();
-
   // Run database initialization and migrations asynchronously with automatic retries
   (async () => {
     let retries = 5;
@@ -7518,7 +7514,6 @@ const start = async () => {
         await runStoriesMigration();
         await runMultiplayerMigration();
         await runAnonymousTokensMigration();
-        await ensureBotTables();
         backfillGameCategories().catch((e) => console.warn('[backfill] error:', e.message));
         console.log('✅ Database and migrations initialized successfully');
         break;
