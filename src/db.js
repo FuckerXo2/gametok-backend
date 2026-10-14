@@ -674,6 +674,13 @@ export const runMigrations = async () => {
       ALTER TABLE games ADD COLUMN IF NOT EXISTS platform VARCHAR(12);
       ALTER TABLE games ADD COLUMN IF NOT EXISTS platform_source VARCHAR(12);
       ALTER TABLE games ADD COLUMN IF NOT EXISTS mobile_check JSONB;
+      -- When a game was included in the daily "new games" push (src/new-game-push.js).
+      ALTER TABLE games ADD COLUMN IF NOT EXISTS announced_at TIMESTAMP;
+      -- Last run of once-a-day jobs, claimed atomically so only one server instance runs them.
+      CREATE TABLE IF NOT EXISTS scheduled_job_runs (
+        name TEXT PRIMARY KEY,
+        last_run_at TIMESTAMP NOT NULL
+      );
       -- A game shown to someone (the active card in a feed, or a game page). Against
       -- game_sessions (opened/played) this gives how many who see a game play it.
       CREATE TABLE IF NOT EXISTS game_views (

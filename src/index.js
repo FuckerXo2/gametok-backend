@@ -39,6 +39,7 @@ import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-route
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
 import { handleGameUpload, handleGameUploadStart, handleGameUploadFinish, handleGameFilesStart, handleGameFilesFinish, MAX_ZIP_BYTES } from './game-uploads.js';
 import { decidePlatform, platformSql } from './mobile-fit.js';
+import { announceNewGames } from './new-game-push.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -7550,7 +7551,6 @@ const start = async () => {
 
       const messages = [
         { title: '🎮 Come back and play!', body: 'New games are waiting for you. Tap to play!' },
-        { title: '🔥 You\'re missing out!', body: 'Your friends are playing right now. Join them!' },
         { title: '🎯 Quick game?', body: 'Just 5 minutes. You know you want to!' },
         { title: '✨ New games just dropped!', body: 'Check out the latest games on GameTOK!' },
         { title: '🏆 Can you beat the top score?', body: 'Challenge yourself. Tap to play!' },
@@ -7599,6 +7599,12 @@ const start = async () => {
       console.error('[Scheduler] Error:', e);
     }
   }, ONE_DAY);
+
+  // New games push: checked every 15 minutes; announceNewGames itself only sends in the Lagos
+  // evening, once a day, and only when games went live that day.
+  setInterval(() => {
+    announceNewGames(pool).catch((e) => console.error('[NewGamesPush] error:', e.message));
+  }, 15 * 60 * 1000);
 
   if (process.env.RUN_NOTIFICATION_STARTUP_CHECK === 'true') {
     setTimeout(async () => {
