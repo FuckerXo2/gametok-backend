@@ -49,6 +49,17 @@ const contentTypeFor = (name) => CONTENT_TYPES[name.split('.').pop().toLowerCase
 
 class UploadError extends Error {}
 
+// A project's source page, not a build: it loads code browsers can't run (TypeScript, JSX, Vue,
+// Svelte) or still has build-time placeholders like {{APP_VERSION}}. Such a game never loads.
+// Same rule as the browser uploader (games.gametok.co/assets/game-folder.js).
+function assertBuilt(html) {
+  const text = Buffer.from(html).toString('utf8');
+  let why = null;
+  if (/<script[^>]+src=["'][^"']+\.(ts|tsx|jsx|vue|svelte)(\?[^"']*)?["']/i.test(text)) why = 'it loads TypeScript/JSX source files that browsers can\'t run';
+  else if (/\{\{\s*[A-Z][A-Z0-9_]{2,}\s*\}\}/.test(text)) why = 'it still has build placeholders like {{APP_VERSION}}';
+  if (why) throw new UploadError(`That's the game's source code, not a playable build: ${why}. Run the build (usually npm install, then npm run build) and upload the folder it creates, usually dist.`);
+}
+
 // Returns { files: [{ path, data }] } rooted at the folder holding the game's index.html.
 export function unpackGameZip(buffer) {
   let declared = 0;
@@ -83,6 +94,8 @@ export function unpackGameZip(buffer) {
     .map(([name, data]) => ({ path: name.replace(/\\/g, '/'), data }))
     .filter((f) => f.path.startsWith(root))
     .map((f) => ({ path: f.path.slice(root.length), data: f.data }));
+  const entryFile = files.find((f) => f.path === entry.slice(root.length));
+  assertBuilt(entryFile.data);
   for (const f of files) {
     if (/\.html?$/i.test(f.path)) f.data = relativizeRootPaths(f.data, f.path);
   }
@@ -263,6 +276,7 @@ export async function handleGameFilesFinish(req, res) {
       const Key = `${prefix}/${path}`;
       const obj = await s3.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key }));
       const data = Buffer.from(await obj.Body.transformToByteArray());
+      if (path === entry) assertBuilt(data);
       const fixed = relativizeRootPaths(data, path);
       if (fixed !== data) {
         await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key, Body: fixed, ContentType: contentTypeFor(path) }));
