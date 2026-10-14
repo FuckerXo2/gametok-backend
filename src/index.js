@@ -40,6 +40,7 @@ import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-se
 import { handleGameUpload, handleGameUploadStart, handleGameUploadFinish, handleGameFilesStart, handleGameFilesFinish, MAX_ZIP_BYTES } from './game-uploads.js';
 import { decidePlatform, platformSql } from './mobile-fit.js';
 import { announceNewGames } from './new-game-push.js';
+import { withCloudSave } from './cloud-save-tag.js';
 import adminInsightsRouter from './admin-insights.js';
 
 
@@ -4814,7 +4815,7 @@ app.get('/api/games/:id/play-html', async (req, res) => {
     const row = result.rows[0];
     if (row.script_payload) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.send(row.script_payload);
+      return res.send(withCloudSave(row.script_payload));
     }
     if (row.embed_url) {
       return res.redirect(302, row.embed_url);

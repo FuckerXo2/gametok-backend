@@ -11,6 +11,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, Head
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import pool from './db.js';
 import { decidePlatform } from './mobile-fit.js';
+import { withCloudSave } from './cloud-save-tag.js';
 
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gametok-games-assets';
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`).replace(/\/$/, '');
@@ -96,6 +97,7 @@ export function unpackGameZip(buffer) {
     .map((f) => ({ path: f.path.slice(root.length), data: f.data }));
   const entryFile = files.find((f) => f.path === entry.slice(root.length));
   assertBuilt(entryFile.data);
+  entryFile.data = withCloudSave(entryFile.data);
   for (const f of files) {
     if (/\.html?$/i.test(f.path)) f.data = relativizeRootPaths(f.data, f.path);
   }
@@ -277,7 +279,7 @@ export async function handleGameFilesFinish(req, res) {
       const obj = await s3.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key }));
       const data = Buffer.from(await obj.Body.transformToByteArray());
       if (path === entry) assertBuilt(data);
-      const fixed = relativizeRootPaths(data, path);
+      const fixed = relativizeRootPaths(path === entry ? withCloudSave(data) : data, path);
       if (fixed !== data) {
         await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key, Body: fixed, ContentType: contentTypeFor(path) }));
       }
