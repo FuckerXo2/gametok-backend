@@ -99,19 +99,38 @@ const s3 = new S3Client({
   },
 });
 
-for (const file of files) {
+// Several uploads at once (big games, like an open-world city, are tens of thousands of files)
+const uploadOne = async (file) => {
   const extension = path.extname(file.fullPath).toLowerCase();
   const isEntryDocument = file.relativePath === 'index.html';
-  await s3.send(new PutObjectCommand({
-    Bucket: process.env.R2_BUCKET_NAME,
-    Key: `${prefix}/${file.relativePath}`,
-    Body: fs.readFileSync(file.fullPath),
-    ContentType: mimeTypes[extension] || 'application/octet-stream',
-    CacheControl: isEntryDocument ? 'no-cache, max-age=0' : 'public, max-age=31536000, immutable',
-  }));
-  process.stdout.write('.');
-}
-process.stdout.write('\n');
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await s3.send(new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: `${prefix}/${file.relativePath}`,
+        Body: fs.readFileSync(file.fullPath),
+        ContentType: mimeTypes[extension] || 'application/octet-stream',
+        CacheControl: isEntryDocument ? 'no-cache, max-age=0' : 'public, max-age=31536000, immutable',
+      }));
+      return;
+    } catch (error) {
+      if (attempt >= 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
+  }
+};
+// index.html last: the release isn't playable until everything it loads is there
+const queue = files.filter((file) => file.relativePath !== 'index.html');
+let done = 0;
+await Promise.all(Array.from({ length: 24 }, async () => {
+  while (queue.length) {
+    await uploadOne(queue.shift());
+    if (++done % 500 === 0) process.stdout.write(`${done}/${files.length}\n`);
+  }
+}));
+const entry = files.find((file) => file.relativePath === 'index.html');
+if (entry) await uploadOne(entry);
+process.stdout.write(`${files.length} uploaded\n`);
 
 let uploadedThumbnailUrl = null;
 if (thumbnailArg && fs.existsSync(thumbnailArg)) {

@@ -54,6 +54,28 @@ steps:
       - '--min-instances'
       - '1'
 
+  # ---- GTA Lagos multiplayer (services/lagos-online): its own service, near Lagos (London), one
+  # always-on instance (players' money lives in it), its files on a bucket mounted at /data
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/lagos-online:$COMMIT_SHA', 'services/lagos-online']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/lagos-online:$COMMIT_SHA']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args: ['-c', 'gcloud storage buckets describe gs://$PROJECT_ID-lagos-online-data >/dev/null 2>&1 || gcloud storage buckets create gs://$PROJECT_ID-lagos-online-data --location=europe-west2 --uniform-bucket-level-access']
+  # (the bucket is mounted on the first deploy; later deploys keep it and only change the image)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        VOL=""
+        gcloud run services describe lagos-online --region europe-west2 >/dev/null 2>&1 || VOL="--add-volume name=data,type=cloud-storage,bucket=$PROJECT_ID-lagos-online-data --add-volume-mount volume=data,mount-path=/data"
+        gcloud run deploy lagos-online --image gcr.io/$PROJECT_ID/lagos-online:$COMMIT_SHA \
+          --region europe-west2 --platform managed --allow-unauthenticated --execution-environment gen2 \
+          --cpu 1 --memory 512Mi --no-cpu-throttling --min-instances 1 --max-instances 1 --concurrency 1000 \
+          --timeout 3600 --session-affinity --update-env-vars DATA_DIR=/data,ECONOMY=1 $$VOL
+
 images:
   - 'gcr.io/$PROJECT_ID/gametok-backend:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/gametok-backend:latest'
