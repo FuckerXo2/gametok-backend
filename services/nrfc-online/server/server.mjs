@@ -437,6 +437,24 @@ setInterval(() => {
   }
 }, 1000 / 120);
 
+// voice: how phones reach each other. Cloudflare's TURN relay (TURN_KEY_ID + TURN_KEY_TOKEN, the
+// same keys as GTA Lagos) for the mobile networks that block phone-to-phone audio, plus Google's
+// STUN; credentials last a day and are fetched again after an hour
+const STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+let ice = { list: null, at: 0 };
+async function iceServers() {
+  const id = process.env.TURN_KEY_ID, token = process.env.TURN_KEY_TOKEN;
+  if (!id || !token) return STUN;
+  if (ice.list && Date.now() - ice.at < 3600e3) return ice.list;
+  try {
+    const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${id}/credentials/generate-ice-servers`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ttl: 86400 }) });
+    const d = await r.json();
+    if (!r.ok || !d.iceServers) throw new Error(JSON.stringify(d).slice(0, 200));
+    ice = { list: [...STUN, ...(Array.isArray(d.iceServers) ? d.iceServers : [d.iceServers])], at: Date.now() };
+    return ice.list;
+  } catch (e) { console.error('[ice] TURN credentials failed', e.message); return ice.list || STUN; }
+}
+
 // ── HTTP: the game itself ────────────────────────────────────────────────────────────────────
 const MIME = { '.m4a': 'audio/mp4', '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json', '.css': 'text/css' };
 const server = http.createServer((req, res) => {
@@ -461,6 +479,10 @@ const server = http.createServer((req, res) => {
     if (ok && u === '/unban') { unban(q.get('id')); out = { unbanned: q.get('id') }; }
     if (ok && u === '/bans') out = banList();
     res.writeHead(ok ? 200 : 403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out, null, 1)); return;
+  }
+  if (u === '/ice') {
+    iceServers().then((list) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }); res.end(JSON.stringify({ iceServers: list })); });
+    return;
   }
   if (u === '/status') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify([...rooms.values()].map((r) => ({ room: r.name, players: r.clients.size })))); return; }
   const f = path.join(ROOT, path.normalize(u));
