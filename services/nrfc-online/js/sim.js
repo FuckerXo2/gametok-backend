@@ -48,6 +48,7 @@ export const HEROES = {
   spiderman: { name: 'Spider-Man', price: 0, role: 'AGILE', sdesc: 'Yanks the ball into your hands from 34 m and webs up the two nearest opponents', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.12, spr: 1.18, shot: 1.12, tough: 0.35, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 4, h: 1.76, girth: 0.97, acc: 36, turn: 12 },
   baki: { name: 'Baki', price: 0, role: 'TANK', sdesc: 'Charge through everyone in your path', kdesc: '5 s: can’t be floored, every punch floors', power: 'rampage', label: 'DEMON BACK RUSH', color: '#ff7a2a', ready: true, spd: 1.02, spr: 1.08, shot: 1.1, tough: 0.65, jump: 7.2, move: 'TANK', skill: 'rage', skillName: 'DEMON RAGE', skillCd: 12, h: 1.8, girth: 1.08, acc: 24, turn: 8.5 },
   yujiro: { name: 'Yujiro', price: 2000, role: 'TANK', sdesc: 'Launches everyone within 9 m', kdesc: 'Pick one up and throw them', power: 'quake', label: 'OGRE STOMP', color: '#ff2a50', ready: true, spd: 0.95, spr: 0.95, shot: 1.3, tough: 0.92, jump: 6.6, move: 'UNSTOPPABLE', skill: 'grab', skillName: 'OGRE THROW', skillCd: 7, h: 2.15, girth: 1.12, acc: 22, turn: 7.5 },
+  hulk: { name: 'Hulk', price: 2500, role: 'GIANT', sdesc: 'One clap: a shockwave that blows everyone ahead away, the ball too', kdesc: 'A huge leap that smashes down where he lands', power: 'clap', label: 'THUNDERCLAP', color: '#5fd84a', ready: true, spd: 0.92, spr: 1.04, shot: 1.4, tough: 0.97, jump: 7, move: 'GIANT', skill: 'leap', skillName: 'HULK SMASH', skillCd: 7, h: 2.75, girth: 1.2, acc: 20, turn: 7, giant: true },
   goku: { name: 'Goku', price: 0, role: 'BEAM', sdesc: 'Charge, then fire the ball through the keeper', kdesc: 'Appear right behind the ball', power: 'beam', label: 'KAMEHAMEHA', color: '#5fd8ff', ready: true, spd: 1.05, spr: 1.12, shot: 1.15, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'tp', skillName: 'INSTANT TRANSMISSION', skillCd: 9, h: 1.78, girth: 1.0, acc: 30, turn: 10 },
   vegeta: { name: 'Vegeta', price: 1200, role: 'BEAM', sdesc: 'A wider beam that launches everyone', kdesc: 'An exploding energy shot', power: 'beam', label: 'FINAL FLASH', color: '#ffe45a', ready: true, spd: 1.05, spr: 1.12, shot: 1.18, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'bigbang', skillName: 'BIG BANG ATTACK', skillCd: 8, h: 1.66, girth: 1.0, acc: 30, turn: 10 },
   superman: { name: 'Superman', price: 1500, role: 'POWER', sdesc: 'Burn the ball across the pitch', kdesc: 'A flying punch, ground or air', power: 'heat', label: 'HEAT VISION', color: '#ff3a20', ready: true, spd: 1.0, spr: 1.12, shot: 1.22, tough: 0.85, jump: 7, fly: true, move: 'FLIGHT', skill: 'dash', skillName: 'SUPER PUNCH', skillCd: 6, h: 1.93, girth: 1.04, acc: 30, turn: 10 },
@@ -170,7 +171,11 @@ export function movePlayer(p, inp, dt, frozen) {
     if (H.glide && inp.hold && air && st === 'free' && p.vy < -1.6) p.vy = -1.6;
   }
   p.y += p.vy * dt;
-  if (p.y < 0) { p.y = 0; p.vy = 0; }
+  if (p.y < 0) {
+    if (p.leapT > 0 && p.vy < -2) { p.leapT = 0; p.smash = true; }   // Hulk Smash lands (the match step does the damage)
+    p.y = 0; p.vy = 0;
+  }
+  if (p.leapT > 0) p.leapT -= dt;
   p.x += p.vx * dt; p.z += p.vz * dt;
   clampPlayer(p);
 }
@@ -513,6 +518,16 @@ function superMove(sim, p) {
       for (const q of foes(sim, p)) { const dx = q.x - ox, dz = q.z - oz, d = hyp(dx, dz); if (d < 9) launch(sim, q, p, dx, dz, 15 - d, 9 - d * 0.4, 'thrown'); }
       if (hyp(b.x - ox, b.z - oz) < 9) { b.owner = -1; b.vy = 13; b.vx += (b.x - ox) * 0.8; b.vz += (b.z - oz) * 0.8; b.last = p.id; }
       ev.o = [ox, gy, oz]; break;
+    case 'clap': {                                       // Hulk: a shockwave ahead, everyone and the ball blown away
+      p.st = 'power'; p.stT = 0.8;
+      for (const q of foes(sim, p)) {
+        const dx = q.x - ox, dz = q.z - oz, d = hyp(dx, dz);
+        if (d < 15 && (dx * fx + dz * fz) / (d || 1) > 0.55) launch(sim, q, p, dx, dz, 20 - d * 0.7, 7 - d * 0.25, 'launch');
+      }
+      const bx = b.x - ox, bz = b.z - oz, bd = hyp(bx, bz);
+      if (bd < 15 && (bx * fx + bz * fz) / (bd || 1) > 0.5) blastBall(sim, p, fx, 0.16, fz, 34, 0);
+      ev.o = [ox, gy, oz]; break;
+    }
     case 'web': {
       const hx = ox + fx * 0.8, hy = gy + 1.2, hz = oz + fz * 0.8, d = hyp(b.x - hx, b.y - hy, b.z - hz);
       p.st = 'power'; p.stT = 0.6;
@@ -592,6 +607,7 @@ function skillMove(sim, p) {
     }
     case 'phase': p.phaseT = 2.6; break;
     case 'rage': p.rageT = 5; break;
+    case 'leap': p.vy = 13; p.vx = fx * 17; p.vz = fz * 17; p.leapT = 2; break;   // Hulk: up, and smash where he lands
   }
   p.skCd = h.skillCd;
   sim.events.push(ev);
@@ -692,6 +708,13 @@ export function step(sim, dt = DT) {
     if (p.st === 'charge' && p.stT - dt <= 0) fireBeam(sim, p);
     movePlayer(p, p.input, dt, frozen);
     p.input.jump = false;
+    if (p.smash) {                                         // Hulk Smash: everyone near the landing is thrown, the ball pops up
+      p.smash = false;
+      for (const q of foes(sim, p)) { const dx = q.x - p.x, dz = q.z - p.z, d = hyp(dx, dz); if (d < 6.5) launch(sim, q, p, dx, dz, 14 - d, 8 - d * 0.6, 'thrown'); }
+      const b = sim.ball, bo = b.owner >= 0 ? P[b.owner] : null;
+      if ((!bo || bo.team !== p.team) && hyp(b.x - p.x, b.z - p.z) < 6.5) { b.owner = -1; b.vy = 11; b.last = p.id; }
+      sim.events.push({ k: 'smash', p: p.id, o: [p.x, 0, p.z] });
+    }
     if (p.st === 'dash') {                                 // Superman's flying punch: the first one in the way gets it
       for (const q of P) if (q.team !== p.team && q.st !== 'down' && hyp(q.x - p.x, q.z - p.z) < 1.5 && Math.abs(wy(q) - wy(p)) < 1.8) {
         launch(sim, q, p, p.vx, p.vz, 18, 8, 'ko'); p.st = 'punch'; p.pk = 3; p.stT = 0.4; p.vx *= 0.15; p.vz *= 0.15;
@@ -743,14 +766,15 @@ export function step(sim, dt = DT) {
   // bodies
   for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
     const a = P[i], c = P[j];
-    const dx = c.x - a.x, dz = c.z - a.z, d = hyp(dx, dz);
-    if (d >= PR * 2 || d < 1e-4 || Math.abs(a.y - c.y) > 1.2 || a.phaseT > 0 || c.phaseT > 0) continue;
-    const nx = dx / d, nz = dz / d, o = (PR * 2 - d) / 2;
-    a.x -= nx * o; a.z -= nz * o; c.x += nx * o; c.z += nz * o;
-    if (a.team !== c.team) {                               // run someone over
+    const dx = c.x - a.x, dz = c.z - a.z, d = hyp(dx, dz), ga = heroOf(a).giant, gc = heroOf(c).giant;
+    const rsum = PR * (ga ? 1.6 : 1) + PR * (gc ? 1.6 : 1);
+    if (d >= rsum || d < 1e-4 || Math.abs(a.y - c.y) > (ga || gc ? 2 : 1.2) || a.phaseT > 0 || c.phaseT > 0) continue;
+    const nx = dx / d, nz = dz / d, o = rsum - d, wa = ga && !gc ? 0.15 : gc && !ga ? 0.85 : 0.5;   // the giant barely moves
+    a.x -= nx * o * wa; a.z -= nz * o * wa; c.x += nx * o * (1 - wa); c.z += nz * o * (1 - wa);
+    if (a.team !== c.team) {                               // run someone over (a giant only needs a jog)
       const ra = a.vx * nx + a.vz * nz, rc = -(c.vx * nx + c.vz * nz);
-      if (a.st === 'slide' || (ra > 8.6 && ra > rc + 3)) knockDown(sim, c, a, 7, false, a.st === 'slide' ? 'trip' : 'shoulder');
-      else if (c.st === 'slide' || (rc > 8.6 && rc > ra + 3)) knockDown(sim, a, c, 7, false, c.st === 'slide' ? 'trip' : 'shoulder');
+      if (a.st === 'slide' || (ra > (ga ? 5.5 : 8.6) && ra > rc + 3)) knockDown(sim, c, a, ga ? 10 : 7, false, a.st === 'slide' ? 'trip' : 'shoulder');
+      else if (c.st === 'slide' || (rc > (gc ? 5.5 : 8.6) && rc > ra + 3)) knockDown(sim, a, c, gc ? 10 : 7, false, c.st === 'slide' ? 'trip' : 'shoulder');
     }
     clampPlayer(a); clampPlayer(c);
   }
@@ -1059,6 +1083,7 @@ function botSkill(sim, p, dir, own, opp) {
     case 'shield': go = Math.abs(b.x - own) < 22 && Math.sign(b.vx) === -dir && Math.abs(b.vx) > 8; if (go) face(b.x, b.z); break;
     case 'phase': go = owner === p && foes(sim, p).some((q) => hyp(q.x - p.x, q.z - p.z) < 3); break;
     case 'rage': go = foes(sim, p).filter((q) => hyp(q.x - p.x, q.z - p.z) < 6).length >= 2; break;
+    case 'leap': go = dO > 6 && dO < 15; if (go) face(foeOwner.x, foeOwner.z); break;
   }
   p.ai.react = go ? 0.6 : 0.25;
   if (go) act(sim, p, 'skill');
@@ -1078,6 +1103,7 @@ function botSuper(sim, p, dir, own, opp) {
     case 'rampage': go = owner && owner.team !== p.team && hyp(owner.x - p.x, owner.z - p.z) < 12; if (go) face(owner.x, owner.z); break;
     case 'quake': go = near(8).length >= 2 || (owner && owner.team !== p.team && hyp(owner.x - p.x, owner.z - p.z) < 6); break;
     case 'web': go = !owner && dB > 7 && dB < 30; break;
+    case 'clap': { const ahead = near(12).filter((q) => ((q.x - p.x) * dir) > 0).length; go = ahead >= 2 || (owner === p && hyp(opp - p.x, p.z) < 26); if (go && owner === p) face(opp, 0); break; }
     case 'lightning': go = hyp(opp - b.x, b.z) < 30 || (owner && owner.team !== p.team && dB < 30); break;
     case 'speed': go = dB > 15; break;
     case 'batarang': go = owner && owner.team !== p.team && dB < 28; if (go) face(owner.x, owner.z); break;
