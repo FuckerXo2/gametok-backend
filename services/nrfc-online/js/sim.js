@@ -826,11 +826,14 @@ function stepBall(sim, dt) {
     }
     const wc = p.webCatch > 0;                             // Spider-Man reeling in his web pull
     const mine = b.passTo === p.id && b.passT > 0;         // a pass meant for you: a bigger first touch, at any speed
-    if (b.y >= (wc ? 2.4 : mine ? 1.9 : p.bot ? 0.95 : 1.3)) continue;   // humans can trap a bouncing ball up to the chest
+    if (b.y >= (wc ? 2.4 : mine ? 1.9 : p.bot ? 0.95 : 1.6)) continue;   // humans can trap a bouncing ball up to the chest
     const d = hyp(b.x - p.x, b.z - p.z);
-    if (d > (wc ? 2.6 : mine ? 2.1 : p.bot ? 1.05 : 1.35)) continue;    // humans pick it up from a little further
+    // humans pick it up from a little further, and further still from a fast ball: online their hero gets
+    // here a moment after they see themselves arrive, and a 20 m/s ball has moved on by then
+    const fast = p.bot ? 0 : Math.min(0.9, hyp(b.vx, b.vz) * 0.04);
+    if (d > (wc ? 2.6 : mine ? 2.1 + fast : p.bot ? 1.05 : 1.35 + fast)) continue;
     const rel = hyp(b.vx - p.vx, b.vz - p.vz);
-    if (rel > 15 && !wc && !mine) continue;
+    if (rel > (p.bot ? 15 : 24) && !wc && !mine) continue;   // humans can kill a fast ball dead
     let s = d - (p.id === b.owner ? 0.35 : 0);
     // challenging the carrier: stay on the ball for a moment and you win it (bodies can't
     // overlap, so without this a carrier who stands still could never lose it)
