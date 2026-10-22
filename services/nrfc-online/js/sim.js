@@ -45,7 +45,7 @@ const BOT_NAMES = ['Kaizo_77', 'vortexx', 'PixelPunter', 'zoomies', 'frostbyte_'
 // and hover), dbl (double jump), glide (hold jump to fall slowly), swing (in the air, hold
 // jump: a web to the roof ahead, swing on it, let go to fling off).
 export const HEROES = {
-  spiderman: { name: 'Spider-Man', price: 0, role: 'AGILE', sdesc: 'Yanks the ball to you from 34 m', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.05, spr: 1.08, shot: 1.0, tough: 0.2, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 5, h: 1.76, girth: 0.97, acc: 32, turn: 11 },
+  spiderman: { name: 'Spider-Man', price: 0, role: 'AGILE', sdesc: 'Yanks the ball into your hands from 34 m and webs up the two nearest opponents', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.12, spr: 1.18, shot: 1.12, tough: 0.35, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 4, h: 1.76, girth: 0.97, acc: 36, turn: 12 },
   baki: { name: 'Baki', price: 0, role: 'TANK', sdesc: 'Charge through everyone in your path', kdesc: '5 s: can’t be floored, every punch floors', power: 'rampage', label: 'DEMON BACK RUSH', color: '#ff7a2a', ready: true, spd: 1.02, spr: 1.08, shot: 1.1, tough: 0.65, jump: 7.2, move: 'TANK', skill: 'rage', skillName: 'DEMON RAGE', skillCd: 12, h: 1.8, girth: 1.08, acc: 24, turn: 8.5 },
   yujiro: { name: 'Yujiro', price: 2000, role: 'TANK', sdesc: 'Launches everyone within 9 m', kdesc: 'Pick one up and throw them', power: 'quake', label: 'OGRE STOMP', color: '#ff2a50', ready: true, spd: 0.95, spr: 0.95, shot: 1.3, tough: 0.92, jump: 6.6, move: 'UNSTOPPABLE', skill: 'grab', skillName: 'OGRE THROW', skillCd: 7, h: 2.15, girth: 1.12, acc: 22, turn: 7.5 },
   goku: { name: 'Goku', price: 0, role: 'BEAM', sdesc: 'Charge, then fire the ball through the keeper', kdesc: 'Appear right behind the ball', power: 'beam', label: 'KAMEHAMEHA', color: '#5fd8ff', ready: true, spd: 1.05, spr: 1.12, shot: 1.15, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'tp', skillName: 'INSTANT TRANSMISSION', skillCd: 9, h: 1.78, girth: 1.0, acc: 30, turn: 10 },
@@ -104,14 +104,14 @@ export function resetKickoff(sim) {
 }
 
 export function resetMatch(sim) {
-  sim.score = [0, 0]; sim.clock = MATCH; sim.overtime = false; sim.arena = pickArena(sim.arena);
+  sim.score = [0, 0]; sim.clock = MATCH; sim.overtime = false; sim.arena = sim.fixedArena || pickArena(sim.arena);   // a private room keeps the arena its leader picked
   sim.kickTeam = Math.random() < 0.5 ? 0 : 1;
   resetKickoff(sim);
 }
 
 // ── Movement (shared with the client's prediction, so it may only touch the player itself) ──
 export function movePlayer(p, inp, dt, frozen) {
-  p.stT -= dt; p.cd -= dt; p.touchCd -= dt; if (p.boost > 0) p.boost -= dt;
+  p.stT -= dt; p.cd -= dt; p.touchCd -= dt; if (p.boost > 0) p.boost -= dt; if (p.webCatch > 0) p.webCatch -= dt;
   if (p.phaseT > 0) p.phaseT -= dt; if (p.rageT > 0) p.rageT -= dt;
   if (p.stT <= 0 && p.st !== 'free' && p.st !== 'hold') {
     if (p.st === 'down') { p.st = 'getup'; p.stT = 1.0; } else p.st = 'free';
@@ -516,8 +516,14 @@ function superMove(sim, p) {
     case 'web': {
       const hx = ox + fx * 0.8, hy = gy + 1.2, hz = oz + fz * 0.8, d = hyp(b.x - hx, b.y - hy, b.z - hz);
       p.st = 'power'; p.stT = 0.6;
-      if (d < 34 && b.owner !== p.id) { blastBall(sim, p, hx - b.x, hy - b.y + d * 0.05, hz - b.z, Math.min(30, 8 + d * 2.2), 0); p.yaw = Math.atan2(b.x - ox, b.z - oz); }
-      Object.assign(ev, { o: [hx, hy, hz], e: [b.x, b.y, b.z] }); break;
+      if (d < 34 && b.owner !== p.id) {
+        blastBall(sim, p, hx - b.x, hy - b.y + d * 0.05, hz - b.z, Math.min(38, 12 + d * 2.6), 0); p.yaw = Math.atan2(b.x - ox, b.z - oz);
+        p.webCatch = 1.6; b.webTo = p.id;                   // on the web: it flies past everyone and sticks to him
+      }
+      // the two opponents nearest him are webbed where they stand
+      const near = foes(sim, p).filter((q) => q.st !== 'down').sort((q1, q2) => hyp(q1.x - ox, q1.z - oz) - hyp(q2.x - ox, q2.z - oz)).slice(0, 2).filter((q) => hyp(q.x - ox, q.z - oz) < 14);
+      for (const q of near) { if (b.owner === q.id) b.owner = -1; q.st = 'stagger'; q.stT = 1.4; q.vx = q.vz = 0; q.carry = false; }
+      Object.assign(ev, { o: [hx, hy, hz], e: [b.x, b.y, b.z], w: near.map((q) => q.id) }); break;
     }
     case 'lightning': {
       p.st = 'power'; p.stT = 0.8;
@@ -771,7 +777,7 @@ function stepBall(sim, dt) {
   let ctrl = null, cd = 1e9;
   for (const p of P) p.carry = false;
   for (const p of P) {
-    if (p.st !== 'free' || p.touchCd > 0) continue;
+    if ((p.st !== 'free' && !(p.webCatch > 0 && p.st === 'power')) || p.touchCd > 0) continue;
     const air = p.y > 0.3;
     if (air && !heroOf(p).fly) continue;
     if (air) {                                             // a flyer picks it up mid-air
@@ -779,11 +785,12 @@ function stepBall(sim, dt) {
       if (d3 < 1.6 && d3 - (p.id === b.owner ? 0.35 : 0) < cd) { cd = d3 - (p.id === b.owner ? 0.35 : 0); ctrl = p; }
       continue;
     }
-    if (b.y >= (p.bot ? 0.95 : 1.3)) continue;            // humans can trap a bouncing ball up to the chest
+    const wc = p.webCatch > 0;                             // Spider-Man reeling in his web pull
+    if (b.y >= (wc ? 2.4 : p.bot ? 0.95 : 1.3)) continue;  // humans can trap a bouncing ball up to the chest
     const d = hyp(b.x - p.x, b.z - p.z);
-    if (d > (p.bot ? 1.05 : 1.35)) continue;               // humans pick it up from a little further
+    if (d > (wc ? 2.6 : p.bot ? 1.05 : 1.35)) continue;    // humans pick it up from a little further
     const rel = hyp(b.vx - p.vx, b.vz - p.vz);
-    if (rel > 15) continue;
+    if (rel > 15 && !wc) continue;
     let s = d - (p.id === b.owner ? 0.35 : 0);
     // challenging the carrier: stay on the ball for a moment and you win it (bodies can't
     // overlap, so without this a carrier who stands still could never lose it)
@@ -795,6 +802,7 @@ function stepBall(sim, dt) {
     if (s < cd) { cd = s; ctrl = p; }
   }
   if (ctrl) {
+    if (ctrl.st === 'power') { ctrl.st = 'free'; ctrl.stT = 0; ctrl.webCatch = 0; }   // caught his web pull: straight on the ball
     if (b.owner !== ctrl.id) {
       if (b.owner >= 0 && P[b.owner].team !== ctrl.team) sim.events.push({ k: 'steal', p: ctrl.id, v: b.owner });
       sim.events.push({ k: 'touch', p: ctrl.id }); ctrl.sp = Math.min(100, ctrl.sp + 6); ctrl.contest = 0;
@@ -831,7 +839,9 @@ function stepBall(sim, dt) {
   }
 
   // bodies, sliding feet and headers
+  if (b.webTo !== undefined && !(P[b.webTo]?.webCatch > 0)) delete b.webTo;
   for (const p of P) {
+    if (b.webTo !== undefined && p.id !== b.webTo) continue;
     if (p.id === b.owner || b.ng > 0) continue;            // power shots go straight through
     if (p.st === 'slide' && hyp(b.x - p.x, b.z - p.z) < 1.2 && b.y < 0.8 && p.touchCd <= 0) {
       kickBall(sim, p, fwdX(p), fwdZ(p), 11, 2); sim.events.push({ k: 'kick', p: p.id, pw: 0.4 }); continue;
@@ -848,6 +858,9 @@ function stepBall(sim, dt) {
     const top = p.st === 'down' || p.st === 'slide' || p.st === 'dive' ? 0.5 : 1.7;
     const py = wy(p), cy = clamp(b.y, py + 0.2, py + top);
     const dx = b.x - p.x, dy = b.y - cy, dz = b.z - p.z, d = hyp(dx, dy, dz), rr = BALL_R + 0.33;
+    if (p.webCatch > 0 && d < rr + 0.6 && b.owner < 0) {   // his web pull lands in his hands, not off his chest
+      b.owner = p.id; b.vx = p.vx; b.vy = 0; b.vz = p.vz; p.st = 'free'; p.stT = 0; p.webCatch = 0; p.touchCd = 0; delete b.webTo; continue;
+    }
     if (d < rr && d > 1e-4) {
       const nx = dx / d, ny = dy / d, nz = dz / d;
       b.x = p.x + nx * rr; b.y = cy + ny * rr; b.z = p.z + nz * rr;

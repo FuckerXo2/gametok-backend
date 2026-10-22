@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { filterText, banned, ban, unban, banList } from './safety.mjs';
-import { createSim, step, act, snapshot, roster, CHARS, HEROES, DT, MATCH } from '../js/sim.js';
+import { createSim, step, act, snapshot, roster, CHARS, HEROES, DT, MATCH, ARENAS } from '../js/sim.js';
 
 const PORT = +process.argv[2] || +process.env.PORT || 8970;
 const LIVE = process.env.NODE_ENV === 'production';
@@ -296,6 +296,8 @@ function partyPlay(c, m) {
   if (m.mode === 'private') {
     const code = p.code || (p.code = crypto.randomBytes(3).toString('hex').toUpperCase());
     room = 'p-' + code; team = 0;
+    const r = getRoom(room);                 // the leader's arena (or a new one every match)
+    if (!r.clients.size) { r.sim.fixedArena = ARENAS.includes(m.arena) ? m.arena : null; if (r.sim.fixedArena) r.sim.arena = r.sim.fixedArena; }
   } else {
     const waiting = p.members.filter((id) => id !== p.leader && !p.ready.has(id)).map((id) => accounts[id].name);
     if (waiting.length) return send(c, { t: 'toast', text: `Waiting for ${waiting.join(', ')} to ready up` });
