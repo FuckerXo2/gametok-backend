@@ -34,6 +34,7 @@ function planNormal(x, z) {
   return [nx / l, nz / l];
 }
 export const MATCH = 180;
+export const FIRST_KICKOFF = 6.5;
 export const ARENAS = ['city', 'island', 'pit', 'asgard'];   // a different one every match
 const pickArena = (not) => { const l = ARENAS.filter((a) => a !== not); return l[(Math.random() * l.length) | 0]; };
 const G = 16, RUN = 8, SPRINT = 11.5, ACC = 46;
@@ -74,7 +75,7 @@ const fwdX = (p) => Math.sin(p.yaw), fwdZ = (p) => Math.cos(p.yaw);
 
 export function createSim() {
   const sim = {
-    phase: 'kickoff', phaseT: 3, clock: MATCH, score: [0, 0], overtime: false, endT: 0,
+    phase: 'kickoff', phaseT: FIRST_KICKOFF, clock: MATCH, score: [0, 0], overtime: false, endT: 0,
     kickTeam: Math.random() < 0.5 ? 0 : 1, events: [],
     ball: { x: 0, y: BALL_R, z: 0, vx: 0, vy: 0, vz: 0, owner: -1, last: -1 },
     players: [], cons: [], proj: [], walls: [], arena: pickArena(),
@@ -112,8 +113,9 @@ export function resetKickoff(sim) {
 export function resetMatch(sim) {
   sim.score = [0, 0]; sim.clock = MATCH; sim.overtime = false; sim.arena = sim.fixedArena || pickArena(sim.arena);   // a private room keeps the arena its leader picked
   sim.kickTeam = Math.random() < 0.5 ? 0 : 1;
-  resetKickoff(sim);
+  resetKickoff(sim); sim.phaseT = FIRST_KICKOFF;
 }
+// a match's first kickoff waits longer: the MATCH FOUND screen (both teams, the arena) shows first
 
 // ── Movement (shared with the client's prediction, so it may only touch the player itself) ──
 export function movePlayer(p, inp, dt, frozen) {

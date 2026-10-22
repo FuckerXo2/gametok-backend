@@ -249,7 +249,7 @@ function unqueue(pid, why) {
 }
 const humansOn = (r, t) => r.sim.players.filter((x) => x.human && x.team === t).length;
 function startParty(p, room, team) {
-  for (const mc of partyConns(p)) join(mc, { room, exact: true, team, name: mc.acct.name + '#' + mc.acct.tag, char: mc.acct.hero });
+  for (const mc of partyConns(p)) join(mc, { room, exact: true, team, name: mc.acct.name, char: mc.acct.hero });
   partyMsg(p, { t: 'mm', on: false }); p.ready.clear(); partyUpdate(p.id);
 }
 function mmTick() {
@@ -303,7 +303,7 @@ function partyPlay(c, m) {
     if (waiting.length) return send(c, { t: 'toast', text: `Waiting for ${waiting.join(', ')} to ready up` });
     return enqueue(p);
   }
-  for (const mc of members) join(mc, { room, exact: true, team, name: mc.acct.name + '#' + mc.acct.tag, char: mc.acct.hero });
+  for (const mc of members) join(mc, { room, exact: true, team, name: mc.acct.name, char: mc.acct.hero });
   p.ready.clear(); partyUpdate(p.id);
 }
 
