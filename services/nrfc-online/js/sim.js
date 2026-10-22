@@ -40,7 +40,7 @@ const G = 16, RUN = 8, SPRINT = 11.5, ACC = 46;
 
 // how good the bots are, 0 (clumsy) .. 1 (the old bots: instant tackles, pinpoint shots, faster
 // turns). They should be beatable by someone who just picked the game up.
-export const BOT_LEVEL = 0.3;
+export const BOT_LEVEL = 0.2;
 const lvl = (sim) => sim.botLevel ?? BOT_LEVEL;
 const BOT_NAMES = ['Kaizo_77', 'vortexx', 'PixelPunter', 'zoomies', 'frostbyte_', 'LilChipper', 'turbo_tim', 'nova.kicks', 'Glitchy', 'OnyxFox', 'slidetackl3r', 'Reboot', 'cobalt_k', 'MintyWing', 'Rizzler99', 'dropshot'];
 // ready: the hero's rigged model is in assets/fighters (the rest are waiting on Mixamo)
@@ -360,8 +360,15 @@ export function act(sim, p, k, pw = 0, yaw) {
       const m = human ? mateInAim(sim, p, fx, fz) || bestMate(sim, p, false) : bestMate(sim, p, false);
       if (m && human) p.yaw = Math.atan2(m.x - p.x, m.z - p.z);
       if (m) {
-        const lx = m.x + m.vx * 0.45, lz = m.z + m.vz * 0.45, d = hyp(lx - p.x, lz - p.z);
-        kickBall(sim, p, lx - p.x, lz - p.z, clamp(7 + d * 0.65, 9, 24), d > 16 ? 4 : 1.2);
+        // play it into the receiver's run: lead them by the time the ball takes to get there
+        let lx = m.x, lz = m.z, d = hyp(lx - p.x, lz - p.z), v = 9;
+        for (let k = 0; k < 3; k++) {
+          v = clamp(7 + d * 0.65, 9, 24);
+          const t = d / (v * 0.8);                            // the ball slows as it rolls
+          lx = m.x + m.vx * t; lz = m.z + m.vz * t; d = hyp(lx - p.x, lz - p.z);
+        }
+        kickBall(sim, p, lx - p.x, lz - p.z, v, d > 16 ? 4 : 1.2);
+        sim.ball.passTo = m.id; sim.ball.passT = 0.6 + d / 14;   // the receiver gets help taking it (stepBall)
       } else kickBall(sim, p, fx, fz, 13, 1.2);
       ev({ k: 'kick', p: p.id, pw: 0.3 });
     }
@@ -778,8 +785,10 @@ export function step(sim, dt = DT) {
     a.x -= nx * o * wa; a.z -= nz * o * wa; c.x += nx * o * (1 - wa); c.z += nz * o * (1 - wa);
     if (a.team !== c.team) {                               // run someone over (a giant only needs a jog)
       const ra = a.vx * nx + a.vz * nz, rc = -(c.vx * nx + c.vz * nz);
-      if (a.st === 'slide' || (ra > (ga ? 5.5 : 8.6) && ra > rc + 3)) knockDown(sim, c, a, ga ? 10 : 7, false, a.st === 'slide' ? 'trip' : 'shoulder');
-      else if (c.st === 'slide' || (rc > (gc ? 5.5 : 8.6) && rc > ra + 3)) knockDown(sim, a, c, gc ? 10 : 7, false, c.st === 'slide' ? 'trip' : 'shoulder');
+      // (a weak bot doesn't flatten a human just by running into them; slides still count)
+      const runs = (x, y) => !(x.bot && y.human && lvl(sim) < 0.5);
+      if (a.st === 'slide' || (ra > (ga ? 5.5 : 8.6) && ra > rc + 3 && runs(a, c))) knockDown(sim, c, a, ga ? 10 : 7, false, a.st === 'slide' ? 'trip' : 'shoulder');
+      else if (c.st === 'slide' || (rc > (gc ? 5.5 : 8.6) && rc > ra + 3 && runs(c, a))) knockDown(sim, a, c, gc ? 10 : 7, false, c.st === 'slide' ? 'trip' : 'shoulder');
     }
     clampPlayer(a); clampPlayer(c);
   }
@@ -793,6 +802,7 @@ function endMatch(sim) {
 
 function stepBall(sim, dt) {
   const b = sim.ball, P = sim.players;
+  if (b.passT > 0) b.passT -= dt;
   // a keeper holding it
   if (b.owner >= 0 && P[b.owner].st === 'hold') {
     const p = P[b.owner];
@@ -815,11 +825,12 @@ function stepBall(sim, dt) {
       continue;
     }
     const wc = p.webCatch > 0;                             // Spider-Man reeling in his web pull
-    if (b.y >= (wc ? 2.4 : p.bot ? 0.95 : 1.3)) continue;  // humans can trap a bouncing ball up to the chest
+    const mine = b.passTo === p.id && b.passT > 0;         // a pass meant for you: a bigger first touch, at any speed
+    if (b.y >= (wc ? 2.4 : mine ? 1.9 : p.bot ? 0.95 : 1.3)) continue;   // humans can trap a bouncing ball up to the chest
     const d = hyp(b.x - p.x, b.z - p.z);
-    if (d > (wc ? 2.6 : p.bot ? 1.05 : 1.35)) continue;    // humans pick it up from a little further
+    if (d > (wc ? 2.6 : mine ? 2.1 : p.bot ? 1.05 : 1.35)) continue;    // humans pick it up from a little further
     const rel = hyp(b.vx - p.vx, b.vz - p.vz);
-    if (rel > 15 && !wc) continue;
+    if (rel > 15 && !wc && !mine) continue;
     let s = d - (p.id === b.owner ? 0.35 : 0);
     // challenging the carrier: stay on the ball for a moment and you win it (bodies can't
     // overlap, so without this a carrier who stands still could never lose it)
@@ -831,6 +842,7 @@ function stepBall(sim, dt) {
     if (s < cd) { cd = s; ctrl = p; }
   }
   if (ctrl) {
+    b.passTo = -1;                                         // whoever takes it, the pass is over
     if (ctrl.st === 'power') { ctrl.st = 'free'; ctrl.stT = 0; ctrl.webCatch = 0; }   // caught his web pull: straight on the ball
     if (b.owner !== ctrl.id) {
       if (b.owner >= 0 && P[b.owner].team !== ctrl.team) sim.events.push({ k: 'steal', p: ctrl.id, v: b.owner });
@@ -981,8 +993,15 @@ function think(sim, p, dt) {
   p.bot = true; p.lvl = lvl(sim);
   if (sim.phase !== 'play') return;
   const b = sim.ball, dir = p.team === 0 ? 1 : -1, own = -dir * HL, opp = dir * HL;
-  if (p.sp >= 100 && p.st === 'free' && ai.react <= 0 && Math.random() < 0.25 + 0.75 * lvl(sim) && botSuper(sim, p, dir, own, opp)) return;
-  if (!(p.skCd > 0) && p.st === 'free' && ai.react <= 0 && Math.random() < 0.3 + 0.7 * lvl(sim) && botSkill(sim, p, dir, own, opp)) return;
+  // powers: a weak bot only considers one every several seconds (else it would roll the dice every frame)
+  ai.powT = (ai.powT || 0) - dt;
+  if (ai.powT <= 0 && p.st === 'free' && ai.react <= 0 && (p.sp >= 100 || !(p.skCd > 0))) {
+    ai.powT = 1 + (1 - lvl(sim)) * 7;
+    if (Math.random() < 0.15 + 0.85 * lvl(sim)) {
+      if (p.sp >= 100 && botSuper(sim, p, dir, own, opp)) return;
+      if (!(p.skCd > 0) && botSkill(sim, p, dir, own, opp)) return;
+    }
+  }
   const bx = b.x + b.vx * 0.3, bz = b.z + b.vz * 0.3;
   const goTo = (x, z, sprint, slow = 1) => {
     const dx = x - p.x, dz = z - p.z, d = hyp(dx, dz);
