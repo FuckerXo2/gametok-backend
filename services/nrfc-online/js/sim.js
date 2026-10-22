@@ -38,6 +38,10 @@ export const ARENAS = ['city', 'island', 'pit', 'asgard'];   // a different one 
 const pickArena = (not) => { const l = ARENAS.filter((a) => a !== not); return l[(Math.random() * l.length) | 0]; };
 const G = 16, RUN = 8, SPRINT = 11.5, ACC = 46;
 
+// how good the bots are, 0 (clumsy) .. 1 (the old bots: instant tackles, pinpoint shots, faster
+// turns). They should be beatable by someone who just picked the game up.
+export const BOT_LEVEL = 0.3;
+const lvl = (sim) => sim.botLevel ?? BOT_LEVEL;
 const BOT_NAMES = ['Kaizo_77', 'vortexx', 'PixelPunter', 'zoomies', 'frostbyte_', 'LilChipper', 'turbo_tim', 'nova.kicks', 'Glitchy', 'OnyxFox', 'slidetackl3r', 'Reboot', 'cobalt_k', 'MintyWing', 'Rizzler99', 'dropshot'];
 // ready: the hero's rigged model is in assets/fighters (the rest are waiting on Mixamo)
 // Stats: spd/spr = run/sprint speed, shot = shot power, tough = chance a normal hit (barge,
@@ -54,7 +58,7 @@ export const HEROES = {
   superman: { name: 'Superman', price: 1500, role: 'POWER', sdesc: 'Burn the ball across the pitch', kdesc: 'A flying punch, ground or air', power: 'heat', label: 'HEAT VISION', color: '#ff3a20', ready: true, spd: 1.0, spr: 1.12, shot: 1.22, tough: 0.85, jump: 7, fly: true, move: 'FLIGHT', skill: 'dash', skillName: 'SUPER PUNCH', skillCd: 6, h: 1.93, girth: 1.04, acc: 30, turn: 10 },
   ironman: { name: 'Iron Man', price: 1200, role: 'TECH', sdesc: 'A chest beam that fires the ball', kdesc: 'Three homing missiles', power: 'heat', label: 'UNIBEAM', color: '#9fe8ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.1, tough: 0.6, jump: 6.6, fly: true, move: 'FLIGHT', skill: 'missiles', skillName: 'MICRO MISSILES', skillCd: 9, h: 1.95, girth: 1.05, acc: 27, turn: 9 },
   thor: { name: 'Thor', price: 1500, role: 'POWER', sdesc: 'Lightning on the ball, it fires at goal', kdesc: 'Hits everyone on the way out and back', power: 'lightning', label: 'MJOLNIR STRIKE', color: '#a8d0ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.22, tough: 0.7, jump: 6.8, fly: true, move: 'FLIGHT', skill: 'hammer', skillName: 'HAMMER THROW', skillCd: 7, h: 1.98, girth: 1.06, acc: 26, turn: 9 },
-  flash: { name: 'The Flash', price: 0, role: 'SPEED', sdesc: 'Double speed for 4 seconds', kdesc: 'Run straight through tackles', power: 'speed', label: 'SPEED FORCE', color: '#ffd23a', ready: true, spd: 1.3, spr: 1.45, shot: 0.95, tough: 0.1, jump: 6.6, move: 'FASTEST', skill: 'phase', skillName: 'PHASE', skillCd: 8, h: 1.83, girth: 0.96, acc: 42, turn: 13 },
+  flash: { name: 'The Flash', price: 0, role: 'SPEED', sdesc: 'Double speed for 4 seconds', kdesc: 'Run straight through tackles', power: 'speed', label: 'SPEED FORCE', color: '#ffd23a', ready: true, spd: 1.55, spr: 1.9, shot: 0.95, tough: 0.1, jump: 6.6, move: 'FASTEST', skill: 'phase', skillName: 'PHASE', skillCd: 8, h: 1.83, girth: 0.96, acc: 60, turn: 16 },
   batman: { name: 'Batman', price: 1000, role: 'TACTICS', sdesc: 'Drops one opponent, they lose the ball', kdesc: 'Reel in to the ball', power: 'batarang', label: 'BATARANG', color: '#c8ccd8', ready: true, spd: 1.0, spr: 1.02, shot: 1.0, tough: 0.35, jump: 7.2, glide: true, move: 'CAPE GLIDE', skill: 'grapple', skillName: 'GRAPPLE', skillCd: 7, h: 1.9, girth: 1.03, acc: 29, turn: 10 },
   lantern: { name: 'Green Lantern', price: 1000, role: 'CONTROL', sdesc: 'Seal your goal for 5 seconds', kdesc: 'A wall of light wherever you need it', power: 'construct', label: 'CONSTRUCT WALL', color: '#3aff6a', ready: true, spd: 1.0, spr: 1.02, shot: 1.05, tough: 0.4, jump: 7, fly: true, move: 'FLIGHT', skill: 'shield', skillName: 'CONSTRUCT SHIELD', skillCd: 9, h: 1.86, girth: 1.0, acc: 30, turn: 10 },
 };
@@ -146,7 +150,7 @@ export function movePlayer(p, inp, dt, frozen) {
     if (ml > 0.1 && (st === 'free' || st === 'hold') && !frozen) {
       const want = Math.atan2(mx, mz);
       let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
-      const turn = (H.turn || 10) * (p.bot ? 1.3 : 1) * dt; p.yaw += Math.abs(d) < turn ? d : Math.sign(d) * turn;
+      const turn = (H.turn || 10) * (p.bot ? 0.85 + 0.45 * (p.lvl ?? BOT_LEVEL) : 1) * dt; p.yaw += Math.abs(d) < turn ? d : Math.sign(d) * turn;
     }
     if (inp.jump && st === 'free' && !frozen) {
       if (!air) p.vy = H.fly && inp.hold ? 9 : H.jump;     // flyers take off hard
@@ -505,9 +509,9 @@ function superMove(sim, p) {
       let ex, ey, ez;
       if (d < 45) {                                         // burn the ball where it is, it flies where you aim
         ex = b.x; ey = b.y; ez = b.z;
-        blastBall(sim, p, fx, 0.08, fz, 38, 0.6);
+        blastBall(sim, p, fx, 0.08, fz, 44, 0.6);            // harder than any shot
       } else { const L = rayLen(ox, gy + 1.7, oz, fx, 0, fz, 35); ex = ox + fx * L; ey = gy + 1.7; ez = oz + fz * L; }
-      for (const q of foes(sim, p)) if (segDist(q.x, q.z, ox, oz, ex, ez)[0] < 1.1) launch(sim, q, p, ex - ox, ez - oz, 9, 4);
+      for (const q of foes(sim, p)) if (segDist(q.x, q.z, ox, oz, ex, ez)[0] < 1.4) launch(sim, q, p, ex - ox, ez - oz, 11, 5);
       p.st = 'power'; p.stT = 0.7; p.yaw = Math.atan2(ex - ox, ez - oz);
       Object.assign(ev, { o: [ox, gy + 1.7, oz], e: [ex, ey, ez] }); break;
     }
@@ -972,12 +976,12 @@ function segBounce(sim, b, ax, ay, az, bx, by, bz) {
 function think(sim, p, dt) {
   const inp = p.input, ai = p.ai;
   inp.mx = 0; inp.mz = 0; inp.sprint = false; inp.jump = false; inp.hold = false;
-  ai.react -= dt;
-  p.bot = true;
+  ai.react -= dt * (0.45 + 0.55 * lvl(sim));               // weaker bots think slower
+  p.bot = true; p.lvl = lvl(sim);
   if (sim.phase !== 'play') return;
   const b = sim.ball, dir = p.team === 0 ? 1 : -1, own = -dir * HL, opp = dir * HL;
-  if (p.sp >= 100 && p.st === 'free' && ai.react <= 0 && botSuper(sim, p, dir, own, opp)) return;
-  if (!(p.skCd > 0) && p.st === 'free' && ai.react <= 0 && botSkill(sim, p, dir, own, opp)) return;
+  if (p.sp >= 100 && p.st === 'free' && ai.react <= 0 && Math.random() < 0.25 + 0.75 * lvl(sim) && botSuper(sim, p, dir, own, opp)) return;
+  if (!(p.skCd > 0) && p.st === 'free' && ai.react <= 0 && Math.random() < 0.3 + 0.7 * lvl(sim) && botSkill(sim, p, dir, own, opp)) return;
   const bx = b.x + b.vx * 0.3, bz = b.z + b.vz * 0.3;
   const goTo = (x, z, sprint, slow = 1) => {
     const dx = x - p.x, dz = z - p.z, d = hyp(dx, dz);
@@ -1007,7 +1011,7 @@ function think(sim, p, dt) {
       if (t > 0 && t < 0.6) {
         const zAt = b.z + b.vz * t;
         ai.react = 0.4;
-        if (Math.abs(zAt) < GOAL_W + 0.6 && Math.abs(zAt - p.z) > 0.9 && Math.random() < 0.8) act(sim, p, 'tackle');
+        if (Math.abs(zAt) < GOAL_W + 0.6 && Math.abs(zAt - p.z) > 0.9 && Math.random() < 0.4 + 0.4 * lvl(sim)) act(sim, p, 'tackle');
       }
     }
     return;
@@ -1021,7 +1025,7 @@ function think(sim, p, dt) {
     if (ai.react <= 0) {
       ai.react = 0.25;
       if (dG < 22 && Math.random() < 0.6) {
-        p.yaw = Math.atan2(opp - p.x, gz - p.z) + (Math.random() - 0.5) * 0.12;
+        p.yaw = Math.atan2(opp - p.x, gz - p.z) + (Math.random() - 0.5) * (0.12 + 0.5 * (1 - lvl(sim)));   // weaker bots miss more
         act(sim, p, 'shoot', clamp(dG / 22, 0.45, 0.95)); ai.react = 0.8; ai.aimZ = (Math.random() - 0.5) * 4; return;
       }
       if (press && Math.random() < 0.45) {
@@ -1040,12 +1044,12 @@ function think(sim, p, dt) {
   const rank = outs.indexOf(p), dB = hyp(b.x - p.x, b.z - p.z);
   const ours = owner && owner.team === p.team;
   if ((rank === 0 && !ours) || dB < 2.2) {
-    goTo(bx, bz, true);
+    goTo(bx, bz, p.stam > 60 || Math.random() < 0.4 + 0.6 * lvl(sim));
     const dO = owner && owner.team !== p.team ? hyp(owner.x - p.x, owner.z - p.z) : 99;
-    if (dO < 2.6 && p.cd <= 0 && ai.react <= 0) {
-      ai.react = 0.35;
-      const r = Math.random(); p.yaw = Math.atan2(owner.x - p.x, owner.z - p.z);
-      if (dO < 1.5 && r < 0.55) act(sim, p, 'punch'); else if (r < 0.8) act(sim, p, 'tackle');
+    if (dO < 1.8 + 0.8 * lvl(sim) && p.cd <= 0 && ai.react <= 0) {
+      ai.react = 0.35 + 0.6 * (1 - lvl(sim));
+      const r = Math.random(), go = 0.3 + 0.5 * lvl(sim); p.yaw = Math.atan2(owner.x - p.x, owner.z - p.z);
+      if (dO < 1.5 && r < go * 0.6) act(sim, p, 'punch'); else if (r < go) act(sim, p, 'tackle');
     } else if (heroOf(p).swing && dO > 6 && dO < 24 && p.cd <= 0 && ai.react <= 0) {
       ai.react = 0.6;
       if (Math.random() < 0.35) { p.yaw = Math.atan2(owner.x - p.x, owner.z - p.z); act(sim, p, 'skill'); }
