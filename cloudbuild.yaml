@@ -76,6 +76,31 @@ steps:
           --cpu 1 --memory 512Mi --no-cpu-throttling --min-instances 1 --max-instances 1 --concurrency 1000 \
           --timeout 3600 --session-affinity --update-env-vars DATA_DIR=/data,ECONOMY=1 $$VOL
 
+  # ---- No Rules FC multiplayer (services/nrfc-online, copied from games/street-5s by its
+  # tools/sync_server.sh): one always-on instance (matches run in it, accounts and coins with it),
+  # its files on a bucket mounted at /data. The GameTok developer key comes from the secret
+  # nrfc-gametok-key once it exists (without it players use the game's own accounts).
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/nrfc-online:$COMMIT_SHA', 'services/nrfc-online']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/nrfc-online:$COMMIT_SHA']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args: ['-c', 'gcloud storage buckets describe gs://$PROJECT_ID-nrfc-online-data >/dev/null 2>&1 || gcloud storage buckets create gs://$PROJECT_ID-nrfc-online-data --location=europe-west2 --uniform-bucket-level-access']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        VOL=""; SEC=""
+        gcloud run services describe nrfc-online --region europe-west2 >/dev/null 2>&1 || VOL="--add-volume name=data,type=cloud-storage,bucket=$PROJECT_ID-nrfc-online-data --add-volume-mount volume=data,mount-path=/data"
+        gcloud secrets describe nrfc-gametok-key >/dev/null 2>&1 && SEC="--update-secrets GAMETOK_API_KEY=nrfc-gametok-key:latest"
+        gcloud secrets describe nrfc-admin-key >/dev/null 2>&1 && SEC="$$SEC --update-secrets ADMIN_KEY=nrfc-admin-key:latest"
+        gcloud run deploy nrfc-online --image gcr.io/$PROJECT_ID/nrfc-online:$COMMIT_SHA \
+          --region europe-west2 --platform managed --allow-unauthenticated --execution-environment gen2 \
+          --cpu 1 --memory 512Mi --no-cpu-throttling --min-instances 1 --max-instances 1 --concurrency 1000 \
+          --timeout 3600 --session-affinity --update-env-vars DATA_DIR=/data $$VOL $$SEC
+
 images:
   - 'gcr.io/$PROJECT_ID/gametok-backend:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/gametok-backend:latest'
