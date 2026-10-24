@@ -6,9 +6,19 @@
 //   GET  /api/avatar/me                 { avatar, owned, tokbux, prices }
 //   PUT  /api/avatar/me   { avatar }    saves what they wear (only free or owned items)
 //   POST /api/avatar/buy  { itemId }    spends TokBux on an item
+//   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
+import crypto from 'crypto';
 import express from 'express';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import pool from './db.js';
+
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gametok-games-assets';
+const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`).replace(/\/$/, '');
+const s3 = process.env.R2_ACCOUNT_ID
+  ? new S3Client({ region: 'auto', endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY } })
+  : null;
 
 // Like Robux and V-Bucks: everyone starts with none. TokBux are bought.
 export const WELCOME_TOKBUX = 0;
@@ -111,7 +121,7 @@ async function profile(client, userId, lock = false) {
 const view = (p) => ({ avatar: p.record ? cleanAvatar(p.record) : null, owned: p.owned, tokbux: p.tokbux, prices: PRICES });
 
 const router = express.Router();
-router.use(express.json({ limit: '8kb' }));
+router.use(express.json({ limit: '400kb' }));   // (a headshot PNG; everything else is tiny)
 
 router.get('/me', async (req, res) => {
   try {
@@ -166,6 +176,26 @@ router.post('/buy', async (req, res) => {
     res.status(500).json({ error: 'Could not buy that' });
   } finally {
     client?.release();
+  }
+});
+
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+router.put('/headshot', async (req, res) => {
+  try {
+    const user = await userFrom(req, res); if (!user) return;
+    const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body?.png || ''));
+    const png = m && Buffer.from(m[1], 'base64');
+    if (!png || png.length > 300 * 1024 || !png.subarray(0, 8).equals(PNG)) return res.status(400).json({ error: 'Not a headshot', code: 'BAD_IMAGE' });
+    if (!s3) return res.status(503).json({ error: 'Storage is not configured' });
+    // named after its contents: the same look is the same file, and a new look is a new address (no stale caches)
+    const key = `avatars/headshots/${user.id}/${crypto.createHash('sha256').update(png).digest('hex').slice(0, 16)}.png`;
+    await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: png, ContentType: 'image/png', CacheControl: 'public, max-age=31536000, immutable' }));
+    const avatar = `${R2_PUBLIC_URL}/${key}`;
+    await pool.query('UPDATE users SET avatar = $2 WHERE id = $1', [user.id, avatar]);
+    res.json({ avatar });
+  } catch (err) {
+    console.error('[Avatar] headshot:', err);
+    res.status(500).json({ error: 'Could not save your picture' });
   }
 });
 

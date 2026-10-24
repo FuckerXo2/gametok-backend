@@ -4506,18 +4506,10 @@ async function pseudonymousPlayerId(kind, rawId, gameId, mode) {
   return (mode === 'test' ? 't_' : 'p_') + digest;
 }
 
-// Avatars are stored as https URLs or the app's dicebear:// / avatar-creator:// URIs.
-function publicAvatarUrl(avatar, seed) {
-  if (avatar && /^https:\/\//i.test(avatar)) return avatar;
-  const params = new URLSearchParams({ seed: String(seed || 'gametok') });
-  if (avatar && /^(dicebear|avatar-creator):\/\//.test(avatar)) {
-    const [encodedSeed, query = ''] = avatar.replace(/^(dicebear|avatar-creator):\/\//, '').split('?');
-    if (encodedSeed) params.set('seed', decodeURIComponent(encodedSeed));
-    const q = new URLSearchParams(query);
-    const map = { bg: 'backgroundColor', skinColor: 'skinColor', hairColor: 'hairColor', hair: 'hair', eyes: 'eyes', eyebrows: 'eyebrows', mouth: 'mouth' };
-    for (const [from, to] of Object.entries(map)) if (q.get(from)) params.set(to, q.get(from));
-  }
-  return `https://api.dicebear.com/9.x/adventurer/svg?${params.toString()}`;
+// The profile picture: a headshot of the player's 3D avatar (src/avatar-router.js), or none yet.
+// (Old accounts may still hold a 2D dicebear:// address: those are no picture now.)
+function publicAvatarUrl(avatar) {
+  return avatar && /^https:\/\//i.test(avatar) ? avatar : null;
 }
 
 app.post('/api/games/:id/player-session', async (req, res) => {
@@ -4546,7 +4538,7 @@ app.post('/api/games/:id/player-session', async (req, res) => {
     const player = {
       id: playerId,
       name: guest ? 'Guest' : (user.display_name || user.username || 'Player'),
-      avatar: guest ? null : publicAvatarUrl(user.avatar, user.username || user.id),
+      avatar: guest ? null : publicAvatarUrl(user.avatar),
       // the 3D avatar they wear (src/avatar-router.js): games that have human characters dress the player in it
       avatarRecord: guest ? null : await avatarRecordOf(user.id),
       // this game's items they own and their TokBux (src/avatar-router.js GAME_ITEMS): a game server trusts these, not the client
