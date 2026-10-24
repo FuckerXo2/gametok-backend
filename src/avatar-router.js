@@ -32,6 +32,11 @@ export const PRICES = { beard: 20 };
 for (const [id, p] of Object.entries(HAIRS)) PRICES[`hair-${id}`] = p;
 for (const [set, p] of Object.entries(SETS))
   for (const slot of SLOTS) if (!RANGER_ONLY.includes(slot) || set.endsWith('_Ranger')) PRICES[`${set}-${slot}`] = p;
+// clothing grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour
+const STREET = { top: { Tee: [25, 'White', 'Black', 'Red', 'Green'], Sweater: [40, 'Grey', 'Navy', 'Cream'] },
+                 legs: { Jeans: [35, 'Blue', 'Black'], Shorts: [20, 'Khaki', 'Black'] } };
+for (const [slot, garments] of Object.entries(STREET))
+  for (const [g, [price, ...colours]] of Object.entries(garments)) for (const c of colours) PRICES[`Street_${g}${c}-${slot}`] = price;
 
 // What games sell, in TokBux, owned on the GameTok account: '<game id>:<item>'. A game shows them and asks the app
 // to buy (the player confirms in the app); its server sees what's owned in the player session.
