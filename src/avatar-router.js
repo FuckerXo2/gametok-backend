@@ -10,8 +10,8 @@
 import express from 'express';
 import pool from './db.js';
 
-// Every new account gets this many TokBux to start with (there's no way to buy them yet).
-export const WELCOME_TOKBUX = 500;
+// Like Robux and V-Bucks: everyone starts with none. TokBux are bought.
+export const WELCOME_TOKBUX = 0;
 
 // item id -> price in TokBux. Body types and skin tones aren't items: everyone has them.
 const SETS = { Male_Peasant: 0, Male_Ranger: 0, Female_Peasant: 25, Female_Ranger: 40 };
@@ -67,6 +67,7 @@ export async function runAvatarMigration() {
       created_at TIMESTAMP DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS tokbux_ledger_user ON tokbux_ledger (user_id, created_at);
+    ALTER TABLE avatar_profiles ALTER COLUMN tokbux SET DEFAULT ${WELCOME_TOKBUX};
   `);
   console.log('✅ Avatar profiles + TokBux ready');
 }
@@ -86,7 +87,7 @@ async function userFrom(req, res) {
 
 async function profile(client, userId, lock = false) {
   const fresh = await client.query('INSERT INTO avatar_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING RETURNING user_id', [userId]);
-  if (fresh.rowCount) await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason) VALUES ($1, $2, $3)', [userId, WELCOME_TOKBUX, 'welcome']);
+  if (fresh.rowCount && WELCOME_TOKBUX) await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason) VALUES ($1, $2, $3)', [userId, WELCOME_TOKBUX, 'welcome']);
   const r = await client.query(`SELECT record, owned, tokbux FROM avatar_profiles WHERE user_id = $1${lock ? ' FOR UPDATE' : ''}`, [userId]);
   return r.rows[0];
 }
