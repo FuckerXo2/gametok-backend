@@ -51,23 +51,28 @@ const BOT_NAMES = ['Kaizo_77', 'vortexx', 'PixelPunter', 'zoomies', 'frostbyte_'
 // jump: a web to the roof ahead, swing on it, let go to fling off).
 // Names are our own takes (Svperman, Hvlk, Iron Male, …); the ids stay the same everywhere.
 export const HEROES = {
-  spiderman: { name: 'Spyder-Man', price: 0, role: 'AGILE', sdesc: 'Yanks the ball into your hands from 34 m and webs up the two nearest opponents', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.12, spr: 1.18, shot: 1.12, tough: 0.35, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 4, h: 1.76, girth: 0.97, acc: 36, turn: 12 },
-  baki: { name: 'Bakki', price: 0, role: 'TANK', sdesc: 'Charge through everyone in your path', kdesc: '5 s: can’t be floored, every punch floors', power: 'rampage', label: 'DEMON RUSH', color: '#ff7a2a', ready: true, spd: 1.02, spr: 1.08, shot: 1.1, tough: 0.65, jump: 7.2, move: 'TANK', skill: 'rage', skillName: 'DEMON RAGE', skillCd: 12, h: 1.8, girth: 1.08, acc: 24, turn: 8.5 },
+  // everyone's free default: the player's own GameTok avatar. Plain stats and a plain super, so the
+  // heroes are worth buying for what they do differently (not for being simply stronger).
+  avatar: { name: 'My Avatar', price: 0, role: 'ALL-ROUND', sdesc: 'A rocket of a shot from wherever you stand. No ball near you? A burst of speed instead', kdesc: 'No skill: heroes bring their own', power: 'shot', label: 'POWER SHOT', color: '#2fd38a', ready: true, avatar: true, spd: 1.0, spr: 1.05, shot: 1.05, tough: 0.4, jump: 7, move: 'ALL-ROUND', h: 1.8, girth: 1.0, acc: 30, turn: 10 },
+  spiderman: { name: 'Spyder-Man', price: 1000, role: 'AGILE', sdesc: 'Yanks the ball into your hands from 34 m and webs up the two nearest opponents', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.12, spr: 1.18, shot: 1.12, tough: 0.35, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 4, h: 1.76, girth: 0.97, acc: 36, turn: 12 },
+  baki: { name: 'Bakki', price: 800, role: 'TANK', sdesc: 'Charge through everyone in your path', kdesc: '5 s: can’t be floored, every punch floors', power: 'rampage', label: 'DEMON RUSH', color: '#ff7a2a', ready: true, spd: 1.02, spr: 1.08, shot: 1.1, tough: 0.65, jump: 7.2, move: 'TANK', skill: 'rage', skillName: 'DEMON RAGE', skillCd: 12, h: 1.8, girth: 1.08, acc: 24, turn: 8.5 },
   yujiro: { name: 'Yujirho', price: 2000, role: 'TANK', sdesc: 'Launches everyone within 9 m', kdesc: 'Pick one up and throw them', power: 'quake', label: 'OGRE STOMP', color: '#ff2a50', ready: true, spd: 0.95, spr: 0.95, shot: 1.3, tough: 0.92, jump: 6.6, move: 'UNSTOPPABLE', skill: 'grab', skillName: 'OGRE THROW', skillCd: 7, h: 2.15, girth: 1.12, acc: 22, turn: 7.5 },
   hulk: { name: 'Hvlk', price: 2500, role: 'GIANT', sdesc: 'One clap: a shockwave that blows everyone ahead away, the ball too', kdesc: 'A huge leap that smashes down where he lands', power: 'clap', label: 'THUNDERCLAP', color: '#5fd84a', ready: true, spd: 0.92, spr: 1.04, shot: 1.4, tough: 0.97, jump: 7, move: 'GIANT', skill: 'leap', skillName: 'HVLK SMASH', skillCd: 7, h: 2.75, girth: 1.2, acc: 20, turn: 7, giant: true },
-  goku: { name: 'Gokv', price: 0, role: 'BEAM', sdesc: 'Charge, then fire the ball through the keeper', kdesc: 'Appear right behind the ball', power: 'beam', label: 'KAME WAVE', color: '#5fd8ff', ready: true, spd: 1.05, spr: 1.12, shot: 1.15, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'tp', skillName: 'INSTANT STEP', skillCd: 9, h: 1.78, girth: 1.0, acc: 30, turn: 10 },
+  goku: { name: 'Gokv', price: 1200, role: 'BEAM', sdesc: 'Charge, then fire the ball through the keeper', kdesc: 'Appear right behind the ball', power: 'beam', label: 'KAME WAVE', color: '#5fd8ff', ready: true, spd: 1.05, spr: 1.12, shot: 1.15, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'tp', skillName: 'INSTANT STEP', skillCd: 9, h: 1.78, girth: 1.0, acc: 30, turn: 10 },
   vegeta: { name: 'Vejeta', price: 1200, role: 'BEAM', sdesc: 'A wider beam that launches everyone', kdesc: 'An exploding energy shot', power: 'beam', label: 'FINAL BLAST', color: '#ffe45a', ready: true, spd: 1.05, spr: 1.12, shot: 1.18, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'bigbang', skillName: 'BIG BANG', skillCd: 8, h: 1.66, girth: 1.0, acc: 30, turn: 10 },
   superman: { name: 'Svperman', price: 1500, role: 'POWER', sdesc: 'Burn the ball across the pitch', kdesc: 'A flying punch, ground or air', power: 'heat', label: 'HEAT VISION', color: '#ff3a20', ready: true, spd: 1.0, spr: 1.12, shot: 1.22, tough: 0.85, jump: 7, fly: true, move: 'FLIGHT', skill: 'dash', skillName: 'SUPER PUNCH', skillCd: 6, h: 1.93, girth: 1.04, acc: 30, turn: 10 },
   ironman: { name: 'Iron Male', price: 1200, role: 'TECH', sdesc: 'A chest beam that fires the ball', kdesc: 'Three homing missiles', power: 'heat', label: 'CHEST BEAM', color: '#9fe8ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.1, tough: 0.6, jump: 6.6, fly: true, move: 'FLIGHT', skill: 'missiles', skillName: 'MICRO MISSILES', skillCd: 9, h: 1.95, girth: 1.05, acc: 27, turn: 9 },
   thor: { name: 'Thorr', price: 1500, role: 'POWER', sdesc: 'Lightning on the ball, it fires at goal', kdesc: 'Hits everyone on the way out and back', power: 'lightning', label: 'THUNDER STRIKE', color: '#a8d0ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.22, tough: 0.7, jump: 6.8, fly: true, move: 'FLIGHT', skill: 'hammer', skillName: 'HAMMER THROW', skillCd: 7, h: 1.98, girth: 1.06, acc: 26, turn: 9 },
-  flash: { name: 'The Flazh', price: 0, role: 'SPEED', sdesc: 'Double speed for 4 seconds', kdesc: 'Run straight through tackles', power: 'speed', label: 'SPEED SURGE', color: '#ffd23a', ready: true, spd: 1.55, spr: 1.9, shot: 0.95, tough: 0.1, jump: 6.6, move: 'FASTEST', skill: 'phase', skillName: 'PHASE', skillCd: 8, h: 1.83, girth: 0.96, acc: 60, turn: 16 },
+  flash: { name: 'The Flazh', price: 1000, role: 'SPEED', sdesc: 'Double speed for 4 seconds', kdesc: 'Run straight through tackles', power: 'speed', label: 'SPEED SURGE', color: '#ffd23a', ready: true, spd: 1.55, spr: 1.9, shot: 0.95, tough: 0.1, jump: 6.6, move: 'FASTEST', skill: 'phase', skillName: 'PHASE', skillCd: 8, h: 1.83, girth: 0.96, acc: 60, turn: 16 },
   batman: { name: 'Batmvn', price: 1000, role: 'TACTICS', sdesc: 'Drops one opponent, they lose the ball', kdesc: 'Reel in to the ball', power: 'batarang', label: 'BAT-BLADE', color: '#c8ccd8', ready: true, spd: 1.0, spr: 1.02, shot: 1.0, tough: 0.35, jump: 7.2, glide: true, move: 'CAPE GLIDE', skill: 'grapple', skillName: 'GRAPPLE', skillCd: 7, h: 1.9, girth: 1.03, acc: 29, turn: 10 },
   lantern: { name: 'Green Lanturn', price: 1000, role: 'CONTROL', sdesc: 'Seal your goal for 5 seconds', kdesc: 'A wall of light wherever you need it', power: 'construct', label: 'CONSTRUCT WALL', color: '#3aff6a', ready: true, spd: 1.0, spr: 1.02, shot: 1.05, tough: 0.4, jump: 7, fly: true, move: 'FLIGHT', skill: 'shield', skillName: 'CONSTRUCT SHIELD', skillCd: 9, h: 1.86, girth: 1.0, acc: 30, turn: 10 },
 };
 const NOHERO = { spd: 1, spr: 1, shot: 1, tough: 0, jump: 6.4, h: 1.8, girth: 1, acc: 30, turn: 10 };
 export const heroOf = (p) => HEROES[p.char] || NOHERO;
 export const FLY_TOP = 11;                      // flyers go this high at most (m)
-export const CHARS = Object.keys(HEROES).filter((k) => HEROES[k].ready);
+// the heroes (bots play these; a player's avatar is 'avatar')
+export const CHARS = Object.keys(HEROES).filter((k) => HEROES[k].ready && !HEROES[k].avatar);
+export const PLAYABLE = [...CHARS, 'avatar'];
 const SUPER_RATE = 3.2;                         // super meter per second (full in ~30 s, faster with touches and hits)
 
 const hyp = Math.hypot, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -562,6 +567,16 @@ function superMove(sim, p) {
       Object.assign(ev, { e: [b.x, b.y, b.z] }); break;
     }
     case 'speed': p.boost = 4; ev.o = [ox, gy, oz]; break;
+    case 'shot': {                                       // avatar: a rocket from the feet, or a burst of speed
+      const d = hyp(b.x - ox, b.y - gy, b.z - oz);
+      if (b.owner === p.id || (b.owner < 0 && d < 3.5)) {
+        b.x = ox + fx * 0.6; b.z = oz + fz * 0.6; b.y = gy + 0.4;
+        blastBall(sim, p, fx, 0.1, fz, 40, 0.4);
+        p.st = 'power'; p.stT = 0.5; p.yaw = Math.atan2(fx, fz);
+        Object.assign(ev, { o: [b.x, b.y, b.z] });
+      } else { p.boost = 2; ev.type = 'speed'; ev.o = [ox, gy, oz]; }
+      break;
+    }
     case 'batarang': {
       let best = null, bd = 30;
       for (const q of foes(sim, p)) { const d = hyp(q.x - ox, q.z - oz); if (q.st !== 'down' && d < bd && ((q.x - ox) * fx + (q.z - oz) * fz) / (d || 1) > 0.2) { bd = d; best = q; } }
@@ -1135,6 +1150,7 @@ function botSuper(sim, p, dir, own, opp) {
     case 'clap': { const ahead = near(12).filter((q) => ((q.x - p.x) * dir) > 0).length; go = ahead >= 2 || (owner === p && hyp(opp - p.x, p.z) < 26); if (go && owner === p) face(opp, 0); break; }
     case 'lightning': go = hyp(opp - b.x, b.z) < 30 || (owner && owner.team !== p.team && dB < 30); break;
     case 'speed': go = dB > 15; break;
+    case 'shot': go = owner === p && hyp(opp - p.x, p.z) < 30; if (go) face(opp, (Math.random() - 0.5) * 3); break;
     case 'batarang': go = owner && owner.team !== p.team && dB < 28; if (go) face(owner.x, owner.z); break;
     case 'construct': go = Math.abs(b.x - own) < 25 && Math.sign(b.vx) === -dir && Math.abs(b.vx) > 6; break;
   }
@@ -1159,5 +1175,5 @@ export function snapshot(sim) {
   };
 }
 export function roster(sim) {
-  return sim.players.map((p) => ({ id: p.id, name: p.name, char: p.char, team: p.team, role: p.role, human: p.human }));
+  return sim.players.map((p) => ({ id: p.id, name: p.name, char: p.char, team: p.team, role: p.role, human: p.human, av: p.av || null }));
 }

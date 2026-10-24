@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { filterText, banned, ban, unban, banList } from './safety.mjs';
-import { createSim, step, act, snapshot, roster, CHARS, HEROES, DT, MATCH, ARENAS } from '../js/sim.js';
+import { createSim, step, act, snapshot, roster, PLAYABLE, HEROES, DT, MATCH, ARENAS } from '../js/sim.js';
 
 const PORT = +process.argv[2] || +process.env.PORT || 8970;
 const LIVE = process.env.NODE_ENV === 'production';
@@ -83,7 +83,9 @@ function join(c, m) {
   const free = P.filter((p) => p.team === team && !p.human);
   const slot = free.find((p) => p.role === want) || free.find((p) => p.role === 'out') || free[0];
   slot.human = true; slot.bot = false; slot.name = clean(m.name, 14) || 'Player';
-  slot.char = CHARS.includes(m.char) && (!c.acct || owns(c.acct, m.char)) ? m.char : slot.char;
+  const ch = !c.avatarOK && m.char === 'avatar' ? 'spiderman' : m.char;   // an old build can't show the avatar
+  slot.char = PLAYABLE.includes(ch) && (!c.acct || owns(c.acct, ch) || (!c.avatarOK && OLD_STARTERS.includes(ch))) ? ch : slot.char;
+  slot.av = c.acct?.av || null;
   slot.inq = []; slot.ack = 0; slot.input = { mx: 0, mz: 0, sprint: false, jump: false };
   c.room = r; c.slot = slot;
   r.clients.add(c);
@@ -131,8 +133,24 @@ async function verifySession(session) {
 const NAME_BAD = /(fuck|fuk|fck|shit|bitch|cunt|nigg|fag|rape|porn|pussy|whore|slut|retard|nazi|hitler|ashawo|olosho)/;
 const deleet = (n) => n.toLowerCase().replace(/0/g, 'o').replace(/1|!/g, 'i').replace(/3/g, 'e').replace(/4|@/g, 'a').replace(/5|\$/g, 's').replace(/7/g, 't').replace(/[^a-z]/g, '');
 const okName = (n) => { n = clean(n, 14).replace(/[^A-Za-z0-9_.-]/g, ''); return n && filterText(n) === n && !NAME_BAD.test(deleet(n)) ? n : ''; };
-export const STARTERS = ['spiderman', 'baki', 'flash', 'goku'];      // everyone has these; the rest are bought
+export const STARTERS = ['avatar'];      // everyone plays as their own GameTok avatar; the heroes are bought
 const owns = (a, ch) => STARTERS.includes(ch) || a.owned.includes(ch);
+// these four used to be free: players who had them then keep them
+const OLD_STARTERS = ['spiderman', 'baki', 'flash', 'goku'];
+for (const a of Object.values(accounts)) if (!a.v2) { a.owned = [...new Set([...(a.owned || []), ...OLD_STARTERS])]; a.v2 = 1; }
+// the GameTok avatar record (what the player wears). Checked field by field so nothing else rides along.
+const HEX = /^#[0-9a-f]{6}$/i, SET = /^(Male|Female)_(Peasant|Ranger)$/, SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
+function cleanAvatar(v) {
+  if (!v || typeof v !== 'object') return null;
+  const out = { body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), beard: !!v.beard, fit: v.fit !== false,
+    hair: typeof v.hair === 'string' && /^Hair_[A-Za-z]{1,20}$/.test(v.hair) ? v.hair : null,
+    hairColor: HEX.test(v.hairColor) ? v.hairColor : '#2a1a12', parts: {}, colors: {} };
+  for (const k of SLOTS) {
+    out.parts[k] = typeof v.parts?.[k] === 'string' && SET.test(v.parts[k]) ? v.parts[k] : null;
+    out.colors[k] = HEX.test(v.colors?.[k]) ? v.colors[k] : '#ffffff';
+  }
+  return out;
+}
 // coins: earned by playing matches, spent on heroes (prices live in HEROES); XP fills the level bar
 const START_COINS = 500, XP_LEVEL = 500;
 for (const a of Object.values(accounts)) { a.coins ??= START_COINS; a.xp ??= 0; }
@@ -148,15 +166,16 @@ function buy(c, ch) {
 function register(name, gt) {
   name = okName(name) || 'Player';
   let tag; do tag = String(1000 + ((Math.random() * 9000) | 0)); while (Object.values(accounts).some((a) => a.name.toLowerCase() === name.toLowerCase() && a.tag === tag));
-  const a = { id: crypto.randomBytes(8).toString('hex'), name, tag, token: crypto.randomBytes(24).toString('hex'), friends: [], requests: [], owned: [], hero: 'spiderman', coins: START_COINS, xp: 0, created: Date.now() };
+  const a = { id: crypto.randomBytes(8).toString('hex'), name, tag, token: crypto.randomBytes(24).toString('hex'), friends: [], requests: [], owned: [], hero: 'avatar', coins: START_COINS, xp: 0, created: Date.now(), v2: 1 };
   if (gt) { a.gt = gt; byGt.set(gt, a); }
   accounts[a.id] = a; byToken.set(a.token, a); save(); return a;
 }
 const online = new Map();                    // account id -> connection
-const pub = (a) => ({ id: a.id, name: a.name, tag: a.tag, hero: a.hero, online: online.has(a.id), status: online.get(a.id)?.status || 'offline' });
+const pub = (a) => ({ id: a.id, name: a.name, tag: a.tag, hero: a.hero, av: a.av || null, online: online.has(a.id), status: online.get(a.id)?.status || 'offline' });
 function sendMe(c) {
   const a = c.acct; if (!a) return;
-  send(c, { t: 'me', id: a.id, name: a.name, tag: a.tag, token: a.token, hero: a.hero, coins: a.coins, xp: a.xp, level: 1 + Math.floor(a.xp / XP_LEVEL), xpLevel: XP_LEVEL, owned: [...new Set([...STARTERS, ...a.owned])], starters: STARTERS,
+  const old = !c.avatarOK, starters = old ? OLD_STARTERS : STARTERS, hero = old && a.hero === 'avatar' ? 'spiderman' : a.hero;
+  send(c, { t: 'me', id: a.id, name: a.name, tag: a.tag, token: a.token, hero, av: a.av || null, coins: a.coins, xp: a.xp, level: 1 + Math.floor(a.xp / XP_LEVEL), xpLevel: XP_LEVEL, owned: [...new Set([...starters, ...a.owned])], starters,
     friends: a.friends.map((id) => accounts[id]).filter(Boolean).map(pub), requests: a.requests.map((id) => accounts[id]).filter(Boolean).map(pub) });
 }
 function setStatus(c, status) {
@@ -316,6 +335,8 @@ function handle(c, raw) {
   // ── signing in ──
   if (m.t === 'hello') {
     if (c.acct || c.hello) return; c.hello = true;
+    // game builds from before the avatar don't say 'avatar': they keep the old free heroes (see sendMe, join)
+    c.avatarOK = Array.isArray(m.caps) && m.caps.includes('avatar');
     return verifySession(String(m.session || '')).then((gt) => {
       if (c.socket.destroyed) return;
       // signed in with GameTok: that's who you are (your account is made on your first visit, named after you)
@@ -368,11 +389,17 @@ function handle(c, raw) {
     case 'leave_party': leaveParty(c); newParty(c); return;
     case 'kick': { const p = parties.get(c.party); const kc = online.get(m.id); if (p && p.leader === c.acct.id && kc && kc !== c) { leaveParty(kc); newParty(kc); send(kc, { t: 'toast', text: 'You were removed from the party' }); } return; }
     case 'hero': {
-      if (!HEROES[m.char]) return;
-      if (!owns(c.acct, m.char)) return send(c, { t: 'toast', text: `${HEROES[m.char].name} is locked` });
+      if (!HEROES[m.char] || (m.char === 'avatar' && !c.avatarOK)) return;
+      if (!owns(c.acct, m.char) && !(!c.avatarOK && OLD_STARTERS.includes(m.char))) return send(c, { t: 'toast', text: `${HEROES[m.char].name} is locked` });
       c.acct.hero = m.char; save(); partyUpdate(c.party); return sendMe(c);
     }
     case 'buy': return buy(c, String(m.char || ''));
+    case 'avatar': {                                     // the player changed their GameTok avatar
+      const av = cleanAvatar(m.av); if (!av || JSON.stringify(av) === JSON.stringify(c.acct.av)) return;
+      c.acct.av = av; save(); partyUpdate(c.party);
+      if (c.slot) { c.slot.av = av; broadcast(c.room, { t: 'r', l: roster(c.room.sim) }); }
+      return;
+    }
     case 'ready': { const p = parties.get(c.party); if (p) { if (m.on) p.ready.add(c.acct.id); else p.ready.delete(c.acct.id); partyUpdate(p.id); } return; }
     case 'play': if (!c.room) partyPlay(c, m); return;
     case 'mm_cancel': return unqueue(c.party, `${c.acct.name} cancelled`);
@@ -487,6 +514,18 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (u === '/status') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify([...rooms.values()].map((r) => ({ room: r.name, players: r.clients.size })))); return; }
+  // dev: the GameTok avatar builder (games/avatar-editor) under /avatar/, for ?avatar=1
+  const AV = path.resolve(ROOT, '..', 'avatar-editor');
+  if (u.startsWith('/avatar/')) {
+    const af = path.join(AV, path.normalize(u.slice(7)));
+    if (!af.startsWith(AV + path.sep) || af.includes(path.sep + 'tools' + path.sep)) { res.writeHead(404); res.end(); return; }
+    fs.readFile(af, (err, data) => {
+      if (err) { res.writeHead(404); res.end('not found'); return; }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(af)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+      res.end(data);
+    });
+    return;
+  }
   const f = path.join(ROOT, path.normalize(u));
   if (!f.startsWith(ROOT + path.sep) || f.includes(path.sep + 'server' + path.sep) || f.includes(path.sep + 'Models' + path.sep) || f.startsWith(path.join(ROOT, 'data'))) { res.writeHead(404); res.end(); return; }
   fs.readFile(f, (err, data) => {
