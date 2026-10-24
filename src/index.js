@@ -29,6 +29,7 @@ import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startF
 import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
 import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
+import avatarRouter, { runAvatarMigration, avatarRecordOf } from './avatar-router.js';
 import blogImagesRouter from './blog-images-router.js';
 import { seedPosts } from './seed-posts.js';
 import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, classifyGame } from './categories.js';
@@ -144,6 +145,7 @@ app.use('/api/opengame', openGameRouter);
 
 app.use('/api/assets', assetsRouter);
 app.use('/api/posts', postsPublicRouter);
+app.use('/api/avatar', avatarRouter);
 app.use('/api/admin/posts', postsAdminRouter);
 app.use('/api/admin/blog/images', blogImagesRouter);
 app.use('/api/admin/covers', coverArtRouter);
@@ -2715,7 +2717,7 @@ app.post('/api/developer/sessions/verify', async (req, res) => {
       valid: true,
       gameId: claims.gid,
       mode: claims.mode,
-      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest) },
+      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest), avatarRecord: claims.av || null },
       expiresAt: new Date(claims.exp * 1000).toISOString()
     });
   } catch (err) {
@@ -4545,10 +4547,12 @@ app.post('/api/games/:id/player-session', async (req, res) => {
       id: playerId,
       name: guest ? 'Guest' : (user.display_name || user.username || 'Player'),
       avatar: guest ? null : publicAvatarUrl(user.avatar, user.username || user.id),
+      // the 3D avatar they wear (src/avatar-router.js): games that have human characters dress the player in it
+      avatarRecord: guest ? null : await avatarRecordOf(user.id),
       guest
     };
     const session = jwt.sign(
-      { gid: game.id, name: player.name, guest, mode },
+      { gid: game.id, name: player.name, guest, mode, ...(player.avatarRecord ? { av: player.avatarRecord } : {}) },
       await getSessionSigningSecret(),
       { algorithm: 'HS256', subject: playerId, issuer: 'gametok', audience: `game:${game.id}`, expiresIn: PLAYER_SESSION_TTL_SECONDS }
     );
@@ -7525,6 +7529,7 @@ const start = async () => {
         await runLeaderboardMigration();
         await runDeletedGamesMigration();
         await runCoinConfigMigration();
+        await runAvatarMigration();
         await runStoriesMigration();
         await runMultiplayerMigration();
         await runAnonymousTokensMigration();

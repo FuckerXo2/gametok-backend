@@ -345,6 +345,8 @@ function handle(c, raw) {
       if (!a) a = byToken.get(String(m.token || ''));
       if (!a) { c.hello = false; return send(c, { t: 'need_name', gametok: !!GT_KEY }); }
       const b = banned(a.id); if (b) { send(c, { t: 'denied', why: `You can't play No Rules FC online (${b.why}).` }); return c.socket.end(); }
+      // signed in with GameTok: the avatar on their GameTok account is the one they wear
+      const av = gt && cleanAvatar(gt.avatarRecord); if (av) { a.av = av; save(); }
       attach(c, a);
     });
   }
