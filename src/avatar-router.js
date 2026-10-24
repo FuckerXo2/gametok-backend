@@ -93,9 +93,33 @@ export async function runAvatarMigration() {
       created_at TIMESTAMP DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS tokbux_ledger_user ON tokbux_ledger (user_id, created_at);
+    -- what a store purchase or refund was (its transaction id): the same one is never counted twice
+    ALTER TABLE tokbux_ledger ADD COLUMN IF NOT EXISTS ref VARCHAR(160);
+    CREATE UNIQUE INDEX IF NOT EXISTS tokbux_ledger_ref ON tokbux_ledger (ref) WHERE ref IS NOT NULL;
     ALTER TABLE avatar_profiles ALTER COLUMN tokbux SET DEFAULT ${WELCOME_TOKBUX};
   `);
   console.log('✅ Avatar profiles + TokBux ready');
+}
+
+// Add (or, for a refund, take back) TokBux, once per ref. Returns the new balance, or null if that ref was
+// already counted. A refund never takes the balance below 0 (what was already spent stays spent).
+export async function creditTokbux(userId, amount, reason, ref) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('INSERT INTO avatar_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+    const seen = await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason, ref) VALUES ($1, $2, $3, $4) ON CONFLICT (ref) WHERE ref IS NOT NULL DO NOTHING RETURNING id',
+      [userId, amount, reason, ref]);
+    if (!seen.rowCount) { await client.query('ROLLBACK'); return null; }
+    const r = await client.query('UPDATE avatar_profiles SET tokbux = GREATEST(0, tokbux + $2), updated_at = NOW() WHERE user_id = $1 RETURNING tokbux', [userId, amount]);
+    await client.query('COMMIT');
+    return r.rows[0].tokbux;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // the saved record (cleaned), or null: what the player session carries into games
