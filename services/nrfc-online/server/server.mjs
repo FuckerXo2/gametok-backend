@@ -134,7 +134,9 @@ const NAME_BAD = /(fuck|fuk|fck|shit|bitch|cunt|nigg|fag|rape|porn|pussy|whore|s
 const deleet = (n) => n.toLowerCase().replace(/0/g, 'o').replace(/1|!/g, 'i').replace(/3/g, 'e').replace(/4|@/g, 'a').replace(/5|\$/g, 's').replace(/7/g, 't').replace(/[^a-z]/g, '');
 const okName = (n) => { n = clean(n, 14).replace(/[^A-Za-z0-9_.-]/g, ''); return n && filterText(n) === n && !NAME_BAD.test(deleet(n)) ? n : ''; };
 export const STARTERS = ['avatar'];      // everyone plays as their own GameTok avatar; the heroes are bought
-const owns = (a, ch) => STARTERS.includes(ch) || a.owned.includes(ch);
+// heroes: bought with TokBux on the GameTok account (a.gtOwned, from the verified session); a.owned is what was
+// bought with this game's old coins (kept, never sold again)
+const owns = (a, ch) => STARTERS.includes(ch) || a.owned.includes(ch) || (a.gtOwned || []).includes(ch);
 // these four used to be free: players who had them then keep them
 const OLD_STARTERS = ['spiderman', 'baki', 'flash', 'goku'];
 for (const a of Object.values(accounts)) if (!a.v2) { a.owned = [...new Set([...(a.owned || []), ...OLD_STARTERS])]; a.v2 = 1; }
@@ -151,17 +153,19 @@ function cleanAvatar(v) {
   }
   return out;
 }
-// coins: earned by playing matches, spent on heroes (prices live in HEROES); XP fills the level bar
+// Matches pay XP (levels), never currency. Heroes cost TokBux, bought in the GameTok app (the old coins are gone;
+// a.coins stays only because builds from before still read it).
 const START_COINS = 500, XP_LEVEL = 500;
 for (const a of Object.values(accounts)) { a.coins ??= START_COINS; a.xp ??= 0; }
 const REWARD = { win: 150, draw: 90, loss: 60 }, GOAL_BONUS = 25;
-function buy(c, ch) {
-  const a = c.acct, h = HEROES[ch];
-  if (!h || !h.ready) return;
-  if (owns(a, ch)) return send(c, { t: 'toast', text: `You already have ${h.name}` });
-  if (a.coins < h.price) return send(c, { t: 'toast', text: `Not enough coins: ${h.name} costs ${h.price}, you have ${a.coins}` });
-  a.coins -= h.price; a.owned.push(ch); a.hero = ch; save();
-  send(c, { t: 'bought', char: ch }); sendMe(c); partyUpdate(c.party);
+function buy(c) {
+  send(c, { t: 'toast', text: 'Heroes are bought with TokBux in the GameTok app' });
+}
+// a player signed in with GameTok: what they wear and the heroes they own come from their GameTok account
+function fromGameTok(a, gt) {
+  const av = cleanAvatar(gt.avatarRecord); if (av) a.av = av;
+  a.gtOwned = (gt.owned || []).filter((ch) => HEROES[ch]);
+  save();
 }
 function register(name, gt) {
   name = okName(name) || 'Player';
@@ -175,7 +179,7 @@ const pub = (a) => ({ id: a.id, name: a.name, tag: a.tag, hero: a.hero, av: a.av
 function sendMe(c) {
   const a = c.acct; if (!a) return;
   const old = !c.avatarOK, starters = old ? OLD_STARTERS : STARTERS, hero = old && a.hero === 'avatar' ? 'spiderman' : a.hero;
-  send(c, { t: 'me', id: a.id, name: a.name, tag: a.tag, token: a.token, hero, av: a.av || null, coins: a.coins, xp: a.xp, level: 1 + Math.floor(a.xp / XP_LEVEL), xpLevel: XP_LEVEL, owned: [...new Set([...starters, ...a.owned])], starters,
+  send(c, { t: 'me', id: a.id, name: a.name, tag: a.tag, token: a.token, hero, av: a.av || null, coins: a.coins, xp: a.xp, level: 1 + Math.floor(a.xp / XP_LEVEL), xpLevel: XP_LEVEL, owned: [...new Set([...starters, ...a.owned, ...(a.gtOwned || [])])], starters,
     friends: a.friends.map((id) => accounts[id]).filter(Boolean).map(pub), requests: a.requests.map((id) => accounts[id]).filter(Boolean).map(pub) });
 }
 function setStatus(c, status) {
@@ -345,8 +349,7 @@ function handle(c, raw) {
       if (!a) a = byToken.get(String(m.token || ''));
       if (!a) { c.hello = false; return send(c, { t: 'need_name', gametok: !!GT_KEY }); }
       const b = banned(a.id); if (b) { send(c, { t: 'denied', why: `You can't play No Rules FC online (${b.why}).` }); return c.socket.end(); }
-      // signed in with GameTok: the avatar on their GameTok account is the one they wear
-      const av = gt && cleanAvatar(gt.avatarRecord); if (av) { a.av = av; save(); }
+      if (gt) fromGameTok(a, gt);
       attach(c, a);
     });
   }
@@ -395,7 +398,14 @@ function handle(c, raw) {
       if (!owns(c.acct, m.char) && !(!c.avatarOK && OLD_STARTERS.includes(m.char))) return send(c, { t: 'toast', text: `${HEROES[m.char].name} is locked` });
       c.acct.hero = m.char; save(); partyUpdate(c.party); return sendMe(c);
     }
-    case 'buy': return buy(c, String(m.char || ''));
+    case 'buy': return buy(c);
+    case 'gt_refresh':                                   // bought something in the GameTok app: read the account again
+      return verifySession(String(m.session || '')).then((gt) => {
+        if (!gt || !c.acct || c.acct.gt !== String(gt.id)) return;
+        fromGameTok(c.acct, gt);
+        const ch = String(m.use || ''); if (HEROES[ch] && owns(c.acct, ch)) { c.acct.hero = ch; save(); send(c, { t: 'bought', char: ch }); }
+        sendMe(c); partyUpdate(c.party);
+      });
     case 'avatar': {                                     // the player changed their GameTok avatar
       const av = cleanAvatar(m.av); if (!av || JSON.stringify(av) === JSON.stringify(c.acct.av)) return;
       c.acct.av = av; save(); partyUpdate(c.party);
@@ -449,12 +459,12 @@ setInterval(() => {
         const score = r.sim.score.slice();
         for (const c of [...r.clients]) {
           let reward = null;
-          if (c.acct && c.slot) {               // pay out: result + a bonus per goal the team scored
+          if (c.acct && c.slot) {               // XP: result + a bonus per goal the team scored
             const t = c.slot.team, us = score[t], them = score[1 - t];
             const res = us > them ? 'win' : us < them ? 'loss' : 'draw';
-            const coins = REWARD[res] + GOAL_BONUS * us;
-            c.acct.coins += coins; c.acct.xp += coins; save();
-            reward = { res, coins, level: 1 + Math.floor(c.acct.xp / XP_LEVEL) };
+            const xp = REWARD[res] + GOAL_BONUS * us;
+            c.acct.xp += xp; save();
+            reward = { res, xp, coins: 0, level: 1 + Math.floor(c.acct.xp / XP_LEVEL) };   // coins: builds from before show it
           }
           send(c, { t: 'over', score, reward }); leave(c); sendMe(c);
         }

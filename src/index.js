@@ -29,7 +29,7 @@ import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startF
 import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
 import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
-import avatarRouter, { runAvatarMigration, avatarRecordOf } from './avatar-router.js';
+import avatarRouter, { runAvatarMigration, avatarRecordOf, gameEntitlements } from './avatar-router.js';
 import blogImagesRouter from './blog-images-router.js';
 import { seedPosts } from './seed-posts.js';
 import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, classifyGame } from './categories.js';
@@ -2717,7 +2717,7 @@ app.post('/api/developer/sessions/verify', async (req, res) => {
       valid: true,
       gameId: claims.gid,
       mode: claims.mode,
-      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest), avatarRecord: claims.av || null },
+      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest), avatarRecord: claims.av || null, owned: claims.own || [] },
       expiresAt: new Date(claims.exp * 1000).toISOString()
     });
   } catch (err) {
@@ -4549,10 +4549,12 @@ app.post('/api/games/:id/player-session', async (req, res) => {
       avatar: guest ? null : publicAvatarUrl(user.avatar, user.username || user.id),
       // the 3D avatar they wear (src/avatar-router.js): games that have human characters dress the player in it
       avatarRecord: guest ? null : await avatarRecordOf(user.id),
+      // this game's items they own and their TokBux (src/avatar-router.js GAME_ITEMS): a game server trusts these, not the client
+      ...(guest ? { owned: [], tokbux: 0 } : await gameEntitlements(user.id, game.id)),
       guest
     };
     const session = jwt.sign(
-      { gid: game.id, name: player.name, guest, mode, ...(player.avatarRecord ? { av: player.avatarRecord } : {}) },
+      { gid: game.id, name: player.name, guest, mode, own: player.owned, ...(player.avatarRecord ? { av: player.avatarRecord } : {}) },
       await getSessionSigningSecret(),
       { algorithm: 'HS256', subject: playerId, issuer: 'gametok', audience: `game:${game.id}`, expiresIn: PLAYER_SESSION_TTL_SECONDS }
     );

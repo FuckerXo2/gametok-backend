@@ -23,6 +23,22 @@ for (const [id, p] of Object.entries(HAIRS)) PRICES[`hair-${id}`] = p;
 for (const [set, p] of Object.entries(SETS))
   for (const slot of SLOTS) if (!RANGER_ONLY.includes(slot) || set.endsWith('_Ranger')) PRICES[`${set}-${slot}`] = p;
 
+// What games sell, in TokBux, owned on the GameTok account: '<game id>:<item>'. A game shows them and asks the app
+// to buy (the player confirms in the app); its server sees what's owned in the player session.
+// Prices live HERE: the game's own copy (e.g. No Rules FC's HEROES.price) is only for display.
+export const GAME_ITEMS = {
+  'no-rules-fc': { spiderman: 1000, baki: 800, goku: 1200, flash: 1000, yujiro: 2000, hulk: 2500, vegeta: 1200, superman: 1500, ironman: 1200, thor: 1500, batman: 1000, lantern: 1000 },
+};
+for (const [game, items] of Object.entries(GAME_ITEMS))
+  for (const [id, p] of Object.entries(items)) PRICES[`${game}:${id}`] = p;
+
+// What a player owns in one game (ids without the game prefix), and their TokBux: for the player session.
+export async function gameEntitlements(userId, gameId) {
+  const r = await pool.query('SELECT owned, tokbux FROM avatar_profiles WHERE user_id = $1', [userId]);
+  const p = r.rows[0] || { owned: [], tokbux: WELCOME_TOKBUX };
+  return { owned: p.owned.filter((id) => id.startsWith(`${gameId}:`)).map((id) => id.slice(gameId.length + 1)), tokbux: p.tokbux };
+}
+
 const HEX = /^#[0-9a-f]{6}$/i;
 // Checked field by field, so nothing else rides along (same rules as games/street-5s/server cleanAvatar).
 export function cleanAvatar(v) {
