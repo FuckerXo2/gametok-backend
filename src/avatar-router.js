@@ -24,7 +24,8 @@ const s3 = process.env.R2_ACCOUNT_ID
 export const WELCOME_TOKBUX = 0;
 
 // item id -> price in TokBux. Body types and skin tones aren't items: everyone has them.
-const SETS = { Male_Peasant: 0, Male_Ranger: 0, Female_Peasant: 25, Female_Ranger: 40 };
+// The fantasy sets (Quaternius) are Shop items; the free starter clothes are street ones (STREET, price 0)
+const SETS = { Male_Peasant: 25, Male_Ranger: 40, Female_Peasant: 25, Female_Ranger: 40 };
 const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 const RANGER_ONLY = ['head', 'acc'];
 const HAIRS = { Hair_Buzzed: 0, Hair_BuzzedFemale: 15, Hair_SimpleParted: 20, Hair_Long: 35, Hair_Buns: 35 };
@@ -34,9 +35,14 @@ for (const [set, p] of Object.entries(SETS))
   for (const slot of SLOTS) if (!RANGER_ONLY.includes(slot) || set.endsWith('_Ranger')) PRICES[`${set}-${slot}`] = p;
 // clothing grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour
 const STREET = { top: { Tee: [25, 'White', 'Black', 'Red', 'Green'], Sweater: [40, 'Grey', 'Navy', 'Cream'] },
-                 legs: { Jeans: [35, 'Blue', 'Black'], Shorts: [20, 'Khaki', 'Black'] } };
+                 legs: { Jeans: [35, 'Blue', 'Black'], Shorts: [20, 'Khaki', 'Black'] },
+                 feet: { Sneakers: [30, 'White', 'Black', 'Red'] } };
 for (const [slot, garments] of Object.entries(STREET))
   for (const [g, [price, ...colours]] of Object.entries(garments)) for (const c of colours) PRICES[`Street_${g}${c}-${slot}`] = price;
+// everyone's starter clothes
+for (const id of ['Street_TeeWhite-top', 'Street_JeansBlue-legs', 'Street_ShortsKhaki-legs', 'Street_SneakersWhite-feet']) PRICES[id] = 0;
+// Items that were free once and aren't now: whoever was wearing one keeps it (see profile)
+const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS.map((k) => `${set}-${k}`)).filter((id) => id in PRICES));
 
 // What games sell, in TokBux, owned on the GameTok account: '<game id>:<item>'. A game shows them and asks the app
 // to buy (the player confirms in the app); its server sees what's owned in the player session.
@@ -144,7 +150,13 @@ async function profile(client, userId, lock = false) {
   const fresh = await client.query('INSERT INTO avatar_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING RETURNING user_id', [userId]);
   if (fresh.rowCount && WELCOME_TOKBUX) await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason) VALUES ($1, $2, $3)', [userId, WELCOME_TOKBUX, 'welcome']);
   const r = await client.query(`SELECT record, owned, tokbux FROM avatar_profiles WHERE user_id = $1${lock ? ' FOR UPDATE' : ''}`, [userId]);
-  return r.rows[0];
+  const p = r.rows[0];
+  const kept = p.record ? wornItems(cleanAvatar(p.record)).filter((id) => ONCE_FREE.has(id) && !p.owned.includes(id)) : [];
+  if (kept.length) {
+    await client.query('UPDATE avatar_profiles SET owned = owned || $2::text[] WHERE user_id = $1', [userId, kept]);
+    p.owned = [...p.owned, ...kept];
+  }
+  return p;
 }
 
 const view = (p) => ({ avatar: p.record ? cleanAvatar(p.record) : null, owned: p.owned, tokbux: p.tokbux, prices: PRICES });
