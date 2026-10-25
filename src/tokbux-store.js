@@ -12,7 +12,7 @@ import pool from './db.js';
 import { creditTokbux } from './avatar-router.js';
 
 // store product id (the same in App Store Connect and Google Play) -> TokBux it gives
-export const TOKBUX_PACKS = { tokbux_500: 500, tokbux_1200: 1200, tokbux_3000: 3000, tokbux_8500: 8500 };
+export const TOKBUX_PACKS = { tokbux_80: 80, tokbux_500: 500, tokbux_1200: 1200, tokbux_3000: 3000, tokbux_8500: 8500 };
 
 const router = express.Router();
 
