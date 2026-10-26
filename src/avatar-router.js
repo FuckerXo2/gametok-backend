@@ -183,6 +183,11 @@ router.put('/me', async (req, res) => {
     const missing = wornItems(avatar).filter((id) => PRICES[id] > 0 && !p.owned.includes(id));
     if (missing.length) return res.status(402).json({ error: 'Buy these first', code: 'NOT_OWNED', missing });
     await pool.query('UPDATE avatar_profiles SET record = $2, updated_at = NOW() WHERE user_id = $1', [user.id, avatar]);
+    // what changed, for tracing a look that "changed by itself" (e.g. hair: Hair_Buzzed -> null)
+    const before = p.record ? cleanAvatar(p.record) : null, diff = [];
+    for (const k of ['body', 'skin', 'face', 'hair', 'beard', 'hairColor']) if (before?.[k] !== avatar[k]) diff.push(`${k}: ${before?.[k]} -> ${avatar[k]}`);
+    for (const k of SLOTS) if (before?.parts[k] !== avatar.parts[k]) diff.push(`${k}: ${before?.parts[k]} -> ${avatar.parts[k]}`);
+    if (diff.length) console.log(`[Avatar] ${user.id} saved: ${diff.join(', ')}`);
     res.json(view({ ...p, record: avatar }));
   } catch (err) {
     console.error('[Avatar] save:', err);
