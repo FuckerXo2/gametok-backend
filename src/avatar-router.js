@@ -65,7 +65,7 @@ const HEX = /^#[0-9a-f]{6}$/i;
 export function cleanAvatar(v) {
   if (!v || typeof v !== 'object') return null;
   const out = {
-    body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), beard: !!v.beard, fit: v.fit !== false,
+    body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
     hair: typeof v.hair === 'string' && v.hair in HAIRS ? v.hair : null,
     hairColor: HEX.test(v.hairColor) ? v.hairColor : '#2a1a12', parts: {}, colors: {},
   };
