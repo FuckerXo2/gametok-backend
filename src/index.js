@@ -730,12 +730,14 @@ app.get('/api/admin/thumbnail-status', async (req, res) => {
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 
 async function sendVerificationEmail({ to, code, username, purpose = 'login' }) {
-  const isSignup = purpose === 'signup';
-  const subject = isSignup 
-    ? `Verify your GameTok account: ${code}`
+  const isSignup = purpose === 'signup', isAdd = purpose === 'add_email';
+  const subject = isSignup || isAdd
+    ? `Verify your GameTok email: ${code}`
     : `Your GameTok security code: ${code}`;
   
-  const purposeText = isSignup
+  const purposeText = isAdd
+    ? 'Use the code below to add this email to your GameTok account. It lets you get back in if you ever forget your password.'
+    : isSignup
     ? 'Welcome to GameTok! Use the verification code below to verify your email and complete your registration.'
     : 'We noticed a login request for your GameTok account from a new device or browser session.';
 
@@ -946,6 +948,52 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error: ' + e.message });
+  }
+});
+
+// ── Account settings (the app's Settings screen) ──
+async function userFromToken(req) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+  const r = await pool.query('SELECT * FROM users WHERE token = $1', [token]);
+  return r.rows[0] || null;
+}
+
+// what Settings shows: the email (if any) and whether it's confirmed
+app.get('/api/auth/account', async (req, res) => {
+  const user = await userFromToken(req);
+  if (!user) return res.status(401).json({ error: 'Sign in first' });
+  res.json({ username: user.username, email: user.email || null, emailVerified: !!user.email_verified, hasPassword: !!user.password });
+});
+
+// change password: the current one, then the new one (same rules as sign-up)
+app.post('/api/auth/password', async (req, res) => {
+  const user = await userFromToken(req);
+  if (!user) return res.status(401).json({ error: 'Sign in first' });
+  const { current, next } = req.body || {};
+  if (user.password && user.password !== hashPassword(String(current || ''))) return res.status(400).json({ error: 'Your current password is wrong', code: 'BAD_PASSWORD' });
+  if (String(next || '').length < 8) return res.status(400).json({ error: 'Passwords are at least 8 characters', code: 'BAD_PASSWORD' });
+  if (String(next).toLowerCase().includes(user.username.toLowerCase())) return res.status(400).json({ error: 'Your password can’t contain your username', code: 'BAD_PASSWORD' });
+  await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashPassword(next), user.id]);
+  res.json({ ok: true });
+});
+
+// add (or change) the account's email: saved unconfirmed and sent a 6-digit code; /api/auth/verify-code confirms it
+app.post('/api/auth/email', async (req, res) => {
+  const user = await userFromToken(req);
+  if (!user) return res.status(401).json({ error: 'Sign in first' });
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'That doesn’t look like an email', code: 'BAD_EMAIL' });
+  try {
+    const taken = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 AND id != $2', [email, user.id]);
+    if (taken.rows.length) return res.status(409).json({ error: 'That email is on another account', code: 'EMAIL_TAKEN' });
+    await pool.query('UPDATE users SET email = $1, email_verified = FALSE WHERE id = $2', [email, user.id]);
+    const code = await issueVerificationCode(email, user.id, 'add_email');
+    await sendVerificationEmail({ to: email, code, username: user.username, purpose: 'add_email' });
+    res.json({ ok: true, email });
+  } catch (e) {
+    console.error('[Auth] add email:', e);
+    res.status(500).json({ error: 'Could not send the code' });
   }
 });
 
