@@ -28,7 +28,7 @@ export const WELCOME_TOKBUX = 0;
 const SETS = { Male_Peasant: 25, Male_Ranger: 40, Female_Peasant: 25, Female_Ranger: 40 };
 const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 const RANGER_ONLY = ['head', 'acc'];
-const HAIRS = { Hair_Buzzed: 0, Hair_BuzzedFemale: 15, Hair_SimpleParted: 20, Hair_Long: 35, Hair_Buns: 35 };
+const HAIRS = { Hair_Buzzed: 0, Hair_BuzzedFemale: 0, Hair_SimpleParted: 0, Hair_Long: 35, Hair_Buns: 35 };
 export const PRICES = { beard: 20 };
 for (const [id, p] of Object.entries(HAIRS)) PRICES[`hair-${id}`] = p;
 for (const [set, p] of Object.entries(SETS))
@@ -40,7 +40,9 @@ const STREET = { top: { Tee: [25, 'White', 'Black', 'Red', 'Green'], Sweater: [4
 for (const [slot, garments] of Object.entries(STREET))
   for (const [g, [price, ...colours]] of Object.entries(garments)) for (const c of colours) PRICES[`Street_${g}${c}-${slot}`] = price;
 // everyone's starter clothes
-for (const id of ['Street_TeeWhite-top', 'Street_JeansBlue-legs', 'Street_ShortsKhaki-legs', 'Street_SneakersWhite-feet']) PRICES[id] = 0;
+// everyone's starter items (the sign-up avatar creator offers only these)
+for (const id of ['Street_TeeWhite-top', 'Street_TeeBlack-top', 'Street_JeansBlue-legs', 'Street_JeansBlack-legs', 'Street_ShortsKhaki-legs',
+  'Street_SneakersWhite-feet', 'Street_SneakersBlack-feet']) PRICES[id] = 0;
 // Items that were free once and aren't now: whoever was wearing one keeps it (see profile)
 const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS.map((k) => `${set}-${k}`)).filter((id) => id in PRICES));
 
