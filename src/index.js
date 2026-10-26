@@ -730,14 +730,12 @@ app.get('/api/admin/thumbnail-status', async (req, res) => {
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 
 async function sendVerificationEmail({ to, code, username, purpose = 'login' }) {
-  const isSignup = purpose === 'signup', isAdd = purpose === 'add_email';
-  const subject = isSignup || isAdd
-    ? `Verify your GameTok email: ${code}`
+  const isSignup = purpose === 'signup';
+  const subject = isSignup 
+    ? `Verify your GameTok account: ${code}`
     : `Your GameTok security code: ${code}`;
   
-  const purposeText = isAdd
-    ? 'Use the code below to add this email to your GameTok account. It lets you get back in if you ever forget your password.'
-    : isSignup
+  const purposeText = isSignup
     ? 'Welcome to GameTok! Use the verification code below to verify your email and complete your registration.'
     : 'We noticed a login request for your GameTok account from a new device or browser session.';
 
@@ -978,7 +976,7 @@ app.post('/api/auth/password', async (req, res) => {
   res.json({ ok: true });
 });
 
-// add (or change) the account's email: saved unconfirmed and sent a 6-digit code; /api/auth/verify-code confirms it
+// add (or change) the account's email, for getting back in if the password is forgotten. Saved as typed: no code
 app.post('/api/auth/email', async (req, res) => {
   const user = await userFromToken(req);
   if (!user) return res.status(401).json({ error: 'Sign in first' });
@@ -987,13 +985,11 @@ app.post('/api/auth/email', async (req, res) => {
   try {
     const taken = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 AND id != $2', [email, user.id]);
     if (taken.rows.length) return res.status(409).json({ error: 'That email is on another account', code: 'EMAIL_TAKEN' });
-    await pool.query('UPDATE users SET email = $1, email_verified = FALSE WHERE id = $2', [email, user.id]);
-    const code = await issueVerificationCode(email, user.id, 'add_email');
-    await sendVerificationEmail({ to: email, code, username: user.username, purpose: 'add_email' });
+    await pool.query('UPDATE users SET email = $1 WHERE id = $2', [email, user.id]);
     res.json({ ok: true, email });
   } catch (e) {
     console.error('[Auth] add email:', e);
-    res.status(500).json({ error: 'Could not send the code' });
+    res.status(500).json({ error: 'Could not save your email' });
   }
 });
 
