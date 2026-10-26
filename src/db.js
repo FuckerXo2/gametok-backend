@@ -38,6 +38,7 @@ export const initDB = async () => {
         email_verified BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday DATE;
 
       CREATE TABLE IF NOT EXISTS followers (
         follower_id UUID REFERENCES users(id) ON DELETE CASCADE,

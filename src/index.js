@@ -823,13 +823,47 @@ async function issueVerificationCode(email, userId = null, purpose = 'login') {
   return code;
 }
 
+// Usernames, like Roblox's: 3-20 letters, numbers and _, not at the start or end, at most one _
+const USERNAME_RULE = /^(?=.{3,20}$)[A-Za-z0-9]+(_[A-Za-z0-9]+)?$/;
+
+// Is a username free? (the sign-up screen checks as you type)
+app.get('/api/auth/username-available', async (req, res) => {
+  const name = String(req.query.username || '');
+  if (!USERNAME_RULE.test(name)) return res.json({ available: false, valid: false });
+  const r = await pool.query('SELECT 1 FROM users WHERE LOWER(username) = LOWER($1)', [name]);
+  res.json({ available: r.rows.length === 0, valid: true });
+});
+
+// Sign up like Roblox: birthday, username, password; signed in at once. No email (it can be added later, for
+// recovery). Apps before 2.2.0 still send an email and get the old emailed-code flow.
 app.post('/api/auth/signup', async (req, res) => {
-  const { username, email, password, displayName, deviceId } = req.body;
+  const { username, email, password, displayName, birthday } = req.body;
 
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  if (!email) {
+    if (!USERNAME_RULE.test(username)) return res.status(400).json({ error: 'Usernames are 3-20 letters, numbers or one _', code: 'BAD_USERNAME' });
+    if (password.length < 8) return res.status(400).json({ error: 'Passwords are at least 8 characters', code: 'BAD_PASSWORD' });
+    if (password.toLowerCase().includes(username.toLowerCase())) return res.status(400).json({ error: 'Your password can’t contain your username', code: 'BAD_PASSWORD' });
+    const born = /^\d{4}-\d{2}-\d{2}$/.test(String(birthday || '')) ? birthday : null;
+    if (!born) return res.status(400).json({ error: 'Birthday required', code: 'BAD_BIRTHDAY' });
+    try {
+      const taken = await pool.query('SELECT 1 FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+      if (taken.rows.length) return res.status(409).json({ error: 'That username is taken', code: 'USERNAME_TAKEN' });
+      const token = generateToken();
+      const r = await pool.query(
+        `INSERT INTO users (username, password, display_name, token, birthday) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT DO NOTHING RETURNING *`,
+        [username, hashPassword(password), displayName || username, token, born]);
+      if (!r.rows[0]) return res.status(409).json({ error: 'That username is taken', code: 'USERNAME_TAKEN' });
+      return res.json({ user: await formatUserWithFollowCounts(r.rows[0]), token });
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ error: 'Could not create your account' });
+    }
+  }
   if (username.length < 3 || username.length > 20) return res.status(400).json({ error: 'Username must be 3-20 chars' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be 6+ chars' });
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Valid email address required' });
+  if (!email.includes('@')) return res.status(400).json({ error: 'Valid email address required' });
 
   try {
     const existing = await pool.query(
@@ -846,8 +880,6 @@ app.post('/api/auth/signup', async (req, res) => {
     );
 
     const user = result.rows[0];
-
-    // Issue and send 6-digit verification code
     const code = await issueVerificationCode(email, user.id, 'signup');
     await sendVerificationEmail({ to: email, code, username: user.username, purpose: 'signup' });
 
@@ -864,8 +896,10 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
+// Sign in with username (or email) and password. Apps from 2.2.0 send noCode: signed in at once, like Roblox;
+// older apps keep the emailed code for email accounts on a new device.
 app.post('/api/auth/login', async (req, res) => {
-  const { username, password, deviceId } = req.body;
+  const { username, password, deviceId, noCode } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
   try {
@@ -873,13 +907,12 @@ app.post('/api/auth/login', async (req, res) => {
     const user = result.rows[0];
 
     if (!user || user.password !== hashPassword(password)) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Wrong username or password', code: 'BAD_LOGIN' });
     }
 
     const userEmail = user.email;
     const isEmailVerified = user.email_verified === true;
 
-    // Check device familiarity
     let isKnownDevice = false;
     if (deviceId && user.id) {
       const devRes = await pool.query(
@@ -889,8 +922,7 @@ app.post('/api/auth/login', async (req, res) => {
       if (devRes.rows.length > 0) isKnownDevice = true;
     }
 
-    // Require 6-digit code if user has email and (email is unverified OR logging in from new device)
-    if (userEmail && (!isEmailVerified || !isKnownDevice)) {
+    if (!noCode && userEmail && (!isEmailVerified || !isKnownDevice)) {
       const code = await issueVerificationCode(userEmail, user.id, 'login');
       await sendVerificationEmail({ to: userEmail, code, username: user.username, purpose: 'login' });
 
@@ -903,7 +935,6 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    // Known device & verified email -> instant login
     let token = user.token;
     if (!token) {
       token = generateToken();
