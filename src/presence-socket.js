@@ -2,7 +2,7 @@
  * Realtime presence module.
  *
  * Tracks userId → { status, lastBeat, socketId } in memory.
- * Statuses: 'online' | 'in-game' | 'idle' | 'offline'
+ * Statuses: 'online' | 'in-game' | 'idle' | 'offline'. In a game, also which one: gameId (the Games screen shows it).
  *
  * Wire-up:
  *   import { initializePresenceSocket, presenceRouter } from './presence-socket.js';
@@ -56,33 +56,36 @@ async function getFollowersOf(userId) {
     }
 }
 
-async function broadcastPresence(userId, status) {
+async function broadcastPresence(userId, status, gameId = null) {
     if (!io) return;
     const followers = await getFollowersOf(userId);
     for (const followerId of followers) {
         const entry = presence.get(followerId);
         if (entry?.socketId) {
-            io.to(entry.socketId).emit('presence:update', { userId, status });
+            io.to(entry.socketId).emit('presence:update', { userId, status, gameId });
         }
     }
     // Also emit to the user themselves (so other devices/tabs sync)
     const self = presence.get(userId);
     if (self?.socketId) {
-        io.to(self.socketId).emit('presence:update', { userId, status });
+        io.to(self.socketId).emit('presence:update', { userId, status, gameId });
     }
 }
 
-function setStatus(userId, status, socketId) {
+function setStatus(userId, status, socketId, gameId = null) {
     const prev = presence.get(userId);
     const now = Date.now();
+    if (status !== 'in-game') gameId = null;
+    else if (gameId === null) gameId = prev?.gameId ?? null;   // (an idle -> in-game bounce keeps the game)
     presence.set(userId, {
         status,
+        gameId,
         lastBeat: now,
         socketId: socketId || prev?.socketId || null,
         prevStatus: prev?.status,
     });
-    if (!prev || prev.status !== status) {
-        broadcastPresence(userId, status).catch(() => {});
+    if (!prev || prev.status !== status || prev.gameId !== gameId) {
+        broadcastPresence(userId, status, gameId).catch(() => {});
     }
 }
 
@@ -120,10 +123,10 @@ export function initializePresenceSocket(httpServer) {
 
         setStatus(userId, 'online', socket.id);
 
-        socket.on('presence:set', ({ status }) => {
+        socket.on('presence:set', ({ status, gameId }) => {
             const allowed = ['online', 'in-game', 'idle'];
             const next = allowed.includes(status) ? status : 'online';
-            setStatus(userId, next, socket.id);
+            setStatus(userId, next, socket.id, typeof gameId === 'string' ? gameId.slice(0, 80) : null);
         });
 
         socket.on('presence:beat', () => {
@@ -160,11 +163,12 @@ presenceRouter.get('/', (req, res) => {
         return res.json({ online: presence.size, statuses: {} });
     }
     const ids = userIdsParam.split(',').map((s) => s.trim()).filter(Boolean);
-    const statuses = {};
+    const statuses = {}, games = {};
     for (const id of ids) {
         statuses[id] = presence.get(id)?.status || 'offline';
+        if (presence.get(id)?.gameId) games[id] = presence.get(id).gameId;
     }
-    res.json({ statuses });
+    res.json({ statuses, games });
 });
 
 presenceRouter.get('/online', (req, res) => {
