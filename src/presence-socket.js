@@ -29,6 +29,16 @@ const OFFLINE_GRACE_MS = 120_000;         // remove from online list after 120s
 
 let io = null;
 
+// When each player was last on, and the last game they were in (the Games screen: "tobi was in No Rules FC · 2h ago").
+// Written when they go offline and when they enter a game; kept in the database (the live map is lost on redeploy).
+pool.query(`CREATE TABLE IF NOT EXISTS presence_last (
+  user_id UUID PRIMARY KEY, last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_game VARCHAR(80))`).catch((e) => console.error('[Presence] table:', e.message));
+function remember(userId, gameId) {
+  pool.query(`INSERT INTO presence_last (user_id, last_seen, last_game) VALUES ($1, NOW(), $2)
+    ON CONFLICT (user_id) DO UPDATE SET last_seen = NOW(), last_game = COALESCE($2, presence_last.last_game)`, [userId, gameId || null])
+    .catch(() => {});   // (not a real user id: nothing to remember)
+}
+
 // userId -> { status, lastBeat, socketId, prevStatus }
 const presence = new Map();
 
@@ -84,12 +94,14 @@ function setStatus(userId, status, socketId, gameId = null) {
         socketId: socketId || prev?.socketId || null,
         prevStatus: prev?.status,
     });
+    if (gameId && prev?.gameId !== gameId) remember(userId, gameId);
     if (!prev || prev.status !== status || prev.gameId !== gameId) {
         broadcastPresence(userId, status, gameId).catch(() => {});
     }
 }
 
 function dropUser(userId) {
+    remember(userId, presence.get(userId)?.gameId);
     presence.delete(userId);
     broadcastPresence(userId, 'offline').catch(() => {});
 }
@@ -157,18 +169,26 @@ export function initializePresenceSocket(httpServer) {
 
 export const presenceRouter = express.Router();
 
-presenceRouter.get('/', (req, res) => {
+presenceRouter.get('/', async (req, res) => {
     const userIdsParam = String(req.query.userIds || '').trim();
     if (!userIdsParam) {
         return res.json({ online: presence.size, statuses: {} });
     }
     const ids = userIdsParam.split(',').map((s) => s.trim()).filter(Boolean);
-    const statuses = {}, games = {};
+    const statuses = {}, games = {}, last = {};
     for (const id of ids) {
         statuses[id] = presence.get(id)?.status || 'offline';
         if (presence.get(id)?.gameId) games[id] = presence.get(id).gameId;
     }
-    res.json({ statuses, games });
+    // the offline ones: when they were last on, and in what
+    const off = ids.filter((id) => statuses[id] === 'offline' && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+    if (off.length) {
+        try {
+            const r = await pool.query('SELECT user_id, last_seen, last_game FROM presence_last WHERE user_id = ANY($1::uuid[])', [off]);
+            for (const row of r.rows) last[row.user_id] = { at: row.last_seen, gameId: row.last_game };
+        } catch { /* no history: just offline */ }
+    }
+    res.json({ statuses, games, last });
 });
 
 presenceRouter.get('/online', (req, res) => {
