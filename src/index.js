@@ -4624,12 +4624,16 @@ app.post('/api/games/:id/player-session', async (req, res) => {
       ...(guest ? { owned: [], tokbux: 0 } : await gameEntitlements(user.id, game.id)),
       guest
     };
+    // opened from a friend's Join: who they are in this game (the same per-game id their own session carries), so
+    // the game can put you in their party
+    const joinFriend = !guest && typeof req.body?.joinFriend === 'string' && /^[0-9a-f-]{36}$/i.test(req.body.joinFriend)
+      ? await pseudonymousPlayerId('user', req.body.joinFriend, game.id, mode) : null;
     const session = jwt.sign(
       { gid: game.id, name: player.name, guest, mode, own: player.owned, ...(player.avatarRecord ? { av: player.avatarRecord } : {}) },
       await getSessionSigningSecret(),
       { algorithm: 'HS256', subject: playerId, issuer: 'gametok', audience: `game:${game.id}`, expiresIn: PLAYER_SESSION_TTL_SECONDS }
     );
-    res.json({ success: true, player, session, mode, expiresIn: PLAYER_SESSION_TTL_SECONDS });
+    res.json({ success: true, player, session, mode, expiresIn: PLAYER_SESSION_TTL_SECONDS, ...(joinFriend ? { joinFriend } : {}) });
   } catch (err) {
     console.error('[Player Session] Error:', err);
     res.status(500).json({ error: 'Could not create a player session' });
