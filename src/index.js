@@ -30,7 +30,7 @@ import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
 import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
 import avatarRouter, { runAvatarMigration, avatarRecordOf, gameEntitlements, gameSales } from './avatar-router.js';
-import tokbuxStoreRouter from './tokbux-store.js';
+import tokbuxStoreRouter, { runTokbuxStoreMigration, revenueReport, checkPlayRefunds } from './tokbux-store.js';
 import appConfigRouter, { runAppConfigMigration } from './app-config.js';
 import blogImagesRouter from './blog-images-router.js';
 import { seedPosts } from './seed-posts.js';
@@ -437,6 +437,15 @@ app.get('/api/admin/generation-logs/:id', async (req, res) => {
 // Human-friendly dashboard page (data comes from the JSON feed above).
 app.get('/admin/generations', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin/generations.html'));
+});
+
+// Revenue: TokBux bought with real money (the page + its feed, behind requireAdmin like the rest of /api/admin)
+app.get('/api/admin/revenue', async (req, res) => {
+  try { checkPlayRefunds(); res.json(await revenueReport(req.query.days)); }
+  catch (e) { console.error('[revenue] query failed:', e); res.status(500).json({ error: 'Server error' }); }
+});
+app.get('/admin/revenue', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/admin/revenue.html'));
 });
 
 // Admin endpoint to assign random 3D avatars to all users
@@ -7607,6 +7616,7 @@ const start = async () => {
         await runDeletedGamesMigration();
         await runCoinConfigMigration();
         await runAvatarMigration();
+        await runTokbuxStoreMigration();
         await runAppConfigMigration();
         await runStoriesMigration();
         await runMultiplayerMigration();
