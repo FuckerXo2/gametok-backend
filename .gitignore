@@ -27,3 +27,6 @@ __pycache__/
 # on the server they are environment variables instead.
 secrets/
 *.p8
+
+# Google Play service account key (RevenueCat + Play API)
+play-service-account.json

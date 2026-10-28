@@ -141,10 +141,10 @@ const owns = (a, ch) => STARTERS.includes(ch) || a.owned.includes(ch) || (a.gtOw
 const OLD_STARTERS = ['spiderman', 'baki', 'flash', 'goku'];
 for (const a of Object.values(accounts)) if (!a.v2) { a.owned = [...new Set([...(a.owned || []), ...OLD_STARTERS])]; a.v2 = 1; }
 // the GameTok avatar record (what the player wears). Checked field by field so nothing else rides along.
-const HEX = /^#[0-9a-f]{6}$/i, SET = /^(Male|Female)_(Peasant|Ranger)$/, SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
+const HEX = /^#[0-9a-f]{6}$/i, SET = /^((Male|Female)_(Peasant|Ranger)|Street_[A-Z][a-z]+[A-Z][a-z]+)$/, SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 function cleanAvatar(v) {
   if (!v || typeof v !== 'object') return null;
-  const out = { body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), beard: !!v.beard, fit: v.fit !== false,
+  const out = { body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
     hair: typeof v.hair === 'string' && /^Hair_[A-Za-z]{1,20}$/.test(v.hair) ? v.hair : null,
     hairColor: HEX.test(v.hairColor) ? v.hairColor : '#2a1a12', parts: {}, colors: {} };
   for (const k of SLOTS) {
@@ -379,16 +379,21 @@ function handle(c, raw) {
       send(tc, { t: 'invite', from: pub(c.acct), party: c.party }); return send(c, { t: 'toast', text: `Invite sent to ${accounts[m.id].name}` });
     }
     case 'join_party': return joinParty(c, String(m.party || ''));
+    case 'join_gt':                          // a friend's Join in the GameTok app: the same as their invite link
     case 'join_player': {                    // an invite link (?with=<their id>): become friends, land in their party
-      const them = accounts[String(m.id || '')], me = c.acct; if (!them || them === me) return;
+      const them = m.t === 'join_gt' ? byGt.get(String(m.gt || '')) : accounts[String(m.id || '')], me = c.acct;
+      if (!them && m.t === 'join_gt') return send(c, { t: 'toast', text: "They haven't played No Rules FC yet" });
+      if (!them || them === me) return;
       if (!me.friends.includes(them.id)) me.friends.push(them.id);
       if (!them.friends.includes(me.id)) them.friends.push(me.id);
       save();
       me.requests = me.requests.filter((x) => x !== them.id); them.requests = them.requests.filter((x) => x !== me.id);
       sendMe(c); const tc = online.get(them.id);
       if (!tc) return send(c, { t: 'toast', text: `${them.name} is offline. You're friends now, join them when they're on.` });
-      sendMe(tc); send(tc, { t: 'toast', text: `${me.name} joined from your invite link` });
-      return joinParty(c, tc.party);
+      sendMe(tc); send(tc, { t: 'toast', text: m.t === 'join_gt' ? `${me.name} joined your party` : `${me.name} joined from your invite link` });
+      joinParty(c, tc.party);
+      if (tc.room) send(c, { t: 'toast', text: `${them.name} is in a match: you're in their party for the next one` });
+      return;
     }
     case 'join_friend': { const fc = online.get(m.id); if (fc && c.acct.friends.includes(m.id)) joinParty(c, fc.party); return; }
     case 'leave_party': leaveParty(c); newParty(c); return;

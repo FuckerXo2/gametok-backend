@@ -53,19 +53,19 @@ const BOT_NAMES = ['Kaizo_77', 'vortexx', 'PixelPunter', 'zoomies', 'frostbyte_'
 export const HEROES = {
   // everyone's free default: the player's own GameTok avatar. Plain stats and a plain super, so the
   // heroes are worth buying for what they do differently (not for being simply stronger).
-  avatar: { name: 'My Avatar', price: 0, role: 'ALL-ROUND', sdesc: 'A rocket of a shot from wherever you stand. No ball near you? A burst of speed instead', kdesc: 'No skill: heroes bring their own', power: 'shot', label: 'POWER SHOT', color: '#2fd38a', ready: true, avatar: true, spd: 1.0, spr: 1.05, shot: 1.05, tough: 0.4, jump: 7, move: 'ALL-ROUND', h: 1.8, girth: 1.0, acc: 30, turn: 10 },
-  spiderman: { name: 'Spyder-Man', price: 1000, role: 'AGILE', sdesc: 'Yanks the ball into your hands from 34 m and webs up the two nearest opponents', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.12, spr: 1.18, shot: 1.12, tough: 0.35, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 4, h: 1.76, girth: 0.97, acc: 36, turn: 12 },
-  baki: { name: 'Bakki', price: 800, role: 'TANK', sdesc: 'Charge through everyone in your path', kdesc: '5 s: can’t be floored, every punch floors', power: 'rampage', label: 'DEMON RUSH', color: '#ff7a2a', ready: true, spd: 1.02, spr: 1.08, shot: 1.1, tough: 0.65, jump: 7.2, move: 'TANK', skill: 'rage', skillName: 'DEMON RAGE', skillCd: 12, h: 1.8, girth: 1.08, acc: 24, turn: 8.5 },
-  yujiro: { name: 'Yujirho', price: 2000, role: 'TANK', sdesc: 'Launches everyone within 9 m', kdesc: 'Pick one up and throw them', power: 'quake', label: 'OGRE STOMP', color: '#ff2a50', ready: true, spd: 0.95, spr: 0.95, shot: 1.3, tough: 0.92, jump: 6.6, move: 'UNSTOPPABLE', skill: 'grab', skillName: 'OGRE THROW', skillCd: 7, h: 2.15, girth: 1.12, acc: 22, turn: 7.5 },
-  hulk: { name: 'Hvlk', price: 2500, role: 'GIANT', sdesc: 'One clap: a shockwave that blows everyone ahead away, the ball too', kdesc: 'A huge leap that smashes down where he lands', power: 'clap', label: 'THUNDERCLAP', color: '#5fd84a', ready: true, spd: 0.92, spr: 1.04, shot: 1.4, tough: 0.97, jump: 7, move: 'GIANT', skill: 'leap', skillName: 'HVLK SMASH', skillCd: 7, h: 2.75, girth: 1.2, acc: 20, turn: 7, giant: true },
-  goku: { name: 'Gokv', price: 1200, role: 'BEAM', sdesc: 'Charge, then fire the ball through the keeper', kdesc: 'Appear right behind the ball', power: 'beam', label: 'KAME WAVE', color: '#5fd8ff', ready: true, spd: 1.05, spr: 1.12, shot: 1.15, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'tp', skillName: 'INSTANT STEP', skillCd: 9, h: 1.78, girth: 1.0, acc: 30, turn: 10 },
-  vegeta: { name: 'Vejeta', price: 1200, role: 'BEAM', sdesc: 'A wider beam that launches everyone', kdesc: 'An exploding energy shot', power: 'beam', label: 'FINAL BLAST', color: '#ffe45a', ready: true, spd: 1.05, spr: 1.12, shot: 1.18, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'bigbang', skillName: 'BIG BANG', skillCd: 8, h: 1.66, girth: 1.0, acc: 30, turn: 10 },
-  superman: { name: 'Svperman', price: 1500, role: 'POWER', sdesc: 'Burn the ball across the pitch', kdesc: 'A flying punch, ground or air', power: 'heat', label: 'HEAT VISION', color: '#ff3a20', ready: true, spd: 1.0, spr: 1.12, shot: 1.22, tough: 0.85, jump: 7, fly: true, move: 'FLIGHT', skill: 'dash', skillName: 'SUPER PUNCH', skillCd: 6, h: 1.93, girth: 1.04, acc: 30, turn: 10 },
-  ironman: { name: 'Iron Male', price: 1200, role: 'TECH', sdesc: 'A chest beam that fires the ball', kdesc: 'Three homing missiles', power: 'heat', label: 'CHEST BEAM', color: '#9fe8ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.1, tough: 0.6, jump: 6.6, fly: true, move: 'FLIGHT', skill: 'missiles', skillName: 'MICRO MISSILES', skillCd: 9, h: 1.95, girth: 1.05, acc: 27, turn: 9 },
-  thor: { name: 'Thorr', price: 1500, role: 'POWER', sdesc: 'Lightning on the ball, it fires at goal', kdesc: 'Hits everyone on the way out and back', power: 'lightning', label: 'THUNDER STRIKE', color: '#a8d0ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.22, tough: 0.7, jump: 6.8, fly: true, move: 'FLIGHT', skill: 'hammer', skillName: 'HAMMER THROW', skillCd: 7, h: 1.98, girth: 1.06, acc: 26, turn: 9 },
-  flash: { name: 'The Flazh', price: 1000, role: 'SPEED', sdesc: 'Double speed for 4 seconds', kdesc: 'Run straight through tackles', power: 'speed', label: 'SPEED SURGE', color: '#ffd23a', ready: true, spd: 1.55, spr: 1.9, shot: 0.95, tough: 0.1, jump: 6.6, move: 'FASTEST', skill: 'phase', skillName: 'PHASE', skillCd: 8, h: 1.83, girth: 0.96, acc: 60, turn: 16 },
-  batman: { name: 'Batmvn', price: 1000, role: 'TACTICS', sdesc: 'Drops one opponent, they lose the ball', kdesc: 'Reel in to the ball', power: 'batarang', label: 'BAT-BLADE', color: '#c8ccd8', ready: true, spd: 1.0, spr: 1.02, shot: 1.0, tough: 0.35, jump: 7.2, glide: true, move: 'CAPE GLIDE', skill: 'grapple', skillName: 'GRAPPLE', skillCd: 7, h: 1.9, girth: 1.03, acc: 29, turn: 10 },
-  lantern: { name: 'Green Lanturn', price: 1000, role: 'CONTROL', sdesc: 'Seal your goal for 5 seconds', kdesc: 'A wall of light wherever you need it', power: 'construct', label: 'CONSTRUCT WALL', color: '#3aff6a', ready: true, spd: 1.0, spr: 1.02, shot: 1.05, tough: 0.4, jump: 7, fly: true, move: 'FLIGHT', skill: 'shield', skillName: 'CONSTRUCT SHIELD', skillCd: 9, h: 1.86, girth: 1.0, acc: 30, turn: 10 },
+  avatar: { name: 'My Avatar', price: 0, role: 'ALL-ROUND', sdesc: 'A rocket of a shot from wherever you stand. No ball near you? A burst of speed instead', kdesc: 'A blaster: whoever it hits goes down and drops the ball', power: 'shot', label: 'POWER SHOT', color: '#2fd38a', ready: true, avatar: true, skill: 'gun', skillName: 'BLASTER', skillCd: 1.8, spd: 1.0, spr: 1.05, shot: 1.05, tough: 0.4, jump: 7, move: 'ALL-ROUND', h: 1.8, girth: 1.0, acc: 30, turn: 10 },
+  spiderman: { name: 'Spyder-Man', price: 500, role: 'AGILE', sdesc: 'Yanks the ball into your hands from 34 m and webs up the two nearest opponents', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.12, spr: 1.18, shot: 1.12, tough: 0.35, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 4, h: 1.76, girth: 0.97, acc: 36, turn: 12 },
+  baki: { name: 'Bakki', price: 500, role: 'TANK', sdesc: 'Charge through everyone in your path', kdesc: '5 s: can’t be floored, every punch floors', power: 'rampage', label: 'DEMON RUSH', color: '#ff7a2a', ready: true, spd: 1.02, spr: 1.08, shot: 1.1, tough: 0.65, jump: 7.2, move: 'TANK', skill: 'rage', skillName: 'DEMON RAGE', skillCd: 12, h: 1.8, girth: 1.08, acc: 24, turn: 8.5 },
+  yujiro: { name: 'Yujirho', price: 1200, role: 'TANK', sdesc: 'Launches everyone within 9 m', kdesc: 'Pick one up and throw them', power: 'quake', label: 'OGRE STOMP', color: '#ff2a50', ready: true, spd: 0.95, spr: 0.95, shot: 1.3, tough: 0.92, jump: 6.6, move: 'UNSTOPPABLE', skill: 'grab', skillName: 'OGRE THROW', skillCd: 7, h: 2.15, girth: 1.12, acc: 22, turn: 7.5 },
+  hulk: { name: 'Hvlk', price: 1200, role: 'GIANT', sdesc: 'One clap: a shockwave that blows everyone ahead away, the ball too', kdesc: 'A huge leap that smashes down where he lands', power: 'clap', label: 'THUNDERCLAP', color: '#5fd84a', ready: true, spd: 0.92, spr: 1.04, shot: 1.4, tough: 0.97, jump: 7, move: 'GIANT', skill: 'leap', skillName: 'HVLK SMASH', skillCd: 7, h: 2.75, girth: 1.2, acc: 20, turn: 7, giant: true },
+  goku: { name: 'Gokv', price: 800, role: 'BEAM', sdesc: 'Charge, then fire the ball through the keeper', kdesc: 'Appear right behind the ball', power: 'beam', label: 'KAME WAVE', color: '#5fd8ff', ready: true, spd: 1.05, spr: 1.12, shot: 1.15, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'tp', skillName: 'INSTANT STEP', skillCd: 9, h: 1.78, girth: 1.0, acc: 30, turn: 10 },
+  vegeta: { name: 'Vejeta', price: 800, role: 'BEAM', sdesc: 'A wider beam that launches everyone', kdesc: 'An exploding energy shot', power: 'beam', label: 'FINAL BLAST', color: '#ffe45a', ready: true, spd: 1.05, spr: 1.12, shot: 1.18, tough: 0.5, jump: 7, fly: true, move: 'FLIGHT', skill: 'bigbang', skillName: 'BIG BANG', skillCd: 8, h: 1.66, girth: 1.0, acc: 30, turn: 10 },
+  superman: { name: 'Svperman', price: 800, role: 'POWER', sdesc: 'Burn the ball across the pitch', kdesc: 'A flying punch, ground or air', power: 'heat', label: 'HEAT VISION', color: '#ff3a20', ready: true, spd: 1.0, spr: 1.12, shot: 1.22, tough: 0.85, jump: 7, fly: true, move: 'FLIGHT', skill: 'dash', skillName: 'SUPER PUNCH', skillCd: 6, h: 1.93, girth: 1.04, acc: 30, turn: 10 },
+  ironman: { name: 'Iron Male', price: 800, role: 'TECH', sdesc: 'A chest beam that fires the ball', kdesc: 'Three homing missiles', power: 'heat', label: 'CHEST BEAM', color: '#9fe8ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.1, tough: 0.6, jump: 6.6, fly: true, move: 'FLIGHT', skill: 'missiles', skillName: 'MICRO MISSILES', skillCd: 9, h: 1.95, girth: 1.05, acc: 27, turn: 9 },
+  thor: { name: 'Thorr', price: 800, role: 'POWER', sdesc: 'Lightning on the ball, it fires at goal', kdesc: 'Hits everyone on the way out and back', power: 'lightning', label: 'THUNDER STRIKE', color: '#a8d0ff', ready: true, spd: 0.95, spr: 1.0, shot: 1.22, tough: 0.7, jump: 6.8, fly: true, move: 'FLIGHT', skill: 'hammer', skillName: 'HAMMER THROW', skillCd: 7, h: 1.98, girth: 1.06, acc: 26, turn: 9 },
+  flash: { name: 'The Flazh', price: 500, role: 'SPEED', sdesc: 'Double speed for 4 seconds', kdesc: 'Run straight through tackles', power: 'speed', label: 'SPEED SURGE', color: '#ffd23a', ready: true, spd: 1.55, spr: 1.9, shot: 0.95, tough: 0.1, jump: 6.6, move: 'FASTEST', skill: 'phase', skillName: 'PHASE', skillCd: 8, h: 1.83, girth: 0.96, acc: 60, turn: 16 },
+  batman: { name: 'Batmvn', price: 500, role: 'TACTICS', sdesc: 'Drops one opponent, they lose the ball', kdesc: 'Reel in to the ball', power: 'batarang', label: 'BAT-BLADE', color: '#c8ccd8', ready: true, spd: 1.0, spr: 1.02, shot: 1.0, tough: 0.35, jump: 7.2, glide: true, move: 'CAPE GLIDE', skill: 'grapple', skillName: 'GRAPPLE', skillCd: 7, h: 1.9, girth: 1.03, acc: 29, turn: 10 },
+  lantern: { name: 'Green Lanturn', price: 500, role: 'CONTROL', sdesc: 'Seal your goal for 5 seconds', kdesc: 'A wall of light wherever you need it', power: 'construct', label: 'CONSTRUCT WALL', color: '#3aff6a', ready: true, spd: 1.0, spr: 1.02, shot: 1.05, tough: 0.4, jump: 7, fly: true, move: 'FLIGHT', skill: 'shield', skillName: 'CONSTRUCT SHIELD', skillCd: 9, h: 1.86, girth: 1.0, acc: 30, turn: 10 },
 };
 const NOHERO = { spd: 1, spr: 1, shot: 1, tough: 0, jump: 6.4, h: 1.8, girth: 1, acc: 30, turn: 10 };
 export const heroOf = (p) => HEROES[p.char] || NOHERO;
@@ -634,6 +634,13 @@ function skillMove(sim, p) {
       sim.walls.push({ x1: cx - rx, z1: cz - rz, x2: cx + rx, z2: cz + rz, h: 3.2, t: 4.5, team: p.team });
       p.st = 'skill'; p.stT = 0.5; break;
     }
+    case 'gun': {                                          // the avatar: a blaster shot at whoever's in front (where they'll be)
+      const q = foesNear(40, 0.85)[0], o = [p.x + fwdX(p) * 0.7, gy + 1.3, p.z + fwdZ(p) * 0.7];
+      let dx = fwdX(p), dy = 0, dz = fwdZ(p);
+      if (q) { const t = hyp(q.x - o[0], q.z - o[2]) / 70; dx = q.x + q.vx * t - o[0]; dy = wy(q) + 1 - o[1]; dz = q.z + q.vz * t - o[2]; const l = hyp(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l; p.yaw = Math.atan2(dx, dz); }
+      sim.proj.push({ kind: 'bullet', x: o[0], y: o[1], z: o[2], vx: dx * 70, vy: dy * 70, vz: dz * 70, t: 0.6, by: p.id, team: p.team });
+      ev.o = o; break;
+    }
     case 'phase': p.phaseT = 2.6; break;
     case 'rage': p.rageT = 5; break;
     case 'leap': p.vy = 13; p.vx = fx * 17; p.vz = fz * 17; p.leapT = 2; break;   // Hulk: up, and smash where he lands
@@ -642,7 +649,7 @@ function skillMove(sim, p) {
   sim.events.push(ev);
 }
 
-// projectiles: Vegeta's Big Bang, Iron Man's missiles, Thor's hammer
+// projectiles: Vegeta's Big Bang, Iron Man's missiles, Thor's hammer, the avatar's blaster
 function stepProjectiles(sim, dt) {
   const P = sim.players, b = sim.ball;
   for (const q of sim.proj) {
@@ -667,6 +674,7 @@ function stepProjectiles(sim, dt) {
       if (hyp(v.x - q.x, wy(v) + 1 - q.y, v.z - q.z) > 1.1) continue;
       if (q.kind === 'hammer') { q.hit.push(v.id); launch(sim, v, by || v, q.vx, q.vz, 10, 4, 'shoulder'); sim.events.push({ k: 'skillhit', p: q.by, v: v.id, type: 'hammer' }); }
       else if (q.kind === 'missile') { launch(sim, v, by || v, q.vx, q.vz, 8, 5, 'launch'); q.t = 0; sim.events.push({ k: 'skillhit', p: q.by, v: v.id, type: 'missile', x: q.x, y: q.y, z: q.z }); }
+      else if (q.kind === 'bullet') { launch(sim, v, by || v, q.vx, q.vz, 5, 3, 'launch'); q.t = 0; sim.events.push({ k: 'skillhit', p: q.by, v: v.id, type: 'bullet', x: q.x, y: q.y, z: q.z }); }
       else boom = true;
     }
     if (q.kind !== 'bang' && hyp(b.x - q.x, b.y - q.y, b.z - q.z) < 1.2 && b.owner < 0) { b.vx = q.vx * 0.8; b.vy = Math.max(3, q.vy * 0.5); b.vz = q.vz * 0.8; b.last = q.by; }
@@ -676,7 +684,7 @@ function stepProjectiles(sim, dt) {
       if (bd < 5.5) { b.owner = -1; b.last = q.by; const l = bd || 1; b.vx = (b.x - q.x) / l * 22; b.vy = 8; b.vz = (b.z - q.z) / l * 22; }
       sim.events.push({ k: 'skillhit', p: q.by, type: 'bang', x: q.x, y: q.y, z: q.z });
       q.t = 0;
-    } else if (q.kind === 'missile' && boom) q.t = 0;
+    } else if ((q.kind === 'missile' || q.kind === 'bullet') && boom) q.t = 0;
   }
   sim.proj = sim.proj.filter((q) => q.t > 0);
 }
@@ -1128,6 +1136,7 @@ function botSkill(sim, p, dir, own, opp) {
     case 'phase': go = owner === p && foes(sim, p).some((q) => hyp(q.x - p.x, q.z - p.z) < 3); break;
     case 'rage': go = foes(sim, p).filter((q) => hyp(q.x - p.x, q.z - p.z) < 6).length >= 2; break;
     case 'leap': go = dO > 6 && dO < 15; if (go) face(foeOwner.x, foeOwner.z); break;
+    case 'gun': go = dO < 30; if (go) face(foeOwner.x, foeOwner.z); break;
   }
   p.ai.react = go ? 0.6 : 0.25;
   if (go) act(sim, p, 'skill');
