@@ -25,18 +25,18 @@ export const WELCOME_TOKBUX = 0;
 
 // item id -> price in TokBux. Body types and skin tones aren't items: everyone has them.
 // The fantasy sets (Quaternius) are Shop items; the free starter clothes are street ones (STREET, price 0)
-const SETS = { Male_Peasant: 25, Male_Ranger: 40, Female_Peasant: 25, Female_Ranger: 40 };
+const SETS = { Male_Peasant: 50, Male_Ranger: 75, Female_Peasant: 50, Female_Ranger: 75 };   // per piece
 const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 const RANGER_ONLY = ['head', 'acc'];
-const HAIRS = { Hair_Buzzed: 0, Hair_BuzzedFemale: 0, Hair_SimpleParted: 0, Hair_Long: 35, Hair_Buns: 35 };
-export const PRICES = { beard: 20 };
+const HAIRS = { Hair_Buzzed: 0, Hair_BuzzedFemale: 0, Hair_SimpleParted: 0, Hair_Long: 75, Hair_Buns: 75 };
+export const PRICES = { beard: 40 };
 for (const [id, p] of Object.entries(HAIRS)) PRICES[`hair-${id}`] = p;
 for (const [set, p] of Object.entries(SETS))
   for (const slot of SLOTS) if (!RANGER_ONLY.includes(slot) || set.endsWith('_Ranger')) PRICES[`${set}-${slot}`] = p;
 // clothing grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour
-const STREET = { top: { Tee: [25, 'White', 'Black', 'Red', 'Green'], Sweater: [40, 'Grey', 'Navy', 'Cream'] },
-                 legs: { Jeans: [35, 'Blue', 'Black'], Shorts: [20, 'Khaki', 'Black'] },
-                 feet: { Sneakers: [30, 'White', 'Black', 'Red'] } };
+const STREET = { top: { Tee: [50, 'White', 'Black', 'Red', 'Green'], Sweater: [75, 'Grey', 'Navy', 'Cream'] },
+                 legs: { Jeans: [75, 'Blue', 'Black'], Shorts: [40, 'Khaki', 'Black'] },
+                 feet: { Sneakers: [60, 'White', 'Black', 'Red'] } };
 for (const [slot, garments] of Object.entries(STREET))
   for (const [g, [price, ...colours]] of Object.entries(garments)) for (const c of colours) PRICES[`Street_${g}${c}-${slot}`] = price;
 // everyone's starter clothes
@@ -50,7 +50,7 @@ const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS
 // to buy (the player confirms in the app); its server sees what's owned in the player session.
 // Prices live HERE: the game's own copy (e.g. No Rules FC's HEROES.price) is only for display.
 export const GAME_ITEMS = {
-  'no-rules-fc': { spiderman: 1000, baki: 800, goku: 1200, flash: 1000, yujiro: 2000, hulk: 2500, vegeta: 1200, superman: 1500, ironman: 1200, thor: 1500, batman: 1000, lantern: 1000 },
+  'no-rules-fc': { spiderman: 500, baki: 500, flash: 500, batman: 500, lantern: 500, goku: 800, vegeta: 800, ironman: 800, superman: 800, thor: 800, yujiro: 1200, hulk: 1200 },
 };
 for (const [game, items] of Object.entries(GAME_ITEMS))
   for (const [id, p] of Object.entries(items)) PRICES[`${game}:${id}`] = p;
