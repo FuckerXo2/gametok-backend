@@ -80,4 +80,26 @@ for (const [productId, n] of Object.entries(TOKBUX_PACKS)) {
   });
   console.log(`+ ${productId}: created "${name}" at $${PRICES[productId]}, all ${territories.length} territories`);
 }
+// every pack needs a review screenshot (the TokBux shop): uploaded in Apple's reserve → PUT → commit steps
+const shot = path.join(root, '../gametok/design/store/tokbux-shop-review.png');
+for (const iap of await all(`/v1/apps/${app.id}/inAppPurchasesV2?limit=200`)) {
+  if (!TOKBUX_PACKS[iap.attributes.productId]) continue;
+  const has = await api('GET', `/v2/inAppPurchases/${iap.id}/appStoreReviewScreenshot`).then((j) => j.data).catch(() => null);
+  if (has) { console.log(`✓ ${iap.attributes.productId}: review screenshot there`); continue; }
+  if (!GO) { console.log(`+ ${iap.attributes.productId}: would upload the review screenshot`); continue; }
+  const file = fs.readFileSync(shot);
+  const res = (await api('POST', '/v1/inAppPurchaseAppStoreReviewScreenshots', {
+    type: 'inAppPurchaseAppStoreReviewScreenshots', attributes: { fileName: 'tokbux-shop.png', fileSize: file.length },
+    relationships: { inAppPurchaseV2: { data: { type: 'inAppPurchases', id: iap.id } } },
+  })).data;
+  for (const op of res.attributes.uploadOperations) {
+    const r = await fetch(op.url, { method: op.method, headers: Object.fromEntries(op.requestHeaders.map((h) => [h.name, h.value])), body: file.subarray(op.offset, op.offset + op.length) });
+    if (!r.ok) throw new Error(`upload ${iap.attributes.productId} → ${r.status}`);
+  }
+  await api('PATCH', `/v1/inAppPurchaseAppStoreReviewScreenshots/${res.id}`, {
+    type: 'inAppPurchaseAppStoreReviewScreenshots', id: res.id,
+    attributes: { uploaded: true, sourceFileChecksum: crypto.createHash('md5').update(file).digest('hex') },
+  });
+  console.log(`+ ${iap.attributes.productId}: review screenshot uploaded`);
+}
 if (!GO) console.log('\n(dry run: add --go to create)');
