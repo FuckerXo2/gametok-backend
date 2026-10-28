@@ -29,7 +29,7 @@ import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startF
 import openGameRouter from './opengame-router.js';
 import assetsRouter from './assets-router.js';
 import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
-import avatarRouter, { runAvatarMigration, avatarRecordOf, gameEntitlements } from './avatar-router.js';
+import avatarRouter, { runAvatarMigration, avatarRecordOf, gameEntitlements, gameSales } from './avatar-router.js';
 import tokbuxStoreRouter from './tokbux-store.js';
 import appConfigRouter, { runAppConfigMigration } from './app-config.js';
 import blogImagesRouter from './blog-images-router.js';
@@ -4621,7 +4621,7 @@ app.post('/api/games/:id/player-session', async (req, res) => {
       // the 3D avatar they wear (src/avatar-router.js): games that have human characters dress the player in it
       avatarRecord: guest ? null : await avatarRecordOf(user.id),
       // this game's items they own and their TokBux (src/avatar-router.js GAME_ITEMS): a game server trusts these, not the client
-      ...(guest ? { owned: [], tokbux: 0 } : await gameEntitlements(user.id, game.id)),
+      ...(guest ? { owned: [], tokbux: 0, sales: gameSales(game.id) } : await gameEntitlements(user.id, game.id)),
       guest
     };
     // opened from a friend's Join: who they are in this game (the same per-game id their own session carries), so
