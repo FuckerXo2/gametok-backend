@@ -19,7 +19,7 @@
   h2 { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin: 22px 24px 10px; font-weight: 600; }
   .muted { color: var(--dim); }
   .cards { display: flex; gap: 12px; padding: 18px 24px 4px; flex-wrap: wrap; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; min-width: 140px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; min-width: 140px; flex: 1 1 140px; }
   .card .n { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .card .l { color: var(--dim); font-size: 12px; margin-top: 2px; }
   .controls button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
@@ -89,7 +89,7 @@
 
     $('packs').innerHTML = d.packs.length
       ? '<tr><th>Pack</th><th>Store</th><th class="num">Purchases</th><th class="num">Revenue</th></tr>' + d.packs.map((p) =>
-        `<tr><td>${esc(p.product_id.replace('tokbux_', ''))} TokBux</td><td>${store(p.store)}</td><td class="num">${p.purchases}</td><td class="num">${usd(p.usd)}</td></tr>`).join('')
+        `<tr><td>${Number(p.product_id.replace('tokbux_', '')).toLocaleString()} TokBux</td><td>${store(p.store)}</td><td class="num">${p.purchases}</td><td class="num">${usd(p.usd)}</td></tr>`).join('')
       : '<tr><td class="empty">No purchases yet</td></tr>';
     $('recent').innerHTML = d.recent.length
       ? '<tr><th>When</th><th>Player</th><th>Pack</th><th>Store</th><th class="num">Price</th><th></th></tr>' + d.recent.map((p) =>
