@@ -32,7 +32,7 @@ const PACKAGE = 'com.vogeza';
 // Apple Root CA - G3 (www.apple.com/certificateauthority), the root every App Store signature chains up to
 const APPLE_ROOT_G3_SHA256 = '63343ABFB89A6A03EBB57E9B3F5FA7BE7C4F5C756F3017B3A8C488C3653E9179';
 // marker extensions Apple puts in the signing certificate and its intermediate (DER-encoded OIDs)
-const OID_LEAF = Buffer.from('060a2a864886f763640b01', 'hex');          // 1.2.840.113635.100.6.11.1
+const OID_LEAF = Buffer.from('060a2a864886f76364060b01', 'hex');          // 1.2.840.113635.100.6.11.1
 const OID_INTERMEDIATE = Buffer.from('060a2a864886f76364060201', 'hex'); // 1.2.840.113635.100.6.2.1
 
 export async function runTokbuxStoreMigration() {
@@ -163,7 +163,8 @@ router.post('/verify', async (req, res) => {
   }
 });
 
-// App Store Server Notifications V2: Apple signs these too. A refund takes the TokBux back.
+// App Store Server Notifications V2: Apple signs these too. A refund takes the TokBux back; a purchase is credited
+// to the player in its appAccountToken (the app sets it to their user id), in case the app never got to /verify.
 router.post('/apple-notifications', async (req, res) => {
   try {
     const n = appleSigned(req.body?.signedPayload);
@@ -171,6 +172,12 @@ router.post('/apple-notifications', async (req, res) => {
     if (n.notificationType === 'REFUND' && n.data.signedTransactionInfo) {
       const t = appleSigned(n.data.signedTransactionInfo);
       await refund('apple', t.transactionId);
+    }
+    if (n.notificationType === 'ONE_TIME_CHARGE' && n.data.signedTransactionInfo) {
+      const t = appleSigned(n.data.signedTransactionInfo);
+      const u = TOKBUX_PACKS[t.productId] && t.appAccountToken
+        ? await pool.query('SELECT id FROM users WHERE id::text = $1', [String(t.appAccountToken).toLowerCase()]) : { rows: [] };
+      if (u.rows[0]) await credit('apple', t.transactionId, u.rows[0].id, t.productId, t.environment !== 'Production');
     }
     res.json({ ok: true });
   } catch (err) {
