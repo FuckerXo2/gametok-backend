@@ -58,20 +58,14 @@ for (const [game, items] of Object.entries(GAME_ITEMS))
 // Sales: a real price cut for a while. The crossed-out "was" price is the item's normal price (above), and every
 // sale ends: a made-up "was" price, or a sale that never ends, is deceptive pricing (FTC / EU rules, Apple review).
 // Add one here when asked, e.g. { item: 'no-rules-fc:hulk', off: 30, until: '2026-11-02T00:00:00Z' } (optional from).
-const SALES = [];
-// One No Rules FC hero a day at 25% off, the same for everyone (UTC day; the game features it in the lobby)
-const DAY = 864e5, DAILY_OFF = 25;
-function dailyDeal(now) {
-  const ids = Object.keys(GAME_ITEMS['no-rules-fc']).sort(), d = Math.floor(now / DAY);
-  return { item: `no-rules-fc:${ids[d % ids.length]}`, off: DAILY_OFF, until: new Date((d + 1) * DAY).toISOString(), daily: true };
-}
+const SALES = [];   // none for now: no discounts unless decided
 // item id -> { price, was, off, until } for everything on sale right now (prices rounded to 5)
 export function activeSales(now = Date.now()) {
   const out = {};
-  for (const s of [...SALES.filter((x) => Date.parse(x.until) > now && !(x.from && Date.parse(x.from) > now)), dailyDeal(now)]) {
+  for (const s of SALES.filter((x) => Date.parse(x.until) > now && !(x.from && Date.parse(x.from) > now))) {
     const was = PRICES[s.item];
     if (!was || out[s.item]) continue;
-    out[s.item] = { price: Math.round(was * (100 - s.off) / 500) * 5, was, off: s.off, until: s.until, ...(s.daily ? { daily: true } : {}) };
+    out[s.item] = { price: Math.round(was * (100 - s.off) / 500) * 5, was, off: s.off, until: s.until };
   }
   return out;
 }
