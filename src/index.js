@@ -24,9 +24,7 @@ import { initializeLobbySocket } from './lobby-socket.js';
 import { initializeChatSocket } from './chat-socket.js';
 import { initializePresenceSocket, presenceRouter } from './presence-socket.js';
 import { initializeScoreLobbySocket, scoreLobbyRouter, ensureScoreLobbyColumn } from './score-lobby-socket.js';
-import { initializeForgeSocket } from './forge-socket.js';
-import aiRouter, { startGenerationQueueWorker, stopGenerationQueueWorker, startForgeAutoscaler, stopForgeAutoscaler } from './ai.js';
-import openGameRouter from './opengame-router.js';
+import aiRouter from './ai.js';
 import assetsRouter from './assets-router.js';
 import { postsPublicRouter, postsAdminRouter } from './posts-router.js';
 import avatarRouter, { runAvatarMigration, avatarRecordOf, gameEntitlements, gameSales } from './avatar-router.js';
@@ -38,7 +36,6 @@ import { CATEGORIES, isValidCategory, normalizeCategories, setGameCategories, cl
 import { backfillGameCategories } from './scripts/backfill-game-categories.js';
 
 import coverArtRouter from './cover-art-router.js';
-import adminAssetsRouter from './ai-engine/asset-engine/admin/admin-assets-router.js';
 import { captureGameScreenshot, autoCaptureGameThumbnail } from './screenshot-service.js';
 import { handleGameUpload, handleGameUploadStart, handleGameUploadFinish, handleGameFilesStart, handleGameFilesFinish, MAX_ZIP_BYTES } from './game-uploads.js';
 import { decidePlatform, platformSql } from './mobile-fit.js';
@@ -104,14 +101,8 @@ function adminKeyOk(req) {
 /**
  * Gate administrative endpoints. In production, if ADMIN_SECRET or ADMIN_KEY is configured,
  * requests require ?key=, x-admin-key, or x-admin-secret.
- * The generation dashboard (/admin/generations) and feeds are unlocked via adminKeyOk.
  */
 async function requireAdmin(req, res, next) {
-  // Generation dashboard feeds (logs/stats) are read-only monitoring metrics
-  if (req.path.startsWith('/generation-logs') || req.path.startsWith('/generation-stats')) {
-    return next();
-  }
-
   const secret = process.env.ADMIN_SECRET || process.env.ADMIN_KEY;
   if (process.env.NODE_ENV !== 'production' && !secret) return next();
   if (!secret) return next();
@@ -133,8 +124,6 @@ async function requireAdmin(req, res, next) {
 }
 
 // Global Media & Assets Pool - Mounted BEFORE requireAdmin so team can upload and manage 3D assets/animations 24/7
-app.use('/admin/assets', adminAssetsRouter);
-app.use('/api/admin/assets', adminAssetsRouter);
 
 // Registered before the admin routers and route definitions below so it covers
 // all of them, including /api/admin/bots and /api/admin/covers.
@@ -143,7 +132,6 @@ app.use('/api/admin/insights', adminInsightsRouter);
 
 // 🔥 NATIVE AI PIPELINE MOUNT 🔥
 app.use('/api/ai', aiRouter);
-app.use('/api/opengame', openGameRouter);
 
 app.use('/api/assets', assetsRouter);
 app.use('/api/posts', postsPublicRouter);
@@ -166,7 +154,6 @@ app.use('/games/thumbnails', express.static(path.join(__dirname, '../public/thum
 for (const previewRoot of GAME_PREVIEW_ROOTS) {
   app.use('/game-previews', express.static(previewRoot));
 }
-app.use('/opengame-games', express.static(path.join(STORAGE_ROOT, 'opengame-games')));
 
 // Serve 3D animation library
 const ANIMATIONS_DIR = path.resolve(__dirname, '../../Mixamo Full Motion Pack for UE5 (GLB)');
@@ -291,152 +278,6 @@ app.patch('/api/admin/config', (req, res) => {
   if (maintenanceMode !== undefined) APP_CONFIG.maintenanceMode = maintenanceMode;
   if (featuredGameId !== undefined) APP_CONFIG.featuredGameId = featuredGameId;
   res.json({ success: true, config: APP_CONFIG });
-});
-
-// ── Game-generation logs (persistent, survives Railway redeploys) ──────────────
-
-// JSON feed of recent generations (success AND failure) for the dashboard.
-app.get('/api/admin/generation-logs', async (req, res) => {
-  try {
-    try {
-      await pool.query(`
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_usd NUMERIC(8,4) DEFAULT 0;
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_breakdown JSONB DEFAULT '{}'::jsonb;
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS dimension VARCHAR(8);
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS lane VARCHAR(64);
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS engine VARCHAR(32);
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS result_title TEXT;
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
-      `);
-    } catch (_) {}
-
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
-    const status = typeof req.query.status === 'string' ? req.query.status : null;
-    const result = await pool.query(
-      `SELECT j.id, j.user_id, j.status, j.prompt, j.error, j.phase, j.attempts,
-              j.dimension, j.lane, j.engine, j.result_title, j.duration_ms,
-              j.spend_usd, j.spend_breakdown,
-              j.created_at, j.completed_at,
-              u.username, u.display_name
-         FROM generation_jobs j
-         LEFT JOIN users u ON u.id = j.user_id
-         WHERE j.kind = 'dream'
-           AND ($2::text IS NULL OR j.status = $2)
-         ORDER BY j.created_at DESC
-         LIMIT $1`,
-      [limit, status],
-    );
-    res.json(result.rows.map((r) => ({
-      id: r.id,
-      userId: r.user_id,
-      username: r.display_name || r.username || null,
-      status: r.status,
-      prompt: r.prompt,
-      error: r.error,
-      phase: r.phase,
-      attempts: r.attempts,
-      dimension: r.dimension,
-      lane: r.lane,
-      engine: r.engine,
-      resultTitle: r.result_title,
-      durationMs: r.duration_ms,
-      spendUsd: r.spend_usd != null ? Number(r.spend_usd) : 0,
-      spendBreakdown: r.spend_breakdown || null,
-      createdAt: r.created_at,
-      completedAt: r.completed_at,
-    })));
-  } catch (e) {
-    console.error('[generation-logs] query failed:', e);
-    res.status(500).json({ error: e.message || 'Server error' });
-  }
-});
-
-// True lifetime aggregates for the dashboard cards. The list feed above is
-// capped (recent N rows), so counting rows client-side pegs "Total" at the
-// fetch limit forever — these stats come straight from the full table.
-app.get('/api/admin/generation-stats', async (req, res) => {
-  try {
-    try {
-      await pool.query(`
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_usd NUMERIC(8,4) DEFAULT 0;
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS spend_breakdown JSONB DEFAULT '{}'::jsonb;
-        ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS duration_ms INTEGER;
-      `);
-    } catch (_) {}
-
-    const result = await pool.query(
-      `SELECT
-         count(*)::int                                                          AS total,
-         count(*) FILTER (WHERE status = 'complete')::int                       AS succeeded,
-         count(*) FILTER (WHERE status = 'failed')::int                         AS failed,
-         count(*) FILTER (WHERE status IN ('running', 'queued'))::int           AS running,
-         count(*) FILTER (WHERE status = 'canceled')::int                       AS canceled,
-         avg(duration_ms) FILTER (WHERE status = 'complete'
-                                  AND duration_ms IS NOT NULL)                  AS avg_build_ms,
-         coalesce(sum(spend_usd), 0)::numeric(10,4)                            AS total_spend_usd,
-         coalesce(avg(spend_usd) FILTER (WHERE status = 'complete' AND spend_usd > 0), 0)::numeric(10,4) AS avg_cost_per_game,
-         coalesce(sum(spend_usd) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours'), 0)::numeric(10,4) AS today_spend_usd
-       FROM generation_jobs
-       WHERE kind = 'dream'`,
-    );
-    const r = result.rows[0] || {};
-    const succeeded = r.succeeded || 0;
-    const failed = r.failed || 0;
-    const finished = succeeded + failed;
-    res.json({
-      total: r.total || 0,
-      succeeded,
-      failed,
-      running: r.running || 0,
-      canceled: r.canceled || 0,
-      successRate: finished ? Math.round((succeeded / finished) * 100) : 0,
-      avgBuildMs: r.avg_build_ms != null ? Math.round(Number(r.avg_build_ms)) : null,
-      totalSpendUsd: Number(r.total_spend_usd || 0),
-      avgCostPerGame: Number(r.avg_cost_per_game || 0),
-      todaySpendUsd: Number(r.today_spend_usd || 0),
-    });
-  } catch (e) {
-    console.error('[generation-stats] query failed:', e);
-    res.status(500).json({ error: e.message || 'Server error' });
-  }
-});
-
-// Full captured console log for one generation (fetched on demand when a row is
-// expanded — kept out of the list feed because it can be ~1MB per job).
-app.get('/api/admin/generation-logs/:id', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT j.id, j.status, j.prompt, j.error, j.phase, j.attempts,
-              j.dimension, j.lane, j.engine, j.result_title, j.duration_ms,
-              j.spend_usd, j.spend_breakdown,
-              j.created_at, j.completed_at, j.log,
-              u.username, u.display_name
-         FROM generation_jobs j
-         LEFT JOIN users u ON u.id = j.user_id
-        WHERE j.id = $1`,
-      [req.params.id],
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'not found' });
-    const r = result.rows[0];
-    res.json({
-      id: r.id, status: r.status, prompt: r.prompt, error: r.error, phase: r.phase,
-      attempts: r.attempts, dimension: r.dimension, lane: r.lane, engine: r.engine,
-      resultTitle: r.result_title, durationMs: r.duration_ms,
-      spendUsd: r.spend_usd != null ? Number(r.spend_usd) : 0,
-      spendBreakdown: r.spend_breakdown || null,
-      createdAt: r.created_at, completedAt: r.completed_at,
-      username: r.display_name || r.username || null,
-      log: r.log || null,
-    });
-  } catch (e) {
-    console.error('[generation-logs/:id] query failed:', e);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Human-friendly dashboard page (data comes from the JSON feed above).
-app.get('/admin/generations', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/admin/generations.html'));
 });
 
 // Revenue: TokBux bought with real money (the page + its feed, behind requireAdmin like the rest of /api/admin)
@@ -626,38 +467,6 @@ app.post('/api/admin/recompress-covers', async (req, res) => {
   } catch (e) {
     console.error('recompress-covers error:', e);
     if (!res.headersSent) res.status(500).json({ error: e.message });
-  }
-});
-
-// TEMP backfill — strips pipeline scaffolding out of existing descriptions.
-app.post('/api/admin/fix-descriptions', async (req, res) => {
-  const { dryRun } = req.body || {};
-  try {
-    const { cleanGameDescription } = await import('./ai-engine/routes.js');
-    const { rows } = await pool.query(
-      `SELECT g.id, g.name, g.description, ag.prompt, ag.title
-         FROM games g
-         LEFT JOIN ai_games ag ON g.embed_url = ('/api/ai/play/' || ag.id::text)
-        WHERE g.description LIKE 'Multi-Engine AI Creation:%'`
-    );
-
-    let updated = 0;
-    const samples = [];
-    for (const row of rows) {
-      const source = row.prompt || row.description.replace(/^Multi-Engine AI Creation:\s*/i, '');
-      const cleaned = cleanGameDescription(source, row.title || row.name);
-      if (cleaned === row.description) continue;
-      if (samples.length < 5) samples.push({ name: row.name, before: row.description.slice(0, 80), after: cleaned });
-      if (!dryRun) {
-        await pool.query('UPDATE games SET description = $1 WHERE id = $2', [cleaned, row.id]);
-      }
-      updated += 1;
-    }
-
-    res.json({ success: true, dryRun: !!dryRun, matched: rows.length, updated, samples });
-  } catch (e) {
-    console.error('fix-descriptions error:', e);
-    res.status(500).json({ error: e.message });
   }
 });
 
@@ -5248,7 +5057,7 @@ function formatGame(row) {
     categories: Array.isArray(row.categories) ? row.categories.filter(Boolean) : [],
     embedUrl: row.embed_url,
     // 'portrait' | 'landscape'. Landscape games are played by rotating the WebView's content
-    // inside the portrait feed card — the device never rotates. See ai-engine/orientation.js.
+    // inside the portrait feed card — the device never rotates.
     orientation: row.orientation === 'landscape' ? 'landscape' : 'portrait',
     orientationSource: row.orientation_source || null,
     // 'all' | 'explore' | 'desktop': where phones see it (see mobile-fit.js). Desktop sees all.
@@ -7556,22 +7365,19 @@ const runAnonymousTokensMigration = async () => {
 const start = async () => {
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
-    console.log(`🚀 Direct Gemini API integration active (no CLI required)`);
   });
 
   let shuttingDown = false;
   const shutdown = (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log(`${signal} received; closing HTTP server and pausing generation queue claims.`);
-    stopGenerationQueueWorker(signal);
-    stopForgeAutoscaler();
+    console.log(`${signal} received; closing HTTP server.`);
     server.close(() => {
       console.log('HTTP server closed.');
       process.exit(0);
     });
     setTimeout(() => {
-      console.warn('Graceful shutdown timed out; exiting so queued jobs can be recovered.');
+      console.warn('Graceful shutdown timed out; exiting.');
       process.exit(0);
     }, 25000).unref();
   };
@@ -7598,9 +7404,6 @@ const start = async () => {
   ensureScoreLobbyColumn().catch(e => console.warn('[ScoreLobbyColumn] Warning:', e?.message));
   initializeScoreLobbySocket(server);
   console.log('🏆 Score Lobby Socket initialized');
-
-  // Initialize Forge Socket for Hermes Agent-Driven Studio UI
-  initializeForgeSocket(server);
 
   // Run database initialization and migrations asynchronously with automatic retries
   (async () => {
@@ -7634,8 +7437,6 @@ const start = async () => {
         }
       }
     }
-    startGenerationQueueWorker();
-    startForgeAutoscaler();
   })();
 
   // ============================================

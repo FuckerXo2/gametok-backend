@@ -2,7 +2,7 @@
 # Triggers on push to main branch
 
 # Builds reuse the previous image's layers (--cache-from :latest), so the system packages, the
-# agy CLI and npm install (~1 GB, incl. Chrome for thumbnails) only rerun when the Dockerfile or
+# npm install (~1 GB, incl. Chrome for thumbnails) only rerun when the Dockerfile or
 # package*.json change. A code-only push rebuilds just the source layer.
 
 steps:

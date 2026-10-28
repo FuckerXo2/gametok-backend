@@ -18,16 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Antigravity CLI (agy) — optional fallback (skipped if unreachable)
-RUN (curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh \
-    && bash /tmp/agy-install.sh \
-    && rm -f /tmp/agy-install.sh \
-    && ln -sf "$(find /root/.local -name agy -type f 2>/dev/null | head -1)" /usr/local/bin/agy) || echo "AGY CLI install skipped"
-
-# Configure agy for headless API key auth (no browser OAuth)
-RUN mkdir -p /root/.gemini/antigravity-cli \
-    && echo '{"modelProvider":"gemini"}' > /root/.gemini/antigravity-cli/settings.json
-
 WORKDIR /app
 
 # Install Node dependencies first for Docker layer caching

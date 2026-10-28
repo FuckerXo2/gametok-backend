@@ -13,7 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pkg from 'pg';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { createDeepSeekTextClient, getDeepSeekTextConfig } from './ai-engine/deepseek-text-client.js';
+import { createDeepSeekTextClient, getDeepSeekTextConfig } from './deepseek-text-client.js';
 
 const { Pool } = pkg;
 

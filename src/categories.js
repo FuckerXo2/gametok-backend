@@ -12,7 +12,7 @@
 //
 // Sub-navigation inside a category is New and Trending only — there are no sub-genres.
 
-import { callDeepSeekFlashJson } from './ai-engine/deepseek-text-client.js';
+import { callDeepSeekFlashJson } from './deepseek-text-client.js';
 
 
 /** The canonical set. `slug` is what the API and URLs use; `label` is what people see. */

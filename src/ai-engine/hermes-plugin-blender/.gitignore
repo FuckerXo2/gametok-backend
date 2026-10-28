@@ -1,5 +1,0 @@
-# Private machine-specific verification artifacts, not plugin contents.
-evidence/
-__pycache__/
-.venv/
-.DS_Store
