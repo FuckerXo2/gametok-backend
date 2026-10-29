@@ -141,7 +141,7 @@ const owns = (a, ch) => STARTERS.includes(ch) || a.owned.includes(ch) || (a.gtOw
 const OLD_STARTERS = ['spiderman', 'baki', 'flash', 'goku'];
 for (const a of Object.values(accounts)) if (!a.v2) { a.owned = [...new Set([...(a.owned || []), ...OLD_STARTERS])]; a.v2 = 1; }
 // the GameTok avatar record (what the player wears). Checked field by field so nothing else rides along.
-const HEX = /^#[0-9a-f]{6}$/i, SET = /^((Male|Female)_(Peasant|Ranger)|Street_[A-Z][a-z]+[A-Z][a-z]+)$/, SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
+const HEX = /^#[0-9a-f]{6}$/i, SET = /^[A-Za-z0-9_-]{1,60}$/, SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 function cleanAvatar(v) {
   if (!v || typeof v !== 'object') return null;
   const out = { body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
