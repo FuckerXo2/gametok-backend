@@ -9,6 +9,7 @@
 //   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
 import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
+import { renderPictures } from './avatar-pictures.js';
 import crypto from 'crypto';
 import express from 'express';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -203,6 +204,13 @@ router.use(express.json({ limit: '400kb' }));   // (a headshot PNG; everything e
 router.get('/items', (req, res) => {
   res.set('Cache-Control', 'public, max-age=60');
   res.json({ items: ITEMS });
+});
+
+// the Shop's pictures: renders the missing or out-of-date ones (src/avatar-pictures.js; the deploy calls it)
+router.post('/pictures/render', async (req, res) => {
+  if (!s3) return res.status(503).json({ error: 'Storage is not configured' });
+  try { res.json(await renderPictures({ s3, bucket: R2_BUCKET, publicUrl: R2_PUBLIC_URL })); }
+  catch (err) { console.error('[Pictures]', err); res.status(500).json({ error: err.message }); }
 });
 
 router.get('/me', async (req, res) => {
