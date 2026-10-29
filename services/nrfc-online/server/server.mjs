@@ -140,6 +140,9 @@ const owns = (a, ch) => STARTERS.includes(ch) || a.owned.includes(ch) || (a.gtOw
 // these four used to be free: players who had them then keep them
 const OLD_STARTERS = ['spiderman', 'baki', 'flash', 'goku'];
 for (const a of Object.values(accounts)) if (!a.v2) { a.owned = [...new Set([...(a.owned || []), ...OLD_STARTERS])]; a.v2 = 1; }
+// nothing is free any more: heroes handed out (starters, the coin days) are taken back; bought ones come from the
+// GameTok account (a.gtOwned)
+for (const a of Object.values(accounts)) if (!a.v3) { a.owned = (a.owned || []).filter((ch) => !HEROES[ch]); a.v3 = 1; }
 // the GameTok avatar record (what the player wears). Checked field by field so nothing else rides along.
 const HEX = /^#[0-9a-f]{6}$/i, SET = /^[A-Za-z0-9_-]{1,60}$/, SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 function cleanAvatar(v) {
