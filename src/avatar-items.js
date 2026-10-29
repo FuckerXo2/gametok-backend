@@ -2,7 +2,8 @@
 // so a new item needs no app update:
 //   1. its 3D file on R2 (web-games/avatar/v1/assets/lite/): parts/<set>.glb for clothing and accessories, any
 //      body (cage fitting), or hair/<style>.glb for a hairstyle
-//   2. its picture: web-games/avatar/assets/thumbs/<item id>.webp (games/avatar-editor/tools/thumbs.html)
+//   2. its picture: web-games/avatar/assets/thumbs/<item id>.webp (games/avatar-editor/tools/thumbs.html); `pic`: its
+//      version, bumped when the picture changes
 //   3. a line below
 // An item is data, never code. kind says what wearing it does:
 //   part    puts `set` on `slot` (head top arms legs feet acc); `clears`: slots it replaces (a top's own sleeves);
@@ -72,8 +73,10 @@ export const CHARACTERS = { spiderman: 'Spyder-Man', baki: 'Bakki', flash: 'The 
   goku: 'Gokv', vegeta: 'Vejeta', ironman: 'Iron Male', superman: 'Svperman', thor: 'Thur', yujiro: 'Yujirho', hulk: 'Hvlk' };
 export const CHARACTER_PRICES = { spiderman: 500, baki: 500, flash: 500, batman: 500, lantern: 500, goku: 800, vegeta: 800, ironman: 800,
   superman: 800, thor: 800, yujiro: 1200, hulk: 1200 };
+// a picture's version: bump it when the picture changes (phones keep pictures a day)
+const PIC = { thor: 2 };
 for (const [id, name] of Object.entries(CHARACTERS))
   items.push({ id: `char-${id}`, kind: 'character', character: id, name, price: CHARACTER_PRICES[id], ownedAs: `no-rules-fc:${id}`,
-    tab: 'avatars', sub: '', category: 'clothing', focus: 'body' });
+    tab: 'avatars', sub: '', category: 'clothing', focus: 'body', ...(PIC[id] ? { pic: PIC[id] } : {}) });
 
 export const ITEMS = items;
