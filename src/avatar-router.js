@@ -8,6 +8,7 @@
 //   POST /api/avatar/buy  { itemId }    spends TokBux on an item
 //   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
+import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES } from './avatar-items.js';
 import crypto from 'crypto';
 import express from 'express';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -23,33 +24,11 @@ const s3 = process.env.R2_ACCOUNT_ID
 // Like Robux and V-Bucks: everyone starts with none. TokBux are bought.
 export const WELCOME_TOKBUX = 0;
 
-// item id -> price in TokBux. Body types and skin tones aren't items: everyone has them.
-// The fantasy sets (Quaternius) are Shop items; the free starter clothes are street ones (STREET, price 0)
-const SETS = { Male_Peasant: 50, Male_Ranger: 75, Female_Peasant: 50, Female_Ranger: 75 };   // per piece
-const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
-const RANGER_ONLY = ['head', 'acc'];
-const HAIRS = { Hair_Buzzed: 0, Hair_BuzzedFemale: 0, Hair_SimpleParted: 0, Hair_Long: 75, Hair_Buns: 75 };
-export const PRICES = { beard: 40 };
-// Hair is sold by colour, like Roblox: each style in each colour is its own item (gametok/src/avatar/catalog.ts
-// HAIR_COLORS, same list). The colourless ids are what was sold before colours: older apps still buy them, and owning
-// one owns that style in every colour.
-export const HAIR_COLORS = { Black: '#141110', Brown: '#5a3420', LightBrown: '#9a6634', Blonde: '#e0b45e', Ginger: '#b4521f', Red: '#d8344a', Blue: '#3f7bff' };
-for (const [id, p] of Object.entries(HAIRS)) {
-  PRICES[`hair-${id}`] = p;
-  for (const c of Object.keys(HAIR_COLORS)) PRICES[`hair-${id}-${c}`] = p;
-}
-for (const [set, p] of Object.entries(SETS))
-  for (const slot of SLOTS) if (!RANGER_ONLY.includes(slot) || set.endsWith('_Ranger')) PRICES[`${set}-${slot}`] = p;
-// clothing grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour
-const STREET = { top: { Tee: [50, 'White', 'Black', 'Red', 'Green'], Sweater: [75, 'Grey', 'Navy', 'Cream'] },
-                 legs: { Jeans: [75, 'Blue', 'Black'], Shorts: [40, 'Khaki', 'Black'] },
-                 feet: { Sneakers: [60, 'White', 'Black', 'Red'] } };
-for (const [slot, garments] of Object.entries(STREET))
-  for (const [g, [price, ...colours]] of Object.entries(garments)) for (const c of colours) PRICES[`Street_${g}${c}-${slot}`] = price;
-// everyone's starter clothes
-// everyone's starter items (the sign-up avatar creator offers only these)
-for (const id of ['Street_TeeWhite-top', 'Street_TeeBlack-top', 'Street_JeansBlue-legs', 'Street_JeansBlack-legs', 'Street_ShortsKhaki-legs',
-  'Street_SneakersWhite-feet', 'Street_SneakersBlack-feet']) PRICES[id] = 0;
+// item id -> price in TokBux, from the Shop's list (src/avatar-items.js). Body types and skin tones aren't items:
+// everyone has them. Outfits aren't bought themselves: their pieces are.
+export const PRICES = {};
+for (const i of ITEMS) if (i.kind !== 'outfit') PRICES[i.id] = i.price;
+for (const [style, [, price]] of Object.entries(HAIR_STYLES)) PRICES[`hair-${style}`] = price;   // (bought before colours)
 // Items that were free once and aren't now: whoever was wearing one keeps it (see profile)
 const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS.map((k) => `${set}-${k}`)).filter((id) => id in PRICES));
 
@@ -104,7 +83,7 @@ export function cleanAvatar(v) {
   if (!v || typeof v !== 'object') return null;
   const out = {
     body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
-    hair: typeof v.hair === 'string' && v.hair in HAIRS ? v.hair : null,
+    hair: typeof v.hair === 'string' && v.hair in HAIR_STYLES ? v.hair : null,
     hairColor: nearestHair(v.hairColor), parts: {}, colors: {},
   };
   // body size (Me > Body Shape): 1 is the default; only stored when set
@@ -211,6 +190,12 @@ const view = (p) => { const sales = activeSales(); return { avatar: p.record ? c
 
 const router = express.Router();
 router.use(express.json({ limit: '400kb' }));   // (a headshot PNG; everything else is tiny)
+
+// the Shop: every item sold (the app builds its Shop from this, so new items need no app update)
+router.get('/items', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({ items: ITEMS });
+});
 
 router.get('/me', async (req, res) => {
   try {
