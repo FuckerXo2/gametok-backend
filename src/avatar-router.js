@@ -193,7 +193,7 @@ router.use(express.json({ limit: '400kb' }));   // (a headshot PNG; everything e
 
 // the Shop: every item sold (the app builds its Shop from this, so new items need no app update)
 router.get('/items', (req, res) => {
-  res.set('Cache-Control', 'public, max-age=300');
+  res.set('Cache-Control', 'public, max-age=60');
   res.json({ items: ITEMS });
 });
 
