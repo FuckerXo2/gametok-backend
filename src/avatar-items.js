@@ -56,17 +56,8 @@ const PIECES = [['top', 'Top', 'clothing', 'torso', 'clothing', 'Shirts'], ['arm
 for (const [set, name, price] of SETS) for (const [slot, piece, category, focus, tab, sub, rangerOnly] of PIECES)
   if (!rangerOnly || set.endsWith('_Ranger')) part(slot, set, `${name} ${piece}`, price, { tab, sub, category, focus });
 
-// outfits (Roblox's "Avatars"): whole looks, made of the items above. Pictures: outfit-<id>.webp (tools/thumbs.html OUTFITS)
-const OUTFITS = [
-  ['StreetClassic', 'Street Classic', { top: 'Street_TeeWhite', legs: 'Street_JeansBlue', feet: 'Street_SneakersWhite' }],
-  ['AllBlack', 'All Black', { top: 'Street_TeeBlack', legs: 'Street_JeansBlack', feet: 'Street_SneakersBlack' }],
-  ['Summer', 'Summer', { top: 'Street_TeeRed', legs: 'Street_ShortsKhaki', feet: 'Street_SneakersRed' }],
-  ['Cozy', 'Cozy', { top: 'Street_SweaterCream', legs: 'Street_JeansBlue', feet: 'Street_SneakersWhite' }],
-  ['NightOut', 'Night Out', { top: 'Street_SweaterNavy', legs: 'Street_JeansBlack', feet: 'Street_SneakersBlack' }],
-  ...SETS.map(([set, name]) => [set.replace('_', ''), name, { top: set, arms: set, legs: set, feet: set }]),
-];
-for (const [id, name, parts] of OUTFITS)
-  items.push({ id: `outfit-${id}`, kind: 'outfit', name, price: 0, parts, tab: 'outfits', sub: '', category: 'clothing', focus: 'body' });
+// outfits: none for now. (Bundles of the clothes above were tried and dropped; outfits will be whole bodysuits,
+// each one file, when they come.) The `outfit` kind (described at the top) stays for old saved looks.
 
 // characters: No Rules FC's heroes, worn in every game (bought here or in the game: one purchase owns both)
 export const CHARACTERS = { spiderman: 'Spyder-Man', baki: 'Bakki', flash: 'The Flazh', batman: 'Batmvn', lantern: 'Green Lanturn',
