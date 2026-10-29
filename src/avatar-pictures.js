@@ -3,7 +3,8 @@
 // (games/avatar-editor/item-view.html ?shot) draws one item; headless Chrome opens it and the picture goes to R2
 // (web-games/avatar/assets/thumbs/<item id>.webp, where the app loads it).
 //   An item is rendered when its picture is missing, or its `pic` (picture version) is newer than the one made.
-//   POST /api/avatar/pictures/render does it (the deploy calls it after every backend deploy: cloudbuild.yaml);
+//   POST /api/avatar/pictures/render does it (the server calls it itself a minute after each new version starts:
+//   src/index.js);
 //   it's safe to call any time: with nothing to do it does nothing.
 import puppeteer from 'puppeteer';
 import sharp from 'sharp';

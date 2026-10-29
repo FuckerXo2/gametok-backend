@@ -54,18 +54,6 @@ steps:
       - '--min-instances'
       - '1'
 
-  # The Shop's item pictures: the new backend renders any that are missing or out of date (src/avatar-pictures.js).
-  # A few calls, in case there are more than one call has time for; a failure here doesn't stop the deploy.
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        for i in 1 2 3 4; do
-          r=$$(curl -s -m 290 -X POST https://gametok-backend-267787411422.us-central1.run.app/api/avatar/pictures/render) || true
-          echo "$$r"; echo "$$r" | grep -q '"left":0' && break
-        done; true
-
   # ---- GTA Lagos multiplayer (services/lagos-online): its own service, near Lagos (London), one
   # always-on instance (players' money lives in it), its files on a bucket mounted at /data
   - name: 'gcr.io/cloud-builders/docker'

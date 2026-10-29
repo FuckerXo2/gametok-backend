@@ -7365,6 +7365,12 @@ const runAnonymousTokensMigration = async () => {
 const start = async () => {
   server.listen(PORT, () => {
     console.log(`🎮 GameTok API running on port ${PORT} with PostgreSQL`);
+    // the Shop's item pictures (src/avatar-pictures.js): a minute after a new version starts, it asks itself to make
+    // any that are missing or out of date. As a request, so Cloud Run gives it CPU (between requests it has almost none).
+    if (process.env.K_SERVICE) setTimeout(() => {
+      fetch(`${process.env.SELF_URL || 'https://gametok-backend-267787411422.us-central1.run.app'}/api/avatar/pictures/render`, { method: 'POST', signal: AbortSignal.timeout(290000) })
+        .then((r) => r.json()).then((r) => console.log('[Pictures] after start:', JSON.stringify(r))).catch((e) => console.warn('[Pictures] after start:', e.message));
+    }, 60000);
   });
 
   let shuttingDown = false;
