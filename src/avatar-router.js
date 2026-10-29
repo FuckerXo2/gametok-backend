@@ -10,6 +10,7 @@
 
 import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
 import { renderPictures } from './avatar-pictures.js';
+import { feedFor } from './avatar-feed.js';
 import crypto from 'crypto';
 import express from 'express';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -211,6 +212,16 @@ router.post('/pictures/render', async (req, res) => {
   if (!s3) return res.status(503).json({ error: 'Storage is not configured' });
   try { res.json(await renderPictures({ s3, bucket: R2_BUCKET, publicUrl: R2_PUBLIC_URL })); }
   catch (err) { console.error('[Pictures]', err); res.status(500).json({ error: err.message }); }
+});
+
+// the Shop's front page: the order of its items (src/avatar-feed.js), for this person if signed in
+router.get('/feed', async (req, res) => {
+  try {
+    const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    const r = token ? await pool.query('SELECT id FROM users WHERE token = $1', [token]) : { rows: [] };
+    res.set('Cache-Control', 'private, max-age=300');
+    res.json({ order: feedFor(r.rows[0]?.id) });
+  } catch (err) { console.error('[Avatar] feed:', err); res.status(500).json({ error: 'Could not load the Shop' }); }
 });
 
 router.get('/me', async (req, res) => {
