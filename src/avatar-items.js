@@ -27,7 +27,7 @@ for (const [style, [name, price]] of Object.entries(HAIR_STYLES))
   for (const [c, hex] of Object.entries(HAIR_COLORS))
     items.push({ id: `hair-${style}-${c}`, kind: 'hair', hair: style, hairColor: hex, name: `${c.replace(/(.)([A-Z])/, '$1 $2')} ${name}`,
       price, ownedAs: `hair-${style}`, tab: 'body', sub: 'Hair', category: 'hair', focus: 'head' });
-items.push({ id: 'beard', kind: 'beard', name: 'Full Beard', price: 40, tab: 'body', sub: 'Beards', category: 'hair', focus: 'head' });
+items.push({ id: 'beard', kind: 'beard', name: 'Full Beard', price: 40, tab: 'beards', sub: 'Beards', category: 'hair', focus: 'head' });
 
 // street clothes, grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour.
 // Street files come one per body (parts/<set>_<Top|Legs|Feet>_<Male|Female>.glb, avatar-core.js SLOTS).
