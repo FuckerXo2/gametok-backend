@@ -8,7 +8,7 @@
 //   POST /api/avatar/buy  { itemId }    spends TokBux on an item
 //   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
-import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES } from './avatar-items.js';
+import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
 import crypto from 'crypto';
 import express from 'express';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -28,6 +28,11 @@ export const WELCOME_TOKBUX = 0;
 // everyone has them. Outfits aren't bought themselves: their pieces are.
 export const PRICES = {};
 for (const i of ITEMS) if (i.kind !== 'outfit') PRICES[i.id] = i.price;
+// the same thing under two ids (a character bought here or in its game; a hair from before colours): owning one
+// owns the other
+const ALIAS = {};
+for (const i of ITEMS) if (i.ownedAs) { (ALIAS[i.id] ||= []).push(i.ownedAs); if (i.kind === 'character') (ALIAS[i.ownedAs] ||= []).push(i.id); }
+const owns = (owned, id) => owned.includes(id) || (ALIAS[id] || []).some((a) => owned.includes(a));
 for (const [style, [, price]] of Object.entries(HAIR_STYLES)) PRICES[`hair-${style}`] = price;   // (bought before colours)
 // Items that were free once and aren't now: whoever was wearing one keeps it (see profile)
 const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS.map((k) => `${set}-${k}`)).filter((id) => id in PRICES));
@@ -36,7 +41,7 @@ const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS
 // to buy (the player confirms in the app); its server sees what's owned in the player session.
 // Prices live HERE: the game's own copy (e.g. No Rules FC's HEROES.price) is only for display.
 export const GAME_ITEMS = {
-  'no-rules-fc': { spiderman: 500, baki: 500, flash: 500, batman: 500, lantern: 500, goku: 800, vegeta: 800, ironman: 800, superman: 800, thor: 800, yujiro: 1200, hulk: 1200 },
+  'no-rules-fc': CHARACTER_PRICES,   // (its heroes are also GameTok characters: src/avatar-items.js)
 };
 for (const [game, items] of Object.entries(GAME_ITEMS))
   for (const [id, p] of Object.entries(items)) PRICES[`${game}:${id}`] = p;
@@ -66,7 +71,8 @@ export const gameSales = (gameId) => Object.fromEntries(Object.entries(activeSal
 export async function gameEntitlements(userId, gameId) {
   const r = await pool.query('SELECT owned, tokbux FROM avatar_profiles WHERE user_id = $1', [userId]);
   const p = r.rows[0] || { owned: [], tokbux: WELCOME_TOKBUX };
-  return { owned: p.owned.filter((id) => id.startsWith(`${gameId}:`)).map((id) => id.slice(gameId.length + 1)), tokbux: p.tokbux, sales: gameSales(gameId) };
+  const all = [...new Set(p.owned.flatMap((id) => [id, ...(ALIAS[id] || [])]))];   // (a character bought in the GameTok store)
+  return { owned: all.filter((id) => id.startsWith(`${gameId}:`)).map((id) => id.slice(gameId.length + 1)), tokbux: p.tokbux, sales: gameSales(gameId) };
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -84,6 +90,7 @@ export function cleanAvatar(v) {
   const out = {
     body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
     hair: typeof v.hair === 'string' && v.hair in HAIR_STYLES ? v.hair : null,
+    character: typeof v.character === 'string' && v.character in CHARACTERS ? v.character : null,   // worn instead of the avatar
     hairColor: nearestHair(v.hairColor), parts: {}, colors: {},
   };
   // body size (Me > Body Shape): 1 is the default; only stored when set
@@ -107,6 +114,7 @@ function wornItems(a) {
   const ids = [];
   if (a.hair) ids.push(`hair-${a.hair}-${Object.keys(HAIR_COLORS).find((c) => HAIR_COLORS[c] === a.hairColor)}`);
   if (a.beard) ids.push('beard');
+  if (a.character) ids.push(`char-${a.character}`);
   for (const k of SLOTS) if (a.parts[k]) ids.push(`${a.parts[k]}-${k}`);
   return ids;
 }
@@ -213,13 +221,12 @@ router.put('/me', async (req, res) => {
     const avatar = cleanAvatar(req.body?.avatar);
     if (!avatar) return res.status(400).json({ error: 'No avatar', code: 'BAD_AVATAR' });
     const p = await profile(pool, user.id);
-    const owns = (id) => p.owned.includes(id) || (id.startsWith('hair-') && p.owned.includes(id.replace(/-[A-Za-z]+$/, '')));
-    const missing = wornItems(avatar).filter((id) => PRICES[id] > 0 && !owns(id));
+    const missing = wornItems(avatar).filter((id) => PRICES[id] > 0 && !owns(p.owned, id));
     if (missing.length) return res.status(402).json({ error: 'Buy these first', code: 'NOT_OWNED', missing });
     await pool.query('UPDATE avatar_profiles SET record = $2, updated_at = NOW() WHERE user_id = $1', [user.id, avatar]);
     // what changed, for tracing a look that "changed by itself" (e.g. hair: Hair_Buzzed -> null)
     const before = p.record ? cleanAvatar(p.record) : null, diff = [];
-    for (const k of ['body', 'skin', 'face', 'hair', 'beard', 'hairColor']) if (before?.[k] !== avatar[k]) diff.push(`${k}: ${before?.[k]} -> ${avatar[k]}`);
+    for (const k of ['body', 'skin', 'face', 'hair', 'beard', 'hairColor', 'character']) if (before?.[k] !== avatar[k]) diff.push(`${k}: ${before?.[k]} -> ${avatar[k]}`);
     for (const k of SLOTS) if (before?.parts[k] !== avatar.parts[k]) diff.push(`${k}: ${before?.parts[k]} -> ${avatar.parts[k]}`);
     if (diff.length) console.log(`[Avatar] ${user.id} saved: ${diff.join(', ')}`);
     res.json(view({ ...p, record: avatar }));
@@ -242,7 +249,7 @@ router.post('/buy', async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
     const p = await profile(client, user.id, true);
-    if (price === 0 || p.owned.includes(itemId)) { await client.query('ROLLBACK'); return res.json(view(p)); }
+    if (price === 0 || owns(p.owned, itemId)) { await client.query('ROLLBACK'); return res.json(view(p)); }
     if (p.tokbux < price) {
       await client.query('ROLLBACK');
       return res.status(402).json({ error: `You need ${price - p.tokbux} more TokBux`, code: 'NOT_ENOUGH_TOKBUX', tokbux: p.tokbux, price });

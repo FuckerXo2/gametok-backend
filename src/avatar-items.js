@@ -9,6 +9,9 @@
 //           `plain`: its colours are in the file (the slot's tint goes back to white)
 //   hair    a hairstyle in one colour (`hair`, `hairColor`)        beard  the beard (it takes the hair's colour)
 //   outfit  a whole look (`parts`: slot -> set); it costs what its unowned pieces cost, bought piece by piece
+//   character  a whole character worn instead of your own avatar (`character`: its file, characters/<id>.glb,
+//           rigged to Mixamo's skeleton); your own look is kept for when you take it off. `ownedAs`: the same
+//           character bought inside a game (No Rules FC's heroes), which owns this too, and the other way round
 // tab / sub: where the Shop shows it (gametok/src/avatar/catalog.ts TABS). focus: what the camera looks at.
 
 export const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
@@ -63,5 +66,14 @@ const OUTFITS = [
 ];
 for (const [id, name, parts] of OUTFITS)
   items.push({ id: `outfit-${id}`, kind: 'outfit', name, price: 0, parts, tab: 'outfits', sub: '', category: 'clothing', focus: 'body' });
+
+// characters: No Rules FC's heroes, worn in every game (bought here or in the game: one purchase owns both)
+export const CHARACTERS = { spiderman: 'Spyder-Man', baki: 'Bakki', flash: 'The Flazh', batman: 'Batmvn', lantern: 'Green Lanturn',
+  goku: 'Gokv', vegeta: 'Vejeta', ironman: 'Iron Male', superman: 'Svperman', thor: 'Thorr', yujiro: 'Yujirho', hulk: 'Hvlk' };
+export const CHARACTER_PRICES = { spiderman: 500, baki: 500, flash: 500, batman: 500, lantern: 500, goku: 800, vegeta: 800, ironman: 800,
+  superman: 800, thor: 800, yujiro: 1200, hulk: 1200 };
+for (const [id, name] of Object.entries(CHARACTERS))
+  items.push({ id: `char-${id}`, kind: 'character', character: id, name, price: CHARACTER_PRICES[id], ownedAs: `no-rules-fc:${id}`,
+    tab: 'avatars', sub: '', category: 'clothing', focus: 'body' });
 
 export const ITEMS = items;
