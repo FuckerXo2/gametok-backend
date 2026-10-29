@@ -30,7 +30,14 @@ const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 const RANGER_ONLY = ['head', 'acc'];
 const HAIRS = { Hair_Buzzed: 0, Hair_BuzzedFemale: 0, Hair_SimpleParted: 0, Hair_Long: 75, Hair_Buns: 75 };
 export const PRICES = { beard: 40 };
-for (const [id, p] of Object.entries(HAIRS)) PRICES[`hair-${id}`] = p;
+// Hair is sold by colour, like Roblox: each style in each colour is its own item (gametok/src/avatar/catalog.ts
+// HAIR_COLORS, same list). The colourless ids are what was sold before colours: older apps still buy them, and owning
+// one owns that style in every colour.
+export const HAIR_COLORS = { Black: '#141110', Brown: '#5a3420', LightBrown: '#9a6634', Blonde: '#e0b45e', Ginger: '#b4521f', Red: '#d8344a', Blue: '#3f7bff' };
+for (const [id, p] of Object.entries(HAIRS)) {
+  PRICES[`hair-${id}`] = p;
+  for (const c of Object.keys(HAIR_COLORS)) PRICES[`hair-${id}-${c}`] = p;
+}
 for (const [set, p] of Object.entries(SETS))
   for (const slot of SLOTS) if (!RANGER_ONLY.includes(slot) || set.endsWith('_Ranger')) PRICES[`${set}-${slot}`] = p;
 // clothing grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour
@@ -84,14 +91,30 @@ export async function gameEntitlements(userId, gameId) {
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
+// a hair colour from before they were fixed (any colour went): the nearest one sold now
+function nearestHair(hex) {
+  if (!HEX.test(hex)) return HAIR_COLORS.Brown;
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r, g, b] = rgb(hex);
+  const d = (h) => { const [R, G, B] = rgb(h); return (R - r) ** 2 + (G - g) ** 2 + (B - b) ** 2; };
+  return Object.values(HAIR_COLORS).reduce((best, h) => (d(h) < d(best) ? h : best));
+}
 // Checked field by field, so nothing else rides along (same rules as games/street-5s/server cleanAvatar).
 export function cleanAvatar(v) {
   if (!v || typeof v !== 'object') return null;
   const out = {
     body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
     hair: typeof v.hair === 'string' && v.hair in HAIRS ? v.hair : null,
-    hairColor: HEX.test(v.hairColor) ? v.hairColor : '#2a1a12', parts: {}, colors: {},
+    hairColor: nearestHair(v.hairColor), parts: {}, colors: {},
   };
+  // body size (Me > Body Shape): 1 is the default; only stored when set
+  const size = (x, lo, hi) => Math.round(Math.max(lo, Math.min(hi, x)) * 100) / 100;
+  if (Number.isFinite(v.height)) out.height = size(v.height, 0.9, 1.1);
+  if (Number.isFinite(v.width)) out.width = size(v.width, 0.9, 1.1);
+  if (Number.isFinite(v.head)) out.head = size(v.head, 0.9, 1.15);
+  // the Body Type triangle: across (-1 curvy .. 1 broad) and down (0..1, a smaller build)
+  if (Number.isFinite(v.shapeX)) out.shapeX = size(v.shapeX, -1, 1);
+  if (Number.isFinite(v.compact)) out.compact = size(v.compact, 0, 1);
   for (const k of SLOTS) {
     const set = v.parts?.[k];
     out.parts[k] = typeof set === 'string' && `${set}-${k}` in PRICES ? set : null;
@@ -103,7 +126,7 @@ export function cleanAvatar(v) {
 // the items a record wears
 function wornItems(a) {
   const ids = [];
-  if (a.hair) ids.push(`hair-${a.hair}`);
+  if (a.hair) ids.push(`hair-${a.hair}-${Object.keys(HAIR_COLORS).find((c) => HAIR_COLORS[c] === a.hairColor)}`);
   if (a.beard) ids.push('beard');
   for (const k of SLOTS) if (a.parts[k]) ids.push(`${a.parts[k]}-${k}`);
   return ids;
@@ -205,7 +228,8 @@ router.put('/me', async (req, res) => {
     const avatar = cleanAvatar(req.body?.avatar);
     if (!avatar) return res.status(400).json({ error: 'No avatar', code: 'BAD_AVATAR' });
     const p = await profile(pool, user.id);
-    const missing = wornItems(avatar).filter((id) => PRICES[id] > 0 && !p.owned.includes(id));
+    const owns = (id) => p.owned.includes(id) || (id.startsWith('hair-') && p.owned.includes(id.replace(/-[A-Za-z]+$/, '')));
+    const missing = wornItems(avatar).filter((id) => PRICES[id] > 0 && !owns(id));
     if (missing.length) return res.status(402).json({ error: 'Buy these first', code: 'NOT_OWNED', missing });
     await pool.query('UPDATE avatar_profiles SET record = $2, updated_at = NOW() WHERE user_id = $1', [user.id, avatar]);
     // what changed, for tracing a look that "changed by itself" (e.g. hair: Hair_Buzzed -> null)
