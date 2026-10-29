@@ -147,6 +147,7 @@ function cleanAvatar(v) {
   const out = { body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
     hair: typeof v.hair === 'string' && /^Hair_[A-Za-z]{1,20}$/.test(v.hair) ? v.hair : null,
     hairColor: HEX.test(v.hairColor) ? v.hairColor : '#2a1a12', parts: {}, colors: {} };
+  if (typeof v.character === 'string' && HEROES[v.character]) out.character = v.character;   // a hero worn as their GameTok avatar
   for (const k of SLOTS) {
     out.parts[k] = typeof v.parts?.[k] === 'string' && SET.test(v.parts[k]) ? v.parts[k] : null;
     out.colors[k] = HEX.test(v.colors?.[k]) ? v.colors[k] : '#ffffff';
@@ -158,6 +159,9 @@ function cleanAvatar(v) {
 const START_COINS = 500, XP_LEVEL = 500;
 for (const a of Object.values(accounts)) { a.coins ??= START_COINS; a.xp ??= 0; }
 const REWARD = { win: 150, draw: 90, loss: 60 }, GOAL_BONUS = 25;
+// what a player plays as: their pick, or, picking their GameTok avatar while it wears a hero they own (bought in the
+// GameTok store or here), that hero, powers and all
+const playAs = (a) => (a.hero === 'avatar' && HEROES[a.av?.character]?.ready && owns(a, a.av.character) ? a.av.character : a.hero);
 function buy(c) {
   send(c, { t: 'toast', text: 'Heroes are bought with TokBux in the GameTok app' });
 }
@@ -175,7 +179,7 @@ function register(name, gt) {
   accounts[a.id] = a; byToken.set(a.token, a); save(); return a;
 }
 const online = new Map();                    // account id -> connection
-const pub = (a) => ({ id: a.id, name: a.name, tag: a.tag, hero: a.hero, av: a.av || null, online: online.has(a.id), status: online.get(a.id)?.status || 'offline' });
+const pub = (a) => ({ id: a.id, name: a.name, tag: a.tag, hero: playAs(a), av: a.av || null, online: online.has(a.id), status: online.get(a.id)?.status || 'offline' });
 function sendMe(c) {
   const a = c.acct; if (!a) return;
   const old = !c.avatarOK, starters = old ? OLD_STARTERS : STARTERS, hero = old && a.hero === 'avatar' ? 'spiderman' : a.hero;
@@ -272,7 +276,7 @@ function unqueue(pid, why) {
 }
 const humansOn = (r, t) => r.sim.players.filter((x) => x.human && x.team === t).length;
 function startParty(p, room, team) {
-  for (const mc of partyConns(p)) join(mc, { room, exact: true, team, name: mc.acct.name, char: mc.acct.hero });
+  for (const mc of partyConns(p)) join(mc, { room, exact: true, team, name: mc.acct.name, char: playAs(mc.acct) });
   partyMsg(p, { t: 'mm', on: false }); p.ready.clear(); partyUpdate(p.id);
 }
 function mmTick() {
@@ -326,7 +330,7 @@ function partyPlay(c, m) {
     if (waiting.length) return send(c, { t: 'toast', text: `Waiting for ${waiting.join(', ')} to ready up` });
     return enqueue(p);
   }
-  for (const mc of members) join(mc, { room, exact: true, team, name: mc.acct.name, char: mc.acct.hero });
+  for (const mc of members) join(mc, { room, exact: true, team, name: mc.acct.name, char: playAs(mc.acct) });
   p.ready.clear(); partyUpdate(p.id);
 }
 
@@ -423,7 +427,7 @@ function handle(c, raw) {
     case 'join_code': {
       const code = clean(m.code, 8).toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (!rooms.has('p-' + code.toLowerCase())) return send(c, { t: 'toast', text: `No private match ${code}` });
-      return join(c, { room: 'p-' + code.toLowerCase(), exact: true, team: m.team, name: c.acct.name + '#' + c.acct.tag, char: c.acct.hero });
+      return join(c, { room: 'p-' + code.toLowerCase(), exact: true, team: m.team, name: c.acct.name + '#' + c.acct.tag, char: playAs(c.acct) });
     }
     case 'leave_match': return leave(c);
     case 'rtc': {                            // voice: pass the WebRTC handshake to a party member
