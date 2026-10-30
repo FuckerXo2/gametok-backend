@@ -8,7 +8,7 @@
 //   POST /api/avatar/buy  { itemId }    spends TokBux on an item
 //   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
-import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
+import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, ALL_HAIR, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
 import { renderPictures } from './avatar-pictures.js';
 import { feedFor } from './avatar-feed.js';
 import crypto from 'crypto';
@@ -35,7 +35,7 @@ for (const i of ITEMS) if (i.kind !== 'outfit') PRICES[i.id] = i.price;
 const ALIAS = {};
 for (const i of ITEMS) if (i.ownedAs) { (ALIAS[i.id] ||= []).push(i.ownedAs); if (i.kind === 'character') (ALIAS[i.ownedAs] ||= []).push(i.id); }
 const owns = (owned, id) => owned.includes(id) || (ALIAS[id] || []).some((a) => owned.includes(a));
-for (const [style, [, price]] of Object.entries(HAIR_STYLES)) PRICES[`hair-${style}`] = price;   // (bought before colours)
+for (const [style, [, price]] of Object.entries(ALL_HAIR)) PRICES[`hair-${style}`] = price;   // (bought before colours)
 // Items that were free once and aren't now: whoever was wearing one keeps it (see profile)
 const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS.map((k) => `${set}-${k}`)).filter((id) => id in PRICES));
 
@@ -91,7 +91,7 @@ export function cleanAvatar(v) {
   if (!v || typeof v !== 'object') return null;
   const out = {
     body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
-    hair: typeof v.hair === 'string' && v.hair in HAIR_STYLES ? v.hair : null,
+    hair: typeof v.hair === 'string' && v.hair in ALL_HAIR ? v.hair : null,
     character: typeof v.character === 'string' && v.character in CHARACTERS ? v.character : null,   // worn instead of the avatar
     hairColor: nearestHair(v.hairColor), parts: {}, colors: {},
   };
@@ -218,9 +218,10 @@ router.post('/pictures/render', async (req, res) => {
 router.get('/feed', async (req, res) => {
   try {
     const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-    const r = token ? await pool.query('SELECT id FROM users WHERE token = $1', [token]) : { rows: [] };
+    const r = token ? await pool.query('SELECT u.id, p.record FROM users u LEFT JOIN avatar_profiles p ON p.user_id::text = u.id::text WHERE u.token = $1', [token]) : { rows: [] };
+    const body = r.rows[0]?.record?.body || req.query.body;   // (signed out: the app says which body it shows)
     res.set('Cache-Control', 'private, max-age=300');
-    res.json({ order: feedFor(r.rows[0]?.id) });
+    res.json({ order: feedFor(r.rows[0]?.id, body) });
   } catch (err) { console.error('[Avatar] feed:', err); res.status(500).json({ error: 'Could not load the Shop' }); }
 });
 

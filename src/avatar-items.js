@@ -21,16 +21,33 @@ export const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 // (hair-<style>) are what was sold before colours: older apps still buy them, and owning one owns every colour.
 export const HAIR_COLORS = { Black: '#141110', Brown: '#5a3420', LightBrown: '#9a6634', Blonde: '#e0b45e', Ginger: '#b4521f', Red: '#d8344a', Blue: '#3f7bff' };
 export const HAIR_STYLES = { Hair_Buzzed: ['Buzz Cut', 0], Hair_BuzzedFemale: ['Buzz Fade', 0], Hair_SimpleParted: ['Side Part', 0],
-  Hair_Long: ['Long Hair', 75], Hair_Buns: ['Space Buns', 75] };
+  Hair_Long: ['Long Hair', 75], Hair_Buns: ['Space Buns', 75],
+  // made from other models (games/avatar-editor/tools/add_hair.py), colourless: sold in every colour like the above
+  Hair_LayeredShag: ['Layered Shag', 75], Hair_SpikyLayers: ['Spiky Layers', 75], Hair_MessyFringe: ['Messy Fringe', 75],
+  Hair_BluntBob: ['Blunt Bob', 75, 'female'], Hair_SwoopUp: ['Swoop Up', 75], Hair_LowPonytail: ['Low Ponytail', 75, 'female'],
+  Hair_AnimeSpikes: ['Anime Spikes', 75], Hair_LongWaves: ['Long Waves', 75, 'female'], Hair_LongStraight: ['Long Straight', 75, 'female'],
+  Hair_AuburnLong: ['Long Centre Part', 75, 'female'] };
+// hair that comes in its own colours (add_hair.py --keep-colors: the avatar doesn't tint it): one item each, in the
+// colour of the palette nearest it (that's what its brows take)
+export const COLOURED_HAIR = { Hair_GoldenCurls: ['Golden Curls', 90, 'Blonde'], Hair_RibbonBow: ['Ribbon Bow', 100, 'Brown'],
+  Hair_BraidedWaves: ['Braided Waves', 90, 'Blonde'], Hair_HighBun: ['High Bun', 80, 'Black'], Hair_PeachUpdo: ['Peach Updo', 100, 'Ginger'],
+  Hair_PinkRedWaves: ['Pink & Red Waves', 100, 'Red'], Hair_LongBlack: ['Long Black Hair', 90, 'Black'], Hair_HighPonytail: ['High Ponytail', 90, 'Black'],
+  Hair_SideSweptBob: ['Side-Swept Bob', 90, 'Blonde'], Hair_TwinTails: ['Twin Tails', 100, 'Blonde'], Hair_VolumePonytail: ['Volume Ponytail', 100, 'Blonde'],
+  Hair_WhitePinkStreaks: ['White & Pink Streaks', 100, 'Blonde'], Hair_WhiteBun: ['White Bun', 90, 'Blonde'],
+  Hair_RedSideSweep: ['Red Side Sweep', 100, 'Red'], Hair_ShortWavyBangs: ['Short Wavy Bangs', 90, 'Blonde'] };
+export const ALL_HAIR = { ...HAIR_STYLES, ...COLOURED_HAIR };
 
 const items = [];
 const part = (slot, set, name, price, more) => items.push({ id: `${set}-${slot}`, kind: 'part', slot, set, name, price, ...more });
 
 // hair
-for (const [style, [name, price]] of Object.entries(HAIR_STYLES))
+for (const [style, [name, price, who]] of Object.entries(HAIR_STYLES))
   for (const [c, hex] of Object.entries(HAIR_COLORS))
     items.push({ id: `hair-${style}-${c}`, kind: 'hair', hair: style, hairColor: hex, name: `${c.replace(/(.)([A-Z])/, '$1 $2')} ${name}`,
-      price, ownedAs: `hair-${style}`, tab: 'body', sub: 'Hair', category: 'hair', focus: 'head' });
+      price, ownedAs: `hair-${style}`, tab: 'body', sub: 'Hair', category: 'hair', focus: 'head', ...(who ? { for: who } : {}) });
+for (const [style, [name, price, c]] of Object.entries(COLOURED_HAIR))
+  items.push({ id: `hair-${style}-${c}`, kind: 'hair', hair: style, hairColor: HAIR_COLORS[c], name, price, ownedAs: `hair-${style}`,
+    tab: 'body', sub: 'Hair', category: 'hair', focus: 'head', for: 'female' });
 items.push({ id: 'beard', kind: 'beard', name: 'Full Beard', price: 40, tab: 'beards', sub: 'Beards', category: 'hair', focus: 'head' });
 
 // street clothes, grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour.
@@ -56,8 +73,42 @@ const PIECES = [['top', 'Top', 'clothing', 'torso', 'clothing', 'Shirts'], ['arm
 for (const [set, name, price] of SETS) for (const [slot, piece, category, focus, tab, sub, rangerOnly] of PIECES)
   if (!rangerOnly || set.endsWith('_Ranger')) part(slot, set, `${name} ${piece}`, price, { tab, sub, category, focus });
 
-// outfits: none for now. (Bundles of the clothes above were tried and dropped; outfits will be whole bodysuits,
-// each one file, when they come.) The `outfit` kind (described at the top) stays for old saved looks.
+// clothing made from other models (games/avatar-editor/tools/add_clothing.py): one file each, fitted to every build.
+// `for`: who it's cut for (the Shop's front page shows more of what fits you; anyone can buy and wear anything).
+// A full piece (a dress, a jumpsuit, a set) is an outfit: it's worn on top and takes the legs (and sleeves) too.
+const MADE = [
+  // [set, slot, name, price, sub, for, full]
+  ['Coat_LongBlack', 'top', 'Long Black Coat', 150, 'Jackets', 'male'], ['Coat_LongBrown', 'top', 'Long Brown Coat', 150, 'Jackets', 'male'],
+  ['Coat_BlackLeather', 'top', 'Black Leather Coat', 150, 'Jackets', 'male'], ['Coat_RedLeather', 'top', 'Red Leather Coat', 140, 'Jackets', 'male'],
+  ['Cloak_CrimsonCloud', 'top', 'Crimson Cloud Cloak', 160, 'Jackets'], ['Jacket_LeatherCrop', 'top', 'Cropped Leather Jacket', 90, 'Jackets', 'female'],
+  ['Blazer_PastelPink', 'top', 'Pastel Pink Blazer', 100, 'Jackets', 'female'], ['Hoodie_Piano', 'top', 'Piano Hoodie', 90, 'Sweaters'],
+  ['Armor_Warlord', 'legs', 'Warlord Armor', 180, 'Skirts', 'male'],
+  ['Top_ChainedBlack', 'top', 'Chained Black Top', 70, 'Tops', 'female'], ['Top_LaceCrop', 'top', 'Lace-Up Crop Top', 60, 'Tops', 'female'],
+  ['Top_PurrCrop', 'top', 'Make Me Purr Crop Top', 55, 'Tops', 'female'],
+  ['Pants_OliveCargo', 'legs', 'Olive Cargo Pants', 80, 'Pants', 'male'], ['Pants_BlackLeather', 'legs', 'Black Leather Pants', 90, 'Pants', 'male'],
+  ['Jeans_Camo', 'legs', 'Camo Jeans', 80, 'Pants'], ['Jeans_PinkBootcut', 'legs', 'Pink Bootcut Jeans', 75, 'Pants', 'female'],
+  ['Pants_PinkVelour', 'legs', 'Pink Velour Sweatpants', 70, 'Pants', 'female'],
+  ['Shorts_Denim', 'legs', 'Denim Shorts', 50, 'Shorts', 'female'], ['Shorts_LeatherHot', 'legs', 'Leather Hotpants', 50, 'Shorts', 'female'],
+  ['Skirt_DenimRuffle', 'legs', 'Ruffled Denim Skirt', 60, 'Skirts', 'female'], ['Skirt_PlaidGothic', 'legs', 'Plaid Gothic Skirt', 60, 'Skirts', 'female'],
+  ['Skirt_Pleated', 'legs', 'Navy Pleated Skirt', 55, 'Skirts', 'female'],
+  ['Shoes_SkateGrey', 'feet', 'Grey Skate Shoes', 70, 'Shoes'], ['Boots_CamelFur', 'feet', 'Camel Fur Boots', 100, 'Shoes', 'female'],
+  ['Boots_ThighHighBlack', 'feet', 'Black Thigh-High Heels', 110, 'Shoes', 'female'],
+  ['Dress_Pinstripe', 'top', 'Pinstripe Dress', 130, '', 'female', true], ['Dress_BlueCorset', 'top', 'Corset Dress', 130, '', 'female', true],
+  ['Dress_LeopardFur', 'top', 'Leopard Dress & Fur Coat', 160, '', 'female', true], ['Dress_OffShoulder', 'top', 'Off-Shoulder Sweater Dress', 140, '', 'female', true],
+  ['Dress_RedFur', 'top', 'Red Fur Sweater Dress', 140, '', 'female', true], ['Dress_BlackPleated', 'top', 'Black Pleated Dress', 120, '', 'female', true],
+  ['Kimono_Pink', 'top', 'Pink Kimono', 140, '', 'female', true], ['Kimono_Hakama', 'top', 'Hakama Kimono', 150, '', 'male', true],
+  ['Robe_Red', 'top', 'Red Robe', 130, '', null, true], ['Jumpsuit_TieSuit', 'top', 'Suit Jumpsuit', 150, '', 'female', true],
+  ['Outfit_LacedBodysuit', 'top', 'Laced Bodysuit & Skirt', 140, '', 'female', true], ['Outfit_TankJeans', 'top', 'Tank & Distressed Jeans', 120, '', 'female', true],
+  ['Outfit_TeeDenimSkirt', 'top', 'Tee & Denim Mini', 110, '', 'female', true], ['Outfit_LeatherOveralls', 'top', 'Leather Overalls', 120, '', 'female', true],
+  ['Outfit_LeatherBiker', 'top', 'Leather Biker Set', 170, '', 'male', true],
+];
+for (const [set, slot, name, price, sub, who, full] of MADE)
+  part(slot, set, name, price, { tab: full ? 'outfits' : 'clothing', sub, category: slot === 'feet' ? 'shoes' : 'clothing',
+    focus: full ? 'body' : slot === 'top' ? 'torso' : slot === 'legs' ? 'legs' : 'feet', plain: true,
+    ...(full ? { clears: ['arms', 'legs'] } : slot === 'top' ? { clears: ['arms'] } : {}), ...(who ? { for: who } : {}) });
+
+// (bundles of separate clothes as outfits were tried and dropped: an outfit is one whole piece, above. The `outfit`
+// kind, described at the top, stays for old saved looks.)
 
 // characters: No Rules FC's heroes, worn in every game (bought here or in the game: one purchase owns both)
 export const CHARACTERS = { spiderman: 'Spyder-Man', baki: 'Bakki', flash: 'The Flazh', batman: 'Batmvn', lantern: 'Green Lanturn',

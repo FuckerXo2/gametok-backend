@@ -2,7 +2,7 @@
 // it can get smarter (what you look at, buy, what's selling) without an app update.
 // For now: every kind of item in turn (characters, outfits, clothes, hair, …) so it never reads as one long row of
 // one thing, a couple of colours of each hairstyle rather than all of them, reshuffled every few hours and
-// differently for each person.
+// differently for each person, with what's cut for their body (`for`, src/avatar-items.js) nearer the top.
 import crypto from 'crypto';
 import { ITEMS } from './avatar-items.js';
 
@@ -23,7 +23,8 @@ function shuffle(list, rnd) {
 // what kind of thing an item is, for taking turns
 const KIND = (i) => (i.kind === 'character' ? 'characters' : i.kind === 'outfit' ? 'outfits' : i.kind === 'hair' || i.kind === 'beard' ? 'hair' : i.tab === 'accessories' ? 'accessories' : i.category);
 
-export function feedFor(userId) {
+// body: 'Male' | 'Female' (what they wear now): items cut for that body come up first (anything can be bought)
+export function feedFor(userId, body) {
   const rnd = random(`${userId || 'guest'}:${Math.floor(Date.now() / 36e5 / SHUFFLE_HOURS)}`);
   // hair: a couple of colours of each style
   const hairByStyle = {};
@@ -36,5 +37,10 @@ export function feedFor(userId) {
   const order = [];
   while (Object.values(groups).some((g) => g.length))
     for (const k of shuffle(Object.keys(groups), rnd)) if (groups[k].length) order.push(groups[k].shift());
-  return order;
+  // what's cut for their body moves up: each item's place in the mix, plus a few places for one cut for the other
+  const want = body === 'Female' ? 'female' : body === 'Male' ? 'male' : null;
+  if (!want) return order;
+  const BY = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
+  const away = (id) => (BY[id]?.for && BY[id].for !== want ? 12 : 0);
+  return order.map((id, n) => [id, n + away(id)]).sort((a, b) => a[1] - b[1]).map(([id]) => id);
 }
