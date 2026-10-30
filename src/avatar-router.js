@@ -87,7 +87,7 @@ function nearestHair(hex) {
   return Object.values(HAIR_COLORS).reduce((best, h) => (d(h) < d(best) ? h : best));
 }
 // Checked field by field, so nothing else rides along (same rules as games/street-5s/server cleanAvatar).
-export function cleanAvatar(v) {
+export function cleanAvatar(v, nested = false) {
   if (!v || typeof v !== 'object') return null;
   const out = {
     body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
@@ -108,6 +108,8 @@ export function cleanAvatar(v) {
     out.parts[k] = typeof set === 'string' && `${set}-${k}` in PRICES ? set : null;
     out.colors[k] = HEX.test(v.colors?.[k]) ? v.colors[k] : '#ffffff';
   }
+  // the look of their other body (male and female each keep their own; switching swaps them)
+  if (!nested && v.other && typeof v.other === 'object' && v.other.body !== undefined && (v.other.body === 'Female' ? 'Female' : 'Male') !== out.body) out.other = cleanAvatar(v.other, true);
   return out;
 }
 
@@ -241,7 +243,7 @@ router.put('/me', async (req, res) => {
     const avatar = cleanAvatar(req.body?.avatar);
     if (!avatar) return res.status(400).json({ error: 'No avatar', code: 'BAD_AVATAR' });
     const p = await profile(pool, user.id);
-    const missing = wornItems(avatar).filter((id) => PRICES[id] > 0 && !owns(p.owned, id));
+    const missing = [...wornItems(avatar), ...(avatar.other ? wornItems(avatar.other) : [])].filter((id) => PRICES[id] > 0 && !owns(p.owned, id));
     if (missing.length) return res.status(402).json({ error: 'Buy these first', code: 'NOT_OWNED', missing });
     await pool.query('UPDATE avatar_profiles SET record = $2, updated_at = NOW() WHERE user_id = $1', [user.id, avatar]);
     // what changed, for tracing a look that "changed by itself" (e.g. hair: Hair_Buzzed -> null)
