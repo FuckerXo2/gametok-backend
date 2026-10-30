@@ -8,7 +8,7 @@
 //   POST /api/avatar/buy  { itemId }    spends TokBux on an item
 //   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
-import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, ALL_HAIR, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
+import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, COLOURED_HAIR, ALL_HAIR, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
 import { renderPictures } from './avatar-pictures.js';
 import { feedFor } from './avatar-feed.js';
 import crypto from 'crypto';
@@ -34,6 +34,9 @@ for (const i of ITEMS) if (i.kind !== 'outfit') PRICES[i.id] = i.price;
 // owns the other
 const ALIAS = {};
 for (const i of ITEMS) if (i.ownedAs) { (ALIAS[i.id] ||= []).push(i.ownedAs); if (i.kind === 'character') (ALIAS[i.ownedAs] ||= []).push(i.id); }
+// a hair now sold in its own colours, bought before in some colour: that one owns it
+for (const style of Object.keys(COLOURED_HAIR)) for (const i of ITEMS) if (i.kind === 'hair' && i.hair === style)
+  ALIAS[i.id].push(...Object.keys(HAIR_COLORS).map((c) => `hair-${style}-${c}`));
 const owns = (owned, id) => owned.includes(id) || (ALIAS[id] || []).some((a) => owned.includes(a));
 for (const [style, [, price]] of Object.entries(ALL_HAIR)) PRICES[`hair-${style}`] = price;   // (bought before colours)
 // Items that were free once and aren't now: whoever was wearing one keeps it (see profile)

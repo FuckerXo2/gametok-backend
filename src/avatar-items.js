@@ -20,13 +20,15 @@ export const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 // Hair is sold by colour, like Roblox: each style in each colour is its own item. The colourless ids
 // (hair-<style>) are what was sold before colours: older apps still buy them, and owning one owns every colour.
 export const HAIR_COLORS = { Black: '#141110', Brown: '#5a3420', LightBrown: '#9a6634', Blonde: '#e0b45e', Ginger: '#b4521f', Red: '#d8344a', Blue: '#3f7bff' };
-export const HAIR_STYLES = { Hair_Buzzed: ['Buzz Cut', 0, 'male'], Hair_BuzzedFemale: ['Buzz Fade', 0, 'female'],   // (each made for its own head) Hair_SimpleParted: ['Side Part', 0],
+// (the buzz cuts: each made for its own head)
+export const HAIR_STYLES = { Hair_Buzzed: ['Buzz Cut', 0, 'male'], Hair_BuzzedFemale: ['Buzz Fade', 0, 'female'], Hair_SimpleParted: ['Side Part', 0],
   Hair_Long: ['Long Hair', 75], Hair_Buns: ['Space Buns', 75],
   // made from other models (games/avatar-editor/tools/add_hair.py), colourless: sold in every colour like the above
   Hair_LayeredShag: ['Layered Shag', 75], Hair_SpikyLayers: ['Spiky Layers', 75], Hair_MessyFringe: ['Messy Fringe', 75],
   Hair_BluntBob: ['Blunt Bob', 75, 'female'], Hair_SwoopUp: ['Swoop Up', 75], Hair_LowPonytail: ['Low Ponytail', 75, 'female'],
-  Hair_AnimeSpikes: ['Anime Spikes', 75], Hair_LongWaves: ['Long Waves', 75, 'female'], Hair_LongStraight: ['Long Straight', 75, 'female'],
-  Hair_AuburnLong: ['Long Centre Part', 75, 'female'] };
+  Hair_AnimeSpikes: ['Anime Spikes', 75], Hair_LongWaves: ['Long Waves', 75, 'female'] };
+// the colours a plain style is sold in now; the others were sold before and stay with whoever bought them (retired)
+export const SOLD_HAIR_COLORS = ['Black', 'Brown', 'Blonde'];
 // hair that comes in its own colours (add_hair.py --keep-colors: the avatar doesn't tint it): one item each, in the
 // colour of the palette nearest it (that's what its brows take)
 export const COLOURED_HAIR = { Hair_GoldenCurls: ['Golden Curls', 90, 'Blonde'], Hair_RibbonBow: ['Ribbon Bow', 100, 'Brown'],
@@ -34,20 +36,30 @@ export const COLOURED_HAIR = { Hair_GoldenCurls: ['Golden Curls', 90, 'Blonde'],
   Hair_PinkRedWaves: ['Pink & Red Waves', 100, 'Red'], Hair_LongBlack: ['Long Black Hair', 90, 'Black'], Hair_HighPonytail: ['High Ponytail', 90, 'Black'],
   Hair_SideSweptBob: ['Side-Swept Bob', 90, 'Blonde'], Hair_TwinTails: ['Twin Tails', 100, 'Blonde'], Hair_VolumePonytail: ['Volume Ponytail', 100, 'Blonde'],
   Hair_WhitePinkStreaks: ['White & Pink Streaks', 100, 'Blonde'], Hair_WhiteBun: ['White Bun', 90, 'Blonde'],
-  Hair_RedSideSweep: ['Red Side Sweep', 100, 'Red'], Hair_ShortWavyBangs: ['Short Wavy Bangs', 90, 'Blonde'] };
+  Hair_RedSideSweep: ['Red Side Sweep', 100, 'Red'], Hair_ShortWavyBangs: ['Short Wavy Bangs', 90, 'Blonde'],
+  // (sold in every colour before 2026-10-30: whoever bought one of those owns this)
+  Hair_LongStraight: ['Long Straight', 90, 'Red'], Hair_AuburnLong: ['Long Centre Part', 90, 'Red'] };
 export const ALL_HAIR = { ...HAIR_STYLES, ...COLOURED_HAIR };
 
 const items = [];
 const part = (slot, set, name, price, more) => items.push({ id: `${set}-${slot}`, kind: 'part', slot, set, name, price, ...more });
 
-// hair
-for (const [style, [name, price, who]] of Object.entries(HAIR_STYLES))
-  for (const [c, hex] of Object.entries(HAIR_COLORS))
-    items.push({ id: `hair-${style}-${c}`, kind: 'hair', hair: style, hairColor: hex, name: `${c.replace(/(.)([A-Z])/, '$1 $2')} ${name}`,
-      price, ownedAs: `hair-${style}`, tab: 'body', sub: 'Hair', category: 'hair', focus: 'head', ...(who ? { for: who } : {}) });
-for (const [style, [name, price, c]] of Object.entries(COLOURED_HAIR))
-  items.push({ id: `hair-${style}-${c}`, kind: 'hair', hair: style, hairColor: HAIR_COLORS[c], name, price, ownedAs: `hair-${style}`,
-    tab: 'body', sub: 'Hair', category: 'hair', focus: 'head', for: 'female' });
+// hair: the plain styles in the colours sold now, taking turns with the ones in their own colours, so the same style
+// never sits next to itself (each round has every plain style once, in a different colour each round)
+const plainHair = (style, c) => {
+  const [name, price, who] = HAIR_STYLES[style];
+  return { id: `hair-${style}-${c}`, kind: 'hair', hair: style, hairColor: HAIR_COLORS[c], name: `${c.replace(/(.)([A-Z])/, '$1 $2')} ${name}`,
+    price, ownedAs: `hair-${style}`, tab: 'body', sub: 'Hair', category: 'hair', focus: 'head', ...(who ? { for: who } : {}),
+    ...(SOLD_HAIR_COLORS.includes(c) ? {} : { retired: true }) };
+};
+const PLAIN = Object.keys(HAIR_STYLES);
+const rounds = SOLD_HAIR_COLORS.flatMap((_, k) => PLAIN.map((style, n) => plainHair(style, SOLD_HAIR_COLORS[(n + k) % SOLD_HAIR_COLORS.length])));
+const natural = Object.entries(COLOURED_HAIR).map(([style, [name, price, c]]) => ({ id: `hair-${style}-${c}`, kind: 'hair', hair: style,
+  hairColor: HAIR_COLORS[c], name, price, ownedAs: `hair-${style}`, tab: 'body', sub: 'Hair', category: 'hair', focus: 'head', for: 'female' }));
+const every = Math.ceil(rounds.length / natural.length);
+rounds.forEach((h, n) => { items.push(h); if (n % every === every - 1 && natural.length) items.push(natural.shift()); });
+items.push(...natural);
+for (const style of PLAIN) for (const c of Object.keys(HAIR_COLORS)) if (!SOLD_HAIR_COLORS.includes(c)) items.push(plainHair(style, c));
 items.push({ id: 'beard', kind: 'beard', name: 'Full Beard', price: 40, tab: 'beards', sub: 'Beards', category: 'hair', focus: 'head', for: 'male' });
 
 // street clothes, grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour.

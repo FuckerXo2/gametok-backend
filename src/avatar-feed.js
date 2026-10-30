@@ -28,7 +28,7 @@ export function feedFor(userId, body) {
   const rnd = random(`${userId || 'guest'}:${Math.floor(Date.now() / 36e5 / SHUFFLE_HOURS)}`);
   // hair: a couple of colours of each style
   const hairByStyle = {};
-  for (const i of ITEMS) if (i.kind === 'hair') (hairByStyle[i.hair] ||= []).push(i);
+  for (const i of ITEMS) if (i.kind === 'hair' && !i.retired) (hairByStyle[i.hair] ||= []).push(i);
   const hair = Object.values(hairByStyle).flatMap((cols) => shuffle(cols, rnd).slice(0, HAIR_COLOURS_SHOWN));
   const pool = [...ITEMS.filter((i) => i.kind !== 'hair'), ...hair];
   // shuffled within each kind, then the kinds take turns (in a shuffled order each round)
