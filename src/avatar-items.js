@@ -20,7 +20,7 @@ export const SLOTS = ['head', 'top', 'arms', 'legs', 'feet', 'acc'];
 // Hair is sold by colour, like Roblox: each style in each colour is its own item. The colourless ids
 // (hair-<style>) are what was sold before colours: older apps still buy them, and owning one owns every colour.
 export const HAIR_COLORS = { Black: '#141110', Brown: '#5a3420', LightBrown: '#9a6634', Blonde: '#e0b45e', Ginger: '#b4521f', Red: '#d8344a', Blue: '#3f7bff' };
-export const HAIR_STYLES = { Hair_Buzzed: ['Buzz Cut', 0], Hair_BuzzedFemale: ['Buzz Fade', 0], Hair_SimpleParted: ['Side Part', 0],
+export const HAIR_STYLES = { Hair_Buzzed: ['Buzz Cut', 0, 'male'], Hair_BuzzedFemale: ['Buzz Fade', 0, 'female'],   // (each made for its own head) Hair_SimpleParted: ['Side Part', 0],
   Hair_Long: ['Long Hair', 75], Hair_Buns: ['Space Buns', 75],
   // made from other models (games/avatar-editor/tools/add_hair.py), colourless: sold in every colour like the above
   Hair_LayeredShag: ['Layered Shag', 75], Hair_SpikyLayers: ['Spiky Layers', 75], Hair_MessyFringe: ['Messy Fringe', 75],
@@ -48,7 +48,7 @@ for (const [style, [name, price, who]] of Object.entries(HAIR_STYLES))
 for (const [style, [name, price, c]] of Object.entries(COLOURED_HAIR))
   items.push({ id: `hair-${style}-${c}`, kind: 'hair', hair: style, hairColor: HAIR_COLORS[c], name, price, ownedAs: `hair-${style}`,
     tab: 'body', sub: 'Hair', category: 'hair', focus: 'head', for: 'female' });
-items.push({ id: 'beard', kind: 'beard', name: 'Full Beard', price: 40, tab: 'beards', sub: 'Beards', category: 'hair', focus: 'head' });
+items.push({ id: 'beard', kind: 'beard', name: 'Full Beard', price: 40, tab: 'beards', sub: 'Beards', category: 'hair', focus: 'head', for: 'male' });
 
 // street clothes, grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour.
 // Street files come one per body (parts/<set>_<Top|Legs|Feet>_<Male|Female>.glb, avatar-core.js SLOTS).
