@@ -64,7 +64,7 @@ items.push({ id: 'beard', kind: 'beard', name: 'Full Beard', price: 40, tab: 'be
 
 // street clothes, grown from the body (games/avatar-editor/tools/make_clothing.py): one item per garment and colour.
 // Street files come one per body (parts/<set>_<Top|Legs|Feet>_<Male|Female>.glb, avatar-core.js SLOTS).
-const FREE = ['Street_TeeWhite', 'Street_TeeBlack', 'Street_JeansBlue', 'Street_JeansBlack', 'Street_ShortsKhaki', 'Street_SneakersWhite', 'Street_SneakersBlack'];
+const FREE = ['Street_TeeWhite', 'Street_TeeBlack', 'Street_JeansBlue', 'Street_JeansBlack', 'Street_ShortsKhaki', 'Street_ShortsBlack', 'Street_SneakersWhite', 'Street_SneakersBlack'];
 const STREET = [
   ['top', 'Tee', 'Tee', 50, 'T-Shirts', ['White', 'Black', 'Red', 'Green']], ['top', 'Sweater', 'Sweater', 75, 'Sweaters', ['Grey', 'Navy', 'Cream']],
   ['legs', 'Jeans', 'Jeans', 75, 'Pants', ['Blue', 'Black']], ['legs', 'Shorts', 'Shorts', 40, 'Shorts', ['Khaki', 'Black']],
