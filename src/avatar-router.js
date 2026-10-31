@@ -5,6 +5,7 @@
 //
 //   GET  /api/avatar/me                 { avatar, owned, tokbux, prices }
 //   PUT  /api/avatar/me   { avatar }    saves what they wear (only free or owned items)
+//   GET  /api/avatar/looks, PUT { looks }  their saved looks [{ id, name, look }]
 //   POST /api/avatar/buy  { itemId }    spends TokBux on an item
 //   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
@@ -148,6 +149,8 @@ export async function runAvatarMigration() {
     ALTER TABLE tokbux_ledger ADD COLUMN IF NOT EXISTS ref VARCHAR(160);
     CREATE UNIQUE INDEX IF NOT EXISTS tokbux_ledger_ref ON tokbux_ledger (ref) WHERE ref IS NOT NULL;
     ALTER TABLE avatar_profiles ALTER COLUMN tokbux SET DEFAULT ${WELCOME_TOKBUX};
+    -- saved looks (Me > Customize > Avatars): [{ id, name, look }], newest first
+    ALTER TABLE avatar_profiles ADD COLUMN IF NOT EXISTS looks JSONB NOT NULL DEFAULT '[]';
   `);
   console.log('✅ Avatar profiles + TokBux ready');
 }
@@ -228,6 +231,35 @@ router.get('/feed', async (req, res) => {
     res.set('Cache-Control', 'private, max-age=300');
     res.json({ order: feedFor(r.rows[0]?.id, body) });
   } catch (err) { console.error('[Avatar] feed:', err); res.status(500).json({ error: 'Could not load the Shop' }); }
+});
+
+// Saved looks: what the player put together, named, kept on the account (any phone). The app keeps their pictures.
+const MAX_LOOKS = 24;
+const cleanLooks = (v) => (Array.isArray(v) ? v : []).slice(0, MAX_LOOKS).map((l) => ({
+  id: String(l?.id || '').slice(0, 40), name: String(l?.name || '').trim().slice(0, 24), look: cleanAvatar(l?.look, true),
+})).filter((l) => l.id && l.name && l.look);
+router.get('/looks', async (req, res) => {
+  try {
+    const user = await userFrom(req, res); if (!user) return;
+    await profile(pool, user.id);
+    const r = await pool.query('SELECT looks FROM avatar_profiles WHERE user_id = $1', [user.id]);
+    res.json({ looks: cleanLooks(r.rows[0]?.looks) });
+  } catch (err) {
+    console.error('[Avatar] looks:', err);
+    res.status(500).json({ error: 'Could not load your looks' });
+  }
+});
+router.put('/looks', async (req, res) => {
+  try {
+    const user = await userFrom(req, res); if (!user) return;
+    const looks = cleanLooks(req.body?.looks);
+    await profile(pool, user.id);
+    await pool.query('UPDATE avatar_profiles SET looks = $2 WHERE user_id = $1', [user.id, JSON.stringify(looks)]);
+    res.json({ looks });
+  } catch (err) {
+    console.error('[Avatar] save looks:', err);
+    res.status(500).json({ error: 'Could not save your looks' });
+  }
 });
 
 router.get('/me', async (req, res) => {
