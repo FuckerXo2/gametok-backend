@@ -9,7 +9,7 @@
 //   POST /api/avatar/buy  { itemId }    spends TokBux on an item
 //   PUT  /api/avatar/headshot { png }   the 3D avatar's head (rendered by the app's stage) becomes the profile picture
 
-import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, COLOURED_HAIR, ALL_HAIR, CHARACTERS, CHARACTER_PRICES } from './avatar-items.js';
+import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, COLOURED_HAIR, ALL_HAIR, CHARACTERS, CHARACTER_PRICES, SHOP_CHARACTERS } from './avatar-items.js';
 import { renderPictures } from './avatar-pictures.js';
 import { feedFor } from './avatar-feed.js';
 import crypto from 'crypto';
@@ -96,7 +96,7 @@ export function cleanAvatar(v, nested = false) {
   const out = {
     body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
     hair: typeof v.hair === 'string' && v.hair in ALL_HAIR ? v.hair : null,
-    character: typeof v.character === 'string' && v.character in CHARACTERS ? v.character : null,   // worn instead of the avatar
+    character: typeof v.character === 'string' && (v.character in CHARACTERS || v.character in SHOP_CHARACTERS) ? v.character : null,   // worn instead of the avatar
     hairColor: nearestHair(v.hairColor), parts: {}, colors: {},
   };
   // body size (Me > Body Shape): 1 is the default; only stored when set

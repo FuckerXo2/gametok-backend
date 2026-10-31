@@ -118,6 +118,8 @@ for (const [set, slot, name, price, sub, who, full] of MADE)
   part(slot, set, name, price, { tab: full ? 'outfits' : 'clothing', sub, category: slot === 'feet' ? 'shoes' : 'clothing',
     focus: full ? 'body' : slot === 'top' ? 'torso' : slot === 'legs' ? 'legs' : 'feet', plain: true,
     ...(full ? { clears: ['arms', 'legs'] } : slot === 'top' ? { clears: ['arms'] } : {}), ...(who ? { for: who } : {}) });
+// a floor-length cloak is a jacket and a whole outfit: shown under both
+for (const id of ['Cloak_CrimsonCloud-top']) items.find((i) => i.id === id).alsoTab = 'outfits';
 
 // (bundles of separate clothes as outfits were tried and dropped: an outfit is one whole piece, above. The `outfit`
 // kind, described at the top, stays for old saved looks.)
@@ -133,5 +135,11 @@ const PIC = {};
 for (const [id, name] of Object.entries(CHARACTERS))
   items.push({ id: `char-${id}`, kind: 'character', character: id, name, price: CHARACTER_PRICES[id], ownedAs: `no-rules-fc:${id}`,
     tab: 'avatars', sub: '', category: 'clothing', focus: 'body', pic: PIC[id] || 3 });
+// avatars sold only here (not No Rules FC heroes; in games you play as your own avatar): id -> [name, price].
+// games/avatar-editor/ADDING_AVATARS.md; the file is games/avatar-editor/assets/lite/characters/<id>.glb
+export const SHOP_CHARACTERS = {
+};
+for (const [id, [name, price]] of Object.entries(SHOP_CHARACTERS))
+  items.push({ id: `char-${id}`, kind: 'character', character: id, name, price, tab: 'avatars', sub: '', category: 'clothing', focus: 'body', pic: PIC[id] || 3 });
 
 export const ITEMS = items;
