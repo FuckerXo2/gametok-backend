@@ -53,7 +53,7 @@ const BOT_NAMES = ['Kaizo_77', 'vortexx', 'PixelPunter', 'zoomies', 'frostbyte_'
 export const HEROES = {
   // everyone's free default: the player's own GameTok avatar. Plain stats and a plain super, so the
   // heroes are worth buying for what they do differently (not for being simply stronger).
-  avatar: { name: 'My Avatar', price: 0, role: 'ALL-ROUND', sdesc: 'A rocket of a shot from wherever you stand. No ball near you? A burst of speed instead', kdesc: 'A blaster: whoever it hits goes down and drops the ball', power: 'shot', label: 'POWER SHOT', color: '#2fd38a', ready: true, avatar: true, skill: 'gun', skillName: 'BLASTER', skillCd: 1.8, spd: 1.0, spr: 1.05, shot: 1.05, tough: 0.4, jump: 7, move: 'ALL-ROUND', h: 1.8, girth: 1.0, acc: 30, turn: 10 },
+  avatar: { name: 'My Avatar', price: 0, role: 'ALL-ROUND', sdesc: 'A rocket of a shot from wherever you stand. No ball near you? A burst of speed instead', kdesc: 'A blaster: hold to keep firing till it overheats. Whoever it hits goes down and drops the ball', power: 'shot', label: 'POWER SHOT', color: '#2fd38a', ready: true, avatar: true, skill: 'gun', skillName: 'BLASTER', skillCd: 0.16, spd: 1.0, spr: 1.05, shot: 1.05, tough: 0.4, jump: 7, move: 'ALL-ROUND', h: 1.8, girth: 1.0, acc: 30, turn: 10 },
   spiderman: { name: 'Spyder-Man', price: 500, role: 'AGILE', sdesc: 'Yanks the ball into your hands from 34 m and webs up the two nearest opponents', kdesc: 'Zip onto an opponent and drop-kick them', power: 'web', label: 'WEB PULL', color: '#ff3b3b', ready: true, spd: 1.12, spr: 1.18, shot: 1.12, tough: 0.35, jump: 8.6, dbl: true, swing: true, move: 'WEB SWING', skill: 'zip', skillName: 'WEB ZIP', skillCd: 4, h: 1.76, girth: 0.97, acc: 36, turn: 12 },
   baki: { name: 'Bakki', price: 500, role: 'TANK', sdesc: 'Charge through everyone in your path', kdesc: '5 s: can’t be floored, every punch floors', power: 'rampage', label: 'DEMON RUSH', color: '#ff7a2a', ready: true, spd: 1.02, spr: 1.08, shot: 1.1, tough: 0.65, jump: 7.2, move: 'TANK', skill: 'rage', skillName: 'DEMON RAGE', skillCd: 12, h: 1.8, girth: 1.08, acc: 24, turn: 8.5 },
   yujiro: { name: 'Yujirho', price: 1200, role: 'TANK', sdesc: 'Launches everyone within 9 m', kdesc: 'Pick one up and throw them', power: 'quake', label: 'OGRE STOMP', color: '#ff2a50', ready: true, spd: 0.95, spr: 0.95, shot: 1.3, tough: 0.92, jump: 6.6, move: 'UNSTOPPABLE', skill: 'grab', skillName: 'OGRE THROW', skillCd: 7, h: 2.15, girth: 1.12, acc: 22, turn: 7.5 },
@@ -109,7 +109,7 @@ export function resetKickoff(sim) {
     p.x = s[0] * m; p.z = s[1] * m; p.y = 0;
     if (p.id % 5 === 4 && p.team === sim.kickTeam) { p.x = -1.2 * m; p.z = 0; }   // the kick-off taker
     p.vx = p.vy = p.vz = 0; p.yaw = m > 0 ? Math.PI / 2 : -Math.PI / 2;
-    p.st = 'free'; p.stT = 0; p.cd = 0; p.touchCd = 0; p.stam = 100; p.boost = 0; p.web = null; p.phaseT = 0; p.rageT = 0; p.skCd = 0;
+    p.st = 'free'; p.stT = 0; p.cd = 0; p.touchCd = 0; p.stam = 100; p.boost = 0; p.web = null; p.phaseT = 0; p.rageT = 0; p.skCd = 0; p.heat = 0; p.hot = 0;
   }
   sim.phase = 'kickoff'; sim.phaseT = 3; sim.cons = []; sim.proj = []; sim.walls = [];
   sim.events.push({ k: 'kickoff' });
@@ -634,11 +634,13 @@ function skillMove(sim, p) {
       sim.walls.push({ x1: cx - rx, z1: cz - rz, x2: cx + rx, z2: cz + rz, h: 3.2, t: 4.5, team: p.team });
       p.st = 'skill'; p.stT = 0.5; break;
     }
-    case 'gun': {                                          // the avatar: a blaster shot at whoever's in front (where they'll be)
-      const q = foesNear(40, 0.85)[0], o = [p.x + fwdX(p) * 0.7, gy + 1.3, p.z + fwdZ(p) * 0.7];
+    case 'gun': {                                          // the avatar: hold to keep firing at whoever's in front (where they'll be),
+      if (p.hot) return;                                   // till it overheats; then it has to cool right down first
+      const q = foesNear(40, 0.85)[0], o = [p.x + fwdX(p) * 0.7, gy + 1.3, p.z + fwdZ(p) * 0.7], V = 48;
       let dx = fwdX(p), dy = 0, dz = fwdZ(p);
-      if (q) { const t = hyp(q.x - o[0], q.z - o[2]) / 70; dx = q.x + q.vx * t - o[0]; dy = wy(q) + 1 - o[1]; dz = q.z + q.vz * t - o[2]; const l = hyp(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l; p.yaw = Math.atan2(dx, dz); }
-      sim.proj.push({ kind: 'bullet', x: o[0], y: o[1], z: o[2], vx: dx * 70, vy: dy * 70, vz: dz * 70, t: 0.6, by: p.id, team: p.team });
+      if (q) { const t = hyp(q.x - o[0], q.z - o[2]) / V; dx = q.x + q.vx * t - o[0]; dy = wy(q) + 1 - o[1]; dz = q.z + q.vz * t - o[2]; const l = hyp(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l; p.yaw = Math.atan2(dx, dz); }
+      sim.proj.push({ kind: 'bullet', x: o[0], y: o[1], z: o[2], vx: dx * V, vy: dy * V, vz: dz * V, t: 0.85, by: p.id, team: p.team });
+      p.heat = Math.min(1, (p.heat || 0) + 0.075); p.coolT = 0.35; if (p.heat >= 1) p.hot = 1;
       ev.o = o; break;
     }
     case 'phase': p.phaseT = 2.6; break;
@@ -793,7 +795,10 @@ export function step(sim, dt = DT) {
     }
     if (p.st === 'free') p.hitWall = false;
   }
-  for (const p of P) if (p.skCd > 0) p.skCd -= dt;
+  for (const p of P) {
+    if (p.skCd > 0) p.skCd -= dt;
+    if (p.heat > 0 && (p.coolT = (p.coolT || 0) - dt) <= 0) { p.heat = Math.max(0, p.heat - dt * (p.hot ? 0.5 : 0.8)); if (!p.heat) p.hot = 0; }   // the blaster cools
+  }
   stepProjectiles(sim, dt);
   for (const w of sim.walls) w.t -= dt;
   sim.walls = sim.walls.filter((w) => w.t > 0);
@@ -1176,7 +1181,7 @@ export function snapshot(sim) {
   return {
     t: 's', ar: sim.arena, ph: sim.phase, pt: r2(sim.phaseT), ck: r2(sim.clock), ot: sim.overtime ? 1 : 0, sc: sim.score,
     b: [r2(b.x), r2(b.y), r2(b.z), r2(b.vx), r2(b.vy), r2(b.vz), b.owner],
-    p: sim.players.map((p) => [r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vy), r2(p.vz), r2(p.yaw), p.st, r2(p.stT), Math.round(p.stam), r2(p.cd), Math.floor(p.sp), r2(p.boost), p.web ? [r2(p.web[0]), r2(p.web[1]), r2(p.web[2]), r2(p.webL)] : 0, p.rx || 0, p.pk || 0, p.zip ? p.zip.map(r2) : 0, Math.max(0, r2(p.skCd || 0)), p.phaseT > 0 ? 1 : 0, p.rageT > 0 ? 1 : 0, p.carry ? 1 : 0]),
+    p: sim.players.map((p) => [r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vy), r2(p.vz), r2(p.yaw), p.st, r2(p.stT), Math.round(p.stam), r2(p.cd), Math.floor(p.sp), r2(p.boost), p.web ? [r2(p.web[0]), r2(p.web[1]), r2(p.web[2]), r2(p.webL)] : 0, p.rx || 0, p.pk || 0, p.zip ? p.zip.map(r2) : 0, Math.max(0, r2(p.skCd || 0)), p.phaseT > 0 ? 1 : 0, p.rageT > 0 ? 1 : 0, p.carry ? 1 : 0, r2(p.heat || 0), p.hot ? 1 : 0]),
     proj: sim.proj.map((q) => [q.kind, r2(q.x), r2(q.y), r2(q.z)]),
     walls: sim.walls.map((w) => [r2(w.x1), r2(w.z1), r2(w.x2), r2(w.z2), w.h, w.team]),
     cons: sim.cons.map((c) => [c.team, r2(c.t)]),
