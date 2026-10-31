@@ -120,6 +120,8 @@ for (const [set, slot, name, price, sub, who, full] of MADE)
     ...(full ? { clears: ['arms', 'legs'] } : slot === 'top' ? { clears: ['arms'] } : {}), ...(who ? { for: who } : {}) });
 // a floor-length cloak is a jacket and a whole outfit: shown under both
 for (const id of ['Cloak_CrimsonCloud-top']) items.find((i) => i.id === id).alsoTab = 'outfits';
+// pictures made again: their 3D files changed (Kimono_Hakama refitted 2026-10-31)
+for (const [id, v] of [['Kimono_Hakama-top', 2]]) items.find((i) => i.id === id).pic = v;
 
 // (bundles of separate clothes as outfits were tried and dropped: an outfit is one whole piece, above. The `outfit`
 // kind, described at the top, stays for old saved looks.)
