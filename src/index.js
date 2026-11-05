@@ -2614,7 +2614,7 @@ app.post('/api/developer/sessions/verify', async (req, res) => {
       valid: true,
       gameId: claims.gid,
       mode: claims.mode,
-      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest), avatarRecord: claims.av || null, owned: claims.own || [] },
+      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest), avatarRecord: claims.av || null, owned: claims.own || [], ...(claims.uid ? { userId: claims.uid } : {}) },
       expiresAt: new Date(claims.exp * 1000).toISOString()
     });
   } catch (err) {
@@ -4409,6 +4409,19 @@ function publicAvatarUrl(avatar) {
   return avatar && /^https:\/\//i.test(avatar) ? avatar : null;
 }
 
+// GameTok's own games (published by the gametok account) also get the player's real account id in their session: the
+// shared online services they all use (squads and friends across games, games/gametok-online) need one id for a
+// player in every game. Other developers' games only ever see the per-game id.
+let firstPartyDev = null;
+async function isFirstParty(game) {
+  if (game.developer === 'gametok') return true;
+  if (firstPartyDev === null) {
+    const r = await pool.query("SELECT id FROM users WHERE username = 'gametok'").catch(() => ({ rows: [] }));
+    firstPartyDev = r.rows[0] ? String(r.rows[0].id) : '';
+  }
+  return !!firstPartyDev && String(game.developer) === firstPartyDev;
+}
+
 app.post('/api/games/:id/player-session', async (req, res) => {
   try {
     const gameRes = await pool.query('SELECT id, developer, status FROM games WHERE id = $1', [req.params.id]);
@@ -4447,7 +4460,8 @@ app.post('/api/games/:id/player-session', async (req, res) => {
     const joinFriend = !guest && typeof req.body?.joinFriend === 'string' && /^[0-9a-f-]{36}$/i.test(req.body.joinFriend)
       ? await pseudonymousPlayerId('user', req.body.joinFriend, game.id, mode) : null;
     const session = jwt.sign(
-      { gid: game.id, name: player.name, guest, mode, own: player.owned, ...(player.avatarRecord ? { av: player.avatarRecord } : {}) },
+      { gid: game.id, name: player.name, guest, mode, own: player.owned, ...(player.avatarRecord ? { av: player.avatarRecord } : {}),
+        ...(!guest && await isFirstParty(game) ? { uid: String(user.id) } : {}) },
       await getSessionSigningSecret(),
       { algorithm: 'HS256', subject: playerId, issuer: 'gametok', audience: `game:${game.id}`, expiresIn: PLAYER_SESSION_TTL_SECONDS }
     );
