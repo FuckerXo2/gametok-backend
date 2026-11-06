@@ -22,7 +22,8 @@ const readSecret = (text, file) => text || (file && fs.existsSync(file) ? fs.rea
 
 export function storeConfig() {
   const appleKey = readSecret(process.env.APPLE_PRIVATE_KEY, process.env.APPLE_PRIVATE_KEY_FILE);
-  const playAccount = readSecret(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT, process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_FILE);
+  // (the same account that checks Play purchases, unless a separate one is set)
+  const playAccount = readSecret(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT || process.env.PLAY_SERVICE_ACCOUNT, process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_FILE);
   return {
     apple: process.env.APPLE_ISSUER_ID && process.env.APPLE_KEY_ID && process.env.APPLE_VENDOR_NUMBER && appleKey
       ? { issuer: process.env.APPLE_ISSUER_ID, keyId: process.env.APPLE_KEY_ID, vendor: process.env.APPLE_VENDOR_NUMBER, key: appleKey.replace(/\\n/g, '\n') }
