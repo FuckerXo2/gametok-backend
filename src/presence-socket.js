@@ -206,6 +206,16 @@ presenceRouter.get('/:userId', (req, res) => {
     res.json({ userId: req.params.userId, status });
 });
 
+// For the admin dashboard: how many are connected (to this server instance), by status and by game.
+export function getPresenceSummary() {
+    const byStatus = {}, byGame = {};
+    for (const entry of presence.values()) {
+        byStatus[entry.status] = (byStatus[entry.status] || 0) + 1;
+        if (entry.gameId) byGame[entry.gameId] = (byGame[entry.gameId] || 0) + 1;
+    }
+    return { connected: presence.size, byStatus, byGame };
+}
+
 export function getPresenceSnapshot() {
     const out = {};
     for (const [userId, entry] of presence.entries()) {
