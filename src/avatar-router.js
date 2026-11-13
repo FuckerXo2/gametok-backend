@@ -112,6 +112,25 @@ export function cleanAvatar(v, nested = false) {
     out.parts[k] = typeof set === 'string' && `${set}-${k}` in PRICES ? set : null;
     out.colors[k] = HEX.test(v.colors?.[k]) ? v.colors[k] : '#ffffff';
   }
+  // v2 (Synty Sidekick) choices beside the v1 record (gametok src/avatar/v2.ts): face parts by number, what's worn by
+  // catalog id, item colours. Checked field by field like the rest.
+  if (v.sk && typeof v.sk === 'object') {
+    const n = (x, lo, hi) => (Number.isInteger(x) && x >= lo && x <= hi ? x : null);
+    const id = (x) => (typeof x === 'string' && /^[a-z0-9-]{1,40}$/.test(x) ? x : null);
+    const hex6 = (x) => (typeof x === 'string' && /^[0-9A-Fa-f]{6}$/.test(x) ? x.toUpperCase() : null);
+    const s = v.sk, sk = {};
+    for (const [k, lo] of [['head', 1], ['hair', 0], ['brows', 1], ['nose', 1], ['ears', 1], ['facial', 0]]) { const x = n(s[k], lo, 40); if (x !== null) sk[k] = x; }
+    if (hex6(s.eyeColor)) sk.eyeColor = hex6(s.eyeColor);
+    sk.wear = {};
+    for (const k of ['top', 'bottom', 'shoes', 'hands', 'full']) sk.wear[k] = id(s.wear?.[k]);
+    sk.colors = {};
+    for (const [item, ch] of Object.entries(s.colors || {}).slice(0, 12)) {
+      if (!id(item) || !ch || typeof ch !== 'object') continue;
+      const c = {}; for (const [name, hx] of Object.entries(ch).slice(0, 6)) if (/^[a-z]{1,12}$/.test(name) && hex6(hx)) c[name] = hex6(hx);
+      sk.colors[item] = c;
+    }
+    out.sk = sk;
+  }
   // the look of their other body (male and female each keep their own; switching swaps them)
   if (!nested && v.other && typeof v.other === 'object' && v.other.body !== undefined && (v.other.body === 'Female' ? 'Female' : 'Male') !== out.body) out.other = cleanAvatar(v.other, true);
   return out;
