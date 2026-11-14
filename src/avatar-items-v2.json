@@ -1,0 +1,801 @@
+{
+ "prices": {
+  "sk-street-tee~white": 0,
+  "sk-street-tee~black": 0,
+  "sk-street-tee~red": 0,
+  "sk-street-jeans~blue": 0,
+  "sk-street-jeans~black": 0,
+  "sk-street-jeans~light-wash": 0,
+  "sk-street-sneakers~white": 0,
+  "sk-street-sneakers~black": 0,
+  "sk-street-sneakers~teal": 0,
+  "sk-summer-tank~green": 0,
+  "sk-summer-tank~white": 0,
+  "sk-summer-tank~pink": 0,
+  "sk-summer-shorts~black": 0,
+  "sk-summer-shorts~navy": 0,
+  "sk-summer-shorts~red": 0,
+  "sk-summer-slides~teal": 0,
+  "sk-summer-slides~black": 0,
+  "sk-summer-slides~pink": 0,
+  "sk-hoodie~charcoal": 100,
+  "sk-hoodie~grey": 100,
+  "sk-hoodie~navy": 100,
+  "sk-joggers~grey": 80,
+  "sk-joggers~black": 80,
+  "sk-joggers~sand": 80,
+  "sk-track-jacket~blue": 90,
+  "sk-track-jacket~black": 90,
+  "sk-track-jacket~red": 90,
+  "sk-track-pants~blue": 80,
+  "sk-track-pants~black": 80,
+  "sk-track-pants~red": 80,
+  "sk-bomber~olive": 110,
+  "sk-bomber~black": 110,
+  "sk-bomber~navy": 110,
+  "sk-cargos~khaki": 90,
+  "sk-cargos~black": 90,
+  "sk-cargos~olive": 90,
+  "sk-denim-jacket~light-wash": 100,
+  "sk-denim-jacket~dark-wash": 100,
+  "sk-denim-jacket~black": 100,
+  "sk-denim-shorts~dark-wash": 70,
+  "sk-denim-shorts~light-wash": 70,
+  "sk-denim-shorts~black": 70,
+  "sk-puffer~red": 120,
+  "sk-puffer~black": 120,
+  "sk-puffer~yellow": 120,
+  "sk-boots~brown": 100,
+  "sk-boots~black": 100,
+  "sk-boots~tan": 100,
+  "sk-skate-tee~yellow": 60,
+  "sk-skate-tee~white": 60,
+  "sk-skate-tee~teal": 60,
+  "sk-skate-pants~grey": 80,
+  "sk-skate-pants~black": 80,
+  "sk-skate-pants~sand": 80,
+  "sk-skate-shoes~black": 90,
+  "sk-skate-shoes~navy": 90,
+  "sk-skate-shoes~red": 90,
+  "sk-fight-top~black-red": 70,
+  "sk-fight-top~black-teal": 70,
+  "sk-fight-top~white-blue": 70,
+  "sk-fight-shorts~black-red": 60,
+  "sk-fight-shorts~black-teal": 60,
+  "sk-fight-shorts~white-blue": 60,
+  "sk-fight-gloves~black-red": 70,
+  "sk-fight-gloves~black-teal": 70,
+  "sk-fight-gloves~white-blue": 70,
+  "sk-ankle-wraps~white": 60,
+  "sk-ankle-wraps~black": 60,
+  "sk-ankle-wraps~red": 60,
+  "sk-football-jersey~white-teal": 80,
+  "sk-football-jersey~red-white": 80,
+  "sk-football-jersey~blue-yellow": 80,
+  "sk-football-shorts~black-teal": 60,
+  "sk-football-shorts~white-red": 60,
+  "sk-football-shorts~blue-yellow": 60,
+  "sk-football-boots~black-teal": 100,
+  "sk-football-boots~white-red": 100,
+  "sk-football-boots~yellow-black": 100,
+  "sk-knight~steel-blue": 250,
+  "sk-knight~steel-red": 250,
+  "sk-knight~black-gold": 250,
+  "sk-scifi~white-teal": 250,
+  "sk-scifi~black-red": 250,
+  "sk-scifi~white-gold": 250,
+  "sk-ranger~crimson-teal": 200,
+  "sk-ranger~forest-brown": 200,
+  "sk-ranger~navy-gold": 200,
+  "sk-hair-1-Black": 75,
+  "sk-hair-1-Brown": 75,
+  "sk-hair-1-LightBrown": 75,
+  "sk-hair-1-Blonde": 75,
+  "sk-hair-1-Ginger": 75,
+  "sk-hair-1-Red": 100,
+  "sk-hair-1-Blue": 100,
+  "sk-hair-2-Black": 0,
+  "sk-hair-2-Brown": 0,
+  "sk-hair-2-LightBrown": 0,
+  "sk-hair-2-Blonde": 0,
+  "sk-hair-2-Ginger": 0,
+  "sk-hair-2-Red": 0,
+  "sk-hair-2-Blue": 0,
+  "sk-hair-3-Black": 75,
+  "sk-hair-3-Brown": 75,
+  "sk-hair-3-LightBrown": 75,
+  "sk-hair-3-Blonde": 75,
+  "sk-hair-3-Ginger": 75,
+  "sk-hair-3-Red": 100,
+  "sk-hair-3-Blue": 100,
+  "sk-hair-4-Black": 0,
+  "sk-hair-4-Brown": 0,
+  "sk-hair-4-LightBrown": 0,
+  "sk-hair-4-Blonde": 0,
+  "sk-hair-4-Ginger": 0,
+  "sk-hair-4-Red": 0,
+  "sk-hair-4-Blue": 0,
+  "sk-hair-5-Black": 75,
+  "sk-hair-5-Brown": 75,
+  "sk-hair-5-LightBrown": 75,
+  "sk-hair-5-Blonde": 75,
+  "sk-hair-5-Ginger": 75,
+  "sk-hair-5-Red": 100,
+  "sk-hair-5-Blue": 100,
+  "sk-hair-6-Black": 75,
+  "sk-hair-6-Brown": 75,
+  "sk-hair-6-LightBrown": 75,
+  "sk-hair-6-Blonde": 75,
+  "sk-hair-6-Ginger": 75,
+  "sk-hair-6-Red": 100,
+  "sk-hair-6-Blue": 100,
+  "sk-hair-7-Black": 75,
+  "sk-hair-7-Brown": 75,
+  "sk-hair-7-LightBrown": 75,
+  "sk-hair-7-Blonde": 75,
+  "sk-hair-7-Ginger": 75,
+  "sk-hair-7-Red": 100,
+  "sk-hair-7-Blue": 100,
+  "sk-hair-8-Black": 75,
+  "sk-hair-8-Brown": 75,
+  "sk-hair-8-LightBrown": 75,
+  "sk-hair-8-Blonde": 75,
+  "sk-hair-8-Ginger": 75,
+  "sk-hair-8-Red": 100,
+  "sk-hair-8-Blue": 100,
+  "sk-hair-9-Black": 75,
+  "sk-hair-9-Brown": 75,
+  "sk-hair-9-LightBrown": 75,
+  "sk-hair-9-Blonde": 75,
+  "sk-hair-9-Ginger": 75,
+  "sk-hair-9-Red": 100,
+  "sk-hair-9-Blue": 100,
+  "sk-hair-10-Black": 75,
+  "sk-hair-10-Brown": 75,
+  "sk-hair-10-LightBrown": 75,
+  "sk-hair-10-Blonde": 75,
+  "sk-hair-10-Ginger": 75,
+  "sk-hair-10-Red": 100,
+  "sk-hair-10-Blue": 100
+ },
+ "hairColors": {
+  "Black": "141110",
+  "Brown": "5A3420",
+  "LightBrown": "9A6634",
+  "Blonde": "E0B45E",
+  "Ginger": "B4521F",
+  "Red": "D8344A",
+  "Blue": "3F7BFF"
+ },
+ "hairStyles": 10,
+ "pieces": {
+  "street-tee": [
+   {
+    "id": "white",
+    "channels": {
+     "main": "EDEDED"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "red",
+    "channels": {
+     "main": "B0242C"
+    }
+   }
+  ],
+  "street-jeans": [
+   {
+    "id": "blue",
+    "channels": {
+     "main": "3A5F9A"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2E3036"
+    }
+   },
+   {
+    "id": "light-wash",
+    "channels": {
+     "main": "7C9CC8"
+    }
+   }
+  ],
+  "street-sneakers": [
+   {
+    "id": "white",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "2A2D33"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "EDEDED"
+    }
+   },
+   {
+    "id": "teal",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "47AB9A"
+    }
+   }
+  ],
+  "summer-tank": [
+   {
+    "id": "green",
+    "channels": {
+     "main": "2F6B5E"
+    }
+   },
+   {
+    "id": "white",
+    "channels": {
+     "main": "EDEDED"
+    }
+   },
+   {
+    "id": "pink",
+    "channels": {
+     "main": "D9739B"
+    }
+   }
+  ],
+  "summer-shorts": [
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33",
+     "stripe": "EDEDED"
+    }
+   },
+   {
+    "id": "navy",
+    "channels": {
+     "main": "1F3A8A",
+     "stripe": "EDEDED"
+    }
+   },
+   {
+    "id": "red",
+    "channels": {
+     "main": "B0242C",
+     "stripe": "EDEDED"
+    }
+   }
+  ],
+  "summer-slides": [
+   {
+    "id": "teal",
+    "channels": {
+     "strap": "47AB9A"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "strap": "2A2D33"
+    }
+   },
+   {
+    "id": "pink",
+    "channels": {
+     "strap": "D9739B"
+    }
+   }
+  ],
+  "hoodie": [
+   {
+    "id": "charcoal",
+    "channels": {
+     "main": "2A2D33",
+     "strings": "EDEDED"
+    }
+   },
+   {
+    "id": "grey",
+    "channels": {
+     "main": "8A9099",
+     "strings": "EDEDED"
+    }
+   },
+   {
+    "id": "navy",
+    "channels": {
+     "main": "1F3A8A",
+     "strings": "EDEDED"
+    }
+   }
+  ],
+  "joggers": [
+   {
+    "id": "grey",
+    "channels": {
+     "main": "5A5F68"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "sand",
+    "channels": {
+     "main": "C8B79A"
+    }
+   }
+  ],
+  "track-jacket": [
+   {
+    "id": "blue",
+    "channels": {
+     "main": "1F3A8A",
+     "trim": "EDEDED"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33",
+     "trim": "EDEDED"
+    }
+   },
+   {
+    "id": "red",
+    "channels": {
+     "main": "B0242C",
+     "trim": "EDEDED"
+    }
+   }
+  ],
+  "track-pants": [
+   {
+    "id": "blue",
+    "channels": {
+     "main": "1F3A8A",
+     "trim": "EDEDED"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33",
+     "trim": "EDEDED"
+    }
+   },
+   {
+    "id": "red",
+    "channels": {
+     "main": "B0242C",
+     "trim": "EDEDED"
+    }
+   }
+  ],
+  "bomber": [
+   {
+    "id": "olive",
+    "channels": {
+     "main": "2F3B2A"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "navy",
+    "channels": {
+     "main": "1F3A8A"
+    }
+   }
+  ],
+  "cargos": [
+   {
+    "id": "khaki",
+    "channels": {
+     "main": "B9A27E"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "olive",
+    "channels": {
+     "main": "4E5A3A"
+    }
+   }
+  ],
+  "denim-jacket": [
+   {
+    "id": "light-wash",
+    "channels": {
+     "main": "6F8FBF"
+    }
+   },
+   {
+    "id": "dark-wash",
+    "channels": {
+     "main": "34507E"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "3A3D44"
+    }
+   }
+  ],
+  "denim-shorts": [
+   {
+    "id": "dark-wash",
+    "channels": {
+     "main": "34507E"
+    }
+   },
+   {
+    "id": "light-wash",
+    "channels": {
+     "main": "6F8FBF"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "3A3D44"
+    }
+   }
+  ],
+  "puffer": [
+   {
+    "id": "red",
+    "channels": {
+     "main": "B0242C"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "yellow",
+    "channels": {
+     "main": "E3B341"
+    }
+   }
+  ],
+  "boots": [
+   {
+    "id": "brown",
+    "channels": {
+     "main": "5A3A22"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "tan",
+    "channels": {
+     "main": "9A6A3A"
+    }
+   }
+  ],
+  "skate-tee": [
+   {
+    "id": "yellow",
+    "channels": {
+     "main": "E3B341"
+    }
+   },
+   {
+    "id": "white",
+    "channels": {
+     "main": "EDEDED"
+    }
+   },
+   {
+    "id": "teal",
+    "channels": {
+     "main": "47AB9A"
+    }
+   }
+  ],
+  "skate-pants": [
+   {
+    "id": "grey",
+    "channels": {
+     "main": "4A4F57"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "sand",
+    "channels": {
+     "main": "C8B79A"
+    }
+   }
+  ],
+  "skate-shoes": [
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "navy",
+    "channels": {
+     "main": "1F3A8A"
+    }
+   },
+   {
+    "id": "red",
+    "channels": {
+     "main": "B0242C"
+    }
+   }
+  ],
+  "fight-top": [
+   {
+    "id": "black-red",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "B0242C"
+    }
+   },
+   {
+    "id": "black-teal",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "47AB9A"
+    }
+   },
+   {
+    "id": "white-blue",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "1F3A8A"
+    }
+   }
+  ],
+  "fight-shorts": [
+   {
+    "id": "black-red",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "B0242C"
+    }
+   },
+   {
+    "id": "black-teal",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "47AB9A"
+    }
+   },
+   {
+    "id": "white-blue",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "1F3A8A"
+    }
+   }
+  ],
+  "fight-gloves": [
+   {
+    "id": "black-red",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "B0242C"
+    }
+   },
+   {
+    "id": "black-teal",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "47AB9A"
+    }
+   },
+   {
+    "id": "white-blue",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "1F3A8A"
+    }
+   }
+  ],
+  "ankle-wraps": [
+   {
+    "id": "white",
+    "channels": {
+     "main": "EDEDED"
+    }
+   },
+   {
+    "id": "black",
+    "channels": {
+     "main": "2A2D33"
+    }
+   },
+   {
+    "id": "red",
+    "channels": {
+     "main": "B0242C"
+    }
+   }
+  ],
+  "football-jersey": [
+   {
+    "id": "white-teal",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "47AB9A",
+     "number": "2A2D33"
+    }
+   },
+   {
+    "id": "red-white",
+    "channels": {
+     "main": "B0242C",
+     "accent": "EDEDED",
+     "number": "EDEDED"
+    }
+   },
+   {
+    "id": "blue-yellow",
+    "channels": {
+     "main": "1F3A8A",
+     "accent": "E3B341",
+     "number": "EDEDED"
+    }
+   }
+  ],
+  "football-shorts": [
+   {
+    "id": "black-teal",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "47AB9A",
+     "socks": "EDEDED"
+    }
+   },
+   {
+    "id": "white-red",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "B0242C",
+     "socks": "B0242C"
+    }
+   },
+   {
+    "id": "blue-yellow",
+    "channels": {
+     "main": "1F3A8A",
+     "accent": "E3B341",
+     "socks": "1F3A8A"
+    }
+   }
+  ],
+  "football-boots": [
+   {
+    "id": "black-teal",
+    "channels": {
+     "main": "2A2D33",
+     "accent": "47AB9A"
+    }
+   },
+   {
+    "id": "white-red",
+    "channels": {
+     "main": "EDEDED",
+     "accent": "B0242C"
+    }
+   },
+   {
+    "id": "yellow-black",
+    "channels": {
+     "main": "E3B341",
+     "accent": "2A2D33"
+    }
+   }
+  ],
+  "knight": [
+   {
+    "id": "steel-blue",
+    "channels": {
+     "steel": "B8BEC6",
+     "tabard": "1F3A8A"
+    }
+   },
+   {
+    "id": "steel-red",
+    "channels": {
+     "steel": "B8BEC6",
+     "tabard": "B0242C"
+    }
+   },
+   {
+    "id": "black-gold",
+    "channels": {
+     "steel": "4A4F57",
+     "tabard": "7A1A20"
+    }
+   }
+  ],
+  "scifi": [
+   {
+    "id": "white-teal",
+    "channels": {
+     "armor": "D9DEE4",
+     "glow": "47E0C8"
+    }
+   },
+   {
+    "id": "black-red",
+    "channels": {
+     "armor": "3A3D44",
+     "glow": "FF4A4A"
+    }
+   },
+   {
+    "id": "white-gold",
+    "channels": {
+     "armor": "D9DEE4",
+     "glow": "F2C14E"
+    }
+   }
+  ],
+  "ranger": [
+   {
+    "id": "crimson-teal",
+    "channels": {
+     "tunic": "8C2F39",
+     "cape": "2F7F86"
+    }
+   },
+   {
+    "id": "forest-brown",
+    "channels": {
+     "tunic": "2F5A34",
+     "cape": "6B4430"
+    }
+   },
+   {
+    "id": "navy-gold",
+    "channels": {
+     "tunic": "1F3A8A",
+     "cape": "B8892E"
+    }
+   }
+  ]
+ }
+}

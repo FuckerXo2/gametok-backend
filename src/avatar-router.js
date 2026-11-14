@@ -13,6 +13,7 @@ import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, COLOURED_HAIR, ALL_HAIR, CHARAC
 import { renderPictures } from './avatar-pictures.js';
 import { feedFor } from './avatar-feed.js';
 import crypto from 'crypto';
+import fs from 'fs';
 import express from 'express';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import pool from './db.js';
@@ -31,10 +32,30 @@ export const WELCOME_TOKBUX = 0;
 // everyone has them. Outfits aren't bought themselves: their pieces are.
 export const PRICES = {};
 for (const i of ITEMS) if (i.kind !== 'outfit') PRICES[i.id] = i.price;
+// the new avatar's (v2, Synty Sidekick) items: one per colourway of each piece (sk-<piece>~<colourway>) and per colour of
+// each hairstyle (sk-hair-<n>-<Colour>). From games/avatar-editor/tools/sidekick_catalog.py, which writes this copy.
+const V2 = JSON.parse(fs.readFileSync(new URL('./avatar-items-v2.json', import.meta.url), 'utf8'));
+Object.assign(PRICES, V2.prices);
+// the old (v1) clothes, hair and beard: still sold while the app in the stores is the v1 one. The day the v2 app ships,
+// set false and run scripts/refund-v1-avatar-items.mjs --go (players get back what they paid for them).
+const V1_ITEMS_ON_SALE = true;
+const V1_ITEM = new Set(ITEMS.filter((i) => ['part', 'hair', 'beard'].includes(i.kind)).map((i) => i.id));
 // the same thing under two ids (a character bought here or in its game; a hair from before colours): owning one
 // owns the other
 const ALIAS = {};
-for (const i of ITEMS) if (i.ownedAs) { (ALIAS[i.id] ||= []).push(i.ownedAs); if (i.kind === 'character') (ALIAS[i.ownedAs] ||= []).push(i.id); }
+for (const i of ITEMS) if (i.ownedAs) {
+  (ALIAS[i.id] ||= []).push(i.ownedAs);
+  if (i.kind === 'character') {
+    (ALIAS[i.ownedAs] ||= []).push(i.id);
+    const m = i.ownedAs.split(':')[1];
+    if (m) {
+      (ALIAS[`supreme-fight-club:${m}`] ||= []).push(i.id, i.ownedAs);
+      (ALIAS[`knockout:${m}`] ||= []).push(i.id, i.ownedAs);
+      (ALIAS[i.id] ||= []).push(`supreme-fight-club:${m}`, `knockout:${m}`);
+      (ALIAS[i.ownedAs] ||= []).push(`supreme-fight-club:${m}`, `knockout:${m}`);
+    }
+  }
+}
 // a hair now sold in its own colours, bought before in some colour: that one owns it
 for (const style of Object.keys(COLOURED_HAIR)) for (const i of ITEMS) if (i.kind === 'hair' && i.hair === style)
   ALIAS[i.id].push(...Object.keys(HAIR_COLORS).map((c) => `hair-${style}-${c}`));
@@ -48,6 +69,8 @@ const ONCE_FREE = new Set(['Male_Peasant', 'Male_Ranger'].flatMap((set) => SLOTS
 // Prices live HERE: the game's own copy (e.g. No Rules FC's HEROES.price) is only for display.
 export const GAME_ITEMS = {
   'no-rules-fc': CHARACTER_PRICES,   // (its heroes are also GameTok characters: src/avatar-items.js)
+  'supreme-fight-club': CHARACTER_PRICES,
+  'knockout': { revive: 100, ...CHARACTER_PRICES },
 };
 for (const [game, items] of Object.entries(GAME_ITEMS))
   for (const [id, p] of Object.entries(items)) PRICES[`${game}:${id}`] = p;
@@ -139,10 +162,25 @@ export function cleanAvatar(v, nested = false) {
 // the items a record wears
 function wornItems(a) {
   const ids = [];
+  if (a.character) ids.push(`char-${a.character}`);
+  // a v2 look: its own pieces and hair are what shows (the v1 fields under it no longer draw anywhere)
+  if (a.sk) return [...ids, ...wornV2(a)];
   if (a.hair) ids.push(`hair-${a.hair}-${Object.keys(HAIR_COLORS).find((c) => HAIR_COLORS[c] === a.hairColor)}`);
   if (a.beard) ids.push('beard');
-  if (a.character) ids.push(`char-${a.character}`);
   for (const k of SLOTS) if (a.parts[k]) ids.push(`${a.parts[k]}-${k}`);
+  return ids;
+}
+// v2: each piece worn, in the colourway its colours match (else its first: every colourway costs the same), and the
+// hairstyle in its colour (hairColor is always one of the seven: nearestHair)
+function wornV2(a) {
+  const ids = [];
+  for (const piece of Object.values(a.sk.wear || {})) {
+    const ways = piece && V2.pieces[piece]; if (!ways) continue;
+    const c = a.sk.colors?.[piece] || {};
+    const cw = ways.find((w) => Object.entries(w.channels).every(([k, v]) => (c[k] || '').toUpperCase() === v.toUpperCase())) || ways[0];
+    ids.push(`sk-${piece}~${cw.id}`);
+  }
+  if (a.sk.hair > 0) ids.push(`sk-hair-${a.sk.hair}-${Object.keys(V2.hairColors).find((c) => `#${V2.hairColors[c]}`.toLowerCase() === (a.hairColor || '').toLowerCase()) || 'Black'}`);
   return ids;
 }
 
@@ -316,6 +354,7 @@ router.post('/buy', async (req, res) => {
   const itemId = String(req.body?.itemId || '');
   const price = pricesNow()[itemId];
   if (price === undefined) return res.status(404).json({ error: 'No such item', code: 'NO_ITEM' });
+  if (!V1_ITEMS_ON_SALE && (V1_ITEM.has(itemId) || /^hair-Hair_/.test(itemId))) return res.status(410).json({ error: 'No longer sold', code: 'RETIRED' });
   // the price the player was shown (newer apps send it): a sale that just ended doesn't charge more without asking
   const shown = req.body?.price;
   if (typeof shown === 'number' && shown !== price) return res.status(409).json({ error: `The price is now ${price} TokBux`, code: 'PRICE_CHANGED', price });
@@ -325,15 +364,18 @@ router.post('/buy', async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
     const p = await profile(client, user.id, true);
-    if (price === 0 || owns(p.owned, itemId)) { await client.query('ROLLBACK'); return res.json(view(p)); }
+    const isConsumable = itemId === 'knockout:revive';
+    if (!isConsumable && (price === 0 || owns(p.owned, itemId))) { await client.query('ROLLBACK'); return res.json(view(p)); }
     if (p.tokbux < price) {
       await client.query('ROLLBACK');
       return res.status(402).json({ error: `You need ${price - p.tokbux} more TokBux`, code: 'NOT_ENOUGH_TOKBUX', tokbux: p.tokbux, price });
     }
     const r = await client.query(
-      'UPDATE avatar_profiles SET tokbux = tokbux - $2, owned = array_append(owned, $3), updated_at = NOW() WHERE user_id = $1 RETURNING record, owned, tokbux',
-      [user.id, price, itemId]);
-    await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason, item_id) VALUES ($1, $2, $3, $4)', [user.id, -price, 'avatar_item', itemId]);
+      isConsumable
+        ? 'UPDATE avatar_profiles SET tokbux = tokbux - $2, updated_at = NOW() WHERE user_id = $1 RETURNING record, owned, tokbux'
+        : 'UPDATE avatar_profiles SET tokbux = tokbux - $2, owned = array_append(owned, $3), updated_at = NOW() WHERE user_id = $1 RETURNING record, owned, tokbux',
+      isConsumable ? [user.id, price] : [user.id, price, itemId]);
+    await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason, item_id) VALUES ($1, $2, $3, $4)', [user.id, -price, isConsumable ? 'game_revive' : 'avatar_item', itemId]);
     await client.query('COMMIT');
     res.json(view(r.rows[0]));
   } catch (err) {
