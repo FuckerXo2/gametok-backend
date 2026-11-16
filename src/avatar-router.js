@@ -11,6 +11,7 @@
 
 import { ITEMS, SLOTS, HAIR_COLORS, HAIR_STYLES, COLOURED_HAIR, ALL_HAIR, CHARACTERS, CHARACTER_PRICES, SHOP_CHARACTERS } from './avatar-items.js';
 import { renderPictures } from './avatar-pictures.js';
+import { HERO_RENAMED, heroId, itemId as renamedItem } from './hero-renames.js';
 import { feedFor } from './avatar-feed.js';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -77,7 +78,7 @@ for (const [game, items] of Object.entries(GAME_ITEMS))
 
 // Sales: a real price cut for a while. The crossed-out "was" price is the item's normal price (above), and every
 // sale ends: a made-up "was" price, or a sale that never ends, is deceptive pricing (FTC / EU rules, Apple review).
-// Add one here when asked, e.g. { item: 'no-rules-fc:hulk', off: 30, until: '2026-11-02T00:00:00Z' } (optional from).
+// Add one here when asked, e.g. { item: 'no-rules-fc:bulk', off: 30, until: '2026-11-02T00:00:00Z' } (optional from).
 const SALES = [];   // none for now: no discounts unless decided
 // item id -> { price, was, off, until } for everything on sale right now (prices rounded to 5)
 export function activeSales(now = Date.now()) {
@@ -119,7 +120,7 @@ export function cleanAvatar(v, nested = false) {
   const out = {
     body: v.body === 'Female' ? 'Female' : 'Male', skin: Math.max(0, Math.min(5, v.skin | 0)), face: Math.max(0, Math.min(5, v.face | 0)), beard: !!v.beard, fit: v.fit !== false,
     hair: typeof v.hair === 'string' && v.hair in ALL_HAIR ? v.hair : null,
-    character: typeof v.character === 'string' && (v.character in CHARACTERS || v.character in SHOP_CHARACTERS) ? v.character : null,   // worn instead of the avatar
+    character: typeof v.character === 'string' && (heroId(v.character) in CHARACTERS || v.character in SHOP_CHARACTERS) ? heroId(v.character) : null,   // worn instead of the avatar
     hairColor: nearestHair(v.hairColor), parts: {}, colors: {},
   };
   // body size (Me > Body Shape): 1 is the default; only stored when set
@@ -184,6 +185,24 @@ function wornV2(a) {
   return ids;
 }
 
+// the heroes renamed (2026-11-16, src/hero-renames.js): what players own, wear and saved, moved to the new ids.
+// Safe to run every start: rows already moved don't match.
+async function renameHeroes() {
+  const old = Object.keys(HERO_RENAMED);
+  const like = old.flatMap((o) => [`char-${o}`, `%:${o}`]);
+  const r = await pool.query(`SELECT user_id, owned, record, looks FROM avatar_profiles
+    WHERE EXISTS (SELECT 1 FROM unnest(owned) AS i WHERE i LIKE ANY($1)) OR record->>'character' = ANY($2)
+      OR EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(looks) = 'array' THEN looks ELSE '[]' END) AS l
+                 WHERE l->'look'->>'character' = ANY($2))`, [like, old]);
+  for (const row of r.rows) {
+    const owned = [...new Set(row.owned.map(renamedItem))];
+    const record = row.record && row.record.character ? { ...row.record, character: heroId(row.record.character) } : row.record;
+    const looks = Array.isArray(row.looks) ? row.looks.map((l) => (l?.look?.character ? { ...l, look: { ...l.look, character: heroId(l.look.character) } } : l)) : row.looks;
+    await pool.query('UPDATE avatar_profiles SET owned = $2, record = $3, looks = $4 WHERE user_id = $1', [row.user_id, owned, record, JSON.stringify(looks)]);
+  }
+  if (r.rows.length) console.log(`[Avatar] heroes renamed for ${r.rows.length} players`);
+}
+
 export async function runAvatarMigration() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS avatar_profiles (
@@ -209,6 +228,7 @@ export async function runAvatarMigration() {
     -- saved looks (Me > Customize > Avatars): [{ id, name, look }], newest first
     ALTER TABLE avatar_profiles ADD COLUMN IF NOT EXISTS looks JSONB NOT NULL DEFAULT '[]';
   `);
+  await renameHeroes();
   console.log('✅ Avatar profiles + TokBux ready');
 }
 
@@ -351,7 +371,7 @@ router.put('/me', async (req, res) => {
 });
 
 router.post('/buy', async (req, res) => {
-  const itemId = String(req.body?.itemId || '');
+  const itemId = renamedItem(String(req.body?.itemId || ''));   // (an app from before the heroes were renamed)
   const price = pricesNow()[itemId];
   if (price === undefined) return res.status(404).json({ error: 'No such item', code: 'NO_ITEM' });
   if (!V1_ITEMS_ON_SALE && (V1_ITEM.has(itemId) || /^hair-Hair_/.test(itemId))) return res.status(410).json({ error: 'No longer sold', code: 'RETIRED' });

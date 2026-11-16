@@ -127,10 +127,10 @@ for (const [id, v] of [['Kimono_Hakama-top', 2]]) items.find((i) => i.id === id)
 // kind, described at the top, stays for old saved looks.)
 
 // characters: No Rules FC's heroes, worn in every game (bought here or in the game: one purchase owns both)
-export const CHARACTERS = { spiderman: 'Spyder-Man', baki: 'Bakki', flash: 'The Flazh', batman: 'Batmvn', lantern: 'Green Lanturn',
-  goku: 'Gokv', vegeta: 'Vejeta', ironman: 'Iron Male', superman: 'Svperman', thor: 'Thur', yujiro: 'Yujirho', hulk: 'Hvlk', rambo: 'Rambow' };
-export const CHARACTER_PRICES = { spiderman: 500, baki: 500, flash: 500, batman: 500, lantern: 500, goku: 800, vegeta: 800, ironman: 800,
-  superman: 800, thor: 800, yujiro: 1200, hulk: 1200, rambo: 800 };
+export const CHARACTERS = { webster: 'Webster', bako: 'Bako', flare: 'Flare', nightbat: 'Nightbat', lanthorn: 'Lanthorn',
+  koku: 'Koku', vegar: 'Vegar', ironclad: 'Ironclad', supremo: 'Supremo', thorn: 'Thorn', yujin: 'Yujin', bulk: 'Bulk', ramrod: 'Ramrod' };
+export const CHARACTER_PRICES = { webster: 500, bako: 500, flare: 500, nightbat: 500, lanthorn: 500, koku: 800, vegar: 800, ironclad: 800,
+  supremo: 800, thorn: 800, yujin: 1200, bulk: 1200, ramrod: 800 };
 // a picture's version (the server renders it again: src/avatar-pictures.js); characters start at 3, their first
 // server-made pictures (standing in the idle)
 const PIC = {};
