@@ -23,6 +23,9 @@ WORKDIR /app
 # Install Node dependencies first for Docker layer caching
 COPY package*.json ./
 # Exact versions from package-lock.json; faster than npm install and identical on every build.
+# onnxruntime-node (pulled in by a dependency) downloads CUDA binaries on install; that download 404s and nothing here
+# uses a GPU: skip it (the CPU runtime still installs)
+ENV npm_config_onnxruntime_node_install_cuda=skip
 RUN npm ci --omit=dev
 
 # Copy application source code

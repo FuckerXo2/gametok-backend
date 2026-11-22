@@ -2694,6 +2694,45 @@ app.post('/api/developer/matches/:id/result', async (req, res) => {
   }
 });
 
+// A game's own numbers per player (XP, wins…), kept on GameTok so progress lives on the account, not in one game
+// server. The game's server reads and adds with its API key (it owns the game: requireOwnedGame). Numbers only:
+//   GET  /api/developer/games/:id/players/:playerId/stats            -> { stats }
+//   POST /api/developer/games/:id/players/:playerId/stats {add?, set?} -> { stats }   (add: +n each; set: = n each)
+const STAT_KEY = /^[a-z][a-z0-9_]{0,31}$/;
+function statNums(v, lo, hi) {
+  const out = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, n] of Object.entries(v).slice(0, 20)) if (STAT_KEY.test(k) && Number.isFinite(n) && n >= lo && n <= hi) out[k] = Math.round(n);
+  return out;
+}
+app.get('/api/developer/games/:id/players/:playerId/stats', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT stats FROM game_player_stats WHERE game_id = $1 AND player_id = $2', [req.params.id, String(req.params.playerId).slice(0, 80)]);
+    res.json({ stats: r.rows[0]?.stats || {} });
+  } catch (err) { console.error('[Player stats] Read error:', err); res.status(500).json({ error: 'Could not read stats' }); }
+});
+app.post('/api/developer/games/:id/players/:playerId/stats', async (req, res) => {
+  try {
+    const add = statNums(req.body?.add, -100000, 100000), set = statNums(req.body?.set, 0, 1e12);
+    const pid = String(req.params.playerId).slice(0, 80);
+    if (!pid) return res.status(400).json({ error: 'playerId is required' });
+    // locked while it's changed, so two matches ending at once both count
+    const db = await pool.connect();
+    let stats;
+    try {
+      await db.query('BEGIN');
+      await db.query(`INSERT INTO game_player_stats (game_id, player_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [req.params.id, pid]);
+      const r = await db.query('SELECT stats FROM game_player_stats WHERE game_id = $1 AND player_id = $2 FOR UPDATE', [req.params.id, pid]);
+      stats = { ...(r.rows[0].stats || {}) };
+      for (const [k, n] of Object.entries(add)) stats[k] = (Number(stats[k]) || 0) + n;
+      Object.assign(stats, set);
+      await db.query('UPDATE game_player_stats SET stats = $3, updated_at = NOW() WHERE game_id = $1 AND player_id = $2', [req.params.id, pid, JSON.stringify(stats)]);
+      await db.query('COMMIT');
+    } catch (e) { await db.query('ROLLBACK').catch(() => {}); throw e; } finally { db.release(); }
+    res.json({ stats });
+  } catch (err) { console.error('[Player stats] Write error:', err); res.status(500).json({ error: 'Could not save stats' }); }
+});
+
 // Integration checklist: the test player reports what the game did (first time only per item).
 const INTEGRATION_EVENTS = ['bridge_loaded', 'player_requested', 'session_verified', 'score_submitted'];
 async function recordIntegration(gameId, event) {

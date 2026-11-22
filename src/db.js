@@ -656,6 +656,16 @@ export const runMigrations = async () => {
       );
       CREATE INDEX IF NOT EXISTS idx_match_players_player ON game_match_players(player_id);
 
+      -- A game's own numbers for each player (XP, wins…), kept by the game's server through its API key
+      -- (/api/developer/games/:id/players/:playerId/stats). Progress lives on the GameTok account, not in the game.
+      CREATE TABLE IF NOT EXISTS game_player_stats (
+        game_id VARCHAR(100) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        player_id VARCHAR(80) NOT NULL,
+        stats JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (game_id, player_id)
+      );
+
       -- Server-side secrets generated on first boot (e.g. player-session signing key), so they
       -- don't depend on deploy-time env configuration.
       CREATE TABLE IF NOT EXISTS platform_secrets (
