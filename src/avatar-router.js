@@ -37,9 +37,9 @@ for (const i of ITEMS) if (i.kind !== 'outfit') PRICES[i.id] = i.price;
 // each hairstyle (sk-hair-<n>-<Colour>). From games/avatar-editor/tools/sidekick_catalog.py, which writes this copy.
 const V2 = JSON.parse(fs.readFileSync(new URL('./avatar-items-v2.json', import.meta.url), 'utf8'));
 Object.assign(PRICES, V2.prices);
-// the old (v1) clothes, hair and beard: still sold while the app in the stores is the v1 one. The day the v2 app ships,
-// set false and run scripts/refund-v1-avatar-items.mjs --go (players get back what they paid for them).
-const V1_ITEMS_ON_SALE = true;
+// the old (v1, Quaternius) clothes, hair and beard: retired 2026-11-25 (every app now draws the Synty avatar); what
+// players paid for them was refunded by scripts/refund-v1-avatar-items.mjs --go
+const V1_ITEMS_ON_SALE = false;
 const V1_ITEM = new Set(ITEMS.filter((i) => ['part', 'hair', 'beard'].includes(i.kind)).map((i) => i.id));
 // the same thing under two ids (a character bought here or in its game; a hair from before colours): owning one
 // owns the other
