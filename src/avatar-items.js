@@ -77,7 +77,7 @@ for (const [slot, g, name, price, sub, colours] of STREET) for (const c of colou
     plain: true, ...(slot === 'top' ? { clears: ['arms'] } : {}) });
 }
 
-// the fantasy sets (Quaternius), sold piece by piece
+// the fantasy sets, sold piece by piece
 const SETS = [['Male_Peasant', 'Peasant', 50], ['Male_Ranger', 'Ranger', 75], ['Female_Peasant', 'Peasant II', 50], ['Female_Ranger', 'Ranger II', 75]];
 const PIECES = [['top', 'Top', 'clothing', 'torso', 'clothing', 'Shirts'], ['arms', 'Sleeves', 'clothing', 'torso', 'clothing', 'Shirts'],
   ['legs', 'Pants', 'clothing', 'legs', 'clothing', 'Pants'], ['feet', 'Boots', 'shoes', 'feet', 'clothing', 'Shoes'],

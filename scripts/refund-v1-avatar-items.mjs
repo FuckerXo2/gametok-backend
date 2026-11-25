@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The avatar moved to v2 (Synty Sidekick): the old (v1, Quaternius) clothes, hair and beard don't exist on it. Agreed
+// The avatar moved to v2 (Synty Sidekick): the old (v1) clothes, hair and beard don't exist on it. Agreed
 // 2026-11-14: everyone gets back the TokBux they PAID for them (from tokbux_ledger, so sale prices count; items they
 // got free are skipped). Heroes (characters) and game items stay owned and aren't touched. Run it the day the app build
 // with the new avatar goes out, and set V1_ITEMS_ON_SALE = false in src/avatar-router.js in the same deploy.

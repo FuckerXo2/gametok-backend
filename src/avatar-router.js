@@ -37,7 +37,7 @@ for (const i of ITEMS) if (i.kind !== 'outfit') PRICES[i.id] = i.price;
 // each hairstyle (sk-hair-<n>-<Colour>). From games/avatar-editor/tools/sidekick_catalog.py, which writes this copy.
 const V2 = JSON.parse(fs.readFileSync(new URL('./avatar-items-v2.json', import.meta.url), 'utf8'));
 Object.assign(PRICES, V2.prices);
-// the old (v1, Quaternius) clothes, hair and beard: retired 2026-11-25 (every app now draws the Synty avatar); what
+// the old (v1) clothes, hair and beard: retired 2026-11-25 (every app now draws the Synty avatar); what
 // players paid for them was refunded by scripts/refund-v1-avatar-items.mjs --go
 const V1_ITEMS_ON_SALE = false;
 const V1_ITEM = new Set(ITEMS.filter((i) => ['part', 'hair', 'beard'].includes(i.kind)).map((i) => i.id));
@@ -60,6 +60,8 @@ for (const i of ITEMS) if (i.ownedAs) {
 // a hair now sold in its own colours, bought before in some colour: that one owns it
 for (const style of Object.keys(COLOURED_HAIR)) for (const i of ITEMS) if (i.kind === 'hair' && i.hair === style)
   ALIAS[i.id].push(...Object.keys(HAIR_COLORS).map((c) => `hair-${style}-${c}`));
+// the starter outfits (see profile()): bomber jacket + cargo pants + boots, puffer jacket + joggers + boots
+const STARTER_GIFT = ['sk-bomber~olive', 'sk-cargos~khaki', 'sk-boots~brown', 'sk-puffer~red', 'sk-joggers~grey'];
 const owns = (owned, id) => owned.includes(id) || (ALIAS[id] || []).some((a) => owned.includes(a));
 for (const [style, [, price]] of Object.entries(ALL_HAIR)) PRICES[`hair-${style}`] = price;   // (bought before colours)
 // Items that were free once and aren't now: whoever was wearing one keeps it (see profile)
@@ -269,6 +271,9 @@ async function userFrom(req, res) {
 async function profile(client, userId, lock = false) {
   const fresh = await client.query('INSERT INTO avatar_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING RETURNING user_id', [userId]);
   if (fresh.rowCount && WELCOME_TOKBUX) await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason) VALUES ($1, $2, $3)', [userId, WELCOME_TOKBUX, 'welcome']);
+  // the starter outfits, a gift to every new player (2026-11-25): guys start in the bomber set, girls in the puffer set,
+  // and both are theirs so switching body in Me keeps a full outfit. Everyone else buys them in the Shop as before.
+  if (fresh.rowCount) await client.query('UPDATE avatar_profiles SET owned = owned || $2::text[] WHERE user_id = $1', [userId, STARTER_GIFT]);
   const r = await client.query(`SELECT record, owned, tokbux FROM avatar_profiles WHERE user_id = $1${lock ? ' FOR UPDATE' : ''}`, [userId]);
   const p = r.rows[0];
   const kept = p.record ? wornItems(cleanAvatar(p.record)).filter((id) => ONCE_FREE.has(id) && !p.owned.includes(id)) : [];
