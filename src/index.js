@@ -1049,6 +1049,12 @@ app.delete('/api/auth/delete-account', async (req, res) => {
 });
 
 // Helper to format user for response
+// Names, like Roblox (2026-11-27): the display name is free to change, once every 7 days; the @username costs
+// USERNAME_PRICE Pixils each time (Roblox: 1,000 Robux), letters, numbers and _ only.
+const NAME_COOLDOWN_MS = 7 * 24 * 3600 * 1000;
+const USERNAME_PRICE = 1000;
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+
 function formatUser(row) {
   return {
     id: row.id,
@@ -1060,6 +1066,9 @@ function formatUser(row) {
     totalScore: row.total_score,
     gamesPlayed: row.games_played,
     verified: Boolean(row.verified),
+    // the rename rules (see PUT /api/users/:id): when the next change is allowed, and what it costs
+    nameChange: { price: 0, nextAt: row.name_changed_at ? new Date(new Date(row.name_changed_at).getTime() + NAME_COOLDOWN_MS).toISOString() : null },
+    usernamePrice: USERNAME_PRICE,
     followers: [],
     following: [],
     createdAt: row.created_at
@@ -5412,12 +5421,51 @@ app.put('/api/users/:id', async (req, res) => {
     const userCheck = await pool.query('SELECT * FROM users WHERE id = $1 AND token = $2', [req.params.id, token]);
     if (userCheck.rows.length === 0) return res.status(403).json({ error: 'Not authorized' });
 
-    // Validate if changing username
-    if (username !== undefined) {
-      if (username.length < 3 || username.length > 20) return res.status(400).json({ error: 'Username must be 3-20 chars' });
-      // Check if taken by someone else
-      const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2', [username, req.params.id]);
-      if (existing.rows.length > 0) return res.status(400).json({ error: 'Username taken' });
+    // a new @username: letters, numbers and _, not someone else's, and USERNAME_PRICE Pixils (taken below)
+    const newUsername = typeof username === 'string' && username.trim() !== userCheck.rows[0].username ? username.trim() : null;
+    if (newUsername) {
+      if (!USERNAME_RE.test(newUsername)) return res.status(400).json({ error: 'Use 3-20 letters, numbers or _', code: 'USERNAME_INVALID' });
+      const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2', [newUsername, req.params.id]);
+      if (existing.rows.length > 0) return res.status(409).json({ error: 'That username is taken', code: 'USERNAME_TAKEN' });
+    }
+
+    // a new display name: free, once a week; both changes are made (and the username paid for) in one transaction
+    const me = userCheck.rows[0];
+    const newName = typeof displayName === 'string' ? displayName.trim().slice(0, 30) : null;
+    if (newName !== null && !newName) return res.status(400).json({ error: 'Your name can\'t be empty', code: 'NAME_EMPTY' });
+    const renaming = !!newName && newName !== me.display_name;
+    if (renaming && me.name_changed_at && Date.now() - new Date(me.name_changed_at).getTime() < NAME_COOLDOWN_MS) {
+      const nextAt = new Date(new Date(me.name_changed_at).getTime() + NAME_COOLDOWN_MS).toISOString();
+      return res.status(429).json({ error: 'You can change your display name once a week', code: 'NAME_COOLDOWN', nextAt });
+    }
+    if (renaming || newUsername) {
+      const price = newUsername ? USERNAME_PRICE : 0;
+      const shown = req.body?.price;   // what the app showed: never charge more than that without asking
+      if (newUsername && shown !== price) return res.status(409).json({ error: `Changing your username costs ${price} Pixils`, code: 'PRICE_CHANGED', price });
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        if (price) {
+          await client.query('INSERT INTO avatar_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [me.id]);
+          const bal = (await client.query('SELECT tokbux FROM avatar_profiles WHERE user_id = $1 FOR UPDATE', [me.id])).rows[0]?.tokbux ?? 0;
+          if (bal < price) {
+            await client.query('ROLLBACK');
+            return res.status(402).json({ error: `You need ${price - bal} more Pixils`, code: 'NOT_ENOUGH_TOKBUX', tokbux: bal, price });
+          }
+          await client.query('UPDATE avatar_profiles SET tokbux = tokbux - $2, updated_at = NOW() WHERE user_id = $1', [me.id, price]);
+          await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason) VALUES ($1, $2, $3)', [me.id, -price, 'username_change']);
+        }
+        if (renaming) await client.query('UPDATE users SET display_name = $2, name_changed_at = NOW(), name_changes = name_changes + 1 WHERE id = $1', [me.id, newName]);
+        if (newUsername) await client.query('UPDATE users SET username = $2 WHERE id = $1', [me.id, newUsername]);
+        await client.query('COMMIT');
+        console.log(`[Name] ${me.id}${renaming ? ' new display name' : ''}${newUsername ? ` new username (${price} Pixils)` : ''}`);
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        if (e.code === '23505') return res.status(409).json({ error: 'That username is taken', code: 'USERNAME_TAKEN' });
+        throw e;
+      } finally {
+        client.release();
+      }
     }
 
     const result = await pool.query(
@@ -5427,7 +5475,7 @@ app.put('/api/users/:id', async (req, res) => {
         avatar = COALESCE($3, avatar),
         username = COALESCE($4, username)
        WHERE id = $5 RETURNING *`,
-      [displayName, bio, avatar, username, req.params.id]
+      [null, bio, avatar, null, req.params.id]
     );
     res.json({ user: await formatUserWithFollowCounts(result.rows[0]) });
   } catch (e) {

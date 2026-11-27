@@ -790,6 +790,9 @@ export const runMigrations = async () => {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS developer_agreement_version VARCHAR(20);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS developer_agreement_accepted_at TIMESTAMP;
+      -- display-name changes (2026-11-27): free, at most once a week (src/index.js PUT /api/users/:id)
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS name_changed_at TIMESTAMP;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS name_changes INTEGER NOT NULL DEFAULT 0;
     `);
     console.log('✅ Game progress, forge sessions, & developer platform tables ready');
   } catch (e) {
