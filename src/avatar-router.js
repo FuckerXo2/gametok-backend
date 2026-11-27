@@ -104,7 +104,8 @@ export async function gameEntitlements(userId, gameId) {
   const r = await pool.query('SELECT owned, tokbux FROM avatar_profiles WHERE user_id = $1', [userId]);
   const p = r.rows[0] || { owned: [], tokbux: WELCOME_TOKBUX };
   const all = [...new Set(p.owned.flatMap((id) => [id, ...(ALIAS[id] || [])]))];   // (a character bought in the GameTok store)
-  return { owned: all.filter((id) => id.startsWith(`${gameId}:`)).map((id) => id.slice(gameId.length + 1)), tokbux: p.tokbux, sales: gameSales(gameId) };
+  // clothes: the Pixil avatar items they own (sk-…), so a game's wardrobe can offer them (No Rules FC, 2026-11-27)
+  return { owned: all.filter((id) => id.startsWith(`${gameId}:`)).map((id) => id.slice(gameId.length + 1)), clothes: all.filter((id) => id.startsWith('sk-')), tokbux: p.tokbux, sales: gameSales(gameId) };
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
