@@ -133,7 +133,7 @@ export const CHARACTER_PRICES = { webster: 500, bako: 500, flare: 500, nightbat:
   supremo: 800, thorn: 800, yujin: 1200, bulk: 1200, ramrod: 800 };
 // a picture's version (the server renders it again: src/avatar-pictures.js); characters start at 3, their first
 // server-made pictures (standing in the idle)
-const PIC = { bulk: 4 };   // bulk 4: blue skin (2026-11-28)
+const PIC = { bulk: 5, supremo: 4, yujin: 4, thorn: 4, webster: 4 };   // 2026-11-28: Bulk blue; warrior/ninja idles now real Mixamo
 for (const [id, name] of Object.entries(CHARACTERS))
   items.push({ id: `char-${id}`, kind: 'character', character: id, name, price: CHARACTER_PRICES[id], ownedAs: `no-rules-fc:${id}`,
     tab: 'avatars', sub: '', category: 'clothing', focus: 'body', pic: PIC[id] || 3 });
