@@ -2623,7 +2623,7 @@ app.post('/api/developer/sessions/verify', async (req, res) => {
       valid: true,
       gameId: claims.gid,
       mode: claims.mode,
-      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest), avatarRecord: claims.av || null, owned: claims.own || [], ...(claims.uid ? { userId: claims.uid } : {}) },
+      player: { id: claims.sub, name: claims.name, guest: Boolean(claims.guest), avatarRecord: claims.av || null, owned: claims.own || [], rentals: claims.rent || {}, ...(claims.uid ? { userId: claims.uid } : {}) },
       expiresAt: new Date(claims.exp * 1000).toISOString()
     });
   } catch (err) {
@@ -4508,7 +4508,7 @@ app.post('/api/games/:id/player-session', async (req, res) => {
     const joinFriend = !guest && typeof req.body?.joinFriend === 'string' && /^[0-9a-f-]{36}$/i.test(req.body.joinFriend)
       ? await pseudonymousPlayerId('user', req.body.joinFriend, game.id, mode) : null;
     const session = jwt.sign(
-      { gid: game.id, name: player.name, guest, mode, own: player.owned, ...(player.avatarRecord ? { av: player.avatarRecord } : {}),
+      { gid: game.id, name: player.name, guest, mode, own: player.owned, ...(player.rentals && Object.keys(player.rentals).length ? { rent: player.rentals } : {}), ...(player.avatarRecord ? { av: player.avatarRecord } : {}),
         ...(!guest && await isFirstParty(game) ? { uid: String(user.id) } : {}) },
       await getSessionSigningSecret(),
       { algorithm: 'HS256', subject: playerId, issuer: 'gametok', audience: `game:${game.id}`, expiresIn: PLAYER_SESSION_TTL_SECONDS }

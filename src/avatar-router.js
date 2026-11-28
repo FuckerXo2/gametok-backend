@@ -78,6 +78,19 @@ export const GAME_ITEMS = {
 for (const [game, items] of Object.entries(GAME_ITEMS))
   for (const [id, p] of Object.entries(items)) PRICES[`${game}:${id}`] = p;
 
+// Hero RENTALS (2026-11-28): heroes are rented for a while, not bought (the user and Amy's call). '<game>:<hero>~<days>d'
+// is sold like any game item (so the app's buy popup needs no update), and renting one gives '<game>:<hero>' (and its
+// aliases: every game) until it runs out. Renting again adds the time on. Priced by the hero's tier, kept high on
+// purpose (the first, cheaper try was turned down). Heroes bought for good before this stay owned.
+export const RENT_DAYS = [1, 7, 30];
+export const RENT_PRICES = { 500: [150, 600, 1500], 800: [250, 900, 2200], 1200: [350, 1300, 3200] };
+const RENT_ID = /^([a-z0-9-]+):([a-z0-9]+)~(\d+)d$/;
+for (const game of Object.keys(GAME_ITEMS))
+  for (const [hero, p] of Object.entries(CHARACTER_PRICES))
+    RENT_DAYS.forEach((d, i) => { PRICES[`${game}:${hero}~${d}d`] = (RENT_PRICES[p] || RENT_PRICES[800])[i]; });
+// the rentals still running: { '<game>:<hero>': expiry ms }
+const liveRentals = (r, now = Date.now()) => Object.fromEntries(Object.entries(r || {}).filter(([, t]) => Number(t) > now).map(([k, t]) => [k, Number(t)]));
+
 // Sales: a real price cut for a while. The crossed-out "was" price is the item's normal price (above), and every
 // sale ends: a made-up "was" price, or a sale that never ends, is deceptive pricing (FTC / EU rules, Apple review).
 // Add one here when asked, e.g. { item: 'no-rules-fc:bulk', off: 30, until: '2026-11-02T00:00:00Z' } (optional from).
@@ -101,11 +114,16 @@ export const gameSales = (gameId) => Object.fromEntries(Object.entries(activeSal
 
 // What a player owns in one game (ids without the game prefix), and their TokBux: for the player session.
 export async function gameEntitlements(userId, gameId) {
-  const r = await pool.query('SELECT owned, tokbux FROM avatar_profiles WHERE user_id = $1', [userId]);
+  const r = await pool.query('SELECT owned, tokbux, rentals FROM avatar_profiles WHERE user_id = $1', [userId]);
   const p = r.rows[0] || { owned: [], tokbux: WELCOME_TOKBUX };
   const all = [...new Set(p.owned.flatMap((id) => [id, ...(ALIAS[id] || [])]))];   // (a character bought in the GameTok store)
+  // rented heroes count as owned while the rental runs (in every game: aliases); rentals = when each runs out
+  const rentals = {};
+  for (const [id, t] of Object.entries(liveRentals(p.rentals)))
+    for (const a of [id, ...(ALIAS[id] || [])]) if (a.startsWith(`${gameId}:`) && !all.includes(a)) rentals[a.slice(gameId.length + 1)] = Math.max(t, rentals[a.slice(gameId.length + 1)] || 0);
   // clothes: the Pixil avatar items they own (sk-…), so a game's wardrobe can offer them (No Rules FC, 2026-11-27)
-  return { owned: all.filter((id) => id.startsWith(`${gameId}:`)).map((id) => id.slice(gameId.length + 1)), clothes: all.filter((id) => id.startsWith('sk-')), tokbux: p.tokbux, sales: gameSales(gameId) };
+  return { owned: [...all.filter((id) => id.startsWith(`${gameId}:`)).map((id) => id.slice(gameId.length + 1)), ...Object.keys(rentals)], rentals,
+    clothes: all.filter((id) => id.startsWith('sk-')), tokbux: p.tokbux, sales: gameSales(gameId) };
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -230,6 +248,8 @@ export async function runAvatarMigration() {
     ALTER TABLE avatar_profiles ALTER COLUMN tokbux SET DEFAULT ${WELCOME_TOKBUX};
     -- saved looks (Me > Customize > Avatars): [{ id, name, look }], newest first
     ALTER TABLE avatar_profiles ADD COLUMN IF NOT EXISTS looks JSONB NOT NULL DEFAULT '[]';
+    -- hero rentals: { '<game>:<hero>': expiry ms } (see RENT_DAYS)
+    ALTER TABLE avatar_profiles ADD COLUMN IF NOT EXISTS rentals JSONB NOT NULL DEFAULT '{}';
   `);
   await renameHeroes();
   console.log('✅ Avatar profiles + TokBux ready');
@@ -275,7 +295,7 @@ async function profile(client, userId, lock = false) {
   // the starter outfits, a gift to every new player (2026-11-25): guys start in the bomber set, girls in the puffer set,
   // and both are theirs so switching body in Me keeps a full outfit. Everyone else buys them in the Shop as before.
   if (fresh.rowCount) await client.query('UPDATE avatar_profiles SET owned = owned || $2::text[] WHERE user_id = $1', [userId, STARTER_GIFT]);
-  const r = await client.query(`SELECT record, owned, tokbux FROM avatar_profiles WHERE user_id = $1${lock ? ' FOR UPDATE' : ''}`, [userId]);
+  const r = await client.query(`SELECT record, owned, tokbux, rentals FROM avatar_profiles WHERE user_id = $1${lock ? ' FOR UPDATE' : ''}`, [userId]);
   const p = r.rows[0];
   const kept = p.record ? wornItems(cleanAvatar(p.record)).filter((id) => ONCE_FREE.has(id) && !p.owned.includes(id)) : [];
   if (kept.length) {
@@ -287,7 +307,7 @@ async function profile(client, userId, lock = false) {
 
 // prices: what each item costs now (sale prices included, so older apps charge and show the right amount); sales:
 // what's on sale, for the crossed-out price
-const view = (p) => { const sales = activeSales(); return { avatar: p.record ? cleanAvatar(p.record) : null, owned: p.owned, tokbux: p.tokbux, prices: pricesNow(sales), sales }; };
+const view = (p) => { const sales = activeSales(); return { avatar: p.record ? cleanAvatar(p.record) : null, owned: p.owned, tokbux: p.tokbux, rentals: liveRentals(p.rentals), prices: pricesNow(sales), sales }; };
 
 const router = express.Router();
 router.use(express.json({ limit: '400kb' }));   // (a headshot PNG; everything else is tiny)
@@ -391,6 +411,22 @@ router.post('/buy', async (req, res) => {
     await client.query('BEGIN');
     const p = await profile(client, user.id, true);
     const isConsumable = itemId === 'knockout:revive';
+    const rent = RENT_ID.exec(itemId);
+    if (rent) {                                  // a hero rental: time on '<game>:<hero>', added to what's left
+      const base = `${rent[1]}:${rent[2]}`;
+      if (owns(p.owned, base)) { await client.query('ROLLBACK'); return res.json(view(p)); }   // theirs for good already
+      if (p.tokbux < price) {
+        await client.query('ROLLBACK');
+        return res.status(402).json({ error: `You need ${price - p.tokbux} more TokBux`, code: 'NOT_ENOUGH_TOKBUX', tokbux: p.tokbux, price });
+      }
+      const rentals = liveRentals(p.rentals), now = Date.now();
+      rentals[base] = Math.max(now, rentals[base] || 0) + Number(rent[3]) * 864e5;
+      const r = await client.query('UPDATE avatar_profiles SET tokbux = tokbux - $2, rentals = $3, updated_at = NOW() WHERE user_id = $1 RETURNING record, owned, tokbux, rentals',
+        [user.id, price, JSON.stringify(rentals)]);
+      await client.query('INSERT INTO tokbux_ledger (user_id, amount, reason, item_id) VALUES ($1, $2, $3, $4)', [user.id, -price, 'hero_rental', itemId]);
+      await client.query('COMMIT');
+      return res.json(view(r.rows[0]));
+    }
     if (!isConsumable && (price === 0 || owns(p.owned, itemId))) { await client.query('ROLLBACK'); return res.json(view(p)); }
     if (p.tokbux < price) {
       await client.query('ROLLBACK');
